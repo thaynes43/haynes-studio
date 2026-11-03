@@ -60,6 +60,7 @@ def main():
     ap.add_argument('--pad-s', type=float, default=0.4)
     a = ap.parse_args(); prompt = a.prompt or Path(a.prompt_file).read_text().strip()
     job_dir = Path(a.job); clips = job_dir / 'clips'; clip = clips / f'{a.name}.mp4'
+    clips.mkdir(parents=True, exist_ok=True)  # before the long render, so its output always has a home
     if clip.exists():
         raise FileExistsError(clip)
     with wave.open(a.audio) as w:

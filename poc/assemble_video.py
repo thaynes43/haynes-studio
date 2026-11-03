@@ -66,7 +66,8 @@ def main():
     total = shots[-1]['end_s']
     ffmpeg(['-i', str(picture), '-i', a.soundtrack, '-map', '0:v:0', '-map', '1:a:0', '-c:v', 'copy', '-c:a', 'aac',
             '-b:a', '192k', '-t', f'{total:.4f}', '-movflags', '+faststart', str(out)])
-    (out.with_suffix('.json')).write_text(json.dumps({'method': a.method, 'stretch': a.stretch, 'size': [W, H], 'shots': report}, indent=2) + '\n')
+    with out.with_suffix('.json').open('x') as f:  # create-only, like the video
+        f.write(json.dumps({'method': a.method, 'stretch': a.stretch, 'size': [W, H], 'shots': report}, indent=2) + '\n')
     print(out)
 
 
