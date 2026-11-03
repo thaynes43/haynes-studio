@@ -409,3 +409,6 @@ would refuse a reuse anyway).
 - A one-line script change cost a full 9-minute re-render, because shot timing
   follows speech length. Tooling should re-render only the shots whose timing or
   content changed, and splice the rest.
+- **Gate 3 for r4: passed.** Tom (2026-11-03): "That's great. Now we know the
+  process and can build the backlog." Revision 4
+  (`032f1bb230794aaf84dce9001181a7d7`) is the accepted cut of The Winter Menu.
