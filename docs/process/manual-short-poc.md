@@ -298,8 +298,10 @@ python3 deliver.py ../titles/<slug>/manifest.json --out edit
 ```
 
 It refuses unless both checks passed, checks free space, copies every asset
-create-only (a file already there with the same SHA256 is skipped, so a delivery that
-failed partway can simply be rerun; a different file at that path stops it) to `/workspace/output/productions/<job>/` on PVC `ai/wan-video` (SHA256
+create-only (each file is written to a temp name, hash-checked, then hard-linked into
+place, so an interrupted copy leaves nothing behind; a file already there with the same
+SHA256 is skipped, so a delivery that failed partway can simply be rerun; a different
+file at that path stops it) to `/workspace/output/productions/<job>/` on PVC `ai/wan-video` (SHA256
 verified per file), validates the ledger fields the Wan API depends on, hard-links the
 ledger into `/workspace/jobs/`, reads it back through the API in the pod, and writes
 `$JOB/production.json`. About 5 s. **A malformed ledger would crash the shared Wan API

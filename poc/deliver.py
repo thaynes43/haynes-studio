@@ -6,9 +6,10 @@ Generalized from haynes-ops scripts/wan-video/preserve_doll_short.py (OP345).
 
 1. Refuses unless validation and the transcript check passed.
 2. Copies every asset create-only to /workspace/output/productions/<job>/ on PVC
-   ai/wan-video (through `kubectl exec` into the API container), verifying SHA256. A
-   file already there with the same hash is skipped, so a partial delivery can be
-   rerun; a different file at the same path stops it.
+   ai/wan-video (through `kubectl exec` into the API container): each file streams
+   into a temp file, is hash-checked, then hard-linked into place, so an interrupted
+   copy leaves nothing at the final path. A file already there with the same hash is
+   skipped, so a partial delivery can be rerun; a different file stops it.
 3. Builds the ledger, validates it locally (the API reads every ledger at startup with
    no error handling, so a bad one would crash the shared service), and hard-links it
    into /workspace/jobs/<id>.json.
@@ -18,18 +19,25 @@ import json, re, subprocess, sys, time, uuid
 from studio import load_manifest, sha
 
 REMOTE = ['kubectl', 'exec', '-i', '-n', 'ai', 'deploy/wan-video', '-c', 'api', '--', 'python3', '-c']
-WRITE = '''import pathlib,sys,hashlib,json
+WRITE = '''import pathlib,sys,hashlib,json,os,uuid
 p=pathlib.Path(sys.argv[1]);p.parent.mkdir(parents=True,exist_ok=True);h=hashlib.sha256()
 if p.exists():
  # Resume after a partial delivery: identical bytes are fine, anything else is refused.
  if hashlib.sha256(p.read_bytes()).hexdigest()!=sys.argv[2]:raise FileExistsError('Different file already at '+str(p))
  sys.stdin.buffer.read();print(json.dumps({'path':str(p),'bytes':p.stat().st_size,'sha256':sys.argv[2],'existing':True}));sys.exit(0)
-with p.open('xb') as f:
- while True:
-  b=sys.stdin.buffer.read(1048576)
-  if not b:break
-  f.write(b);h.update(b)
-if h.hexdigest()!=sys.argv[2]:p.unlink();raise RuntimeError('Checksum mismatch')
+# Stream into a temp file, verify, then hard-link into place (create-only), so an
+# interrupted copy never leaves a truncated file at the final path.
+temp=p.parent/('.'+p.name+'.part-'+uuid.uuid4().hex)
+try:
+ with temp.open('xb') as f:
+  while True:
+   b=sys.stdin.buffer.read(1048576)
+   if not b:break
+   f.write(b);h.update(b)
+ if h.hexdigest()!=sys.argv[2]:raise RuntimeError('Checksum mismatch')
+ os.link(temp,p)
+finally:
+ temp.unlink(missing_ok=True)
 print(json.dumps({'path':str(p),'bytes':p.stat().st_size,'sha256':h.hexdigest()}))
 '''
 PUBLISH = '''import pathlib,sys,json,uuid,os

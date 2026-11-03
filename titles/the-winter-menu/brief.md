@@ -77,5 +77,6 @@ the measured voice durations (stage 3), not from fixed 5 s slots. Line 1 may nee
    green light ("You have a green light this exercise is more around documenting what
    tooling we need"), the run goes on to stage 5 without waiting. He sees these images
    in the finished cut at gate 3, and any of them can be swapped there.
-3. Finished cut: revision 1 sent to Tom on 2026-11-03 (private link and file). Verdict
-   pending.
+3. Finished cut: revision 1 **changes needed** (Tom, 2026-11-03): the fire must move,
+   the dolls must bounce to their lines, and the ending must land (D protests, the group
+   turns on her, offscreen cannibalism implied). See the run log. Revision 2 follows.

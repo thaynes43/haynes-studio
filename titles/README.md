@@ -17,4 +17,4 @@ and why.
 
 | Title | Status | Brief |
 |---|---|---|
-| The Winter Menu | revision 1 delivered privately 2026-11-03 (27.6 s); awaiting Tom's gate-3 verdict | [brief](the-winter-menu/brief.md), [run log](the-winter-menu/run-log.md) |
+| The Winter Menu | revision 1 delivered 2026-11-03; Tom: changes needed (fire motion, talk bounce, ending); revision 2 in progress | [brief](the-winter-menu/brief.md), [run log](the-winter-menu/run-log.md) |

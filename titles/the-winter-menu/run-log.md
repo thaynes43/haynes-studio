@@ -190,7 +190,20 @@ Story [369](https://work.haynesnetwork.com/work_packages/369), worktree
   `shots.json`, `validation.json`, `dialogue-transcript.json`, `production.json`.
   Media, `frame-transforms.json` and the cutouts stay on the PVC and the session
   volume; their hashes are in `production.json`.
-- **Gate 3:** sent to Tom. His verdict is recorded below when it arrives.
+- **Gate 3 verdict (Tom, 2026-11-03, after viewing revision 1): changes needed.**
+  Verbatim: "This is missing a lot of the ironic realism we need, like the fire doesn't
+  move and the dolls don't bounce to their lines they are saying as if someone was
+  playing with them. Also the ending doesn't land - they one with the butter squishy
+  must protest to eating the squishies then they need to turn on her and imply that
+  they will eat her instead - offscreen cannabalism"
+  - Fire must move. A static set reads as a still photo.
+  - The speaking doll must bounce to her line, as if a person is playing with her.
+    OP345's generic rock, which is the same for every shot and ignores speech, is not
+    enough.
+  - The ending needs D to protest about eating the squishies, the group to turn on her,
+    and a closing beat implying offscreen cannibalism.
+  - All three go into revision 2 and become editor requirements: animated set
+    elements, speech-driven puppet motion, per-doll motion cues.
 
 ## Whole-run totals (revision 1)
 
