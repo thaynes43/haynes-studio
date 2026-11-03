@@ -1,9 +1,9 @@
 """Manifest-driven doll-short editor (runbook stages 5 and 6).
 
-Generalized from haynes-ops scripts/wan-video/edit_doll_short.py (OP345): same rigid
+Generalized from haynes-ops scripts/wan-video/edit_doll_short.py (OP345): rigid
 puppet motion (whole-doll translate/rotate, poses held at 12/s inside 24 fps, no face
-animation), but the shots, their lengths, the dolls in each shot, placement and sound
-cues come from titles/<slug>/manifest.json instead of code.
+animation). Shots, lengths, dolls per shot, placement, sound cues, talk bounce, scripted
+moves and an animated campfire come from titles/<slug>/manifest.json instead of code.
 
     python poc/edit.py titles/<slug>/manifest.json audio|preview|render|validate|transcript [--out edit-2]
 
@@ -67,15 +67,36 @@ def audio(m):
             c = c[:len(mix) - n]; mix[n:n + len(c)] += c
             placed.append({'kind': 'sfx', 'cue': cue['cue'], 'file': spec['file'], 'sha256': sha(job / spec['file']),
                            'start_s': round(start, 3), 'end_s': round(start + len(c) / RATE, 3), 'rms_dbfs': spec['gain_db']})
+    for name, spec in m.get('beds', {}).items():
+        # An ambience bed (fire crackle) looped with 1 s crossfades under the whole film.
+        b = read_audio(job / spec['file'])
+        b *= 10 ** (spec['gain_db'] / 20) / max(float(np.sqrt(np.mean(b * b))), 1e-8)
+        fade = RATE; loop = b.copy()
+        while len(loop) < len(mix):
+            ramp = np.linspace(0, 1, fade)[:, None]
+            loop = np.concatenate([loop[:-fade], loop[-fade:] * (1 - ramp) + b[:fade] * ramp, b[fade:]])
+        loop = loop[:len(mix)]; loop[:RATE // 2] *= np.linspace(0, 1, RATE // 2)[:, None]
+        mix += loop
+        placed.append({'kind': 'bed', 'cue': name, 'file': spec['file'], 'sha256': sha(job / spec['file']),
+                       'start_s': 0, 'end_s': round(total, 3), 'rms_dbfs': spec['gain_db']})
     mix = mix[:round(total * RATE)]
-    assert float(np.max(np.abs(mix))) < .95
+    # Gain staging: transient cues (a crunch) can peak hot. Leave headroom here; the
+    # master stage then sets the final loudness and true peak.
+    peak = float(np.max(np.abs(mix))); headroom_db = 0.0
+    if peak > 0.5:
+        mix *= 0.5 / peak; headroom_db = 20 * math.log10(0.5 / peak)
     write_audio(edit / 'premaster.wav', mix)
     first = levels(edit / 'premaster.wav')
-    gain = min(m['master']['lufs'] - float(first['input_i']), m['master']['true_peak'] - float(first['input_tp']))
-    ffmpeg(['-i', str(edit / 'premaster.wav'), '-af', f'volume={gain}dB', '-ar', '48000', '-c:a', 'pcm_s24le',
-            str(edit / 'soundtrack.wav')])
+    # Gain to the loudness target, then a peak limiter catches transients (a crunch)
+    # instead of letting one peak hold the whole film down. 1 dB below the true-peak
+    # target leaves room for inter-sample peaks after encoding.
+    gain = m['master']['lufs'] - float(first['input_i'])
+    limit = 10 ** ((m['master']['true_peak'] - 1) / 20)
+    ffmpeg(['-i', str(edit / 'premaster.wav'), '-af',
+            f'volume={gain}dB,alimiter=limit={limit:.4f}:attack=2:release=60:level=0', '-ar', '48000',
+            '-c:a', 'pcm_s24le', str(edit / 'soundtrack.wav')])
     with (edit / 'timeline.json').open('x') as f:
-        json.dump({'total_s': total, 'shots': spans, 'audio': placed, 'master_gain_db': gain}, f, indent=2)
+        json.dump({'total_s': total, 'shots': spans, 'audio': placed, 'premaster_headroom_db': headroom_db, 'master_gain_db': gain}, f, indent=2)
     print(json.dumps({'total_s': total, 'master_gain_db': round(gain, 2)}))
 
 
@@ -111,6 +132,17 @@ def foreground_layer(m, bg):
     return layer
 
 
+PAD = 240  # off-frame margin on each side of a doll plate
+
+
+def draw(frame, p, dx, dy, angle):
+    """Composite one doll (shadow, then body) moved by (dx, dy, angle) onto frame."""
+    W, H = frame.size
+    for layer, off in ((p['shadow'], (dx + 12, dy + 6)), (p['plate'], (dx, dy))):
+        moved = layer.rotate(angle, resample=Image.Resampling.BICUBIC, center=p['pivot'], translate=off)
+        frame.alpha_composite(moved.crop((PAD, 0, PAD + W, H)))
+
+
 def place(m, shot, W, H):
     """One full-frame RGBA plate (and shadow) per doll in the shot, plus its pivot."""
     lay = m['layouts'][shot['layout']]
@@ -126,23 +158,132 @@ def place(m, shot, W, H):
         x, y = round(cx - sprite.width / 2), bottom - sprite.height
         span = np.arange(max(x, 0), min(x + sprite.width, W))
         assert bottom > edge_y(m, span).max() + 20, f'{image}: cut-off waist must sit behind the foreground prop'
-        plate = Image.new('RGBA', (W, H)); plate.alpha_composite(sprite, (max(x, 0), y) if x >= 0 else (0, y),
-                                                                  (0, 0) if x >= 0 else (-x, 0))
-        shadow = Image.new('RGBA', (W, H), (28, 24, 18, 0))
+        # The plate is wider than the frame so a doll hanging off an edge keeps her full
+        # width when a move slides her back into view; draw() crops to the frame.
+        assert x + PAD >= 0 and x + sprite.width <= W + PAD, f'{image}: more than {PAD}px off the frame'
+        plate = Image.new('RGBA', (W + 2 * PAD, H)); plate.alpha_composite(sprite, (x + PAD, y))
+        shadow = Image.new('RGBA', (W + 2 * PAD, H), (28, 24, 18, 0))
         shadow.putalpha(plate.getchannel('A').filter(ImageFilter.GaussianBlur(22)).point(lambda v: round(v * .16)))
-        plates.append({'doll': doll, 'image': image, 'plate': plate, 'shadow': shadow, 'pivot': (cx, bottom - 80),
+        plates.append({'doll': doll, 'image': image, 'plate': plate, 'shadow': shadow, 'pivot': (cx + PAD, bottom - 80),
                        'source_rgba_sha256': __import__('hashlib').sha256(sprite.tobytes()).hexdigest(),
                        'file_sha256': sha(m['_job'] / image), 'sign': 1 if k % 2 == 0 else -1,
                        'factor': 1.4 if shot['layout'] == 'single' else 0.8, 'phase': 0.37 * k})
     return plates
 
 
+POSE_HZ = 12  # stop-motion: every movement is held for two 24 fps frames
+
+
+def speech_envelope(m, shot):
+    """The line's loudness at 12 poses/s, 0..1, so the speaker bounces on her syllables."""
+    if not shot.get('line'):
+        return None
+    rec = {l['shot']: l for l in json.loads((m['_job'] / 'speech.json').read_text())['lines']}[shot['id']]
+    a = read_audio(m['_job'] / rec['file']).mean(1); hop = RATE // POSE_HZ
+    env = np.array([np.sqrt(np.mean(a[i:i + hop] ** 2)) for i in range(0, len(a), hop)])
+    return env / max(env.max(), 1e-8)
+
+
+def motion(m, shot, p, t, env):
+    """Whole-doll offset at time t: a small idle wobble, a hop-and-tilt on each syllable
+    while this doll speaks (a hand shaking the toy as it 'talks'), and scripted moves
+    such as lunging toward someone. Quantized to 12 poses/s."""
+    q = math.floor(t * POSE_HZ) / POSE_HZ
+    style = m.get('motion', {})
+    idle = style.get('idle_scale', 0.3) * (1.0 if shot['layout'] == 'single' else 0.6)
+    dx, dy, angle = trajectory(q, p['sign'], p['factor'] * idle, p['phase'])
+    dy *= idle
+    line = shot.get('line')
+    if env is not None and line and line['doll'] == p['doll']:
+        k = int(round((q - line['start']) * POSE_HZ))
+        if 0 <= k < len(env):
+            e = float(env[k]); hop = style.get('talk_hop', 34) * (1.0 if shot['layout'] == 'single' else 0.7)
+            # Each syllable lifts the doll and tips her alternately left and right.
+            dy -= hop * e
+            angle += style.get('talk_tilt', 3.2) * e * (1 if (k // 2) % 2 == 0 else -1)
+            dx += style.get('talk_shuffle', 7) * e * (1 if (k // 3) % 2 == 0 else -1)
+    for mv in shot.get('moves', []):
+        if mv['doll'] != p['doll'] or q < mv['at']:
+            continue
+        u = 1.0 if mv.get('dur', 0) == 0 else min(1.0, (q - mv['at']) / mv['dur'])
+        u = math.ceil(u * 3) / 3  # a hand jerks the toy over in three held steps
+        dx += mv.get('dx', 0) * u; dy += mv.get('dy', 0) * u; angle += mv.get('angle', 0) * u
+    return dx, dy, angle
+
+
+class Fire:
+    """Stop-motion flicker for a flame in the set: at each held pose the flame region is
+    re-drawn as a randomly stretched, swayed and brightened copy of itself. Render then
+    lets the warm firelight on the whole frame (set, dolls, log) breathe with it."""
+
+    def __init__(self, m, bg):
+        spec = m['set']['fire']; self.spec = spec
+        x0, y0, x1, y1 = spec['box']; self.box = (x0, y0, x1, y1)
+        a = np.asarray(bg).astype(np.float32); self.patch = a[y0:y1, x0:x1].copy()
+        r, g, b = (self.patch[..., i] for i in range(3))
+        hot = ((r > 170) & (g > 90) & (r - b > 70)).astype(np.float32)
+        mask = Image.fromarray((hot * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(9)).filter(ImageFilter.GaussianBlur(6))
+        self.mask = np.asarray(mask).astype(np.float32)[..., None] / 255
+        self.rng = np.random.default_rng(spec.get('seed', 7)); self.cache = {}
+        H, W = a.shape[:2]; cx, cy = spec['glow_center']
+        yy, xx = np.mgrid[0:H, 0:W]
+        self.falloff = np.exp(-(((xx - cx) ** 2 + (yy - cy) ** 2) / (2 * spec.get('glow_radius', 650) ** 2)))[..., None].astype(np.float32)
+
+    def pose(self, k):
+        if k not in self.cache:
+            r = self.rng
+            self.cache[k] = {'stretch': float(r.uniform(0.9, 1.18)), 'sway': float(r.uniform(-9, 9)),
+                             'gain': float(r.uniform(0.75, 1.3)), 'glow': float(r.uniform(-1, 1)), 'phase': float(r.uniform(0, 6.3))}
+        return self.cache[k]
+
+    def apply(self, frame, t):
+        """Draw the flame for time t onto an RGB PIL frame (render adds the firelight)."""
+        k = int(math.floor(t * POSE_HZ)); p = self.pose(k)
+        x0, y0, x1, y1 = self.box; h, w = self.patch.shape[:2]
+        # Stretch upward from the flame's base, and sway rows more the higher they are.
+        rows = np.arange(h); base = h - 1
+        src_rows = np.clip(base - (base - rows) / p['stretch'], 0, base).astype(int)
+        height = (base - rows) / base
+        shift = (p['sway'] * height ** 1.5 * np.sin(rows / 11 + p['phase'])).astype(int)
+        cols = (np.arange(w)[None, :] - shift[:, None]).clip(0, w - 1)
+        warped = self.patch[src_rows[:, None], cols]; wmask = self.mask[src_rows[:, None], cols]
+        a = np.asarray(frame).astype(np.float32)
+        region = a[y0:y1, x0:x1]
+        flame = np.clip(warped * p['gain'], 0, 255)
+        # Screen-blend the moving flame over the static one so it flares and licks without ghosts.
+        region[:] = region + (255 - region) * (flame / 255) * wmask * self.spec.get('strength', 0.85) * (0.5 + 0.5 * p['gain'])
+        return Image.fromarray(a.clip(0, 255).astype(np.uint8))
+
+
+def mux(m, edit, total):
+    ffmpeg(['-i', str(edit / 'picture.mp4'), '-i', str(edit / 'soundtrack.wav'), '-map', '0:v:0', '-map', '1:a:0',
+            '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-t', f'{total:.4f}', '-movflags', '+faststart',
+            str(edit / 'final.mp4')])
+
+
+def reuse_picture(m, source):
+    """Audio-only change: reuse another attempt's picture (same shot timing) and re-mux."""
+    import shutil
+    edit = m['_out']; src = m['_job'] / source
+    ours = json.loads((edit / 'timeline.json').read_text())['shots']
+    theirs = json.loads((src / 'timeline.json').read_text())['shots']
+    assert ours == theirs, 'shot timing differs; a full render is needed'
+    for n in ('picture.mp4', 'shots.json', 'frame-transforms.json', 'contact-sheet.jpg'):
+        with (src / n).open('rb') as a, (edit / n).open('xb') as b:
+            shutil.copyfileobj(a, b)
+    (edit / 'encode.log').open('x').write(f'picture reused from {source}\n')
+    mux(m, edit, ours[-1]['end_s']); print(json.dumps({'picture_from': source, 'total_s': ours[-1]['end_s']}))
+
+
 def render(m):
     job, edit = m['_job'], m['_out']
+    if m.get('_picture_from'):
+        return reuse_picture(m, m['_picture_from'])
     W, H, FPS = m['frame']['width'], m['frame']['height'], m['frame']['fps']
     spans = json.loads((edit / 'timeline.json').read_text())['shots']
     bg = ImageOps.fit(Image.open(job / m['set']['image']).convert('RGB'), (W, H), method=Image.Resampling.LANCZOS)
     foreground = foreground_layer(m, bg)
+    fire = Fire(m, bg) if 'fire' in m['set'] else None
     cmd = [ffmpeg_exe(), '-hide_banner', '-nostdin', '-n', '-threads', '2', '-filter_threads', '2', '-f', 'rawvideo',
            '-pix_fmt', 'rgb24', '-s', f'{W}x{H}', '-r', str(FPS), '-i', 'pipe:0', '-an', '-c:v', 'libx264',
            '-threads', '2', '-preset', 'fast', '-crf', '18', '-pix_fmt', 'yuv420p', str(edit / 'picture.mp4')]
@@ -151,19 +292,25 @@ def render(m):
         proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=log, stderr=log)
         try:
             for shot, span in zip(m['shots'], spans):
-                plates = place(m, shot, W, H)
+                plates = place(m, shot, W, H); env = speech_envelope(m, shot)
                 for n in range(span['frames']):
-                    t = n / FPS; frame = bg.convert('RGBA'); moves = []
+                    t = n / FPS
+                    base = fire.apply(bg, span['start_s'] + t) if fire else bg  # film time: no reset at cuts
+                    frame = base.convert('RGBA'); moves = []
                     for p in plates:
-                        dx, dy, angle = trajectory(t, p['sign'], p['factor'], p['phase'])
-                        frame.alpha_composite(p['shadow'].rotate(angle, resample=Image.Resampling.BICUBIC,
-                                                                 center=p['pivot'], translate=(dx + 12, dy + 6)))
-                        frame.alpha_composite(p['plate'].rotate(angle, resample=Image.Resampling.BICUBIC,
-                                                                center=p['pivot'], translate=(dx, dy)))
+                        dx, dy, angle = motion(m, shot, p, t, env)
+                        draw(frame, p, dx, dy, angle)
                         moves.append({'doll': p['doll'], 'source_rgba_sha256': p['source_rgba_sha256'],
                                       'dx': round(dx, 2), 'dy': round(dy, 2), 'angle': round(angle, 3)})
                     frame.alpha_composite(foreground)
-                    frame = frame.convert('RGB'); proc.stdin.write(frame.tobytes())
+                    frame = frame.convert('RGB')
+                    if fire:  # firelight also falls on the dolls and the log, not just the set
+                        k = int(math.floor((span['start_s'] + t) * POSE_HZ)); g = fire.pose(k)['glow']
+                        a = np.asarray(frame).astype(np.float32)
+                        warm = 1 + fire.spec.get('doll_glow', 0.035) * g * fire.falloff
+                        a *= np.concatenate([warm, 1 + (warm - 1) * 0.55, 1 + (warm - 1) * 0.1], axis=2)
+                        frame = Image.fromarray(a.clip(0, 255).astype(np.uint8))
+                    proc.stdin.write(frame.tobytes())
                     frames.append({'frame': n_total, 'shot': shot['id'], 'dolls': moves, 'facial_deformation': False})
                     if n in (12, span['frames'] // 2, span['frames'] - 12):
                         contact.append(frame.resize((270, 480)))
@@ -186,22 +333,25 @@ def render(m):
     with (edit / 'frame-transforms.json').open('x') as f:
         json.dump(frames, f)
     total = spans[-1]['end_s']
-    ffmpeg(['-i', str(edit / 'picture.mp4'), '-i', str(edit / 'soundtrack.wav'), '-map', '0:v:0', '-map', '1:a:0',
-            '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-t', f'{total:.4f}', '-movflags', '+faststart',
-            str(edit / 'final.mp4')])
+    mux(m, edit, total)
     print(json.dumps({'frames': n_total, 'total_s': total}))
 
 
 def preview(m):
-    """One composited frame per shot (mid-shot, no motion), for fast layout iteration."""
+    """One composited still per shot at mid-shot (motion and fire applied), for fast layout iteration."""
     edit = m['_out']; W, H = m['frame']['width'], m['frame']['height']
     bg = ImageOps.fit(Image.open(m['_job'] / m['set']['image']).convert('RGB'), (W, H), method=Image.Resampling.LANCZOS)
-    foreground = foreground_layer(m, bg)
+    foreground = foreground_layer(m, bg); fire = Fire(m, bg) if 'fire' in m['set'] else None
+    spans = json.loads((edit / 'timeline.json').read_text())['shots'] if (edit / 'timeline.json').exists() else None
     tiles = []
-    for shot in m['shots']:
-        frame = bg.convert('RGBA')
+    for i, shot in enumerate(m['shots']):
+        t = (spans[i]['end_s'] - spans[i]['start_s']) / 2 if spans else 1.0
+        start = spans[i]['start_s'] if spans else 0.0
+        env = speech_envelope(m, shot) if spans else None
+        frame = (fire.apply(bg, start + t) if fire else bg).convert('RGBA')
         for p in place(m, shot, W, H):
-            frame.alpha_composite(p['shadow']); frame.alpha_composite(p['plate'])
+            dx, dy, angle = motion(m, shot, p, t, env)
+            draw(frame, p, dx, dy, angle)
         frame.alpha_composite(foreground); tiles.append(frame.convert('RGB').resize((360, 640)))
     sheet = Image.new('RGB', (360 * len(tiles), 640))
     for i, t in enumerate(tiles):
@@ -232,6 +382,7 @@ def validate(m):
     a = read_audio(p); lv = levels(p)
     clipped = int(np.count_nonzero(np.abs(a) >= 1))
     checks['true_peak'] = float(lv['input_tp']) <= -2.5
+    checks['loudness'] = abs(float(lv['input_i']) - m['master']['lufs']) <= 1.5
     checks['no_clipping'] = clipped == 0
     report = {'checks': checks, 'passed': all(checks.values()), 'decoded_frames': count, 'expected_frames': expected_frames,
               'duration_s': duration, 'planned_s': total, 'width': width, 'height': height, 'fps': FPS,
@@ -268,7 +419,9 @@ def transcript(m):
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(); ap.add_argument('manifest'); ap.add_argument('stage', choices=list(GUARDS))
     ap.add_argument('--out', default='edit', help='output folder inside the job directory (one per edit attempt)')
+    ap.add_argument('--picture-from', help='render: reuse the picture from another --out (audio-only change)')
     a = ap.parse_args(); m = load_manifest(a.manifest); m['_out'] = m['_job'] / a.out; m['_out'].mkdir(exist_ok=True)
+    m['_picture_from'] = a.picture_from
     if any((m['_out'] / n).exists() for n in GUARDS[a.stage]):
         raise FileExistsError(f'{a.stage} outputs already exist in {a.out}; use a new --out')
     {'audio': audio, 'render': render, 'validate': validate, 'transcript': transcript, 'preview': preview}[a.stage](m)

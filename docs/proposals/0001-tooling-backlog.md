@@ -21,6 +21,12 @@ of cost:
 4. **Gluing:** prompts copied between files, graphs converted by hand, waiting on the
    shared GPU queue, records typed up afterwards.
 
+Tom's verdict on revision 1 added a fifth item, **performance**: the fire must move,
+the dolls must bounce to their lines as if someone is playing with them, and the ending
+has to land. Revision 2 added talk bounce driven by the voice envelope, scripted
+lunges, an animated campfire with firelight, loudness-targeted mastering with a
+limiter, and re-muxing audio-only fixes. The render takes about 6.5 minutes for 34 s.
+
 Steps that are already one command and should stay that way: voices, the mix, the
 render, the checks, the transcript and the private delivery.
 
@@ -46,9 +52,13 @@ from completed stages, and every attempt is a numbered revision.
 - Package `poc/` as a tested Python module with a CLI. Unit tests cover timeline maths,
   occlusion checks, ledger validation, and manifest schema validation with clear
   errors.
-- Stages speech, cue, audio, render, validate, transcript, deliver, each idempotent and
-  create-only, with a run record (timings, hashes) written automatically instead of by
-  hand.
+- Stages speech, cue, audio, render, validate, transcript, deliver, each **atomic**
+  (no partial output on failure), idempotent and create-only, with a run record
+  (timings, hashes) written automatically instead of by hand. Audio-only changes never
+  re-render the picture.
+- Performance in the manifest: talk bounce, scripted moves, idle wobble and animated
+  set elements (fire), as revision 2 does.
+- Checks include loudness against target; transcript tolerances are phrase-level.
 - **Demo:** rebuild The Winter Menu from its manifest as revision 2 in one command,
   and change a line to show only the affected stages rerun.
 
@@ -87,6 +97,8 @@ revisions. This is the product he described.
 
 - Shot list per title. Drag dolls on a live 9:16 preview of each shot, with the set's
   occlusion shown. Choose the expression per shot.
+- Performance controls per shot: bounce strength, lunges and recoils on a timeline,
+  previewed in motion (a few seconds of low-resolution video), not only as stills.
 - Lines and voices with **playback**, and cue audition, closing the "nobody listened"
   gap.
 - Render a revision, watch it, keep notes per revision, compare two side by side.

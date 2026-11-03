@@ -1,0 +1,182 @@
+{
+  "total_s": 34.2917,
+  "shots": [
+    {
+      "shot": 1,
+      "start_s": 0.0,
+      "end_s": 6.375,
+      "frames": 153
+    },
+    {
+      "shot": 2,
+      "start_s": 6.375,
+      "end_s": 10.2917,
+      "frames": 94
+    },
+    {
+      "shot": 3,
+      "start_s": 10.2917,
+      "end_s": 16.375,
+      "frames": 146
+    },
+    {
+      "shot": 4,
+      "start_s": 16.375,
+      "end_s": 19.875,
+      "frames": 84
+    },
+    {
+      "shot": 5,
+      "start_s": 19.875,
+      "end_s": 23.3333,
+      "frames": 83
+    },
+    {
+      "shot": 6,
+      "start_s": 23.3333,
+      "end_s": 25.9583,
+      "frames": 63
+    },
+    {
+      "shot": 7,
+      "start_s": 25.9583,
+      "end_s": 29.7917,
+      "frames": 92
+    },
+    {
+      "shot": 8,
+      "start_s": 29.7917,
+      "end_s": 34.2917,
+      "frames": 108
+    }
+  ],
+  "audio": [
+    {
+      "shot": 1,
+      "doll": "a",
+      "voice": "bf_emma",
+      "text": "Day three hundred forty. I've mastered fire, shelter, and emotionally supportive moss.",
+      "file": "voices/line-1.wav",
+      "duration_s": 5.163,
+      "sha256": "b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78",
+      "heard": "Day 340. I've mastered fire, shelter, and emotionally supportive MOS.",
+      "heard_matches": false,
+      "kind": "line",
+      "start_s": 0.5,
+      "end_s": 5.663
+    },
+    {
+      "shot": 2,
+      "doll": "b",
+      "voice": "af_heart",
+      "text": "Winter's coming. We need to discuss the menu.",
+      "file": "voices/line-2.wav",
+      "duration_s": 2.688,
+      "sha256": "7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50",
+      "heard": "Winter's coming, we need to discuss the menu.",
+      "heard_matches": true,
+      "kind": "line",
+      "start_s": 6.875,
+      "end_s": 9.563
+    },
+    {
+      "shot": 3,
+      "doll": "c",
+      "voice": "af_nicole",
+      "text": "I nominate whoever brought orange slices. They know what they did.",
+      "file": "voices/line-3.wav",
+      "duration_s": 4.864,
+      "sha256": "6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36",
+      "heard": "I nominate whoever brought orange slices. They know what they did.",
+      "heard_matches": true,
+      "kind": "line",
+      "start_s": 10.792,
+      "end_s": 15.656
+    },
+    {
+      "shot": 4,
+      "doll": "a",
+      "voice": "bf_emma",
+      "text": "Or we could just eat the crunchy butter squishies.",
+      "file": "voices/line-4.wav",
+      "duration_s": 2.475,
+      "sha256": "0063d7e0e0d8a551fece4373ba1252d94339c00e10155bd08804b44c388773fd",
+      "heard": "Or we could just eat the crunchy butter squishies.",
+      "heard_matches": true,
+      "kind": "line",
+      "start_s": 16.875,
+      "end_s": 19.35
+    },
+    {
+      "shot": 5,
+      "doll": "d",
+      "voice": "af_bella",
+      "text": "Absolutely not. These are limited edition.",
+      "file": "voices/line-5.wav",
+      "duration_s": 2.432,
+      "sha256": "f89e05a2c53e9be7edd35f3b31862da311ce2730cb330421cb93e25b20a3ab59",
+      "heard": "Absolutely not. These are limited edition.",
+      "heard_matches": true,
+      "kind": "line",
+      "start_s": 20.275,
+      "end_s": 22.707
+    },
+    {
+      "shot": 7,
+      "doll": "b",
+      "voice": "af_heart",
+      "text": "Motion carried. Somebody find her a bib.",
+      "file": "voices/line-7.wav",
+      "duration_s": 2.496,
+      "sha256": "58f6812299d32034503825686e4aa476fbbee3881f82ceed3dc1680449b1ec9e",
+      "heard": "Motion carried, somebody find her a bib.",
+      "heard_matches": true,
+      "kind": "line",
+      "start_s": 26.458,
+      "end_s": 28.954
+    },
+    {
+      "shot": 8,
+      "doll": "b",
+      "voice": "af_heart",
+      "text": "Needs salt.",
+      "file": "voices/line-8.wav",
+      "duration_s": 0.981,
+      "sha256": "4e12138ee373ac45b6fce8f9049680d5494892fcc13a511bc77dbf37afbb5d31",
+      "heard": "Need salt.",
+      "heard_matches": false,
+      "kind": "line",
+      "start_s": 31.692,
+      "end_s": 32.673
+    },
+    {
+      "kind": "sfx",
+      "cue": "crow",
+      "file": "sfx/crow-s501.wav",
+      "sha256": "78c5f69ff31758d2d78b0c5b249633039c7ce51ae850a64971591b5da79bd4b8",
+      "start_s": 24.333,
+      "end_s": 25.483,
+      "rms_dbfs": -26
+    },
+    {
+      "kind": "sfx",
+      "cue": "crunch",
+      "file": "sfx/crunch-s601.wav",
+      "sha256": "5515c7006ce09a1c5d0c21019ca11db7a445f9ce296b94f5c371aba8b7d6925f",
+      "start_s": 30.042,
+      "end_s": 32.792,
+      "rms_dbfs": -24
+    },
+    {
+      "kind": "bed",
+      "cue": "fire",
+      "file": "sfx/fire-s701.wav",
+      "sha256": "0b33af45929b8cfb3859bf1511a2738eef22944d431ee44257c33a1de42da72a",
+      "start_s": 0,
+      "end_s": 34.292,
+      "rms_dbfs": -40
+    }
+  ],
+  "premaster_headroom_db": -12.264197695671047,
+  "master_gain_db": 11.120000000000001
+}
