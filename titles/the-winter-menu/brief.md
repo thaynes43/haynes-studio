@@ -4,8 +4,8 @@ Working title. Pilot for the manual PoC
 ([Epic 366](https://work.haynesnetwork.com/work_packages/366)).
 
 Status: script, team name, cast looks and set approved by Tom on 2026-11-03 (gate 1).
-Voices still to pick. Cast and set images in progress
-([story 368](https://work.haynesnetwork.com/work_packages/368)).
+Revision 1 delivered privately on 2026-11-03
+([story 369](https://work.haynesnetwork.com/work_packages/369)); see the [run log](run-log.md).
 
 ## Premise
 
@@ -33,10 +33,10 @@ molded plastic, visible joints, as in OP345. Looks approved by Tom on 2026-11-03
 
 | Doll | Role | Plastic and hair | Eyes and pose | Prop | Expressions | Voice |
 |---|---|---|---|---|---|---|
-| A | captain, proud survivalist | pale peach; huge ash-blonde teased hair gone feral, crown of twigs | green, three-quarter facing right | tidy bundle of moss, held like a trophy | proud (chin up, closed smug smile); staring | TBD |
-| B | deadpan chair of the meeting | deep brown; towering black afro puff with pine needles in it | amber, half-lidded, facing left | none, hands folded | deadpan only, all film | TBD |
-| C | grudge-holder | warm tan; long auburn high ponytail, frizzed, a leaf caught in it | hazel, narrowed, facing right, arms crossed | none | suspicious (one brow up, lips pursed); staring | TBD |
-| D | the cheerful one | rosy pink-toned; platinum pigtails oddly neat, pink bow | big blue, facing left | the yellow butter squishy with tiny pink and blue foam stars (callback to OP345) | cheerful (big open grin); shocked (O-mouth, brows high) | TBD |
+| A | captain, proud survivalist | pale peach; huge ash-blonde teased hair gone feral, crown of twigs | green, three-quarter facing right | tidy bundle of moss, held like a trophy | proud (chin up, closed smug smile); staring | `bf_emma` |
+| B | deadpan chair of the meeting | deep brown; towering black afro puff with pine needles in it | amber, half-lidded, facing left | none, hands folded | deadpan only, all film | `af_heart` |
+| C | grudge-holder | warm tan; long auburn high ponytail, frizzed, a leaf caught in it | hazel, narrowed, facing right, arms crossed | none | suspicious (one brow up, lips pursed); staring | `af_nicole` |
+| D | the cheerful one | rosy pink-toned; platinum pigtails oddly neat, pink bow | big blue, facing left | the yellow butter squishy with tiny pink and blue foam stars (callback to OP345) | cheerful (big open grin); shocked (O-mouth, brows high) | `af_bella` |
 
 Seven doll images in all. In the group shot, A, B and C stand on the left looking
 right at D, and D faces them from the right, so facings alternate. Prompts are in
@@ -77,4 +77,6 @@ the measured voice durations (stage 3), not from fixed 5 s slots. Line 1 may nee
    green light ("You have a green light this exercise is more around documenting what
    tooling we need"), the run goes on to stage 5 without waiting. He sees these images
    in the finished cut at gate 3, and any of them can be swapped there.
-3. Finished cut: pending.
+3. Finished cut: revision 1 **changes needed** (Tom, 2026-11-03): the fire must move,
+   the dolls must bounce to their lines, and the ending must land (D protests, the group
+   turns on her, offscreen cannibalism implied). See the run log. Revision 2 follows.

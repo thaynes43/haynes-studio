@@ -1,0 +1,26 @@
+{
+  "checks": {
+    "frame_count": true,
+    "duration": true,
+    "size": true,
+    "face_fixed_within_shot": true,
+    "rigid_motion_present": true,
+    "true_peak": true,
+    "no_clipping": true
+  },
+  "passed": true,
+  "decoded_frames": 662,
+  "expected_frames": 662,
+  "duration_s": 27.583333,
+  "planned_s": 27.5833,
+  "width": 1080,
+  "height": 1920,
+  "fps": 24,
+  "integrated_lufs": -20.85,
+  "true_peak_dbfs": -3.71,
+  "clipped_samples": 0,
+  "sha256": "6c972c6390f181c86bf5785d07bfc7a31ee324502e7a6fa685a4625c49cad221",
+  "bytes": 12703398,
+  "animation": "rigid whole-doll transforms of immutable RGBA cutouts; no generative or facial motion",
+  "human_review": "pending (gate 3)"
+}
