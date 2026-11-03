@@ -3,8 +3,9 @@
 Working title. Pilot for the manual PoC
 ([Epic 366](https://work.haynesnetwork.com/work_packages/366)).
 
-Status: premise and draft script agreed with Tom in chat on 2026-11-03. Team name,
-cast details and voices are still open. No assets generated yet.
+Status: script, team name, cast looks and set approved by Tom on 2026-11-03 (gate 1).
+Voices still to pick. Cast and set images in progress
+([story 368](https://work.haynesnetwork.com/work_packages/368)).
 
 ## Premise
 
@@ -22,27 +23,33 @@ The butter squishies tie back to "Crunch Costs Extra" (OP345).
 
 ## Cast
 
-Four original dolls in the [doll format](../../docs/reference/doll-format.md). All
-wear the same team jacket: **blue, with the team name in yellow lettering**. Almost a
-year in the woods shows in matted, frizzier synthetic hair, twigs and leaves in it,
-scuffed jackets, and smudges on the plastic.
+Four original dolls in the [doll format](../../docs/reference/doll-format.md). The
+team is the **Yellowbirds** (Tom, 2026-11-03). All four wear the same royal-blue
+zip-up team track jacket with **YELLOWBIRDS** in bold yellow varsity letters across
+the chest. Almost a year in the woods shows: matted, frizzed hair with twigs and
+leaves, scuffed and grubby jackets, a smudge or two on the plastic. Waist-up, glossy
+molded plastic, visible joints, as in OP345. Looks approved by Tom on 2026-11-03
+("This works").
 
-| Doll | Role | Look (draft) | Expressions needed | Voice (to confirm with Describe) |
-|---|---|---|---|---|
-| A | captain, proud survivalist | tall teased hair with a twig crown | proud; staring | Kokoro stock voice, TBD |
-| B | deadpan chair of the meeting | severe bob or huge beehive, unblinking | flat deadpan (both shots) | TBD, distinct from A |
-| C | grudge-holder | high ponytail, narrowed eyes | suspicious; staring | TBD |
-| D | the cheerful one with the squishy | bright, tidy-ish hair, holding a yellow butter squishy | cheerful; shocked | TBD, brightest voice |
+| Doll | Role | Plastic and hair | Eyes and pose | Prop | Expressions | Voice |
+|---|---|---|---|---|---|---|
+| A | captain, proud survivalist | pale peach; huge ash-blonde teased hair gone feral, crown of twigs | green, three-quarter facing right | tidy bundle of moss, held like a trophy | proud (chin up, closed smug smile); staring | TBD |
+| B | deadpan chair of the meeting | deep brown; towering black afro puff with pine needles in it | amber, half-lidded, facing left | none, hands folded | deadpan only, all film | TBD |
+| C | grudge-holder | warm tan; long auburn high ponytail, frizzed, a leaf caught in it | hazel, narrowed, facing right, arms crossed | none | suspicious (one brow up, lips pursed); staring | TBD |
+| D | the cheerful one | rosy pink-toned; platinum pigtails oddly neat, pink bow | big blue, facing left | the yellow butter squishy with tiny pink and blue foam stars (callback to OP345) | cheerful (big open grin); shocked (O-mouth, brows high) | TBD |
 
-Open: the team name. It must be invented and should read well in yellow on a jacket
-back or chest. Image models garble lettering, so expect a few tries or a short name.
+Seven doll images in all. In the group shot, A, B and C stand on the left looking
+right at D, and D faces them from the right, so facings alternate. Prompts are in
+[`prompts/`](prompts/).
 
 ## Set
 
-A miniature 1:6-scale pine forest clearing in late autumn with frost on the ground.
-A small campfire ring, a lean-to shelter of sticks in the background, and a mossy log
-across the bottom of frame as the foreground strip. Soft overcast light and shallow
-depth of field. The middle of the frame stays empty for the dolls.
+A 1:6-scale campsite in a frosty pine forest (Tom, 2026-11-03: "have them around a camp
+fire ... like a campsite"): a small stone fire ring with a lit campfire, a stick
+lean-to and a tiny camping pot behind it, frost and pine needles on the ground, and a
+mossy log across the bottom of frame as the foreground strip (the bottom 22% of the
+frame, matching the editor). Soft overcast light with warm firelight, shallow depth
+of field, the middle of the frame clear for the dolls.
 
 ## Shot list and script (draft, about 30 s)
 
@@ -61,9 +68,8 @@ the measured voice durations (stage 3), not from fixed 5 s slots. Line 1 may nee
 
 ## Gates
 
-1. Script: **partly passed.** Tom agreed the premise and draft lines in chat on
-   2026-11-03 ("Yes that is fine"). Still needed before generating images: the team
-   name, the four cast looks and the set. Line wording may be tuned after hearing the
-   voices; Tom sees any change at gate 3.
+1. Script and look: **passed** 2026-11-03. Premise and lines ("Yes that is fine"),
+   team name Yellowbirds, campsite set, cast looks ("This works, get to it please").
+   Line wording may be tuned after hearing the voices; Tom sees any change at gate 3.
 2. Cast and set images: pending.
 3. Finished cut: pending.
