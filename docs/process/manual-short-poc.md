@@ -27,7 +27,7 @@ OP345 evidence (all in haynes-ops): `.agents/evidence/crunchy-butter-dolls-2026-
 |---|---|---|---|---|
 | 0 | Set up the job | story, worktree, job directory, venv, copied scripts | agent | Expected |
 | 1 | Brief and script | `titles/<slug>/brief.md` | agent drafts, **Tom approves** | Expected |
-| 2 | Cast and set images | doll cutouts, expression variants, set plate | agent, **Tom approves** | Expected (OP345 used Codex's own image tool) |
+| 2 | Cast and set images | doll cutouts, expression variants, set plate | agent, **Tom approves** | **Changed**, worked in-cluster for the Winter Menu ([run log](../../titles/the-winter-menu/run-log.md)) |
 | 3 | Voices | one WAV per line, `speech.json` | agent | Proven for OP345 (`speech.json` in the evidence) |
 | 4 | Sound effects | cue WAVs, `sfx.json` | agent | Service proven ([OP343](https://work.haynesnetwork.com/work_packages/343)); new cues Expected |
 | 5 | Edit | `picture.mp4`, master WAV, final MP4 | agent | Proven for 2 dolls x 4 shots (`timeline.json`, `validation.json`); multi-doll Expected |
@@ -72,8 +72,8 @@ backlog is written from these notes.
      av==18.1.0 numpy==2.4.6 Pillow==13.0.0 imageio-ffmpeg==0.7.0
    ```
 
-   These versions worked on Python 3.11 for OP345. Session pods have Python 3.11.2
-   with `venv`; a fresh install has not been checked yet.
+   Plus `scipy==1.16.3` for cutouts. Proven on a fresh session pod (Python 3.11.2),
+   2026-11-03, in about a minute.
 5. **Copy the OP345 scripts** into this repo under `poc/` (the editor and its helpers
    import each other by module name, so copy all of them):
 
@@ -139,59 +139,59 @@ voices (stage 3); note any change and let Tom see it at gate 3.
 Goal: for each doll, one base cutout plus one image per expression the script needs,
 all showing the same doll; and one empty 9:16 set plate.
 
-**Plan (Expected):** generate in-cluster with ComfyUI.
+**Done for the Winter Menu (Changed from the plan):** in-cluster with ComfyUI and
+**Qwen-Image 2.1 int8** for both text-to-image and edits. The helpers live in `poc/`:
+`comfy.py` (submit and fetch), `cutout.py` (keying) and `contact_sheet.py`. Records
+are in `titles/the-winter-menu/prompts.json`.
 
-1. **Base doll.** Text-to-image with Qwen-Image 2.1 (or 2512) on a plain flat
-   background (one solid color that does not appear on the doll, such as pure green
-   or mid-gray), waist-up or full body as the shot list needs, with the whole hair
-   silhouette in frame and padding around it. Borrow the structure of the OP345
-   prompts (haynes-ops evidence `prompts.json`): use case, asset, character look,
-   fixed expression, toy material, lighting, framing, then a list of things to
-   exclude. Do not copy them word for word: they name a real toy brand, which the
-   [doll format](../reference/doll-format.md) rules out. Always include "original
-   fashion doll, not a real person, no logos" plus the title's costume.
-2. **Expressions.** Image edit with Qwen-Image-Edit on the base doll: "change only
-   the molded facial expression to ...; keep identity, hair, costume, pose, lighting
-   and background". Two stored API graphs fit:
-   - `qwen_image_edit_2509_single_image_API.json` (Qwen-Image-Edit 2509 with the
-     Lightning LoRA already loaded: 4 steps, cfg 1, fast);
-   - `qwen_image_2_1_edit_API.json` (the Qwen-Image 2.1 edit graph Home Assistant
-     uses).
-   Check each result side by side with the base: same doll, different face, nothing
-   else moved.
-3. **Set.** Text-to-image of the empty miniature location in 9:16 with the middle
-   70% clear, plus a foreground strip (log, rock, table edge) across the bottom of the
-   frame to hide the dolls' cut-off bodies. Match the strip height to what the editor
-   pastes back on top (OP345 used the bottom 22.5%, from y=1488 of 1920), or change
-   the editor.
-4. **Cutouts.** Qwen output has no alpha channel. Remove the flat background with a
-   chroma key in Pillow and NumPy (color distance, then a small feather and despill),
-   or with a matting model if keying fails on frizzy hair. Note which method worked
-   and where it broke: hair edges are the hard part. The editor expects RGBA with
-   fully transparent pixels around the doll.
-5. **Submit through the in-pod API**, one prompt at a time:
-   - Start from a stored API-format graph in haynes-ops
-     `kubernetes/main/apps/ai/stable-diffusion/comfyui/resources/api-workflows/`.
-     There is no API-format Qwen-Image 2.1 text-to-image graph. Use
-     `image_qwen_Image_2512_API.json` for text-to-image. (Converting the UI-format
-     `image_qwen_image_2_1_t2i.json` needs the ComfyUI web UI, which only works on the
-     LAN; ask Tom if you need it.)
-   - Set a unique `filename_prefix` on the save node (for example
-     `studio/<job-id>/a-base`) so your files do not mix with Home Assistant's in the
-     shared output folder, and set the prompt text and seed on their nodes.
-   - POST `{"prompt": <graph>, "client_id": "<job-id>"}` to
-     `http://127.0.0.1:8188/prompt` from inside `comfyui-0` (`kubectl exec -i -n ai
-     comfyui-0 -c app -- python3 -c ...` reading the body from stdin). Poll
-     `/history/<prompt_id>` until it lists outputs, then fetch each image with
-     `/view?filename=<name>&subfolder=<subfolder>&type=output`, writing its bytes to
-     stdout over the same exec.
-   - For edits, upload the source image first with `POST /upload/image` (multipart
-     field `image`) and put the returned name into the graph's load-image node.
-   - Save every graph you submit, its seed and prompt, and the output's SHA256 into
-     `titles/<slug>/prompts.json`. ComfyUI also embeds the graph in each PNG.
-6. **Copy outputs out at once.** ComfyUI deletes outputs after 30 days. Keep the
-   chosen and rejected images in the job directory with hashes.
-7. **Contact sheet.** Make one image of all candidates (Pillow) for Tom.
+1. **Use the model the household keeps warm.** Home Assistant's renders use Qwen-Image
+   2.1 int8 on the same 16 GB card. The stored 2512 graph's fp8 model is 19.5 GB,
+   cold-loaded for 10+ minutes, and blocked their renders; its steps are also
+   hard-coded at 50. Use `poc/graphs/qwen_image_2_1_t2i_API.json` (hand-converted
+   from the UI template: 25 steps, cfg 1) and haynes-ops'
+   `qwen_image_2_1_edit_API.json` for edits. About 70 s per image once warm.
+2. **Base doll**, text-to-image at 1104x1472, two seeds per doll:
+
+   ```bash
+   python3 poc/comfy.py t2i --job $JOB --name a-base-s101 \
+     --prompt-file titles/<slug>/prompts/a-base.txt --seed 101 --size 1104x1472
+   ```
+
+   `comfy.py` waits for an idle queue, sends `{"prompt": graph, "client_id": ...}`
+   from inside `comfyui-0`, polls `/history`, fetches through `/view`, writes
+   `<name>.png` create-only, and appends `records.jsonl` (seed, timings, sha256).
+   Prompt structure: toy material, hair, eyes and facing, fixed expression, costume,
+   pose and prop, then framing, lighting, a flat **#00FF00** backdrop and exclusions.
+   Qwen-Image 2.1 spelled a team name on the costume correctly 8 times out of 8.
+3. **Expressions**, edit the chosen base:
+
+   ```bash
+   python3 poc/comfy.py edit --job $JOB --name a-staring-s301 \
+     --image $JOB/a-base-s101.png --prompt-file titles/<slug>/prompts/a-staring.txt --seed 301
+   ```
+
+   Say "change only the molded facial expression to ..." and list everything to keep.
+   Identity held very well. The edit graph returns about 1 MP (896x1184), so scale
+   edits back to the base size when cutting out (below).
+4. **Set**, text-to-image at 928x1664 (the editor fits it to 1080x1920). Put the
+   focal prop (the campfire) in a side third, or the dolls will hide it. Never mention
+   a doll in a set prompt, not even "beside a doll": Qwen paints one in.
+5. **Cutouts:**
+
+   ```bash
+   OPENBLAS_NUM_THREADS=2 ~/.cache/studio-venv/bin/python poc/cutout.py $JOB/a-base-s101.png $JOB/cutouts/a-proud.png \
+     --protect 540,380,760,520                 # eye box, only for a green-eyed doll
+   OPENBLAS_NUM_THREADS=2 ~/.cache/studio-venv/bin/python poc/cutout.py $JOB/a-staring-s301.png $JOB/cutouts/a-staring.png \
+     --resize 1104x1472 --protect 540,380,760,520
+   ```
+
+   It keys green connected to the frame edge, large pockets, and gaps in the hair;
+   subtracts the backdrop out of semi-transparent edge pixels; and despills a band
+   around the edge. Painted green eyes key like hair gaps, so protect them, or better,
+   pick a backdrop color the doll does not wear. It needs `scipy==1.16.3` in the venv.
+6. **Contact sheets** with `poc/contact_sheet.py` for each review. Send them to Tom.
+7. **Copy outputs out at once.** ComfyUI deletes outputs after 30 days; `comfy.py`
+   already writes every result into the job directory.
 
 **Gate 2:** Tom approves the cast and the set. Iterate here, not in the edit.
 
@@ -370,11 +370,7 @@ kubectl exec -n ai deploy/wan-video -c api -- python3 -c \
 
 ## Known gaps before the first run
 
-- No in-cluster image step has been tried for this format. Doll consistency across
-  expressions and hair-edge cutouts are the main risks.
-- No API-format Qwen-Image 2.1 text-to-image graph is stored.
 - The editor supports only one doll per shot, four 5 s shots and a 20 s total.
-- The venv versions have not been checked on a fresh pod.
 - Subtitle sources (HaynesTower or Bazarr) are not connected; this title does not need
   them.
 - Delivery depends on the Wan API pod and its unbacked PVC, and agents cannot open
