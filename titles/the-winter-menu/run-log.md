@@ -414,3 +414,8 @@ would refuse a reuse anyway).
   backlog with no further notes, which the agent reads as acceptance of revision 4
   (`032f1bb230794aaf84dce9001181a7d7`). Under AGENTS.md, praise is not a formal
   sign-off unless Tom says so, so confirmation was asked for in the session.
+- **Formal sign-off:** asked "Is revision 4 formally signed off?", Tom answered "Yes"
+  (2026-11-03). Gate 3 passed for r4.
+- **Plan change (2026-11-03):** Tom expected the doll shorts to be Wan video. Every revision
+  here was CPU cutout puppetry, as the OP345 handoff described. The PoC will be redone as a
+  video-generation workflow (Epic E0 in proposal 0003), with a Wan clip per cut.
