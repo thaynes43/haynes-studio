@@ -116,7 +116,7 @@ flowchart LR
 |---|---|---|---|
 | Writer and planner (lines, shot plans, manifest patches) | a 30B-class instruct model, quantized (Qwen3-30B-A3B class) | about 18 to 20 GB | structured JSON output; the director keeps context small |
 | Vision judge | Qwen3-VL 8B class | about 8 to 10 GB | candidate picks, preview checks; ComfyUI already loads a Qwen3-VL 8B as a text encoder |
-| Matting and segmentation | BiRefNet or RMBG for cutouts; a segmentation model for set occlusion masks | under 2 GB | run in ComfyUI; replaces hand keying and ruler-measured edges |
+| Matting and segmentation | BiRefNet or RMBG for cutouts; a segmentation model for set occlusion masks | under 2 GB | replaces hand keying and ruler-measured edges. **Not available today:** our ComfyUI image ships no third-party custom nodes by design (`docs/reference/services.md`), so this needs either a reviewed node added to the image through haynes-ops (a policy change) or a small studio matting worker (preferred: CPU-capable, owned by the studio, no change to the shared ComfyUI). Decided in E2. |
 | Images | Qwen-Image 2.1 and Edit (as now) | in ComfyUI | proven in this run |
 | Voices, ASR, SFX | Kokoro, the Whisper pod, Stable Audio Small SFX (as now) | in place | proven |
 
@@ -183,7 +183,9 @@ Proposed stories:
 Yellowbird and a new set (a lake shore) go from prompt to library with cutouts,
 expressions, an occlusion mask and default layouts, and Tom only picks favorites.
 
-- Matting model in ComfyUI, replacing chroma keys and eye-protect boxes.
+- A matting model, replacing chroma keys and eye-protect boxes. It runs in a studio
+  matting worker (preferred) or as a reviewed ComfyUI node added through haynes-ops;
+  ComfyUI has no such node today.
 - Edits automatically size-matched to their base.
 - Segmentation of a set's foreground occluder into a mask, replacing ruler-measured
   polylines.
