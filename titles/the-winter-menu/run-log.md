@@ -384,3 +384,28 @@ manifest `manifest-r3.json`. Cutouts, set and the earlier sounds copied from r2.
 5. **Render time grows with length and effects:** about 8.7 min for 45 s on 2 CPU
    threads. Worth caching the static layers per shot and only re-drawing the moving
    ones.
+- **Tom on r3 (verbatim):** "That's great, almost there but "somebody find her a bib"
+  line doesn't land because they are eating her and it's the people doing the eating
+  who wear bibs, makes no sense how it is"
+
+# Revision 4 (2026-11-03)
+
+Job `the-winter-menu-r4`, manifest `manifest-r4.json`. Identical to r3 except the vote's
+last line: "Somebody find her a bib." became **"Bibs on, ladies."** The eaters put on
+bibs, which sets up the offscreen crunch and "...Needs salt." The backup line was
+"Everybody grab a bib." The new line was probed first and the recognizer heard "Bibs on
+ladies." exactly (1.15 s). Because the line's length differs, the vote shot's timing
+shifts, so the picture is re-rendered rather than reused (the picture-input check
+would refuse a reuse anyway).
+- About 18:17 to 18:27: voices (12 lines), audio, render (1087 frames, about 9 min),
+  checks, delivery and review copy in one chained run. **All checks passed** on the
+  first try: 1087/1087 frames, 45.29 s, -20.33 LUFS, -4.14 dBTP, 0 clipped samples.
+  The transcript matched with only the "340" tolerance ("Bibs on, ladies." heard
+  exactly).
+- Delivered as ledger `032f1bb230794aaf84dce9001181a7d7`
+  (`https://video.haynesops.com/videos/032f1bb230794aaf84dce9001181a7d7/file`). The
+  phone review copy (12.5 MB) was sent to Tom. Evidence in `evidence-r4/`.
+- **Gate 3 for r4:** sent to Tom; verdict pending.
+- A one-line script change cost a full 9-minute re-render, because shot timing
+  follows speech length. Tooling should re-render only the shots whose timing or
+  content changed, and splice the rest.

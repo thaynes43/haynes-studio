@@ -64,6 +64,8 @@ from completed stages, and every attempt is a numbered revision.
 - Fail fast: validate placements, anchors and cues before any long render. Delivery
   also makes a phone review proxy (the 45 s master was over the 30 MiB send limit).
 - Render speed: cache static layers per shot (r3 took 8.7 min for 45 s on 2 threads).
+- Per-shot re-render: a one-line change (r4) re-rendered all 45 s. Render shots
+  separately and splice, so only changed shots are redone.
 - **Demo:** rebuild The Winter Menu from its manifest as revision 2 in one command,
   and change a line to show only the affected stages rerun.
 
