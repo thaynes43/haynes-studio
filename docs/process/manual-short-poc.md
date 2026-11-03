@@ -32,9 +32,9 @@ OP345 evidence (all in haynes-ops): `.agents/evidence/crunchy-butter-dolls-2026-
 | 2 | Cast and set images | doll cutouts, expression variants, set plate | agent, **Tom approves** | **Changed**, worked in-cluster for the Winter Menu ([run log](../../titles/the-winter-menu/run-log.md)) |
 | 3 | Voices | one WAV per line, `speech.json` | agent | **Proven** ([speech.json](../../titles/the-winter-menu/evidence/speech.json)) |
 | 4 | Sound effects | cue WAVs, recorded in `manifest.json` | agent | **Proven** (crow cue; [timeline.json](../../titles/the-winter-menu/evidence/timeline.json), source in [manifest](../../titles/the-winter-menu/manifest.json)) |
-| 5 | Edit | master WAV, `final.mp4` | agent | **Proven**, multi-doll and group shots ([shots.json](../../titles/the-winter-menu/evidence/shots.json), [timeline.json](../../titles/the-winter-menu/evidence/timeline.json)) |
-| 6 | Check | `validation.json`, transcript, contact sheet | agent | **Proven** ([validation.json](../../titles/the-winter-menu/evidence/validation.json), [dialogue-transcript.json](../../titles/the-winter-menu/evidence/dialogue-transcript.json)) |
-| 7 | Deliver | private link, production ledger | agent | **Proven** ([production.json](../../titles/the-winter-menu/evidence/production.json)) |
+| 5 | Edit | master WAV, `final.mp4` | agent | **Proven**, multi-doll and group shots ([shots.json](../../titles/the-winter-menu/evidence/shots.json), [timeline.json](../../titles/the-winter-menu/evidence/timeline.json); r2 with motion, fire and limiter: [shots.json](../../titles/the-winter-menu/evidence-r2/shots.json), [timeline.json](../../titles/the-winter-menu/evidence-r2/timeline.json)) |
+| 6 | Check | `validation.json`, transcript, contact sheet | agent | **Proven** ([validation.json](../../titles/the-winter-menu/evidence/validation.json), [dialogue-transcript.json](../../titles/the-winter-menu/evidence/dialogue-transcript.json); r2 with motion, fire and limiter: [validation.json](../../titles/the-winter-menu/evidence-r2/validation.json), [dialogue-transcript.json](../../titles/the-winter-menu/evidence-r2/dialogue-transcript.json)) |
+| 7 | Deliver | private link, production ledger | agent | **Proven** ([production.json](../../titles/the-winter-menu/evidence/production.json); r2 with motion, fire and limiter: [production.json](../../titles/the-winter-menu/evidence-r2/production.json)) |
 | 8 | Review and record | Tom's verdict, run log, evidence in git | **Tom**, agent | Expected |
 
 Keep a **run log** (`titles/<slug>/run-log.md`) from stage 0 onward. For every step

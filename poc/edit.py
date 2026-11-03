@@ -15,7 +15,8 @@ import numpy as np
 from PIL import Image, ImageFilter, ImageOps
 
 GUARDS = {'audio': ['dialogue-only.wav', 'premaster.wav', 'soundtrack.wav', 'timeline.json'],
-          'render': ['picture.mp4', 'encode.log', 'shots.json', 'frame-transforms.json', 'contact-sheet.jpg', 'final.mp4'],
+          'render': ['picture.mp4', 'encode.log', 'shots.json', 'frame-transforms.json', 'contact-sheet.jpg', 'final.mp4',
+                     'picture-inputs.sha256'],
           'validate': ['validation.json'], 'transcript': ['dialogue-transcript.json', 'dialogue-check.wav'], 'preview': []}
 
 
@@ -72,6 +73,7 @@ def audio(m):
         b = read_audio(job / spec['file'])
         b *= 10 ** (spec['gain_db'] / 20) / max(float(np.sqrt(np.mean(b * b))), 1e-8)
         fade = RATE; loop = b.copy()
+        assert len(b) > 2 * fade, f'{name}: a bed must be longer than 2 s to loop with 1 s crossfades'
         while len(loop) < len(mix):
             ramp = np.linspace(0, 1, fade)[:, None]
             loop = np.concatenate([loop[:-fade], loop[-fade:] * (1 - ramp) + b[:fade] * ramp, b[fade:]])
@@ -261,6 +263,19 @@ def mux(m, edit, total):
             str(edit / 'final.mp4')])
 
 
+def picture_inputs(m):
+    """Hash of everything the picture depends on: frame, set, layouts, motion, each shot's
+    dolls, layout, moves and line timing, the cutout and set files, and the voice files
+    (their envelopes drive the talk bounce). Sound-only settings are left out."""
+    import hashlib
+    shots = [{k: s.get(k) for k in ('id', 'layout', 'dolls', 'moves', 'line', 'tail', 'duration')} for s in m['shots']]
+    files = sorted({img for s in m['shots'] for img in s['dolls'].values()} | {m['set']['image']})
+    speech = json.loads((m['_job'] / 'speech.json').read_text())['lines'] if (m['_job'] / 'speech.json').exists() else []
+    blob = {'frame': m['frame'], 'set': m['set'], 'layouts': m['layouts'], 'motion': m.get('motion'), 'shots': shots,
+            'files': {f: sha(m['_job'] / f) for f in files}, 'voices': [l['sha256'] for l in speech]}
+    return hashlib.sha256(json.dumps(blob, sort_keys=True).encode()).hexdigest()
+
+
 def reuse_picture(m, source):
     """Audio-only change: reuse another attempt's picture (same shot timing) and re-mux."""
     import shutil
@@ -268,7 +283,10 @@ def reuse_picture(m, source):
     ours = json.loads((edit / 'timeline.json').read_text())['shots']
     theirs = json.loads((src / 'timeline.json').read_text())['shots']
     assert ours == theirs, 'shot timing differs; a full render is needed'
-    for n in ('picture.mp4', 'shots.json', 'frame-transforms.json', 'contact-sheet.jpg'):
+    recorded = src / 'picture-inputs.sha256'
+    assert recorded.exists(), f'{source} has no picture-inputs record; render it again'
+    assert recorded.read_text().strip() == picture_inputs(m), 'picture inputs changed (layout, motion, set, cutouts or voices); a full render is needed'
+    for n in ('picture.mp4', 'shots.json', 'frame-transforms.json', 'contact-sheet.jpg', 'picture-inputs.sha256'):
         with (src / n).open('rb') as a, (edit / n).open('xb') as b:
             shutil.copyfileobj(a, b)
     (edit / 'encode.log').open('x').write(f'picture reused from {source}\n')
@@ -330,6 +348,7 @@ def render(m):
     sheet.save(edit / 'contact-sheet.jpg', quality=90)
     with (edit / 'shots.json').open('x') as f:
         json.dump(shots, f, indent=2)
+    (edit / 'picture-inputs.sha256').open('x').write(picture_inputs(m) + '\n')
     with (edit / 'frame-transforms.json').open('x') as f:
         json.dump(frames, f)
     total = spans[-1]['end_s']
