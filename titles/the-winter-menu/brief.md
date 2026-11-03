@@ -80,4 +80,6 @@ the measured voice durations (stage 3), not from fixed 5 s slots. Line 1 may nee
 3. Finished cut: revision 1 **changes needed** (Tom, 2026-11-03): the fire must move,
    the dolls must bounce to their lines, and the ending must land (D protests, the group
    turns on her, offscreen cannibalism implied). See the run log. Revision 2 (new ending
-   in `manifest-r2.json`) delivered 2026-11-03; verdict pending.
+   in `manifest-r2.json`) delivered 2026-11-03. Tom on r2: the "motion carried" line must
+   land, add an "eat her" line and a zoomed reaction. Revision 3 (`manifest-r3.json`:
+   the vote gag, C's line, D close-up) delivered 2026-11-03; verdict pending.

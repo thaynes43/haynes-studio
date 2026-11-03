@@ -20,6 +20,15 @@ def load_manifest(path):
     return m
 
 
+def lines_of(shot):
+    """A shot's lines as [(k, line)]: one `line`, or several `lines` spoken in order.
+    The first line has `start` (seconds into the shot); later ones have `gap` (seconds
+    after the previous line ends)."""
+    if shot.get('lines'):
+        return list(enumerate(shot['lines']))
+    return [(0, shot['line'])] if shot.get('line') else []
+
+
 def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 

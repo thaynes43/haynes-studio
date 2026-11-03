@@ -59,6 +59,11 @@ from completed stages, and every attempt is a numbered revision.
 - Performance in the manifest: talk bounce, scripted moves, idle wobble and animated
   set elements (fire), as revision 2 does.
 - Checks include loudness against target; transcript tolerances are phrase-level.
+- Dialogue as a per-shot sequence (several lines, cues and moves anchored to lines)
+  and shot types (single, group, close-up with a camera push-in), as revision 3 does.
+- Fail fast: validate placements, anchors and cues before any long render. Delivery
+  also makes a phone review proxy (the 45 s master was over the 30 MiB send limit).
+- Render speed: cache static layers per shot (r3 took 8.7 min for 45 s on 2 threads).
 - **Demo:** rebuild The Winter Menu from its manifest as revision 2 in one command,
   and change a line to show only the affected stages rerun.
 
@@ -99,6 +104,9 @@ revisions. This is the product he described.
   occlusion shown. Choose the expression per shot.
 - Performance controls per shot: bounce strength, lunges and recoils on a timeline,
   previewed in motion (a few seconds of low-resolution video), not only as stills.
+- A per-shot line timeline (who speaks when, gaps, beats) with cue markers that snap to
+  line ends. Revision 3's vote gag needed six lines, a gavel and a group jump in one
+  shot.
 - Lines and voices with **playback**, and cue audition, closing the "nobody listened"
   gap.
 - Render a revision, watch it, keep notes per revision, compare two side by side.

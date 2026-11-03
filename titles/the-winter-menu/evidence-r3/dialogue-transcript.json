@@ -1,0 +1,12 @@
+{
+  "expected": "Day three hundred forty. I've mastered fire, shelter, and emotionally supportive moss. Winter's coming. We need to discuss the menu. I nominate whoever brought orange slices. They know what they did. Or we could just eat the crunchy butter squishies. Absolutely not. These are limited edition. If we can't eat the squishies, why don't we just eat her? All in favor? Aye. Aye. Nay! Motion carried. Somebody find her a bib. Needs salt.",
+  "heard": "Day 340. I've mastered fire, shelter, and emotionally supportive moss. Winter's coming. We need to discuss the menu. I nominate whoever brought orange slices. They know what they did. Or we could just eat the crunchy butter squishies. Absolutely not. These are limited edition. If we can't eat the squishies, why don't we just eat her? All in favor? Aye. Aye. Nay. Motion carried. Somebody find her a bib. Needs salt.",
+  "exact_match": false,
+  "match_with_tolerances": true,
+  "tolerances": {
+    "340": "three hundred forty",
+    "mos": "moss"
+  },
+  "phrase_tolerances": [],
+  "recognizer": "ai/deploy/whisper (Wyoming ASR)"
+}
