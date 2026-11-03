@@ -32,9 +32,9 @@ OP345 evidence (all in haynes-ops): `.agents/evidence/crunchy-butter-dolls-2026-
 | 2 | Cast and set images | doll cutouts, expression variants, set plate | agent, **Tom approves** | **Changed**, worked in-cluster for the Winter Menu ([run log](../../titles/the-winter-menu/run-log.md)) |
 | 3 | Voices | one WAV per line, `speech.json` | agent | **Proven** ([speech.json](../../titles/the-winter-menu/evidence/speech.json)) |
 | 4 | Sound effects | cue WAVs, recorded in `manifest.json` | agent | **Proven** (crow cue; [timeline.json](../../titles/the-winter-menu/evidence/timeline.json), source in [manifest](../../titles/the-winter-menu/manifest.json)) |
-| 5 | Edit | master WAV, `final.mp4` | agent | **Proven**, multi-doll and group shots ([shots.json](../../titles/the-winter-menu/evidence/shots.json), [timeline.json](../../titles/the-winter-menu/evidence/timeline.json)) |
-| 6 | Check | `validation.json`, transcript, contact sheet | agent | **Proven** ([validation.json](../../titles/the-winter-menu/evidence/validation.json), [dialogue-transcript.json](../../titles/the-winter-menu/evidence/dialogue-transcript.json)) |
-| 7 | Deliver | private link, production ledger | agent | **Proven** ([production.json](../../titles/the-winter-menu/evidence/production.json)) |
+| 5 | Edit | master WAV, `final.mp4` | agent | **Proven**, multi-doll and group shots ([shots.json](../../titles/the-winter-menu/evidence/shots.json), [timeline.json](../../titles/the-winter-menu/evidence/timeline.json); r2 with motion, fire and limiter: [shots.json](../../titles/the-winter-menu/evidence-r2/shots.json), [timeline.json](../../titles/the-winter-menu/evidence-r2/timeline.json)) |
+| 6 | Check | `validation.json`, transcript, contact sheet | agent | **Proven** ([validation.json](../../titles/the-winter-menu/evidence/validation.json), [dialogue-transcript.json](../../titles/the-winter-menu/evidence/dialogue-transcript.json); r2 with motion, fire and limiter: [validation.json](../../titles/the-winter-menu/evidence-r2/validation.json), [dialogue-transcript.json](../../titles/the-winter-menu/evidence-r2/dialogue-transcript.json)) |
+| 7 | Deliver | private link, production ledger | agent | **Proven** ([production.json](../../titles/the-winter-menu/evidence/production.json); r2 with motion, fire and limiter: [production.json](../../titles/the-winter-menu/evidence-r2/production.json)) |
 | 8 | Review and record | Tom's verdict, run log, evidence in git | **Tom**, agent | Expected |
 
 Keep a **run log** (`titles/<slug>/run-log.md`) from stage 0 onward. For every step
@@ -264,6 +264,16 @@ cd poc; M=../titles/<slug>/manifest.json
 nice -n 19 ~/.cache/studio-venv/bin/python edit.py $M render --out edit   # about 3.5 min for 27 s
 ```
 
+0. **Revision 2 features** (`manifest-r2.json` shows each one in use):
+   - `motion` (talk hop, tilt, shuffle, idle scale): the speaking doll bounces on her
+     syllables, taken from her voice envelope at 12 poses/s.
+   - Per-shot `moves` (`doll`, `at`, `dur`, `dx`, `dy`, `angle`): jerky held-step
+     lunges and recoils, for example the group turning on someone.
+   - `set.fire` (`box`, `glow_center`, `glow_radius`, `strength`, `doll_glow`,
+     `seed`): animated flame and firelight.
+   - `beds`: a looped ambience under the whole film.
+   - `render --picture-from <out>`: re-mux new audio onto an existing picture when the
+     shot timing is unchanged.
 1. **Layout first, with previews.** For each layout, set doll `height`, `x` and
    `bottom` (per doll in group layouts; the order of `dolls` is back to front). Preview
    until every face reads and the set's focal prop shows. Then render.
@@ -273,7 +283,9 @@ nice -n 19 ~/.cache/studio-venv/bin/python edit.py $M render --out edit   # abou
    (`set.foreground_edge: [[x, y], ...]`, plus `foreground_feather`). The editor
    refuses a doll whose waist is not hidden across her whole width.
 3. **Audio** places each line at its shot start plus `start`, normalizes it to
-   -22 dBFS RMS, adds cues, then masters to -20 LUFS and -3.5 dBTP as 48 kHz 24-bit.
+   -22 dBFS RMS, adds cues and beds, leaves headroom, then masters to the loudness
+   target (-20 LUFS) with a peak limiter 1 dB under the true-peak target, as 48 kHz
+   24-bit. Without the limiter, one loud transient (a crunch) held r2 at -28.7 LUFS.
 4. **Render** applies the rigid held-pose motion (12 poses/s inside 24 fps, one phase
    per doll), pastes the foreground over the dolls, encodes H.264 CRF 18 with 2
    threads, writes a contact sheet and a per-frame transform log, then muxes
@@ -287,7 +299,8 @@ nice -n 19 ~/.cache/studio-venv/bin/python edit.py $M render --out edit   # abou
 ```
 
 `validate` checks frame count against the timeline, duration, size, face art fixed
-within each shot, motion present, true peak at or below -2.5 dBTP, and no clipping.
+within each shot, motion present, loudness within 1.5 LU of target, true peak at or
+below -2.5 dBTP, and no clipping.
 `transcript` sends the movie's audio to the Whisper pod and requires a match with the
 script after the declared tolerances. Then watch the contact sheet and the movie.
 

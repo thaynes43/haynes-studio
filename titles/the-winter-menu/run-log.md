@@ -220,3 +220,85 @@ Story [369](https://work.haynesnetwork.com/work_packages/369), worktree
 About 80 minutes from the first image render to a delivered short, for the second
 doll short ever made and the first with in-cluster images. Most of it was hand work
 on images and layout, not compute.
+
+# Revision 2 (2026-11-03)
+
+Job `the-winter-menu-r2` (`~/studio-jobs/the-winter-menu-r2/`), manifest
+`manifest-r2.json`. The approved cutouts, set and crow cue were copied from r1.
+Driven by Tom's gate-3 notes on r1.
+
+- About 17:04: Tom's notes became three editor features and a script change. The
+  agent proposed the new ending in chat (A suggests the squishies, D protests "Absolutely
+  not. These are limited edition.", the group turns on her, B: "Motion carried.
+  Somebody find her a bib.", then the same group **without D**, offscreen crunching,
+  B: "...Needs salt.") and went ahead under the green light, noting the lines are cheap
+  to change.
+- 17:05: three new sounds from audio-authoring, about 6 to 12 s each: crunch seeds 601
+  and 602, and a 12 s fire crackle (seed 701). Seed 601 has a bite at 0.43 s, then
+  chewing crunches to 3.5 s (trimmed 0.35 to 3.1 s). The crackle is a quiet bed
+  (-40 dBFS RMS), looped with 1 s crossfades.
+- **Editor changes** (`poc/edit.py`):
+  1. **Talk bounce:** each line's voice envelope, sampled at 12 poses/s, drives a hop
+     and an alternating tilt and shuffle on the speaking doll, as if a hand is shaking
+     her while she talks. The OP345 rock shrinks to an idle wobble (0.3x; 0.6 of that
+     in group shots).
+  2. **Scripted moves:** per-doll `moves` (`at`, `dur`, `dx`, `dy`, `angle`) in three
+     jerky held steps. Shot 6: A and C lunge right at D, B lunges left, D recoils up.
+     Shot 7 starts in the turned pose.
+  3. **Animated campfire:** at each 12 Hz pose, the flame region is re-drawn as a
+     randomly stretched (0.9 to 1.18), swayed and brightened copy of itself,
+     screen-blended over the static flame. The warm firelight over the whole frame
+     (set, dolls, log) breathes with it, falling off from the fire. Driven by film
+     time, so it does not reset at cuts.
+  4. **Fixes found on the way:** a doll hanging off the frame edge was clipped when
+     her plate was built, so moving her back exposed a hard vertical edge (plates now
+     have a 240 px margin). The crunch's transient tripped the pre-master peak check
+     (now gain-staged with headroom, and mastering sets the level). That failed audio
+     run left a partial `dialogue-only.wav`, so stages are not atomic: a tooling note.
+     `preview` now shows motion and fire at mid-shot.
+- Voices: 7 lines in about 4 s. The final line "Needs salt." is always heard as "need
+  salt" (the s runs into "salt"). Tested "Hm. Needs salt." (same) and "Could use some
+  salt." (exact). Kept "Needs salt." as the punchier line, with a declared `need ->
+  needs` tolerance; flagged for Tom's ear. That brought the story to 14 TTS calls
+  against a self-set budget of 12, an overrun of 2 short calls.
+- Layout: five previews. The new `trio` layout for the ending draws A in front of C so
+  her smug face (the payoff) shows, and leaves a gap where D stood. The occlusion
+  guard caught two placements where a waist would have shown above the curving log.
+- 17:09:36 to 17:15:58: full render (`edit-b`), 823 frames in **6 min 22 s**, almost
+  twice r1's time: the fire and firelight add per-frame work across the full frame.
+- First checks on `edit-b` **refused delivery**, correctly:
+  1. **Integrated loudness was -28.7 LUFS** (target -20). The crunch's transient set
+     the true-peak limit, so mastering pulled the whole film down. r1's `validate` had
+     no loudness check, so it would have passed. Fixed: master to the loudness target,
+     then a peak limiter (`alimiter`, 1 dB under the true-peak target). `validate` now
+     requires loudness within 1.5 LU of target.
+  2. The transcript failed because of **the agent's own "need -> needs" tolerance**,
+     which rewrote the genuine "need" in "We need to discuss". The full mix heard
+     "Needs salt." correctly, so the tolerance was removed. Lesson: word-level
+     tolerances apply to every occurrence and must be narrow.
+- Only the audio changed, so a new `render --picture-from edit-b` reused the picture
+  (after checking the shot timing is identical) and re-muxed. That took seconds
+  instead of 6 minutes: stage granularity matters.
+- About 17:18: `edit-c` **passed**. 823/823 frames, 34.29 s, -20.33 LUFS, -4.19 dBTP,
+  0 clipped samples, face fixed within each shot. Transcript: "Day 340. ... moss. ...
+  Needs salt." (only the digits tolerance applied). Fire frames sampled at successive
+  held poses show visibly different flames.
+- Delivered with `deliver.py --out edit-c` as ledger `3fad3455774d4ee2a22b50f563c821be`
+  (`https://video.haynesops.com/videos/3fad3455774d4ee2a22b50f563c821be/file`), and the
+  file was sent to Tom. Evidence in `evidence-r2/`.
+- **Gate 3 for r2:** sent to Tom; verdict pending.
+
+### Revision 2 summary: new requirements for the tooling
+
+1. **Performance, not just placement:** talk bounce from the voice envelope,
+   scripted per-doll moves, and idle wobble are part of the "ironic realism" Tom wants.
+   The storyboard UI needs per-shot motion controls (bounce strength, lunges, recoils)
+   with preview.
+2. **Living sets:** at least the focal element (fire) must move. Procedural flicker
+   worked on CPU. A short generated loop (Wan) could look better and is a candidate
+   experiment.
+3. **Mastering:** loudness-targeted with a limiter. Validation must check loudness,
+   not only peaks.
+4. **Atomic, fine-grained stages:** a failed stage left partial output, and an
+   audio-only fix should never need a re-render (`--picture-from` was the stopgap).
+5. **Narrow ASR tolerances:** whole-phrase or position-aware, never global word swaps.

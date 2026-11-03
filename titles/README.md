@@ -17,4 +17,4 @@ and why.
 
 | Title | Status | Brief |
 |---|---|---|
-| The Winter Menu | revision 1 delivered 2026-11-03; Tom: changes needed (fire motion, talk bounce, ending); revision 2 in progress | [brief](the-winter-menu/brief.md), [run log](the-winter-menu/run-log.md) |
+| The Winter Menu | r1 delivered (Tom: changes needed); **r2 delivered 2026-11-03** (34.3 s, animated fire, talk bounce, new ending), awaiting Tom's verdict | [brief](the-winter-menu/brief.md), [run log](the-winter-menu/run-log.md), manifests [r1](the-winter-menu/manifest.json) and [r2](the-winter-menu/manifest-r2.json) |

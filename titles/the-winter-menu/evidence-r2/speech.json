@@ -1,0 +1,82 @@
+{
+  "service": "ai/deploy/kokoro (Kokoro-82M v1.0, Wyoming)",
+  "lines": [
+    {
+      "shot": 1,
+      "doll": "a",
+      "voice": "bf_emma",
+      "text": "Day three hundred forty. I've mastered fire, shelter, and emotionally supportive moss.",
+      "file": "voices/line-1.wav",
+      "duration_s": 5.163,
+      "sha256": "b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78",
+      "heard": "Day 340. I've mastered fire, shelter, and emotionally supportive MOS.",
+      "heard_matches": false
+    },
+    {
+      "shot": 2,
+      "doll": "b",
+      "voice": "af_heart",
+      "text": "Winter's coming. We need to discuss the menu.",
+      "file": "voices/line-2.wav",
+      "duration_s": 2.688,
+      "sha256": "7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50",
+      "heard": "Winter's coming, we need to discuss the menu.",
+      "heard_matches": true
+    },
+    {
+      "shot": 3,
+      "doll": "c",
+      "voice": "af_nicole",
+      "text": "I nominate whoever brought orange slices. They know what they did.",
+      "file": "voices/line-3.wav",
+      "duration_s": 4.864,
+      "sha256": "6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36",
+      "heard": "I nominate whoever brought orange slices. They know what they did.",
+      "heard_matches": true
+    },
+    {
+      "shot": 4,
+      "doll": "a",
+      "voice": "bf_emma",
+      "text": "Or we could just eat the crunchy butter squishies.",
+      "file": "voices/line-4.wav",
+      "duration_s": 2.475,
+      "sha256": "0063d7e0e0d8a551fece4373ba1252d94339c00e10155bd08804b44c388773fd",
+      "heard": "Or we could just eat the crunchy butter squishies.",
+      "heard_matches": true
+    },
+    {
+      "shot": 5,
+      "doll": "d",
+      "voice": "af_bella",
+      "text": "Absolutely not. These are limited edition.",
+      "file": "voices/line-5.wav",
+      "duration_s": 2.432,
+      "sha256": "f89e05a2c53e9be7edd35f3b31862da311ce2730cb330421cb93e25b20a3ab59",
+      "heard": "Absolutely not. These are limited edition.",
+      "heard_matches": true
+    },
+    {
+      "shot": 7,
+      "doll": "b",
+      "voice": "af_heart",
+      "text": "Motion carried. Somebody find her a bib.",
+      "file": "voices/line-7.wav",
+      "duration_s": 2.496,
+      "sha256": "58f6812299d32034503825686e4aa476fbbee3881f82ceed3dc1680449b1ec9e",
+      "heard": "Motion carried, somebody find her a bib.",
+      "heard_matches": true
+    },
+    {
+      "shot": 8,
+      "doll": "b",
+      "voice": "af_heart",
+      "text": "Needs salt.",
+      "file": "voices/line-8.wav",
+      "duration_s": 0.981,
+      "sha256": "4e12138ee373ac45b6fce8f9049680d5494892fcc13a511bc77dbf37afbb5d31",
+      "heard": "Need salt.",
+      "heard_matches": false
+    }
+  ]
+}
