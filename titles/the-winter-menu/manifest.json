@@ -213,5 +213,9 @@
     "340": "three hundred forty",
     "mos": "moss"
   },
-  "asr_tolerances_note": "Recognizer writes numbers as digits; it spelled \"moss\" as \"MOS\" on the isolated line (pronunciation unverified by ear)."
+  "asr_tolerances_note": "Recognizer writes numbers as digits; it spelled \"moss\" as \"MOS\" on the isolated line (pronunciation unverified by ear).",
+  "provenance": {
+    "images": "Qwen-Image 2.1 int8 on the in-cluster ComfyUI (text-to-image and edit), chroma-keyed cutouts; prompts and seeds in prompts.json.",
+    "motion": "Deterministic rigid whole-doll cutout puppetry; face art fixed within each shot, expressions change only at cuts."
+  }
 }

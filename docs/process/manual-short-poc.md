@@ -28,13 +28,13 @@ OP345 evidence (all in haynes-ops): `.agents/evidence/crunchy-butter-dolls-2026-
 | # | Stage | Output | Who | Status |
 |---|---|---|---|---|
 | 0 | Set up the job | story, worktree, job directory, venv | agent | **Proven** ([run log](../../titles/the-winter-menu/run-log.md)) |
-| 1 | Brief and script | `titles/<slug>/brief.md`, `manifest.json` | agent drafts, **Tom approves** | **Proven** (Winter Menu brief) |
+| 1 | Brief and script | `titles/<slug>/brief.md`, `manifest.json` | agent drafts, **Tom approves** | **Proven** ([brief](../../titles/the-winter-menu/brief.md), [manifest](../../titles/the-winter-menu/manifest.json)) |
 | 2 | Cast and set images | doll cutouts, expression variants, set plate | agent, **Tom approves** | **Changed**, worked in-cluster for the Winter Menu ([run log](../../titles/the-winter-menu/run-log.md)) |
-| 3 | Voices | one WAV per line, `speech.json` | agent | **Proven** (`poc/speech.py`) |
-| 4 | Sound effects | cue WAVs, recorded in `manifest.json` | agent | **Proven** (crow cue) |
-| 5 | Edit | master WAV, `final.mp4` | agent | **Proven**, multi-doll and group shots (`poc/edit.py`) |
-| 6 | Check | `validation.json`, transcript, contact sheet | agent | **Proven** |
-| 7 | Deliver | private link, production ledger | agent | **Proven** (`poc/deliver.py`) |
+| 3 | Voices | one WAV per line, `speech.json` | agent | **Proven** ([speech.json](../../titles/the-winter-menu/evidence/speech.json)) |
+| 4 | Sound effects | cue WAVs, recorded in `manifest.json` | agent | **Proven** (crow cue; [timeline.json](../../titles/the-winter-menu/evidence/timeline.json), source in [manifest](../../titles/the-winter-menu/manifest.json)) |
+| 5 | Edit | master WAV, `final.mp4` | agent | **Proven**, multi-doll and group shots ([shots.json](../../titles/the-winter-menu/evidence/shots.json), [timeline.json](../../titles/the-winter-menu/evidence/timeline.json)) |
+| 6 | Check | `validation.json`, transcript, contact sheet | agent | **Proven** ([validation.json](../../titles/the-winter-menu/evidence/validation.json), [dialogue-transcript.json](../../titles/the-winter-menu/evidence/dialogue-transcript.json)) |
+| 7 | Deliver | private link, production ledger | agent | **Proven** ([production.json](../../titles/the-winter-menu/evidence/production.json)) |
 | 8 | Review and record | Tom's verdict, run log, evidence in git | **Tom**, agent | Expected |
 
 Keep a **run log** (`titles/<slug>/run-log.md`) from stage 0 onward. For every step
@@ -298,7 +298,8 @@ python3 deliver.py ../titles/<slug>/manifest.json --out edit
 ```
 
 It refuses unless both checks passed, checks free space, copies every asset
-create-only to `/workspace/output/productions/<job>/` on PVC `ai/wan-video` (SHA256
+create-only (a file already there with the same SHA256 is skipped, so a delivery that
+failed partway can simply be rerun; a different file at that path stops it) to `/workspace/output/productions/<job>/` on PVC `ai/wan-video` (SHA256
 verified per file), validates the ledger fields the Wan API depends on, hard-links the
 ledger into `/workspace/jobs/`, reads it back through the API in the pod, and writes
 `$JOB/production.json`. About 5 s. **A malformed ledger would crash the shared Wan API

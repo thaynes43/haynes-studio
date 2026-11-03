@@ -6,7 +6,9 @@ Generalized from haynes-ops scripts/wan-video/preserve_doll_short.py (OP345).
 
 1. Refuses unless validation and the transcript check passed.
 2. Copies every asset create-only to /workspace/output/productions/<job>/ on PVC
-   ai/wan-video (through `kubectl exec` into the API container), verifying SHA256.
+   ai/wan-video (through `kubectl exec` into the API container), verifying SHA256. A
+   file already there with the same hash is skipped, so a partial delivery can be
+   rerun; a different file at the same path stops it.
 3. Builds the ledger, validates it locally (the API reads every ledger at startup with
    no error handling, so a bad one would crash the shared service), and hard-links it
    into /workspace/jobs/<id>.json.
@@ -18,6 +20,10 @@ from studio import load_manifest, sha
 REMOTE = ['kubectl', 'exec', '-i', '-n', 'ai', 'deploy/wan-video', '-c', 'api', '--', 'python3', '-c']
 WRITE = '''import pathlib,sys,hashlib,json
 p=pathlib.Path(sys.argv[1]);p.parent.mkdir(parents=True,exist_ok=True);h=hashlib.sha256()
+if p.exists():
+ # Resume after a partial delivery: identical bytes are fine, anything else is refused.
+ if hashlib.sha256(p.read_bytes()).hexdigest()!=sys.argv[2]:raise FileExistsError('Different file already at '+str(p))
+ sys.stdin.buffer.read();print(json.dumps({'path':str(p),'bytes':p.stat().st_size,'sha256':sys.argv[2],'existing':True}));sys.exit(0)
 with p.open('xb') as f:
  while True:
   b=sys.stdin.buffer.read(1048576)
@@ -34,6 +40,19 @@ finally:temp.unlink()
 '''
 READ = '''import sys,urllib.request;print(urllib.request.urlopen('http://127.0.0.1:8080/videos/'+sys.argv[1]).read().decode())'''
 SPACE = '''import shutil;u=shutil.disk_usage('/workspace');print(u.free)'''
+
+
+def provenance(m):
+    """Built from the manifest's `provenance` section plus its cast voices and cues."""
+    title_dir = m['_path'].parent.name
+    cues = [f"{name}: {c['source']['service']} job {c['source']['job']} seed {c['source']['seed']}"
+            for name, c in m.get('sfx', {}).items()]
+    return {**m.get('provenance', {}),
+            'records': f'haynes-studio titles/{title_dir}/ (manifest.json, prompts.json, evidence/)',
+            'voices': 'Kokoro-82M v1.0 stock voices ' + ', '.join(sorted({c['voice'] for c in m['cast'].values()}))
+                      + '; no cloning, no lip sync.',
+            'sfx': '; '.join(cues) or 'none',
+            'human_approval': 'Pending: gate 3 (Tom).'}
 
 
 def check_ledger(j):
@@ -76,12 +95,7 @@ def main(path, out):
               'state': 'succeeded', 'created_at': now, 'finished_at': now, 'telemetry': [],
               'output': f"productions/{m['job']}/{out}/final.mp4", 'bytes': v['bytes'], 'sha256': v['sha256'],
               'assets': assets, 'preset': 'rigid-doll-dialogue-manifest',
-              'provenance': {
-                  'images': 'Qwen-Image 2.1 int8 on the in-cluster ComfyUI (text-to-image and edit), chroma-keyed cutouts; prompts and seeds in haynes-studio titles/the-winter-menu/prompts.json.',
-                  'motion': 'Deterministic rigid whole-doll cutout puppetry; face art fixed within each shot, expressions change only at cuts.',
-                  'voices': 'Kokoro-82M v1.0 stock voices ' + ', '.join(sorted({c['voice'] for c in m['cast'].values()})) + '; no cloning, no lip sync.',
-                  'sfx': 'Stable Audio 3 Small SFX (in-cluster CPU) crow caw, job ' + m['sfx']['crow']['source']['job'] + '.',
-                  'human_approval': 'Pending: gate 3 (Tom).'}}
+              'provenance': provenance(m)}
     check_ledger(ledger)
     subprocess.run(REMOTE + [PUBLISH], input=json.dumps(ledger).encode(), capture_output=True, check=True, timeout=30)
     served = json.loads(subprocess.run(REMOTE + [READ, ledger['id']], capture_output=True, check=True, timeout=30).stdout)
