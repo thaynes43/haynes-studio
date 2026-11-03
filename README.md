@@ -10,8 +10,9 @@ Extra" (Nov 2026), made by hand from scripts that live in haynes-ops.
 
 ## Where this is going
 
-1. **Manual proof of concept (now).** Make one complete short by hand with in-cluster
-   tools, and write down every step as it actually happened.
+1. **Manual proof of concept (done once, 2026-11-03).** "The Winter Menu" was made
+   with in-cluster tools and every step was written down
+   ([run log](titles/the-winter-menu/run-log.md)).
 2. **Tooling.** Replace the hand steps with tools an agent or a person can drive:
    a manifest-driven renderer, a reusable cast library, then an API and a web UI for
    storyboards and saved revisions of each title.
@@ -29,7 +30,9 @@ comes from what the manual run teaches us, not from guesses made in advance.
 | [`docs/process/manual-short-poc.md`](docs/process/manual-short-poc.md) | The manual runbook: brief to delivered video, stage by stage. |
 | [`docs/reference/`](docs/reference/) | The in-cluster services, the doll format, and the baseline recipe. |
 | [`docs/decisions/`](docs/decisions/) | Short decision records (ADRs). |
-| [`titles/`](titles/) | One folder per title: brief, script, prompts, run log. No media. |
+| [`titles/`](titles/) | One folder per title: brief, manifest, prompts, run log, evidence. No media. |
+| [`poc/`](poc/README.md) | The manual PoC's helper scripts (images, voices, editor, delivery). Not the final tooling. |
+| [`docs/proposals/`](docs/proposals/) | Proposed tooling backlog for grooming. |
 
 ## Tracking
 

@@ -11,9 +11,11 @@ Each step is marked:
 - **Expected**: the plan, not yet run in this setup.
 - **Changed**: what the run actually did differently. Add these as you go.
 
-Stages marked Proven worked for OP345, two dolls in four 5 s shots, using that
-production's scripts. Everything else is Expected until a run in this repo proves it.
-The first manual run updates every stage it touches.
+Every stage below has now run once, end to end, for **The Winter Menu** revision 1
+(2026-11-03): four dolls, six shots, 27.6 s, delivered privately. Evidence is in
+[`titles/the-winter-menu/`](../../titles/the-winter-menu/), and the
+[run log](../../titles/the-winter-menu/run-log.md) has timings, failures and the hand work at each step. The
+scripts are in [`poc/`](../../poc/README.md).
 
 Read first: [services](../reference/services.md), [doll format](../reference/doll-format.md),
 [OP345 baseline](../reference/baseline-op345.md), and [AGENTS.md](../../AGENTS.md).
@@ -25,14 +27,14 @@ OP345 evidence (all in haynes-ops): `.agents/evidence/crunchy-butter-dolls-2026-
 
 | # | Stage | Output | Who | Status |
 |---|---|---|---|---|
-| 0 | Set up the job | story, worktree, job directory, venv, copied scripts | agent | Expected |
-| 1 | Brief and script | `titles/<slug>/brief.md` | agent drafts, **Tom approves** | Expected |
+| 0 | Set up the job | story, worktree, job directory, venv | agent | **Proven** ([run log](../../titles/the-winter-menu/run-log.md)) |
+| 1 | Brief and script | `titles/<slug>/brief.md`, `manifest.json` | agent drafts, **Tom approves** | **Proven** (Winter Menu brief) |
 | 2 | Cast and set images | doll cutouts, expression variants, set plate | agent, **Tom approves** | **Changed**, worked in-cluster for the Winter Menu ([run log](../../titles/the-winter-menu/run-log.md)) |
-| 3 | Voices | one WAV per line, `speech.json` | agent | Proven for OP345 (`speech.json` in the evidence) |
-| 4 | Sound effects | cue WAVs, `sfx.json` | agent | Service proven ([OP343](https://work.haynesnetwork.com/work_packages/343)); new cues Expected |
-| 5 | Edit | `picture.mp4`, master WAV, final MP4 | agent | Proven for 2 dolls x 4 shots (`timeline.json`, `validation.json`); multi-doll Expected |
-| 6 | Check | `validation.json`, transcript, contact sheet | agent | Proven for OP345 (`validation.json`, `dialogue-transcript.json`) |
-| 7 | Deliver | private link, production ledger | agent | Proven for OP345 (`production.json`, `delivery.json`) |
+| 3 | Voices | one WAV per line, `speech.json` | agent | **Proven** (`poc/speech.py`) |
+| 4 | Sound effects | cue WAVs, recorded in `manifest.json` | agent | **Proven** (crow cue) |
+| 5 | Edit | master WAV, `final.mp4` | agent | **Proven**, multi-doll and group shots (`poc/edit.py`) |
+| 6 | Check | `validation.json`, transcript, contact sheet | agent | **Proven** |
+| 7 | Deliver | private link, production ledger | agent | **Proven** (`poc/deliver.py`) |
 | 8 | Review and record | Tom's verdict, run log, evidence in git | **Tom**, agent | Expected |
 
 Keep a **run log** (`titles/<slug>/run-log.md`) from stage 0 onward. For every step
@@ -74,20 +76,10 @@ backlog is written from these notes.
 
    Plus `scipy==1.16.3` for cutouts. Proven on a fresh session pod (Python 3.11.2),
    2026-11-03, in about a minute.
-5. **Copy the OP345 scripts** into this repo under `poc/` (the editor and its helpers
-   import each other by module name, so copy all of them):
-
-   ```bash
-   mkdir -p poc
-   for f in doll_speech butter_speech edit_doll_short edit_butter edit_short \
-            check_doll_dialogue check_butter_dialogue preserve_doll_short; do
-     cp ~/repos/haynes-ops/scripts/wan-video/$f.py poc/
-   done
-   ```
-
-   `butter_speech.py` holds the Kokoro client (`CODE`) and `check_butter_dialogue.py`
-   the ASR client (`CODE`). What has to change in each is listed in
-   [the baseline](../reference/baseline-op345.md#what-is-fixed-in-the-code).
+5. **Scripts.** Use this repo's `poc/` scripts, driven by a title manifest
+   (`titles/<slug>/manifest.json`). They replace hand-patching OP345's scripts in
+   haynes-ops, which hard-code that production's paths, shot count and length. Set
+   `job_dir` in the manifest to the job directory.
 6. **Reference assets (optional).** To reuse OP345's cast or audio, recover them
    read-only with the checksummed script in the haynes-ops handoff, section "Recover
    the existing private cast". The handoff is on haynes-ops PR
@@ -120,6 +112,10 @@ Write `titles/<slug>/brief.md` (copy the shape of the Winter Menu brief):
 - shot list: shot number, framing (single or group), who speaks, the line, the
   expression, and any sound cue;
 - what stays original (names, team names, logos, dialogue).
+
+Then write `titles/<slug>/manifest.json`: the cast and their voices, the shots (dolls
+and cutout per shot, layout, line, start offset, tail, cues), the set and its
+foreground edge, the cue files, and the mastering target. See the Winter Menu manifest.
 
 Rules of thumb from OP345:
 
@@ -201,11 +197,10 @@ use Gemini or OpenAI image APIs. That needs his approval, a cost cap and a key h
 provisions. Do not use an agent harness's built-in image tool as a quiet substitute:
 it does not leave a repeatable record.
 
-## Stage 3: voices (Proven for OP345)
+## Stage 3: voices
 
-1. **List the voices** installed now and pick one clearly different stock voice per
-   doll. Record the choice in the brief. A Wyoming `Describe` returns them (Expected,
-   not yet run):
+1. **List the voices** installed now (54 on 2026-11-03) and cast one clearly different
+   stock voice per doll in the manifest's `cast`:
 
    ```bash
    kubectl exec -i -n ai deploy/kokoro -c app -- python - <<'PY'
@@ -218,160 +213,122 @@ it does not leave a repeatable record.
            while True:
                e = await asyncio.wait_for(c.read_event(), 10)
                if Info.is_type(e.type):
-                   for p in Info.from_event(e).tts:
-                       for v in p.voices:
-                           print(v.name)
-                   return
+                   print(' '.join(v.name for p in Info.from_event(e).tts for v in p.voices)); return
    asyncio.run(main())
    PY
    ```
 
-2. **Synthesize each line.** Edit `poc/doll_speech.py`: set `OUT` to the job directory
-   and `LINES` to `(character, voice, text)` tuples, one per line. It sends each line
-   through the Kokoro client (`CODE` from `butter_speech.py`), checks the WAV length,
-   and writes `voice-N.wav` and `speech.json` with voice, text, duration and SHA256:
+2. **Synthesize and pre-check every line:**
 
    ```bash
-   cd poc && python3 doll_speech.py
+   cd poc && python3 speech.py ../titles/<slug>/manifest.json
    ```
 
-   It refuses to run if any `voice-N.wav` already exists. It asserts each line is
-   under 5 s; raise that bound if a shot is longer. To send one line by hand instead:
-
-   ```bash
-   CODE=$(cd poc && python3 -c 'from butter_speech import CODE; print(CODE)')
-   echo '{"voice":"af_bella","text":"Hello."}' |
-     kubectl exec -i -n ai deploy/kokoro -c app -- python -c "$CODE" > test.wav
-   ```
-
-3. Listen to every line. If a word comes out wrong, rephrase the line; Kokoro has no
-   per-word controls in this setup.
-4. Check the timing: each line's duration plus its start offset must fit its shot
-   with 0.25 s to spare. If not, lengthen the shot in the shot list. Do not trim the
-   speech.
+   Writes `voices/line-<shot>.wav` and `speech.json` (voice, text, duration, SHA256)
+   create-only, and transcribes each line on its own. About 1 s per line.
+3. **Listen.** An agent cannot; Tom or a person must. A transcript mismatch on one
+   line may be the recognizer's spelling (digits for numbers, "MOS" for "moss"). Declare
+   known ones in the manifest's `asr_tolerances`, which apply word by word.
+4. Shot lengths come from these durations in stage 5 (start + speech + tail), so lines
+   are never trimmed to fit.
 
 ## Stage 4: sound effects
 
-1. For each cue in the brief, call `generate_sound` on the audio-authoring MCP server
-   with a short descriptive prompt, a duration and a fixed seed. Poll
-   `get_generation`, then download `/artifacts/<job-id>/output.wav` and verify its
-   checksum. A few candidates per cue is enough.
-2. Trim each cue to the moment you need, and record source job ID, seed, trim points
-   and SHA256 in `sfx.json`.
-3. Keep cues quiet and sparse. OP345 placed one cue at about -34 dBFS RMS.
+1. For each cue, call `generate_sound` on the audio-authoring MCP server with a short
+   descriptive prompt, a length (5 to 30 s) and a fixed seed; two candidates is enough.
+   About 6 s each on CPU. Poll `get_generation`, then download and verify:
 
-Video-conditioned Foley (ControlFoley, OP344) exists but shares the Wan GPU lease and
-its listening verdict is still open. Do not use it for this PoC unless Tom asks.
+   ```bash
+   curl -sf -o $JOB/sfx/<cue>-s<seed>.wav \
+     http://audio-authoring.dev.svc.cluster.local:8000/artifacts/<job-id>/output.wav
+   echo "<sha256>  $JOB/sfx/<cue>-s<seed>.wav" | sha256sum -c -
+   ```
+
+2. Find the useful moment (an energy envelope shows where the sound is) and record the
+   file, `trim` window, `gain_db`, source job, seed and prompt in the manifest's `sfx`.
+   Reject candidates that are continuous noise.
+3. Keep cues quiet and sparse (the crow sat at -26 dBFS RMS before mastering).
+
+Video-conditioned Foley (ControlFoley, OP344) exists but shares the Wan GPU lease, and
+its listening verdict is still open. Do not use it unless Tom asks.
 
 ## Stage 5: edit
 
-The editor is a CPU compositor in Python (Pillow, NumPy, PyAV, ffmpeg):
-`poc/edit_doll_short.py`, copied in stage 0. See [the baseline](../reference/baseline-op345.md).
+`poc/edit.py` is OP345's rigid puppet editor, driven by the manifest. Each stage is
+create-only in `$JOB/<out>/`, and each attempt gets its own `--out` folder:
 
-1. **Change as little as possible**, and make every change in the copy under `poc/`.
-   The baseline lists the values fixed for OP345: total length, 5 s shots, two
-   characters, the set mirroring, the foreground strip height, the cue path, frame
-   counts in the checks. For the Winter Menu the editor also needs a group shot
-   (several cutouts in one frame). Record every change in the run log: each one is a
-   requirement for the renderer epic.
-2. **Audio stage.** Places each line at its shot start plus offset, normalizes per
-   line, adds cues, then masters (target -20 LUFS integrated, -3.5 dBTP) to a 48 kHz
-   24-bit WAV.
-3. **Picture stage.** For each shot: fits the cutouts to the frame, places them,
-   applies the rigid held-pose motion, pastes the foreground strip back on top, and
-   streams raw frames to ffmpeg (`libx264`, CRF 18, `-threads 2`). Writes a contact
-   sheet (3 frames per shot) and a per-frame transform log, then muxes picture and
-   master into the final MP4 (AAC 192 kbit/s, `+faststart`).
-4. Run with bounded CPU, from `poc/`:
+```bash
+cd poc; M=../titles/<slug>/manifest.json
+~/.cache/studio-venv/bin/python edit.py $M audio   --out edit     # mix and master, under 1 s
+~/.cache/studio-venv/bin/python edit.py $M preview --out edit     # one still per shot, about 5 s
+nice -n 19 ~/.cache/studio-venv/bin/python edit.py $M render --out edit   # about 3.5 min for 27 s
+```
 
-   ```bash
-   cd poc
-   OPENBLAS_NUM_THREADS=2 "$HOME/.cache/studio-venv/bin/python" edit_doll_short.py audio
-   OPENBLAS_NUM_THREADS=2 "$HOME/.cache/studio-venv/bin/python" edit_doll_short.py render
-   ```
-
-Stages refuse to run over their own outputs. To redo a stage, start a new revision
-directory and copy in the inputs you are keeping.
+1. **Layout first, with previews.** For each layout, set doll `height`, `x` and
+   `bottom` (per doll in group layouts; the order of `dolls` is back to front). Preview
+   until every face reads and the set's focal prop shows. Then render.
+2. **Occlusion edge.** The dolls are cut off at the waist, so the set's foreground
+   prop (a log) is pasted back over them. Measure its top edge on the fitted
+   1080x1920 set with a ruler overlay and give it as a polyline
+   (`set.foreground_edge: [[x, y], ...]`, plus `foreground_feather`). The editor
+   refuses a doll whose waist is not hidden across her whole width.
+3. **Audio** places each line at its shot start plus `start`, normalizes it to
+   -22 dBFS RMS, adds cues, then masters to -20 LUFS and -3.5 dBTP as 48 kHz 24-bit.
+4. **Render** applies the rigid held-pose motion (12 poses/s inside 24 fps, one phase
+   per doll), pastes the foreground over the dolls, encodes H.264 CRF 18 with 2
+   threads, writes a contact sheet and a per-frame transform log, then muxes
+   `final.mp4` (AAC 192 kbit/s).
 
 ## Stage 6: check
 
-Run both, from `poc/`:
-
 ```bash
-OPENBLAS_NUM_THREADS=2 "$HOME/.cache/studio-venv/bin/python" edit_doll_short.py validate
-OPENBLAS_NUM_THREADS=2 "$HOME/.cache/studio-venv/bin/python" check_doll_dialogue.py
+~/.cache/studio-venv/bin/python edit.py $M validate   --out edit
+~/.cache/studio-venv/bin/python edit.py $M transcript --out edit
 ```
 
-`validate` writes `validation.json`; it checks:
-
-- decoded frame count equals duration x 24, and duration is within 0.05 s of the plan
-  (OP345 hard-codes 480 frames: change it to the new length);
-- each shot uses one source image per doll, so the face changes only at cuts (OP345
-  also requires a new expression whenever a doll returns: drop that rule if the
-  script keeps a doll's expression, as the Winter Menu does for doll B);
-- true peak at or below -2.5 dBTP and zero clipped samples (aim for about -20 LUFS
-  integrated).
-
-`check_doll_dialogue.py` sends the movie's audio (16 kHz mono) to the Whisper pod
-and writes `dialogue-transcript.json`. It fails unless the normalized transcript
-matches the script.
-
-Then by eye and ear (the agent, before Tom sees it):
-
-- watch the contact sheet and the whole movie: hair edges, foreground strip, framing;
-- listen for clipped or overlapping lines and cues landing on the wrong beat.
+`validate` checks frame count against the timeline, duration, size, face art fixed
+within each shot, motion present, true peak at or below -2.5 dBTP, and no clipping.
+`transcript` sends the movie's audio to the Whisper pod and requires a match with the
+script after the declared tolerances. Then watch the contact sheet and the movie.
 
 ## Stage 7: deliver
 
-Save the production to private storage so Tom can watch it. `poc/preserve_doll_short.py`
-does this; it was written for OP345, so first:
-
-- replace every `op345`/`OP345` path, story and title;
-- rewrite the `provenance` text so it is true for this title (which models made the
-  images, voices and cues; OP345's text names a different image tool and voices);
-- update the asserted frame count and the list of file names (it expects exactly
-  four voices and OP345's image names).
-
-What it does:
-
-1. Copies each asset create-only to `/workspace/output/productions/<job-id>/` on PVC
-   `ai/wan-video`, verifying SHA256 on arrival.
-2. Links a ledger JSON into `/workspace/jobs/<ledger-id>.json`. **The ledger must be
-   valid**: the Wan API reads every ledger in that folder when it starts, without
-   error handling, so a malformed file would crash the shared video service on its
-   next restart. Required fields: `id` (32 lowercase hex characters, the same as the
-   file name), `state: "succeeded"`, `output` (path relative to `/workspace/output`,
-   ending in `.mp4`), plus `kind: "edited_production"`, `title`, `story`, `assets`,
-   `bytes`, `sha256`, `created_at`, `finished_at`, `telemetry: []`, `preset` and
-   `provenance`. Check the JSON before linking it.
-3. Prints `https://video.haynesops.com/videos/<ledger-id>/file` for Tom.
-
-That link is for Tom's devices on the home network. A session pod cannot open it
-(the name resolves to a LAN address its egress does not allow). Confirm delivery from
-inside the API container instead:
-
 ```bash
-kubectl exec -n ai deploy/wan-video -c api -- python3 -c \
-  'import urllib.request;print(urllib.request.urlopen("http://127.0.0.1:8080/videos/<ledger-id>").read().decode())'
+python3 deliver.py ../titles/<slug>/manifest.json --out edit
 ```
+
+It refuses unless both checks passed, checks free space, copies every asset
+create-only to `/workspace/output/productions/<job>/` on PVC `ai/wan-video` (SHA256
+verified per file), validates the ledger fields the Wan API depends on, hard-links the
+ledger into `/workspace/jobs/`, reads it back through the API in the pod, and writes
+`$JOB/production.json`. About 5 s. **A malformed ledger would crash the shared Wan API
+on its next restart**, which is why the script validates it first.
+
+The printed `https://video.haynesops.com/videos/<id>/file` opens only on the home
+network. A session pod cannot open it: verify from inside the API container
+(`127.0.0.1:8080/videos/<id>`), and send Tom the movie file directly as well.
 
 ## Stage 8: review and record
 
 1. **Gate 3:** send Tom the link. Record his verdict in the run log, word for word,
    separate from the technical checks.
-2. Commit to `titles/<slug>/`: `brief.md` (final), `prompts.json`, `speech.json`,
-   `sfx.json`, `timeline.json`, `validation.json`, `dialogue-transcript.json`,
-   `production.json` and `run-log.md`. Text and hashes only; the media stays on the
-   PVC. Commit the changed `poc/` scripts too.
+2. Commit to `titles/<slug>/`: `brief.md`, `manifest.json`, `prompts.json`,
+   `run-log.md`, and `evidence/` (`speech.json`, `timeline.json`, `shots.json`,
+   `validation.json`, `dialogue-transcript.json`, `production.json`). Text and hashes
+   only; the media stays on the PVC.
 3. Update this runbook: mark each stage **Proven** with a link to the evidence, or
    add a **Changed** note.
 4. Comment on the story with the link, commit and verdict, and list proposed tooling
    stories (from the run log's slowest and most manual steps) for Tom to groom.
 
-## Known gaps before the first run
+## Known gaps
 
-- The editor supports only one doll per shot, four 5 s shots and a 20 s total.
-- Subtitle sources (HaynesTower or Bazarr) are not connected; this title does not need
+- Voices, cues and comic timing are chosen without listening; a person has to.
+- Layout and occlusion are hand-tuned numbers. Four fixed-pose cutouts crowd a 9:16
+  frame.
+- Cutouts need hand-tuned keying (and an eye-protect box for green-eyed dolls).
+- Subtitle sources (HaynesTower or Bazarr) are not connected; this title did not need
   them.
-- Delivery depends on the Wan API pod and its unbacked PVC, and agents cannot open
-  the delivery link themselves.
+- Delivery depends on the Wan API pod and its unbacked 80 Gi PVC.
+- The proposed tooling that closes these gaps is in
+  [`docs/proposals/0001-tooling-backlog.md`](../proposals/0001-tooling-backlog.md).

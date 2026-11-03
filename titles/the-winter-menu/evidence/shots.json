@@ -1,0 +1,116 @@
+[
+  {
+    "shot": 1,
+    "start_s": 0.0,
+    "end_s": 6.375,
+    "frames": 153,
+    "layout": "single",
+    "dolls": [
+      {
+        "doll": "a",
+        "image": "cutouts/a-proud.png",
+        "file_sha256": "4ea3005f4effebda7f4ce9b083da55e8529db4269c96104364e5dc74b25969de"
+      }
+    ]
+  },
+  {
+    "shot": 2,
+    "start_s": 6.375,
+    "end_s": 10.2917,
+    "frames": 94,
+    "layout": "single",
+    "dolls": [
+      {
+        "doll": "b",
+        "image": "cutouts/b-deadpan.png",
+        "file_sha256": "d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a"
+      }
+    ]
+  },
+  {
+    "shot": 3,
+    "start_s": 10.2917,
+    "end_s": 16.375,
+    "frames": 146,
+    "layout": "single",
+    "dolls": [
+      {
+        "doll": "c",
+        "image": "cutouts/c-suspicious.png",
+        "file_sha256": "a49b2c3046f385d4bb05fa369b3d21d218a4c63cf66d157d204a28b9be357f42"
+      }
+    ]
+  },
+  {
+    "shot": 4,
+    "start_s": 16.375,
+    "end_s": 19.875,
+    "frames": 84,
+    "layout": "single",
+    "dolls": [
+      {
+        "doll": "d",
+        "image": "cutouts/d-cheerful.png",
+        "file_sha256": "83bcdb10da26bb273d524848054297709c7dec22eadafa812fd23158a1b13e68"
+      }
+    ]
+  },
+  {
+    "shot": 5,
+    "start_s": 19.875,
+    "end_s": 22.875,
+    "frames": 72,
+    "layout": "group",
+    "dolls": [
+      {
+        "doll": "a",
+        "image": "cutouts/a-staring.png",
+        "file_sha256": "022ac97a623c88bf96405d92df0dcad0aed459641d5e78dfed17fae7931267b7"
+      },
+      {
+        "doll": "c",
+        "image": "cutouts/c-staring.png",
+        "file_sha256": "b816a4f225e160a6c6a8b26244434c96d2ea09a51ce9f7c5d7a2485a1de552af"
+      },
+      {
+        "doll": "d",
+        "image": "cutouts/d-cheerful.png",
+        "file_sha256": "83bcdb10da26bb273d524848054297709c7dec22eadafa812fd23158a1b13e68"
+      },
+      {
+        "doll": "b",
+        "image": "cutouts/b-deadpan.png",
+        "file_sha256": "d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a"
+      }
+    ]
+  },
+  {
+    "shot": 6,
+    "start_s": 22.875,
+    "end_s": 27.5833,
+    "frames": 113,
+    "layout": "group",
+    "dolls": [
+      {
+        "doll": "a",
+        "image": "cutouts/a-staring.png",
+        "file_sha256": "022ac97a623c88bf96405d92df0dcad0aed459641d5e78dfed17fae7931267b7"
+      },
+      {
+        "doll": "c",
+        "image": "cutouts/c-staring.png",
+        "file_sha256": "b816a4f225e160a6c6a8b26244434c96d2ea09a51ce9f7c5d7a2485a1de552af"
+      },
+      {
+        "doll": "d",
+        "image": "cutouts/d-shocked.png",
+        "file_sha256": "3d9c9d223ebc0137f0311a015dff08080acb4e8e413afe9087d7b452da54ef58"
+      },
+      {
+        "doll": "b",
+        "image": "cutouts/b-deadpan.png",
+        "file_sha256": "d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a"
+      }
+    ]
+  }
+]
