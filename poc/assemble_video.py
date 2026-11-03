@@ -3,7 +3,7 @@ first frame repeats the previous clip's last frame, so it is dropped), trim to t
 length from a reference timeline, scale to the delivery size, then mux a soundtrack.
 
     python poc/assemble_video.py JOB_DIR TIMELINE.json SOUNDTRACK.wav OUT.mp4 --method wf
-        [--size 1080x1920] [--stretch] [--clip-fps 24]
+        [--size 1080x1920] [--stretch] [--fps 24]
 
 --stretch slows a cut's footage to fill its length instead of chaining extra clips (the
 other lengthening option E0 compares). Create-only output.

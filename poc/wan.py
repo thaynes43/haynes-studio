@@ -96,7 +96,11 @@ def render(job_dir, name, image, prompt, seed, width, height, length, negative=N
     r = subprocess.run(REMOTE + [UPLOAD, up_name, digest], input=data, capture_output=True, timeout=30)
     if r.returncode or r.stdout.decode().strip() != digest:
         raise RuntimeError('upload failed: ' + r.stderr.decode()[-500:])
-    graph = json.loads(TEMPLATE.read_text())
+    template = TEMPLATE.read_bytes(); graph = json.loads(template)
+    # The template comes from a mutable checkout: refuse it if the edited nodes moved.
+    expected = {'4': 'CLIPTextEncode', '5': 'CLIPTextEncode', '8': 'Wan22ImageToVideoLatent', '9': 'KSampler', '12': 'SaveVideo'}
+    for node, cls in expected.items():
+        assert graph[node]['class_type'] == cls, f'workflow.json node {node} is not {cls}; update wan.py'
     graph['4']['inputs']['text'] = prompt
     graph['5']['inputs']['text'] = negative
     graph['8']['inputs'].update(width=width, height=height, length=length, start_image=['13', 0])
@@ -123,7 +127,7 @@ def render(job_dir, name, image, prompt, seed, width, height, length, negative=N
         last = fr.to_image(); n += 1
     c.close()
     first.save(clips / f'{name}-first.png'); last.save(clips / f'{name}-last.png')
-    rec = {'name': name, 'job_id': job['id'], 'seed': seed, 'width': width, 'height': height, 'length': length,
+    rec = {'name': name, 'job_id': job['id'], 'template_sha256': hashlib.sha256(template).hexdigest(), 'seed': seed, 'width': width, 'height': height, 'length': length,
            'frames': n, 'image': Path(image).name, 'image_sha256': digest, 'prompt': prompt, 'negative': negative,
            'clip_sha256': hashlib.sha256(body).hexdigest(), 'bytes': len(body), 'cooldown_s': cooled_s,
            'start_temps': temps, 'render_s': round(t_done - t_submit, 1), 'wall_s': round(time.time() - t0, 1),

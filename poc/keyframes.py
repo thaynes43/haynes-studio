@@ -32,10 +32,12 @@ def main():
         cam = shot.get('camera')
         frame = edit.camera({'camera': {**cam, 'over': 1e-6}} if cam else {}, frame.convert('RGB'), 1.0)
         target = out / f"s{shot['id']}.png"
-        frame.resize((w, h), Image.Resampling.LANCZOS).save(target)
+        with target.open('xb') as f:  # create-only: clip records point at keyframes by sha256
+            frame.resize((w, h), Image.Resampling.LANCZOS).save(f, format='PNG')
         recs.append({'shot': shot['id'], 'file': target.name, 'sha256': hashlib.sha256(target.read_bytes()).hexdigest(),
                      'dolls': shot['dolls'], 'layout': shot['layout']})
-    (out / 'keyframes.json').write_text(json.dumps(recs, indent=2) + '\n'); print(len(recs), 'keyframes ->', out)
+    with (out / 'keyframes.json').open('x') as f:
+        f.write(json.dumps(recs, indent=2) + '\n'); print(len(recs), 'keyframes ->', out)
 
 
 if __name__ == '__main__':

@@ -88,15 +88,18 @@ def main():
             fr.to_image().save(clips / f'{a.name}-first.png')
         last = fr; n += 1
     last.to_image().save(clips / f'{a.name}-last.png'); c.close()
-    peak = max((g2.get('memory_mib') or 0) for t in result.get('telemetry', []) for g2 in t.get('gpus', []))
+    peak = max(((g2.get('memory_mib') or 0) for t in result.get('telemetry', []) for g2 in t.get('gpus', [])), default=None)
     rec = {'name': a.name, 'job_id': jid, 'method': 's2v', 'seed': a.seed, 'width': a.width, 'height': a.height, 'length': length,
            'fps': FPS, 'frames': n, 'audio_s': round(dur, 3), 'image_sha256': image_sha, 'audio_sha256': audio_sha,
            'clip_sha256': hashlib.sha256(body).hexdigest(), 'cooldown_s': cooled_s, 'start_temps': temps,
            'render_s': round(td - ts, 1), 'wall_s': round(time.time() - t0, 1), 'peak_gpu_mib': peak, 'prompt': prompt,
+           'unexpected_work_seen': result.get('unexpected_work_seen'),
            'at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}
     with (clips / 'records.jsonl').open('a') as f:
         f.write(json.dumps(rec) + '\n')
     print(json.dumps({k: v for k, v in rec.items() if k != 'prompt'}))
+    if result.get('unexpected_work_seen'):
+        raise RuntimeError('Competing work observed; output kept, stopping further submissions')
 
 
 if __name__ == '__main__':
