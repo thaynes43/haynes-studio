@@ -409,6 +409,8 @@ would refuse a reuse anyway).
 - A one-line script change cost a full 9-minute re-render, because shot timing
   follows speech length. Tooling should re-render only the shots whose timing or
   content changed, and splice the rest.
-- **Gate 3 for r4: passed.** Tom (2026-11-03): "That's great. Now we know the
-  process and can build the backlog." Revision 4
-  (`032f1bb230794aaf84dce9001181a7d7`) is the accepted cut of The Winter Menu.
+- **Gate 3 for r4: positive, formal sign-off requested.** Tom (2026-11-03): "That's
+  great. Now we know the process and can build the backlog." He moved on to the
+  backlog with no further notes, which the agent reads as acceptance of revision 4
+  (`032f1bb230794aaf84dce9001181a7d7`). Under AGENTS.md, praise is not a formal
+  sign-off unless Tom says so, so confirmation was asked for in the session.

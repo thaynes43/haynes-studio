@@ -2,7 +2,7 @@
 
 Status: **proposal for grooming with Tom.** It supersedes the epic list in
 [proposal 0001](0001-tooling-backlog.md); 0001's requirements still hold and are folded
-in here. Written 2026-11-03, after The Winter Menu was finished (revision 4 approved).
+in here. Written 2026-11-03, after The Winter Menu's revision 4 (Tom: "That's great").
 
 ## Tom's goals (2026-11-03)
 

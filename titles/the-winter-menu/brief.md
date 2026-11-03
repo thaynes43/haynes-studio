@@ -3,8 +3,8 @@
 Working title. Pilot for the manual PoC
 ([Epic 366](https://work.haynesnetwork.com/work_packages/366)).
 
-Status: **finished.** Revision 4 approved by Tom on 2026-11-03
-(ledger `032f1bb230794aaf84dce9001181a7d7`, 45.3 s, private).
+Status: revision 4 (ledger `032f1bb230794aaf84dce9001181a7d7`, 45.3 s, private) got a
+positive verdict from Tom on 2026-11-03 ("That's great"); formal sign-off requested.
 Revision 1 delivered privately on 2026-11-03
 ([story 369](https://work.haynesnetwork.com/work_packages/369)); see the [run log](run-log.md).
 
@@ -85,4 +85,4 @@ the measured voice durations (stage 3), not from fixed 5 s slots. Line 1 may nee
    land, add an "eat her" line and a zoomed reaction. Revision 3 (`manifest-r3.json`:
    the vote gag, C's line, D close-up) delivered 2026-11-03. Tom on r3: "almost there",
    but the bib belongs on the eaters. Revision 4 changes that line to "Bibs on, ladies."
-   **Revision 4 approved** by Tom ("That's great"), 2026-11-03: the accepted cut.
+   Tom on r4: "That's great" (2026-11-03); formal sign-off requested.
