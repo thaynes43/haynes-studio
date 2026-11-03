@@ -302,3 +302,85 @@ Driven by Tom's gate-3 notes on r1.
 4. **Atomic, fine-grained stages:** a failed stage left partial output, and an
    audio-only fix should never need a re-render (`--picture-from` was the stopgap).
 5. **Narrow ASR tolerances:** whole-phrase or position-aware, never global word swaps.
+
+# Revision 3 (2026-11-03)
+
+Story [371](https://work.haynesnetwork.com/work_packages/371), job `the-winter-menu-r3`,
+manifest `manifest-r3.json`. Cutouts, set and the earlier sounds copied from r2.
+
+- **Tom's notes on r2 (verbatim):** "The final "motion carried" line isn't hitting
+  right, that needs to be the best. Also we need a "if we can't eat them why don't we
+  just eat her" line in relation to the not eating the squishies then a zoomed in
+  reaction from the one they plan to eat"
+- Script changes proposed in chat and built under the green light:
+  - C, single shot: "If we can't eat the squishies, why don't we just eat her?"
+  - D close-up reaction: snap push-in (1.0 to 1.2x over 0.35 s, ease-out) with a
+    whoosh-and-boom sting.
+  - **The vote**, to make "Motion carried" land on procedure: B "All in favor?", A
+    "Aye.", C "Aye.", D "Nay!", B "Motion carried." with a **gavel** and the whole
+    group jumping once, then a 0.9 s beat, then "Somebody find her a bib." The crow
+    caw now sits in the silence after the turn, before the vote.
+  - The ending (D gone, crunching, "Needs salt.") is unchanged.
+- 17:53: gavel (seed 801: one strike at 1.39 s) and sting (seed 901: whoosh into a
+  boom, 0.68 to 2.05 s) from audio-authoring, about 6 s each.
+- **Editor features added** (each one a storyboard requirement):
+  1. **Multiple lines per shot** (`lines`, with `gap` after the previous line), so a
+     back-and-forth vote happens in one frame with each speaker bouncing on her own
+     syllables.
+  2. **Cues and moves anchored to a line** (`after_line`, `offset`), so the gavel and
+     the group jump land exactly as "Motion carried." ends, whatever its spoken
+     length.
+  3. **Close-ups:** a `crop` of the cutout, no foreground log, the cut edge below the
+     frame (guarded), plus a `camera` push-in.
+  4. **Phrase-level ASR tolerances** (exact word sequences only), after r2's
+     single-word tolerance broke another line. Not needed in the end: in context the
+     recognizer heard "Aye. Aye. Nay." and "Needs salt." correctly, though it hears a
+     lone "Aye." as "I" or "Lie".
+- Voices: 12 lines in about 6 s (Kokoro pads short words with silence: "Aye." is
+  about 0.8 s long).
+- A preview showed the crow overlapping "All in favor?", so the vote now starts at
+  1.9 s. The close-up was nudged right to center D's face. Film length: 45.6 s.
+- The mixed soundtrack was transcribed ad hoc before the create-only transcript stage,
+  to set tolerances without burning an output folder. **Tooling note:** checks should
+  run as dry runs first.
+- 17:56 to 17:59: the first full render (`edit-2`) **failed at shot 7**, three
+  minutes in. Nudging the close-up right to center D's face pushed the cutout past
+  the plate's 240 px margin, and the placement guard only fired when rendering
+  reached that shot. Its encoder cleanup then timed out. Fixed: `render` now checks
+  every shot's placement before encoding (fail fast), and kills the encoder if
+  terminate hangs. The close-up crop was narrowed to keep the face inside the margin,
+  and the push-in is now aimed at D's face (x≈400) rather than the frame center.
+  `edit-2` was left with a partial picture (stages are still not atomic).
+- While checking for a stray encoder, the agent ran `pkill -f` with a pattern that
+  matched its own shell, which killed that command before it applied any edits.
+  Nothing else was affected (no encoder was running). The edits were re-applied.
+  **Lesson:** never `pkill -f` on a pattern that appears in your own command line;
+  match by PID.
+- 18:00:41 to 18:09:23: `edit-3` rendered 1094 frames in **8 min 42 s** (with fire,
+  firelight and the close-up). Then: **all checks passed**. 1094/1094 frames,
+  45.58 s, -20.31 LUFS, -3.46 dBTP, 0 clipped samples. The transcript matched with only
+  the "340" digits tolerance ("Aye. Aye. Nay." and "Needs salt." heard correctly in
+  context).
+- Delivered as ledger `11d41839ef134a76abe46370105a99fe`
+  (`https://video.haynesops.com/videos/11d41839ef134a76abe46370105a99fe/file`).
+  Evidence in `evidence-r3/`.
+- **Sending to Tom's phone failed:** the 32.0 MiB master is over the 30 MiB file-send
+  limit. A review copy (CRF 25, 12.6 MB, audio copied) was made and sent; the master
+  stays on the private link. **Tooling note:** produce a phone review proxy as part of
+  delivery.
+- **Gate 3 for r3:** sent to Tom; verdict pending.
+
+### Revision 3 summary: new requirements for the tooling
+
+1. **Dialogue as a sequence:** several lines per shot, with cues and moves anchored to
+   lines, are what make a comic beat (the vote, the gavel, the jump) land. The
+   storyboard needs a per-shot line timeline, not one line per shot.
+2. **Shot types:** the close-up and push-in are a different shot type (crop, no
+   foreground, camera move). The UI should offer shot types (single, group, close-up)
+   with sensible defaults.
+3. **Fail fast:** validate every placement, cue and anchor before a long render. A
+   7-minute render should never die at minute 3 on a layout error.
+4. **Review proxies:** every delivery also produces a small review copy for phones.
+5. **Render time grows with length and effects:** about 8.7 min for 45 s on 2 CPU
+   threads. Worth caching the static layers per shot and only re-drawing the moving
+   ones.

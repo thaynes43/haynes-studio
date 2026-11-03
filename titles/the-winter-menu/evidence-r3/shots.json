@@ -1,0 +1,153 @@
+[
+  {
+    "shot": 1,
+    "start_s": 0.0,
+    "end_s": 6.375,
+    "frames": 153,
+    "layout": "single",
+    "dolls": [
+      {
+        "doll": "a",
+        "image": "cutouts/a-proud.png",
+        "file_sha256": "4ea3005f4effebda7f4ce9b083da55e8529db4269c96104364e5dc74b25969de"
+      }
+    ]
+  },
+  {
+    "shot": 2,
+    "start_s": 6.375,
+    "end_s": 10.2917,
+    "frames": 94,
+    "layout": "single",
+    "dolls": [
+      {
+        "doll": "b",
+        "image": "cutouts/b-deadpan.png",
+        "file_sha256": "d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a"
+      }
+    ]
+  },
+  {
+    "shot": 3,
+    "start_s": 10.2917,
+    "end_s": 16.375,
+    "frames": 146,
+    "layout": "single",
+    "dolls": [
+      {
+        "doll": "c",
+        "image": "cutouts/c-suspicious.png",
+        "file_sha256": "a49b2c3046f385d4bb05fa369b3d21d218a4c63cf66d157d204a28b9be357f42"
+      }
+    ]
+  },
+  {
+    "shot": 4,
+    "start_s": 16.375,
+    "end_s": 19.875,
+    "frames": 84,
+    "layout": "single",
+    "dolls": [
+      {
+        "doll": "a",
+        "image": "cutouts/a-proud.png",
+        "file_sha256": "4ea3005f4effebda7f4ce9b083da55e8529db4269c96104364e5dc74b25969de"
+      }
+    ]
+  },
+  {
+    "shot": 5,
+    "start_s": 19.875,
+    "end_s": 23.3333,
+    "frames": 83,
+    "layout": "single",
+    "dolls": [
+      {
+        "doll": "d",
+        "image": "cutouts/d-shocked.png",
+        "file_sha256": "3d9c9d223ebc0137f0311a015dff08080acb4e8e413afe9087d7b452da54ef58"
+      }
+    ]
+  },
+  {
+    "shot": 6,
+    "start_s": 23.3333,
+    "end_s": 28.4167,
+    "frames": 122,
+    "layout": "single",
+    "dolls": [
+      {
+        "doll": "c",
+        "image": "cutouts/c-suspicious.png",
+        "file_sha256": "a49b2c3046f385d4bb05fa369b3d21d218a4c63cf66d157d204a28b9be357f42"
+      }
+    ]
+  },
+  {
+    "shot": 7,
+    "start_s": 28.4167,
+    "end_s": 30.3333,
+    "frames": 46,
+    "layout": "closeup",
+    "dolls": [
+      {
+        "doll": "d",
+        "image": "cutouts/d-shocked.png",
+        "file_sha256": "3d9c9d223ebc0137f0311a015dff08080acb4e8e413afe9087d7b452da54ef58"
+      }
+    ]
+  },
+  {
+    "shot": 8,
+    "start_s": 30.3333,
+    "end_s": 41.0833,
+    "frames": 258,
+    "layout": "group",
+    "dolls": [
+      {
+        "doll": "a",
+        "image": "cutouts/a-staring.png",
+        "file_sha256": "022ac97a623c88bf96405d92df0dcad0aed459641d5e78dfed17fae7931267b7"
+      },
+      {
+        "doll": "c",
+        "image": "cutouts/c-staring.png",
+        "file_sha256": "b816a4f225e160a6c6a8b26244434c96d2ea09a51ce9f7c5d7a2485a1de552af"
+      },
+      {
+        "doll": "d",
+        "image": "cutouts/d-shocked.png",
+        "file_sha256": "3d9c9d223ebc0137f0311a015dff08080acb4e8e413afe9087d7b452da54ef58"
+      },
+      {
+        "doll": "b",
+        "image": "cutouts/b-deadpan.png",
+        "file_sha256": "d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a"
+      }
+    ]
+  },
+  {
+    "shot": 9,
+    "start_s": 41.0833,
+    "end_s": 45.5833,
+    "frames": 108,
+    "layout": "trio",
+    "dolls": [
+      {
+        "doll": "c",
+        "image": "cutouts/c-suspicious.png",
+        "file_sha256": "a49b2c3046f385d4bb05fa369b3d21d218a4c63cf66d157d204a28b9be357f42"
+      },
+      {
+        "doll": "a",
+        "image": "cutouts/a-proud.png",
+        "file_sha256": "4ea3005f4effebda7f4ce9b083da55e8529db4269c96104364e5dc74b25969de"
+      },
+      {
+        "doll": "b",
+        "image": "cutouts/b-deadpan.png",
+        "file_sha256": "d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a"
+      }
+    ]
+  }
+]

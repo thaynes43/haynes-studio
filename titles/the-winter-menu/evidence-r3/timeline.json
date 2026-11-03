@@ -1,0 +1,303 @@
+{
+  "total_s": 45.5833,
+  "shots": [
+    {
+      "shot": 1,
+      "start_s": 0.0,
+      "end_s": 6.375,
+      "frames": 153
+    },
+    {
+      "shot": 2,
+      "start_s": 6.375,
+      "end_s": 10.2917,
+      "frames": 94
+    },
+    {
+      "shot": 3,
+      "start_s": 10.2917,
+      "end_s": 16.375,
+      "frames": 146
+    },
+    {
+      "shot": 4,
+      "start_s": 16.375,
+      "end_s": 19.875,
+      "frames": 84
+    },
+    {
+      "shot": 5,
+      "start_s": 19.875,
+      "end_s": 23.3333,
+      "frames": 83
+    },
+    {
+      "shot": 6,
+      "start_s": 23.3333,
+      "end_s": 28.4167,
+      "frames": 122
+    },
+    {
+      "shot": 7,
+      "start_s": 28.4167,
+      "end_s": 30.3333,
+      "frames": 46
+    },
+    {
+      "shot": 8,
+      "start_s": 30.3333,
+      "end_s": 41.0833,
+      "frames": 258
+    },
+    {
+      "shot": 9,
+      "start_s": 41.0833,
+      "end_s": 45.5833,
+      "frames": 108
+    }
+  ],
+  "audio": [
+    {
+      "shot": 1,
+      "k": 0,
+      "doll": "a",
+      "voice": "bf_emma",
+      "text": "Day three hundred forty. I've mastered fire, shelter, and emotionally supportive moss.",
+      "file": "voices/line-1.wav",
+      "duration_s": 5.163,
+      "sha256": "b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78",
+      "heard": "Day 340. I've mastered fire, shelter, and emotionally supportive MOS.",
+      "heard_matches": false,
+      "kind": "line",
+      "start_s": 0.5,
+      "end_s": 5.663
+    },
+    {
+      "shot": 2,
+      "k": 0,
+      "doll": "b",
+      "voice": "af_heart",
+      "text": "Winter's coming. We need to discuss the menu.",
+      "file": "voices/line-2.wav",
+      "duration_s": 2.688,
+      "sha256": "7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50",
+      "heard": "Winter's coming, we need to discuss the menu.",
+      "heard_matches": true,
+      "kind": "line",
+      "start_s": 6.875,
+      "end_s": 9.563
+    },
+    {
+      "shot": 3,
+      "k": 0,
+      "doll": "c",
+      "voice": "af_nicole",
+      "text": "I nominate whoever brought orange slices. They know what they did.",
+      "file": "voices/line-3.wav",
+      "duration_s": 4.864,
+      "sha256": "6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36",
+      "heard": "I nominate whoever brought orange slices. They know what they did.",
+      "heard_matches": true,
+      "kind": "line",
+      "start_s": 10.792,
+      "end_s": 15.656
+    },
+    {
+      "shot": 4,
+      "k": 0,
+      "doll": "a",
+      "voice": "bf_emma",
+      "text": "Or we could just eat the crunchy butter squishies.",
+      "file": "voices/line-4.wav",
+      "duration_s": 2.475,
+      "sha256": "0063d7e0e0d8a551fece4373ba1252d94339c00e10155bd08804b44c388773fd",
+      "heard": "Or we could just eat the crunchy butter squishies.",
+      "heard_matches": true,
+      "kind": "line",
+      "start_s": 16.875,
+      "end_s": 19.35
+    },
+    {
+      "shot": 5,
+      "k": 0,
+      "doll": "d",
+      "voice": "af_bella",
+      "text": "Absolutely not. These are limited edition.",
+      "file": "voices/line-5.wav",
+      "duration_s": 2.432,
+      "sha256": "f89e05a2c53e9be7edd35f3b31862da311ce2730cb330421cb93e25b20a3ab59",
+      "heard": "Absolutely not. These are limited edition.",
+      "heard_matches": true,
+      "kind": "line",
+      "start_s": 20.275,
+      "end_s": 22.707
+    },
+    {
+      "shot": 6,
+      "k": 0,
+      "doll": "c",
+      "voice": "af_nicole",
+      "text": "If we can't eat the squishies, why don't we just eat her?",
+      "file": "voices/line-6.wav",
+      "duration_s": 4.309,
+      "sha256": "46bf17ecaa3a9729b16fd45ba67c2f123b32756cf36eef133abf029c681a7395",
+      "heard": "If we can't eat the Squishies, why don't we just eat her?",
+      "heard_matches": true,
+      "kind": "line",
+      "start_s": 23.733,
+      "end_s": 28.043
+    },
+    {
+      "shot": 8,
+      "k": 0,
+      "doll": "b",
+      "voice": "af_heart",
+      "text": "All in favor?",
+      "file": "voices/line-8.wav",
+      "duration_s": 1.003,
+      "sha256": "37e81c9db699303d9fbdef03479d9500d5514ae3f38fa103c4f481d6513350e6",
+      "heard": "All in favor?",
+      "heard_matches": true,
+      "kind": "line",
+      "start_s": 32.233,
+      "end_s": 33.236
+    },
+    {
+      "shot": 8,
+      "k": 1,
+      "doll": "a",
+      "voice": "bf_emma",
+      "text": "Aye.",
+      "file": "voices/line-8-1.wav",
+      "duration_s": 0.811,
+      "sha256": "1dadd22ef158db129f37ece9de63e0db871f4f72cd912fdc7a260126021aa6b2",
+      "heard": "Lie",
+      "heard_matches": false,
+      "kind": "line",
+      "start_s": 33.536,
+      "end_s": 34.347
+    },
+    {
+      "shot": 8,
+      "k": 2,
+      "doll": "c",
+      "voice": "af_nicole",
+      "text": "Aye.",
+      "file": "voices/line-8-2.wav",
+      "duration_s": 0.875,
+      "sha256": "1e5206395dc510de18f1f2050485cd63b9bcba90411ea34bbee7a44a3298d00d",
+      "heard": "I",
+      "heard_matches": false,
+      "kind": "line",
+      "start_s": 34.547,
+      "end_s": 35.422
+    },
+    {
+      "shot": 8,
+      "k": 3,
+      "doll": "d",
+      "voice": "af_bella",
+      "text": "Nay!",
+      "file": "voices/line-8-3.wav",
+      "duration_s": 0.512,
+      "sha256": "5fc1718e8659568b2234544470bce9c23404b855b9c563ea90f4f75596773b35",
+      "heard": "Nay.",
+      "heard_matches": true,
+      "kind": "line",
+      "start_s": 35.672,
+      "end_s": 36.184
+    },
+    {
+      "shot": 8,
+      "k": 4,
+      "doll": "b",
+      "voice": "af_heart",
+      "text": "Motion carried.",
+      "file": "voices/line-8-4.wav",
+      "duration_s": 1.024,
+      "sha256": "9b3ba267baecf4407cb1ec7dfa66598566e83e615b009f307a47c4b3be4aaad9",
+      "heard": "Motion carried.",
+      "heard_matches": true,
+      "kind": "line",
+      "start_s": 36.884,
+      "end_s": 37.908
+    },
+    {
+      "shot": 8,
+      "k": 5,
+      "doll": "b",
+      "voice": "af_heart",
+      "text": "Somebody find her a bib.",
+      "file": "voices/line-8-5.wav",
+      "duration_s": 1.472,
+      "sha256": "3cd7c24827ff5c87cbd3f49959f23ab6afbf8974c621aae4b5cda8f4f04628ae",
+      "heard": "Somebody find her a bib.",
+      "heard_matches": true,
+      "kind": "line",
+      "start_s": 38.808,
+      "end_s": 40.28
+    },
+    {
+      "shot": 9,
+      "k": 0,
+      "doll": "b",
+      "voice": "af_heart",
+      "text": "Needs salt.",
+      "file": "voices/line-9.wav",
+      "duration_s": 0.981,
+      "sha256": "4e12138ee373ac45b6fce8f9049680d5494892fcc13a511bc77dbf37afbb5d31",
+      "heard": "Need salt.",
+      "heard_matches": false,
+      "kind": "line",
+      "start_s": 42.983,
+      "end_s": 43.965
+    },
+    {
+      "kind": "sfx",
+      "cue": "sting",
+      "file": "sfx/sting-s901.wav",
+      "sha256": "aadcc283d15fb7a067bc7517533dfccafb0d28ba5fe1c0ad8ddbae3d6ca1abe3",
+      "start_s": 28.417,
+      "end_s": 30.467,
+      "rms_dbfs": -22
+    },
+    {
+      "kind": "sfx",
+      "cue": "crow",
+      "file": "sfx/crow-s501.wav",
+      "sha256": "78c5f69ff31758d2d78b0c5b249633039c7ce51ae850a64971591b5da79bd4b8",
+      "start_s": 31.083,
+      "end_s": 32.233,
+      "rms_dbfs": -26
+    },
+    {
+      "kind": "sfx",
+      "cue": "gavel",
+      "file": "sfx/gavel-s801.wav",
+      "sha256": "a9c01ef381a0f0d0dd5df5e552e2cf8556a2a8f30caff04225017540669b7b5e",
+      "start_s": 37.958,
+      "end_s": 38.608,
+      "rms_dbfs": -20
+    },
+    {
+      "kind": "sfx",
+      "cue": "crunch",
+      "file": "sfx/crunch-s601.wav",
+      "sha256": "5515c7006ce09a1c5d0c21019ca11db7a445f9ce296b94f5c371aba8b7d6925f",
+      "start_s": 41.333,
+      "end_s": 44.083,
+      "rms_dbfs": -24
+    },
+    {
+      "kind": "bed",
+      "cue": "fire",
+      "file": "sfx/fire-s701.wav",
+      "sha256": "0b33af45929b8cfb3859bf1511a2738eef22944d431ee44257c33a1de42da72a",
+      "start_s": 0,
+      "end_s": 45.583,
+      "rms_dbfs": -40
+    }
+  ],
+  "premaster_headroom_db": -12.220163128125922,
+  "master_gain_db": 11.16
+}

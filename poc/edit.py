@@ -9,7 +9,7 @@ moves and an animated campfire come from titles/<slug>/manifest.json instead of 
 
 Every stage is create-only under <job>/<out>/ (default edit/); a new attempt uses a new --out.
 """
-from studio import load_manifest, sha, read_audio, write_audio, levels, ffmpeg, ffmpeg_exe, transcribe, RATE
+from studio import load_manifest, sha, read_audio, write_audio, levels, ffmpeg, ffmpeg_exe, transcribe, lines_of, RATE
 import argparse, json, math, re, subprocess, sys
 import numpy as np
 from PIL import Image, ImageFilter, ImageOps
@@ -20,17 +20,42 @@ GUARDS = {'audio': ['dialogue-only.wav', 'premaster.wav', 'soundtrack.wav', 'tim
           'validate': ['validation.json'], 'transcript': ['dialogue-transcript.json', 'dialogue-check.wav'], 'preview': []}
 
 
+def speech_records(m):
+    """speech.json keyed by (shot, k); older files without `k` are single-line shots."""
+    if not (m['_job'] / 'speech.json').exists():
+        return {}
+    return {(l['shot'], l.get('k', 0)): l for l in json.loads((m['_job'] / 'speech.json').read_text())['lines']}
+
+
+def resolve_lines(shot, speech):
+    """Each line of the shot with its start time (s into the shot) and its speech record."""
+    out, t = [], None
+    for k, line in lines_of(shot):
+        rec = speech[(shot['id'], k)]
+        start = line['start'] if t is None else t + line.get('gap', 0.3)
+        out.append({**line, 'k': k, 'start': start, 'rec': rec, 'end': start + rec['duration_s']})
+        t = out[-1]['end']
+    return out
+
+
+def anchored(shot, item, speech):
+    """Time (s into the shot) of a cue or move: `at`, or `offset` after the end of line
+    `after_line` (its index in the shot), so a gavel lands right as a line finishes."""
+    if 'after_line' in item:
+        return resolve_lines(shot, speech)[item['after_line']]['end'] + item.get('offset', 0.0)
+    return item['at']
+
+
 def timeline(m):
-    """Shot start/end times. A shot with a line lasts start + speech + tail, rounded up to a frame."""
-    speech = {}
-    if (m['_job'] / 'speech.json').exists():
-        speech = {l['shot']: l for l in json.loads((m['_job'] / 'speech.json').read_text())['lines']}
+    """Shot start/end times. A shot with lines lasts until its last line ends plus `tail`,
+    rounded up to a frame."""
+    speech = speech_records(m)
     fps, t, out = m['frame']['fps'], 0.0, []
     for shot in m['shots']:
         if 'duration' in shot:
             d = shot['duration']
         else:
-            d = shot['line']['start'] + speech[shot['id']]['duration_s'] + shot['tail']
+            d = resolve_lines(shot, speech)[-1]['end'] + shot['tail']
             assert shot['tail'] >= 0.25, 'lines must end at least 0.25 s before the cut'
         d = math.ceil(d * fps) / fps
         out.append({'shot': shot['id'], 'start_s': round(t, 4), 'end_s': round(t + d, 4), 'frames': round(d * fps)})
@@ -45,13 +70,13 @@ def audio(m):
     mix = np.zeros((round(total * RATE) + RATE // 10, 2), np.float32)
     placed = []
     for shot, span in zip(m['shots'], spans):
-        if shot.get('line'):
-            rec = speech[shot['id']]
+        for line in resolve_lines(shot, speech):
+            rec = line['rec']
             assert sha(job / rec['file']) == rec['sha256']
             a = read_audio(job / rec['file'])
             a *= 10 ** (-22 / 20) / max(float(np.sqrt(np.mean(a * a))), 1e-8)
             edge = 240; a[:edge] *= np.linspace(0, 1, edge)[:, None]; a[-edge:] *= np.linspace(1, 0, edge)[:, None]
-            start = span['start_s'] + shot['line']['start']
+            start = span['start_s'] + line['start']
             assert start + len(a) / RATE <= span['end_s'] - 0.25 + 1e-6
             n = round(start * RATE); mix[n:n + len(a)] += a
             placed.append({**rec, 'kind': 'line', 'start_s': round(start, 3), 'end_s': round(start + len(a) / RATE, 3)})
@@ -64,7 +89,7 @@ def audio(m):
                 c = c[round(spec['trim'][0] * RATE):round(spec['trim'][1] * RATE)].copy()
             c *= 10 ** (spec['gain_db'] / 20) / max(float(np.sqrt(np.mean(c * c))), 1e-8)
             c[:480] *= np.linspace(0, 1, 480)[:, None]; c[-2400:] *= np.linspace(1, 0, 2400)[:, None]
-            start = span['start_s'] + cue['at']; n = round(start * RATE)
+            start = span['start_s'] + anchored(shot, cue, speech); n = round(start * RATE)
             c = c[:len(mix) - n]; mix[n:n + len(c)] += c
             placed.append({'kind': 'sfx', 'cue': cue['cue'], 'file': spec['file'], 'sha256': sha(job / spec['file']),
                            'start_s': round(start, 3), 'end_s': round(start + len(c) / RATE, 3), 'rms_dbfs': spec['gain_db']})
@@ -145,6 +170,22 @@ def draw(frame, p, dx, dy, angle):
         frame.alpha_composite(moved.crop((PAD, 0, PAD + W, H)))
 
 
+def camera(shot, frame, t):
+    """Optional push-in: crop toward `center` from zoom[0] to zoom[1] over `over` seconds
+    (ease-out, like a snap zoom), scaled back to the frame size."""
+    cam = shot.get('camera')
+    if not cam:
+        return frame
+    W, H = frame.size; z0, z1 = cam['zoom']
+    u = min(1.0, t / cam.get('over', 0.4)); u = 1 - (1 - u) ** 3
+    z = z0 + (z1 - z0) * u
+    if abs(z - 1) < 1e-3:
+        return frame
+    cx, cy = cam['center']; w, h = W / z, H / z
+    x0 = min(max(cx - w / 2, 0), W - w); y0 = min(max(cy - h / 2, 0), H - h)
+    return frame.crop((round(x0), round(y0), round(x0 + w), round(y0 + h))).resize((W, H), Image.Resampling.BICUBIC)
+
+
 def place(m, shot, W, H):
     """One full-frame RGBA plate (and shadow) per doll in the shot, plus its pivot."""
     lay = m['layouts'][shot['layout']]
@@ -155,15 +196,22 @@ def place(m, shot, W, H):
         slot = lay['slots'][doll] if 'slots' in lay else {}
         slot = {'x': slot} if isinstance(slot, (int, float)) else slot
         height, bottom = slot.get('height', lay.get('height')), slot.get('bottom', lay.get('bottom'))
+        if 'crop' in slot:  # close-ups: keep a fraction of the cutout [x0, y0, x1, y1]
+            fx0, fy0, fx1, fy1 = slot['crop']
+            sprite = sprite.crop((round(fx0 * sprite.width), round(fy0 * sprite.height),
+                                  round(fx1 * sprite.width), round(fy1 * sprite.height)))
         sprite = sprite.resize((round(sprite.width * height / sprite.height), height), Image.Resampling.LANCZOS)
         cx = slot.get('x', lay.get('x')) * W
         x, y = round(cx - sprite.width / 2), bottom - sprite.height
         span = np.arange(max(x, 0), min(x + sprite.width, W))
-        assert bottom > edge_y(m, span).max() + 20, f'{image}: cut-off waist must sit behind the foreground prop'
+        if shot.get('foreground', True):
+            assert bottom > edge_y(m, span).max() + 20, f'{image}: cut-off waist must sit behind the foreground prop'
+        else:
+            assert bottom >= H + 60, f'{image}: with no foreground the cut edge must be below the frame'
         # The plate is wider than the frame so a doll hanging off an edge keeps her full
         # width when a move slides her back into view; draw() crops to the frame.
         assert x + PAD >= 0 and x + sprite.width <= W + PAD, f'{image}: more than {PAD}px off the frame'
-        plate = Image.new('RGBA', (W + 2 * PAD, H)); plate.alpha_composite(sprite, (x + PAD, y))
+        plate = Image.new('RGBA', (W + 2 * PAD, H)); plate.alpha_composite(sprite.crop((0, 0, sprite.width, max(0, min(sprite.height, H - y)))), (x + PAD, y))
         shadow = Image.new('RGBA', (W + 2 * PAD, H), (28, 24, 18, 0))
         shadow.putalpha(plate.getchannel('A').filter(ImageFilter.GaussianBlur(22)).point(lambda v: round(v * .16)))
         plates.append({'doll': doll, 'image': image, 'plate': plate, 'shadow': shadow, 'pivot': (cx + PAD, bottom - 80),
@@ -177,13 +225,14 @@ POSE_HZ = 12  # stop-motion: every movement is held for two 24 fps frames
 
 
 def speech_envelope(m, shot):
-    """The line's loudness at 12 poses/s, 0..1, so the speaker bounces on her syllables."""
-    if not shot.get('line'):
-        return None
-    rec = {l['shot']: l for l in json.loads((m['_job'] / 'speech.json').read_text())['lines']}[shot['id']]
-    a = read_audio(m['_job'] / rec['file']).mean(1); hop = RATE // POSE_HZ
-    env = np.array([np.sqrt(np.mean(a[i:i + hop] ** 2)) for i in range(0, len(a), hop)])
-    return env / max(env.max(), 1e-8)
+    """For each line in the shot: (doll, start, loudness at 12 poses/s scaled 0..1), so the
+    speaker bounces on her syllables."""
+    talks = []
+    for line in resolve_lines(shot, speech_records(m)):
+        a = read_audio(m['_job'] / line['rec']['file']).mean(1); hop = RATE // POSE_HZ
+        env = np.array([np.sqrt(np.mean(a[i:i + hop] ** 2)) for i in range(0, len(a), hop)])
+        talks.append((line['doll'], line['start'], env / max(env.max(), 1e-8)))
+    return talks
 
 
 def motion(m, shot, p, t, env):
@@ -195,19 +244,21 @@ def motion(m, shot, p, t, env):
     idle = style.get('idle_scale', 0.3) * (1.0 if shot['layout'] == 'single' else 0.6)
     dx, dy, angle = trajectory(q, p['sign'], p['factor'] * idle, p['phase'])
     dy *= idle
-    line = shot.get('line')
-    if env is not None and line and line['doll'] == p['doll']:
-        k = int(round((q - line['start']) * POSE_HZ))
-        if 0 <= k < len(env):
-            e = float(env[k]); hop = style.get('talk_hop', 34) * (1.0 if shot['layout'] == 'single' else 0.7)
+    for doll, start, curve in env or []:
+        if doll != p['doll']:
+            continue
+        k = int(round((q - start) * POSE_HZ))
+        if 0 <= k < len(curve):
+            e = float(curve[k]); hop = style.get('talk_hop', 34) * (1.0 if shot['layout'] == 'single' else 0.7)
             # Each syllable lifts the doll and tips her alternately left and right.
             dy -= hop * e
             angle += style.get('talk_tilt', 3.2) * e * (1 if (k // 2) % 2 == 0 else -1)
             dx += style.get('talk_shuffle', 7) * e * (1 if (k // 3) % 2 == 0 else -1)
     for mv in shot.get('moves', []):
-        if mv['doll'] != p['doll'] or q < mv['at']:
+        at = anchored(shot, mv, speech_records(m)) if 'after_line' in mv else mv['at']
+        if mv['doll'] != p['doll'] or q < at:
             continue
-        u = 1.0 if mv.get('dur', 0) == 0 else min(1.0, (q - mv['at']) / mv['dur'])
+        u = 1.0 if mv.get('dur', 0) == 0 else min(1.0, (q - at) / mv['dur'])
         u = math.ceil(u * 3) / 3  # a hand jerks the toy over in three held steps
         dx += mv.get('dx', 0) * u; dy += mv.get('dy', 0) * u; angle += mv.get('angle', 0) * u
     return dx, dy, angle
@@ -268,7 +319,8 @@ def picture_inputs(m):
     dolls, layout, moves and line timing, the cutout and set files, and the voice files
     (their envelopes drive the talk bounce). Sound-only settings are left out."""
     import hashlib
-    shots = [{k: s.get(k) for k in ('id', 'layout', 'dolls', 'moves', 'line', 'tail', 'duration')} for s in m['shots']]
+    shots = [{k: s.get(k) for k in ('id', 'layout', 'dolls', 'moves', 'line', 'lines', 'tail', 'duration', 'camera', 'foreground')}
+             for s in m['shots']]
     files = sorted({img for s in m['shots'] for img in s['dolls'].values()} | {m['set']['image']})
     speech = json.loads((m['_job'] / 'speech.json').read_text())['lines'] if (m['_job'] / 'speech.json').exists() else []
     blob = {'frame': m['frame'], 'set': m['set'], 'layouts': m['layouts'], 'motion': m.get('motion'), 'shots': shots,
@@ -302,6 +354,8 @@ def render(m):
     bg = ImageOps.fit(Image.open(job / m['set']['image']).convert('RGB'), (W, H), method=Image.Resampling.LANCZOS)
     foreground = foreground_layer(m, bg)
     fire = Fire(m, bg) if 'fire' in m['set'] else None
+    for shot in m['shots']:  # fail fast: check every placement before encoding anything
+        place(m, shot, W, H)
     cmd = [ffmpeg_exe(), '-hide_banner', '-nostdin', '-n', '-threads', '2', '-filter_threads', '2', '-f', 'rawvideo',
            '-pix_fmt', 'rgb24', '-s', f'{W}x{H}', '-r', str(FPS), '-i', 'pipe:0', '-an', '-c:v', 'libx264',
            '-threads', '2', '-preset', 'fast', '-crf', '18', '-pix_fmt', 'yuv420p', str(edit / 'picture.mp4')]
@@ -320,8 +374,9 @@ def render(m):
                         draw(frame, p, dx, dy, angle)
                         moves.append({'doll': p['doll'], 'source_rgba_sha256': p['source_rgba_sha256'],
                                       'dx': round(dx, 2), 'dy': round(dy, 2), 'angle': round(angle, 3)})
-                    frame.alpha_composite(foreground)
-                    frame = frame.convert('RGB')
+                    if shot.get('foreground', True):
+                        frame.alpha_composite(foreground)
+                    frame = camera(shot, frame.convert('RGB'), t)
                     if fire:  # firelight also falls on the dolls and the log, not just the set
                         k = int(math.floor((span['start_s'] + t) * POSE_HZ)); g = fire.pose(k)['glow']
                         a = np.asarray(frame).astype(np.float32)
@@ -341,7 +396,11 @@ def render(m):
                 raise RuntimeError('Video encoder failed; see encode.log')
         finally:
             if proc.poll() is None:
-                proc.terminate(); proc.wait(timeout=10)
+                proc.terminate()
+                try:
+                    proc.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    proc.kill(); proc.wait(timeout=10)
     sheet = Image.new('RGB', (810, 480 * math.ceil(len(contact) / 3)))
     for i, im in enumerate(contact):
         sheet.paste(im, ((i % 3) * 270, (i // 3) * 480))
@@ -371,7 +430,9 @@ def preview(m):
         for p in place(m, shot, W, H):
             dx, dy, angle = motion(m, shot, p, t, env)
             draw(frame, p, dx, dy, angle)
-        frame.alpha_composite(foreground); tiles.append(frame.convert('RGB').resize((360, 640)))
+        if shot.get('foreground', True):
+            frame.alpha_composite(foreground)
+        tiles.append(camera(shot, frame.convert('RGB'), t).resize((360, 640)))
     sheet = Image.new('RGB', (360 * len(tiles), 640))
     for i, t in enumerate(tiles):
         sheet.paste(t, (360 * i, 0))
@@ -419,16 +480,24 @@ def transcript(m):
     edit = m['_out']; wav = edit / 'dialogue-check.wav'
     ffmpeg(['-i', str(edit / 'final.mp4'), '-vn', '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le', str(wav)])
     heard = transcribe(wav)
-    expected = ' '.join(s['line']['text'] for s in m['shots'] if s.get('line'))
+    expected = ' '.join(line['text'] for s in m['shots'] for _, line in lines_of(s))
     norm = lambda s: re.sub('[^a-z0-9 ]', ' ', s.lower()).split()
     # Known recognizer spellings (digits for numbers, odd casing) declared in the manifest,
     # applied word by word so they cannot hide a different mismatch.
     tolerated = {k.lower(): v.lower().split() for k, v in m.get('asr_tolerances', {}).items()}
     got = [w for word in norm(heard) for w in tolerated.get(word, [word])]
+    # Phrase tolerances replace an exact multi-word sequence only (e.g. "i i nay" for
+    # "aye aye nay"), so a common word elsewhere is never rewritten.
+    for wrong, right in m.get('asr_phrase_tolerances', []):
+        wrong, right = norm(wrong), norm(right)
+        for i in range(len(got) - len(wrong) + 1):
+            if got[i:i + len(wrong)] == wrong:
+                got = got[:i] + right + got[i + len(wrong):]
+                break
     exact = norm(expected) == norm(heard)
     report = {'expected': expected, 'heard': heard, 'exact_match': exact,
               'match_with_tolerances': got == norm(expected),
-              'tolerances': m.get('asr_tolerances', {}), 'recognizer': 'ai/deploy/whisper (Wyoming ASR)'}
+              'tolerances': m.get('asr_tolerances', {}), 'phrase_tolerances': m.get('asr_phrase_tolerances', []), 'recognizer': 'ai/deploy/whisper (Wyoming ASR)'}
     with (edit / 'dialogue-transcript.json').open('x') as f:
         json.dump(report, f, indent=2)
     print(json.dumps(report, indent=2))

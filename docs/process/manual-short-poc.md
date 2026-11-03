@@ -274,6 +274,15 @@ nice -n 19 ~/.cache/studio-venv/bin/python edit.py $M render --out edit   # abou
    - `beds`: a looped ambience under the whole film.
    - `render --picture-from <out>`: re-mux new audio onto an existing picture when the
      shot timing is unchanged.
+   Revision 3 (`manifest-r3.json`) added:
+   - `lines`: several lines per shot, each after a `gap`, each speaker bouncing on her
+     own line.
+   - `after_line` and `offset` on cues and moves: anchor a gavel or a jump to the end
+     of a line.
+   - The close-up shot type: a slot `crop`, `foreground: false`, and a `camera` push-in
+     (`zoom`, `over`, `center`).
+   - `asr_phrase_tolerances`: exact word sequences only.
+   - `render` checks every placement before encoding.
 1. **Layout first, with previews.** For each layout, set doll `height`, `x` and
    `bottom` (per doll in group layouts; the order of `dolls` is back to front). Preview
    until every face reads and the set's focal prop shows. Then render.

@@ -17,4 +17,4 @@ and why.
 
 | Title | Status | Brief |
 |---|---|---|
-| The Winter Menu | r1 delivered (Tom: changes needed); **r2 delivered 2026-11-03** (34.3 s, animated fire, talk bounce, new ending), awaiting Tom's verdict | [brief](the-winter-menu/brief.md), [run log](the-winter-menu/run-log.md), manifests [r1](the-winter-menu/manifest.json) and [r2](the-winter-menu/manifest-r2.json) |
+| The Winter Menu | r1 and r2 delivered (Tom: changes needed on each); **r3 delivered 2026-11-03** (45.6 s: 'eat her' line, zoomed reaction, the vote), awaiting Tom's verdict | [brief](the-winter-menu/brief.md), [run log](the-winter-menu/run-log.md), manifests [r1](the-winter-menu/manifest.json), [r2](the-winter-menu/manifest-r2.json) and [r3](the-winter-menu/manifest-r3.json) |
