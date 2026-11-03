@@ -26,7 +26,7 @@ each epic runs. Decisions come from Tom in the 2026-11-03 session, and are also 
 | D15 | **Immutable asset versions**, pinned per production; anything approved for live is frozen | "we don't go back and modify things that are approved for live" |
 | D16 | The library is **scoped by labels and filters** (format, account, production, character), in one store | |
 | D17 | **Nothing is purged automatically**; deletion is a user action in the studio | |
-| D18 | **CPU:** render workers are capped at **24 vCPUs** on talosw01, at low priority (the VM has 40 vCPUs; the 48-thread host keeps 8 for Ceph and nas01) | "24 ok?" |
+| D18 | **CPU:** render workers are capped at **24 vCPUs** on talosw01, at low priority (the VM has 40 vCPUs; the 48-thread host keeps 8 for Ceph and nas01). **Until E3 delivers that dedicated low-priority worker and AGENTS.md is amended, the 2-thread rule still applies to all CPU work, E0 included** | "24 ok?" |
 | D19 | **One haynes-studio monorepo** for all code; deployment manifests in haynes-ops (GitOps) | |
 | D20 | **Tom accepts** epics and stories | "I do" |
 | D21 | **Re-do the PoC as a video-generation workflow** before building, because it may change the plan | "re-do the PoC using a video gen workflow with the new tools" |
@@ -88,13 +88,17 @@ flowchart TB
 
 ## Infrastructure
 
-- **GPUs:** both 3090s on talosw01, owned by the studio's scheduler. A doll format keeps the
-  local multimodal model on one card. Wan jobs that need both cards unload it first. Foley
-  shares the existing compute lease. Household services (ComfyUI on the 2000 Ada, Muse's
+- **GPUs:** both 3090s on talosw01, owned by the studio's scheduler. **The scheduler is the
+  Wan API's compute lease, extended through haynes-ops**, not a second scheduler beside it.
+  Every GPU user takes that one lease and its unknown-work checks: Wan video, Foley, and the
+  local model's load, inference and unload. So the local model never holds a card outside
+  the lease. A doll format keeps the model resident on one card while it holds the lease for
+  that card. Wan jobs that need both cards cause it to be unloaded first. Household services (ComfyUI on the 2000 Ada, Muse's
   card, the voice A2000s) are never touched.
 - **Image generation** stays on the shared ComfyUI (Qwen-Image 2.1 int8), polite to Home
   Assistant, unless E0 or E2 shows the 3090s should take it.
-- **CPU:** up to 24 vCPUs for render workers on talosw01, low priority.
+- **CPU:** up to 24 vCPUs for render workers on talosw01, low priority, once E3 provides the
+  worker and AGENTS.md is amended. Until then, 2 threads.
 - **Storage:** the app's pod on Rook Ceph RBD; media on the gasha01 NFS studio folder (path
   to be confirmed); CNPG Postgres with backups; nothing auto-purged.
 - **Access:** LAN-only UI. Agents use scoped keys through the studio MCP; responder pods
@@ -113,6 +117,9 @@ flowchart TB
   cap, low priority.
 - **Licences** recorded per model and asset from day one: some matting models are
   non-commercial; Stable Audio, Kokoro and Qwen terms still need checking.
+- **Originality (AGENTS.md):** subtitle adaptations take only the situation. Names, teams,
+  logos and dialogue are invented and original, and a subtitle file is never reenacted
+  verbatim. Subtitle text stays private, as source material.
 - **Rights and disclosure:** subtitle-based adaptations and each platform's rules on
   AI-generated content are checked before any drop.
 
@@ -166,11 +173,33 @@ learn what the plan must change.
    composite with syllable-synced bounce and moves. This measures whether a matting service
    is required.
 4. **E0.4 Speech-to-video.** Provision a Wan speech-to-video model through haynes-ops (models
-   manifest, after a disk check on the Wan volume), check it fits one 24 GB card and runs in
-   our ComfyUI, then render the talking shots from keyframe plus line audio.
+   manifest, after a disk check on the Wan volume). Check it fits one 24 GB card and runs in
+   **the Wan pod's ComfyUI** (`ai/deploy/wan-video`, container `app`), never the shared
+   household ComfyUI. Then render the talking shots from keyframe plus line audio, through a
+   sanctioned Wan API job under the same compute lease as E0.1.
 5. **E0.5 Foley, assembly and findings.** Run ControlFoley on the chosen clips, assemble the
    best version per method and deliver it. Write the findings report, get Tom's verdict, and
    update this plan.
+
+## OpenProject
+
+- Saga [362](https://work.haynesnetwork.com/work_packages/362); the manual PoC epic
+  [366](https://work.haynesnetwork.com/work_packages/366) (its stories are accepted).
+- **E0** [387](https://work.haynesnetwork.com/work_packages/387) with stories
+  [391](https://work.haynesnetwork.com/work_packages/391) (Wan image-to-video API),
+  [392](https://work.haynesnetwork.com/work_packages/392) (whole-frame),
+  [393](https://work.haynesnetwork.com/work_packages/393) (layered),
+  [394](https://work.haynesnetwork.com/work_packages/394) (speech-to-video) and
+  [395](https://work.haynesnetwork.com/work_packages/395) (Foley, best-of, findings).
+- E1 [372](https://work.haynesnetwork.com/work_packages/372) (stories 378 to 382 wait for E0),
+  E2 [373](https://work.haynesnetwork.com/work_packages/373),
+  E3 [374](https://work.haynesnetwork.com/work_packages/374),
+  E4 [375](https://work.haynesnetwork.com/work_packages/375),
+  E5 [376](https://work.haynesnetwork.com/work_packages/376),
+  E6 [377](https://work.haynesnetwork.com/work_packages/377),
+  E7 [388](https://work.haynesnetwork.com/work_packages/388),
+  E8 [389](https://work.haynesnetwork.com/work_packages/389),
+  E9 [390](https://work.haynesnetwork.com/work_packages/390).
 
 ## Questions for grooming round 2 (one at a time)
 
