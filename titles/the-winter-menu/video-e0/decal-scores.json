@@ -1,0 +1,86 @@
+{
+  "layer-a-green": {
+    "box": [
+      266,
+      699,
+      453,
+      779
+    ],
+    "frames_tracked": 120,
+    "failed_frames": 0,
+    "min_ecc": 0.8933,
+    "mean_ecc": 0.9466
+  },
+  "layer-a-staring-green": {
+    "box": [
+      265,
+      702,
+      455,
+      781
+    ],
+    "frames_tracked": 120,
+    "failed_frames": 0,
+    "min_ecc": 0.8461,
+    "mean_ecc": 0.8785
+  },
+  "layer-b-deadpan-green": {
+    "box": [
+      150,
+      690,
+      344,
+      769
+    ],
+    "frames_tracked": 120,
+    "failed_frames": 0,
+    "min_ecc": 0.9746,
+    "mean_ecc": 0.988
+  },
+  "layer-c-suspicious-green": {
+    "box": [
+      265,
+      705,
+      454,
+      780
+    ],
+    "frames_tracked": 120,
+    "failed_frames": 0,
+    "min_ecc": 0.9912,
+    "mean_ecc": 0.9935
+  },
+  "layer-c-staring-green": {
+    "box": [
+      265,
+      708,
+      454,
+      782
+    ],
+    "frames_tracked": 120,
+    "failed_frames": 0,
+    "min_ecc": 0.9917,
+    "mean_ecc": 0.9937
+  },
+  "layer-d-cheerful-green": {
+    "box": [
+      173,
+      666,
+      366,
+      756
+    ],
+    "frames_tracked": 120,
+    "failed_frames": 0,
+    "min_ecc": 0.9729,
+    "mean_ecc": 0.9867
+  },
+  "layer-d-shocked-green": {
+    "box": [
+      173,
+      669,
+      365,
+      758
+    ],
+    "frames_tracked": 120,
+    "failed_frames": 0,
+    "min_ecc": 0.7176,
+    "mean_ecc": 0.8554
+  }
+}
