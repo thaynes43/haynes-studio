@@ -19,7 +19,8 @@
       "height": 1472,
       "source": null,
       "prompt_file": "prompts/a-base.txt",
-      "chosen_as": "a-proud"
+      "chosen_as": "a-proud",
+      "graph_sha256": "33673300cfde09ea39e9b9083b5954b3c5c2063f5af2b42a7e5ab5c605571747"
     },
     {
       "name": "a-base-s102",
@@ -35,7 +36,8 @@
       "height": 1472,
       "source": null,
       "prompt_file": "prompts/a-base.txt",
-      "chosen_as": null
+      "chosen_as": null,
+      "graph_sha256": "f50d5a5fa3300b66b70e6a97987cab3025c2f6f181c070a275ba1924bb7f0fa1"
     },
     {
       "name": "b-base-s101",
@@ -51,7 +53,8 @@
       "height": 1472,
       "source": null,
       "prompt_file": "prompts/b-base.txt",
-      "chosen_as": "b-deadpan"
+      "chosen_as": "b-deadpan",
+      "graph_sha256": "2a88754d4c261dbbab1631e801075fad6aa848c31b13c2bd802e86971f7d1f49"
     },
     {
       "name": "b-base-s102",
@@ -67,7 +70,8 @@
       "height": 1472,
       "source": null,
       "prompt_file": "prompts/b-base.txt",
-      "chosen_as": null
+      "chosen_as": null,
+      "graph_sha256": "01e0ebdda924095faa3262cc03d2aab6c1611cdcbfd7d637b7daf0df760e78b1"
     },
     {
       "name": "c-base-s101",
@@ -83,7 +87,8 @@
       "height": 1472,
       "source": null,
       "prompt_file": "prompts/c-base.txt",
-      "chosen_as": "c-suspicious"
+      "chosen_as": "c-suspicious",
+      "graph_sha256": "30a8ca406016ba829cce303b60d531276787ba7022ffca91db3c0d6013d32f33"
     },
     {
       "name": "c-base-s102",
@@ -99,7 +104,8 @@
       "height": 1472,
       "source": null,
       "prompt_file": "prompts/c-base.txt",
-      "chosen_as": null
+      "chosen_as": null,
+      "graph_sha256": "044a3d2e9d2afdb96ee558faf19f134dad3dbff2a2a81b15251dcb710949b5cb"
     },
     {
       "name": "d-base-s101",
@@ -115,7 +121,8 @@
       "height": 1472,
       "source": null,
       "prompt_file": "prompts/d-base.txt",
-      "chosen_as": "d-cheerful"
+      "chosen_as": "d-cheerful",
+      "graph_sha256": "009612c0af7d14a420b079040d6fbfde4616bdceede15c7182c3f3e4f74a6424"
     },
     {
       "name": "d-base-s102",
@@ -131,7 +138,8 @@
       "height": 1472,
       "source": null,
       "prompt_file": "prompts/d-base.txt",
-      "chosen_as": null
+      "chosen_as": null,
+      "graph_sha256": "d7bdcddefbb0d5d102057e11ffb1118694a089841d991986f21785f2d0b0790c"
     },
     {
       "name": "set-s201",
@@ -147,7 +155,8 @@
       "height": 1664,
       "source": null,
       "prompt_file": "prompts/set.txt",
-      "chosen_as": null
+      "chosen_as": null,
+      "graph_sha256": "9f444780b197d731726024e6b8cc53781b5aa5e647f4b0d4fe756a0c5e20949c"
     },
     {
       "name": "set-s202",
@@ -163,7 +172,8 @@
       "height": 1664,
       "source": null,
       "prompt_file": "prompts/set.txt",
-      "chosen_as": null
+      "chosen_as": null,
+      "graph_sha256": "362b9a9bcbd8addada00741af7a734210efd3995267be740fb9ade989989bf66"
     },
     {
       "name": "a-staring-s301",
@@ -179,7 +189,8 @@
       "height": null,
       "source": "a-base-s101.png",
       "prompt_file": "prompts/a-staring.txt",
-      "chosen_as": "a-staring"
+      "chosen_as": "a-staring",
+      "graph_sha256": "e03fa7245fe205126f1c6a22ee7dba07af8244ffcafef56b43b8f8a187673d57"
     },
     {
       "name": "c-staring-s301",
@@ -195,7 +206,8 @@
       "height": null,
       "source": "c-base-s101.png",
       "prompt_file": "prompts/c-staring.txt",
-      "chosen_as": "c-staring"
+      "chosen_as": "c-staring",
+      "graph_sha256": "eae00d9ee006266d246afa3358d350bcb11ee8bb6f1b716583b11446d9daad31"
     },
     {
       "name": "d-shocked-s301",
@@ -211,7 +223,8 @@
       "height": null,
       "source": "d-base-s101.png",
       "prompt_file": "prompts/d-shocked.txt",
-      "chosen_as": "d-shocked"
+      "chosen_as": "d-shocked",
+      "graph_sha256": "82b8f132dde60056434967083557dd46ccc9a55ae4bba0fed96e29f5254dcf13"
     },
     {
       "name": "set-left-s211",
@@ -226,9 +239,10 @@
       "width": 928,
       "height": 1664,
       "source": null,
-      "prompt_file": null,
+      "prompt_file": "prompts/set-fire-left-v1.txt",
       "chosen_as": null,
-      "note": "earlier set-fire-left wording (\"beside a doll standing in the centre\") made Qwen paint a doll into the set; wording fixed, rejected"
+      "note": "earlier set-fire-left wording (\"beside a doll standing in the centre\") made Qwen paint a doll into the set; wording fixed, rejected",
+      "graph_sha256": "ebcfd53eea33041c1f38e66253c097c440e6dd29017a9d6986ecd48e87f30328"
     },
     {
       "name": "set-left-s212",
@@ -243,9 +257,10 @@
       "width": 928,
       "height": 1664,
       "source": null,
-      "prompt_file": null,
+      "prompt_file": "prompts/set-fire-left-v1.txt",
       "chosen_as": null,
-      "note": "earlier set-fire-left wording (\"beside a doll standing in the centre\") made Qwen paint a doll into the set; wording fixed, rejected"
+      "note": "earlier set-fire-left wording (\"beside a doll standing in the centre\") made Qwen paint a doll into the set; wording fixed, rejected",
+      "graph_sha256": "66f7d052e4ee9429465d27c10e26b5572902dbf98bd3ff9273fd97bc86582b8f"
     },
     {
       "name": "set-left-s221",
@@ -261,7 +276,8 @@
       "height": 1664,
       "source": null,
       "prompt_file": "prompts/set-fire-left.txt",
-      "chosen_as": "set"
+      "chosen_as": "set",
+      "graph_sha256": "3f1ef26406b88ec20502a3ad920b2c6aef6cecb0498f173ed97c891e994a6cf7"
     },
     {
       "name": "set-left-s222",
@@ -277,7 +293,8 @@
       "height": 1664,
       "source": null,
       "prompt_file": "prompts/set-fire-left.txt",
-      "chosen_as": null
+      "chosen_as": null,
+      "graph_sha256": "2cd50b35d13b34a3332d5c72cbab40a9b25a29127c1a2ecb06ce016d4d73d101"
     }
   ],
   "cutouts": [
@@ -371,5 +388,6 @@
       "prompt_id": "b29c53cb-3cfb-4bc9-9ede-0fce4897cca7",
       "outcome": "interrupted by us after 10+ min of cold model loading; no output"
     }
-  ]
+  ],
+  "graph_note": "graph_sha256 hashes the exact submitted graph (prompt, seed and sizes filled in). Edit renders read qwen_image_2_1_edit_API.json from haynes-ops main at 7c7b2cf6."
 }

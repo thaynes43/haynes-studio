@@ -13,7 +13,7 @@ we do not evict each other's weights. Text-to-image uses poc/graphs/qwen_image_2
 haynes-ops' stored qwen_image_2_1_edit_API.json. Each output is written create-only as DIR/<name>.png and one
 JSON line per job is appended to DIR/records.jsonl (graph, prompt, seed, timings, sha256).
 """
-import argparse, base64, hashlib, json, subprocess, time, uuid
+import argparse, base64, hashlib, json, re, subprocess, time, uuid
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -48,6 +48,7 @@ while True:  # share politely: never queue behind or alongside someone else's wo
     time.sleep(10); waited += 10
 start = time.time()
 pid = post('/prompt', json.dumps({'prompt': job['graph'], 'client_id': job['client_id']}).encode())['prompt_id']
+sys.stderr.write('PROMPT_ID %s\n' % pid); sys.stderr.flush()  # the caller logs it even if we fail later
 while True:
     h = get('/history/' + pid)
     if pid in h and h[pid].get('status', {}).get('completed'): break
@@ -94,6 +95,13 @@ def run(job_dir, name, graph, meta, upload=None):
     t0 = time.time()
     r = subprocess.run(EXEC + [REMOTE], input=json.dumps(payload).encode(), capture_output=True, timeout=3300)
     if r.returncode:
+        # The job may still be running on the shared GPU: record its id so a rerun can
+        # fetch it from /history instead of submitting the same work again.
+        found = re.search(r'PROMPT_ID (\S+)', r.stderr.decode())
+        with (job_dir / 'records.jsonl').open('a') as f:
+            f.write(json.dumps({'name': name, 'state': 'failed', 'prompt_id': found and found.group(1),
+                                'error': r.stderr.decode()[-500:],
+                                'at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}) + '\n')
         raise RuntimeError(r.stderr.decode()[-2000:])
     out = json.loads(r.stdout)
     data = base64.b64decode(out['images'][0]['b64'])

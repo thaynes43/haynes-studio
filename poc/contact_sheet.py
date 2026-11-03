@@ -4,6 +4,8 @@
 
 Cutouts with transparency are shown over a mid-gray checker so their edges are visible.
 """
+import os
+os.environ.setdefault('OPENBLAS_NUM_THREADS', '2')  # CPU rule in AGENTS.md; set before numpy loads
 import argparse
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont

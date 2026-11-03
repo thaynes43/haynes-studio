@@ -12,6 +12,8 @@ by one pixel and feathered slightly, and the result is cropped to the doll with 
 create-only, and the frame border is guaranteed fully transparent, as the editor
 requires.
 """
+import os
+os.environ.setdefault('OPENBLAS_NUM_THREADS', '2')  # CPU rule in AGENTS.md; set before numpy loads
 import argparse, hashlib, json
 from pathlib import Path
 import numpy as np

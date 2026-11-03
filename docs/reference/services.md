@@ -14,7 +14,7 @@ any of it.
 
 | Stage | Service | Where | Route from an agent | Status for the doll format |
 |---|---|---|---|---|
-| Cast and set images | ComfyUI with Qwen-Image 2.1 and Qwen-Image-Edit | `ai/comfyui-0` (StatefulSet), RTX 2000 Ada 16 GB on `talosm03` | `kubectl exec -n ai comfyui-0 -c app --` to `127.0.0.1:8188` | **Expected**, not used for a doll short yet |
+| Cast and set images | ComfyUI with Qwen-Image 2.1 (text-to-image and edit) | `ai/comfyui-0` (StatefulSet), RTX 2000 Ada 16 GB on `talosm03` | `kubectl exec -n ai comfyui-0 -c app --` to `127.0.0.1:8188` (`poc/comfy.py`) | **Proven** for cast and set images (The Winter Menu, [run log](../../titles/the-winter-menu/run-log.md)) |
 | Voices | Kokoro-82M v1.0 (Wyoming TTS) | `ai/deploy/kokoro`, container `app` | `kubectl exec -i -n ai deploy/kokoro -c app -- python -c ...` to Wyoming `127.0.0.1:10210` | **Proven** (OP341, OP345) |
 | Transcript check | Whisper service, configured `nemo-parakeet-tdt-0.6b-v2` (Wyoming ASR) | `ai/deploy/whisper`, container `app` | `kubectl exec -i -n ai deploy/whisper -c app -- python -c ...` to Wyoming `127.0.0.1:10300` | **Proven** (OP345) |
 | Sound effects from text | `audio-authoring`, Stable Audio 3 Small-SFX on CPU | namespace `dev` | MCP `http://audio-authoring.dev.svc.cluster.local:8000/mcp` (`generate_sound`, `get_generation`) | **Proven** (OP343) |
@@ -52,7 +52,14 @@ but a dev-env session pod's egress does not allow it. Agents use the in-pod rout
   bf16 VAE), Qwen-Image 2512 (fp8), Qwen-Image-Edit 2509 (fp8), and Lightning
   few-step LoRAs for 2509 and 2512. The 2509 edit graph already loads its Lightning
   LoRA (4 steps, cfg 1). Check the graph files for the exact set.
-  There is no API-format text-to-image graph for Qwen-Image 2.1 yet, only the UI one.
+  haynes-ops stores no API-format text-to-image graph for Qwen-Image 2.1; this repo has a
+  hand-converted one at `poc/graphs/qwen_image_2_1_t2i_API.json`.
+- **Use Qwen-Image 2.1 int8 on this card.** It is the model Home Assistant keeps warm:
+  about 70 s per 1104x1472 image. The 2512 fp8 model (19.5 GB) cold-loads for over
+  10 minutes on the 16 GB card and blocks household renders, and the stored 2512
+  graph hard-codes 50 steps even in its Lightning mode.
+- The 2.1 edit graph scales its input to about 1 MP, so edit outputs are smaller
+  than their source (896x1184 from 1104x1472).
 - Timing from the deployment notes: warm Qwen-Image 2.1 edit render 80 to 86 s, cold
   first render about 306 s while models load off NFS.
 - **Output retention: 30 days.** A CronJob deletes top-level output images older
@@ -119,6 +126,6 @@ but a dev-env session pod's egress does not allow it. Agents use the in-pod rout
 - `kubectl` with the dev-env agent identity (it allows `pods/exec` into these pods).
 - A user-local Python venv for editing. The versions known to work:
   Python 3.11, `av==18.1.0`, `numpy==2.4.6`, `Pillow==13.0.0`,
-  `imageio-ffmpeg==0.7.0`. The OP345 venv lived in the old session's home and is not
-  in fresh pods.
+  `imageio-ffmpeg==0.7.0`, plus `scipy==1.16.3` for cutouts. Installs cleanly on a
+  fresh session pod (2026-11-03). The OP345 venv lived in the old session's home.
 - No GPU in the agent pod, and none is needed: every GPU step runs in a service pod.

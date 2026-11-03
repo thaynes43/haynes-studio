@@ -71,5 +71,7 @@ the measured voice durations (stage 3), not from fixed 5 s slots. Line 1 may nee
 1. Script and look: **passed** 2026-11-03. Premise and lines ("Yes that is fine"),
    team name Yellowbirds, campsite set, cast looks ("This works, get to it please").
    Line wording may be tuned after hearing the voices; Tom sees any change at gate 3.
-2. Cast and set images: pending.
+2. Cast and set images: base picks approved by Tom from the contact sheet ("Yes I like
+   the sheet"). The final cutouts, expression variants and `set-left-s221` were sent to
+   him afterwards for information; no separate verdict is recorded.
 3. Finished cut: pending.

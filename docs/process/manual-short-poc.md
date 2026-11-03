@@ -179,9 +179,9 @@ are in `titles/the-winter-menu/prompts.json`.
 5. **Cutouts:**
 
    ```bash
-   ~/.cache/studio-venv/bin/python poc/cutout.py $JOB/a-base-s101.png $JOB/cutouts/a-proud.png \
+   OPENBLAS_NUM_THREADS=2 ~/.cache/studio-venv/bin/python poc/cutout.py $JOB/a-base-s101.png $JOB/cutouts/a-proud.png \
      --protect 540,380,760,520                 # eye box, only for a green-eyed doll
-   ~/.cache/studio-venv/bin/python poc/cutout.py $JOB/a-staring-s301.png $JOB/cutouts/a-staring.png \
+   OPENBLAS_NUM_THREADS=2 ~/.cache/studio-venv/bin/python poc/cutout.py $JOB/a-staring-s301.png $JOB/cutouts/a-staring.png \
      --resize 1104x1472 --protect 540,380,760,520
    ```
 
