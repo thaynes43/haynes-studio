@@ -1,0 +1,9 @@
+{
+  "cutouts/a-proud.png": {"clip": "clips/layer-a-green.mp4", "protect": [[240, 400, 440, 600]], "still": "layers/a-base-s101-green.png", "decal_box": [266, 699, 453, 779]},
+  "cutouts/a-staring.png": {"clip": "clips/layer-a-staring-green.mp4", "protect": [[240, 410, 440, 610]], "still": "layers/a-staring-s301-green.png", "decal_box": [265, 702, 455, 781]},
+  "cutouts/b-deadpan.png": {"clip": "clips/layer-b-deadpan-green.mp4", "still": "layers/b-base-s101-green.png", "decal_box": [150, 690, 344, 769]},
+  "cutouts/c-suspicious.png": {"clip": "clips/layer-c-suspicious-green.mp4", "still": "layers/c-base-s101-green.png", "decal_box": [265, 705, 454, 780]},
+  "cutouts/c-staring.png": {"clip": "clips/layer-c-staring-green.mp4", "still": "layers/c-staring-s301-green.png", "decal_box": [265, 708, 454, 782]},
+  "cutouts/d-cheerful.png": {"clip": "clips/layer-d-cheerful-green.mp4", "still": "layers/d-base-s101-green.png", "decal_box": [173, 666, 366, 756]},
+  "cutouts/d-shocked.png": {"clip": "clips/layer-d-shocked-green.mp4", "still": "layers/d-shocked-s301-green.png", "decal_box": [173, 669, 365, 758]}
+}

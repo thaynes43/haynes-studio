@@ -1,0 +1,65 @@
+{
+  "layer-d-shocked-green": {
+    "box": [
+      173,
+      669,
+      365,
+      758
+    ],
+    "min_ecc": 0.7176
+  },
+  "layer-a-staring-green": {
+    "box": [
+      265,
+      702,
+      455,
+      781
+    ],
+    "min_ecc": 0.8461
+  },
+  "layer-a-green": {
+    "box": [
+      266,
+      699,
+      453,
+      779
+    ],
+    "min_ecc": 0.8933
+  },
+  "layer-d-cheerful-green": {
+    "box": [
+      173,
+      666,
+      366,
+      756
+    ],
+    "min_ecc": 0.9729
+  },
+  "layer-b-deadpan-green": {
+    "box": [
+      150,
+      690,
+      344,
+      769
+    ],
+    "min_ecc": 0.9746
+  },
+  "layer-c-suspicious-green": {
+    "box": [
+      265,
+      705,
+      454,
+      780
+    ],
+    "min_ecc": 0.9912
+  },
+  "layer-c-staring-green": {
+    "box": [
+      265,
+      708,
+      454,
+      782
+    ],
+    "min_ecc": 0.9917
+  }
+}
