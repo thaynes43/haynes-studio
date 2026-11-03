@@ -1,0 +1,147 @@
+name: Claude Code Review
+
+# Advisory automated PR review. NOT a required check and never to be added to
+# branch rules. Fires on opened/synchronize/ready_for_review/reopened (the set
+# `track_progress` supports) because agents open PRs ready-for-review and merge
+# themselves once required checks are green.
+#
+# Safe by construction: plain `pull_request` only (never pull_request_target),
+# so fork PRs get no secrets and skip; the job also skips drafts and bot-authored
+# dependency PRs, and finishes green when CLAUDE_CODE_OAUTH_TOKEN is not set.
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+permissions:
+  contents: read
+
+# Re-review on every push, but only the newest push per PR.
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  claude-advisory-review:
+    name: Claude advisory review
+    if: >-
+      ${{ !github.event.pull_request.draft
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && github.event.pull_request.user.login != 'dependabot[bot]'
+      && github.event.pull_request.user.login != 'renovate[bot]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write # post the review + inline comments
+      id-token: write # OIDC exchange for the Claude GitHub App token
+      actions: read # read CI results for the PR
+
+    steps:
+      # Secrets cannot appear in `if:`, so expose presence as a step output.
+      - name: Check for CLAUDE_CODE_OAUTH_TOKEN
+        id: gate
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::CLAUDE_CODE_OAUTH_TOKEN is not set for this repo; skipping the Claude review."
+          fi
+
+      - name: Checkout repository
+        if: steps.gate.outputs.present == 'true'
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude Code Review
+        if: steps.gate.outputs.present == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          allowed_bots: "haynes-dev-bot"
+          track_progress: true
+          use_sticky_comment: true
+          # Automated surfaces pin the newest Opus explicitly, never an alias.
+          # The Bash and inline-comment grants are needed for `gh` and line
+          # comments; without them the review only ever leaves a summary.
+          claude_args: |
+            --model claude-opus-5-5
+            --max-turns 60
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*)"
+          additional_permissions: |
+            actions: read
+          prompt: |
+            You are the automated reviewer for thaynes43/haynes-studio, a public repo for a
+            short-form comedy video pipeline (doll shorts) built on in-cluster GPU, TTS and
+            ASR services. It holds docs, prompts, manifests and Python tooling; no media.
+            The PR branch is checked out. Review PR #${{ github.event.pull_request.number }}
+            of ${{ github.repository }}.
+
+            ## Step 1 - context
+            - `gh pr diff ${{ github.event.pull_request.number }}` for the changes
+            - `gh pr view ${{ github.event.pull_request.number }}` for intent
+            - Read AGENTS.md (the repo rules) and, for changed paths under docs/ or titles/,
+              docs/process/manual-short-poc.md and docs/reference/services.md.
+            - Do not repeat feedback already present on the PR.
+
+            ## Step 2 - what this repo cares about
+            Layout: AGENTS.md (rules), docs/process (manual runbook), docs/reference
+            (services, doll format, OP345 baseline), docs/decisions (ADRs), titles/<slug>
+            (brief, prompts, run log and evidence JSON per title), .github/workflows.
+
+            **CRITICAL - block the merge**
+            - Secrets or PII in code, docs, fixtures, logs or workflow files: tokens,
+              API keys, cookies, login URLs or codes, kubeconfigs, private keys.
+            - Media or model weights committed (video, audio, images, reference photos,
+              voice samples, .safetensors and similar), or a .gitignore change that
+              lets them in. The repo is public.
+            - Code or docs that publish, upload or schedule content to a public
+              platform, create accounts, or call a paid image/video/voice API without a
+              recorded approval from Tom.
+            - Code that overwrites or deletes a finished production or archived asset
+              instead of writing create-only to a new job/production ID.
+            - Code or docs that bypass the shared GPU controls: the Wan API compute
+              lease or unknown-work checks, cancelling others' ComfyUI jobs, or
+              benchmarking or changing GPU power/clock settings.
+            - Logic errors: races, unhandled null/undefined, off-by-one, changed
+              signatures with callers not updated.
+            - Workflow changes that weaken security: `pull_request_target`,
+              `allowed_non_write_users`, secrets exposed to fork PRs, broadened
+              permissions, or loosening the @claude author gate.
+
+            **HIGH - should fix**
+            - A runbook step marked Proven without linked evidence of a delivered
+              result, or a doc claiming readiness the PR does not show.
+            - Commands, paths, ports, service names or model names that contradict
+              docs/reference/services.md or haynes-ops sources it cites.
+            - CPU work without a thread bound (more than 2 workers), or GPU work
+              submitted without first checking the service queue.
+            - Parody content using real names, logos, characters or verbatim lines from
+              the source, or a real person's likeness or voice.
+            - Bare `#123` references meant as OpenProject items (must be full
+              work.haynesnetwork.com links).
+            - Behavior change with no test change where the code has tests.
+
+            **MEDIUM - consider**
+            - Docs that drift from AGENTS.md conventions (title folder files, run-log
+              fields, Proven/Expected/Changed markers).
+            - Hard-coded job directories or production IDs in code meant to be reused.
+
+            **Ignore entirely:** formatting, naming, import order, missing docstrings
+            on unchanged code, and feature suggestions beyond the PR's intent.
+
+            ## Step 3 - report
+            - Post each line-specific finding with
+              `mcp__github_inline_comment__create_inline_comment` (`confirmed: true`),
+              prefixing the body with its severity: `CRITICAL:`, `HIGH:` or `MEDIUM:`.
+              Be concise: one or two sentences, the problem and the fix.
+            - Then post ONE summary comment with `gh pr comment` containing a verdict
+              (`Looks good` / `Needs changes` / `Has critical issues`) and the findings
+              grouped by severity, each naming the file and line. No praise.
+            - If the diff is clean, say exactly "No findings." followed by one sentence
+              on what you checked. Never invent a finding to look thorough.
+            - Only review files changed in this PR. Post GitHub comments only; do not
+              return the review as chat text.

@@ -1,0 +1,61 @@
+# Public repo: media, model weights and secrets never enter git (AGENTS.md).
+# Keep generated files in a job directory outside the repo.
+
+# Video
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.avi
+# Audio
+*.wav
+*.flac
+*.mp3
+*.ogg
+*.m4a
+*.aac
+# Images
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.tif
+*.tiff
+*.psd
+*.exr
+# Model weights and archives
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.onnx
+*.gguf
+*.bundle
+*.tar
+*.tar.gz
+*.zip
+
+# Local job output, if someone points a job directory inside the worktree
+/jobs/
+/out/
+/output/
+
+# Secrets and local environment
+.env
+.env.*
+*.key
+*.pem
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
