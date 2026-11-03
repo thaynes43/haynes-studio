@@ -116,7 +116,7 @@ jobs:
             - A runbook step marked Proven without linked evidence of a delivered
               result, or a doc claiming readiness the PR does not show.
             - Commands, paths, ports, service names or model names that contradict
-              docs/reference/services.md or haynes-ops sources it cites.
+              docs/reference/services.md or another doc in this repo.
             - CPU work without a thread bound (more than 2 workers), or GPU work
               submitted without first checking the service queue.
             - Parody content using real names, logos, characters or verbatim lines from

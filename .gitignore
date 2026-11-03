@@ -1,52 +1,94 @@
-# Public repo: media, model weights and secrets never enter git (AGENTS.md).
-# Keep generated files in a job directory outside the repo.
+# Public repo: media, model weights, third-party text and secrets never enter git
+# (AGENTS.md). Keep generated files in a job directory outside the repo.
+# Patterns are case-insensitive by hand (phones write IMG_0001.JPG) because
+# core.ignorecase is off on Linux.
 
 # Video
-*.mp4
-*.mov
-*.mkv
-*.webm
-*.avi
+*.[mM][pP]4
+*.[mM]4[vV]
+*.[mM][oO][vV]
+*.[mM][kK][vV]
+*.[wW][eE][bB][mM]
+*.[aA][vV][iI]
+*.[mM][pP][gG]
+*.[mM][pP][eE][gG]
+*.[yY]4[mM]
+
 # Audio
-*.wav
-*.flac
-*.mp3
-*.ogg
-*.m4a
-*.aac
+*.[wW][aA][vV]
+*.[fF][lL][aA][cC]
+*.[mM][pP]3
+*.[oO][gG][gG]
+*.[oO][pP][uU][sS]
+*.[mM]4[aA]
+*.[aA][aA][cC]
+*.[aA][iI][fF]
+*.[aA][iI][fF][fF]
+
 # Images
-*.png
-*.jpg
-*.jpeg
-*.webp
-*.gif
-*.tif
-*.tiff
-*.psd
-*.exr
-# Model weights and archives
-*.safetensors
-*.ckpt
-*.pt
-*.pth
-*.bin
-*.onnx
-*.gguf
-*.bundle
-*.tar
-*.tar.gz
-*.zip
+*.[pP][nN][gG]
+*.[jJ][pP][gG]
+*.[jJ][pP][eE][gG]
+*.[wW][eE][bB][pP]
+*.[gG][iI][fF]
+*.[bB][mM][pP]
+*.[tT][iI][fF]
+*.[tT][iI][fF][fF]
+*.[hH][eE][iI][cC]
+*.[hH][eE][iI][fF]
+*.[aA][vV][iI][fF]
+*.[pP][sS][dD]
+*.[eE][xX][rR]
+
+# 3D scenes and arrays
+*.[bB][lL][eE][nN][dD]
+*.[nN][pP][yY]
+*.[nN][pP][zZ]
+
+# Model weights
+*.[sS][aA][fF][eE][tT][eE][nN][sS][oO][rR][sS]
+*.[cC][kK][pP][tT]
+*.[pP][tT]
+*.[pP][tT][hH]
+*.[bB][iI][nN]
+*.[oO][nN][nN][xX]
+*.[gG][gG][uU][fF]
+
+# Archives and bundles
+*.[zZ][iI][pP]
+*.7[zZ]
+*.[tT][aA][rR]
+*.[gG][zZ]
+*.[tT][gG][zZ]
+*.[bB][uU][nN][dD][lL][eE]
+
+# Subtitles (third-party text, kept private)
+*.[sS][rR][tT]
+*.[aA][sS][sS]
+*.[sS][sS][aA]
+*.[vV][tT][tT]
+*.[sS][uU][bB]
 
 # Local job output, if someone points a job directory inside the worktree
 /jobs/
 /out/
 /output/
 
-# Secrets and local environment
+# Secrets, credentials and local environment
 .env
 .env.*
 *.key
 *.pem
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+id_ecdsa*
+kubeconfig*
+auth.json
+.netrc
+cookies.txt
+*.cookies
 .venv/
 venv/
 

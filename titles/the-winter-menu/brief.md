@@ -61,7 +61,9 @@ the measured voice durations (stage 3), not from fixed 5 s slots. Line 1 may nee
 
 ## Gates
 
-1. Script: agreed in chat on 2026-11-03 ("Yes that is fine"). Reconfirm the final
-   wording after the voices are heard.
+1. Script: **partly passed.** Tom agreed the premise and draft lines in chat on
+   2026-11-03 ("Yes that is fine"). Still needed before generating images: the team
+   name, the four cast looks and the set. Line wording may be tuned after hearing the
+   voices; Tom sees any change at gate 3.
 2. Cast and set images: pending.
 3. Finished cut: pending.

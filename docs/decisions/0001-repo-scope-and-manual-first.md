@@ -1,6 +1,7 @@
 # 0001: Repo scope, manual first, in-cluster images first
 
-Date: 2026-11-03. Decided by Tom in a Remote Control session with Claude.
+Date: 2026-11-03. Decided by Tom in a Remote Control session with Claude, except the
+license, which Tom left open and Claude chose.
 
 ## Decisions
 
@@ -10,8 +11,10 @@ Date: 2026-11-03. Decided by Tom in a Remote Control session with Claude.
    manifests). The OP339 to OP345 scripts stay in haynes-ops as history; this repo
    starts from copies.
 2. **Public repo, text only.** Media, voices, reference photos, weights and secrets
-   stay on private cluster storage. The license is MIT (Tom left the choice open on
-   2026-11-03; it replaced the initial AGPL-3.0).
+   stay on private cluster storage. The license is MIT, chosen by Claude after Tom
+   said on 2026-11-03 that he did not mind which; it replaced the initial AGPL-3.0.
+   MIT is the simplest permissive license and puts no obligations on a future hosted
+   API or UI. It covers the code and docs, not the media.
 3. **Manual first.** One short is made by hand and documented step by step before
    any tooling is built. The tooling backlog is then written from the run log, with
    each epic ending in something Tom can use and demo, building toward an API and a

@@ -19,8 +19,16 @@ any of it.
 | Transcript check | Whisper service, configured `nemo-parakeet-tdt-0.6b-v2` (Wyoming ASR) | `ai/deploy/whisper`, container `app` | `kubectl exec -i -n ai deploy/whisper -c app -- python -c ...` to Wyoming `127.0.0.1:10300` | **Proven** (OP345) |
 | Sound effects from text | `audio-authoring`, Stable Audio 3 Small-SFX on CPU | namespace `dev` | MCP `http://audio-authoring.dev.svc.cluster.local:8000/mcp` (`generate_sound`, `get_generation`) | **Proven** (OP343) |
 | Video-conditioned Foley | ControlFoley sidecar | `ai/deploy/wan-video`, container `foley`, port 8189 | scripts only; shares the Wan compute lease | Proven once (OP344); listening verdict still open |
-| Generated video | Wan2.2 TI2V-5B on ComfyUI, two RTX 3090s | `ai/deploy/wan-video` on `talosw01` | `https://video.haynesops.com/videos` | Not used by the doll format |
-| Private delivery | Wan API job ledger and file route | `ai/deploy/wan-video`, container `api`, PVC `ai/wan-video` (80 Gi) | `https://video.haynesops.com/videos/<id>/file` | **Proven** (OP345) |
+| Generated video | Wan2.2 TI2V-5B on ComfyUI, two RTX 3090s | `ai/deploy/wan-video` on `talosw01` | Wan API on `127.0.0.1:8080` in container `api` | Not used by the doll format |
+| Private delivery | Wan API job ledger and file route | `ai/deploy/wan-video`, container `api`, PVC `ai/wan-video` (80 Gi) | agents: `kubectl exec -n ai deploy/wan-video -c api --` to `127.0.0.1:8080`; Tom: `https://video.haynesops.com/videos/<id>/file` | **Proven** (OP345) |
+
+Evidence for the Proven rows is in haynes-ops `.agents/evidence/`:
+`crunchy-butter-2026-10-31/` (OP341), `butter-audio-redo-2026-11-01/` (OP343),
+`controlfoley-asmr-2026-11-01/` (OP344) and `crunchy-butter-dolls-2026-11-01/`
+(OP345).
+
+`video.haynesops.com` resolves to a LAN address. It works from Tom's devices at home,
+but a dev-env session pod's egress does not allow it. Agents use the in-pod route.
 
 ## ComfyUI (images)
 
@@ -40,8 +48,10 @@ any of it.
     `qwen_image_edit_2509_single_image_API.json`,
     `02_qwen_Image_edit_subgraphed_API.json`,
     `02_qwen_Image_edit_subgraphed_three_images_API.json`.
-- Models include Qwen-Image 2.1 (int8 and bf16), Qwen-Image 2512 (fp8),
-  Qwen-Image-Edit 2509 (fp8), and the Qwen-Image-Edit-2509 Lightning 4-step LoRA.
+- Models the stored graphs use include Qwen-Image 2.1 (int8 diffusion model, with a
+  bf16 VAE), Qwen-Image 2512 (fp8), Qwen-Image-Edit 2509 (fp8), and Lightning
+  few-step LoRAs for 2509 and 2512. The 2509 edit graph already loads its Lightning
+  LoRA (4 steps, cfg 1). Check the graph files for the exact set.
   There is no API-format text-to-image graph for Qwen-Image 2.1 yet, only the UI one.
 - Timing from the deployment notes: warm Qwen-Image 2.1 edit render 80 to 86 s, cold
   first render about 306 s while models load off NFS.
@@ -95,9 +105,13 @@ any of it.
   `/workspace/jobs/`. The API then serves them at
   `https://video.haynesops.com/videos/<ledger-id>/file`, the same as GPU outputs.
   Reference: haynes-ops `scripts/wan-video/preserve_doll_short.py`.
+- The API reads every ledger in `/workspace/jobs/` at startup with no error handling.
+  A malformed ledger crashes the shared service on its next restart, so validate
+  before linking one (required fields are in the runbook, stage 7).
 - The PVC is 80 Gi with no backup or retention policy. Check free space before a
   batch.
-- Links on `video.haynesops.com` may not open off the home network.
+- Links on `video.haynesops.com` may not open off the home network, and never open
+  from a session pod.
 - Runbook: haynes-ops `.agents/runbooks/dual-3090-video.md`.
 
 ## What an agent pod needs
