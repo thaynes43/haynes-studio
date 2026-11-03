@@ -356,4 +356,4 @@ network. A session pod cannot open it: verify from inside the API container
   them.
 - Delivery depends on the Wan API pod and its unbacked 80 Gi PVC.
 - The proposed tooling that closes these gaps is in
-  [`docs/proposals/0002-agentic-studio.md`](../proposals/0002-agentic-studio.md).
+  [`docs/proposals/0003-studio-plan.md`](../proposals/0003-studio-plan.md).

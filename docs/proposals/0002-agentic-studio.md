@@ -1,8 +1,10 @@
 # Proposal 0002: an agentic studio that runs on local models
 
-Status: **proposal for grooming with Tom.** It supersedes the epic list in
-[proposal 0001](0001-tooling-backlog.md); 0001's requirements still hold and are folded
-in here. Written 2026-11-03, after The Winter Menu's revision 4 (Tom: "That's great").
+Status: **superseded by [proposal 0003](0003-studio-plan.md)** after grooming round 1
+(2026-11-03). Kept as history: its analysis of where the assistance went still holds,
+but several assumptions changed. Wan now makes every cut, the local model is a shepherd
+rather than a director, and formats, accounts, staging and escalation through dev-env v2
+are new. Written 2026-11-03, after The Winter Menu's revision 4 (Tom: "That's great").
 
 ## Tom's goals (2026-11-03)
 

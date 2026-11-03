@@ -32,7 +32,7 @@ comes from what the manual run teaches us, not from guesses made in advance.
 | [`docs/decisions/`](docs/decisions/) | Short decision records (ADRs). |
 | [`titles/`](titles/) | One folder per title: brief, manifest, prompts, run log, evidence. No media. |
 | [`poc/`](poc/README.md) | The manual PoC's helper scripts (images, voices, editor, delivery). Not the final tooling. |
-| [`docs/proposals/`](docs/proposals/) | The studio design and backlog ([0002](docs/proposals/0002-agentic-studio.md)). |
+| [`docs/proposals/`](docs/proposals/) | The studio design and backlog ([0002](docs/proposals/0003-studio-plan.md)). |
 
 ## Tracking
 
