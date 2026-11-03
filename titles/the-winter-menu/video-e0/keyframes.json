@@ -1,0 +1,88 @@
+[
+  {
+    "shot": 1,
+    "file": "s1.png",
+    "sha256": "e4772edc3fe3f0f9012e089151a1f94a503ea145f08a5921e22d54ab7e0b898f",
+    "dolls": {
+      "a": "cutouts/a-proud.png"
+    },
+    "layout": "single"
+  },
+  {
+    "shot": 2,
+    "file": "s2.png",
+    "sha256": "c146760e9f500194a0b5909a0b1ac4ff28ea042130af9f9d3da1362174d8075b",
+    "dolls": {
+      "b": "cutouts/b-deadpan.png"
+    },
+    "layout": "single"
+  },
+  {
+    "shot": 3,
+    "file": "s3.png",
+    "sha256": "ba88a2f9ecf4a543fa3dfefa1885bfe6274bbf3fad5ae0276530b23affd6e021",
+    "dolls": {
+      "c": "cutouts/c-suspicious.png"
+    },
+    "layout": "single"
+  },
+  {
+    "shot": 4,
+    "file": "s4.png",
+    "sha256": "e4772edc3fe3f0f9012e089151a1f94a503ea145f08a5921e22d54ab7e0b898f",
+    "dolls": {
+      "a": "cutouts/a-proud.png"
+    },
+    "layout": "single"
+  },
+  {
+    "shot": 5,
+    "file": "s5.png",
+    "sha256": "47146e2c14a2738798434fa35ffe0be432b2af967ca30ea18020dff471453e80",
+    "dolls": {
+      "d": "cutouts/d-shocked.png"
+    },
+    "layout": "single"
+  },
+  {
+    "shot": 6,
+    "file": "s6.png",
+    "sha256": "ba88a2f9ecf4a543fa3dfefa1885bfe6274bbf3fad5ae0276530b23affd6e021",
+    "dolls": {
+      "c": "cutouts/c-suspicious.png"
+    },
+    "layout": "single"
+  },
+  {
+    "shot": 7,
+    "file": "s7.png",
+    "sha256": "6c270139b4beb523d45e9eb3262745874316193fb96ceb420252661f5ca72464",
+    "dolls": {
+      "d": "cutouts/d-shocked.png"
+    },
+    "layout": "closeup"
+  },
+  {
+    "shot": 8,
+    "file": "s8.png",
+    "sha256": "e66494d67f4cc0fd42c3d76f5900132f590b425321a5eba0f0769b9faf85dcdf",
+    "dolls": {
+      "a": "cutouts/a-staring.png",
+      "c": "cutouts/c-staring.png",
+      "d": "cutouts/d-shocked.png",
+      "b": "cutouts/b-deadpan.png"
+    },
+    "layout": "group"
+  },
+  {
+    "shot": 9,
+    "file": "s9.png",
+    "sha256": "f10f0460ba764d093e679d4fc2ffcc6092be883d7c686255dcccc02b26b4e1c5",
+    "dolls": {
+      "c": "cutouts/c-suspicious.png",
+      "a": "cutouts/a-proud.png",
+      "b": "cutouts/b-deadpan.png"
+    },
+    "layout": "trio"
+  }
+]

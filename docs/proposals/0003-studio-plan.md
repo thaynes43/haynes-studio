@@ -142,6 +142,31 @@ New epics are filed for E0, E7, E8 and E9.
 | **E9 Formats, accounts, candidates and drops** (new) | Format definitions with gate settings, accounts, candidate review per account, feedback into revisions, a publishing gate with rights and disclosure checks. Platform integrations only with Tom's explicit approval | E1, E3, E6 |
 | Later | Trend watching, long-form tooling, batches at scale | |
 
+## E0 results (2026-11-03)
+
+Run in the driving session at Tom's direction, with a Sonnet worker for the haynes-ops model
+PR. Full measurements are in
+[`titles/the-winter-menu/video-e0/findings.md`](../../titles/the-winter-menu/video-e0/findings.md).
+In short:
+- **The method is per shot:** layered for doll talking shots (identity holds, bounce is
+  synced), whole-frame for ambient and simple shots, speech-to-video as a premium shot (about
+  4x the GPU, and it lip-syncs).
+- **Drift checks are mandatory:** faces, props, groups, set objects, lettering, and chaining
+  compounds it.
+- **Lettering needs rigid decals.**
+- **Prompts never mention hands, and camera moves go to the compositor.**
+- **The scheduler needs job-type cost models, per-type timeouts, two-GPU CFG split, a
+  thermal policy (cooldown cost more than rendering) and prompt-ID interrupts.**
+- **Set loops and per-expression doll clips are reusable library assets.**
+- **An upscaler and fps conversion are needed.**
+- **ControlFoley works over HTTP (83 s per 5 s window).**
+- **Ear and taste stay with Tom.**
+
+These amend E1 (per-shot methods, an animated-layer compositor), E2 (motion assets, drift
+tools, upscaler, decals, a per-doll chroma colour), E3 (real Wan job types: image-to-video,
+S2V and Foley-on-clip, plus the scheduler requirements) and E5 (drift checks with re-roll
+and method-switch policies).
+
 ## E0: the video-generation PoC
 
 **Goal:** remake The Winter Menu (r4 script and cast) so that every cut is a Wan clip, and
