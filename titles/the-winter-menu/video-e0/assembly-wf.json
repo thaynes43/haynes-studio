@@ -1,0 +1,95 @@
+{
+  "method": "wf",
+  "stretch": false,
+  "size": [
+    1080,
+    1920
+  ],
+  "shots": [
+    {
+      "shot": 1,
+      "frames": 153,
+      "source_frames": 241,
+      "clips": [
+        "s1-wf-a.mp4",
+        "s1-wf-x1.mp4"
+      ],
+      "mode": "chained"
+    },
+    {
+      "shot": 2,
+      "frames": 94,
+      "source_frames": 121,
+      "clips": [
+        "s2-wf-a.mp4"
+      ],
+      "mode": "trim"
+    },
+    {
+      "shot": 3,
+      "frames": 146,
+      "source_frames": 241,
+      "clips": [
+        "s3-wf-a.mp4",
+        "s3-wf-x1.mp4"
+      ],
+      "mode": "chained"
+    },
+    {
+      "shot": 4,
+      "frames": 84,
+      "source_frames": 121,
+      "clips": [
+        "s4-wf-a.mp4"
+      ],
+      "mode": "trim"
+    },
+    {
+      "shot": 5,
+      "frames": 83,
+      "source_frames": 121,
+      "clips": [
+        "s5-wf-a.mp4"
+      ],
+      "mode": "trim"
+    },
+    {
+      "shot": 6,
+      "frames": 122,
+      "source_frames": 121,
+      "clips": [
+        "s6-wf-a.mp4"
+      ],
+      "mode": "hold-last"
+    },
+    {
+      "shot": 7,
+      "frames": 46,
+      "source_frames": 121,
+      "clips": [
+        "s7-wf-a.mp4"
+      ],
+      "mode": "trim"
+    },
+    {
+      "shot": 8,
+      "frames": 251,
+      "source_frames": 361,
+      "clips": [
+        "s8-wf-a.mp4",
+        "s8-wf-x1.mp4",
+        "s8-wf-x2.mp4"
+      ],
+      "mode": "chained"
+    },
+    {
+      "shot": 9,
+      "frames": 108,
+      "source_frames": 121,
+      "clips": [
+        "s9-wf-a.mp4"
+      ],
+      "mode": "trim"
+    }
+  ]
+}

@@ -19,7 +19,7 @@ any of it.
 | Transcript check | Whisper service, configured `nemo-parakeet-tdt-0.6b-v2` (Wyoming ASR) | `ai/deploy/whisper`, container `app` | `kubectl exec -i -n ai deploy/whisper -c app -- python -c ...` to Wyoming `127.0.0.1:10300` | **Proven** (OP345) |
 | Sound effects from text | `audio-authoring`, Stable Audio 3 Small-SFX on CPU | namespace `dev` | MCP `http://audio-authoring.dev.svc.cluster.local:8000/mcp` (`generate_sound`, `get_generation`) | **Proven** (OP343) |
 | Video-conditioned Foley | ControlFoley sidecar | `ai/deploy/wan-video`, container `foley`, port 8189 | scripts only; shares the Wan compute lease | Proven once (OP344); listening verdict still open |
-| Generated video | Wan2.2 TI2V-5B on ComfyUI, two RTX 3090s | `ai/deploy/wan-video` on `talosw01` | Wan API on `127.0.0.1:8080` in container `api` | Not used by the doll format |
+| Generated video | Wan2.2 TI2V-5B (image-to-video) and **Wan2.2 S2V-14B** (speech-to-video, since haynes-ops#4625) on ComfyUI, two RTX 3090s owned by the studio | `ai/deploy/wan-video` on `talosw01` | Wan API on `127.0.0.1:8080` in container `api`; E0 jobs via the API's own `generate()` under its lease (`poc/wan.py`, `poc/s2v.py`) | **Proven in E0** (findings in `titles/the-winter-menu/video-e0/`) |
 | Private delivery | Wan API job ledger and file route | `ai/deploy/wan-video`, container `api`, PVC `ai/wan-video` (80 Gi) | agents: `kubectl exec -n ai deploy/wan-video -c api --` to `127.0.0.1:8080`; Tom: `https://video.haynesops.com/videos/<id>/file` | **Proven** (OP345) |
 
 Evidence for the Proven rows is in haynes-ops `.agents/evidence/`:
