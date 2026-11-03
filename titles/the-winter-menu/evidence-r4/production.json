@@ -1,0 +1,194 @@
+{
+  "id": "032f1bb230794aaf84dce9001181a7d7",
+  "kind": "edited_production",
+  "story": "https://work.haynesnetwork.com/work_packages/371",
+  "title": "The Winter Menu",
+  "state": "succeeded",
+  "created_at": 1793730406.586025,
+  "finished_at": 1793730406.586025,
+  "telemetry": [],
+  "output": "productions/the-winter-menu-r4/edit/final.mp4",
+  "bytes": 33288768,
+  "sha256": "45ecdc359ebe194b398a671ad63b5002c09d3b3b13b3e34b64432a9dd16681ac",
+  "assets": [
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/edit/final.mp4",
+      "bytes": 33288768,
+      "sha256": "45ecdc359ebe194b398a671ad63b5002c09d3b3b13b3e34b64432a9dd16681ac"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/edit/soundtrack.wav",
+      "bytes": 13044114,
+      "sha256": "e19ab2ca69256f04d835bbf2c33cb4c7f9cad5e6e9546c9f24dba5be946ed40f"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/edit/dialogue-only.wav",
+      "bytes": 8715252,
+      "sha256": "64f6f1fd8072692c155f1e1fd1d649e3870d6cd6c818ecbff0dd80d523270a85"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/edit/timeline.json",
+      "bytes": 7872,
+      "sha256": "33f6d5b38075114f30d3cb54ea968490467252c33b047913d66494a1b01609c4"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/edit/shots.json",
+      "bytes": 3564,
+      "sha256": "83cd791df281bb804af7af2c13bde1fee3eaba5881e19d4ed60c28fc789e01d1"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/edit/frame-transforms.json",
+      "bytes": 374045,
+      "sha256": "f58c571b2ad102266502b5f63a11c81db5d1cf48b3bdee3d453d63b0f3d56ad6"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/edit/validation.json",
+      "bytes": 715,
+      "sha256": "0723728b66a8f654e7a27b4523b70fd205e6ea1fe53871513ded273f8a46a21b"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/edit/dialogue-transcript.json",
+      "bytes": 1079,
+      "sha256": "73887cd9fe9a3726793c1103adfe8607376391cf019f0bac20ec59fb98469135"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/edit/contact-sheet.jpg",
+      "bytes": 1082964,
+      "sha256": "11bb45f6aedad956590af2a650919611f8d00aece0490fd2bdcab1f242dd7cc6"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/speech.json",
+      "bytes": 4809,
+      "sha256": "a2bdcc53292fcbbd7cc5411348613b551be4928d742d2e33d9cf39c37aa7085a"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-1.wav",
+      "bytes": 247852,
+      "sha256": "b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-2.wav",
+      "bytes": 129068,
+      "sha256": "7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-3.wav",
+      "bytes": 233516,
+      "sha256": "6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-4.wav",
+      "bytes": 118828,
+      "sha256": "0063d7e0e0d8a551fece4373ba1252d94339c00e10155bd08804b44c388773fd"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-5.wav",
+      "bytes": 116780,
+      "sha256": "f89e05a2c53e9be7edd35f3b31862da311ce2730cb330421cb93e25b20a3ab59"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-6.wav",
+      "bytes": 206892,
+      "sha256": "46bf17ecaa3a9729b16fd45ba67c2f123b32756cf36eef133abf029c681a7395"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-8.wav",
+      "bytes": 48172,
+      "sha256": "37e81c9db699303d9fbdef03479d9500d5514ae3f38fa103c4f481d6513350e6"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-8-1.wav",
+      "bytes": 38956,
+      "sha256": "1dadd22ef158db129f37ece9de63e0db871f4f72cd912fdc7a260126021aa6b2"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-8-2.wav",
+      "bytes": 42028,
+      "sha256": "1e5206395dc510de18f1f2050485cd63b9bcba90411ea34bbee7a44a3298d00d"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-8-3.wav",
+      "bytes": 24620,
+      "sha256": "5fc1718e8659568b2234544470bce9c23404b855b9c563ea90f4f75596773b35"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-8-4.wav",
+      "bytes": 49196,
+      "sha256": "9b3ba267baecf4407cb1ec7dfa66598566e83e615b009f307a47c4b3be4aaad9"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-8-5.wav",
+      "bytes": 55340,
+      "sha256": "1be02e6d7b243b572d6b6d61e0a629f35803b22b741fe13a97e907ff0d17ddab"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-9.wav",
+      "bytes": 47148,
+      "sha256": "4e12138ee373ac45b6fce8f9049680d5494892fcc13a511bc77dbf37afbb5d31"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/cutouts/a-proud.png",
+      "bytes": 1850605,
+      "sha256": "4ea3005f4effebda7f4ce9b083da55e8529db4269c96104364e5dc74b25969de"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/cutouts/a-staring.png",
+      "bytes": 1616411,
+      "sha256": "022ac97a623c88bf96405d92df0dcad0aed459641d5e78dfed17fae7931267b7"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/cutouts/b-deadpan.png",
+      "bytes": 1615055,
+      "sha256": "d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/cutouts/c-staring.png",
+      "bytes": 1547710,
+      "sha256": "b816a4f225e160a6c6a8b26244434c96d2ea09a51ce9f7c5d7a2485a1de552af"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/cutouts/c-suspicious.png",
+      "bytes": 1775253,
+      "sha256": "a49b2c3046f385d4bb05fa369b3d21d218a4c63cf66d157d204a28b9be357f42"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/cutouts/d-shocked.png",
+      "bytes": 1649760,
+      "sha256": "3d9c9d223ebc0137f0311a015dff08080acb4e8e413afe9087d7b452da54ef58"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/cutouts/set.png",
+      "bytes": 2390590,
+      "sha256": "29ab6f47227cee7aa482e83f79cb4aad9949407b4a543f5a33f846119f3c5b58"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/sfx/crow-s501.wav",
+      "bytes": 882044,
+      "sha256": "78c5f69ff31758d2d78b0c5b249633039c7ce51ae850a64971591b5da79bd4b8"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/sfx/crunch-s601.wav",
+      "bytes": 882044,
+      "sha256": "5515c7006ce09a1c5d0c21019ca11db7a445f9ce296b94f5c371aba8b7d6925f"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/sfx/gavel-s801.wav",
+      "bytes": 882044,
+      "sha256": "a9c01ef381a0f0d0dd5df5e552e2cf8556a2a8f30caff04225017540669b7b5e"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-r4/sfx/sting-s901.wav",
+      "bytes": 882044,
+      "sha256": "aadcc283d15fb7a067bc7517533dfccafb0d28ba5fe1c0ad8ddbae3d6ca1abe3"
+    }
+  ],
+  "preset": "rigid-doll-dialogue-manifest",
+  "provenance": {
+    "images": "Qwen-Image 2.1 int8 on the in-cluster ComfyUI (text-to-image and edit), chroma-keyed cutouts; prompts and seeds in prompts.json.",
+    "motion": "Deterministic rigid whole-doll cutout puppetry at 12 poses/s: idle wobble, a hop and tilt on each syllable while a doll speaks (from her voice envelope), and scripted lunges; face art fixed within each shot. Campfire flicker re-drawn procedurally from the set image.",
+    "records": "haynes-studio titles/the-winter-menu/ (manifest.json, prompts.json, evidence/)",
+    "voices": "Kokoro-82M v1.0 stock voices af_bella, af_heart, af_nicole, bf_emma; no cloning, no lip sync.",
+    "sfx": "crow: audio-authoring (Stable Audio 3 Small SFX, CPU) job 3cab72ad66894693bd414e82c07a23a2 seed 501; crunch: audio-authoring (Stable Audio 3 Small SFX, CPU) job 2545b734a9b445ef8a95737521e6a870 seed 601; gavel: audio-authoring (Stable Audio 3 Small SFX, CPU) job 78f6a7c49ba84ea1b24ba1f6633b9388 seed 801; sting: audio-authoring (Stable Audio 3 Small SFX, CPU) job 065de06515274cb185710a5a2c918022 seed 901",
+    "human_approval": "Pending: gate 3 (Tom)."
+  }
+}
