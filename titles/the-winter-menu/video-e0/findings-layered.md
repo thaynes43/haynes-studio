@@ -39,8 +39,9 @@ length w/ layering to compare."
 - **CPU:** about 17 min at 2 threads for decals, keying 7 x 121 frames (cached) and
   compositing 1087 frames with up to 4 animated dolls. **Requirement:** render workers
   (24 vCPUs once E3 exists) make this about 2 min; the keyed-frame cache is reusable.
-- **Decal tracking (min ECC):** B 0.97, C 0.99/0.99, D cheerful 0.97, A 0.89/0.85, D shocked
-  0.72 (her lettering still reads correctly in the film). A **min-ECC threshold** is a
+- **Decal tracking (min ECC; re-scored with the fixed summary, failed frames counted):**
+  B 0.97, C 0.99/0.99, D cheerful 0.97, A 0.89/0.85, D shocked 0.72 (mean 0.86). **0 failed
+  frames in all 7 clips** (120 tracked each). Her lettering still reads correctly in the film. A **min-ECC threshold** is a
   natural automatic check (re-roll or disable the decal below it).
 - **Look:** faces hold in every shot, the lettering reads "YELLOWBIRDS" throughout, and the
   four-doll vote keeps everyone in place (each doll is a separate layer, so nobody swaps).
