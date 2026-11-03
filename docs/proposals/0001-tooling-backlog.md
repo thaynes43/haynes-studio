@@ -1,7 +1,8 @@
 # Proposal 0001: tooling backlog after the manual PoC
 
-Status: **proposal for grooming with Tom.** Nothing here is filed in OpenProject or
-started. Written 2026-11-03 from the
+Status: **superseded by [proposal 0002](0002-agentic-studio.md)** (2026-11-03), which
+keeps these requirements and reorganizes the epics around local models, reusable
+assets and an agent-callable studio. Written 2026-11-03 from the
 [Winter Menu run log](../../titles/the-winter-menu/run-log.md), the first doll short
 made entirely with in-cluster tools.
 

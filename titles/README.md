@@ -17,4 +17,4 @@ and why.
 
 | Title | Status | Brief |
 |---|---|---|
-| The Winter Menu | r1 to r3 delivered (Tom's notes on each); **r4 delivered 2026-11-03** (45.3 s: r3 with "Bibs on, ladies."), awaiting Tom's verdict | [brief](the-winter-menu/brief.md), [run log](the-winter-menu/run-log.md), manifests [r1](the-winter-menu/manifest.json), [r2](the-winter-menu/manifest-r2.json), [r3](the-winter-menu/manifest-r3.json) and [r4](the-winter-menu/manifest-r4.json) |
+| The Winter Menu | r4 (45.3 s): Tom "That's great" 2026-11-03, formal sign-off requested; r1 to r3 shaped by his notes | [brief](the-winter-menu/brief.md), [run log](the-winter-menu/run-log.md), manifests [r1](the-winter-menu/manifest.json), [r2](the-winter-menu/manifest-r2.json), [r3](the-winter-menu/manifest-r3.json) and [r4](the-winter-menu/manifest-r4.json) |
