@@ -22,6 +22,13 @@ sys.argv = _argv
 cv2.setNumThreads(2)
 
 
+def summarize(scores):
+    """Tracking summary with failures counted explicitly (valid JSON: no NaN)."""
+    ok = [s for s in scores if s is not None]
+    return {'frames_tracked': len(ok), 'failed_frames': len(scores) - len(ok),
+            'min_ecc': min(ok) if ok else None, 'mean_ecc': round(sum(ok) / len(ok), 4) if ok else None}
+
+
 def decal_frames(still, frames, box, grow=40, band=4, feather=2):
     """Track the jacket from frames[0] and paste the still's lettering onto every frame.
     `still` and `frames` are RGB uint8 arrays of the same size. Returns (frames, ecc scores)."""
@@ -41,8 +48,8 @@ def decal_frames(still, frames, box, grow=40, band=4, feather=2):
                 cc, warp = cv2.findTransformECC(template, region, warp, cv2.MOTION_AFFINE,
                                                 (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 60, 1e-4), None, 5)
             except cv2.error:
-                cc = float('nan')
-            scores.append(round(float(cc), 4))
+                cc = None  # a failed track is recorded, never hidden (see summarize)
+            scores.append(None if cc is None else round(float(cc), 4))
         m = warp.copy(); m[0, 2] += gx0 - (m[0, 0] * gx0 + m[0, 1] * gy0); m[1, 2] += gy0 - (m[1, 0] * gx0 + m[1, 1] * gy0)
         d = cv2.warpAffine(full, m, (w, h)); k = cv2.warpAffine(mask, m, (w, h))[..., None]
         out.append((fr.astype(np.float32) * (1 - k) + d * k).clip(0, 255).astype(np.uint8))
@@ -83,18 +90,17 @@ def main():
                 cc, warp = cv2.findTransformECC(template, region, warp, cv2.MOTION_AFFINE,
                                                 (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 60, 1e-4), None, 5)
             except cv2.error:
-                cc = float('nan')
-            scores.append(round(float(cc), 4))
+                cc = None
+            scores.append(None if cc is None else round(float(cc), 4))
         # warp maps template coords -> frame-region coords; shift into full-frame coords
         m = warp.copy(); m[0, 2] += gx0 - (m[0, 0] * gx0 + m[0, 1] * gy0); m[1, 2] += gy0 - (m[1, 0] * gx0 + m[1, 1] * gy0)
         d = cv2.warpAffine(full_decal, m, (w, h)); k = cv2.warpAffine(mask, m, (w, h))[..., None]
         composed = fr.astype(np.float32) * (1 - k) + d * k
         proc.stdin.write(composed.clip(0, 255).astype(np.uint8).tobytes())
     proc.stdin.close(); assert proc.wait(timeout=300) == 0
-    (out.with_suffix('.json')).open('x').write(json.dumps({'box': [x0, y0, x1, y1], 'grow': a.grow, 'ecc_scores': scores,
-                                                          'min_ecc': min(scores) if scores else None}, indent=2))
-    print(json.dumps({'out': str(out), 'frames': len(frames), 'min_ecc': min(scores) if scores else None,
-                      'mean_ecc': round(float(np.nanmean(scores)), 4) if scores else None}))
+    with out.with_suffix('.json').open('x') as f:
+        json.dump({'box': [x0, y0, x1, y1], 'grow': a.grow, 'ecc_scores': scores, **summarize(scores)}, f, indent=2)
+    print(json.dumps({'out': str(out), 'frames': len(frames), **summarize(scores)}))
 
 
 if __name__ == '__main__':

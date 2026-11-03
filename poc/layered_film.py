@@ -39,22 +39,32 @@ class DollClip:
     padding) so the doll keeps a constant size across frames."""
 
     def __init__(self, job, clip, protect, pad=24, still=None, decal_box=None):
-        self.dir = job / 'keyed' / Path(clip).stem; self.dir.mkdir(parents=True, exist_ok=True)
+        import hashlib
+        # The cache is keyed by everything that shapes the keyed frames, and only reused
+        # once a completion marker exists (a crashed run leaves no marker).
+        settings = {'clip_sha256': hashlib.sha256((job / clip).read_bytes()).hexdigest(), 'protect': protect,
+                    'still_sha256': hashlib.sha256((job / still).read_bytes()).hexdigest() if still else None,
+                    'decal_box': decal_box, 'key': [20, 70]}
+        tag = hashlib.sha256(json.dumps(settings, sort_keys=True).encode()).hexdigest()[:12]
+        self.dir = job / 'keyed' / f'{Path(clip).stem}-{tag}'; marker = self.dir / 'complete.json'
         src = None; self.n = 0
-        while (self.dir / f'{self.n:04d}.png').exists():
-            self.n += 1
-        if self.n == 0:
+        if marker.exists():
+            self.n = json.loads(marker.read_text())['frames']
+        else:
+            self.dir.mkdir(parents=True, exist_ok=True)
             src = frames(job / clip)
             if decal_box:  # Wan garbles costume text: paste the still's lettering back, tracked
                 import numpy as np
                 from decal import decal_frames
                 st = np.asarray(Image.open(job / still).convert('RGB').resize(src[0].size))
+                from decal import summarize
                 fixed, scores = decal_frames(st, [np.asarray(im) for im in src], decal_box)
                 src = [Image.fromarray(f) for f in fixed]
-                (self.dir / 'decal.json').write_text(json.dumps({'box': decal_box, 'min_ecc': min(scores), 'ecc': scores}))
+                (self.dir / 'decal.json').write_text(json.dumps({'box': decal_box, **summarize(scores), 'ecc': scores}))
             for i, im in enumerate(src):
                 key(im, 20, 70, [tuple(b) for b in protect]).save(self.dir / f'{i:04d}.png')
             self.n = len(src)
+            marker.write_text(json.dumps({**settings, 'frames': self.n}))
         first = Image.open(self.dir / '0000.png')
         x0, y0, x1, y1 = first.getchannel('A').point(lambda v: 255 if v > 8 else 0).getbbox()
         self.box = (max(0, x0 - pad), max(0, y0 - pad), min(first.width, x1 + pad), min(first.height, y1 + pad))
