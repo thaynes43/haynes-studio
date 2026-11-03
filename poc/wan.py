@@ -17,7 +17,8 @@ import argparse, hashlib, json, subprocess, time, uuid
 from pathlib import Path
 
 REMOTE = ['kubectl', 'exec', '-i', '-n', 'ai', 'deploy/wan-video', '-c', 'api', '--', 'python3', '-c']
-TEMPLATE = Path.home() / 'work/haynes-ops-1103-141902/kubernetes/main/apps/ai/wan-video/app/workflow.json'
+# The deployed Wan graph; keep ~/repos/haynes-ops on origin/main.
+TEMPLATE = Path.home() / 'repos/haynes-ops/kubernetes/main/apps/ai/wan-video/app/workflow.json'
 NEGATIVE = ('changing doll identity, changing faces, new faces, extra people, extra dolls, human hands, text, '
             'subtitles, watermark, camera shake, fast motion, cuts, scene change, blurry, distorted, melting')
 
