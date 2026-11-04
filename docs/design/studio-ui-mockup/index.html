@@ -488,7 +488,7 @@ const METHODS={
   legacy:{label:'Still cutout',long:'Rigid cutout, made by hand',d:'',desc:'Made before the studio (OP345).'}
 };
 /* Rates from E0 (findings.md, findings-layered.md, findings-s2v.md), in minutes */
-const RATE={chunk:4.2,chunkSec:4.8,clip:4.6,wf:4.7,wfSec:5.04,cpuLayer:0.15,cpuWhole:0.02,asm:2,voiceBoard:0.05,photo:0.5,voiceLine:0.05,fps:16};
+const RATE={chunk:4.2,chunkSec:4.8,clip:4.6,wf:4.7,wfSec:5.04,cpuLayer:0.15,cpuWhole:0.02,asm:2,voiceBoard:0.05,photo:1.5,voiceLine:0.05,fps:16};
 const ACCOUNTS=[
   {id:'acct-a',name:'Account A',kind:'Vertical-video platform (placeholder)'},
   {id:'acct-b',name:'Account B',kind:'Vertical-video platform (placeholder)'}
@@ -950,7 +950,7 @@ function viewBoard(){
       (ro?'':'<div class="row"><button class="btn btn-sm" id="picker-toggle" data-act="picker-toggle" aria-expanded="'+S.ui.pickerOpen+'">'+ICON.plus+(S.ui.pickerOpen?'Close library':'Add from library')+'</button></div>')+picker+
       '<div class="field"><label for="ph-prompt">Describe the shot</label><textarea class="in" id="ph-prompt" data-in="ph-prompt" rows="3"'+dis+'>'+esc(b.prompt)+'</textarea></div>'+
       '<div class="row"><span class="inline-field"><label for="ph-seed">Seed</label><input class="in in-num" type="number" id="ph-seed" data-in="ph-seed" value="'+(b.seedNext!=null?b.seedNext:(cur?cur.seed+1:101))+'"'+dis+'></span>'+
-      '<button class="btn btn-primary" id="generate" data-act="generate" '+(ro||gen?'disabled':'')+'>Generate</button><span class="hint">About 30 s on the shared image service.</span></div>'+
+      '<button class="btn btn-primary" id="generate" data-act="generate" '+(ro||gen?'disabled':'')+'>Generate</button><span class="hint">About 1.5 min on the shared image service, longer if the model is cold.</span></div>'+
       (gen?'<div class="stack-sm" role="status"><span class="hint">Making v'+(b.photo.versions.length+1)+'…</span><div class="progress"><i id="gen-bar" style="width:'+S.ui.genPct+'%"></i></div></div>':'')+
       '<p class="hint">Prompts never mention hands or camera moves (E0). The wardrobe check runs on every new version.</p>'+
       spec('<ul><li><code>POST /boards/{id}/photos {asset_refs: [{asset_id, version, expression?}], prompt, seed}</code> queues an image job; the result appends a photo version with its provenance.</li><li><code>PUT /boards/{id}/photo {version}</code> picks the version in use (revert). Versions are never deleted.</li></ul>')+
