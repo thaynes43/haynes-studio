@@ -178,3 +178,9 @@ sample text, not measured audio. Timecode uses a 25 fps display assumption. No m
 model calls, publishing or deployment. Tom's creative acceptance is pending; not
 verified inside claude.ai. No OpenProject writes. The ready PR is intentionally left
 unmerged for coordinating session `a1-haynes-ops-1103-141902`.
+
+## v5 changes (2026-11-04, Tom's notes on v4)
+
+- **One Build button.** The editor header holds Build (or Queue run). The Runs panel under the workspace lists runs and the estimate only. The story review page keeps its Build, since it has no header button.
+- **Only the media types a production has.** The editor's media picker and the production page list the types that production already uses (Yellowbirds: Short). The missing types appear as small "+ Video · 16:9" buttons that add the type and open it.
+- **Backstage palette.** Dark: near-black page, charcoal cards with thin borders, green primary actions with dark text, pill-shaped buttons. Light keeps the same structure, with a deeper green (`#13823d`) so links and button text stay legible on white.
