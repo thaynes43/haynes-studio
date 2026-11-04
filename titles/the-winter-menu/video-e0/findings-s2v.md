@@ -22,7 +22,7 @@ Tom asked for the full Winter Menu remade with speech-to-video. Delivered privat
   with the 20-step path on both GPUs. That is **about 5x faster**, with lip-sync intact.
   1 chunk: 143 to 203 s; 2 chunks: 463 to 467 s; 3 chunks: 714 to 716 s (one ran 270 s,
   reusing ComfyUI's cached nodes from its interrupted first attempt).
-- **Batch:** 22 chunks, about 90 min of wall time including cooldowns and one lost attempt.
+- **Batch:** 22 chunks, about 92 min of render and cooldown time in the records, and about 105 min from first start to last finish, including the lost attempt.
 - **Decal tracking is better than the 5B clips:** 9 of 11 at min ECC 0.88 or more (S2V
   moves the torso less). s1-a (0.71) and s9-b (0.80) failed the gate. By eye the lettering
   stays on the jacket in both, so they were overridden with a recorded reason (the same
@@ -42,5 +42,5 @@ engine read as a miss, never as a failed job.
 | Version | Wan clips | GPU wall | Compositing |
 |---|---|---|---|
 | Layered (5B) | 8 | about 37 min | 7 min (worker) |
-| Layered S2V (lightning) | 8 layered + 11 S2V | about 37 min + about 90 min | 6.5 min (worker) |
+| Layered S2V (lightning) | 8 layered + 11 S2V | about 37 min + about 92 min | 6.5 min (worker) |
 | S2V 20-step (estimate) | the same | about 37 min + about 7 h | the same |
