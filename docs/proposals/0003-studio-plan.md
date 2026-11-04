@@ -26,7 +26,7 @@ each epic runs. Decisions come from Tom in the 2026-11-03 session, and are also 
 | D15 | **Immutable asset versions**, pinned per production; anything approved for live is frozen | "we don't go back and modify things that are approved for live" |
 | D16 | The library is **scoped by labels and filters** (format, account, production, character), in one store | |
 | D17 | **Nothing is purged automatically**; deletion is a user action in the studio | |
-| D18 | **CPU:** render workers are capped at **24 vCPUs** on talosw01, at low priority (the VM has 40 vCPUs; the 48-thread host keeps 8 for Ceph and nas01). **Until E3 delivers that dedicated low-priority worker and AGENTS.md is amended, the 2-thread rule still applies to all CPU work, E0 included** | "24 ok?" |
+| D18 | **CPU:** render workers are capped at **24 vCPUs** on talosw01, at low priority (the VM has 40 vCPUs; the 48-thread host keeps 8 for Ceph and nas01). **The worker exists:** `ai/studio-render` (haynes-ops, 2026-11-04) at Tom's direction ("why are we still using 2 cores instead of 24"); session pods keep 2 threads | "24 ok?" |
 | D19 | **One haynes-studio monorepo** for all code; deployment manifests in haynes-ops (GitOps) | |
 | D20 | **Tom accepts** epics and stories | "I do" |
 | D21 | **Re-do the PoC as a video-generation workflow** before building, because it may change the plan | "re-do the PoC using a video gen workflow with the new tools" |

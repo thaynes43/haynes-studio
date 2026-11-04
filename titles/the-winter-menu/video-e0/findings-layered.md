@@ -80,3 +80,29 @@ traced from the keyed frames:
   ("YELLO|WBIRDS") in the still itself: the casting check should catch that too.
 - Neither defect needs a whole-frame fallback; both are checks the factory must run without
   Tom.
+
+## Layered v2 (2026-11-04): Tom's two fixes, on the render worker
+
+Delivered privately (ledger `c3711fb4fcef40ea861da35f9da2758f`); review copy sent to Tom.
+
+- **Sleeves:** B, D cheerful and D shocked were re-cast with one Qwen-Image edit each from
+  their green stills ("full-length blue sleeves to the wrists with thin white stripes, like
+  her teammates"; seed 401, about 1.5 min each). The edit kept face, hair, pose and props, and
+  also tidied B's split lettering. Then 3 new Wan clips (seeds 412, 415, 416): 117 to 122 s
+  render each, plus cooldowns, 10.4 min wall in total.
+- **Lettering:** the decal now inpaints Wan's lettering over the whole tracked jacket area
+  first. On the old D-shocked clip this removed the doubled "YELLOWBIRDSS" in every frame.
+- **The ECC gate worked but is a weak proxy.** It stopped the render on B v2 (min 0.71) and
+  D shocked v2 (0.63). By eye, both decals stay on the jacket with no doubling: the low scores
+  come from the jacket creasing as the doll turns, not from the decal sliding. Overridden per
+  clip (`decal_min_ecc`), with the reason recorded in the job. **Requirement (E2):** measure
+  what Tom actually sees, the decal's drift against the jacket (for example optical flow
+  between the decal and the cloth around it), and keep ECC only as a hard floor for lost
+  tracks.
+- **Render worker (`ai/studio-render`, 22 processes):** keying with decals for all 7 clips
+  took about 30 s, and the whole film took **408 s against about 17 min** at 2 threads in the
+  session pod. Shots are the unit of parallelism, so the 251-frame vote shot sets the floor.
+  **Requirement (E1):** split long shots into frame chunks, which should get this to about
+  2 min.
+- **Start to finish for this fix:** about 5 min of images, 10 min of Wan, 7 min of compositing
+  and 1 min to deliver. Most of the elapsed time went on the worker deployment and checking.
