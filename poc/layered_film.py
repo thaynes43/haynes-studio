@@ -173,6 +173,10 @@ def main():
         raise FileExistsError(out)
     cmap = json.loads(Path(a.clipmap).read_text()); spans = json.loads(Path(a.timeline).read_text())['shots']
     assert len(spans) == len(m['shots']), 'timeline and manifest disagree on the shot count'
+    by_id = {str(sh['id']): sh for sh in m['shots']}
+    for sid, per in cmap.get('shots', {}).items():  # a typo would silently drop a speaking clip
+        if sid not in by_id or not set(per) <= set(by_id[sid]['dolls']):
+            raise ValueError(f"clip map 'shots' entry {sid}: {sorted(per)} not in that shot's dolls")
     # Build each keyed directory once, before the shots read it: dedupe by the cache directory
     # itself, so no two workers ever build the same one at once.
     entries = [v for k, v in cmap.items() if k != 'shots'] + [v for per in cmap.get('shots', {}).values() for v in per.values()]
