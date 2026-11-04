@@ -249,7 +249,7 @@ input[type="number"]{font-family:var(--mono)}
     <div class="topline">
       <a class="brand" href="#productions" aria-label="Haynes Studio productions"><span class="brand-mark" aria-hidden="true">H</span><span class="brand-name">HAYNES STUDIO</span></a>
       <div class="user">
-        <button id="user-toggle" aria-expanded="false" aria-controls="user-menu"><span class="avatar" aria-hidden="true">R</span>Riley <span aria-hidden="true">⌄</span></button>
+        <button id="user-toggle" aria-expanded="false" aria-controls="user-menu"><span class="avatar" aria-hidden="true">T</span>Tom <span aria-hidden="true">⌄</span></button>
         <div class="menu" id="user-menu" hidden>
           <fieldset><legend>Theme</legend><div class="theme-options" id="theme-options"></div></fieldset>
           <a href="#account">User settings</a>
@@ -319,7 +319,7 @@ const boards = [
 const state = {route:'media-winter-menu',selected:'b7',revision:1,build:null,buildHistory:[],buildAsk:false,remove:null,
   photoOpen:false,filter:'development',assetKind:'all',assetScope:'Yellowbirds',search:'',
   gen:{name:'Camping mug',kind:'prop',prompt:'A small enamel camping mug, worn blue rim, doll scale.',busy:false,result:null},
-  reviewNote:'',reviewForm:false,preview:0,userName:'Riley'};
+  reviewNote:'',reviewForm:false,preview:0,userName:'Tom'};
 const total = () => boards.reduce((sum,b)=>sum+b.duration,0);
 const seconds = n => Number(n.toFixed(1))+' s';
 const approved = () => boards.filter(b=>b.approved).length;
@@ -460,7 +460,7 @@ function storyView(editing=false) {
   const representative=boards.find(b=>b.id==='b8')||boards[0];
   let body=head('The Winter Menu',`<span>${seconds(total())}</span><span>9:16</span>${badge(statusLabel(),mediaStatus()==='pending'?'review':'')}`,editing?link('View media','media-winter-menu'):link('Open editor','editor-board','primary'));
   if(!editing) body+=`<div class="story-layout"><div class="hero">${representative?photo(representative):'<div class="empty">No boards</div>'}<div class="hero-info"><span class="eyebrow">Storyboard</span><strong>${approved()} of ${boards.length}<br>boards approved</strong>${needsReview?link(`Review board ${pad(boards.indexOf(needsReview)+1)} →`,'board-'+needsReview.id):badge('Ready to build','good')}<span class="small muted">Yellowbirds · Doll comedy</span></div></div>${buildPanel()}</div>${cutReview()}`;
-  else body+=buildPanel();
+  else body+=(state.build?.note&&!hasFreshCut()?`<p class="panel small" id="change-note"><strong>Changes requested:</strong> ${esc(state.build.note)}</p>`:'')+buildPanel();
   body+=`<div class="section-head"><div><h2>${editing?'Story boards':'Boards'}</h2><span class="small muted">${boards.length} clips · ${seconds(total())}</span></div>${editing?button('+ Add board','add-board','',isRunning()?'disabled':''):''}</div>${boardList(editing)}`;
   return body;
 }
@@ -685,7 +685,7 @@ document.addEventListener('click',event=>{
       b.photoBusy=false;b.photo++;b.photoInput=input;
       b.photoDirty=JSON.stringify(input)!==JSON.stringify({assets:b.assets,prompt:b.prompt});
       if(state.route==='board-'+b.id) {state.photoOpen=true;render('generate-photo');}
-      else if(state.route==='editor-assets'&&selected()?.id===b.id) render();
+      else if((state.route==='editor-assets'&&selected()?.id===b.id)||['editor-board','media-winter-menu'].includes(state.route)) render();
       notify('Reference photo updated · simulated. Review before approving.');
     },1500);return;
   }
