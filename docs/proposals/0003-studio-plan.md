@@ -12,8 +12,8 @@ each epic runs. Decisions come from Tom in the 2026-11-03 session, and are also 
 | D1 | The Winter Menu r4 is formally signed off | "Yes" |
 | D2 | **The two 3090s on talosw01 are the studio's GPUs.** The studio's scheduler owns them for Wan video, Foley and the studio's local models. They are two 24 GB cards, not a 48 GB pool | "The dual 3090s are for this"; "We have 48Gb on the server, two cards" |
 | D3 | The storyboard UI is home/LAN-only for now; wider access later | "Home for now expand later" |
-| D4 | **Storage:** the app's pod uses Rook Ceph RBD; **media lives on NFS on gasha01** in a studio folder; the database is **CNPG with backups** | |
-| D5 | Users: **Tom plus agents** (scoped agent keys), no human logins in v1 | "Me + agents for now" |
+| D4 | **Storage:** the app's pod uses Rook Ceph RBD (*superseded by D41: app pods keep no volume*); **media lives on NFS on gasha01** in a studio folder; the database is **CNPG with backups** | |
+| D5 | Users: **Tom plus agents** (scoped agent keys), no human logins in v1 (*login amended by D41: humans sign in with Authentik OIDC*) | "Me + agents for now" |
 | D6 | **Every scene/cut is a Wan clip**, strung together to the desired length. At minimum the set moves; doll hair and wobble may move as if someone is playing with them; expressions change only at cuts, which keeps continuity | "Wan should be used for each scene / cut which we string together" |
 | D7 | Talking shots: the PoC tests **all three methods**: whole-frame image-to-video, layered, and speech-to-video | "All three here" |
 | D8 | **The factory runs almost entirely locally.** Making media uses zero cloud tokens by default; token use is recorded per production | "use it as a factory to churn out media without burning tons of Claude Code usage" |
@@ -22,7 +22,7 @@ each epic runs. Decisions come from Tom in the 2026-11-03 session, and are also 
 | D11 | **Script sources:** adaptations of classic movie scenes via their subtitles, and content Tom stages ahead of time in the studio's archive | |
 | D12 | **Escalation goes through dev-env v2 to a responder agent.** dev-env v2 chooses the model and provider by capacity at the time | "Escalate using dev-env v2 to a responder agent" |
 | D13 | **Not limited to shorts.** Long-form comes later: production → scenes → shots, length-agnostic | |
-| D14 | **Creative staging is Tom's, with a frontier model** through dev-env v2. **The local LLM is a shepherd:** it moves pre-approved content through the pipeline and runs technical checks; it never judges what will land | "the local LLM simply Shepards pre-approved content" |
+| D14 | **Creative staging is Tom's, with a frontier model** through dev-env v2. **The local LLM is a shepherd:** it moves pre-approved content through the pipeline and runs technical checks; it never judges what will land (*D40 lets a local LLM draft boards once its harness proves reliable*) | "the local LLM simply Shepards pre-approved content" |
 | D15 | **Immutable asset versions**, pinned per production; anything approved for live is frozen | "we don't go back and modify things that are approved for live" |
 | D16 | The library is **scoped by labels and filters** (format, account, production, character), in one store | |
 | D17 | **Nothing is purged automatically**; deletion is a user action in the studio | |
@@ -47,6 +47,9 @@ each epic runs. Decisions come from Tom in the 2026-11-03 session, and are also 
 | D36 | **One navigation trail, made of buttons** (amends D28). No duplicate path labels: the breadcrumb is the single trail, each crumb is a button, and clicking one goes back and drops the deeper filters. Top-level **Editor** opens a landing where the user picks the storyboard editor or the Asset Library; from the editor they pick or create a production and a media type (for example Short) before opening a story | "This EDITOR / The WINTER MENU should be buttons … When I click the top level Editor it should not go right into 'The Winter Menu' … I should be able to create a new Production or video type" (2026-11-04) |
 | D37 | **Look and feel follows storyboard-software conventions,** based on research: a main stage for the selected panel with a panel timeline/filmstrip, as in tools like Tom's PanelForge example. Text forms (script, prompts, notes) sit where drawing tools would be. A new color scheme suited to video production replaces the current one. Phone review still has to work | "Have Astra do online research for industry standards for storyboarding software … ideally we'd have text forms where the image editing in there is. The color pattern CSS here is not great" (2026-11-04) |
 | D38 | **A board's method is shown in technical terms,** as two badge groups: layer (Layered or Whole-frame) and motion (Speech-to-video or Image-to-video). These replace the Talking/Reaction/Ambient list. The default follows the board: spoken lines mean Speech-to-video, and Speech-to-video is disabled for a board with no lines. Annotations become a **Direction** section with an always-visible "Add a note" box (amends D35). | "We should use more technical language for Method so users know what it means like "layered" + " speech-to-video" or whatever not layered was would be other, multi - select badges maybe"; "But where do I enter something like "Offscreen crunch"?" (2026-11-04) |
+| D39 | **Storage details (completes D4).** Media lives in `gasha01:/hdd-nfs-repl/data/studio`, the share studio-render already mounts, with one folder per production plus a library folder. Files are referenced by content hash and nothing is purged automatically. Records (productions, media types, stories, boards, lines, notes, library assets with provenance, runs, approvals, saved selections) go in a new `studio` database on the shared CNPG cluster `database/postgres16` (3 instances, nightly barman backups to S3), not a dedicated cluster. | "That's right" (2026-11-04) |
+| D40 | (*amends D14 once the harness passes*) **Boards are drafted by a frontier agent** (dev-env v2, through the studio MCP, tokens recorded per production) **until a harness or toolkit lets a local LLM do the work reliably.** The writer is a configuration setting. The goal is a purely local loop on talosw01 that makes the most of that hardware. Story E5.2 (https://work.haynesnetwork.com/projects/haynes-studio/work_packages/421) builds and evaluates the harness. | "Frontier until we build a harness or toolkit that lets a local LLM reliably perform the work. Those models keep getting better and eventually I want this to be a purely local loop on talosw01 making the most out of that hardware" (2026-11-04) |
+| D41 | **Local now, online-ready, highly available.** The UI is LAN-only for now but is built so it can go online later without a redesign: every request is authenticated and nothing trusts the network. People sign in with **Authentik OIDC** (amends D5). Agents keep scoped keys through the studio MCP. The service is **cloud native with replicas, so losing one node does not take the tool down** (amends D4): the web app and studio-api are stateless with at least two replicas spread across nodes, with a disruption budget. All state lives in Postgres (`database/postgres16`, 3 instances) and on the gasha01 NFS share (D39), which is outside the cluster. Run-queue state is in Postgres, so a lost pod loses no runs. GPU render workers are tied to their node: losing talosw01 pauses builds, but the tool stays up and queued runs wait. | "Other requirements are that its local now but may be online later and needs to support Authentik ODIC login. Also needs to be designed as cloud native with replicas so one node going down doesn't bring the tool down" (2026-11-04) |
 
 ## The product model
 
@@ -116,10 +119,13 @@ flowchart TB
   Assistant, unless E0 or E2 shows the 3090s should take it.
 - **CPU:** up to 24 vCPUs for render workers on talosw01, low priority, once E3 provides the
   worker and AGENTS.md is amended. Until then, 2 threads.
-- **Storage:** the app's pod on Rook Ceph RBD; media on the gasha01 NFS studio folder (path
-  to be confirmed); CNPG Postgres with backups; nothing auto-purged.
-- **Access:** LAN-only UI. Agents use scoped keys through the studio MCP; responder pods
-  reach the MCP through a sanctioned dev-env v2 path.
+- **Storage:** no per-pod volume, so app pods can replicate (D41); media in
+  `gasha01:/hdd-nfs-repl/data/studio` and records in a `studio` database on
+  `database/postgres16` with its backups (D39); nothing auto-purged.
+- **Access:** LAN-only UI for now, online-ready (D41): Authentik OIDC sign-in for people,
+  scoped keys through the studio MCP for agents; responder pods reach the MCP through a
+  sanctioned dev-env v2 path. Stateless web app and API with at least two replicas across
+  nodes; state only in Postgres and on gasha01 NFS.
 - **Code:** the haynes-studio monorepo. Images are built by GitHub Actions, and haynes-ops
   holds every deployed manifest.
 
@@ -150,9 +156,9 @@ New epics are filed for E0, E7, E8 and E9.
 | **E0 Video-generation PoC** (new, first) | The Winter Menu remade with a Wan clip per cut, testing all three talking-shot methods, with findings that decide E1 to E5's design | nothing |
 | E1 Core (372) | Production/scene/shot model, manifest v2 (clip shots, methods, formats), length-agnostic render engine with per-shot cache, atomic stages, fail-fast checks, delivery with proxies | E0 findings |
 | E2 Asset pipelines (373) | Matting service (studio-owned), occlusion masks, automatic size matching, character cards, immutable versioned library with labels | E0 findings, E1 |
-| E3 API, storage, queue, MCP (374) | studio-api on Ceph RBD, CNPG with backups, gasha01 NFS media; a GPU scheduler owning the 3090s (Wan, Foley, local model); MCP with scoped agent keys | E1 |
+| E3 API, storage, queue, MCP (374) | stateless studio-api with replicas (D41), Postgres on `database/postgres16` and gasha01 NFS media (D39); a GPU scheduler owning the 3090s (Wan, Foley, local model); MCP with scoped agent keys | E1 |
 | E4 Local model hosting (375) | One multimodal local model on a 3090, loaded and unloaded by the scheduler | E3 |
-| E5 Local shepherd (376, renamed) | Moves approved content through the pipeline with technical checks only, and escalates through E8 | E3, E4 |
+| E5 Local shepherd (376, renamed) | Moves approved content through the pipeline with technical checks only, and escalates through E8; also the local board-writer harness (E5.2, D40) | E3, E4 |
 | E6 Storyboard UI (377) | Productions, shots, keyframes, clips, playback, revisions, notes, deletion, LAN-only | E3 |
 | **E7 Staging room and script sources** (new) | Tom and a frontier agent (dev-env v2) adapt subtitle scenes and stage archive scripts through the studio MCP; read-only subtitle discovery on HaynesTower or Bazarr | E3 |
 | **E8 Escalation through dev-env v2** (new) | Escalation packages, a sanctioned way to request a responder, MCP access for responders, cost logging | E3, the dev-env v2 saga |
@@ -263,6 +269,6 @@ learn what the plan must change.
 - ~~Staging-room flow~~: answered by D26 and D27 (stories of boards, edited by the user or
   filled in by an agent, the story approved per D26). The API follows from it in E3/E6
   design; the text-pass and length-range points in D27 stay open.
-- Database model details and the gasha01 NFS folder path.
+- ~~Database model details and the gasha01 NFS folder path~~: answered by D39.
 - Publishing: which accounts and platforms first, and the disclosure stance.
 - Whether image generation should move to the 3090s for consistency with Wan.
