@@ -14,7 +14,7 @@ Doll clips ping-pong, each doll offset so they do not bob in unison. Create-only
 
 --workers N keys the doll clips and renders the shots in N processes (each shot is
 independent given its first film frame), then joins the shot segments without re-encoding.
-Use 1 in a session pod (2-thread rule); the studio-render worker on talosw01 allows 24.
+Use 1 in a session pod (2-thread rule) and up to 22 on the studio-render worker (AGENTS.md).
 """
 import os
 os.environ.setdefault('OPENBLAS_NUM_THREADS', '1')
