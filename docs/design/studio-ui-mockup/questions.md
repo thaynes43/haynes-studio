@@ -3,7 +3,7 @@
 **Answered 2026-11-04** (Tom). Rulings are D29 to D32 in `docs/proposals/0003-studio-plan.md`:
 
 1. No script gate. The only approval is go-live; script and images iterate together (D29).
-2. Open. Tom asked how fixed board lengths are; length is governed by platform caps (for example a Shorts maximum), not a format range. Follow-up asked in chat.
+2. Superseded by D33 in the v4 work order: speaking-board timing comes from voice audio plus a short pad; silent boards use an editable hold. Platform caps are not implemented in this mockup.
 3. Media lists use filters: unpublished, approved, or both (D31).
 4. Yes. Tweak and queue a new run while one runs, then compare (D30).
 5. Persist selections: the Editor's asset library opens scoped to the current production, with filters to widen (D32).
@@ -49,11 +49,18 @@ Recommendations below are the prototype defaults, not recorded owner decisions.
 | Production → media type → story | D28 hierarchy overrides the older proposal's “production = one video” terminology. |
 | Talking / Reaction / Ambient | Layered speech-to-video / layered image-to-video / whole-frame. |
 | Photo generation | Asset references plus prompt text; about 1.5 min in practice, accelerated SVG variation here. No model call. |
-| Build | All current boards approved; about 1.5–2 h GPU for the 45 s example. Duration-scaled estimates after edits are illustrative, not a scheduler cost model. |
+| Build | At least one board; no script or per-board approval gate (D29). About 1.5–2 h GPU for the 45 s example. Estimates are illustrative, not a scheduler cost model. |
 | Build result / cut review | A frozen storyboard preview, not playable video, audio or a technical validation result. Separate simulated human approval. |
 | Asset promotion | Creates a new in-memory library entry; does not replace existing assets. |
-| Sound and motion | Existing PoC cues are shown as short board notes. Audio editing, voice previews and camera controls are deferred. |
+| Sound and motion | Editable annotations; simulated per-board voice generation/playback and derived timing (D33/D35). No real audio or camera editor. |
 | User / admin settings | Theme is functional; identity and access are read-only placeholders. No login, permissions or service administration. |
-| Persistence | In-memory story, library and build state; only theme uses guarded localStorage. Reload resets the example. |
+| Persistence | Theme and view selections use guarded localStorage. Drafts, generated assets, created productions/stories and runs stay in memory. Reload resets content. |
 
 No API routes are proposed: that contract belongs to E3/E6, after this flow is accepted.
+
+
+## v4 questions
+
+None. D33–D37 answer the new navigation, timing, annotation and layout questions.
+The 0.25 s pad and 25 fps timecode display are prototype defaults, not additional
+owner rulings. No new decision is needed to review this mockup.

@@ -1,14 +1,17 @@
+<meta charset="utf-8">
 <title>Haynes Studio Storyboard</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <style>
 :root {
   color-scheme: light;
-  --page:#f3f6f8; --surface:#ffffff; --soft:#eaf0f4; --ink:#223442;
-  --muted:#546775; --line:#ccd6de; --strong-line:#94a7b6;
-  --accent:#255bab; --accent-soft:#e6eefc; --on-accent:#ffffff;
-  --good:#246650; --good-soft:#e7f2ed; --review:#8a570c; --review-soft:#fbf1da;
-  --danger:#a3313d; --focus:#145fb6; --clear:transparent; --shadow:#1834481a;
+  --page:#eeeff1; --surface:#ffffff; --soft:#e5e7eb; --ink:#25272d;
+  --muted:#626771; --line:#d4d6dc; --strong-line:#9a9fa9;
+  --accent:#345ab5; --accent-soft:#e8edfb; --on-accent:#ffffff;
+  --good:#287250; --good-soft:#e4f0e8; --review:#895c17; --review-soft:#f7edd8;
+  --danger:#ab3543; --focus:#4169c8; --clear:transparent; --shadow:#1113191a;
+  --stage:#141519; --stage-ink:#e1e3e9; --stage-muted:#a8acb7; --stage-line:#393c45;
+  --wave:#889ed4;
   --sky:#dce6eb; --ridge:#b3c6cc; --tree:#567578; --tree-dark:#36565d;
   --ground:#a7bab3; --frost:#edf3ef; --log:#6a7863; --fire:#d89240;
   --jacket:#315caf; --jacket-dark:#23457e; --stripe:#e2ebee; --letter:#f3d25d;
@@ -21,11 +24,13 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --page:#192730; --surface:#21323d; --soft:#2a3e49; --ink:#e5edf3;
-    --muted:#b0c0cc; --line:#3e5462; --strong-line:#6c8494;
-    --accent:#94baff; --accent-soft:#304a6d; --on-accent:#172a48;
-    --good:#9ad4b7; --good-soft:#28493e; --review:#ecc37d; --review-soft:#4c402d;
-    --danger:#ffacb4; --focus:#adcaff; --clear:transparent; --shadow:#08141d44;
+    --page:#17181b; --surface:#202226; --soft:#2a2d32; --ink:#e8e9ed;
+  --muted:#a6abb6; --line:#393c44; --strong-line:#646a77;
+  --accent:#a9bfff; --accent-soft:#303a54; --on-accent:#18223b;
+  --good:#93ceae; --good-soft:#293c33; --review:#e2bc79; --review-soft:#443b2c;
+  --danger:#f0a1ac; --focus:#bdceff; --clear:transparent; --shadow:#08090b55;
+  --stage:#101114; --stage-ink:#e1e3e9; --stage-muted:#a8acb7; --stage-line:#393c45;
+  --wave:#889ed4;
     --sky:#dce6eb; --ridge:#b3c6cc; --tree:#567578; --tree-dark:#36565d;
     --ground:#a7bab3; --frost:#edf3ef; --log:#6a7863; --fire:#d89240;
     --jacket:#315caf; --jacket-dark:#23457e; --stripe:#e2ebee; --letter:#f3d25d;
@@ -36,11 +41,13 @@
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --page:#192730; --surface:#21323d; --soft:#2a3e49; --ink:#e5edf3;
-  --muted:#b0c0cc; --line:#3e5462; --strong-line:#6c8494;
-  --accent:#94baff; --accent-soft:#304a6d; --on-accent:#172a48;
-  --good:#9ad4b7; --good-soft:#28493e; --review:#ecc37d; --review-soft:#4c402d;
-  --danger:#ffacb4; --focus:#adcaff; --clear:transparent; --shadow:#08141d44;
+  --page:#17181b; --surface:#202226; --soft:#2a2d32; --ink:#e8e9ed;
+  --muted:#a6abb6; --line:#393c44; --strong-line:#646a77;
+  --accent:#a9bfff; --accent-soft:#303a54; --on-accent:#18223b;
+  --good:#93ceae; --good-soft:#293c33; --review:#e2bc79; --review-soft:#443b2c;
+  --danger:#f0a1ac; --focus:#bdceff; --clear:transparent; --shadow:#08090b55;
+  --stage:#101114; --stage-ink:#e1e3e9; --stage-muted:#a8acb7; --stage-line:#393c45;
+  --wave:#889ed4;
   --sky:#dce6eb; --ridge:#b3c6cc; --tree:#567578; --tree-dark:#36565d;
   --ground:#a7bab3; --frost:#edf3ef; --log:#6a7863; --fire:#d89240;
   --jacket:#315caf; --jacket-dark:#23457e; --stripe:#e2ebee; --letter:#f3d25d;
@@ -50,7 +57,7 @@
 }
 [hidden]{display:none!important}
 *{box-sizing:border-box}
-body{margin:0;background:var(--page);color:var(--ink);font:15px/1.5 var(--sans)}
+body{margin:0;background:var(--page);color:var(--ink);font:14px/1.5 var(--sans)}
 button,input,select,textarea{font:inherit;color:inherit}
 a{color:var(--accent);text-underline-offset:4px}
 button,a,input,select,textarea,summary{-webkit-tap-highlight-color:var(--clear)}
@@ -67,16 +74,15 @@ button,a{touch-action:manipulation}
 fieldset{border:0;margin:0;padding:0;min-width:0}
 legend{padding:0}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
-.shell{max-width:1184px;margin:auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 56px}
+.shell{max-width:1440px;margin:auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 56px}
 .top{display:flex;align-items:center;gap:18px;min-height:60px;position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--page);border-bottom:1px solid var(--line)}
 .topline{display:contents}
 .brand-name{display:none}
 .brand{display:flex;align-items:center;gap:9px;text-decoration:none;color:var(--ink);font-size:.8rem;letter-spacing:.13em;font-weight:750;white-space:nowrap;min-width:0}
 .brand-mark{width:22px;height:22px;border:2px solid var(--ink);display:grid;place-items:center;font:700 14px var(--mono);letter-spacing:0}
 .topnav{display:flex;gap:20px;min-width:0;flex:1;order:1}
-.topnav a,.subnav a{display:flex;align-items:center;min-height:44px;text-decoration:none;border-bottom:3px solid var(--clear);font-weight:600;color:var(--muted)}
-.topnav a{min-height:60px}
-.topnav a[aria-current],.subnav a[aria-current]{color:var(--accent);border-color:var(--accent)}
+.topnav a{display:flex;align-items:center;min-height:60px;text-decoration:none;border-bottom:3px solid var(--clear);font-weight:600;color:var(--muted)}
+.topnav a[aria-current]{color:var(--accent);border-color:var(--accent)}
 .user{position:relative;min-width:0;order:2}
 .user>button{display:flex;align-items:center;gap:8px;border:0;background:var(--clear);min-height:44px;padding:4px 0 4px 10px;font-size:.85rem}
 .avatar{display:none;place-items:center;width:25px;height:25px;border-radius:50%;background:var(--soft);font:12px var(--mono);color:var(--muted)}
@@ -95,11 +101,8 @@ legend{padding:0}
 .ancestor>summary::-webkit-details-marker{display:none}
 .ancestor-list{position:absolute;left:0;top:46px;z-index:15;min-width:220px;background:var(--surface);border:1px solid var(--line);padding:8px 16px;box-shadow:0 8px 24px var(--shadow)}
 .ancestor-list a{display:flex}
-.context{display:flex;align-items:center;gap:8px;justify-content:space-between;margin-block:4px 14px}
 .example{font:10px var(--mono);color:var(--muted);border:1px solid var(--line);padding:3px 6px;white-space:nowrap}
 .eyebrow{font:11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.subnav{display:flex;gap:24px;min-width:0;border-bottom:1px solid var(--line);margin-bottom:22px}
-.subnav a{min-width:52px}
 main{min-width:0}
 .page-head{display:flex;flex-direction:column;gap:12px;margin-bottom:24px;min-width:0}
 .page-head .meta{margin-top:4px}
@@ -131,7 +134,7 @@ main{min-width:0}
 .tree-link>div{min-width:0;flex:1}
 .tree-link h2{margin-bottom:6px}
 .tree-link .arrow{color:var(--muted);font-size:22px}
-.tree-link:hover h2{color:var(--accent)}
+.picker{width:100%;background:var(--clear);border:0;border-bottom:1px solid var(--line);text-align:left}.tree-link:hover h2{color:var(--accent)}
 .team-mark{display:grid;place-items:center;flex:none;width:64px;height:76px;background:var(--jacket);color:var(--letter);font:700 25px var(--mono);border-bottom:5px solid var(--letter)}
 .folder-mark{width:40px;height:32px;border:1px solid var(--strong-line);border-top:5px solid var(--strong-line);background:var(--soft);flex:none}
 .filters{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px}
@@ -174,11 +177,6 @@ progress::-webkit-progress-bar{background:var(--soft)}progress::-webkit-progress
 .board-tools{grid-column:2;display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
 .board-tools .row{gap:4px}
 .board-tools .btn{font-size:.8rem}
-.board-pager{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:18px}
-.board-pager>a{font-size:.8rem;min-height:44px;display:flex;align-items:center}
-.edit-layout{display:grid;gap:24px;min-width:0}
-.reference{display:grid;grid-template-columns:144px minmax(0,1fr);gap:18px;align-items:start;min-width:0}
-.reference figcaption{font-size:.7rem;color:var(--muted);margin-top:6px}
 .field{display:flex;flex-direction:column;gap:6px;min-width:0}
 .field label,.field-label{font-size:.75rem;font-weight:600;color:var(--muted)}
 input,select,textarea{background:var(--surface);border:1px solid var(--strong-line);border-radius:3px;min-height:44px;padding:9px 10px;width:100%;min-width:0;max-width:100%}
@@ -234,7 +232,7 @@ input[type="number"]{font-family:var(--mono)}
 .settings-row{display:flex;justify-content:space-between;gap:16px;padding-block:16px;border-bottom:1px solid var(--line);font-size:.85rem}
 .settings-row>*{min-width:0}
 @media(min-width:700px){
-  .top{gap:36px;min-height:68px}.brand-name{display:inline}.avatar{display:grid}.topnav a{min-height:68px}
+  .top{gap:36px;min-height:60px}.brand-name{display:inline}.avatar{display:grid}.topnav a{min-height:60px}
   .crumb-wide{display:contents}.ancestor{display:none}.crumbs{font-size:.8rem;gap:12px;min-height:60px}
   .page-head{flex-direction:row;align-items:center;justify-content:space-between;gap:24px}
   .hero{grid-template-columns:180px minmax(0,1fr);gap:28px}.hero-info{gap:22px;padding:16px 0}
@@ -249,31 +247,105 @@ input[type="number"]{font-family:var(--mono)}
   .compare-grid{gap:24px}
 }
 @media(min-width:900px){
-  .edit-layout{grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:48px}
-  .reference{grid-template-columns:220px minmax(0,1fr);gap:20px}
-  .story-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:36px;align-items:start}
+      .story-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:36px;align-items:start}
   .story-layout>.build-box{margin:0;position:sticky;top:96px}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+/* The editing surface is neutral; colour marks selection, audio or status. */
+.crumbs{flex-wrap:wrap;gap:0 6px;padding-block:8px;min-height:52px;line-height:1.3}
+.crumbs button{border:0;background:var(--clear);color:var(--muted);min-height:36px;padding:5px 2px;font-size:.77rem;max-width:100%;overflow-wrap:anywhere;text-align:left}
+.crumbs button[aria-current]{color:var(--ink);font-weight:600}
+.crumbs .example{margin-left:auto}
+.page-head{margin-block:12px 24px}
+.landing-grid{display:grid;gap:16px;max-width:900px}
+.launch-card{padding:28px;display:flex;gap:24px;align-items:start;text-align:left;background:var(--surface);border:1px solid var(--line);color:var(--ink);text-decoration:none;min-width:0}
+.launch-card:hover{border-color:var(--accent)}
+.launch-card h2{margin-bottom:6px}.launch-card p{color:var(--muted);font-size:.85rem}
+.launch-icon{font:24px var(--mono);color:var(--accent);padding-top:2px}
+.create-form{margin-top:24px;max-width:520px;padding:18px;border:1px solid var(--line);background:var(--surface)}
+.create-form .row{align-items:end}.create-form .field{flex:1 1 180px}
+.workspace-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-block:8px 16px}
+.workspace-head h1{font-size:1.25rem;letter-spacing:-.025em}
+.workspace-head .meta{margin-top:4px}.workspace-head .row{gap:6px}
+.workbench{display:grid;grid-template-areas:"stage" "timeline" "inspector";grid-template-columns:minmax(0,1fr);border:1px solid var(--line);background:var(--surface);min-width:0}
+.tool-rail{display:none;grid-area:rail;border-right:1px solid var(--line);padding:6px 3px;flex-direction:column;align-items:center;gap:6px}
+.tool-rail button{border:0;background:var(--clear);color:var(--muted);min-height:44px;width:40px;font:16px var(--mono);border-radius:3px}
+.tool-rail button:hover{background:var(--soft);color:var(--ink)}
+.stage{grid-area:stage;background:var(--stage);color:var(--stage-ink);min-width:0}
+.stage-bar{padding:10px 12px;display:flex;flex-wrap:wrap;gap:6px;justify-content:space-between;font:10px var(--mono);color:var(--stage-muted);border-bottom:1px solid var(--stage-line)}
+.stage-picture{position:relative;display:flex;align-items:center;justify-content:center;padding:38px 16px 26px;height:332px;min-width:0}
+.stage-picture>.art{height:100%;aspect-ratio:9/16;box-shadow:0 4px 24px var(--shadow)}
+.stage-picture.wide>.art{width:100%;height:auto;max-width:calc(300px * 16 / 9);aspect-ratio:16/9}.stage-picture.wide>.art svg{object-fit:contain}
+.stage-id,.stage-time,.stage-version{position:absolute;z-index:1;font:10px var(--mono);color:var(--stage-muted)}
+.stage-id{left:12px;top:13px;color:var(--stage-ink)}.stage-time{right:12px;top:13px}.stage-version{bottom:8px;left:12px}
+.audio-strip{display:flex;gap:10px;align-items:center;padding:8px 12px;border-top:1px solid var(--stage-line);min-width:0}
+.audio-strip button{border:1px solid var(--stage-line);background:var(--stage);color:var(--stage-ink);height:40px;min-width:40px;border-radius:3px}
+.audio-strip .small{font-size:10px;font-family:var(--mono);color:var(--stage-muted);white-space:nowrap}
+.wave{height:28px;min-width:0;width:100%;display:flex;gap:3px;align-items:center;overflow:hidden}
+.wave i{display:block;background:var(--wave);flex:1;min-width:2px;max-width:6px;border-radius:1px}
+.audio-strip .wave{flex:1}.wave.empty-wave{border-bottom:1px dashed var(--stage-line);height:1px}
+.audio-strip.playing .wave{animation:pulse 1s ease-in-out infinite alternate}
+@keyframes pulse{to{opacity:.35}}
+.timeline{grid-area:timeline;min-width:0;border-top:1px solid var(--line);padding:10px 12px 12px}
+.timeline-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.timeline-head h2{font-size:.75rem}.timeline-head .btn{min-height:36px;padding:5px 9px;font-size:.75rem}
+.filmstrip{display:flex;gap:8px;overflow-x:auto;overscroll-behavior-x:contain;padding:3px 3px 10px;scrollbar-color:var(--strong-line) var(--soft);min-width:0;max-width:100%}
+.film-panel{flex:0 0 108px;display:flex;flex-direction:column;gap:5px;text-align:left;padding:6px;border:1px solid var(--line);border-radius:3px;background:var(--page);min-width:0}
+.film-panel[aria-pressed="true"]{border:2px solid var(--accent);padding:5px;background:var(--accent-soft)}
+.film-panel .thumb{height:65px;display:flex;justify-content:center;background:var(--stage)}
+.film-panel .art{height:100%;width:auto;aspect-ratio:9/16}
+.film-label{display:flex;justify-content:space-between;gap:3px;font:9px var(--mono)}
+.film-title{font-size:10px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:100%}
+.film-panel .wave{height:12px;gap:2px}.film-panel .wave i{max-height:12px}
+.inspector{grid-area:inspector;min-width:0;border-top:1px solid var(--line)}
+.inspector-heading{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px;align-items:center}
+.inspector-heading h2{font-size:.85rem}.inspector-heading .mono{font-size:.7rem;color:var(--muted)}
+.inspector-section{border-bottom:1px solid var(--line);min-width:0;scroll-margin-top:80px}
+.inspector-section>summary{display:flex;justify-content:space-between;align-items:center;min-height:46px;padding:10px 16px;cursor:pointer;list-style:none;font-size:.8rem;font-weight:650}
+.inspector-section>summary::-webkit-details-marker{display:none}.inspector-section>summary::after{content:"+";font:16px var(--mono);color:var(--muted)}
+.inspector-section[open]>summary::after{content:"−"}
+.inspector-content{padding:0 16px 16px;display:flex;flex-direction:column;gap:12px}
+.inspector .field label{font-size:.7rem}.inspector input,.inspector textarea,.inspector select{font-size:.8rem}
+.inspector .line-fields{grid-template-columns:60px minmax(0,1fr);gap:8px}
+.inspector .line-fields textarea{min-height:76px}
+.inspector .line-action{min-height:32px}
+.inspector .chip{min-height:36px;font-size:.7rem;padding:4px 8px}
+.inspector .btn{font-size:.75rem;padding:7px 10px}
+.inspector .script-fields{gap:12px}.inspector .small{font-size:.73rem}
+.inspector .note-row{display:grid;grid-template-columns:minmax(0,1fr) 36px;gap:6px}
+.note-row button{min-height:44px;border:1px solid var(--line);background:var(--clear);color:var(--muted);border-radius:3px}
+.note-row input{min-width:0}
+.voice-timing{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.73rem;color:var(--muted)}
+.inspector-footer{padding:12px 16px;display:flex;gap:8px;flex-wrap:wrap}
+.inspector-footer .btn{min-height:40px}
+.asset-audio{aspect-ratio:4/3;background:var(--stage);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:12px;color:var(--stage-ink)}
+.asset-audio .mono{font-size:.75rem}
+.library-scope{margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.library-scope .chip{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+#runs{scroll-margin-top:80px}.runs-area{margin-top:22px}
+@media(min-width:700px){
+  .shell{padding-inline:24px}.landing-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .crumbs{min-height:52px}.top{gap:28px}.topnav a{min-height:60px}
+}
+@media(min-width:960px){
+  .workbench{grid-template-areas:"rail stage inspector" "timeline timeline inspector";grid-template-columns:48px minmax(0,1fr) 336px;grid-template-rows:456px 210px}
+  .tool-rail{display:flex}.stage-picture{height:364px}.stage-bar{height:36px}
+  .inspector{border-top:0;border-left:1px solid var(--line);overflow-y:auto;max-height:666px;scrollbar-color:var(--strong-line) var(--surface)}
+  .timeline{padding-top:10px}.film-panel .thumb{height:68px}
+  .runs-area{display:grid;grid-template-columns:320px minmax(0,1fr);gap:24px;align-items:start}
+  .runs-area .build-box{margin:0}.runs-area #cut-review{margin-top:0}
+}
 </style>
 <div class="shell">
   <header class="top">
-    <div class="topline">
-      <a class="brand" href="#productions" aria-label="Haynes Studio productions"><span class="brand-mark" aria-hidden="true">H</span><span class="brand-name">HAYNES STUDIO</span></a>
-      <div class="user">
-        <button id="user-toggle" aria-expanded="false" aria-controls="user-menu"><span class="avatar" aria-hidden="true">T</span>Tom <span aria-hidden="true">⌄</span></button>
-        <div class="menu" id="user-menu" hidden>
-          <fieldset><legend>Theme</legend><div class="theme-options" id="theme-options"></div></fieldset>
-          <a href="#account">User settings</a>
-          <a href="#admin">Admin settings</a>
-        </div>
-      </div>
+    <a class="brand" href="#productions" aria-label="Haynes Studio productions"><span class="brand-mark" aria-hidden="true">H</span><span class="brand-name">HAYNES STUDIO</span></a>
+    <nav class="topnav" aria-label="Main"><a href="#productions" id="nav-productions" data-action="review-home">Productions</a><a href="#editor" id="nav-editor">Editor</a></nav>
+    <div class="user">
+      <button id="user-toggle" aria-expanded="false" aria-controls="user-menu"><span class="avatar" aria-hidden="true">T</span>Tom <span aria-hidden="true">⌄</span></button>
+      <div class="menu" id="user-menu" hidden><fieldset><legend>Theme</legend><div class="theme-options" id="theme-options"></div></fieldset><a href="#account">User settings</a><a href="#admin">Admin settings</a></div>
     </div>
-    <nav class="topnav" aria-label="Main"><a href="#productions" id="nav-productions">Productions</a><a href="#editor-board" id="nav-editor">Editor</a></nav>
   </header>
   <nav class="crumbs" id="breadcrumbs" aria-label="Breadcrumb"></nav>
-  <div class="context"><span class="eyebrow" id="workspace-label">Yellowbirds / Short</span><span class="example">Example data</span></div>
-  <nav class="subnav" id="editor-tabs" aria-label="Editor" hidden><a href="#editor-board" id="tab-board">Board</a><a href="#editor-assets" id="tab-assets">Assets</a></nav>
   <main id="main" tabindex="-1"></main>
 </div>
 <div class="notice" id="notice" role="status" aria-live="polite" hidden></div>
@@ -286,6 +358,7 @@ const pad = number => String(number).padStart(2,'0');
 const clone = value => JSON.parse(JSON.stringify(value));
 const methods = {talking:'Talking',reaction:'Reaction',ambient:'Ambient'};
 const kinds = {cast:'Cast',costume:'Costumes',set:'Sets',prop:'Props'};
+const assetKinds={...kinds,photo:'Photos',voice:'Voices'};
 const assets = [
   {id:'cast-a',name:'A · Captain',kind:'cast',doll:'a',labels:['Yellowbirds','A']},
   {id:'cast-b',name:'B · Chair',kind:'cast',doll:'b',labels:['Yellowbirds','B']},
@@ -302,10 +375,15 @@ function board(id,title,duration,cast,lines,prompt,extra={}) {
   const b = {id,title,duration,lines,prompt,method:lines.length?'talking':'reaction',
     assets:[...cast.map(d=>'cast-'+d),'jacket','campsite'],agent:false,
     photo:1,photoDirty:false,photoBusy:false,cue:'',...extra};
+  b.hold=lines.length?2:duration;
+  b.voiceStyle='cast';
+  b.voice={version:lines.length?1:0,seconds:lines.length?Number((duration-.25).toFixed(2)):0,busy:false,dirty:false};
+  b.voice.input=JSON.stringify({lines:b.lines.map(l=>[l.speaker,l.text]),style:b.voiceStyle});
+  b.notes=b.cue?b.cue.split(' · '):[];
   b.photoInput = {assets:[...b.assets],prompt:b.prompt};
   return b;
 }
-const boards = [
+const seedBoards = [
   board('b1','Day 340',6.38,['a'],[line('a',"Day three hundred forty. I've mastered fire, shelter, and emotionally supportive moss.")],
     'A, proud, facing right behind the mossy log. Moss held like a trophy. Campfire on the left.',{assets:['cast-a','jacket','campsite','moss']}),
   board('b2','The menu',3.92,['b'],[line('b',"Winter's coming. We need to discuss the menu.")],
@@ -328,36 +406,64 @@ const boards = [
   board('b9','Needs salt',4.5,['c','a','b'],[line('b','Needs salt.')],
     'C, A and B behind the log. D is gone. A looks smug; B stays deadpan.',{cue:'Offscreen crunch · hold'})
 ];
-const state = {route:'media-winter-menu',selected:'b7',runs:[],activeRun:null,compare:null,preview:0,remove:null,
-  production:'Yellowbirds',last:{productions:'media-winter-menu',editor:'editor-board'},lastBoard:'editor-board',
-  panels:{},scroll:{},mediaFilters:{production:{publication:'',approved:false},shorts:{publication:'',approved:false},videos:{publication:'',approved:false}},
-  assetKind:'all',assetScope:'Yellowbirds',search:'',
+const productions=['Yellowbirds'];
+const stories=[{id:'winter-menu',title:'The Winter Menu',production:'Yellowbirds',media:'short',boards:seedBoards,selected:'b1',nextBoard:10}];
+let boards=seedBoards;
+const state={route:'editor',story:'winter-menu',selected:'b1',production:null,media:null,
+  runs:[],activeRun:null,compare:null,preview:0,remove:null,panels:{},scroll:{},
+  last:{productions:'productions',editor:'editor-productions'},reviewContext:{production:null,media:null,story:'winter-menu'},
+  mediaFilters:{production:{publication:'',approved:false},shorts:{publication:'',approved:false},videos:{publication:'',approved:false}},
+  assetKind:'all',assetScope:null,assetBoard:null,assetStory:null,search:'',
   gen:{name:'Camping mug',kind:'prop',prompt:'A small enamel camping mug, worn blue rim, doll scale.',busy:false,result:null},
-  userName:'Tom'};
-const total = () => boards.reduce((sum,b)=>sum+b.duration,0);
-const seconds = n => Number(n.toFixed(1))+' s';
-const selected = () => boards.find(b=>b.id===state.selected) || boards[0];
-const assetById = id => assets.find(a=>a.id===id);
-const isRunning = () => state.runs.some(run=>run.status==='running');
-const finishedRuns = () => state.runs.filter(run=>run.status==='done');
-const currentRun = () => finishedRuns().find(run=>run.number===state.activeRun);
-const mediaApproved = () => finishedRuns().some(run=>run.approved);
-const editorRoute = route => route.startsWith('editor-')||route.startsWith('board-')||route==='asset-generate';
-const panelOpen = id => state.panels[state.route+':'+id]===true;
-const openPanel = id => {state.panels[state.route+':'+id]=true;};
-const badge = (text,kind='') => `<span class="status ${kind}">${esc(text)}</span>`;
-const head = (title,meta='',action='') => `<div class="page-head"><div><h1 id="page-title" tabindex="-1">${esc(title)}</h1>${meta?`<div class="meta">${meta}</div>`:''}</div>${action}</div>`;
-const button = (text,action,cls='',extra='') => {
+  playing:null,userName:'Tom'};
+const currentStory=()=>stories.find(s=>s.id===state.story)||stories[0];
+const selected=()=>boards.find(b=>b.id===state.selected)||boards[0];
+const assetById=id=>assets.find(a=>a.id===id);
+const seconds=n=>Number(n.toFixed(2))+' s';
+const total=()=>boards.reduce((sum,b)=>sum+b.duration,0);
+const storyRuns=()=>state.runs.filter(r=>r.story===state.story);
+const finishedRuns=()=>storyRuns().filter(r=>r.status==='done');
+const currentRun=()=>finishedRuns().find(r=>r.number===state.activeRun);
+const isRunning=()=>state.runs.some(r=>r.status==='running');
+const canBuild=()=>boards.length>0;
+const editorRoute=r=>r==='editor'||r.startsWith('editor-')||r.startsWith('board-')||r==='asset-generate';
+const workspaceRoute=()=>state.route==='editor-board'||state.route.startsWith('board-');
+const boardCode=b=>'S01-B'+pad(Number(b.id.slice(1)));
+const voiceSignature=b=>JSON.stringify({lines:b.lines.map(l=>[l.speaker,l.text]),style:b.voiceStyle});
+const timing=b=>b.lines.length?(b.voice.version?seconds(b.duration):'Untimed'):seconds(b.hold);
+const syncDuration=b=>{b.duration=b.lines.length?(b.voice.version?Number((b.voice.seconds+.25).toFixed(2)):0):b.hold;};
+const panelOpen=(id,fallback=true)=>state.panels[state.route+':'+id]??fallback;
+const openPanel=id=>{state.panels[state.route+':'+id]=true;};
+const badge=(text,kind='')=>`<span class="status ${kind}">${esc(text)}</span>`;
+const head=(title,meta='',action='')=>`<div class="page-head"><div><h1 id="page-title" tabindex="-1">${esc(title)}</h1>${meta?`<div class="meta">${meta}</div>`:''}</div>${action}</div>`;
+const button=(text,action,cls='',extra='')=>{
   const key=extra.match(/data-id="([a-z0-9-]+)"/);
   const id=/(?:^|\s)id=/.test(extra)?'':`id="action-${action}${key?'-'+key[1]:''}"`;
-  return `<button class="btn ${cls}" ${id} data-action="${action}" ${extra}>${text}</button>`;
+  return `<button type="button" class="btn ${cls}" ${id} data-action="${action}" ${extra}>${text}</button>`;
 };
-const link = (text,route,cls='') => `<a class="btn ${cls}" href="#${route}">${text}</a>`;
-function boardStatus(b) { return b.photoBusy?badge('Making photo…','working'):b.agent?badge('Agent draft'):''; }
-function canBuild() { return boards.length>0; }
+const link=(text,route,cls='')=>`<a class="btn ${cls}" href="#${route}">${text}</a>`;
 function estimate(duration=total()) {
-  if(Math.abs(duration-45.28)<.05) return '~1.5–2 h';
+  if(Math.abs(duration-45.28)<.05)return '~1.5–2 h';
   return `~${Math.max(1,Math.round(duration*90/45))}–${Math.max(2,Math.round(duration*120/45))} min`;
+}
+function chooseStory(id) {
+  const story=stories.find(s=>s.id===id);if(!story)return;
+  currentStory().selected=state.selected;
+  const changed=state.story!==id;
+  state.story=id;state.production=story.production;state.media=story.media;boards=story.boards;
+  state.selected=story.selected||boards[0]?.id||null;
+  if(changed){state.compare=null;state.activeRun=null;state.preview=0;stopVoice();}
+}
+function timecode(value) {
+  const frames=Math.round(value*25);
+  return `${pad(Math.floor(frames/1500))}:${pad(Math.floor(frames/25)%60)}:${pad(frames%25)}`;
+}
+function wave(b,mini=false) {
+  const hasVoice=b.lines.length&&b.voice.version;
+  return `<span class="wave ${hasVoice?'':'empty-wave'}" aria-hidden="true">${hasVoice?Array.from({length:mini?18:44},(_,i)=>`<i style="height:${4+((i*13+b.voice.version*7)%23)}px"></i>`).join(''):''}</span>`;
+}
+function boardStatus(b) {
+  return b.photoBusy||b.voice.busy?badge('Generating…','working'):b.photoDirty||b.voice.dirty&&b.lines.length?badge('Inputs changed','review'):b.agent?badge('Agent draft'):'';
 }
 // Geometric placeholders only. These are not generated media or likenesses.
 function doll(d,x,y,scale=1,shocked=false) {
@@ -408,26 +514,6 @@ function assetArt(a) {
 function readLines(b) {
   return b.lines.length?`<ul class="script-read">${b.lines.map(l=>`<li><span class="speaker">${esc(l.speaker.toUpperCase())}</span><span>${esc(l.text)}</span></li>`).join('')}</ul>`:'<p class="small muted">No dialogue</p>';
 }
-function productionsView() {
-  return head('Productions','<span>1 production</span>')+`<div class="tree-list"><a class="tree-link" href="#prod-yellowbirds"><span class="team-mark" aria-hidden="true">YB</span><div><h2>Yellowbirds</h2><p class="meta">1 short · 0 videos</p></div><span class="arrow" aria-hidden="true">→</span></a></div>`;
-}
-function productionView() {
-  return head('Yellowbirds','<span>Production</span>',link('Open editor',state.lastBoard))+
-    `<div class="media-folders">${[['Shorts','shorts-yellowbirds','1 short'],['Videos','videos-yellowbirds','0 videos']].map(([name,route,count])=>`<a class="tree-link" href="#${route}"><span class="folder-mark" aria-hidden="true"></span><div><h2>${name}</h2><span class="meta">${count}</span></div><span class="arrow" aria-hidden="true">→</span></a>`).join('')}</div>`+
-    '<div class="section-head"><h2>Media</h2></div>'+mediaList('production');
-}
-function mediaList(key) {
-  const filter=state.mediaFilters[key],videos=key==='videos';
-  // Publication and go-live approval are independent. This private example is unpublished.
-  const matches=!videos&&filter.publication!=='published'&&(!filter.approved||mediaApproved());
-  const filters=[['unpublished','Unpublished'],['published','Published'],['approved','Approved']];
-  return `<div class="filters" role="group" aria-label="Media status">${filters.map(([value,label])=>`<button class="filter" id="filter-${value}" data-action="media-filter" data-list="${key}" data-value="${value}" aria-pressed="${value==='approved'?filter.approved:filter.publication===value}" ${value==='approved'?'aria-label="Approved for go-live"':''}>${label}</button>`).join('')}</div>`+
-    (matches?`<div class="tree-list"><a class="tree-link" href="#media-winter-menu"><div style="flex:0 0 62px">${photo(boards[0]||{title:'Empty story',photo:0})}</div><div><h2>The Winter Menu</h2><p class="meta">${seconds(total())} · Short</p><div class="row">${badge('Unpublished')}${mediaApproved()?badge('Approved for go-live','good'):''}</div></div><span class="arrow" aria-hidden="true">→</span></a></div>`:
-      `<div class="empty">${videos?'No videos yet.':'No matching media.'}</div>`);
-}
-function mediaListView(videos=false) {
-  return head(videos?'Videos':'Shorts','<span>Yellowbirds</span>')+mediaList(videos?'videos':'shorts');
-}
 function runTime(run) {
   return `<time datetime="${run.created}" title="Queued at ${esc(new Date(run.created).toLocaleString())}">${esc(new Date(run.created).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}))}</time>`;
 }
@@ -435,7 +521,7 @@ function buildPanel() {
   const done=finishedRuns();
   return `<section class="build-box" id="build-panel" aria-label="Video runs">
     <div class="row between"><div class="stack-tight"><h2>Runs</h2><span class="small muted">${boards.length?esc(estimate())+' · simulated':'Add a board to start.'}</span></div>${button(isRunning()?'Queue run':'Build','build-start','primary',`id="build-button" ${canBuild()?'':'disabled'}`)}</div>
-    ${state.runs.length?`<ol class="run-list">${state.runs.map(run=>`<li class="run-item" id="run-${run.number}">
+    ${storyRuns().length?`<ol class="run-list">${storyRuns().map(run=>`<li class="run-item" id="run-${run.number}">
       <div class="row between">${run.status==='done'?`<button class="run-select" id="view-run-${run.number}" data-action="run-view" data-number="${run.number}" aria-label="View run ${pad(run.number)}" aria-pressed="${!state.compare&&state.activeRun===run.number}">Run ${pad(run.number)}</button>`:`<strong class="small">Run ${pad(run.number)}</strong>`}${badge(run.status==='done'?'Done':run.status==='running'?'Running':'Queued',run.status==='done'?'good':run.status==='running'?'working':'')}</div>
       <div class="meta"><span id="run-detail-${run.number}">${run.status==='done'?'100%':(run.status==='running'?run.progress+'% · ':'')+esc(run.estimate)}</span>${runTime(run)}</div>
       ${run.status==='running'?`<progress id="run-progress-${run.number}" value="${run.progress}" max="100" aria-label="Run ${pad(run.number)} simulated progress"></progress>`:''}
@@ -462,7 +548,7 @@ function compareReview() {
     <div class="compare-grid">${[['left',left,right],['right',right,left]].map(([side,run,other])=>{
       const b=run.boards.find(board=>board.id===id);
       return `<div class="compare-column"><div class="field"><label for="compare-${side}">${side==='left'?'Left':'Right'} run</label><select id="compare-${side}">${finishedRuns().map(r=>`<option value="${r.number}" ${r.number===run.number?'selected':''} ${r.number===other.number?'disabled':''}>Run ${pad(r.number)} · ${seconds(r.duration)}</option>`).join('')}</select></div>
-        ${b?`${photo(b)}<strong class="small">${pad(run.boards.indexOf(b)+1)} · ${esc(b.title)}</strong><span class="small muted">${methods[b.method]} · ${seconds(b.duration)}</span>${readLines(b)}${b.cue?`<span class="small muted">${esc(b.cue)}</span>`:''}`:'<div class="empty small">Not in this run</div>'}
+        ${b?`${photo(b)}<strong class="small">${pad(run.boards.indexOf(b)+1)} · ${esc(b.title)}</strong><span class="small muted">${methods[b.method]} · ${seconds(b.duration)}</span><span class="small muted">Photo v${b.photo} · ${b.lines.length?'Voice v'+b.voice.version:'Hold'}</span>${readLines(b)}${b.notes?.length?`<span class="small muted">${esc(b.notes.join(' · '))}</span>`:''}`:'<div class="empty small">Not in this run</div>'}
         ${button('View run '+pad(run.number),'run-view','quiet',`data-number="${run.number}" id="compare-view-${run.number}"`)}
       </div>`;
     }).join('')}</div>${previewPicker(items,state.compare.preview,true)}</section>`;
@@ -475,377 +561,457 @@ function cutReview() {
   const b=run.boards[state.preview];
   return `<section class="panel" id="cut-review"><div class="row between"><h2>Run ${pad(run.number)}</h2>${badge(run.approved?'Approved for go-live':'Done','good')}</div>
     <div class="meta"><span>${seconds(run.duration)}</span><span>Storyboard preview</span></div>
-    <div class="cut-layout">${photo(b)}<div class="stack-tight"><strong>${pad(state.preview+1)} · ${esc(b.title)}</strong><span class="small muted">${methods[b.method]} · ${seconds(b.duration)}</span>${readLines(b)}${b.cue?`<span class="small muted">${esc(b.cue)}</span>`:''}</div></div>
+    <div class="cut-layout">${photo(b)}<div class="stack-tight"><strong>${pad(state.preview+1)} · ${esc(b.title)}</strong><span class="small muted">${methods[b.method]} · ${seconds(b.duration)}</span><span class="small muted">Photo v${b.photo} · ${b.lines.length?'Voice v'+b.voice.version:'Hold'}</span>${readLines(b)}${b.notes?.length?`<span class="small muted">${esc(b.notes.join(' · '))}</span>`:''}</div></div>
     ${previewPicker(run.boards,state.preview)}
     <div class="approval-bar">${run.approved?'<div class="row"><button class="btn" disabled aria-describedby="publish-status">Publish</button><span class="small muted" id="publish-status">Not connected</span></div>':button('Approve for go-live','cut-approve','primary')}</div></section>`;
 }
-function boardList(editing=false) {
-  if(!boards.length) return '<div class="empty">No boards yet.</div>';
-  return `<ol class="board-list" aria-label="Story boards">${boards.map((b,i)=>`<li class="board-item" id="row-${b.id}"><a href="#board-${b.id}" aria-label="Open board ${i+1}: ${esc(b.title)}">${photo(b)}</a><div class="board-copy"><div class="board-title"><span class="board-number">${pad(i+1)}</span><a href="#board-${b.id}">${esc(b.title||'Untitled board')}</a></div><div class="meta"><span>${methods[b.method]}</span><span>${seconds(b.duration)}</span></div>${readLines(b)}${b.cue?`<span class="small muted">${esc(b.cue)}</span>`:''}${boardStatus(b)}</div>
-      ${editing?`<div class="board-tools"><div class="row">${button('↑','move','icon',`id="up-${b.id}" data-id="${b.id}" data-direction="-1" aria-label="Move board ${i+1} up" ${i===0?'disabled':''}`)}${button('↓','move','icon',`id="down-${b.id}" data-id="${b.id}" data-direction="1" aria-label="Move board ${i+1} down" ${i===boards.length-1?'disabled':''}`)}</div>${button('Remove','remove-ask','quiet',`data-id="${b.id}" aria-label="Remove board ${i+1}"`)}</div>`:''}
-      ${state.remove===b.id?`<div class="confirmation stack-tight"><strong>Remove “${esc(b.title)}”?</strong><div class="row">${button('Remove board','remove-confirm','danger',`data-id="${b.id}"`)}${button('Keep board','remove-cancel','quiet')}</div></div>`:''}</li>`).join('')}</ol>`;
+function createForm(kind,label) {
+  return `<form class="create-form" data-create="${kind}"><div class="row"><div class="field"><label for="new-${kind}">${label} name</label><input id="new-${kind}" name="name" required maxlength="80" autocomplete="off" placeholder="New ${kind}"></div><button class="btn" type="submit">Create ${kind}</button></div></form>`;
 }
-function storyView(editing=false) {
-  const representative=boards.find(b=>b.id==='b8')||boards[0];
-  let body=head('The Winter Menu',`<span>${seconds(total())}</span>${badge('Unpublished')}`,editing?link('View media','media-winter-menu'):link('Open editor',state.lastBoard,'primary'));
-  if(!editing) body+=`<div class="story-layout"><div class="hero">${representative?photo(representative):'<div class="empty">No boards</div>'}<div class="hero-info"><span class="eyebrow">Storyboard</span><strong>${boards.length} boards</strong><span class="small muted">Yellowbirds · Doll comedy</span></div></div>${buildPanel()}</div>`;
-  else body+=buildPanel();
-  body+=cutReview();
-  body+=`<div class="section-head"><div><h2>${editing?'Story boards':'Boards'}</h2></div>${editing?button('+ Add board','add-board'):''}</div>${boardList(editing)}`;
-  return body;
+function editorLanding() {
+  return head('Editor')+`<div class="landing-grid"><a class="launch-card" href="#editor-productions"><span class="launch-icon" aria-hidden="true">▤</span><div><h2>Storyboard editor</h2><p>Script, voice and reference photos.</p></div></a><button class="launch-card" data-action="open-library" id="landing-assets"><span class="launch-icon" aria-hidden="true">▦</span><div><h2>Asset library</h2><p>Cast, sets and everything in between.</p></div></button></div>`;
 }
-function composePrompt(b) { return b.assets.map(id=>assetById(id)?.name).filter(Boolean).join(' + ')+(b.prompt.trim()?'\n'+b.prompt.trim():''); }
+function productionPicker() {
+  return head('Choose a production')+`<div class="tree-list">${productions.map((name,i)=>`<button class="tree-link picker" data-action="pick-production" data-index="${i}"><span class="folder-mark" aria-hidden="true"></span><div><h2>${esc(name)}</h2><p class="meta">${stories.filter(s=>s.production===name).length} stories</p></div><span class="arrow" aria-hidden="true">→</span></button>`).join('')}</div>`+createForm('production','Production');
+}
+function mediaPicker() {
+  return head('Choose a media type')+`<div class="landing-grid">${[['short','Short','9:16'],['video','Video','16:9']].map(([id,label,ratio])=>`<button class="launch-card" data-action="pick-media" data-value="${id}"><span class="launch-icon" aria-hidden="true">${id==='short'?'▯':'▭'}</span><div><h2>${label}</h2><p>${ratio}</p></div></button>`).join('')}</div>`;
+}
+function storyPicker() {
+  const found=stories.filter(s=>s.production===state.production&&s.media===state.media);
+  return head('Choose a story')+`<div class="tree-list">${found.map(s=>`<button class="tree-link picker" data-action="pick-story" data-id="${s.id}"><span class="folder-mark" aria-hidden="true"></span><div><h2>${esc(s.title)}</h2><p class="meta">${s.boards.length} boards</p></div><span class="arrow" aria-hidden="true">→</span></button>`).join('')}</div>`+(!found.length?'<p class="small muted">No stories yet.</p>':'')+createForm('story','Story');
+}
+function productionsView() {
+  return head('Productions',`<span>${productions.length} production${productions.length===1?'':'s'}</span>`)+`<div class="tree-list">${productions.map((name,i)=>`<button class="tree-link picker" data-action="review-production" data-index="${i}"><span class="folder-mark" aria-hidden="true"></span><div><h2>${esc(name)}</h2><p class="meta">${stories.filter(s=>s.production===name).length} stories</p></div><span class="arrow" aria-hidden="true">→</span></button>`).join('')}</div>`;
+}
+function productionView() {
+  return head(state.production||'Productions','',link('Open editor','editor-media'))+`<div class="media-folders">${[['Shorts','shorts-yellowbirds'],['Videos','videos-yellowbirds']].map(([name,route])=>`<a class="tree-link" href="#${route}"><span class="folder-mark" aria-hidden="true"></span><div><h2>${name}</h2></div><span class="arrow" aria-hidden="true">→</span></a>`).join('')}</div><div class="section-head"><h2>Media</h2></div>`+mediaList('production');
+}
+function mediaList(key) {
+  const filter=state.mediaFilters[key];
+  const found=stories.filter(s=>s.production===state.production&&(key==='production'||s.media===(key==='videos'?'video':'short'))&&filter.publication!=='published'&&(!filter.approved||state.runs.some(r=>r.story===s.id&&r.approved)));
+  return `<div class="filters" role="group" aria-label="Media status">${[['unpublished','Unpublished'],['published','Published'],['approved','Approved']].map(([value,label])=>`<button class="filter" id="filter-${value}" data-action="media-filter" data-list="${key}" data-value="${value}" aria-pressed="${value==='approved'?filter.approved:filter.publication===value}">${label}</button>`).join('')}</div>`+
+    (found.length?`<div class="tree-list">${found.map(s=>`<button class="tree-link picker" data-action="review-story" data-id="${s.id}"><div style="flex:0 0 62px">${photo(s.boards[0]||{title:'Empty story',photo:0})}</div><div><h2>${esc(s.title)}</h2><p class="meta">${seconds(s.boards.reduce((n,b)=>n+b.duration,0))} · ${s.media==='short'?'Short':'Video'}</p><div class="row">${badge('Unpublished')}${state.runs.some(r=>r.story===s.id&&r.approved)?badge('Approved for go-live','good'):''}</div></div><span class="arrow" aria-hidden="true">→</span></button>`).join('')}</div>`:'<div class="empty">No matching media.</div>');
+}
+function mediaListView(videos=false) {return head(videos?'Videos':'Shorts')+mediaList(videos?'videos':'shorts');}
+function storyView() {
+  const s=currentStory(),b=boards.find(x=>x.id==='b8')||boards[0];
+  return head(s.title,`<span>${seconds(total())}</span>${badge('Unpublished')}`,link('Open editor','editor-board','primary'))+
+    `<div class="story-layout"><div class="hero">${b?photo(b):'<div class="empty">No boards</div>'}<div class="hero-info"><strong>${boards.length} boards</strong><span class="small muted">${s.media==='short'?'Short':'Video'}</span></div></div>${buildPanel()}</div>${cutReview()}<div class="section-head"><h2>Boards</h2></div><ol class="board-list">${boards.map((b,i)=>`<li class="board-item"><a href="#board-${b.id}" aria-label="Open ${boardCode(b)}">${photo(b)}</a><div class="board-copy"><a href="#board-${b.id}">${boardCode(b)} · ${esc(b.title)}</a><span class="meta">${methods[b.method]} · ${timing(b)}</span>${readLines(b)}${b.notes.length?`<span class="small muted">${esc(b.notes.join(' · '))}</span>`:''}</div></li>`).join('')}</ol>`;
+}
+function composePrompt(b) {return b.assets.map(id=>assetById(id)?.name).filter(Boolean).join(' + ')+(b.prompt.trim()?'\n'+b.prompt.trim():'');}
+function photoNote(b) {return b.photoBusy?'Generating photo…':b.photoDirty?'Inputs changed · regenerate':b.photo?'Reference v'+b.photo:'No reference yet';}
+function voiceNote(b) {return b.voice.busy?'Generating voice…':b.voice.dirty?'Script or voice changed · regenerate':b.voice.version?'Voice v'+b.voice.version:'Generate voice to set timing';}
+function inspectorSection(id,title,content) {
+  return `<details class="inspector-section" id="${id}" data-panel ${panelOpen(id)?'open':''}><summary>${title}</summary><div class="inspector-content">${content}</div></details>`;
+}
+function voiceControls(b) {
+  if(!b.lines.length)return `<p class="small muted">No dialogue</p><div class="field"><label for="board-hold">Hold length · seconds</label><input id="board-hold" type="number" min="0.1" max="120" step="0.1" value="${b.hold}"></div>`;
+  return `<div class="field"><label for="voice-style">Voice</label><select id="voice-style"><option value="cast" ${b.voiceStyle==='cast'?'selected':''}>Cast voices</option><option value="narrator" ${b.voiceStyle==='narrator'?'selected':''}>Narrator</option></select></div><div class="row">${button(b.voice.busy?'Generating…':b.voice.version?'Regenerate voice':'Generate voice','voice-generate','',`id="generate-voice" ${b.voice.busy?'disabled':''}`)}${button(state.playing===b.id?'Stop':'Play','voice-play','quiet',`id="play-voice" ${b.voice.version?'':'disabled'} aria-label="${state.playing===b.id?'Stop':'Play'} voice preview (simulated)" aria-pressed="${state.playing===b.id}"`)}</div><p class="small muted" id="voice-note">${voiceNote(b)}</p><div class="voice-timing" id="voice-timing">${b.voice.version?`<span>${seconds(b.voice.seconds)} audio + 0.25 s pad</span><strong>${seconds(b.duration)} board</strong>`:'Timing pending'}</div>`;
+}
+function boardInspector(b) {
+  const index=boards.indexOf(b);
+  const script=`<div class="field"><label for="board-name">Board name</label><input id="board-name" maxlength="100" value="${esc(b.title)}"></div><div class="script-fields">${b.lines.map((l,i)=>`<div class="line-fields"><div class="field"><label for="speaker-${l.id}">Speaker</label><select id="speaker-${l.id}" data-line="${l.id}">${['a','b','c','d'].map(d=>`<option value="${d}" ${d===l.speaker?'selected':''}>${d.toUpperCase()}</option>`).join('')}</select></div><div class="field"><label for="text-${l.id}">Line ${i+1}</label><textarea id="text-${l.id}" data-line="${l.id}" rows="${l.text.length>75?3:2}" maxlength="1200">${esc(l.text)}</textarea></div>${button('Remove line','remove-line','quiet line-action',`data-id="${l.id}"`)}</div>`).join('')}</div>${button('+ Line','add-line','quiet')}`;
+  const reference=`<div class="chips">${b.assets.map(id=>`<button class="chip" id="photo-asset-${id}" data-action="remove-asset" data-id="${id}" aria-label="Remove ${esc(assetById(id)?.name||id)} from photo"><span>${esc(assetById(id)?.name||id)}</span><b aria-hidden="true">×</b></button>`).join('')}</div>${button('Browse assets','board-assets','quiet')}<div class="field"><label for="photo-prompt">Photo prompt</label><textarea id="photo-prompt" rows="4" maxlength="1800">${esc(b.prompt)}</textarea></div><details id="combined-panel" data-panel ${panelOpen('combined-panel',false)?'open':''}><summary class="small muted">Combined prompt</summary><p class="prompt-result" id="combined-prompt">${esc(composePrompt(b))}</p></details>${button(b.photoBusy?'Generating…':b.photo?'Regenerate photo':'Generate photo','photo-generate','',`id="generate-photo" ${b.photoBusy?'disabled':''}`)}<span class="small muted" id="photo-note">${photoNote(b)}</span>`;
+  const notes=`<div class="field"><label for="board-method">Method</label><select id="board-method">${Object.entries(methods).map(([id,name])=>`<option value="${id}" ${id===b.method?'selected':''}>${name}</option>`).join('')}</select></div>${b.notes.map((note,i)=>`<div class="note-row"><div class="field"><label class="sr-only" for="note-${i}">Annotation ${i+1}</label><input id="note-${i}" data-note="${i}" maxlength="200" value="${esc(note)}" placeholder="Sound cue or direction"></div><button data-action="remove-note" data-index="${i}" aria-label="Remove annotation ${i+1}">×</button></div>`).join('')}${button('+ Annotation','add-note','quiet')}`;
+  return `<aside class="inspector" aria-label="Board inspector"><div class="inspector-heading"><h2>Board inspector</h2><span class="mono">${boardCode(b)}</span></div>${inspectorSection('script-section','Script',script)}${inspectorSection('voice-section','Voice & timing',voiceControls(b))}${inspectorSection('photo-composer','Reference photo',reference)}${inspectorSection('notes-section','Annotations',notes)}<div class="inspector-footer">${button('←','move','',`id="move-left" data-id="${b.id}" data-direction="-1" aria-label="Move board earlier" ${index===0?'disabled':''}`)}${button('→','move','',`id="move-right" data-id="${b.id}" data-direction="1" aria-label="Move board later" ${index===boards.length-1?'disabled':''}`)}${button('Remove board','remove-ask','quiet',`data-id="${b.id}"`)}${!b.lines.length?button('Agent fill-in','agent-fill','quiet'):''}</div>${state.remove===b.id?`<div class="confirmation stack-tight"><strong>Remove this board?</strong><div class="row">${button('Remove','remove-confirm','danger',`data-id="${b.id}"`)}${button('Keep board','remove-cancel','quiet')}</div></div>`:''}</aside>`;
+}
+function stageView(b) {
+  const start=boards.slice(0,boards.indexOf(b)).reduce((n,x)=>n+x.duration,0);
+  const uncertain=boards.slice(0,boards.indexOf(b)+1).some(x=>x.lines.length&&!x.voice.version);
+  return `<section class="stage" aria-label="Selected board stage"><div class="stage-bar"><span>REFERENCE PHOTO</span><span>${currentStory().media==='short'?'9:16':'16:9'} · 25 FPS</span></div><div class="stage-picture ${currentStory().media==='video'?'wide':''}"><span class="stage-id">${boardCode(b)}</span><span class="stage-time" id="stage-time">${uncertain?'Timing pending':timecode(start)+' – '+timecode(start+b.duration)}</span>${photo(b)}<span class="stage-version" id="stage-version">${b.photo?'PHOTO v'+b.photo:'NO PHOTO'}${b.photoDirty?' · INPUTS CHANGED':''}</span></div><div class="audio-strip ${state.playing===b.id?'playing':''}" id="stage-audio"><button data-action="voice-play" id="stage-play" aria-label="${state.playing===b.id?'Stop':'Play'} stage voice preview (simulated)" aria-pressed="${state.playing===b.id}" ${b.lines.length&&b.voice.version?'':'disabled'}>${state.playing===b.id?'■':'▶'}</button>${wave(b)}<span class="small" id="audio-label">${b.lines.length?(b.voice.version?'VOICE v'+b.voice.version:'NO VOICE'):'HOLD'} · ${timing(b)}</span></div></section>`;
+}
+function filmstrip() {
+  return `<section class="timeline" aria-label="Panel timeline"><div class="timeline-head"><h2>Panel timeline <span class="muted">· ${boards.length} boards</span></h2>${button('+ Board','add-board','quiet')}</div><div class="filmstrip" id="filmstrip" role="group" aria-label="Select a board">${boards.map(b=>`<button class="film-panel" id="film-${b.id}" data-action="select-board" data-id="${b.id}" aria-label="${boardCode(b)}: ${esc(b.title)}, ${timing(b)}" aria-pressed="${b.id===selected()?.id}"><span class="film-label"><strong>${boardCode(b)}</strong><span>${timing(b)}</span></span><span class="thumb">${photo(b)}</span>${wave(b,true)}<span class="film-title">${esc(b.title)}</span></button>`).join('')}</div></section>`;
+}
 function boardView() {
   const b=selected();
-  if(!b) return head('No board selected')+link('Back to story','editor-board');
-  const index=boards.indexOf(b);
-  return `<div class="board-pager"><a href="#editor-board">← All boards</a><div class="row">${index>0?`<a class="btn icon" href="#board-${boards[index-1].id}" aria-label="Previous board">←</a>`:''}<span class="small mono">${pad(index+1)} / ${pad(boards.length)}</span>${index<boards.length-1?`<a class="btn icon" href="#board-${boards[index+1].id}" aria-label="Next board">→</a>`:''}</div></div>`+
-    head(b.title||'Untitled board',`<span id="board-status">${boardStatus(b)}</span><span id="story-duration">Story · ${seconds(total())}</span>`,button(isRunning()?'Queue run':'Build','build-start','primary','id="build-button"'))+
-    `<div class="edit-layout"><div><div class="reference"><figure>${photo(b,'',true)}<figcaption>Reference photo · illustration</figcaption></figure><div class="stack"><div class="field"><label for="board-method">Method</label><select id="board-method">${Object.entries(methods).map(([v,t])=>`<option value="${v}" ${v===b.method?'selected':''}>${t}</option>`).join('')}</select></div><div class="field"><label for="board-duration">Duration · sec</label><input id="board-duration" type="number" min="0.1" step="0.01" value="${b.duration}"></div>${b.cue?`<span class="small muted">${esc(b.cue)}</span>`:''}</div></div>
-    <details class="composer" id="photo-composer" data-panel ${panelOpen('photo-composer')?'open':''}><summary>Edit reference photo</summary><div class="stack"><span class="field-label">Library inputs</span><div class="chips">${b.assets.map(id=>`<button class="chip" id="photo-asset-${id}" data-action="remove-asset" data-id="${id}" ${b.photoBusy?'disabled':''} aria-label="Remove ${esc(assetById(id)?.name||id)} from photo"><span>${esc(assetById(id)?.name||id)}</span><b aria-hidden="true">×</b></button>`).join('')}</div>${link('+ Add assets','editor-assets')}<div class="field"><label for="photo-prompt">Shot prompt</label><textarea id="photo-prompt" rows="4" maxlength="1800" ${b.photoBusy?'disabled':''}>${esc(b.prompt)}</textarea></div><details id="combined-panel" data-panel ${panelOpen('combined-panel')?'open':''}><summary class="small muted">Combined prompt</summary><p class="prompt-result" id="combined-prompt">${esc(composePrompt(b))}</p></details><div class="row">${button(b.photoBusy?'Generating…':b.photo?'Regenerate photo':'Generate photo','photo-generate','',`id="generate-photo" ${b.photoBusy?'disabled':''}`)}<span class="small muted">~1.5 min / photo</span></div><span class="small muted" id="photo-note">${photoNote(b)}</span></div></details></div>
-    <div class="stack"><div class="field"><label for="board-name">Board name</label><input id="board-name" maxlength="100" value="${esc(b.title)}"></div><div class="row between"><h2>Script</h2>${button('+ Line','add-line','quiet')}</div><div class="script-fields">${b.lines.length?b.lines.map((l,i)=>`<div class="line-fields"><div class="field"><label for="speaker-${l.id}">Speaker</label><select id="speaker-${l.id}" data-line="${l.id}">${['a','b','c','d'].map(d=>`<option value="${d}" ${d===l.speaker?'selected':''}>${d.toUpperCase()}</option>`).join('')}</select></div><div class="field"><label for="text-${l.id}">Line ${i+1}</label><textarea id="text-${l.id}" data-line="${l.id}" rows="${l.text.length>75?4:2}" maxlength="1200">${esc(l.text)}</textarea></div>${button('Remove line','remove-line','quiet line-action',`data-id="${l.id}"`)}</div>`).join(''):'<p class="small muted">No dialogue</p>'}</div>
-    ${!b.lines.length?button('Agent fill-in','agent-fill','quiet',b.photoBusy?'disabled':''):''}</div></div>`;
+  const header=`<div class="workspace-head"><div><h1 id="page-title" tabindex="-1">${esc(currentStory().title)}</h1><div class="meta"><span id="story-duration">${seconds(total())}${boards.some(x=>x.lines.length&&!x.voice.version)?' + untimed boards':''}</span><span id="board-status">${b?boardStatus(b):''}</span></div></div><div class="row">${button('Assets','board-assets','','id="workspace-assets"')}${button('Runs','show-runs','quiet')}${button(isRunning()?'Queue run':'Build','build-start','primary',`id="workspace-build" ${canBuild()?'':'disabled'}`)}</div></div>`;
+  return header+(b?`<div class="workbench"><nav class="tool-rail" aria-label="Workspace tools"><button data-action="inspector-jump" data-id="script-section" aria-label="Script" title="Script">T</button><button data-action="inspector-jump" data-id="voice-section" aria-label="Voice and timing" title="Voice & timing">≋</button><button data-action="inspector-jump" data-id="photo-composer" aria-label="Reference photo" title="Reference photo">▧</button><button data-action="board-assets" aria-label="Board assets" title="Assets">▦</button></nav>${stageView(b)}${filmstrip()}${boardInspector(b)}</div>`:`<div class="empty stack"><p>No boards yet.</p>${button('+ Add board','add-board')}</div>`)+`<div id="runs" class="runs-area">${buildPanel()}<div id="run-review">${cutReview()}</div></div>`;
+}
+function libraryAssets() {
+  const outputs=stories.flatMap(s=>s.boards.flatMap(b=>[
+    ...(b.photo?[{id:s.id+'-'+b.id+'-photo',name:boardCode(b)+' · Reference',kind:'photo',labels:[s.production],b,story:s.id,version:b.photo}]:[]),
+    ...(b.lines.length&&b.voice.version?[{id:s.id+'-'+b.id+'-voice',name:boardCode(b)+' · Voice',kind:'voice',labels:[s.production],b,story:s.id,version:b.voice.version}]:[])
+  ]));
+  return [...assets,...outputs];
 }
 function libraryView() {
-  const b=selected();
-  const found=assets.filter(a=>(state.assetKind==='all'||a.kind===state.assetKind)&&(state.assetScope==='all'||a.labels.includes(state.assetScope))&&(`${a.name} ${a.labels.join(' ')}`).toLowerCase().includes(state.search.toLowerCase()));
+  const targetStory=stories.find(s=>s.id===state.assetStory),b=targetStory?.boards.find(b=>b.id===state.assetBoard);
+  const target=targetStory?.boards.find(b=>b.id===state.selected);
+  const found=libraryAssets().filter(a=>(state.assetKind==='all'||a.kind===state.assetKind)&&(!state.assetScope||a.labels.includes(state.assetScope))&&(!b||(a.b===b||b.assets.includes(a.id)))&&(`${a.name} ${a.labels.join(' ')}`).toLowerCase().includes(state.search.toLowerCase()));
   return head('Asset library',`<span id="asset-count">${found.length} assets</span>`,link('+ Generate asset','asset-generate','primary'))+
-    (b?`<div class="target-board"><label class="field-label" for="asset-target">Add to board</label><select id="asset-target">${boards.map((x,i)=>`<option value="${x.id}" ${x.id===b.id?'selected':''}>${pad(i+1)} · ${esc(x.title)}</option>`).join('')}</select><a class="small" href="#board-${b.id}">Return to board →</a></div>`:'<p class="small muted">Add a story board to use assets.</p>')+
-    `<div class="filters" role="group" aria-label="Asset production">${[[state.production,state.production],['all','All productions']].map(([value,label])=>`<button class="filter" id="scope-${value}" data-action="asset-scope" data-value="${value}" aria-pressed="${state.assetScope===value}">${esc(label)}</button>`).join('')}</div>
-    <div class="asset-controls"><div class="field search"><label for="asset-search">Search</label><input id="asset-search" type="search" maxlength="200" value="${esc(state.search)}" placeholder="Name or label"></div><div class="field"><label for="asset-kind">Type</label><select id="asset-kind"><option value="all">All types</option>${Object.entries(kinds).map(([k,v])=>`<option value="${k}" ${state.assetKind===k?'selected':''}>${v}</option>`).join('')}</select></div></div>
-    <div class="asset-grid" id="asset-results">${found.length?found.map(a=>`<article class="asset-card">${assetArt(a)}<span class="eyebrow">${kinds[a.kind]} · v1</span><h3>${esc(a.name)}</h3><span class="small muted">${esc(a.labels.join(' · '))}</span>${button(b?.assets.includes(a.id)?'Added':'Add to board','add-asset','',`data-id="${a.id}" ${!b||b.photoBusy||b.assets.includes(a.id)?'disabled':''}`)}</article>`).join(''):'<p class="small muted">No matching assets.</p>'}</div>`;
+    `<div class="library-scope" aria-label="Asset filters">${state.assetScope?`<button class="chip" data-action="clear-production-filter" aria-label="Remove ${esc(state.assetScope)} production filter">${esc(state.assetScope)} <b aria-hidden="true">×</b></button>`:'<span class="small muted">All productions</span>'}${b?`<button class="chip" data-action="clear-board-filter" aria-label="Remove ${boardCode(b)} board filter">${boardCode(b)} <b aria-hidden="true">×</b></button>`:''}</div>`+
+    (targetStory?`<div class="target-board"><label for="asset-target" class="field-label">Add to board</label><select id="asset-target">${targetStory.boards.map(x=>`<option value="${x.id}" ${x===target?'selected':''}>${boardCode(x)} · ${esc(x.title)}</option>`).join('')}</select>${target?link('Return to board','board-'+target.id,'quiet'):''}</div>`:'')+
+    `<div class="asset-controls"><div class="field"><label for="asset-search">Search</label><input id="asset-search" type="search" maxlength="200" value="${esc(state.search)}" placeholder="Name or label"></div><div class="field"><label for="asset-kind">Type</label><select id="asset-kind"><option value="all">All types</option>${Object.entries(assetKinds).map(([k,v])=>`<option value="${k}" ${state.assetKind===k?'selected':''}>${v}</option>`).join('')}</select></div></div><div class="asset-grid" id="asset-results">${found.length?found.map(a=>`<article class="asset-card">${a.kind==='photo'?photo(a.b):a.kind==='voice'?`<div class="asset-audio">${wave(a.b)}<span class="mono">${seconds(a.b.voice.seconds)}</span></div>`:assetArt(a)}<span class="eyebrow">${assetKinds[a.kind]} · v${a.version||1}</span><h3>${esc(a.name)}</h3><span class="small muted">${esc(a.labels.join(' · ')||'Shared')}</span>${a.b?'<span class="small muted">Board asset</span>':target?button(target.assets.includes(a.id)?'Added':'Add to board','add-asset','',`data-id="${a.id}" ${target.assets.includes(a.id)?'disabled':''}`):''}</article>`).join(''):'<p class="small muted">No matching assets.</p>'}</div>`;
 }
 function generateView() {
-  const g=state.gen,r=g.result;
-  const sample={id:'preview-asset',name:g.name||'New asset',kind:g.kind,labels:['Yellowbirds'],doll:'a',variant:r?.variant||1};
-  return head('Generate asset',`<a href="#editor-assets">← Asset library</a>`)+
-    `<div class="generate-layout"><div class="stack"><div class="field"><label for="asset-name">Name</label><input id="asset-name" value="${esc(g.name)}" maxlength="100" ${g.busy?'disabled':''}></div><div class="field"><label for="new-asset-kind">Type</label><select id="new-asset-kind" ${g.busy?'disabled':''}>${Object.entries(kinds).map(([k,v])=>`<option value="${k}" ${g.kind===k?'selected':''}>${v}</option>`).join('')}</select></div><div class="field"><label for="asset-prompt">Prompt</label><textarea id="asset-prompt" rows="5" maxlength="1800" ${g.busy?'disabled':''}>${esc(g.prompt)}</textarea></div><div class="row">${button(g.busy?'Generating…':r?'Generate again':'Generate asset','asset-generate','primary',`id="asset-generate-button" ${g.busy||!g.name.trim()||!g.prompt.trim()?'disabled':''}`)}<span class="small muted">~1.5 min / photo</span></div><p class="small muted" id="asset-gen-status">${g.busy?'Simulating generation…':r?'Generated · review before promoting':'Yellowbirds'}</p></div>
-    <div class="generate-preview">${r?`${assetArt({...sample,...r})}<div class="result-panel stack"><strong>${esc(r.name)}</strong><span class="small muted">${r.promoted?'In library · v1':'Illustrated result · not in library'}</span>${r.promoted?link('View in library','editor-assets','primary'):button('Promote to library','asset-promote','primary',g.busy?'disabled':'')}</div>`:'<div class="empty">Asset preview</div>'}</div></div>`;
+  const g=state.gen,r=g.result,sample={id:'preview-asset',name:g.name||'New asset',kind:g.kind,labels:[],doll:'a',variant:r?.variant||1};
+  return head('Generate asset')+`<div class="generate-layout"><div class="stack"><div class="field"><label for="asset-name">Name</label><input id="asset-name" value="${esc(g.name)}" maxlength="100" ${g.busy?'disabled':''}></div><div class="field"><label for="new-asset-kind">Type</label><select id="new-asset-kind" ${g.busy?'disabled':''}>${Object.entries(kinds).map(([k,v])=>`<option value="${k}" ${g.kind===k?'selected':''}>${v}</option>`).join('')}</select></div><div class="field"><label for="asset-prompt">Prompt</label><textarea id="asset-prompt" rows="5" maxlength="1800" ${g.busy?'disabled':''}>${esc(g.prompt)}</textarea></div><div class="row">${button(g.busy?'Generating…':r?'Generate again':'Generate asset','asset-generate','primary',`id="asset-generate-button" ${g.busy||!g.name.trim()||!g.prompt.trim()?'disabled':''}`)}<span class="small muted">Simulated</span></div></div><div class="generate-preview">${r?`${assetArt({...sample,...r})}<div class="result-panel stack"><strong>${esc(r.name)}</strong><span class="small muted">${r.promoted?'In library · v1':'Illustrated result'}</span>${r.promoted?link('View in library','editor-assets','primary'):button('Promote to library','asset-promote','primary',g.busy?'disabled':'')}</div>`:'<div class="empty">Asset preview</div>'}</div></div>`;
 }
 function preferencesView(admin=false) {
-  return head(admin?'Admin settings':'User settings')+(admin?
-    `<div class="panel"><div class="settings-row"><span>Workspace</span><strong>Haynes Studio</strong></div><div class="settings-row"><span>Access</span><span>Private · home network</span></div><div class="settings-row"><span>Publishing</span><span>Not connected</span></div><p class="small muted" style="margin-top:16px">Administration controls are not part of this mockup.</p></div>`:
-    `<div class="panel"><div class="settings-row"><span>Display name</span><span>${state.userName}</span></div><fieldset style="margin-top:20px"><legend class="field-label">Theme</legend><div class="theme-options" id="account-theme" style="max-width:320px;margin-top:8px">${themeButtons('account')}</div></fieldset></div>`);
+  return head(admin?'Admin settings':'User settings')+(admin?'<div class="panel"><div class="settings-row"><span>Workspace</span><strong>Haynes Studio</strong></div><div class="settings-row"><span>Publishing</span><span>Not connected</span></div></div>':`<div class="panel"><div class="settings-row"><span>Display name</span><span>${state.userName}</span></div><fieldset style="margin-top:20px"><legend class="field-label">Theme</legend><div class="theme-options" style="max-width:320px;margin-top:8px">${themeButtons('account')}</div></fieldset></div>`);
 }
-let theme='system';
-try { const saved=localStorage.getItem('haynes-studio-theme'); if(['light','dark','system'].includes(saved)) theme=saved; } catch (_) { /* Storage is optional in an Artifact. */ }
+let theme='dark';
+try {const saved=localStorage.getItem('haynes-studio-theme');if(['light','dark','system'].includes(saved))theme=saved;}catch(_){/* Optional storage. */}
 document.documentElement.dataset.theme=theme;
-function themeButtons(prefix='menu') { return ['light','dark','system'].map(t=>`<button id="theme-${prefix}-${t}" data-action="theme" data-value="${t}" aria-pressed="${theme===t}">${t[0].toUpperCase()+t.slice(1)}</button>`).join(''); }
+function themeButtons(prefix='menu') {return ['light','dark','system'].map(t=>`<button id="theme-${prefix}-${t}" data-action="theme" data-value="${t}" aria-pressed="${theme===t}">${t[0].toUpperCase()+t.slice(1)}</button>`).join('');}
 function setTheme(value) {
-  if(!['light','dark','system'].includes(value)) return;
-  theme=value;
-  document.documentElement.dataset.theme=theme;
-  try { localStorage.setItem('haynes-studio-theme',theme); } catch (_) { /* Theme still works without persistence. */ }
-  for(const btn of document.querySelectorAll('[data-action="theme"]')) btn.setAttribute('aria-pressed',btn.dataset.value===theme);
+  if(!['light','dark','system'].includes(value))return;
+  theme=value;document.documentElement.dataset.theme=value;
+  try{localStorage.setItem('haynes-studio-theme',value);}catch(_){/* Theme works without storage. */}
+  document.querySelectorAll('[data-action="theme"]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.value===theme));
 }
 $('#theme-options').innerHTML=themeButtons();
-function closeUser() { $('#user-menu').hidden=true;$('#user-toggle').setAttribute('aria-expanded','false'); }
-$('#user-toggle').addEventListener('click',()=>{
-  const open=$('#user-menu').hidden;
-  $('#user-menu').hidden=!open;$('#user-toggle').setAttribute('aria-expanded',open);
-});
-document.addEventListener('click',event=>{if(!event.target.closest('.user')) closeUser();});
-document.addEventListener('keydown',event=>{
-  if(event.key==='Escape') {
-    if(!$('#user-menu').hidden) { closeUser();$('#user-toggle').focus(); }
-    const ancestors=$('.ancestor[open]');
-    if(ancestors) {ancestors.open=false;ancestors.querySelector('summary').focus();}
-  }
-});
-const knownRoutes=new Set(['productions','prod-yellowbirds','shorts-yellowbirds','videos-yellowbirds','media-winter-menu','editor-board','editor-assets','asset-generate','account','admin']);
-const preferencesKey='haynes-studio-v3-selections';
-function validRoute(name) {
-  return typeof name==='string'&&(knownRoutes.has(name)||(name.startsWith('board-')&&boards.some(b=>b.id===name.slice(6))));
-}
+function closeUser() {$('#user-menu').hidden=true;$('#user-toggle').setAttribute('aria-expanded','false');}
+$('#user-toggle').addEventListener('click',()=>{const open=$('#user-menu').hidden;$('#user-menu').hidden=!open;$('#user-toggle').setAttribute('aria-expanded',open);});
+document.addEventListener('click',e=>{if(!e.target.closest('.user'))closeUser();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#user-menu').hidden){closeUser();$('#user-toggle').focus();}});
+const knownRoutes=new Set(['editor','editor-productions','editor-media','editor-stories','editor-board','editor-assets','asset-generate','productions','prod-yellowbirds','shorts-yellowbirds','videos-yellowbirds','media-winter-menu','account','admin']);
+const preferencesKey='haynes-studio-v4-selections';
+function validRoute(r) {return typeof r==='string'&&(knownRoutes.has(r)||(r.startsWith('board-')&&boards.some(b=>b.id===r.slice(6))));}
 function saveSelections() {
-  // Only inexpensive view preferences survive reload; edits, assets and runs stay in memory.
-  try {
-    localStorage.setItem(preferencesKey,JSON.stringify({route:state.route,last:state.last,lastBoard:state.lastBoard,
-      selected:state.selected,panels:state.panels,mediaFilters:state.mediaFilters,
-      assetKind:state.assetKind,assetScope:state.assetScope,search:state.search}));
-  } catch (_) { /* Navigation still works when storage is unavailable or full. */ }
+  try{localStorage.setItem(preferencesKey,JSON.stringify({route:state.route,story:state.story,selected:state.selected,production:state.production,media:state.media,last:state.last,reviewContext:state.reviewContext,panels:state.panels,mediaFilters:state.mediaFilters,assetKind:state.assetKind,assetScope:state.assetScope,assetBoard:state.assetBoard,assetStory:state.assetStory,search:state.search}));}catch(_){/* The mockup still works without storage. */}
 }
 function restoreSelections() {
-  try {
-    const saved=JSON.parse(localStorage.getItem(preferencesKey)||'null');
-    if(!saved||typeof saved!=='object') return;
-    if(validRoute(saved.route)) state.route=saved.route;
-    if(validRoute(saved.last?.productions)&&!editorRoute(saved.last.productions)&&!['account','admin'].includes(saved.last.productions)) state.last.productions=saved.last.productions;
-    if(validRoute(saved.last?.editor)&&editorRoute(saved.last.editor)) state.last.editor=saved.last.editor;
-    if(validRoute(saved.lastBoard)&&(saved.lastBoard==='editor-board'||saved.lastBoard.startsWith('board-'))) state.lastBoard=saved.lastBoard;
-    if(boards.some(b=>b.id===saved.selected)) state.selected=saved.selected;
-    for(const key of Object.keys(state.mediaFilters)) {
-      const filter=saved.mediaFilters?.[key];
-      if(filter&&['','published','unpublished'].includes(filter.publication)&&typeof filter.approved==='boolean') state.mediaFilters[key]={publication:filter.publication,approved:filter.approved};
+  try{
+    const s=JSON.parse(localStorage.getItem(preferencesKey)||'null');if(!s||typeof s!=='object')return;
+    if(stories.some(x=>x.id===s.story))chooseStory(s.story);
+    state.production=productions.includes(s.production)?s.production:null;
+    state.media=['short','video'].includes(s.media)?s.media:null;
+    if(boards.some(b=>b.id===s.selected))state.selected=s.selected;
+    if(validRoute(s.route))state.route=s.route;
+    for(const key of ['productions','editor'])if(validRoute(s.last?.[key]))state.last[key]=s.last[key];
+    if(s.reviewContext&&stories.some(x=>x.id===s.reviewContext.story))state.reviewContext={story:s.reviewContext.story,production:productions.includes(s.reviewContext.production)?s.reviewContext.production:null,media:['short','video'].includes(s.reviewContext.media)?s.reviewContext.media:null};
+    for(const key of Object.keys(state.mediaFilters)){
+      const f=s.mediaFilters?.[key];
+      if(f&&['','published','unpublished'].includes(f.publication)&&typeof f.approved==='boolean')state.mediaFilters[key]={publication:f.publication,approved:f.approved};
     }
-    if(saved.panels&&typeof saved.panels==='object') {
-      for(const [key,value] of Object.entries(saved.panels)) {
-        const [page,panel]=key.split(':');
-        if(validRoute(page)&&['photo-composer','combined-panel'].includes(panel)&&typeof value==='boolean') state.panels[key]=value;
-      }
+    if(s.panels&&typeof s.panels==='object')for(const [key,value]of Object.entries(s.panels)){
+      const [route,id]=key.split(':');
+      if(validRoute(route)&&['script-section','voice-section','photo-composer','notes-section','combined-panel'].includes(id)&&typeof value==='boolean')state.panels[key]=value;
     }
-    if(['all',...Object.keys(kinds)].includes(saved.assetKind)) state.assetKind=saved.assetKind;
-    if(['all',state.production].includes(saved.assetScope)) state.assetScope=saved.assetScope;
-    if(typeof saved.search==='string') state.search=saved.search.slice(0,200);
-  } catch (_) { /* Invalid or unavailable storage starts with the example defaults. */ }
+    if(['all',...Object.keys(assetKinds)].includes(s.assetKind))state.assetKind=s.assetKind;
+    state.assetScope=productions.includes(s.assetScope)?s.assetScope:null;
+    state.assetStory=stories.some(x=>x.id===s.assetStory)?s.assetStory:null;
+    if(stories.find(x=>x.id===state.assetStory)?.boards.some(b=>b.id===s.assetBoard))state.assetBoard=s.assetBoard;
+    if(state.assetBoard)state.assetScope=stories.find(x=>x.id===state.assetStory).production;
+    if(typeof s.search==='string')state.search=s.search.slice(0,200);
+  }catch(_){/* Malformed preferences use the defaults. */}
 }
 restoreSelections();
 function crumbs() {
-  const prod=['Productions','productions'],team=['Yellowbirds','prod-yellowbirds'],shorts=['Shorts','shorts-yellowbirds'],story=['The Winter Menu','media-winter-menu'];
-  const r=state.route;
-  let path=[prod];
-  if(r==='prod-yellowbirds') path=[prod,team];
-  else if(r==='shorts-yellowbirds') path=[prod,team,shorts];
-  else if(r==='videos-yellowbirds') path=[prod,team,['Videos',r]];
-  else if(r==='media-winter-menu') path=[prod,team,shorts,story];
-  else if(r==='editor-board') path=[prod,team,shorts,story,['Boards',r]];
-  else if(r.startsWith('board-')) path=[prod,team,shorts,story,['Boards','editor-board'],['Board '+pad(boards.indexOf(selected())+1),r]];
-  else if(r==='editor-assets') path=[prod,team,['Editor',state.lastBoard],['Assets',r]];
-  else if(r==='asset-generate') path=[prod,team,['Editor',state.lastBoard],['Assets','editor-assets'],['Generate',r]];
-  else if(r==='account'||r==='admin') path=[[r==='account'?'User settings':'Admin settings',r]];
-  const parents=path.slice(0,-1),last=path.at(-1);
-  const ancestor=parents.length>1?`<details class="ancestor"><summary aria-label="Show parent pages">…</summary><div class="ancestor-list">${parents.map(([name,href])=>`<a href="#${href}">${name}</a>`).join('')}</div></details>`:'';
-  $('#breadcrumbs').innerHTML=ancestor+parents.map(([name,href],i)=>`<span class="${i<parents.length-1?'crumb-wide':''}"><a href="#${href}">${name}</a><span aria-hidden="true"> / </span></span>`).join('')+`<span class="crumb-tail" aria-current="page">${last[0]}</span>`;
+  const r=state.route,s=currentStory(),b=selected(),editor=['Editor','editor'],storyboard=['Storyboard','editor-productions'];
+  const prod=[state.production||s.production,editorRoute(r)?'editor-media':'prod-yellowbirds'];
+  const media=[state.media==='video'?'Video':'Short',editorRoute(r)?'editor-stories':state.media==='video'?'videos-yellowbirds':'shorts-yellowbirds'];
+  let path=[];
+  if(r==='editor')path=[editor];
+  else if(r==='editor-productions')path=[editor,storyboard];
+  else if(r==='editor-media')path=[editor,storyboard,prod];
+  else if(r==='editor-stories')path=[editor,storyboard,prod,media];
+  else if(workspaceRoute())path=[editor,storyboard,prod,media,[s.title,'editor-board'],...(r.startsWith('board-')&&b?[[boardCode(b),r]]:[])];
+  else if(r==='editor-assets'||r==='asset-generate'){
+    path=[editor,['Assets','editor-assets']];
+    if(state.assetScope)path.push([state.assetScope,'asset-production']);
+    const assetBoard=stories.find(x=>x.id===state.assetStory)?.boards.find(x=>x.id===state.assetBoard);
+    if(assetBoard)path.push([boardCode(assetBoard),'asset-board']);
+    if(r==='asset-generate')path.push(['Generate',r]);
+  }else if(r==='productions')path=[['Productions',r]];
+  else if(r==='prod-yellowbirds')path=[['Productions','productions'],prod];
+  else if(r==='shorts-yellowbirds'||r==='videos-yellowbirds')path=[['Productions','productions'],prod,media];
+  else if(r==='media-winter-menu')path=[['Productions','productions'],prod,media,[s.title,r]];
+  else path=[[r==='admin'?'Admin settings':'User settings',r]];
+  $('#breadcrumbs').innerHTML=path.map(([label,to],i)=>`${i?'<span aria-hidden="true">/</span>':''}<button data-action="crumb" data-route="${esc(to)}" ${i===path.length-1?'aria-current="page"':''}>${esc(label)}</button>`).join('')+'<span class="example">Mockup · simulated</span>';
+}
+function routeHash(name) {
+  const params=new URLSearchParams();
+  if(name==='editor-board'||name.startsWith('board-')||name==='media-winter-menu')params.set('story',state.story);
+  if(['editor-media','editor-stories','prod-yellowbirds','shorts-yellowbirds','videos-yellowbirds'].includes(name)&&state.production)params.set('production',state.production);
+  if(name==='editor-stories'&&state.media)params.set('media',state.media);
+  if(name==='editor-assets'||name==='asset-generate'){
+    params.set('scope',state.assetScope||'');
+    if(state.assetStory)params.set('assetStory',state.assetStory);
+    if(state.assetBoard)params.set('board',state.assetBoard);
+  }
+  return '#'+name+(params.size?'?'+params.toString():'');
 }
 function render(focusId) {
-  const previousFocus=document.activeElement;
-  const restoreFocus=focusId||($('#main').contains(previousFocus)?previousFocus.id:null);
+  const old=document.activeElement,restore=focusId||($('#main').contains(old)?old.id:null);
+  const selection=old instanceof HTMLTextAreaElement||old instanceof HTMLInputElement?{start:old.selectionStart,end:old.selectionEnd}:null;
+  const inspectorScroll=$('.inspector')?.scrollTop||0,filmScroll=$('#filmstrip')?.scrollLeft||0;
   const editor=editorRoute(state.route);
-  const library=state.route==='editor-assets'||state.route==='asset-generate';
-  if(!validRoute(state.lastBoard)) state.lastBoard=selected()?'board-'+selected().id:'editor-board';
-  if(!validRoute(state.last.editor)) state.last.editor=state.lastBoard;
   $('#nav-productions').href='#'+state.last.productions;
-  $('#nav-editor').href='#'+state.last.editor;
-  $('#tab-board').href='#'+state.lastBoard;
-  for(const [id,active] of [['nav-productions',!editor&&!['account','admin'].includes(state.route)],['nav-editor',editor],['tab-board',editor&&!library],['tab-assets',library]]) {
-    const el=$('#'+id); if(active) el.setAttribute('aria-current','page'); else el.removeAttribute('aria-current');
+  for(const [id,active]of [['nav-productions',!editor&&!['account','admin'].includes(state.route)],['nav-editor',editor]]){
+    const el=$('#'+id);if(active)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');
   }
-  $('#editor-tabs').hidden=!editor;
-  $('#workspace-label').textContent=editor?'Editor / The Winter Menu':['account','admin'].includes(state.route)?'Workspace':'Yellowbirds / Short';
-  if(state.route==='productions') $('#workspace-label').textContent='Workspace';
   crumbs();
-  const views={'productions':productionsView,'prod-yellowbirds':productionView,'shorts-yellowbirds':()=>mediaListView(),
-    'videos-yellowbirds':()=>mediaListView(true),'media-winter-menu':()=>storyView(),
-    'editor-board':()=>storyView(true),'editor-assets':libraryView,'asset-generate':generateView,
-    'account':()=>preferencesView(),'admin':()=>preferencesView(true)};
+  const views={'editor':editorLanding,'editor-productions':productionPicker,'editor-media':mediaPicker,'editor-stories':storyPicker,'editor-board':boardView,'editor-assets':libraryView,'asset-generate':generateView,
+    'productions':productionsView,'prod-yellowbirds':productionView,'shorts-yellowbirds':()=>mediaListView(),'videos-yellowbirds':()=>mediaListView(true),'media-winter-menu':storyView,'account':()=>preferencesView(),'admin':()=>preferencesView(true)};
   $('#main').innerHTML=state.route.startsWith('board-')?boardView():views[state.route]();
-  let focus=restoreFocus&&document.getElementById(restoreFocus);
-  if(focus?.disabled) focus=focus.closest('.board-item')?.querySelector('a')||$('#page-title');
-  if(!focus&&restoreFocus) focus=$('#page-title');
-  if(focus) focus.focus({preventScroll:true});
+  if($('.inspector'))$('.inspector').scrollTop=inspectorScroll;
+  if($('#filmstrip'))$('#filmstrip').scrollLeft=filmScroll;
+  let focus=restore?document.getElementById(restore):null;
+  if(focus?.disabled||(!focus&&restore))focus=$('#page-title');
+  focus?.focus({preventScroll:true});
+  if(focus&&selection?.start!==null&&selection?.start!==undefined&&typeof focus.setSelectionRange==='function')try{focus.setSelectionRange(selection.start,selection.end);}catch(_){/* Non-text field. */}
+  document.querySelectorAll('a[href^="#"]').forEach(a=>{a.setAttribute('href',routeHash(a.getAttribute('href').slice(1).split('?')[0]));});
+  history.replaceState(null,'',routeHash(state.route));
   saveSelections();
 }
 let firstRoute=true;
 function route() {
-  if(!firstRoute) state.scroll[state.route]=window.scrollY;
-  let name=location.hash.slice(1)||state.route;
-  if(name.startsWith('board-')) {
-    const id=name.slice(6);
-    if(boards.some(b=>b.id===id)) state.selected=id; else name='editor-board';
-  } else if(!knownRoutes.has(name)) name='productions';
-  if(location.hash!=='#'+name) history.replaceState(null,'','#'+name);
+  if(!firstRoute)state.scroll[state.route]=window.scrollY;
+  const [requested,query='']=location.hash.slice(1).split('?');
+  let name=requested||state.route;
+  const params=new URLSearchParams(query);
+  if(params.has('story')){
+    if(stories.some(s=>s.id===params.get('story')))chooseStory(params.get('story'));
+    else name='editor-productions';
+  }
+  if(params.has('production')){
+    state.production=productions.includes(params.get('production'))?params.get('production'):null;
+  }
+  if(params.has('media'))state.media=['short','video'].includes(params.get('media'))?params.get('media'):null;
+  if((name==='editor-assets'||name==='asset-generate')&&params.has('scope')){
+    state.assetScope=productions.includes(params.get('scope'))?params.get('scope'):null;
+    const assetStory=stories.find(s=>s.id===params.get('assetStory'));
+    state.assetStory=assetStory?.id||null;
+    state.assetBoard=assetStory?.boards.some(b=>b.id===params.get('board'))?params.get('board'):null;
+    if(assetStory)chooseStory(assetStory.id);
+    if(state.assetBoard)state.selected=state.assetBoard;
+  }
+  if(!validRoute(name))name='editor';
+  if(['editor-media','editor-stories'].includes(name)&&!state.production)name='editor-productions';
+  if(name==='editor-stories'&&!state.media)name='editor-media';
+  if(['prod-yellowbirds','shorts-yellowbirds','videos-yellowbirds'].includes(name)&&!state.production)state.production='Yellowbirds';
+  if(name==='shorts-yellowbirds')state.media='short';
+  if(name==='videos-yellowbirds')state.media='video';
+  if(name==='editor-board'||name.startsWith('board-')||name==='media-winter-menu'){
+    const story=currentStory();state.production=story.production;state.media=story.media;
+    if(name.startsWith('board-'))state.selected=name.slice(6);
+  }
+  if(name!==state.route)stopVoice();
   state.route=name;state.remove=null;
-  if(editorRoute(name)) {
-    state.last.editor=name;
-    if(name==='editor-board'||name.startsWith('board-')) state.lastBoard=name;
-  } else if(!['account','admin'].includes(name)) state.last.productions=name;
+  if(editorRoute(name)&&name!=='editor')state.last.editor=name;
+  else if(!editorRoute(name)&&!['account','admin'].includes(name)){state.last.productions=name;state.reviewContext={production:state.production,media:state.media,story:state.story};}
+
   closeUser();render();window.scrollTo(0,state.scroll[name]||0);
-  if(!firstRoute) $('#page-title')?.focus({preventScroll:true});
+  if(!firstRoute)$('#page-title')?.focus({preventScroll:true});
   firstRoute=false;
+  revealSelected();
 }
 window.addEventListener('hashchange',route);
-function go(name) { if(location.hash==='#'+name) route();else location.hash=name; }
+function go(name) {const hash=routeHash(name);if(location.hash===hash)route();else location.hash=hash;}
+function revealSelected() {
+  const strip=$('#filmstrip'),item=$('#film-'+selected()?.id);if(!strip||!item)return;
+  const a=strip.getBoundingClientRect(),b=item.getBoundingClientRect();
+  if(b.left<a.left)strip.scrollLeft-=a.left-b.left+4;
+  else if(b.right>a.right)strip.scrollLeft+=b.right-a.right+4;
+}
+function clearAssetFilters() {state.assetBoard=null;state.assetStory=null;state.assetScope=null;state.assetKind='all';state.search='';}
+function openLibrary(fromBoard=false) {
+  const s=currentStory();
+  state.assetScope=fromBoard?s.production:state.production;
+  state.assetStory=fromBoard?s.id:null;state.assetBoard=fromBoard?selected()?.id||null:null;
+  state.assetKind='all';state.search='';go('editor-assets');
+}
+function crumb(to) {
+  if(to==='asset-production'){state.assetBoard=null;state.assetKind='all';state.search='';go('editor-assets');return;}
+  if(to==='asset-board'){go('editor-assets');return;}
+  if(to==='editor-assets'){clearAssetFilters();go(to);return;}
+  clearAssetFilters();
+  if(['editor','editor-productions','productions'].includes(to)){state.production=null;state.media=null;}
+  if(['editor-media','prod-yellowbirds'].includes(to))state.media=null;
+  if(to==='editor-board')state.selected=boards[0]?.id||null;
+  go(to);
+}
 let noticeTimer;
-function notify(message) {
-  const el=$('#notice');el.textContent=message;el.hidden=false;
-  clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>{el.hidden=true;},4500);
+function notify(message) {const el=$('#notice');el.textContent=message;el.hidden=false;clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>{el.hidden=true;},4000);}
+let playTimer;
+function stopVoice() {clearTimeout(playTimer);state.playing=null;}
+function playVoice(b) {
+  if(!b||!b.lines.length||!b.voice.version)return;
+  if(state.playing===b.id){stopVoice();render();return;}
+  stopVoice();state.playing=b.id;render();notify('Voice preview · simulated, no audio.');
+  playTimer=setTimeout(()=>{state.playing=null;if(workspaceRoute())render();},Math.min(8000,b.voice.seconds*1000));
 }
-function photoNote(b) {
-  return b.photoBusy?'Simulating photo generation…':b.photoDirty?'Inputs changed · regenerate photo':b.photo?'Reference v'+b.photo:'No reference yet';
-}
+function updateVoice(b) {b.voice.dirty=voiceSignature(b)!==b.voice.input;syncDuration(b);}
 function refreshBoard() {
-  const b=selected(); if(!b||!state.route.startsWith('board-')) return;
+  const b=selected();if(!b||!workspaceRoute())return;
   $('#board-status').innerHTML=boardStatus(b);
-  $('#story-duration').textContent='Story · '+seconds(total());
-  $('#photo-note').textContent=photoNote(b);
-  $('#combined-prompt').textContent=composePrompt(b);
+  $('#story-duration').textContent=seconds(total())+(boards.some(x=>x.lines.length&&!x.voice.version)?' + untimed boards':'');
+  $('#photo-note').textContent=photoNote(b);$('#combined-prompt').textContent=composePrompt(b);
+  if($('#voice-note'))$('#voice-note').textContent=voiceNote(b);
+  const start=boards.slice(0,boards.indexOf(b)).reduce((n,x)=>n+x.duration,0);
+  $('#stage-time').textContent=boards.slice(0,boards.indexOf(b)+1).some(x=>x.lines.length&&!x.voice.version)?'Timing pending':timecode(start)+' – '+timecode(start+b.duration);
+  $('#stage-version').textContent=(b.photo?'PHOTO v'+b.photo:'NO PHOTO')+(b.photoDirty?' · INPUTS CHANGED':'');
+  $('#audio-label').textContent=(b.lines.length?(b.voice.version?'VOICE v'+b.voice.version:'NO VOICE'):'HOLD')+' · '+timing(b);
+  const film=$('#film-'+b.id);if(film){film.querySelector('.film-label span').textContent=timing(b);film.querySelector('.film-title').textContent=b.title;film.setAttribute('aria-label',`${boardCode(b)}: ${b.title}, ${timing(b)}`);}
 }
 let buildTimer;
 function refreshRuns() {
-  if(['media-winter-menu','editor-board'].includes(state.route)) render();
-  else if($('#build-button')) $('#build-button').textContent=isRunning()?'Queue run':'Build';
+  const box=$('#build-panel');if(box){const t=document.createElement('template');t.innerHTML=buildPanel();box.replaceWith(t.content);}
+  if($('#workspace-build'))$('#workspace-build').textContent=isRunning()?'Queue run':'Build';
+  if($('#run-review'))$('#run-review').innerHTML=cutReview();
+  else if(state.route==='media-winter-menu')render();
 }
 function runNext() {
-  if(isRunning()) return;
-  const run=state.runs.find(item=>item.status==='queued');
-  if(!run) return;
+  if(isRunning())return;
+  const run=state.runs.find(r=>r.status==='queued');if(!run)return;
   run.status='running';
   buildTimer=setInterval(()=>{
     run.progress=Math.min(100,run.progress+8);
-    if(run.progress===100) {
+    if(run.progress===100){
       clearInterval(buildTimer);run.status='done';
-      if(state.activeRun===null) state.activeRun=run.number;
-      runNext();refreshRuns();
-      notify(`Run ${pad(run.number)} done · simulated.`);
-    } else {
+      if(run.story===state.story&&state.activeRun===null)state.activeRun=run.number;
+      runNext();refreshRuns();notify(`Run ${pad(run.number)} done · simulated.`);
+    }else{
       const progress=$('#run-progress-'+run.number),detail=$('#run-detail-'+run.number);
-      if(progress) progress.value=run.progress;
-      if(detail) detail.textContent=run.progress+'% · '+run.estimate;
+      if(progress)progress.value=run.progress;
+      if(detail)detail.textContent=run.progress+'% · '+run.estimate;
     }
   },900);
 }
 function startBuild() {
-  if(!canBuild()) return;
-  // Capture at queue time, not start time. Edits never change a saved run or its approval.
-  const run={number:state.runs.length+1,status:'queued',boards:clone(boards),duration:total(),
-    estimate:estimate(),progress:0,created:new Date().toISOString(),approved:false};
-  state.runs.push(run);runNext();render();
-  notify(`Run ${pad(run.number)} ${run.status==='running'?'started':'queued'} · simulated.`);
+  if(!canBuild())return;
+  const run={number:state.runs.length+1,story:state.story,status:'queued',boards:clone(boards),duration:total(),estimate:estimate(),progress:0,created:new Date().toISOString(),approved:false};
+  state.runs.push(run);runNext();render();notify(`Run ${pad(run.number)} ${run.status==='running'?'started':'queued'} · simulated.`);
 }
 function viewRun(number) {
-  if(!finishedRuns().some(run=>run.number===number)) return;
-  if(state.activeRun!==number) state.preview=0;
-  state.activeRun=number;state.compare=null;render();
-  $('#cut-review')?.scrollIntoView({block:'start'});
+  if(!finishedRuns().some(r=>r.number===number))return;
+  if(state.activeRun!==number)state.preview=0;
+  state.activeRun=number;state.compare=null;render();$('#cut-review')?.scrollIntoView({block:'start'});
 }
+document.addEventListener('submit',event=>{
+  const form=event.target.closest('[data-create]');if(!form)return;event.preventDefault();
+  const input=form.elements.name,name=input.value.trim();if(!name){input.setCustomValidity('Enter a name.');input.reportValidity();return;}
+  if(form.dataset.create==='production'){
+    if(productions.some(p=>p.toLowerCase()===name.toLowerCase())){input.setCustomValidity('This production already exists.');input.reportValidity();return;}
+    productions.push(name);state.production=name;state.media=null;clearAssetFilters();go('editor-media');
+  }else{
+    const story={id:'story-'+(++sequence),title:name,production:state.production,media:state.media,boards:[],selected:null,nextBoard:1};
+    stories.push(story);chooseStory(story.id);clearAssetFilters();go('editor-board');
+  }
+});
 document.addEventListener('click',event=>{
-  const el=event.target.closest('[data-action]');if(!el||el.disabled) return;
+  const el=event.target.closest('[data-action]');if(!el||el.disabled)return;
   const action=el.dataset.action,b=selected();
-  if(action==='theme') {setTheme(el.dataset.value);return;}
-  if(action==='media-filter') {
+  if(action==='review-home'){event.preventDefault();const context={...state.reviewContext};chooseStory(context.story);state.production=context.production;state.media=context.media;go(state.last.productions);return;}
+  if(action==='theme'){setTheme(el.dataset.value);return;}
+  if(action==='crumb'){crumb(el.dataset.route);return;}
+  if(action==='pick-production'||action==='review-production'){state.production=productions[Number(el.dataset.index)];state.media=null;clearAssetFilters();go(action==='pick-production'?'editor-media':'prod-yellowbirds');return;}
+  if(action==='pick-media'){state.media=el.dataset.value;go('editor-stories');return;}
+  if(action==='pick-story'||action==='review-story'){chooseStory(el.dataset.id);clearAssetFilters();go(action==='pick-story'?'editor-board':'media-winter-menu');return;}
+  if(action==='open-library'||action==='board-assets'){openLibrary(action==='board-assets');return;}
+  if(action==='clear-board-filter'){state.assetBoard=null;state.assetKind='all';state.search='';render();return;}
+  if(action==='clear-production-filter'){state.assetScope=null;state.assetBoard=null;state.assetKind='all';state.search='';render();return;}
+  if(action==='media-filter'){
     const filter=state.mediaFilters[el.dataset.list],value=el.dataset.value;
-    if(value==='approved') filter.approved=!filter.approved;
-    else filter.publication=filter.publication===value?'':value;
+    if(value==='approved')filter.approved=!filter.approved;else filter.publication=filter.publication===value?'':value;
     render();return;
   }
-  if(action==='asset-scope') {state.assetScope=el.dataset.value;render();return;}
-  if(action==='add-board') {
-    const id='b'+(++sequence);
-    boards.push(board(id,'New board',3,[],[],'',{photo:0,method:'ambient',assets:['campsite']}));
-    state.selected=id;go('board-'+id);return;
+  if(action==='select-board'){stopVoice();state.selected=el.dataset.id;go('board-'+el.dataset.id);return;}
+  if(action==='inspector-jump'){const section=$('#'+el.dataset.id);if(section){section.open=true;section.querySelector('input,select,textarea')?.focus();section.scrollIntoView({block:'nearest'});}return;}
+  if(action==='show-runs'){$('#runs')?.scrollIntoView({block:'start'});$('#build-button')?.focus({preventScroll:true});return;}
+  if(action==='add-board'){
+    const next=currentStory().nextBoard++;
+    const id='b'+next;
+    boards.push(board(id,'New board',2,[],[],'',{photo:0,method:'reaction',assets:[]}));state.selected=id;go('board-'+id);return;
   }
-  if(action==='move') {
-    const index=boards.findIndex(x=>x.id===el.dataset.id),next=index+Number(el.dataset.direction);
-    if(index<0||next<0||next>=boards.length) return;
-    const [moved]=boards.splice(index,1);boards.splice(next,0,moved);
-    render(el.id);notify(`“${moved.title}” moved to board ${next+1}.`);return;
+  if(action==='move'){
+    const index=boards.findIndex(x=>x.id===el.dataset.id),next=index+Number(el.dataset.direction);if(index<0||next<0||next>=boards.length)return;
+    const [moved]=boards.splice(index,1);boards.splice(next,0,moved);render(el.id);revealSelected();return;
   }
-  if(action==='remove-ask') {state.remove=el.dataset.id;render();document.querySelector('[data-action="remove-cancel"]')?.focus({preventScroll:true});return;}
-  if(action==='remove-cancel') {const id=state.remove;state.remove=null;render('action-remove-ask-'+id);return;}
-  if(action==='remove-confirm') {
-    const index=boards.findIndex(x=>x.id===el.dataset.id);if(index<0) return;
-    const [removed]=boards.splice(index,1);state.remove=null;
-    if(state.selected===removed.id) state.selected=(boards[Math.min(index,boards.length-1)]||{}).id;
-    render();notify('Board removed.');return;
+  if(action==='remove-ask'){state.remove=b?.id;render();$('[data-action="remove-cancel"]')?.focus();return;}
+  if(action==='remove-cancel'){state.remove=null;render();return;}
+  if(action==='remove-confirm'){
+    const i=boards.findIndex(x=>x.id===el.dataset.id);if(i<0)return;
+    boards.splice(i,1);state.remove=null;state.selected=boards[Math.min(i,boards.length-1)]?.id||null;
+    if(state.assetBoard===el.dataset.id)state.assetBoard=null;go(state.selected?'board-'+state.selected:'editor-board');return;
   }
-  if(action==='add-line') {
-    if(!b)return;
-    b.lines.push(line('a',''));b.method='talking';render('text-'+b.lines.at(-1).id);return;
+  if(action==='add-line'){if(!b)return;b.lines.push(line('a',''));b.method='talking';updateVoice(b);openPanel('script-section');render('text-'+b.lines.at(-1).id);return;}
+  if(action==='remove-line'){if(!b)return;b.lines=b.lines.filter(l=>l.id!==el.dataset.id);if(!b.lines.length)b.method='reaction';updateVoice(b);render('action-add-line');return;}
+  if(action==='add-note'){if(!b)return;b.notes.push('');openPanel('notes-section');render('note-'+(b.notes.length-1));return;}
+  if(action==='remove-note'){if(!b)return;b.notes.splice(Number(el.dataset.index),1);render('action-add-note');return;}
+  if(action==='agent-fill'){
+    if(!b||b.lines.length)return;b.title='Reaction close-up';b.method='reaction';b.hold=1.9;b.assets=['cast-d','jacket','campsite','squishy'];
+    b.prompt='Close-up of D, shocked. Face fills the upper frame. No foreground log.';b.notes=['Sting','Slow push-in'];b.agent=true;b.photoDirty=true;syncDuration(b);render();notify('Agent draft · simulated.');return;
   }
-  if(action==='remove-line') {
-    if(!b)return;
-    b.lines=b.lines.filter(l=>l.id!==el.dataset.id);if(!b.lines.length)b.method='reaction';render();return;
+  if(action==='remove-asset'){if(!b)return;b.assets=b.assets.filter(id=>id!==el.dataset.id);b.photoDirty=true;render();return;}
+  if(action==='add-asset'){
+    if(!b||b.assets.includes(el.dataset.id))return;b.assets.push(el.dataset.id);b.photoDirty=true;render('asset-target');notify('Asset added. Regenerate the reference photo.');return;
   }
-  if(action==='agent-fill') {
-    if(!b||b.photoBusy||b.lines.length)return;
-    // A deterministic sample draft, never a model call.
-    b.title='Reaction close-up';b.method='reaction';b.duration=1.9;b.assets=['cast-d','jacket','campsite','squishy'];
-    b.prompt='Close-up of D, shocked. Face fills the upper frame. No foreground log.';b.cue='Sting · slow push-in';
-    b.agent=true;b.photoDirty=true;openPanel('photo-composer');render();notify('Agent draft filled in.');return;
+  if(action==='photo-generate'){
+    if(!b||b.photoBusy)return;if(!b.prompt.trim()){notify('Write a photo prompt first.');$('#photo-prompt')?.focus();return;}
+    b.photoBusy=true;const input={assets:[...b.assets],prompt:b.prompt};render();
+    setTimeout(()=>{b.photoBusy=false;b.photo++;b.photoInput=input;b.photoDirty=JSON.stringify(input)!==JSON.stringify({assets:b.assets,prompt:b.prompt});if((workspaceRoute()&&boards.includes(b))||state.route==='editor-assets'||state.route==='media-winter-menu')render();notify('Reference photo updated · simulated.');},1300);return;
   }
-  if(action==='remove-asset') {
-    if(!b||b.photoBusy)return;
-    b.assets=b.assets.filter(id=>id!==el.dataset.id);b.photoDirty=true;openPanel('photo-composer');render();return;
+  if(action==='voice-generate'){
+    if(!b||b.voice.busy||!b.lines.length)return;
+    if(!b.lines.some(l=>l.text.trim())){notify('Add dialogue first.');openPanel('script-section');render('text-'+b.lines[0].id);return;}
+    stopVoice();b.voice.busy=true;const input=voiceSignature(b);
+    // Illustrative duration from frozen sample text, never measured or synthesized audio.
+    const words=b.lines.reduce((n,l)=>n+l.text.trim().split(/\s+/).filter(Boolean).length,0);
+    const duration=Number(Math.max(.4,words/2.8+b.lines.length*.15).toFixed(2));render();
+    setTimeout(()=>{b.voice.busy=false;b.voice.version++;b.voice.seconds=duration;b.voice.input=input;updateVoice(b);if((workspaceRoute()&&boards.includes(b))||state.route==='editor-assets'||state.route==='media-winter-menu')render();notify('Voice updated · simulated.');},1000);return;
   }
-  if(action==='add-asset') {
-    if(!b||b.photoBusy||b.assets.includes(el.dataset.id))return;
-    b.assets.push(el.dataset.id);b.photoDirty=true;state.panels['board-'+b.id+':photo-composer']=true;
-    render('asset-target');notify('Asset added. Regenerate the board’s reference photo.');return;
-  }
-  if(action==='photo-generate') {
-    if(!b||b.photoBusy)return;
-    if(!b.prompt.trim()) {notify('Write a shot prompt first.');$('#photo-prompt')?.focus();return;}
-    b.photoBusy=true;b.photoDirty=true;openPanel('photo-composer');
-    const input={assets:[...b.assets],prompt:b.prompt};render();
-    setTimeout(()=>{
-      b.photoBusy=false;b.photo++;b.photoInput=input;
-      b.photoDirty=JSON.stringify(input)!==JSON.stringify({assets:b.assets,prompt:b.prompt});
-      if(state.route==='board-'+b.id) render();
-      else if((state.route==='editor-assets'&&selected()?.id===b.id)||['editor-board','media-winter-menu'].includes(state.route)) render();
-      notify('Reference photo updated · simulated.');
-    },1500);return;
-  }
-  if(action==='build-start') {startBuild();return;}
-  if(action==='run-view') {viewRun(Number(el.dataset.number));return;}
-  if(action==='preview-board') {
-    if(state.compare) state.compare.preview=Number(el.dataset.index);
-    else state.preview=Number(el.dataset.index);
-    render();return;
-  }
-  if(action==='compare-start') {
-    const done=finishedRuns();if(done.length<2)return;
-    state.compare={left:done.at(-2).number,right:done.at(-1).number,preview:0};render();
-    $('#cut-review')?.scrollIntoView({block:'start'});return;
-  }
-  if(action==='compare-close') {state.compare=null;render('action-compare-start');return;}
-  if(action==='cut-approve') {
-    const run=currentRun();if(!run||run.approved)return;
-    run.approved=true;render();notify(`Run ${pad(run.number)} approved for go-live · example only.`);return;
-  }
-  if(action==='asset-generate') {
+  if(action==='voice-play'){playVoice(b);return;}
+  if(action==='build-start'){startBuild();return;}
+  if(action==='run-view'){viewRun(Number(el.dataset.number));return;}
+  if(action==='preview-board'){if(state.compare)state.compare.preview=Number(el.dataset.index);else state.preview=Number(el.dataset.index);render();return;}
+  if(action==='compare-start'){const done=finishedRuns();if(done.length<2)return;state.compare={left:done.at(-2).number,right:done.at(-1).number,preview:0};render();$('#cut-review')?.scrollIntoView({block:'start'});return;}
+  if(action==='compare-close'){state.compare=null;render('action-compare-start');return;}
+  if(action==='cut-approve'){const run=currentRun();if(!run||run.approved)return;run.approved=true;render();notify(`Run ${pad(run.number)} approved for go-live · example only.`);return;}
+  if(action==='asset-generate'){
     const g=state.gen;if(g.busy||!g.name.trim()||!g.prompt.trim())return;
-    g.busy=true;const input={name:g.name.trim(),kind:g.kind,prompt:g.prompt,variant:(g.result?.variant||0)+1};render();
-    setTimeout(()=>{g.result={...input,promoted:false};g.busy=false;if(state.route==='asset-generate')render('asset-generate-button');notify('Asset generated · simulated. Review it before promoting.');},1500);return;
+    g.busy=true;const input={name:g.name.trim(),kind:g.kind,prompt:g.prompt,labels:state.assetScope?[state.assetScope]:[],variant:(g.result?.variant||0)+1};render();
+    setTimeout(()=>{g.result={...input,promoted:false};g.busy=false;if(state.route==='asset-generate')render('asset-generate-button');notify('Asset generated · simulated.');},1300);return;
   }
-  if(action==='asset-promote') {
+  if(action==='asset-promote'){
     const g=state.gen,r=g.result;if(!r||r.promoted||g.busy)return;
-    assets.push({id:'asset-'+(++sequence),name:r.name,kind:r.kind,prompt:r.prompt,variant:r.variant,labels:[state.production],doll:r.kind==='cast'?'a':undefined});
-    r.promoted=true;render();notify('Promoted to the Yellowbirds library.');
+    assets.push({id:'asset-'+(++sequence),name:r.name,kind:r.kind,prompt:r.prompt,variant:r.variant,labels:r.labels,doll:r.kind==='cast'?'a':undefined});r.promoted=true;
+    state.assetBoard=null;state.assetKind='all';state.search='';render();notify('Promoted to the asset library.');return;
   }
 });
 document.addEventListener('input',event=>{
   const el=event.target,b=selected(),id=el.id;
-  if(id==='asset-search') {
-    state.search=el.value;
-    const template=document.createElement('template');template.innerHTML=libraryView();
-    $('#asset-results').innerHTML=template.content.querySelector('#asset-results').innerHTML;
-    $('#asset-count').textContent=template.content.querySelector('#asset-count').textContent;
-    saveSelections();return;
+  if(el.closest('[data-create]')){el.setCustomValidity('');return;}
+  if(id==='asset-search'){
+    state.search=el.value;const t=document.createElement('template');t.innerHTML=libraryView();$('#asset-results').innerHTML=t.content.querySelector('#asset-results').innerHTML;$('#asset-count').textContent=t.content.querySelector('#asset-count').textContent;saveSelections();return;
   }
-  if(['asset-name','asset-prompt'].includes(id)) {
-    const g=state.gen;if(g.busy)return;
-    g[id==='asset-name'?'name':'prompt']=el.value;
-    if(g.result) {g.result=null;$('.generate-preview').innerHTML='<div class="empty">Asset preview</div>';}
-    $('#asset-generate-button').textContent='Generate asset';$('#asset-generate-button').disabled=!g.name.trim()||!g.prompt.trim();
-    $('#asset-gen-status').textContent='Yellowbirds';return;
+  if(['asset-name','asset-prompt'].includes(id)){
+    const g=state.gen;if(g.busy)return;g[id==='asset-name'?'name':'prompt']=el.value;
+    if(g.result){g.result=null;$('.generate-preview').innerHTML='<div class="empty">Asset preview</div>';}
+    $('#asset-generate-button').textContent='Generate asset';$('#asset-generate-button').disabled=!g.name.trim()||!g.prompt.trim();return;
   }
   if(!b)return;
-  if(id==='board-name') {b.title=el.value;$('#page-title').textContent=b.title||'Untitled board';}
-  else if(id==='board-duration') {b.duration=Number.isFinite(Number(el.value))?Math.max(0,Number(el.value)):0;}
-  else if(id==='photo-prompt'&&!b.photoBusy) {b.prompt=el.value;b.photoDirty=true;}
-  else if(id.startsWith('text-line-')) {const l=b.lines.find(x=>x.id===el.dataset.line);if(l)l.text=el.value;}
+  if(id==='board-name')b.title=el.value;
+  else if(id==='board-hold'){
+    if(!el.validity.valid||!el.value)return;b.hold=Number(el.value);syncDuration(b);
+  }else if(id==='photo-prompt'){b.prompt=el.value;b.photoDirty=true;}
+  else if(id.startsWith('text-line-')){const l=b.lines.find(l=>l.id===el.dataset.line);if(l){l.text=el.value;updateVoice(b);}}
+  else if(el.dataset.note!==undefined)b.notes[Number(el.dataset.note)]=el.value;
   else return;
   refreshBoard();
 });
 document.addEventListener('change',event=>{
   const el=event.target,b=selected();
-  if(el.id==='asset-kind') {state.assetKind=el.value;render(el.id);}
-  else if(el.id==='asset-target') {state.selected=el.value;state.lastBoard='board-'+el.value;render(el.id);}
-  else if(el.id==='new-asset-kind'&&!state.gen.busy) {state.gen.kind=el.value;state.gen.result=null;render(el.id);}
-  else if(state.compare&&['compare-left','compare-right'].includes(el.id)) {
+  if(el.id==='asset-kind'){state.assetKind=el.value;render(el.id);}
+  else if(el.id==='asset-target'){
+    state.selected=el.value;if(state.assetBoard)state.assetBoard=el.value;render(el.id);
+  }else if(el.id==='new-asset-kind'&&!state.gen.busy){state.gen.kind=el.value;state.gen.result=null;render(el.id);}
+  else if(state.compare&&['compare-left','compare-right'].includes(el.id)){
     const side=el.id.slice(8),number=Number(el.value),other=side==='left'?'right':'left';
-    if(finishedRuns().some(run=>run.number===number)&&number!==state.compare[other]) {state.compare[side]=number;state.compare.preview=0;render(el.id);}
-  }
-  else if(b) {
-    if(el.id==='board-method') {b.method=el.value;refreshBoard();}
-    else if(el.id.startsWith('speaker-line-')) {const l=b.lines.find(x=>x.id===el.dataset.line);if(l){l.speaker=el.value;refreshBoard();}}
+    if(finishedRuns().some(r=>r.number===number)&&number!==state.compare[other]){state.compare[side]=number;state.compare.preview=0;render(el.id);}
+  }else if(b){
+    if(el.id==='board-method'){b.method=el.value;refreshBoard();}
+    else if(el.id==='voice-style'){b.voiceStyle=el.value;updateVoice(b);refreshBoard();}
+    else if(el.id==='board-hold'&&(!el.validity.valid||!el.value)){el.value=b.hold;}
+    else if(el.id.startsWith('speaker-line-')){const l=b.lines.find(l=>l.id===el.dataset.line);if(l){l.speaker=el.value;updateVoice(b);refreshBoard();}}
   }
 });
 document.addEventListener('toggle',event=>{
-  const el=event.target;
-  if(el.matches('details[data-panel]')&&el.isConnected) {
-    state.panels[state.route+':'+el.id]=el.open;saveSelections();
-  }
+  const el=event.target;if(el.matches('details[data-panel]')&&el.isConnected){state.panels[state.route+':'+el.id]=el.open;saveSelections();}
 },true);
 route();
 })();
