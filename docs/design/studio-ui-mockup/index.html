@@ -1,6 +1,6 @@
-<meta charset="utf-8">
 <title>Haynes Studio Storyboard</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<meta charset="utf-8">
 <style>
 :root {
   color-scheme: light;
@@ -174,7 +174,6 @@ progress::-webkit-progress-bar{background:var(--soft)}progress::-webkit-progress
 .board-tools{grid-column:2;display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
 .board-tools .row{gap:4px}
 .board-tools .btn{font-size:.8rem}
-.review-banner{border-left:3px solid var(--review);padding:10px 12px;background:var(--review-soft);color:var(--review);font-size:.8rem;margin-bottom:18px}
 .board-pager{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:18px}
 .board-pager>a{font-size:.8rem;min-height:44px;display:flex;align-items:center}
 .edit-layout{display:grid;gap:24px;min-width:0}
@@ -200,10 +199,8 @@ input[type="number"]{font-family:var(--mono)}
 .line-fields{display:grid;grid-template-columns:68px minmax(0,1fr);gap:10px;min-width:0}
 .line-fields .line-action{grid-column:2;justify-self:end;min-height:32px;padding:4px 8px;font-size:.75rem}
 .approval-bar{border-top:1px solid var(--line);padding-top:16px;margin-top:22px;display:flex;flex-direction:column;align-items:start;gap:10px}
-.validation{font-size:.8rem;color:var(--review)}
 .confirmation{grid-column:1/-1;padding:14px;border:1px solid var(--danger);background:var(--surface)}
-.asset-controls{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-bottom:16px}
-.asset-controls .search{grid-column:1/-1}
+.asset-controls{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:12px;margin-bottom:16px}
 .asset-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 12px}
 .asset-card{min-width:0;display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--line);padding-bottom:16px}
 .asset-card .art{aspect-ratio:4/3}
@@ -220,6 +217,20 @@ input[type="number"]{font-family:var(--mono)}
 .preview-strip button[aria-pressed="true"]{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
 .cut-layout{display:grid;grid-template-columns:104px minmax(0,1fr);gap:16px;margin-block:16px}
 .cut-layout>div{min-width:0}
+.media-folders{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.media-folders .tree-link{gap:12px}
+.run-list{display:flex;flex-direction:column;gap:12px}
+.run-item{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:8px}
+.run-item .meta{gap:4px 12px;font-size:.73rem}
+.run-select{padding:0;min-height:44px;border:0;background:var(--clear);font-weight:650;text-decoration:underline;text-underline-offset:4px;color:var(--accent)}
+.run-select[aria-pressed="true"]{text-decoration-thickness:3px}
+.compare-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-block:16px}
+.compare-column{min-width:0;display:flex;flex-direction:column;gap:12px}
+.compare-column strong{overflow-wrap:anywhere}
+.compare-column .art{width:100%;max-width:180px}
+.compare-column .empty{padding:24px 8px}
+.compare-column .script-read{font-size:.8rem}
+#cut-review{margin-top:24px;scroll-margin-top:84px}
 .settings-row{display:flex;justify-content:space-between;gap:16px;padding-block:16px;border-bottom:1px solid var(--line);font-size:.85rem}
 .settings-row>*{min-width:0}
 @media(min-width:700px){
@@ -231,10 +242,11 @@ input[type="number"]{font-family:var(--mono)}
   .board-item{grid-template-columns:82px minmax(0,1fr) auto;gap:20px}.board-item .art{width:82px}
   .board-tools{grid-column:3;flex-direction:column;justify-content:start;align-items:end}
   .script-read{font-size:.9rem}.asset-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:24px}
-  .asset-controls{grid-template-columns:2fr 1fr 1fr}.asset-controls .search{grid-column:auto}
+  .asset-controls{max-width:700px}
   .target-board{flex-direction:row;align-items:center;gap:16px}.target-board select{width:auto;max-width:360px}
   .generate-layout{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
   .cut-layout{grid-template-columns:150px minmax(0,1fr)}
+  .compare-grid{gap:24px}
 }
 @media(min-width:900px){
   .edit-layout{grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:48px}
@@ -288,7 +300,7 @@ let sequence = 100;
 const line = (speaker,text) => ({id:'line-'+(++sequence),speaker,text});
 function board(id,title,duration,cast,lines,prompt,extra={}) {
   const b = {id,title,duration,lines,prompt,method:lines.length?'talking':'reaction',
-    assets:[...cast.map(d=>'cast-'+d),'jacket','campsite'],approved:true,agent:false,
+    assets:[...cast.map(d=>'cast-'+d),'jacket','campsite'],agent:false,
     photo:1,photoDirty:false,photoBusy:false,cue:'',...extra};
   b.photoInput = {assets:[...b.assets],prompt:b.prompt};
   return b;
@@ -308,7 +320,7 @@ const boards = [
     'C, suspicious, single shot, facing right.'),
   board('b7','Reaction close-up',1.9,['d'],[],
     'Close-up of D, shocked. Face fills the upper frame. No foreground log.',
-    {approved:false,agent:true,cue:'Sting · slow push-in',assets:['cast-d','jacket','campsite','squishy']}),
+    {agent:true,cue:'Sting · slow push-in',assets:['cast-d','jacket','campsite','squishy']}),
   board('b8','The vote',10.46,['a','c','b','d'],[
     line('b','All in favor?'),line('a','Aye.'),line('c','Aye.'),line('d','Nay!'),line('b','Motion carried.'),line('b','Bibs on, ladies.')],
     'A and C at the back on the left, B in front. All stare right at D, shocked, holding the squishy.',
@@ -316,19 +328,23 @@ const boards = [
   board('b9','Needs salt',4.5,['c','a','b'],[line('b','Needs salt.')],
     'C, A and B behind the log. D is gone. A looks smug; B stays deadpan.',{cue:'Offscreen crunch · hold'})
 ];
-const state = {route:'media-winter-menu',selected:'b7',revision:1,build:null,buildHistory:[],buildAsk:false,remove:null,
-  photoOpen:false,filter:'development',assetKind:'all',assetScope:'Yellowbirds',search:'',
+const state = {route:'media-winter-menu',selected:'b7',runs:[],activeRun:null,compare:null,preview:0,remove:null,
+  production:'Yellowbirds',last:{productions:'media-winter-menu',editor:'editor-board'},lastBoard:'editor-board',
+  panels:{},scroll:{},mediaFilters:{production:{publication:'',approved:false},shorts:{publication:'',approved:false},videos:{publication:'',approved:false}},
+  assetKind:'all',assetScope:'Yellowbirds',search:'',
   gen:{name:'Camping mug',kind:'prop',prompt:'A small enamel camping mug, worn blue rim, doll scale.',busy:false,result:null},
-  reviewNote:'',reviewForm:false,preview:0,userName:'Tom'};
+  userName:'Tom'};
 const total = () => boards.reduce((sum,b)=>sum+b.duration,0);
 const seconds = n => Number(n.toFixed(1))+' s';
-const approved = () => boards.filter(b=>b.approved).length;
 const selected = () => boards.find(b=>b.id===state.selected) || boards[0];
 const assetById = id => assets.find(a=>a.id===id);
-const isRunning = () => state.build?.status==='running';
-const hasFreshCut = () => state.build?.status==='done' && state.build.revision===state.revision;
-const mediaStatus = () => hasFreshCut() && !state.build.approved ? 'pending' : 'development';
-const statusLabel = () => mediaStatus()==='pending' ? 'Pending approval' : 'In development';
+const isRunning = () => state.runs.some(run=>run.status==='running');
+const finishedRuns = () => state.runs.filter(run=>run.status==='done');
+const currentRun = () => finishedRuns().find(run=>run.number===state.activeRun);
+const mediaApproved = () => finishedRuns().some(run=>run.approved);
+const editorRoute = route => route.startsWith('editor-')||route.startsWith('board-')||route==='asset-generate';
+const panelOpen = id => state.panels[state.route+':'+id]===true;
+const openPanel = id => {state.panels[state.route+':'+id]=true;};
 const badge = (text,kind='') => `<span class="status ${kind}">${esc(text)}</span>`;
 const head = (title,meta='',action='') => `<div class="page-head"><div><h1 id="page-title" tabindex="-1">${esc(title)}</h1>${meta?`<div class="meta">${meta}</div>`:''}</div>${action}</div>`;
 const button = (text,action,cls='',extra='') => {
@@ -337,28 +353,11 @@ const button = (text,action,cls='',extra='') => {
   return `<button class="btn ${cls}" ${id} data-action="${action}" ${extra}>${text}</button>`;
 };
 const link = (text,route,cls='') => `<a class="btn ${cls}" href="#${route}">${text}</a>`;
-function boardStatus(b) { return badge(b.approved?'Approved':b.photoBusy?'Making photo…':b.agent?'Agent draft · needs review':'Needs review',b.approved?'good':'review'); }
-function changed(b,photo=false) {
-  b.approved=false;
-  if(photo) b.photoDirty=true;
-  state.revision++;
-  state.buildAsk=false;
-}
-function blockers(b) {
-  if(!b.title.trim()) return 'Give this board a name.';
-  if(!Number.isFinite(b.duration)||b.duration<=0) return 'Set a duration above 0 seconds.';
-  if(b.photoBusy) return 'Wait for the reference photo.';
-  if(!b.photo||b.photoDirty) return 'Generate the reference photo to approve.';
-  if(b.lines.some(l=>!l.text.trim())) return 'Write or remove the empty line.';
-  if(b.lines.length && b.method!=='talking') return 'Choose Talking for a board with lines.';
-  if(!b.lines.length && b.method==='talking') return 'Add a line, or choose Reaction or Ambient.';
-  if(b.lines.some(l=>!b.assets.includes('cast-'+l.speaker))) return 'Add each speaker to the reference photo.';
-  return '';
-}
-function canBuild() { return boards.length>0 && boards.every(b=>b.approved&&!blockers(b)) && !isRunning(); }
+function boardStatus(b) { return b.photoBusy?badge('Making photo…','working'):b.agent?badge('Agent draft'):''; }
+function canBuild() { return boards.length>0; }
 function estimate(duration=total()) {
-  if(Math.abs(duration-45.28)<.05) return '1.5–2 h GPU';
-  return `${Math.max(1,Math.round(duration*90/45))}–${Math.max(2,Math.round(duration*120/45))} min GPU`;
+  if(Math.abs(duration-45.28)<.05) return '~1.5–2 h';
+  return `~${Math.max(1,Math.round(duration*90/45))}–${Math.max(2,Math.round(duration*120/45))} min`;
 }
 // Geometric placeholders only. These are not generated media or likenesses.
 function doll(d,x,y,scale=1,shocked=false) {
@@ -413,80 +412,108 @@ function productionsView() {
   return head('Productions','<span>1 production</span>')+`<div class="tree-list"><a class="tree-link" href="#prod-yellowbirds"><span class="team-mark" aria-hidden="true">YB</span><div><h2>Yellowbirds</h2><p class="meta">1 short · 0 videos</p></div><span class="arrow" aria-hidden="true">→</span></a></div>`;
 }
 function productionView() {
-  return head('Yellowbirds','<span>Production</span>')+`<div class="tree-list">${[['Shorts','shorts-yellowbirds','1 short'],['Videos','videos-yellowbirds','0 videos']].map(([name,route,count])=>`<a class="tree-link" href="#${route}"><span class="folder-mark" aria-hidden="true"></span><div><h2>${name}</h2><span class="meta">${count}</span></div><span class="arrow" aria-hidden="true">→</span></a>`).join('')}</div>`;
+  return head('Yellowbirds','<span>Production</span>',link('Open editor',state.lastBoard))+
+    `<div class="media-folders">${[['Shorts','shorts-yellowbirds','1 short'],['Videos','videos-yellowbirds','0 videos']].map(([name,route,count])=>`<a class="tree-link" href="#${route}"><span class="folder-mark" aria-hidden="true"></span><div><h2>${name}</h2><span class="meta">${count}</span></div><span class="arrow" aria-hidden="true">→</span></a>`).join('')}</div>`+
+    '<div class="section-head"><h2>Media</h2></div>'+mediaList('production');
+}
+function mediaList(key) {
+  const filter=state.mediaFilters[key],videos=key==='videos';
+  // Publication and go-live approval are independent. This private example is unpublished.
+  const matches=!videos&&filter.publication!=='published'&&(!filter.approved||mediaApproved());
+  const filters=[['unpublished','Unpublished'],['published','Published'],['approved','Approved']];
+  return `<div class="filters" role="group" aria-label="Media status">${filters.map(([value,label])=>`<button class="filter" id="filter-${value}" data-action="media-filter" data-list="${key}" data-value="${value}" aria-pressed="${value==='approved'?filter.approved:filter.publication===value}" ${value==='approved'?'aria-label="Approved for go-live"':''}>${label}</button>`).join('')}</div>`+
+    (matches?`<div class="tree-list"><a class="tree-link" href="#media-winter-menu"><div style="flex:0 0 62px">${photo(boards[0]||{title:'Empty story',photo:0})}</div><div><h2>The Winter Menu</h2><p class="meta">${seconds(total())} · Short</p><div class="row">${badge('Unpublished')}${mediaApproved()?badge('Approved for go-live','good'):''}</div></div><span class="arrow" aria-hidden="true">→</span></a></div>`:
+      `<div class="empty">${videos?'No videos yet.':'No matching media.'}</div>`);
 }
 function mediaListView(videos=false) {
-  const filters=[['development','In development'],['pending','Pending approval'],['published','Published']];
-  const matches=!videos&&state.filter===mediaStatus();
-  return head(videos?'Videos':'Shorts','<span>Yellowbirds</span>')+
-    `<div class="filters" role="group" aria-label="Media status">${filters.map(([value,label])=>`<button class="filter" id="filter-${value}" data-action="media-filter" data-value="${value}" aria-pressed="${state.filter===value}">${label} <span class="mono">${!videos&&mediaStatus()===value?1:0}</span></button>`).join('')}</div>`+
-    (matches?`<div class="tree-list"><a class="tree-link" href="#media-winter-menu"><div style="flex:0 0 62px">${photo(boards[0]||{title:'Empty story',photo:0})}</div><div><h2>The Winter Menu</h2><p class="meta">${seconds(total())} · 9:16</p>${badge(statusLabel(),mediaStatus()==='pending'?'review':'')}${state.build?.approved&&hasFreshCut()?'<p class="small">Cut approved · private</p>':''}</div><span class="arrow" aria-hidden="true">→</span></a></div>`:`<div class="empty">${videos?'No videos yet.':state.filter==='published'?'No published shorts.':state.filter==='pending'?'No shorts awaiting approval.':'No shorts in development.'}</div>`);
+  return head(videos?'Videos':'Shorts','<span>Yellowbirds</span>')+mediaList(videos?'videos':'shorts');
+}
+function runTime(run) {
+  return `<time datetime="${run.created}" title="Queued at ${esc(new Date(run.created).toLocaleString())}">${esc(new Date(run.created).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}))}</time>`;
 }
 function buildPanel() {
-  const b=state.build;
-  let content='';
-  if(isRunning()) content=`<div class="row between"><strong id="build-stage">${esc(b.stage)}</strong><span class="mono small" id="build-percent">${b.progress}%</span></div><progress id="build-progress" value="${b.progress}" max="100" aria-label="Simulated build progress"></progress><div class="meta"><span>${esc(b.estimate)}</span><span>Simulated progress</span></div>`;
-  else if(hasFreshCut()) content=`<div class="row between"><div class="stack-tight"><strong>${b.approved?'Cut approved':'Ready for review'}</strong><span class="small muted">Build ${pad(b.number)} · simulated</span></div>${state.route==='media-winter-menu'?'':link('Review cut','media-winter-menu','primary')}</div>`;
-  else {
-    const remaining=boards.length-approved();
-    const why=!boards.length?'Add a board to start.':remaining?`${remaining} board${remaining===1?'':'s'} to approve`:'All boards approved';
-    content=`<div class="row between"><div class="stack-tight"><strong>Build video</strong><span class="small ${remaining?'muted':''}" id="build-reason">${why}</span></div>${button('Build','build-ask','primary',`id="build-button" ${canBuild()?'':'disabled'} aria-describedby="build-reason"`)}</div>`;
-    if(state.buildAsk) content+=`<div class="stack-tight" id="build-confirm"><strong>${esc(estimate())}</strong><span class="small muted">${seconds(total())} · ${boards.length} boards · simulated build</span><div class="row">${button('Start build','build-start','primary')}${button('Cancel','build-cancel','quiet')}</div></div>`;
-    if(b?.status==='done') content+=`<span class="small muted">Build ${pad(b.number)} is an earlier cut.</span>`;
-  }
-  return `<section class="build-box" id="build-panel" aria-label="Video build">${content}</section>`;
+  const done=finishedRuns();
+  return `<section class="build-box" id="build-panel" aria-label="Video runs">
+    <div class="row between"><div class="stack-tight"><h2>Runs</h2><span class="small muted">${boards.length?esc(estimate())+' · simulated':'Add a board to start.'}</span></div>${button(isRunning()?'Queue run':'Build','build-start','primary',`id="build-button" ${canBuild()?'':'disabled'}`)}</div>
+    ${state.runs.length?`<ol class="run-list">${state.runs.map(run=>`<li class="run-item" id="run-${run.number}">
+      <div class="row between">${run.status==='done'?`<button class="run-select" id="view-run-${run.number}" data-action="run-view" data-number="${run.number}" aria-label="View run ${pad(run.number)}" aria-pressed="${!state.compare&&state.activeRun===run.number}">Run ${pad(run.number)}</button>`:`<strong class="small">Run ${pad(run.number)}</strong>`}${badge(run.status==='done'?'Done':run.status==='running'?'Running':'Queued',run.status==='done'?'good':run.status==='running'?'working':'')}</div>
+      <div class="meta"><span id="run-detail-${run.number}">${run.status==='done'?'100%':(run.status==='running'?run.progress+'% · ':'')+esc(run.estimate)}</span>${runTime(run)}</div>
+      ${run.status==='running'?`<progress id="run-progress-${run.number}" value="${run.progress}" max="100" aria-label="Run ${pad(run.number)} simulated progress"></progress>`:''}
+      ${run.approved?badge('Approved for go-live','good'):''}
+    </li>`).join('')}</ol>`:''}
+    ${done.length>=2?button('Compare runs','compare-start','quiet'):''}
+  </section>`;
+}
+function previewPicker(items,active,comparing=false) {
+  return `<div class="preview-strip" role="group" aria-label="${comparing?'Compare':'Preview'} board">${items.map((b,i)=>`<button id="preview-board-${i}" data-action="preview-board" data-index="${i}" aria-label="${comparing?'Compare':'Preview'} board ${i+1}: ${esc(b.title)}" aria-pressed="${active===i}">${pad(i+1)}</button>`).join('')}</div>`;
+}
+function comparisonBoards(left,right) {
+  // Match stable board IDs, so additions, removals and reordering stay comparable.
+  return [...left.boards,...right.boards.filter(b=>!left.boards.some(x=>x.id===b.id))];
+}
+function compareReview() {
+  const left=finishedRuns().find(run=>run.number===state.compare.left);
+  const right=finishedRuns().find(run=>run.number===state.compare.right);
+  if(!left||!right) return '';
+  const items=comparisonBoards(left,right);
+  state.compare.preview=Math.min(state.compare.preview,items.length-1);
+  const id=items[state.compare.preview].id;
+  return `<section class="panel" id="cut-review"><div class="row between"><h2>Compare runs</h2>${button('Close','compare-close','quiet','aria-label="Close comparison"')}</div><p class="small muted">Storyboard previews</p>
+    <div class="compare-grid">${[['left',left,right],['right',right,left]].map(([side,run,other])=>{
+      const b=run.boards.find(board=>board.id===id);
+      return `<div class="compare-column"><div class="field"><label for="compare-${side}">${side==='left'?'Left':'Right'} run</label><select id="compare-${side}">${finishedRuns().map(r=>`<option value="${r.number}" ${r.number===run.number?'selected':''} ${r.number===other.number?'disabled':''}>Run ${pad(r.number)} · ${seconds(r.duration)}</option>`).join('')}</select></div>
+        ${b?`${photo(b)}<strong class="small">${pad(run.boards.indexOf(b)+1)} · ${esc(b.title)}</strong><span class="small muted">${methods[b.method]} · ${seconds(b.duration)}</span>${readLines(b)}${b.cue?`<span class="small muted">${esc(b.cue)}</span>`:''}`:'<div class="empty small">Not in this run</div>'}
+        ${button('View run '+pad(run.number),'run-view','quiet',`data-number="${run.number}" id="compare-view-${run.number}"`)}
+      </div>`;
+    }).join('')}</div>${previewPicker(items,state.compare.preview,true)}</section>`;
 }
 function cutReview() {
-  const build=state.build;
-  if(!build||build.status!=='done') return '';
-  const b=build.boards[Math.min(state.preview,build.boards.length-1)];
-  const fresh=hasFreshCut();
-  return `<section class="panel" id="cut-review"><div class="row between"><h2>Build ${pad(build.number)}</h2>${badge(fresh?(build.approved?'Cut approved':'Pending approval'):'Earlier cut',fresh?(build.approved?'good':'review'):'')}</div>
-    <div class="meta"><span>${seconds(build.duration)}</span><span>Storyboard preview</span></div>
-    <div class="cut-layout">${photo(b)}<div class="stack-tight"><strong>${pad(state.preview+1)} / ${esc(b.title)}</strong>${readLines(b)}${b.cue?`<span class="small muted">${esc(b.cue)}</span>`:''}</div></div>
-    <div class="preview-strip" role="group" aria-label="Preview board">${build.boards.map((x,i)=>`<button id="preview-board-${i}" data-action="preview-board" data-index="${i}" aria-label="Preview board ${i+1}" aria-pressed="${state.preview===i}">${pad(i+1)}</button>`).join('')}</div>
-    <div class="approval-bar">${!fresh?'<p class="small muted">Story changed · build again to review.</p>':build.approved?'<p class="small">Approved · private</p>':`<div class="row">${button('Approve cut','cut-approve','primary')}${button('Request changes','review-open')}</div>`}
-    ${state.reviewForm&&fresh&&!build.approved?`<div class="field" style="width:100%"><label for="cut-note">Changes needed</label><textarea id="cut-note" rows="3" maxlength="1200">${esc(state.reviewNote)}</textarea></div><div class="row">${button('Return to editor','cut-changes','primary')}${button('Cancel','review-cancel','quiet')}</div>`:''}
-    ${build.note?`<p class="small">${esc(build.note)}</p>`:''}</div></section>`;
+  if(state.compare) return compareReview();
+  const run=currentRun();
+  if(!run) return '';
+  state.preview=Math.min(state.preview,run.boards.length-1);
+  const b=run.boards[state.preview];
+  return `<section class="panel" id="cut-review"><div class="row between"><h2>Run ${pad(run.number)}</h2>${badge(run.approved?'Approved for go-live':'Done','good')}</div>
+    <div class="meta"><span>${seconds(run.duration)}</span><span>Storyboard preview</span></div>
+    <div class="cut-layout">${photo(b)}<div class="stack-tight"><strong>${pad(state.preview+1)} · ${esc(b.title)}</strong><span class="small muted">${methods[b.method]} · ${seconds(b.duration)}</span>${readLines(b)}${b.cue?`<span class="small muted">${esc(b.cue)}</span>`:''}</div></div>
+    ${previewPicker(run.boards,state.preview)}
+    <div class="approval-bar">${run.approved?'<div class="row"><button class="btn" disabled aria-describedby="publish-status">Publish</button><span class="small muted" id="publish-status">Not connected</span></div>':button('Approve for go-live','cut-approve','primary')}</div></section>`;
 }
 function boardList(editing=false) {
   if(!boards.length) return '<div class="empty">No boards yet.</div>';
-  return `<ol class="board-list" aria-label="Story boards">${boards.map((b,i)=>`<li class="board-item" id="row-${b.id}"><a href="#board-${b.id}" aria-label="Open board ${i+1}: ${esc(b.title)}">${photo(b)}</a><div class="board-copy"><div class="board-title"><span class="board-number">${pad(i+1)}</span><a href="#board-${b.id}">${esc(b.title)}</a></div><div class="meta"><span>${methods[b.method]}</span><span>${seconds(b.duration)}</span></div>${readLines(b)}${b.cue?`<span class="small muted">${esc(b.cue)}</span>`:''}${boardStatus(b)}</div>
-      ${editing?`<div class="board-tools"><div class="row">${button('↑','move','icon',`id="up-${b.id}" data-id="${b.id}" data-direction="-1" aria-label="Move board ${i+1} up" ${i===0||isRunning()?'disabled':''}`)}${button('↓','move','icon',`id="down-${b.id}" data-id="${b.id}" data-direction="1" aria-label="Move board ${i+1} down" ${i===boards.length-1||isRunning()?'disabled':''}`)}</div>${button('Remove','remove-ask','quiet',`data-id="${b.id}" aria-label="Remove board ${i+1}" ${isRunning()?'disabled':''}`)}</div>`:''}
+  return `<ol class="board-list" aria-label="Story boards">${boards.map((b,i)=>`<li class="board-item" id="row-${b.id}"><a href="#board-${b.id}" aria-label="Open board ${i+1}: ${esc(b.title)}">${photo(b)}</a><div class="board-copy"><div class="board-title"><span class="board-number">${pad(i+1)}</span><a href="#board-${b.id}">${esc(b.title||'Untitled board')}</a></div><div class="meta"><span>${methods[b.method]}</span><span>${seconds(b.duration)}</span></div>${readLines(b)}${b.cue?`<span class="small muted">${esc(b.cue)}</span>`:''}${boardStatus(b)}</div>
+      ${editing?`<div class="board-tools"><div class="row">${button('↑','move','icon',`id="up-${b.id}" data-id="${b.id}" data-direction="-1" aria-label="Move board ${i+1} up" ${i===0?'disabled':''}`)}${button('↓','move','icon',`id="down-${b.id}" data-id="${b.id}" data-direction="1" aria-label="Move board ${i+1} down" ${i===boards.length-1?'disabled':''}`)}</div>${button('Remove','remove-ask','quiet',`data-id="${b.id}" aria-label="Remove board ${i+1}"`)}</div>`:''}
       ${state.remove===b.id?`<div class="confirmation stack-tight"><strong>Remove “${esc(b.title)}”?</strong><div class="row">${button('Remove board','remove-confirm','danger',`data-id="${b.id}"`)}${button('Keep board','remove-cancel','quiet')}</div></div>`:''}</li>`).join('')}</ol>`;
 }
 function storyView(editing=false) {
-  const needsReview=boards.find(b=>!b.approved);
   const representative=boards.find(b=>b.id==='b8')||boards[0];
-  let body=head('The Winter Menu',`<span>${seconds(total())}</span><span>9:16</span>${badge(statusLabel(),mediaStatus()==='pending'?'review':'')}`,editing?link('View media','media-winter-menu'):link('Open editor','editor-board','primary'));
-  if(!editing) body+=`<div class="story-layout"><div class="hero">${representative?photo(representative):'<div class="empty">No boards</div>'}<div class="hero-info"><span class="eyebrow">Storyboard</span><strong>${approved()} of ${boards.length}<br>boards approved</strong>${needsReview?link(`Review board ${pad(boards.indexOf(needsReview)+1)} →`,'board-'+needsReview.id):badge('Ready to build','good')}<span class="small muted">Yellowbirds · Doll comedy</span></div></div>${buildPanel()}</div>${cutReview()}`;
-  else body+=(state.build?.note&&!hasFreshCut()?`<p class="panel small" id="change-note"><strong>Changes requested:</strong> ${esc(state.build.note)}</p>`:'')+buildPanel();
-  body+=`<div class="section-head"><div><h2>${editing?'Story boards':'Boards'}</h2><span class="small muted">${boards.length} clips · ${seconds(total())}</span></div>${editing?button('+ Add board','add-board','',isRunning()?'disabled':''):''}</div>${boardList(editing)}`;
+  let body=head('The Winter Menu',`<span>${seconds(total())}</span>${badge('Unpublished')}`,editing?link('View media','media-winter-menu'):link('Open editor',state.lastBoard,'primary'));
+  if(!editing) body+=`<div class="story-layout"><div class="hero">${representative?photo(representative):'<div class="empty">No boards</div>'}<div class="hero-info"><span class="eyebrow">Storyboard</span><strong>${boards.length} boards</strong><span class="small muted">Yellowbirds · Doll comedy</span></div></div>${buildPanel()}</div>`;
+  else body+=buildPanel();
+  body+=cutReview();
+  body+=`<div class="section-head"><div><h2>${editing?'Story boards':'Boards'}</h2></div>${editing?button('+ Add board','add-board'):''}</div>${boardList(editing)}`;
   return body;
 }
 function composePrompt(b) { return b.assets.map(id=>assetById(id)?.name).filter(Boolean).join(' + ')+(b.prompt.trim()?'\n'+b.prompt.trim():''); }
 function boardView() {
   const b=selected();
   if(!b) return head('No board selected')+link('Back to story','editor-board');
-  const index=boards.indexOf(b),locked=isRunning(),disabled=locked?'disabled':'';
-  const reason=blockers(b);
+  const index=boards.indexOf(b);
   return `<div class="board-pager"><a href="#editor-board">← All boards</a><div class="row">${index>0?`<a class="btn icon" href="#board-${boards[index-1].id}" aria-label="Previous board">←</a>`:''}<span class="small mono">${pad(index+1)} / ${pad(boards.length)}</span>${index<boards.length-1?`<a class="btn icon" href="#board-${boards[index+1].id}" aria-label="Next board">→</a>`:''}</div></div>`+
-    head(b.title,`<span id="board-status">${boardStatus(b)}</span>`,button(b.approved?'Approved':'Approve board','approve','primary',`id="approve-top" ${b.approved||reason||locked?'disabled':''} aria-describedby="board-validation"`))+
-    (b.agent&&!b.approved?'<div class="review-banner">Agent draft · review photo and script</div>':'')+
-    (locked?'<div class="review-banner">Build in progress · editing paused</div>':'')+
-    `<div class="edit-layout"><div><div class="reference"><figure>${photo(b,'',true)}<figcaption>Reference photo · illustration</figcaption></figure><div class="stack"><div class="field"><label for="board-method">Method</label><select id="board-method" ${disabled}>${Object.entries(methods).map(([v,t])=>`<option value="${v}" ${v===b.method?'selected':''}>${t}</option>`).join('')}</select></div><div class="field"><label for="board-duration">Duration · sec</label><input id="board-duration" type="number" min="0.1" step="0.01" value="${b.duration}" ${disabled}></div>${b.cue?`<span class="small muted">${esc(b.cue)}</span>`:''}</div></div>
-    <details class="composer" id="photo-composer" ${state.photoOpen?'open':''}><summary>Edit reference photo</summary><div class="stack"><span class="field-label">Library inputs</span><div class="chips">${b.assets.map(id=>`<button class="chip" id="photo-asset-${id}" data-action="remove-asset" data-id="${id}" ${disabled||b.photoBusy?'disabled':''} aria-label="Remove ${esc(assetById(id)?.name||id)} from photo"><span>${esc(assetById(id)?.name||id)}</span><b aria-hidden="true">×</b></button>`).join('')}</div>${link('+ Add assets','editor-assets')}<div class="field"><label for="photo-prompt">Shot prompt</label><textarea id="photo-prompt" rows="4" maxlength="1800" ${disabled||b.photoBusy?'disabled':''}>${esc(b.prompt)}</textarea></div><details><summary class="small muted">Combined prompt</summary><p class="prompt-result" id="combined-prompt">${esc(composePrompt(b))}</p></details><div class="row">${button(b.photoBusy?'Generating…':b.photo?'Regenerate photo':'Generate photo','photo-generate','',`id="generate-photo" ${locked||b.photoBusy?'disabled':''}`)}<span class="small muted">~1.5 min / photo</span></div><span class="small muted" id="photo-note">${b.photoBusy?'Simulating photo generation…':b.photoDirty?'Inputs changed · regenerate photo':b.photo?'Reference v'+b.photo:'No reference yet'}</span></div></details></div>
-    <div class="stack"><div class="field"><label for="board-name">Board name</label><input id="board-name" maxlength="100" value="${esc(b.title)}" ${disabled}></div><div class="row between"><h2>Script</h2>${button('+ Line','add-line','quiet',disabled)}</div><div class="script-fields">${b.lines.length?b.lines.map((l,i)=>`<div class="line-fields"><div class="field"><label for="speaker-${l.id}">Speaker</label><select id="speaker-${l.id}" data-line="${l.id}" ${disabled}>${['a','b','c','d'].map(d=>`<option value="${d}" ${d===l.speaker?'selected':''}>${d.toUpperCase()}</option>`).join('')}</select></div><div class="field"><label for="text-${l.id}">Line ${i+1}</label><textarea id="text-${l.id}" data-line="${l.id}" rows="${l.text.length>75?4:2}" maxlength="1200" ${disabled}>${esc(l.text)}</textarea></div>${button('Remove line','remove-line','quiet line-action',`data-id="${l.id}" ${disabled}`)}</div>`).join(''):'<p class="small muted">No dialogue</p>'}</div>
-    ${!b.lines.length&&!locked?button('Agent fill-in','agent-fill','quiet',b.photoBusy?'disabled':''):''}
-    <div class="approval-bar"><p class="validation" id="board-validation">${esc(reason||(!b.approved?'Photo and script ready for review.':'Board approved.'))}</p>${button(b.approved?'Approved':'Approve board','approve','primary',`id="approve-bottom" ${b.approved||reason||locked?'disabled':''} aria-describedby="board-validation"`)}</div></div></div>`;
+    head(b.title||'Untitled board',`<span id="board-status">${boardStatus(b)}</span><span id="story-duration">Story · ${seconds(total())}</span>`,button(isRunning()?'Queue run':'Build','build-start','primary','id="build-button"'))+
+    `<div class="edit-layout"><div><div class="reference"><figure>${photo(b,'',true)}<figcaption>Reference photo · illustration</figcaption></figure><div class="stack"><div class="field"><label for="board-method">Method</label><select id="board-method">${Object.entries(methods).map(([v,t])=>`<option value="${v}" ${v===b.method?'selected':''}>${t}</option>`).join('')}</select></div><div class="field"><label for="board-duration">Duration · sec</label><input id="board-duration" type="number" min="0.1" step="0.01" value="${b.duration}"></div>${b.cue?`<span class="small muted">${esc(b.cue)}</span>`:''}</div></div>
+    <details class="composer" id="photo-composer" data-panel ${panelOpen('photo-composer')?'open':''}><summary>Edit reference photo</summary><div class="stack"><span class="field-label">Library inputs</span><div class="chips">${b.assets.map(id=>`<button class="chip" id="photo-asset-${id}" data-action="remove-asset" data-id="${id}" ${b.photoBusy?'disabled':''} aria-label="Remove ${esc(assetById(id)?.name||id)} from photo"><span>${esc(assetById(id)?.name||id)}</span><b aria-hidden="true">×</b></button>`).join('')}</div>${link('+ Add assets','editor-assets')}<div class="field"><label for="photo-prompt">Shot prompt</label><textarea id="photo-prompt" rows="4" maxlength="1800" ${b.photoBusy?'disabled':''}>${esc(b.prompt)}</textarea></div><details id="combined-panel" data-panel ${panelOpen('combined-panel')?'open':''}><summary class="small muted">Combined prompt</summary><p class="prompt-result" id="combined-prompt">${esc(composePrompt(b))}</p></details><div class="row">${button(b.photoBusy?'Generating…':b.photo?'Regenerate photo':'Generate photo','photo-generate','',`id="generate-photo" ${b.photoBusy?'disabled':''}`)}<span class="small muted">~1.5 min / photo</span></div><span class="small muted" id="photo-note">${photoNote(b)}</span></div></details></div>
+    <div class="stack"><div class="field"><label for="board-name">Board name</label><input id="board-name" maxlength="100" value="${esc(b.title)}"></div><div class="row between"><h2>Script</h2>${button('+ Line','add-line','quiet')}</div><div class="script-fields">${b.lines.length?b.lines.map((l,i)=>`<div class="line-fields"><div class="field"><label for="speaker-${l.id}">Speaker</label><select id="speaker-${l.id}" data-line="${l.id}">${['a','b','c','d'].map(d=>`<option value="${d}" ${d===l.speaker?'selected':''}>${d.toUpperCase()}</option>`).join('')}</select></div><div class="field"><label for="text-${l.id}">Line ${i+1}</label><textarea id="text-${l.id}" data-line="${l.id}" rows="${l.text.length>75?4:2}" maxlength="1200">${esc(l.text)}</textarea></div>${button('Remove line','remove-line','quiet line-action',`data-id="${l.id}"`)}</div>`).join(''):'<p class="small muted">No dialogue</p>'}</div>
+    ${!b.lines.length?button('Agent fill-in','agent-fill','quiet',b.photoBusy?'disabled':''):''}</div></div>`;
 }
 function libraryView() {
   const b=selected();
   const found=assets.filter(a=>(state.assetKind==='all'||a.kind===state.assetKind)&&(state.assetScope==='all'||a.labels.includes(state.assetScope))&&(`${a.name} ${a.labels.join(' ')}`).toLowerCase().includes(state.search.toLowerCase()));
-  return head('Asset library',`<span>${assets.length} assets</span>`,link('+ Generate asset','asset-generate','primary'))+
-    (b?`<div class="target-board"><label class="field-label" for="asset-target">Add to board</label><select id="asset-target" ${isRunning()?'disabled':''}>${boards.map((x,i)=>`<option value="${x.id}" ${x.id===b.id?'selected':''}>${pad(i+1)} · ${esc(x.title)}</option>`).join('')}</select><a class="small" href="#board-${b.id}">Return to board →</a></div>`:'<p class="small muted">Add a story board to use assets.</p>')+
-    `<div class="asset-controls"><div class="field search"><label for="asset-search">Search</label><input id="asset-search" type="search" value="${esc(state.search)}" placeholder="Name or label"></div><div class="field"><label for="asset-kind">Type</label><select id="asset-kind"><option value="all">All types</option>${Object.entries(kinds).map(([k,v])=>`<option value="${k}" ${state.assetKind===k?'selected':''}>${v}</option>`).join('')}</select></div><div class="field"><label for="asset-scope">Production</label><select id="asset-scope"><option value="Yellowbirds" ${state.assetScope==='Yellowbirds'?'selected':''}>Yellowbirds</option><option value="all" ${state.assetScope==='all'?'selected':''}>All productions</option></select></div></div>
-    <div class="asset-grid" id="asset-results">${found.length?found.map(a=>`<article class="asset-card">${assetArt(a)}<span class="eyebrow">${kinds[a.kind]} · v1</span><h3>${esc(a.name)}</h3><span class="small muted">${esc(a.labels.join(' · '))}</span>${button(b?.assets.includes(a.id)?'Added':'Add to board','add-asset','',`data-id="${a.id}" ${!b||b.photoBusy||b.assets.includes(a.id)||isRunning()?'disabled':''}`)}</article>`).join(''):'<p class="small muted">No matching assets.</p>'}</div>`;
+  return head('Asset library',`<span id="asset-count">${found.length} assets</span>`,link('+ Generate asset','asset-generate','primary'))+
+    (b?`<div class="target-board"><label class="field-label" for="asset-target">Add to board</label><select id="asset-target">${boards.map((x,i)=>`<option value="${x.id}" ${x.id===b.id?'selected':''}>${pad(i+1)} · ${esc(x.title)}</option>`).join('')}</select><a class="small" href="#board-${b.id}">Return to board →</a></div>`:'<p class="small muted">Add a story board to use assets.</p>')+
+    `<div class="filters" role="group" aria-label="Asset production">${[[state.production,state.production],['all','All productions']].map(([value,label])=>`<button class="filter" id="scope-${value}" data-action="asset-scope" data-value="${value}" aria-pressed="${state.assetScope===value}">${esc(label)}</button>`).join('')}</div>
+    <div class="asset-controls"><div class="field search"><label for="asset-search">Search</label><input id="asset-search" type="search" maxlength="200" value="${esc(state.search)}" placeholder="Name or label"></div><div class="field"><label for="asset-kind">Type</label><select id="asset-kind"><option value="all">All types</option>${Object.entries(kinds).map(([k,v])=>`<option value="${k}" ${state.assetKind===k?'selected':''}>${v}</option>`).join('')}</select></div></div>
+    <div class="asset-grid" id="asset-results">${found.length?found.map(a=>`<article class="asset-card">${assetArt(a)}<span class="eyebrow">${kinds[a.kind]} · v1</span><h3>${esc(a.name)}</h3><span class="small muted">${esc(a.labels.join(' · '))}</span>${button(b?.assets.includes(a.id)?'Added':'Add to board','add-asset','',`data-id="${a.id}" ${!b||b.photoBusy||b.assets.includes(a.id)?'disabled':''}`)}</article>`).join(''):'<p class="small muted">No matching assets.</p>'}</div>`;
 }
 function generateView() {
   const g=state.gen,r=g.result;
@@ -526,6 +553,43 @@ document.addEventListener('keydown',event=>{
   }
 });
 const knownRoutes=new Set(['productions','prod-yellowbirds','shorts-yellowbirds','videos-yellowbirds','media-winter-menu','editor-board','editor-assets','asset-generate','account','admin']);
+const preferencesKey='haynes-studio-v3-selections';
+function validRoute(name) {
+  return typeof name==='string'&&(knownRoutes.has(name)||(name.startsWith('board-')&&boards.some(b=>b.id===name.slice(6))));
+}
+function saveSelections() {
+  // Only inexpensive view preferences survive reload; edits, assets and runs stay in memory.
+  try {
+    localStorage.setItem(preferencesKey,JSON.stringify({route:state.route,last:state.last,lastBoard:state.lastBoard,
+      selected:state.selected,panels:state.panels,mediaFilters:state.mediaFilters,
+      assetKind:state.assetKind,assetScope:state.assetScope,search:state.search}));
+  } catch (_) { /* Navigation still works when storage is unavailable or full. */ }
+}
+function restoreSelections() {
+  try {
+    const saved=JSON.parse(localStorage.getItem(preferencesKey)||'null');
+    if(!saved||typeof saved!=='object') return;
+    if(validRoute(saved.route)) state.route=saved.route;
+    if(validRoute(saved.last?.productions)&&!editorRoute(saved.last.productions)&&!['account','admin'].includes(saved.last.productions)) state.last.productions=saved.last.productions;
+    if(validRoute(saved.last?.editor)&&editorRoute(saved.last.editor)) state.last.editor=saved.last.editor;
+    if(validRoute(saved.lastBoard)&&(saved.lastBoard==='editor-board'||saved.lastBoard.startsWith('board-'))) state.lastBoard=saved.lastBoard;
+    if(boards.some(b=>b.id===saved.selected)) state.selected=saved.selected;
+    for(const key of Object.keys(state.mediaFilters)) {
+      const filter=saved.mediaFilters?.[key];
+      if(filter&&['','published','unpublished'].includes(filter.publication)&&typeof filter.approved==='boolean') state.mediaFilters[key]={publication:filter.publication,approved:filter.approved};
+    }
+    if(saved.panels&&typeof saved.panels==='object') {
+      for(const [key,value] of Object.entries(saved.panels)) {
+        const [page,panel]=key.split(':');
+        if(validRoute(page)&&['photo-composer','combined-panel'].includes(panel)&&typeof value==='boolean') state.panels[key]=value;
+      }
+    }
+    if(['all',...Object.keys(kinds)].includes(saved.assetKind)) state.assetKind=saved.assetKind;
+    if(['all',state.production].includes(saved.assetScope)) state.assetScope=saved.assetScope;
+    if(typeof saved.search==='string') state.search=saved.search.slice(0,200);
+  } catch (_) { /* Invalid or unavailable storage starts with the example defaults. */ }
+}
+restoreSelections();
 function crumbs() {
   const prod=['Productions','productions'],team=['Yellowbirds','prod-yellowbirds'],shorts=['Shorts','shorts-yellowbirds'],story=['The Winter Menu','media-winter-menu'];
   const r=state.route;
@@ -536,8 +600,8 @@ function crumbs() {
   else if(r==='media-winter-menu') path=[prod,team,shorts,story];
   else if(r==='editor-board') path=[prod,team,shorts,story,['Boards',r]];
   else if(r.startsWith('board-')) path=[prod,team,shorts,story,['Boards','editor-board'],['Board '+pad(boards.indexOf(selected())+1),r]];
-  else if(r==='editor-assets') path=[['Editor','editor-board'],['Assets',r]];
-  else if(r==='asset-generate') path=[['Editor','editor-board'],['Assets','editor-assets'],['Generate',r]];
+  else if(r==='editor-assets') path=[prod,team,['Editor',state.lastBoard],['Assets',r]];
+  else if(r==='asset-generate') path=[prod,team,['Editor',state.lastBoard],['Assets','editor-assets'],['Generate',r]];
   else if(r==='account'||r==='admin') path=[[r==='account'?'User settings':'Admin settings',r]];
   const parents=path.slice(0,-1),last=path.at(-1);
   const ancestor=parents.length>1?`<details class="ancestor"><summary aria-label="Show parent pages">…</summary><div class="ancestor-list">${parents.map(([name,href])=>`<a href="#${href}">${name}</a>`).join('')}</div></details>`:'';
@@ -546,8 +610,13 @@ function crumbs() {
 function render(focusId) {
   const previousFocus=document.activeElement;
   const restoreFocus=focusId||($('#main').contains(previousFocus)?previousFocus.id:null);
-  const editor=state.route.startsWith('editor-')||state.route.startsWith('board-')||state.route==='asset-generate';
+  const editor=editorRoute(state.route);
   const library=state.route==='editor-assets'||state.route==='asset-generate';
+  if(!validRoute(state.lastBoard)) state.lastBoard=selected()?'board-'+selected().id:'editor-board';
+  if(!validRoute(state.last.editor)) state.last.editor=state.lastBoard;
+  $('#nav-productions').href='#'+state.last.productions;
+  $('#nav-editor').href='#'+state.last.editor;
+  $('#tab-board').href='#'+state.lastBoard;
   for(const [id,active] of [['nav-productions',!editor&&!['account','admin'].includes(state.route)],['nav-editor',editor],['tab-board',editor&&!library],['tab-assets',library]]) {
     const el=$('#'+id); if(active) el.setAttribute('aria-current','page'); else el.removeAttribute('aria-current');
   }
@@ -564,17 +633,23 @@ function render(focusId) {
   if(focus?.disabled) focus=focus.closest('.board-item')?.querySelector('a')||$('#page-title');
   if(!focus&&restoreFocus) focus=$('#page-title');
   if(focus) focus.focus({preventScroll:true});
+  saveSelections();
 }
 let firstRoute=true;
 function route() {
-  let name=location.hash.slice(1)||'media-winter-menu';
+  if(!firstRoute) state.scroll[state.route]=window.scrollY;
+  let name=location.hash.slice(1)||state.route;
   if(name.startsWith('board-')) {
     const id=name.slice(6);
     if(boards.some(b=>b.id===id)) state.selected=id; else name='editor-board';
   } else if(!knownRoutes.has(name)) name='productions';
   if(location.hash!=='#'+name) history.replaceState(null,'','#'+name);
-  state.route=name;state.remove=null;state.buildAsk=false;state.photoOpen=false;state.reviewForm=false;
-  closeUser();render();window.scrollTo(0,0);
+  state.route=name;state.remove=null;
+  if(editorRoute(name)) {
+    state.last.editor=name;
+    if(name==='editor-board'||name.startsWith('board-')) state.lastBoard=name;
+  } else if(!['account','admin'].includes(name)) state.last.productions=name;
+  closeUser();render();window.scrollTo(0,state.scroll[name]||0);
   if(!firstRoute) $('#page-title')?.focus({preventScroll:true});
   firstRoute=false;
 }
@@ -585,125 +660,137 @@ function notify(message) {
   const el=$('#notice');el.textContent=message;el.hidden=false;
   clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>{el.hidden=true;},4500);
 }
-function refreshApproval() {
+function photoNote(b) {
+  return b.photoBusy?'Simulating photo generation…':b.photoDirty?'Inputs changed · regenerate photo':b.photo?'Reference v'+b.photo:'No reference yet';
+}
+function refreshBoard() {
   const b=selected(); if(!b||!state.route.startsWith('board-')) return;
-  const why=blockers(b);
   $('#board-status').innerHTML=boardStatus(b);
-  for(const id of ['approve-top','approve-bottom']) {
-    const el=$('#'+id);el.textContent=b.approved?'Approved':'Approve board';el.disabled=b.approved||!!why||isRunning();
-  }
-  $('#board-validation').textContent=why||(!b.approved?'Photo and script ready for review.':'Board approved.');
-  $('#photo-note').textContent=b.photoBusy?'Simulating photo generation…':b.photoDirty?'Inputs changed · regenerate photo':b.photo?'Reference v'+b.photo:'No reference yet';
+  $('#story-duration').textContent='Story · '+seconds(total());
+  $('#photo-note').textContent=photoNote(b);
   $('#combined-prompt').textContent=composePrompt(b);
 }
 let buildTimer;
-function startBuild() {
-  if(!canBuild()) return;
-  const previous=state.build;
-  if(previous) state.buildHistory.push(previous);
-  // Each build keeps its own board snapshot; later edits cannot approve this cut.
-  state.build={number:(previous?.number||0)+1,status:'running',revision:state.revision,boards:clone(boards),
-    duration:total(),estimate:estimate(),progress:0,stage:'Preparing voices',approved:false,note:''};
-  state.buildAsk=false;state.preview=0;
-  if(state.route!=='media-winter-menu') go('media-winter-menu');else render();
+function refreshRuns() {
+  if(['media-winter-menu','editor-board'].includes(state.route)) render();
+  else if($('#build-button')) $('#build-button').textContent=isRunning()?'Queue run':'Build';
+}
+function runNext() {
+  if(isRunning()) return;
+  const run=state.runs.find(item=>item.status==='queued');
+  if(!run) return;
+  run.status='running';
   buildTimer=setInterval(()=>{
-    const build=state.build;
-    build.progress=Math.min(100,build.progress+8);
-    build.stage=build.progress<24?'Preparing voices':build.progress<80?'Building board clips':build.progress<100?'Assembling video':'Ready for review';
-    if(build.progress===100) {
-      clearInterval(buildTimer);build.status='done';state.filter='pending';
-      if(['media-winter-menu','editor-board','shorts-yellowbirds','prod-yellowbirds'].includes(state.route)) render();
-      else if(state.route.startsWith('board-')) render(document.activeElement?.id);
-      else if(state.route==='editor-assets') render(document.activeElement?.id);
-      notify('Simulated build complete. The Winter Menu is pending approval.');
+    run.progress=Math.min(100,run.progress+8);
+    if(run.progress===100) {
+      clearInterval(buildTimer);run.status='done';
+      if(state.activeRun===null) state.activeRun=run.number;
+      runNext();refreshRuns();
+      notify(`Run ${pad(run.number)} done · simulated.`);
     } else {
-      if($('#build-progress')) $('#build-progress').value=build.progress;
-      if($('#build-percent')) $('#build-percent').textContent=build.progress+'%';
-      if($('#build-stage')) $('#build-stage').textContent=build.stage;
+      const progress=$('#run-progress-'+run.number),detail=$('#run-detail-'+run.number);
+      if(progress) progress.value=run.progress;
+      if(detail) detail.textContent=run.progress+'% · '+run.estimate;
     }
   },900);
 }
-const storyMutations=new Set(['add-board','move','remove-ask','remove-confirm','add-line','remove-line','approve','remove-asset','add-asset','photo-generate','agent-fill']);
+function startBuild() {
+  if(!canBuild()) return;
+  // Capture at queue time, not start time. Edits never change a saved run or its approval.
+  const run={number:state.runs.length+1,status:'queued',boards:clone(boards),duration:total(),
+    estimate:estimate(),progress:0,created:new Date().toISOString(),approved:false};
+  state.runs.push(run);runNext();render();
+  notify(`Run ${pad(run.number)} ${run.status==='running'?'started':'queued'} · simulated.`);
+}
+function viewRun(number) {
+  if(!finishedRuns().some(run=>run.number===number)) return;
+  if(state.activeRun!==number) state.preview=0;
+  state.activeRun=number;state.compare=null;render();
+  $('#cut-review')?.scrollIntoView({block:'start'});
+}
 document.addEventListener('click',event=>{
   const el=event.target.closest('[data-action]');if(!el||el.disabled) return;
   const action=el.dataset.action,b=selected();
-  if(isRunning()&&storyMutations.has(action)) {notify('Editing is paused until the build finishes.');return;}
   if(action==='theme') {setTheme(el.dataset.value);return;}
-  if(action==='media-filter') {state.filter=el.dataset.value;render();return;}
+  if(action==='media-filter') {
+    const filter=state.mediaFilters[el.dataset.list],value=el.dataset.value;
+    if(value==='approved') filter.approved=!filter.approved;
+    else filter.publication=filter.publication===value?'':value;
+    render();return;
+  }
+  if(action==='asset-scope') {state.assetScope=el.dataset.value;render();return;}
   if(action==='add-board') {
     const id='b'+(++sequence);
-    boards.push(board(id,'New board',3,[],[],'',{approved:false,photo:0,method:'ambient',assets:['campsite']}));
-    state.revision++;state.selected=id;go('board-'+id);return;
+    boards.push(board(id,'New board',3,[],[],'',{photo:0,method:'ambient',assets:['campsite']}));
+    state.selected=id;go('board-'+id);return;
   }
   if(action==='move') {
     const index=boards.findIndex(x=>x.id===el.dataset.id),next=index+Number(el.dataset.direction);
     if(index<0||next<0||next>=boards.length) return;
-    const [moved]=boards.splice(index,1);boards.splice(next,0,moved);state.revision++;state.buildAsk=false;
+    const [moved]=boards.splice(index,1);boards.splice(next,0,moved);
     render(el.id);notify(`“${moved.title}” moved to board ${next+1}.`);return;
   }
   if(action==='remove-ask') {state.remove=el.dataset.id;render();document.querySelector('[data-action="remove-cancel"]')?.focus({preventScroll:true});return;}
-  if(action==='remove-cancel') {state.remove=null;render();return;}
+  if(action==='remove-cancel') {const id=state.remove;state.remove=null;render('action-remove-ask-'+id);return;}
   if(action==='remove-confirm') {
     const index=boards.findIndex(x=>x.id===el.dataset.id);if(index<0) return;
-    const [removed]=boards.splice(index,1);state.remove=null;state.revision++;state.buildAsk=false;
+    const [removed]=boards.splice(index,1);state.remove=null;
     if(state.selected===removed.id) state.selected=(boards[Math.min(index,boards.length-1)]||{}).id;
     render();notify('Board removed.');return;
   }
-  if(action==='approve') {
-    if(!b||blockers(b)) return;
-    b.approved=true;b.agent=false;render();notify(`Board ${boards.indexOf(b)+1} approved.`);return;
-  }
   if(action==='add-line') {
     if(!b)return;
-    b.lines.push(line('a',''));b.method='talking';changed(b);render('text-'+b.lines.at(-1).id);return;
+    b.lines.push(line('a',''));b.method='talking';render('text-'+b.lines.at(-1).id);return;
   }
   if(action==='remove-line') {
     if(!b)return;
-    b.lines=b.lines.filter(l=>l.id!==el.dataset.id);if(!b.lines.length)b.method='reaction';changed(b);render();return;
+    b.lines=b.lines.filter(l=>l.id!==el.dataset.id);if(!b.lines.length)b.method='reaction';render();return;
   }
   if(action==='agent-fill') {
-    if(!b||b.photoBusy)return;
-    // A deterministic sample draft, never a model call or automatic approval.
+    if(!b||b.photoBusy||b.lines.length)return;
+    // A deterministic sample draft, never a model call.
     b.title='Reaction close-up';b.method='reaction';b.duration=1.9;b.assets=['cast-d','jacket','campsite','squishy'];
     b.prompt='Close-up of D, shocked. Face fills the upper frame. No foreground log.';b.cue='Sting · slow push-in';
-    b.agent=true;changed(b,true);state.photoOpen=true;render();notify('Agent draft filled in. Generate its reference photo, then review.');return;
+    b.agent=true;b.photoDirty=true;openPanel('photo-composer');render();notify('Agent draft filled in.');return;
   }
   if(action==='remove-asset') {
     if(!b||b.photoBusy)return;
-    b.assets=b.assets.filter(id=>id!==el.dataset.id);changed(b,true);state.photoOpen=true;render();return;
+    b.assets=b.assets.filter(id=>id!==el.dataset.id);b.photoDirty=true;openPanel('photo-composer');render();return;
   }
   if(action==='add-asset') {
     if(!b||b.photoBusy||b.assets.includes(el.dataset.id))return;
-    b.assets.push(el.dataset.id);changed(b,true);render('asset-target');notify('Asset added. Regenerate the board’s reference photo.');return;
+    b.assets.push(el.dataset.id);b.photoDirty=true;state.panels['board-'+b.id+':photo-composer']=true;
+    render('asset-target');notify('Asset added. Regenerate the board’s reference photo.');return;
   }
   if(action==='photo-generate') {
     if(!b||b.photoBusy)return;
     if(!b.prompt.trim()) {notify('Write a shot prompt first.');$('#photo-prompt')?.focus();return;}
-    b.photoBusy=true;changed(b,true);state.photoOpen=true;
+    b.photoBusy=true;b.photoDirty=true;openPanel('photo-composer');
     const input={assets:[...b.assets],prompt:b.prompt};render();
     setTimeout(()=>{
       b.photoBusy=false;b.photo++;b.photoInput=input;
       b.photoDirty=JSON.stringify(input)!==JSON.stringify({assets:b.assets,prompt:b.prompt});
-      if(state.route==='board-'+b.id) {state.photoOpen=true;render('generate-photo');}
+      if(state.route==='board-'+b.id) render();
       else if((state.route==='editor-assets'&&selected()?.id===b.id)||['editor-board','media-winter-menu'].includes(state.route)) render();
-      notify('Reference photo updated · simulated. Review before approving.');
+      notify('Reference photo updated · simulated.');
     },1500);return;
   }
-  if(action==='build-ask') {if(canBuild()) {state.buildAsk=true;render();$('#build-confirm')?.scrollIntoView({block:'nearest'});}return;}
-  if(action==='build-cancel') {state.buildAsk=false;render('build-button');return;}
   if(action==='build-start') {startBuild();return;}
-  if(action==='preview-board') {state.preview=Number(el.dataset.index);render();return;}
-  if(action==='cut-approve') {
-    if(!hasFreshCut())return;
-    state.build.approved=true;state.filter='development';render();notify('Cut approved in the mockup. It remains private.');return;
+  if(action==='run-view') {viewRun(Number(el.dataset.number));return;}
+  if(action==='preview-board') {
+    if(state.compare) state.compare.preview=Number(el.dataset.index);
+    else state.preview=Number(el.dataset.index);
+    render();return;
   }
-  if(action==='review-open') {state.reviewForm=true;render('cut-note');return;}
-  if(action==='review-cancel') {state.reviewForm=false;render();return;}
-  if(action==='cut-changes') {
-    if(!hasFreshCut())return;
-    if(!state.reviewNote.trim()) {notify('Add a note about the changes.');$('#cut-note')?.focus();return;}
-    state.build.note=state.reviewNote.trim();state.reviewNote='';state.reviewForm=false;state.revision++;state.filter='development';
-    go('editor-board');notify('Changes requested. The earlier cut is kept on the media page.');return;
+  if(action==='compare-start') {
+    const done=finishedRuns();if(done.length<2)return;
+    state.compare={left:done.at(-2).number,right:done.at(-1).number,preview:0};render();
+    $('#cut-review')?.scrollIntoView({block:'start'});return;
+  }
+  if(action==='compare-close') {state.compare=null;render('action-compare-start');return;}
+  if(action==='cut-approve') {
+    const run=currentRun();if(!run||run.approved)return;
+    run.approved=true;render();notify(`Run ${pad(run.number)} approved for go-live · example only.`);return;
   }
   if(action==='asset-generate') {
     const g=state.gen;if(g.busy||!g.name.trim()||!g.prompt.trim())return;
@@ -712,8 +799,8 @@ document.addEventListener('click',event=>{
   }
   if(action==='asset-promote') {
     const g=state.gen,r=g.result;if(!r||r.promoted||g.busy)return;
-    assets.push({id:'asset-'+(++sequence),name:r.name,kind:r.kind,prompt:r.prompt,variant:r.variant,labels:['Yellowbirds'],doll:r.kind==='cast'?'a':undefined});
-    r.promoted=true;state.assetKind='all';state.search='';render();notify('Promoted to the Yellowbirds library.');
+    assets.push({id:'asset-'+(++sequence),name:r.name,kind:r.kind,prompt:r.prompt,variant:r.variant,labels:[state.production],doll:r.kind==='cast'?'a':undefined});
+    r.promoted=true;render();notify('Promoted to the Yellowbirds library.');
   }
 });
 document.addEventListener('input',event=>{
@@ -721,9 +808,10 @@ document.addEventListener('input',event=>{
   if(id==='asset-search') {
     state.search=el.value;
     const template=document.createElement('template');template.innerHTML=libraryView();
-    $('#asset-results').innerHTML=template.content.querySelector('#asset-results').innerHTML;return;
+    $('#asset-results').innerHTML=template.content.querySelector('#asset-results').innerHTML;
+    $('#asset-count').textContent=template.content.querySelector('#asset-count').textContent;
+    saveSelections();return;
   }
-  if(id==='cut-note') {state.reviewNote=el.value;return;}
   if(['asset-name','asset-prompt'].includes(id)) {
     const g=state.gen;if(g.busy)return;
     g[id==='asset-name'?'name':'prompt']=el.value;
@@ -731,26 +819,34 @@ document.addEventListener('input',event=>{
     $('#asset-generate-button').textContent='Generate asset';$('#asset-generate-button').disabled=!g.name.trim()||!g.prompt.trim();
     $('#asset-gen-status').textContent='Yellowbirds';return;
   }
-  if(!b||isRunning())return;
-  if(id==='board-name') {b.title=el.value;changed(b);$('#page-title').textContent=b.title||'New board';}
-  else if(id==='board-duration') {b.duration=Number(el.value);changed(b);}
-  else if(id==='photo-prompt'&&!b.photoBusy) {b.prompt=el.value;changed(b,true);}
-  else if(id.startsWith('text-line-')) {const l=b.lines.find(x=>x.id===el.dataset.line);if(l){l.text=el.value;changed(b);}}
+  if(!b)return;
+  if(id==='board-name') {b.title=el.value;$('#page-title').textContent=b.title||'Untitled board';}
+  else if(id==='board-duration') {b.duration=Number.isFinite(Number(el.value))?Math.max(0,Number(el.value)):0;}
+  else if(id==='photo-prompt'&&!b.photoBusy) {b.prompt=el.value;b.photoDirty=true;}
+  else if(id.startsWith('text-line-')) {const l=b.lines.find(x=>x.id===el.dataset.line);if(l)l.text=el.value;}
   else return;
-  refreshApproval();
+  refreshBoard();
 });
 document.addEventListener('change',event=>{
   const el=event.target,b=selected();
   if(el.id==='asset-kind') {state.assetKind=el.value;render(el.id);}
-  else if(el.id==='asset-scope') {state.assetScope=el.value;render(el.id);}
-  else if(el.id==='asset-target') {state.selected=el.value;render(el.id);}
+  else if(el.id==='asset-target') {state.selected=el.value;state.lastBoard='board-'+el.value;render(el.id);}
   else if(el.id==='new-asset-kind'&&!state.gen.busy) {state.gen.kind=el.value;state.gen.result=null;render(el.id);}
-  else if(b&&!isRunning()) {
-    if(el.id==='board-method') {b.method=el.value;changed(b);refreshApproval();}
-    else if(el.id.startsWith('speaker-line-')) {const l=b.lines.find(x=>x.id===el.dataset.line);if(l){l.speaker=el.value;changed(b);refreshApproval();}}
+  else if(state.compare&&['compare-left','compare-right'].includes(el.id)) {
+    const side=el.id.slice(8),number=Number(el.value),other=side==='left'?'right':'left';
+    if(finishedRuns().some(run=>run.number===number)&&number!==state.compare[other]) {state.compare[side]=number;state.compare.preview=0;render(el.id);}
+  }
+  else if(b) {
+    if(el.id==='board-method') {b.method=el.value;refreshBoard();}
+    else if(el.id.startsWith('speaker-line-')) {const l=b.lines.find(x=>x.id===el.dataset.line);if(l){l.speaker=el.value;refreshBoard();}}
   }
 });
-document.addEventListener('toggle',event=>{if(event.target.id==='photo-composer')state.photoOpen=event.target.open;},true);
+document.addEventListener('toggle',event=>{
+  const el=event.target;
+  if(el.matches('details[data-panel]')&&el.isConnected) {
+    state.panels[state.route+':'+el.id]=el.open;saveSelections();
+  }
+},true);
 route();
 })();
 </script>

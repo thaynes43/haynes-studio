@@ -57,3 +57,29 @@ V2 browser check at 400 × 860: header 61 px; first board y=671; no horizontal p
 overflow. Checked the interaction flow, themes and desktop at 1280 px. One extracted
 script syntax check passed. Independent native review found a stale-photo race and
 keyboard-focus loss; both were fixed and checked. Not tested inside claude.ai.
+
+## v3 changes
+
+Applied Tom's 2026-11-04 answers (D29–D32). These replace the v2 approval and
+persistence defaults above and in the historical `questions.md` boundaries.
+
+- Build needs only a board. Script and photos stay editable during runs; Agent draft
+  is informational. A finished run has one **Approve for go-live** action, followed
+  by disabled **Publish / Not connected**. Length shows the running total only.
+- Runs snapshot boards when queued, execute serially, and show number, status,
+  estimate/progress and timestamp. Two finished runs compare by board ID, including
+  additions, removals and reordering. Older runs remain approvable after edits.
+- Production, Shorts and Videos use combinable status chips. Assets default to
+  Yellowbirds, with an All productions chip. Filters, selected board, photo panels
+  and each top-level tab's location persist; guarded localStorage saves those
+  preferences. Drafts, generated assets and runs remain in memory.
+
+Validation: one extracted-script `node --check`; serial Chromium checks at
+400 × 860 and 1280 × 900. Checked queue snapshots, comparisons, approval, filters,
+navigation/reload persistence, blocked/malformed storage and all three themes.
+No horizontal page overflow, script errors or external requests; mobile gutters
+remain 16 px. Independent native source review: no findings. Comparison image widths
+were equalized after visual inspection.
+
+Still a placeholder prototype, not deployed or creatively accepted. No new questions;
+not tested inside claude.ai. The coordinating session reviews and merges this PR.
