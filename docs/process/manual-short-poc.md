@@ -125,7 +125,7 @@ Rules of thumb from OP345:
 - Avoid words a recognizer will mishear. OP345 changed one line after the
   transcript heard "once" for "one".
 
-**Gate 1:** Tom approves the script and every detail the images depend on (cast
+**Gate 1 (Changed 2026-11-04, D29: no longer a stop; script and images iterate together with Tom's feedback):** Tom approves the script and every detail the images depend on (cast
 looks, costume text such as a team name, the set) before any assets are generated.
 Record his reply in the run log. Line wording may still be tuned after hearing the
 voices (stage 3); note any change and let Tom see it at gate 3.
@@ -189,7 +189,7 @@ are in `titles/the-winter-menu/prompts.json`.
 7. **Copy outputs out at once.** ComfyUI deletes outputs after 30 days; `comfy.py`
    already writes every result into the job directory.
 
-**Gate 2:** Tom approves the cast and the set. Iterate here, not in the edit.
+**Gate 2 (Changed 2026-11-04, D29: no longer a stop):** Tom approves the cast and the set. Iterate here, not in the edit.
 
 **Fallback:** if Qwen cannot keep a doll consistent across expressions or the cutouts
 are unusable, write down the specific failure with examples and ask Tom whether to
@@ -335,7 +335,7 @@ network. A session pod cannot open it: verify from inside the API container
 
 ## Stage 8: review and record
 
-1. **Gate 3:** send Tom the link. Record his verdict in the run log, word for word,
+1. **Gate 3:** send Tom the link. (D29: his only formal approval is go-live, before anything is published; a cut verdict is feedback.) Record his verdict in the run log, word for word,
    separate from the technical checks.
 2. Commit to `titles/<slug>/`: `brief.md`, `manifest.json`, `prompts.json`,
    `run-log.md`, and `evidence/` (`speech.json`, `timeline.json`, `shots.json`,

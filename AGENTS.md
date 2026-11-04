@@ -76,11 +76,10 @@ These block a merge if broken.
 
 ## Human review gates
 
-Tom is the creative approver. Stop and get his verdict at:
-
-1. the script, before generating any assets;
-2. the cast and set images, before editing;
-3. the finished cut.
+Tom is the creative approver. The only formal approval is **go-live**: nothing is
+published to a live social platform without his explicit sign-off (D29 in
+`docs/proposals/0003-studio-plan.md`). Script and images iterate together with his
+feedback; do not hold generation waiting for a script sign-off.
 
 Record his verdict separately from technical checks. A transcript match, a loudness
 reading or "it decodes" is not approval, and a casual "nice" is not a formal sign-off

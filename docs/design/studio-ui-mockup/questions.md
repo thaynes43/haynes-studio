@@ -1,5 +1,15 @@
 # Questions for Tom
 
+**Answered 2026-11-04** (Tom). Rulings are D29 to D32 in `docs/proposals/0003-studio-plan.md`:
+
+1. No script gate. The only approval is go-live; script and images iterate together (D29).
+2. Open. Tom asked how fixed board lengths are; length is governed by platform caps (for example a Shorts maximum), not a format range. Follow-up asked in chat.
+3. Media lists use filters: unpublished, approved, or both (D31).
+4. Yes. Tweak and queue a new run while one runs, then compare (D30).
+5. Persist selections: the Editor's asset library opens scoped to the current production, with filters to widen (D32).
+
+The original questions follow.
+
 Story: https://work.haynesnetwork.com/projects/haynes-studio/work_packages/401
 
 These are design choices for the coordinator's review, not blockers for this mockup.
