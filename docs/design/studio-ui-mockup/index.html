@@ -724,9 +724,16 @@ function crumbs() {
   $('#breadcrumbs').innerHTML=path.map(([label,to],i)=>`${i?'<span aria-hidden="true">/</span>':''}<button data-action="crumb" data-route="${esc(to)}" ${i===path.length-1?'aria-current="page"':''}>${esc(label)}</button>`).join('')+'<span class="example">Mockup · simulated</span>';
 }
 function routeHash(name) {
-  // Plain #name only: the Artifact host passes no query in the hash. Story and production
-  // context lives in state and saved selections (D32).
-  return '#'+name;
+  const params=new URLSearchParams();
+  if(name==='editor-board'||name.startsWith('board-')||name==='media-winter-menu')params.set('story',state.story);
+  if(['editor-media','editor-stories','prod-yellowbirds','shorts-yellowbirds','videos-yellowbirds'].includes(name)&&state.production)params.set('production',state.production);
+  if(name==='editor-stories'&&state.media)params.set('media',state.media);
+  if(name==='editor-assets'||name==='asset-generate'){
+    params.set('scope',state.assetScope||'');
+    if(state.assetStory)params.set('assetStory',state.assetStory);
+    if(state.assetBoard)params.set('board',state.assetBoard);
+  }
+  return '#'+name+(params.size?'?'+params.toString():'');
 }
 function render(focusId) {
   const old=document.activeElement,restore=focusId||($('#main').contains(old)?old.id:null);
