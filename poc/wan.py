@@ -44,7 +44,15 @@ h=json.load(urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=10))
 if h.get('accepting_jobs') is not True or 'active_job' not in h or h['active_job'] is not None:
  raise RuntimeError('Live API busy or hold; no submission')
 job['live_admission_readback']={'time':time.time(),'health':h}
-original_engine=api.engine
+raw_engine=api.engine
+def original_engine(path,body=None):
+ # A read poll can exceed the API's 20 s HTTP timeout while ComfyUI is busy (a 3-chunk S2V
+ # job lost its prompt that way): retry reads a few times, never writes, and record it.
+ for n in range(6):
+  try:return raw_engine(path,body)
+  except Exception as e:
+   if body is not None or 'timed out' not in str(e) or n==5:raise
+   job['engine_read_retries']=job.get('engine_read_retries',0)+1;time.sleep(5)
 def observed_engine(path,body=None):
  if path.startswith('/history/'):
   q=original_engine('/queue')
