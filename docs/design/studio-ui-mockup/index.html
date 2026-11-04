@@ -342,6 +342,8 @@ input[type="number"]{font-family:var(--mono)}
 .panel,.launch-card,.film-panel,.chip,.preview-strip button,input,select,textarea{border-radius:6px}
 .launch-card,.panel{border-radius:8px}
 .add-media{margin-top:16px}
+.method-group{display:flex;flex-wrap:wrap;gap:6px}.method-group+.method-group{margin-top:8px}
+.method-group .filter[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 </style>
 <div class="shell">
   <header class="top">
@@ -363,7 +365,9 @@ const $ = (selector) => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pad = number => String(number).padStart(2,'0');
 const clone = value => JSON.parse(JSON.stringify(value));
-const methods = {talking:'Talking',reaction:'Reaction',ambient:'Ambient'};
+const layers = {layered:'Layered',whole:'Whole-frame'};
+const motions = {s2v:'Speech-to-video',i2v:'Image-to-video'};
+const methodText = b => `${layers[b.layer]} · ${motions[b.motion]}`;
 const kinds = {cast:'Cast',costume:'Costumes',set:'Sets',prop:'Props'};
 const assetKinds={...kinds,photo:'Photos',voice:'Voices'};
 const assets = [
@@ -379,7 +383,7 @@ const assets = [
 let sequence = 100;
 const line = (speaker,text) => ({id:'line-'+(++sequence),speaker,text});
 function board(id,title,duration,cast,lines,prompt,extra={}) {
-  const b = {id,title,duration,lines,prompt,method:lines.length?'talking':'reaction',
+  const b = {id,title,duration,lines,prompt,layer:'layered',motion:lines.length?'s2v':'i2v',
     assets:[...cast.map(d=>'cast-'+d),'jacket','campsite'],agent:false,
     photo:1,photoDirty:false,photoBusy:false,cue:'',...extra};
   b.hold=lines.length?2:duration;
@@ -558,7 +562,7 @@ function compareReview() {
     <div class="compare-grid">${[['left',left,right],['right',right,left]].map(([side,run,other])=>{
       const b=run.boards.find(board=>board.id===id);
       return `<div class="compare-column"><div class="field"><label for="compare-${side}">${side==='left'?'Left':'Right'} run</label><select id="compare-${side}">${finishedRuns().map(r=>`<option value="${r.number}" ${r.number===run.number?'selected':''} ${r.number===other.number?'disabled':''}>Run ${pad(r.number)} · ${seconds(r.duration)}</option>`).join('')}</select></div>
-        ${b?`${photo(b)}<strong class="small">${pad(run.boards.indexOf(b)+1)} · ${esc(b.title)}</strong><span class="small muted">${methods[b.method]} · ${seconds(b.duration)}</span><span class="small muted">Photo v${b.photo} · ${b.lines.length?'Voice v'+b.voice.version:'Hold'}</span>${readLines(b)}${b.notes?.length?`<span class="small muted">${esc(b.notes.join(' · '))}</span>`:''}`:'<div class="empty small">Not in this run</div>'}
+        ${b?`${photo(b)}<strong class="small">${pad(run.boards.indexOf(b)+1)} · ${esc(b.title)}</strong><span class="small muted">${methodText(b)} · ${seconds(b.duration)}</span><span class="small muted">Photo v${b.photo} · ${b.lines.length?'Voice v'+b.voice.version:'Hold'}</span>${readLines(b)}${b.notes?.length?`<span class="small muted">${esc(b.notes.join(' · '))}</span>`:''}`:'<div class="empty small">Not in this run</div>'}
         ${button('View run '+pad(run.number),'run-view','quiet',`data-number="${run.number}" id="compare-view-${run.number}"`)}
       </div>`;
     }).join('')}</div>${previewPicker(items,state.compare.preview,true)}</section>`;
@@ -571,7 +575,7 @@ function cutReview() {
   const b=run.boards[state.preview];
   return `<section class="panel" id="cut-review"><div class="row between"><h2>Run ${pad(run.number)}</h2>${badge(run.approved?'Approved for go-live':'Done','good')}</div>
     <div class="meta"><span>${seconds(run.duration)}</span><span>Storyboard preview</span></div>
-    <div class="cut-layout">${photo(b)}<div class="stack-tight"><strong>${pad(state.preview+1)} · ${esc(b.title)}</strong><span class="small muted">${methods[b.method]} · ${seconds(b.duration)}</span><span class="small muted">Photo v${b.photo} · ${b.lines.length?'Voice v'+b.voice.version:'Hold'}</span>${readLines(b)}${b.notes?.length?`<span class="small muted">${esc(b.notes.join(' · '))}</span>`:''}</div></div>
+    <div class="cut-layout">${photo(b)}<div class="stack-tight"><strong>${pad(state.preview+1)} · ${esc(b.title)}</strong><span class="small muted">${methodText(b)} · ${seconds(b.duration)}</span><span class="small muted">Photo v${b.photo} · ${b.lines.length?'Voice v'+b.voice.version:'Hold'}</span>${readLines(b)}${b.notes?.length?`<span class="small muted">${esc(b.notes.join(' · '))}</span>`:''}</div></div>
     ${previewPicker(run.boards,state.preview)}
     <div class="approval-bar">${run.approved?'<div class="row"><button class="btn" disabled aria-describedby="publish-status">Publish</button><span class="small muted" id="publish-status">Not connected</span></div>':button('Approve for go-live','cut-approve','primary')}</div></section>`;
 }
@@ -609,7 +613,7 @@ function mediaListView(videos=false) {return head(videos?'Videos':'Shorts')+medi
 function storyView() {
   const s=currentStory(),b=boards.find(x=>x.id==='b8')||boards[0];
   return head(s.title,`<span>${seconds(total())}</span>${badge('Unpublished')}`,link('Open editor','editor-board','primary'))+
-    `<div class="story-layout"><div class="hero">${b?photo(b):'<div class="empty">No boards</div>'}<div class="hero-info"><strong>${boards.length} boards</strong><span class="small muted">${s.media==='short'?'Short':'Video'}</span></div></div>${buildPanel()}</div>${cutReview()}<div class="section-head"><h2>Boards</h2></div><ol class="board-list">${boards.map((b,i)=>`<li class="board-item"><a href="#board-${b.id}" aria-label="Open ${boardCode(b)}">${photo(b)}</a><div class="board-copy"><a href="#board-${b.id}">${boardCode(b)} · ${esc(b.title)}</a><span class="meta">${methods[b.method]} · ${timing(b)}</span>${readLines(b)}${b.notes.length?`<span class="small muted">${esc(b.notes.join(' · '))}</span>`:''}</div></li>`).join('')}</ol>`;
+    `<div class="story-layout"><div class="hero">${b?photo(b):'<div class="empty">No boards</div>'}<div class="hero-info"><strong>${boards.length} boards</strong><span class="small muted">${s.media==='short'?'Short':'Video'}</span></div></div>${buildPanel()}</div>${cutReview()}<div class="section-head"><h2>Boards</h2></div><ol class="board-list">${boards.map((b,i)=>`<li class="board-item"><a href="#board-${b.id}" aria-label="Open ${boardCode(b)}">${photo(b)}</a><div class="board-copy"><a href="#board-${b.id}">${boardCode(b)} · ${esc(b.title)}</a><span class="meta">${methodText(b)} · ${timing(b)}</span>${readLines(b)}${b.notes.length?`<span class="small muted">${esc(b.notes.join(' · '))}</span>`:''}</div></li>`).join('')}</ol>`;
 }
 function composePrompt(b) {return b.assets.map(id=>assetById(id)?.name).filter(Boolean).join(' + ')+(b.prompt.trim()?'\n'+b.prompt.trim():'');}
 function photoNote(b) {return b.photoBusy?'Generating photo…':b.photoDirty?'Inputs changed · regenerate':b.photo?'Reference v'+b.photo:'No reference yet';}
@@ -625,8 +629,10 @@ function boardInspector(b) {
   const index=boards.indexOf(b);
   const script=`<div class="field"><label for="board-name">Board name</label><input id="board-name" maxlength="100" value="${esc(b.title)}"></div><div class="script-fields">${b.lines.map((l,i)=>`<div class="line-fields"><div class="field"><label for="speaker-${l.id}">Speaker</label><select id="speaker-${l.id}" data-line="${l.id}">${['a','b','c','d'].map(d=>`<option value="${d}" ${d===l.speaker?'selected':''}>${d.toUpperCase()}</option>`).join('')}</select></div><div class="field"><label for="text-${l.id}">Line ${i+1}</label><textarea id="text-${l.id}" data-line="${l.id}" rows="${l.text.length>75?3:2}" maxlength="1200">${esc(l.text)}</textarea></div>${button('Remove line','remove-line','quiet line-action',`data-id="${l.id}"`)}</div>`).join('')}</div>${button('+ Line','add-line','quiet')}`;
   const reference=`<div class="chips">${b.assets.map(id=>`<button class="chip" id="photo-asset-${id}" data-action="remove-asset" data-id="${id}" aria-label="Remove ${esc(assetById(id)?.name||id)} from photo"><span>${esc(assetById(id)?.name||id)}</span><b aria-hidden="true">×</b></button>`).join('')}</div>${button('Browse assets','board-assets','quiet')}<div class="field"><label for="photo-prompt">Photo prompt</label><textarea id="photo-prompt" rows="4" maxlength="1800">${esc(b.prompt)}</textarea></div><details id="combined-panel" data-panel ${panelOpen('combined-panel',false)?'open':''}><summary class="small muted">Combined prompt</summary><p class="prompt-result" id="combined-prompt">${esc(composePrompt(b))}</p></details>${button(b.photoBusy?'Generating…':b.photo?'Regenerate photo':'Generate photo','photo-generate','',`id="generate-photo" ${b.photoBusy?'disabled':''}`)}<span class="small muted" id="photo-note">${photoNote(b)}</span>`;
-  const notes=`<div class="field"><label for="board-method">Method</label><select id="board-method">${Object.entries(methods).map(([id,name])=>`<option value="${id}" ${id===b.method?'selected':''}>${name}</option>`).join('')}</select></div>${b.notes.map((note,i)=>`<div class="note-row"><div class="field"><label class="sr-only" for="note-${i}">Annotation ${i+1}</label><input id="note-${i}" data-note="${i}" maxlength="200" value="${esc(note)}" placeholder="Sound cue or direction"></div><button data-action="remove-note" data-index="${i}" aria-label="Remove annotation ${i+1}">×</button></div>`).join('')}${button('+ Annotation','add-note','quiet')}`;
-  return `<aside class="inspector" aria-label="Board inspector"><div class="inspector-heading"><h2>Board inspector</h2><span class="mono">${boardCode(b)}</span></div>${inspectorSection('script-section','Script',script)}${inspectorSection('voice-section','Voice & timing',voiceControls(b))}${inspectorSection('photo-composer','Reference photo',reference)}${inspectorSection('notes-section','Annotations',notes)}<div class="inspector-footer">${button('←','move','',`id="move-left" data-id="${b.id}" data-direction="-1" aria-label="Move board earlier" ${index===0?'disabled':''}`)}${button('→','move','',`id="move-right" data-id="${b.id}" data-direction="1" aria-label="Move board later" ${index===boards.length-1?'disabled':''}`)}${button('Remove board','remove-ask','quiet',`data-id="${b.id}"`)}${!b.lines.length?button('Agent fill-in','agent-fill','quiet'):''}</div>${state.remove===b.id?`<div class="confirmation stack-tight"><strong>Remove this board?</strong><div class="row">${button('Remove','remove-confirm','danger',`data-id="${b.id}"`)}${button('Keep board','remove-cancel','quiet')}</div></div>`:''}</aside>`;
+  const pick=(group,options,current,disabled={})=>`<div class="method-group" role="group" aria-label="${group}">${Object.entries(options).map(([id,name])=>`<button class="filter" id="${group.toLowerCase()}-${id}" data-action="set-${group.toLowerCase()}" data-value="${id}" aria-pressed="${id===current}" ${disabled[id]?`disabled title="${disabled[id]}"`:''}>${name}</button>`).join('')}</div>`;
+  const method=pick('Layer',layers,b.layer)+pick('Motion',motions,b.motion,b.lines.length?{}:{s2v:'Needs a spoken line'});
+  const notes=`${b.notes.map((note,i)=>`<div class="note-row"><div class="field"><label class="sr-only" for="note-${i}">Note ${i+1}</label><input id="note-${i}" data-note="${i}" maxlength="200" value="${esc(note)}"></div><button data-action="remove-note" data-index="${i}" aria-label="Remove note ${i+1}">×</button></div>`).join('')}<div class="note-row"><div class="field"><label class="sr-only" for="note-new">New note</label><input id="note-new" maxlength="200" value="${esc(b.noteDraft||'')}" placeholder="Add a note, e.g. Offscreen crunch"></div><button data-action="add-note" id="action-add-note" aria-label="Add note">+</button></div>`;
+  return `<aside class="inspector" aria-label="Board inspector"><div class="inspector-heading"><h2>Board inspector</h2><span class="mono">${boardCode(b)}</span></div>${inspectorSection('script-section','Script',script)}${inspectorSection('voice-section','Voice & timing',voiceControls(b))}${inspectorSection('photo-composer','Reference photo',reference)}${inspectorSection('method-section','Method',method)}${inspectorSection('notes-section','Direction',notes)}<div class="inspector-footer">${button('←','move','',`id="move-left" data-id="${b.id}" data-direction="-1" aria-label="Move board earlier" ${index===0?'disabled':''}`)}${button('→','move','',`id="move-right" data-id="${b.id}" data-direction="1" aria-label="Move board later" ${index===boards.length-1?'disabled':''}`)}${button('Remove board','remove-ask','quiet',`data-id="${b.id}"`)}${!b.lines.length?button('Agent fill-in','agent-fill','quiet'):''}</div>${state.remove===b.id?`<div class="confirmation stack-tight"><strong>Remove this board?</strong><div class="row">${button('Remove','remove-confirm','danger',`data-id="${b.id}"`)}${button('Keep board','remove-cancel','quiet')}</div></div>`:''}</aside>`;
 }
 function stageView(b) {
   const start=boards.slice(0,boards.indexOf(b)).reduce((n,x)=>n+x.duration,0);
@@ -678,7 +684,7 @@ $('#theme-options').innerHTML=themeButtons();
 function closeUser() {$('#user-menu').hidden=true;$('#user-toggle').setAttribute('aria-expanded','false');}
 $('#user-toggle').addEventListener('click',()=>{const open=$('#user-menu').hidden;$('#user-menu').hidden=!open;$('#user-toggle').setAttribute('aria-expanded',open);});
 document.addEventListener('click',e=>{if(!e.target.closest('.user'))closeUser();});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#user-menu').hidden){closeUser();$('#user-toggle').focus();}});
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='note-new'){e.preventDefault();$('#action-add-note')?.click();return;}if(e.key==='Escape'&&!$('#user-menu').hidden){closeUser();$('#user-toggle').focus();}});
 const knownRoutes=new Set(['editor','editor-productions','editor-media','editor-stories','editor-board','editor-assets','asset-generate','productions','prod-yellowbirds','shorts-yellowbirds','videos-yellowbirds','media-winter-menu','account','admin']);
 const preferencesKey='haynes-studio-v4-selections';
 function validRoute(r) {return typeof r==='string'&&(knownRoutes.has(r)||(r.startsWith('board-')&&boards.some(b=>b.id===r.slice(6))));}
@@ -701,7 +707,7 @@ function restoreSelections() {
     }
     if(s.panels&&typeof s.panels==='object')for(const [key,value]of Object.entries(s.panels)){
       const [route,id]=key.split(':');
-      if(validRoute(route)&&['script-section','voice-section','photo-composer','notes-section','combined-panel'].includes(id)&&typeof value==='boolean')state.panels[key]=value;
+      if(validRoute(route)&&['script-section','voice-section','photo-composer','method-section','notes-section','combined-panel'].includes(id)&&typeof value==='boolean')state.panels[key]=value;
     }
     if(['all',...Object.keys(assetKinds)].includes(s.assetKind))state.assetKind=s.assetKind;
     state.assetScope=productions.includes(s.assetScope)?s.assetScope:null;
@@ -929,7 +935,7 @@ document.addEventListener('click',event=>{
   if(action==='add-board'){
     const next=currentStory().nextBoard++;
     const id='b'+next;
-    boards.push(board(id,'New board',2,[],[],'',{photo:0,method:'reaction',assets:[]}));state.selected=id;go('board-'+id);return;
+    boards.push(board(id,'New board',2,[],[],'',{photo:0,motion:'i2v',assets:[]}));state.selected=id;go('board-'+id);return;
   }
   if(action==='move'){
     const index=boards.findIndex(x=>x.id===el.dataset.id),next=index+Number(el.dataset.direction);if(index<0||next<0||next>=boards.length)return;
@@ -942,12 +948,13 @@ document.addEventListener('click',event=>{
     boards.splice(i,1);state.remove=null;state.selected=boards[Math.min(i,boards.length-1)]?.id||null;
     if(state.assetBoard===el.dataset.id)state.assetBoard=null;go(state.selected?'board-'+state.selected:'editor-board');return;
   }
-  if(action==='add-line'){if(!b)return;b.lines.push(line('a',''));b.method='talking';updateVoice(b);openPanel('script-section');render('text-'+b.lines.at(-1).id);return;}
-  if(action==='remove-line'){if(!b)return;b.lines=b.lines.filter(l=>l.id!==el.dataset.id);if(!b.lines.length)b.method='reaction';updateVoice(b);render('action-add-line');return;}
-  if(action==='add-note'){if(!b)return;b.notes.push('');openPanel('notes-section');render('note-'+(b.notes.length-1));return;}
+  if(action==='add-line'){if(!b)return;b.lines.push(line('a',''));b.motion='s2v';updateVoice(b);openPanel('script-section');render('text-'+b.lines.at(-1).id);return;}
+  if(action==='remove-line'){if(!b)return;b.lines=b.lines.filter(l=>l.id!==el.dataset.id);if(!b.lines.length)b.motion='i2v';updateVoice(b);render('action-add-line');return;}
+  if(action==='add-note'){if(!b)return;const text=$('#note-new')?.value.trim();if(!text){$('#note-new')?.focus();return;}b.notes.push(text);b.noteDraft='';openPanel('notes-section');render('note-new');return;}
+  if(action==='set-layer'||action==='set-motion'){if(!b)return;b[action==='set-layer'?'layer':'motion']=el.dataset.value;openPanel('method-section');render(el.id);return;}
   if(action==='remove-note'){if(!b)return;b.notes.splice(Number(el.dataset.index),1);render('action-add-note');return;}
   if(action==='agent-fill'){
-    if(!b||b.lines.length)return;b.title='Reaction close-up';b.method='reaction';b.hold=1.9;b.assets=['cast-d','jacket','campsite','squishy'];
+    if(!b||b.lines.length)return;b.title='Reaction close-up';b.motion='i2v';b.hold=1.9;b.assets=['cast-d','jacket','campsite','squishy'];
     b.prompt='Close-up of D, shocked. Face fills the upper frame. No foreground log.';b.notes=['Sting','Slow push-in'];b.agent=true;b.photoDirty=true;syncDuration(b);render();notify('Agent draft · simulated.');return;
   }
   if(action==='remove-asset'){if(!b)return;b.assets=b.assets.filter(id=>id!==el.dataset.id);b.photoDirty=true;render();return;}
@@ -1003,6 +1010,7 @@ document.addEventListener('input',event=>{
     if(!el.validity.valid||!el.value)return;b.hold=Number(el.value);syncDuration(b);
   }else if(id==='photo-prompt'){b.prompt=el.value;b.photoDirty=true;}
   else if(id.startsWith('text-line-')){const l=b.lines.find(l=>l.id===el.dataset.line);if(l){l.text=el.value;updateVoice(b);}}
+  else if(id==='note-new'){b.noteDraft=el.value;return;}
   else if(el.dataset.note!==undefined)b.notes[Number(el.dataset.note)]=el.value;
   else return;
   refreshBoard();
@@ -1017,8 +1025,7 @@ document.addEventListener('change',event=>{
     const side=el.id.slice(8),number=Number(el.value),other=side==='left'?'right':'left';
     if(finishedRuns().some(r=>r.number===number)&&number!==state.compare[other]){state.compare[side]=number;state.compare.preview=0;render(el.id);}
   }else if(b){
-    if(el.id==='board-method'){b.method=el.value;refreshBoard();}
-    else if(el.id==='voice-style'){b.voiceStyle=el.value;updateVoice(b);refreshBoard();}
+    if(el.id==='voice-style'){b.voiceStyle=el.value;updateVoice(b);refreshBoard();}
     else if(el.id==='board-hold'&&(!el.validity.valid||!el.value)){el.value=b.hold;}
     else if(el.id.startsWith('speaker-line-')){const l=b.lines.find(l=>l.id===el.dataset.line);if(l){l.speaker=el.value;updateVoice(b);refreshBoard();}}
   }
