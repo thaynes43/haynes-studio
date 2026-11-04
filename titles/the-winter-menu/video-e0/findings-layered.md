@@ -71,7 +71,7 @@ traced from the keyed frames:
   lifts the squishy and turns, ECC fell to 0.72, the decal slid by a few pixels and Wan's own
   warped lettering showed beside it ("YELLOWBIRDSS"). Two fixes: **erase the generated
   lettering first** (fill the letter band with jacket colour, then paste the decal), so a
-  small slide never doubles letters; and **gate on track quality** (reject below about 0.85
+  small slide never doubles letters; and **gate on track quality** (reject below about 0.8
   min ECC, then re-roll the clip, use a stronger tracker such as homography or optical flow,
   or fall back to a held still for that doll). On this film the line sits between 0.72 (bad)
   and 0.85 (accepted), so **about 0.8** is the starting threshold. One clip pair is thin evidence:
