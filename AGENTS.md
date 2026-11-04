@@ -60,8 +60,12 @@ These block a merge if broken.
   - Wan (video) and the Foley sidecar share one compute lease. Never bypass the API
     lease or its unknown-work checks.
   - Never benchmark, load-test or change GPU power or clock settings.
-  - Run CPU editing with at most 2 worker threads (`OPENBLAS_NUM_THREADS=2`,
-    ffmpeg `-threads 2`).
+  - **Heavy CPU work** (decals, keying, compositing, encoding) runs on the
+    `ai/studio-render` worker on talosw01: up to 24 vCPUs at low priority, media on
+    gasha01 NFS at `/studio` (Tom, 2026-11-04; decision D18). Copy inputs in with
+    `kubectl cp`, run under `nice -n 10` with `--workers` (at most 24 processes in
+    total), copy results out. In a session pod itself, keep CPU work to 2 threads
+    (`STUDIO_THREADS=2`, ffmpeg `-threads 2`, `--workers 1`).
 - **Original content.** Parody may borrow a situation from popular media, but use
   invented names, team names, logos and dialogue. Do not reenact a subtitle file
   verbatim, and never use a real person's likeness or voice.
