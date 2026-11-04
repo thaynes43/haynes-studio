@@ -1,7 +1,11 @@
 # E0: layered speech-to-video (2026-11-04)
 
 Tom asked for the full Winter Menu remade with speech-to-video. Delivered privately (ledger
-`e6659b3f1c4242eb85485f3cc82c557a`); review copy sent to Tom. **Tom's verdict pending.**
+`e6659b3f1c4242eb85485f3cc82c557a`); review copy sent to Tom.
+
+**Tom's verdict (2026-11-04):** "Absolutely worth it the quality is much better I didn't notice
+any of the flaws we had before." Layered speech-to-video becomes the default for doll
+talking shots (D24 in proposal 0003).
 
 ## Method
 
