@@ -10,7 +10,10 @@ eye-protect boxes in clip pixels: {"cutouts/a-proud.png": {"clip": "clips/layer-
 lettering back onto every frame before keying (poc/decal.py); a track below decal.MIN_ECC
 (or the entry's "decal_min_ecc") stops the render. Keyed frames are cached under
 JOB/keyed/<clip>/.
-Doll clips ping-pong, each doll offset so they do not bob in unison. Create-only output.
+Doll clips ping-pong, each doll offset so they do not bob in unison. An optional "shots" section
+maps a shot id and doll to a clip made for that shot ({"8": {"b": {"clip": ..., "still": ...,
+"decal_box": ..., "fps": 16}}}, e.g. speech-to-video from her shot's voice track): it plays
+locked to the shot's clock instead of ping-ponging. Create-only output.
 
 --workers N keys the doll clips and renders the shots in N processes (each shot is
 independent given its first film frame), then joins the shot segments without re-encoding.
@@ -88,6 +91,11 @@ class DollClip:
     def frame(self, i):
         return Image.open(self.dir / f'{pingpong(self.n, i):04d}.png').crop(self.box)
 
+    def frame_at(self, t, fps):
+        """The frame at shot time t for a clip made for this shot (speech-to-video at `fps`):
+        locked to the timeline so her mouth stays on her words; holds the last frame."""
+        return Image.open(self.dir / f'{min(self.n - 1, int(t * fps)):04d}.png').crop(self.box)
+
 
 def build_clip(args):
     job, v = args
@@ -101,8 +109,12 @@ def render_shot(args):
     W, H, FPS = m['frame']['width'], m['frame']['height'], m['frame']['fps']
     cmap = json.loads(Path(clipmap).read_text()); span = json.loads(Path(timeline).read_text())['shots'][idx]
     shot = m['shots'][idx]
+    timed = cmap.get('shots', {}).get(str(shot['id']), {})
+    cmap = {k: v for k, v in cmap.items() if k != 'shots'}
     clips = {k: DollClip(job, v['clip'], v.get('protect', []), still=v.get('still'), decal_box=v.get('decal_box'), min_ecc=v.get('decal_min_ecc'))
              for k, v in cmap.items() if k in shot['dolls'].values()}
+    own = {d: (DollClip(job, v['clip'], v.get('protect', []), still=v.get('still'), decal_box=v.get('decal_box'),
+                        min_ecc=v.get('decal_min_ecc')), v.get('fps', 16)) for d, v in timed.items()}
     sets = frames(set_clip)
     cmd = [ffmpeg_exe(), '-hide_banner', '-nostdin', '-n', '-threads', '2', '-f', 'rawvideo', '-pix_fmt', 'rgb24',
            '-s', f'{W}x{H}', '-r', str(FPS), '-i', 'pipe:0', '-an', '-c:v', 'libx264', '-threads', '2', '-preset', 'fast',
@@ -113,7 +125,7 @@ def render_shot(args):
         for k, (doll, image) in enumerate(shot['dolls'].items()):
             slot = lay['slots'][doll] if 'slots' in lay else {}
             slot = {'x': slot} if isinstance(slot, (int, float)) else slot
-            placed.append({'doll': doll, 'clip': clips[image], 'slot': slot, 'k': k,
+            placed.append({'doll': doll, 'clip': clips[image], 'own': own.get(doll), 'slot': slot, 'k': k,
                            'height': slot.get('height', lay.get('height')), 'bottom': slot.get('bottom', lay.get('bottom')),
                            'cx': slot.get('x', lay.get('x')) * W, 'sign': 1 if k % 2 == 0 else -1,
                            'factor': 1.4 if shot['layout'] == 'single' else 0.8, 'phase': 0.37 * k})
@@ -123,7 +135,7 @@ def render_shot(args):
             bg = sets[pingpong(len(sets), film)].resize((W, H), Image.Resampling.LANCZOS)
             frame = bg.convert('RGBA')
             for p in placed:
-                sprite = p['clip'].frame(film + 37 * p['k'])
+                sprite = p['own'][0].frame_at(t, p['own'][1]) if p['own'] else p['clip'].frame(film + 37 * p['k'])
                 if 'crop' in p['slot']:
                     fx0, fy0, fx1, fy1 = p['slot']['crop']
                     sprite = sprite.crop((round(fx0 * sprite.width), round(fy0 * sprite.height),
@@ -163,8 +175,9 @@ def main():
     assert len(spans) == len(m['shots']), 'timeline and manifest disagree on the shot count'
     # Build each keyed directory once, before the shots read it: dedupe by the cache directory
     # itself, so no two workers ever build the same one at once.
+    entries = [v for k, v in cmap.items() if k != 'shots'] + [v for per in cmap.get('shots', {}).values() for v in per.values()]
     distinct = {DollClip.cache_dir(job, v['clip'], v.get('protect', []), v.get('still'), v.get('decal_box'))[0]: v
-                for v in cmap.values()}
+                for v in entries}
     starts = [sum(s['frames'] for s in spans[:i]) for i in range(len(spans))]
     parts.mkdir()
     jobs = [(a.manifest, job, a.clipmap, a.set_clip, a.timeline, i, starts[i], parts / f'{i:03d}.mp4')
