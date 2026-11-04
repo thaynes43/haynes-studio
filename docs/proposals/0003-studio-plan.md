@@ -35,6 +35,7 @@ each epic runs. Decisions come from Tom in the 2026-11-03 session, and are also 
 | D24 | **Layered speech-to-video is the default for doll talking shots:** each speaking doll gets a Wan2.2 S2V clip on green from her shot's voice track (4-step lightning LoRA), composited like any layer. Worth about 1.5 h of extra GPU per 45 s short: the quality is much better and the earlier flaws (letters, sleeves) were not noticed | "Absolutely worth it the quality is much better I didn't notice any of the flaws we had before" (2026-11-04) |
 | D25 | **A format definition is a saved recipe**, written and revised by Tom with a frontier agent in the staging room; the local shepherd only reads and follows it, never edits it. It holds: frame size and length range; shot types and the method for each (per D23/D24); cast rules, including a costume spec per team so wardrobe drift is checkable; voice and audio style; the checks a candidate must pass and which gates still stop for Tom (D9); and the accounts it may publish to | "Yes that's a good start" (2026-11-04) |
 | D26 | **The storyboard is the approval surface.** The script-to-video process (pick, draft, revise, approve) stands, but it is shown as a storyboard: one panel per clip, each with the reference photo that goes with that clip. A reviewer should be able to judge the whole video from the board alone with high confidence, then press one button to build it. So reference photos are made before the build, and the board, not a separate script, is what gets versioned and approved. AGENTS.md review gates 1 and 2 (script before any assets, then keyframes) get revised to match when E6 lands; whether a text-only pass still comes before the photos is part of the open panel question | "I want to visualize it as a story board with a reference photo that goes along with each clip … before pressing a button to build the video" (2026-11-04) |
+| D27 | **Storyboard editing UX.** A story is an ordered set of **boards** (Tom's term: one board per clip). The user adds and removes boards to build a video of whatever length they like. On each board the user edits the script and the reference photo, the photo through prompts that combine asset photos from the library with text. An agent can fill boards in instead, for the user to review. Once a render is kicked off, the studio shows an estimate of how long it will take. Since the script is edited on the board, the board approval of D26 covers it; no separate text pass is required | "The user should be able to edit scripts and reference photos (via prompts that include asset photos and text) here or an agent can fill it in for a user to review … add and remove boards from the story … some estimate on how long the render would take once the user kicks it off" (2026-11-04) |
 
 ## The product model
 
@@ -248,8 +249,8 @@ learn what the plan must change.
   are E2/E5 work calibrated against his verdicts).
 - ~~What a format definition contains, and who authors it~~: answered by D25 (a starting
   shape; fields can grow as formats are built).
-- ~~Staging-room flow~~: process answered by D26 (approval happens on the storyboard). Open:
-  the panel contents and editing UX, and the API behind them.
+- ~~Staging-room flow~~: answered by D26 and D27 (stories of boards, edited by the user or
+  filled in by an agent, approved on the board). The API follows from it in E3/E6 design.
 - Database model details and the gasha01 NFS folder path.
 - Publishing: which accounts and platforms first, and the disclosure stance.
 - Whether image generation should move to the 3090s for consistency with Wan.
