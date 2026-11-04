@@ -154,7 +154,9 @@ def main():
         raise FileExistsError(out)
     cmap = json.loads(Path(a.clipmap).read_text()); spans = json.loads(Path(a.timeline).read_text())['shots']
     assert len(spans) == len(m['shots']), 'timeline and manifest disagree on the shot count'
-    distinct = {v['clip']: v for v in cmap.values()}  # key each clip once, before the shots read the cache
+    # Key each distinct cache once, before the shots read it: dedupe by every setting, not the
+    # clip path alone, so no two workers ever build the same keyed directory at once.
+    distinct = {json.dumps(v, sort_keys=True): v for v in cmap.values()}
     starts = [sum(s['frames'] for s in spans[:i]) for i in range(len(spans))]
     parts.mkdir()
     jobs = [(a.manifest, job, a.clipmap, a.set_clip, a.timeline, i, starts[i], parts / f'{i:03d}.mp4')

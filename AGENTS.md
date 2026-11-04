@@ -63,8 +63,9 @@ These block a merge if broken.
   - **Heavy CPU work** (decals, keying, compositing, encoding) runs on the
     `ai/studio-render` worker on talosw01: up to 24 vCPUs at low priority, media on
     gasha01 NFS at `/studio` (Tom, 2026-11-04; decision D18). Copy inputs in with
-    `kubectl cp`, run under `nice -n 10` with `--workers` (at most 24 processes in
-    total), copy results out. In a session pod itself, keep CPU work to 2 threads
+    `kubectl cp`, run under `nice -n 10` with `--workers` up to 22, copy results out.
+    Each worker also drives a small ffmpeg encoder; the pod's 24-vCPU limit caps the
+    total, so extra workers are throttled, never taken from the host. In a session pod itself, keep CPU work to 2 threads
     (`STUDIO_THREADS=2`, ffmpeg `-threads 2`, `--workers 1`).
 - **Original content.** Parody may borrow a situation from popular media, but use
   invented names, team names, logos and dialogue. Do not reenact a subtitle file
