@@ -48,4 +48,32 @@ length w/ layering to compare."
   Hair and fabric move from Wan; the bounce and lunges come from the editor; the fire is
   Wan's.
 - Delivered privately (ledger `d81353cdf8f84f999a9c41b43c4be569`); review copy sent to Tom.
-  **Tom's comparison verdict pending.**
+  Tom's comparison verdict is below.
+
+## Tom's verdict (2026-11-04) and the two defects
+
+> "The layered looks better, moves more like dolls and less is off. Not perfect though. The
+> dolls sleeves were a bit off, maybe intentional but looked weird. Also one scene a doll had
+> the letters on her shirt moving around."
+
+Layered becomes the default for doll talking shots (D23 in proposal 0003). Both defects were
+traced from the keyed frames:
+
+- **Sleeves: a casting defect, not a video defect.** The r1 character stills already had it:
+  B wears a jacket with bare upper arms and a loose forearm cuff on one side, and D wears a
+  sleeveless vest, while A and C have full sleeves. Qwen-Image invented it, every revision
+  inherited it, and Wan faithfully animated it, where motion makes it more noticeable. Nothing
+  checked costume consistency across the cast. **Requirement (E2, character cards):** a
+  costume spec per team or cast (garment, sleeves, lettering, colours) and a **wardrobe
+  check** on every cast still and keyframe (a vision-model question per garment attribute,
+  locally in E4), failing before any GPU video time is spent.
+- **Moving letters: D's reaction clip (`layer-d-shocked`), the only track below 0.85.** She
+  lifts the squishy and turns, ECC fell to 0.72, the decal slid by a few pixels and Wan's own
+  warped lettering showed beside it ("YELLOWBIRDSS"). Two fixes: **erase the generated
+  lettering first** (fill the letter band with jacket colour, then paste the decal), so a
+  small slide never doubles letters; and **gate on track quality** (reject below about 0.85
+  min ECC, then re-roll the clip, use a stronger tracker such as homography or optical flow,
+  or fall back to a held still for that doll). B's zipper also splits her lettering
+  ("YELLO|WBIRDS") in the still itself: the casting check should catch that too.
+- Neither defect needs a whole-frame fallback; both are checks the factory must run without
+  Tom.
