@@ -184,3 +184,8 @@ unmerged for coordinating session `a1-haynes-ops-1103-141902`.
 - **One Build button.** The editor header holds Build (or Queue run). The Runs panel under the workspace lists runs and the estimate only. The story review page keeps its Build, since it has no header button.
 - **Only the media types a production has.** The editor's media picker and the production page list the types that production already uses (Yellowbirds: Short). The missing types appear as small "+ Video · 16:9" buttons that add the type and open it.
 - **Backstage palette.** Dark: near-black page, charcoal cards with thin borders, green primary actions with dark text, pill-shaped buttons. Light keeps the same structure, with a deeper green (`#13823d`) so links and button text stay legible on white.
+
+## v6 changes (2026-11-04, D38)
+
+- **Method in technical terms.** Two badge groups replace the Talking/Reaction/Ambient list: *Layered* or *Whole-frame*, and *Speech-to-video* or *Image-to-video*. You pick one badge in each group, because the two choices in a group exclude each other. Speech-to-video is disabled on a board with no spoken lines. The review page and the run lists show the same words, for example "Layered · Speech-to-video".
+- **Direction notes.** "Annotations" is now **Direction**. The existing notes stay editable rows with an ×, and an always-visible "Add a note, e.g. Offscreen crunch" box adds a new one on Enter or "+".
