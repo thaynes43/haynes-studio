@@ -30,6 +30,8 @@ each epic runs. Decisions come from Tom in the 2026-11-03 session, and are also 
 | D19 | **One haynes-studio monorepo** for all code; deployment manifests in haynes-ops (GitOps) | |
 | D20 | **Tom accepts** epics and stories | "I do" |
 | D21 | **Re-do the PoC as a video-generation workflow** before building, because it may change the plan | "re-do the PoC using a video gen workflow with the new tools" |
+| D22 | **Speech-to-video looks great** (mouth movement OK). **Layered suits dolls.** Whole-frame is **not rejected**: Tom critiqued one clip (shot 1 with Foley: jacket not continuous, eyes wrong), not the method. **Lettering breaks in both Wan methods** | "speech-to-video looked great"; "I didn't say whole frame never will work" (2026-11-03) |
+| D23 | **Layered is the better default for the doll format:** it "moves more like dolls and less is off". Not perfect: wardrobe inconsistency (sleeves) and one doll's lettering moving must be caught automatically | "The layered looks better, moves more like dolls and less is off" (2026-11-04) |
 
 ## The product model
 
@@ -161,6 +163,12 @@ In short:
 - **An upscaler and fps conversion are needed.**
 - **ControlFoley works over HTTP (83 s per 5 s window).**
 - **Ear and taste stay with Tom.**
+- **Tom's comparison (D23): layered is the doll default.** His two defects both trace to
+  checks the pipeline lacked (see the layered findings): a **wardrobe check at casting**
+  (two dolls were cast in sleeveless or half-sleeved jackets in r1 and nobody caught it), and a
+  **decal gate that erases the generated lettering first and rejects weak tracks** (D's
+  reaction clip slid and doubled letters at ECC 0.72; A staring at 0.85 passed Tom's eye, so the
+  starting threshold is about 0.8).
 
 These amend E1 (per-shot methods, an animated-layer compositor), E2 (motion assets, drift
 tools, upscaler, decals, a per-doll chroma colour), E3 (real Wan job types: image-to-video,
