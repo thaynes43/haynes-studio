@@ -1,0 +1,231 @@
+{
+ "cutouts/a-proud.png": {
+  "clip": "clips/layer-a-green.mp4",
+  "protect": [
+   [
+    240,
+    400,
+    440,
+    600
+   ]
+  ],
+  "still": "layers/a-base-s101-green.png",
+  "decal_box": [
+   266,
+   699,
+   453,
+   779
+  ]
+ },
+ "cutouts/a-staring.png": {
+  "clip": "clips/layer-a-staring-green.mp4",
+  "protect": [
+   [
+    240,
+    410,
+    440,
+    610
+   ]
+  ],
+  "still": "layers/a-staring-s301-green.png",
+  "decal_box": [
+   265,
+   702,
+   455,
+   781
+  ]
+ },
+ "cutouts/b-deadpan.png": {
+  "clip": "clips/layer-b-deadpan-v2-green.mp4",
+  "still": "layers/b-base-s101-sleeves-s401-green.png",
+  "decal_box": [
+   152,
+   690,
+   341,
+   765
+  ],
+  "decal_min_ecc": 0.65
+ },
+ "cutouts/c-suspicious.png": {
+  "clip": "clips/layer-c-suspicious-green.mp4",
+  "still": "layers/c-base-s101-green.png",
+  "decal_box": [
+   265,
+   705,
+   454,
+   780
+  ]
+ },
+ "cutouts/c-staring.png": {
+  "clip": "clips/layer-c-staring-green.mp4",
+  "still": "layers/c-staring-s301-green.png",
+  "decal_box": [
+   265,
+   708,
+   454,
+   782
+  ]
+ },
+ "cutouts/d-cheerful.png": {
+  "clip": "clips/layer-d-cheerful-v2-green.mp4",
+  "still": "layers/d-base-s101-sleeves-s401-green.png",
+  "decal_box": [
+   174,
+   664,
+   363,
+   752
+  ]
+ },
+ "cutouts/d-shocked.png": {
+  "clip": "clips/layer-d-shocked-v2-green.mp4",
+  "still": "layers/d-shocked-s301-sleeves-s401-green.png",
+  "decal_box": [
+   174,
+   667,
+   363,
+   754
+  ],
+  "decal_min_ecc": 0.6
+ },
+ "shots": {
+  "1": {
+   "a": {
+    "clip": "clips/s1-a-lightning.mp4",
+    "still": "layers/a-base-s101-green.png",
+    "decal_box": [
+     266,
+     699,
+     453,
+     779
+    ],
+    "fps": 16,
+    "decal_min_ecc": 0.7
+   }
+  },
+  "2": {
+   "b": {
+    "clip": "clips/s2-b-lightning.mp4",
+    "still": "layers/b-base-s101-sleeves-s401-green.png",
+    "decal_box": [
+     152,
+     690,
+     341,
+     765
+    ],
+    "fps": 16
+   }
+  },
+  "3": {
+   "c": {
+    "clip": "clips/s3-c-lightning.mp4",
+    "still": "layers/c-base-s101-green.png",
+    "decal_box": [
+     265,
+     705,
+     454,
+     780
+    ],
+    "fps": 16
+   }
+  },
+  "4": {
+   "a": {
+    "clip": "clips/s4-a-lightning.mp4",
+    "still": "layers/a-base-s101-green.png",
+    "decal_box": [
+     266,
+     699,
+     453,
+     779
+    ],
+    "fps": 16
+   }
+  },
+  "5": {
+   "d": {
+    "clip": "clips/s5-d-lightning.mp4",
+    "still": "layers/d-shocked-s301-sleeves-s401-green.png",
+    "decal_box": [
+     174,
+     667,
+     363,
+     754
+    ],
+    "fps": 16
+   }
+  },
+  "6": {
+   "c": {
+    "clip": "clips/s6-c-lightning.mp4",
+    "still": "layers/c-base-s101-green.png",
+    "decal_box": [
+     265,
+     705,
+     454,
+     780
+    ],
+    "fps": 16
+   }
+  },
+  "8": {
+   "a": {
+    "clip": "clips/s8-a-lightning.mp4",
+    "still": "layers/a-staring-s301-green.png",
+    "decal_box": [
+     265,
+     702,
+     455,
+     781
+    ],
+    "fps": 16
+   },
+   "b": {
+    "clip": "clips/s8-b-lightning.mp4",
+    "still": "layers/b-base-s101-sleeves-s401-green.png",
+    "decal_box": [
+     152,
+     690,
+     341,
+     765
+    ],
+    "fps": 16
+   },
+   "c": {
+    "clip": "clips/s8-c-lightning.mp4",
+    "still": "layers/c-staring-s301-green.png",
+    "decal_box": [
+     265,
+     708,
+     454,
+     782
+    ],
+    "fps": 16
+   },
+   "d": {
+    "clip": "clips/s8-d-lightning.mp4",
+    "still": "layers/d-shocked-s301-sleeves-s401-green.png",
+    "decal_box": [
+     174,
+     667,
+     363,
+     754
+    ],
+    "fps": 16
+   }
+  },
+  "9": {
+   "b": {
+    "clip": "clips/s9-b-lightning.mp4",
+    "still": "layers/b-base-s101-sleeves-s401-green.png",
+    "decal_box": [
+     152,
+     690,
+     341,
+     765
+    ],
+    "fps": 16,
+    "decal_min_ecc": 0.78
+   }
+  }
+ }
+}
