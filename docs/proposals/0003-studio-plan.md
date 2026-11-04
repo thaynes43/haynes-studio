@@ -167,7 +167,8 @@ In short:
   checks the pipeline lacked (see the layered findings): a **wardrobe check at casting**
   (two dolls were cast in sleeveless or half-sleeved jackets in r1 and nobody caught it), and a
   **decal gate that erases the generated lettering first and rejects weak tracks** (D's
-  reaction clip slid and doubled letters at ECC 0.72).
+  reaction clip slid and doubled letters at ECC 0.72; A staring at 0.85 passed Tom's eye, so the
+  starting threshold is about 0.8).
 
 These amend E1 (per-shot methods, an animated-layer compositor), E2 (motion assets, drift
 tools, upscaler, decals, a per-doll chroma colour), E3 (real Wan job types: image-to-video,

@@ -41,9 +41,9 @@ length w/ layering to compare."
   (24 vCPUs once E3 exists) make this about 2 min; the keyed-frame cache is reusable.
 - **Decal tracking (min ECC; re-scored with the fixed summary, failed frames counted):**
   B 0.97, C 0.99/0.99, D cheerful 0.97, A 0.89/0.85, D shocked 0.72 (mean 0.86). **0 failed
-  frames in all 7 clips** (120 tracked each). Her lettering still reads correctly in the film. A **min-ECC threshold** is a
+  frames in all 7 clips** (120 tracked each). I judged D's lettering readable; Tom saw it moving (see his verdict below), so that judgment was wrong. A **min-ECC threshold** is a
   natural automatic check (re-roll or disable the decal below it).
-- **Look:** faces hold in every shot, the lettering reads "YELLOWBIRDS" throughout, and the
+- **Look:** faces hold in every shot, the lettering reads "YELLOWBIRDS" in every clip except D's reaction (doubled letters) and B's zipper split (see below), and the
   four-doll vote keeps everyone in place (each doll is a separate layer, so nobody swaps).
   Hair and fabric move from Wan; the bounce and lunges come from the editor; the fire is
   Wan's.
@@ -67,13 +67,16 @@ traced from the keyed frames:
   costume spec per team or cast (garment, sleeves, lettering, colours) and a **wardrobe
   check** on every cast still and keyframe (a vision-model question per garment attribute,
   locally in E4), failing before any GPU video time is spent.
-- **Moving letters: D's reaction clip (`layer-d-shocked`), the only track below 0.85.** She
+- **Moving letters: D's reaction clip (`layer-d-shocked`), the weakest track (min ECC 0.72; next is A staring at 0.85, which Tom did not flag).** She
   lifts the squishy and turns, ECC fell to 0.72, the decal slid by a few pixels and Wan's own
   warped lettering showed beside it ("YELLOWBIRDSS"). Two fixes: **erase the generated
   lettering first** (fill the letter band with jacket colour, then paste the decal), so a
   small slide never doubles letters; and **gate on track quality** (reject below about 0.85
   min ECC, then re-roll the clip, use a stronger tracker such as homography or optical flow,
-  or fall back to a held still for that doll). B's zipper also splits her lettering
+  or fall back to a held still for that doll). On this film the line sits between 0.72 (bad)
+  and 0.85 (accepted), so **about 0.8** is the starting threshold. One clip pair is thin evidence:
+  E2 should also measure the decal's frame-to-frame drift against the jacket, and calibrate both
+  numbers on more clips. B's zipper also splits her lettering
   ("YELLO|WBIRDS") in the still itself: the casting check should catch that too.
 - Neither defect needs a whole-frame fallback; both are checks the factory must run without
   Tom.
