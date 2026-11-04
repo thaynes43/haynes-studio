@@ -44,16 +44,20 @@ class DollClip:
     """Keyed frames of one doll clip, cropped to one fixed box (the first frame's doll plus
     padding) so the doll keeps a constant size across frames."""
 
-    def __init__(self, job, clip, protect, pad=24, still=None, decal_box=None, min_ecc=None):
+    @staticmethod
+    def cache_dir(job, clip, protect, still=None, decal_box=None):
+        """The keyed-frame directory for these settings (everything that shapes the frames)."""
         import hashlib
-        # The cache is keyed by everything that shapes the keyed frames, and only reused
-        # once a completion marker exists (a crashed run leaves no marker).
-        settings = {'clip_sha256': hashlib.sha256((job / clip).read_bytes()).hexdigest(), 'protect': protect,
+        settings = {'clip_sha256': hashlib.sha256((job / clip).read_bytes()).hexdigest(), 'protect': protect or [],
                     'still_sha256': hashlib.sha256((job / still).read_bytes()).hexdigest() if still else None,
                     'decal_box': decal_box, 'decal': 'erase-v2', 'key': [20, 70]}
         tag = hashlib.sha256(json.dumps(settings, sort_keys=True).encode()).hexdigest()[:12]
-        self.dir = job / 'keyed' / f'{Path(clip).stem}-{tag}'; marker = self.dir / 'complete.json'
-        src = None; self.n = 0
+        return job / 'keyed' / f'{Path(clip).stem}-{tag}', settings
+
+    def __init__(self, job, clip, protect, pad=24, still=None, decal_box=None, min_ecc=None):
+        # The cache is only reused once a completion marker exists (a crashed run leaves none).
+        self.dir, settings = self.cache_dir(job, clip, protect, still, decal_box); marker = self.dir / 'complete.json'
+        protect = protect or []; src = None; self.n = 0
         if marker.exists():
             self.n = json.loads(marker.read_text())['frames']
         else:
@@ -61,19 +65,22 @@ class DollClip:
             src = frames(job / clip)
             if decal_box:  # Wan garbles costume text: paste the still's lettering back, tracked
                 import numpy as np
-                from decal import decal_frames, MIN_ECC
-                min_ecc = MIN_ECC if min_ecc is None else min_ecc
+                from decal import decal_frames, summarize
                 st = np.asarray(Image.open(job / still).convert('RGB').resize(src[0].size))
-                from decal import summarize
                 fixed, scores = decal_frames(st, [np.asarray(im) for im in src], decal_box)
-                src = [Image.fromarray(f) for f in fixed]; summary = summarize(scores)
-                (self.dir / 'decal.json').write_text(json.dumps({'box': decal_box, **summary, 'ecc': scores}))
-                if summary['failed_frames'] or summary['min_ecc'] < min_ecc:  # gate: re-roll the clip, don't ship it
-                    raise RuntimeError(f"{clip}: decal track too weak ({summary}); re-roll the clip or lower decal_min_ecc")
+                src = [Image.fromarray(f) for f in fixed]
+                (self.dir / 'decal.json').write_text(json.dumps({'box': decal_box, **summarize(scores), 'ecc': scores}))
             for i, im in enumerate(src):
                 key(im, 20, 70, [tuple(b) for b in protect]).save(self.dir / f'{i:04d}.png')
             self.n = len(src)
             marker.write_text(json.dumps({**settings, 'frames': self.n}))
+        if decal_box:  # gate on every use, cached or not: re-roll the clip, don't ship it
+            from decal import MIN_ECC
+            summary = json.loads((self.dir / 'decal.json').read_text())
+            floor = MIN_ECC if min_ecc is None else min_ecc
+            if summary['failed_frames'] or summary['min_ecc'] < floor:
+                raise RuntimeError(f"{clip}: decal track too weak (min {summary['min_ecc']}, "
+                                   f"{summary['failed_frames']} failed); re-roll the clip or set decal_min_ecc")
         first = Image.open(self.dir / '0000.png')
         x0, y0, x1, y1 = first.getchannel('A').point(lambda v: 255 if v > 8 else 0).getbbox()
         self.box = (max(0, x0 - pad), max(0, y0 - pad), min(first.width, x1 + pad), min(first.height, y1 + pad))
@@ -154,9 +161,10 @@ def main():
         raise FileExistsError(out)
     cmap = json.loads(Path(a.clipmap).read_text()); spans = json.loads(Path(a.timeline).read_text())['shots']
     assert len(spans) == len(m['shots']), 'timeline and manifest disagree on the shot count'
-    # Key each distinct cache once, before the shots read it: dedupe by every setting, not the
-    # clip path alone, so no two workers ever build the same keyed directory at once.
-    distinct = {json.dumps(v, sort_keys=True): v for v in cmap.values()}
+    # Build each keyed directory once, before the shots read it: dedupe by the cache directory
+    # itself, so no two workers ever build the same one at once.
+    distinct = {DollClip.cache_dir(job, v['clip'], v.get('protect', []), v.get('still'), v.get('decal_box'))[0]: v
+                for v in cmap.values()}
     starts = [sum(s['frames'] for s in spans[:i]) for i in range(len(spans))]
     parts.mkdir()
     jobs = [(a.manifest, job, a.clipmap, a.set_clip, a.timeline, i, starts[i], parts / f'{i:03d}.mp4')
