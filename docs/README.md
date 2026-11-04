@@ -8,6 +8,7 @@
 | [reference/baseline-op345.md](reference/baseline-op345.md) | you want to see how the first doll short was made and which scripts it used |
 | [proposals/0003-studio-plan.md](proposals/0003-studio-plan.md) | you are planning or building the studio: decisions, product model, pipeline, epics |
 | [design/studio-ui-mockup/index.html](design/studio-ui-mockup/index.html) | you are building the studio UI (E6) or its API (E3, E9): the clickable storyboard mockup, with API notes per panel |
+| [design/studio-ui-mockup/implementation-backlog.md](design/studio-ui-mockup/implementation-backlog.md) | you are picking up UI or API work: each mockup surface mapped to its OpenProject story, with order and blockers |
 | [proposals/0002-agentic-studio.md](proposals/0002-agentic-studio.md) | history: the first plan and where the PoC's assistance went (superseded by 0003) |
 | [proposals/0001-tooling-backlog.md](proposals/0001-tooling-backlog.md) | you want the requirements list drawn straight from the manual run (superseded by 0002) |
 | [decisions/](decisions/) | you wonder why something is the way it is |
