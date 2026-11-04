@@ -28,5 +28,5 @@ Stories that touch the same files or the GPUs run one after another. The rest ca
 ## Decisions that unblocked stories
 
 - **Storage (D39):** media in `gasha01:/hdd-nfs-repl/data/studio`, records in a `studio` database on `database/postgres16`. Unblocks E3.1.
-- **Access:** the UI is LAN-only (proposal 0003, Infrastructure). E6.1 needs no further access decision.
+- **Access and availability (D41):** LAN-only for now but online-ready, Authentik OIDC sign-in, stateless web app and API with at least two replicas across nodes. Applies to E3.1 and E6.1.
 - **Board writer (D40):** a frontier agent through dev-env v2 until a local LLM is reliable. Unblocks E5.1. [E5.2](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/421) builds and evaluates the local writer harness, toward a purely local loop on talosw01.

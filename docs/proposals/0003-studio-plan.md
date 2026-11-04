@@ -13,7 +13,7 @@ each epic runs. Decisions come from Tom in the 2026-11-03 session, and are also 
 | D2 | **The two 3090s on talosw01 are the studio's GPUs.** The studio's scheduler owns them for Wan video, Foley and the studio's local models. They are two 24 GB cards, not a 48 GB pool | "The dual 3090s are for this"; "We have 48Gb on the server, two cards" |
 | D3 | The storyboard UI is home/LAN-only for now; wider access later | "Home for now expand later" |
 | D4 | **Storage:** the app's pod uses Rook Ceph RBD; **media lives on NFS on gasha01** in a studio folder; the database is **CNPG with backups** | |
-| D5 | Users: **Tom plus agents** (scoped agent keys), no human logins in v1 | "Me + agents for now" |
+| D5 | Users: **Tom plus agents** (scoped agent keys), no human logins in v1 (*login amended by D41: humans sign in with Authentik OIDC*) | "Me + agents for now" |
 | D6 | **Every scene/cut is a Wan clip**, strung together to the desired length. At minimum the set moves; doll hair and wobble may move as if someone is playing with them; expressions change only at cuts, which keeps continuity | "Wan should be used for each scene / cut which we string together" |
 | D7 | Talking shots: the PoC tests **all three methods**: whole-frame image-to-video, layered, and speech-to-video | "All three here" |
 | D8 | **The factory runs almost entirely locally.** Making media uses zero cloud tokens by default; token use is recorded per production | "use it as a factory to churn out media without burning tons of Claude Code usage" |
@@ -49,6 +49,7 @@ each epic runs. Decisions come from Tom in the 2026-11-03 session, and are also 
 | D38 | **A board's method is shown in technical terms,** as two badge groups: layer (Layered or Whole-frame) and motion (Speech-to-video or Image-to-video). These replace the Talking/Reaction/Ambient list. The default follows the board: spoken lines mean Speech-to-video, and Speech-to-video is disabled for a board with no lines. Annotations become a **Direction** section with an always-visible "Add a note" box (amends D35). | "We should use more technical language for Method so users know what it means like "layered" + " speech-to-video" or whatever not layered was would be other, multi - select badges maybe"; "But where do I enter something like "Offscreen crunch"?" (2026-11-04) |
 | D39 | **Storage details (completes D4).** Media lives in `gasha01:/hdd-nfs-repl/data/studio`, the share studio-render already mounts, with one folder per production plus a library folder. Files are referenced by content hash and nothing is purged automatically. Records (productions, media types, stories, boards, lines, notes, library assets with provenance, runs, approvals, saved selections) go in a new `studio` database on the shared CNPG cluster `database/postgres16` (3 instances, nightly barman backups to S3), not a dedicated cluster. | "That's right" (2026-11-04) |
 | D40 | **Boards are drafted by a frontier agent** (dev-env v2, through the studio MCP, tokens recorded per production) **until a harness or toolkit lets a local LLM do the work reliably.** The writer is a configuration setting. The goal is a purely local loop on talosw01 that makes the most of that hardware. Story E5.2 (https://work.haynesnetwork.com/projects/haynes-studio/work_packages/421) builds and evaluates the harness. | "Frontier until we build a harness or toolkit that lets a local LLM reliably perform the work. Those models keep getting better and eventually I want this to be a purely local loop on talosw01 making the most out of that hardware" (2026-11-04) |
+| D41 | **Local now, online-ready, highly available.** The UI is LAN-only for now but is built so it can go online later without a redesign: every request is authenticated and nothing trusts the network. People sign in with **Authentik OIDC** (amends D5). Agents keep scoped keys through the studio MCP. The service is **cloud native with replicas, so losing one node does not take the tool down**: the web app and studio-api are stateless with at least two replicas spread across nodes, with a disruption budget. All state lives in Postgres (`database/postgres16`, 3 instances) and on the gasha01 NFS share (D39), which is outside the cluster. Run-queue state is in Postgres, so a lost pod loses no runs. GPU render workers are tied to their node: losing talosw01 pauses builds, but the tool stays up and queued runs wait. | "Other requirements are that its local now but may be online later and needs to support Authentik ODIC login. Also needs to be designed as cloud native with replicas so one node going down doesn't bring the tool down" (2026-11-04) |
 
 ## The product model
 
@@ -118,10 +119,13 @@ flowchart TB
   Assistant, unless E0 or E2 shows the 3090s should take it.
 - **CPU:** up to 24 vCPUs for render workers on talosw01, low priority, once E3 provides the
   worker and AGENTS.md is amended. Until then, 2 threads.
-- **Storage:** the app's pod on Rook Ceph RBD; media on the gasha01 NFS studio folder (path
-  to be confirmed); CNPG Postgres with backups; nothing auto-purged.
-- **Access:** LAN-only UI. Agents use scoped keys through the studio MCP; responder pods
-  reach the MCP through a sanctioned dev-env v2 path.
+- **Storage:** no per-pod volume, so app pods can replicate (D41); media in
+  `gasha01:/hdd-nfs-repl/data/studio` and records in a `studio` database on
+  `database/postgres16` with its backups (D39); nothing auto-purged.
+- **Access:** LAN-only UI for now, online-ready (D41): Authentik OIDC sign-in for people,
+  scoped keys through the studio MCP for agents; responder pods reach the MCP through a
+  sanctioned dev-env v2 path. Stateless web app and API with at least two replicas across
+  nodes; state only in Postgres and on gasha01 NFS.
 - **Code:** the haynes-studio monorepo. Images are built by GitHub Actions, and haynes-ops
   holds every deployed manifest.
 
