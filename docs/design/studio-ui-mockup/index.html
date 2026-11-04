@@ -5,13 +5,13 @@
 <style>
 :root {
   color-scheme: light;
-  --page:#eeeff1; --surface:#ffffff; --soft:#e5e7eb; --ink:#25272d;
-  --muted:#626771; --line:#d4d6dc; --strong-line:#9a9fa9;
-  --accent:#345ab5; --accent-soft:#e8edfb; --on-accent:#ffffff;
-  --good:#287250; --good-soft:#e4f0e8; --review:#895c17; --review-soft:#f7edd8;
-  --danger:#ab3543; --focus:#4169c8; --clear:transparent; --shadow:#1113191a;
-  --stage:#141519; --stage-ink:#e1e3e9; --stage-muted:#a8acb7; --stage-line:#393c45;
-  --wave:#889ed4;
+  --page:#f3f4f3; --surface:#ffffff; --soft:#e8eae8; --ink:#141614;
+  --muted:#5b605c; --line:#d8dbd8; --strong-line:#9ba09c;
+  --accent:#13823d; --accent-soft:#e2f4e7; --on-accent:#ffffff;
+  --good:#13823d; --good-soft:#e2f4e7; --review:#8a5d12; --review-soft:#f6ecd6;
+  --danger:#b3263a; --focus:#13823d; --clear:transparent; --shadow:#0c0f0c1a;
+  --stage:#0b0c0b; --stage-ink:#eef0ee; --stage-muted:#a7aba8; --stage-line:#353835;
+  --wave:#4fcf7a;
   --sky:#dce6eb; --ridge:#b3c6cc; --tree:#567578; --tree-dark:#36565d;
   --ground:#a7bab3; --frost:#edf3ef; --log:#6a7863; --fire:#d89240;
   --jacket:#315caf; --jacket-dark:#23457e; --stripe:#e2ebee; --letter:#f3d25d;
@@ -24,13 +24,13 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --page:#17181b; --surface:#202226; --soft:#2a2d32; --ink:#e8e9ed;
-  --muted:#a6abb6; --line:#393c44; --strong-line:#646a77;
-  --accent:#a9bfff; --accent-soft:#303a54; --on-accent:#18223b;
-  --good:#93ceae; --good-soft:#293c33; --review:#e2bc79; --review-soft:#443b2c;
-  --danger:#f0a1ac; --focus:#bdceff; --clear:transparent; --shadow:#08090b55;
-  --stage:#101114; --stage-ink:#e1e3e9; --stage-muted:#a8acb7; --stage-line:#393c45;
-  --wave:#889ed4;
+  --page:#0a0a0a; --surface:#1b1b1b; --soft:#2b2b2b; --ink:#f2f2f2;
+  --muted:#a5a5a5; --line:#2f2f2f; --strong-line:#5a5a5a;
+  --accent:#3ddc6f; --accent-soft:#163020; --on-accent:#04140a;
+  --good:#3ddc6f; --good-soft:#163020; --review:#e8b85c; --review-soft:#3a2f18;
+  --danger:#ff8a96; --focus:#6ee894; --clear:transparent; --shadow:#00000066;
+  --stage:#000000; --stage-ink:#eeeeee; --stage-muted:#a5a5a5; --stage-line:#333333;
+  --wave:#3ddc6f;
     --sky:#dce6eb; --ridge:#b3c6cc; --tree:#567578; --tree-dark:#36565d;
     --ground:#a7bab3; --frost:#edf3ef; --log:#6a7863; --fire:#d89240;
     --jacket:#315caf; --jacket-dark:#23457e; --stripe:#e2ebee; --letter:#f3d25d;
@@ -41,13 +41,13 @@
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --page:#17181b; --surface:#202226; --soft:#2a2d32; --ink:#e8e9ed;
-  --muted:#a6abb6; --line:#393c44; --strong-line:#646a77;
-  --accent:#a9bfff; --accent-soft:#303a54; --on-accent:#18223b;
-  --good:#93ceae; --good-soft:#293c33; --review:#e2bc79; --review-soft:#443b2c;
-  --danger:#f0a1ac; --focus:#bdceff; --clear:transparent; --shadow:#08090b55;
-  --stage:#101114; --stage-ink:#e1e3e9; --stage-muted:#a8acb7; --stage-line:#393c45;
-  --wave:#889ed4;
+  --page:#0a0a0a; --surface:#1b1b1b; --soft:#2b2b2b; --ink:#f2f2f2;
+  --muted:#a5a5a5; --line:#2f2f2f; --strong-line:#5a5a5a;
+  --accent:#3ddc6f; --accent-soft:#163020; --on-accent:#04140a;
+  --good:#3ddc6f; --good-soft:#163020; --review:#e8b85c; --review-soft:#3a2f18;
+  --danger:#ff8a96; --focus:#6ee894; --clear:transparent; --shadow:#00000066;
+  --stage:#000000; --stage-ink:#eeeeee; --stage-muted:#a5a5a5; --stage-line:#333333;
+  --wave:#3ddc6f;
   --sky:#dce6eb; --ridge:#b3c6cc; --tree:#567578; --tree-dark:#36565d;
   --ground:#a7bab3; --frost:#edf3ef; --log:#6a7863; --fire:#d89240;
   --jacket:#315caf; --jacket-dark:#23457e; --stripe:#e2ebee; --letter:#f3d25d;
@@ -158,7 +158,7 @@ main{min-width:0}
 .art .face{fill:var(--face)}.art .bow{fill:var(--bow)}.art .contour{fill:none;stroke:var(--face);stroke-width:1.5;stroke-linecap:round}
 .art .seam{fill:none;stroke:var(--jacket-dark);stroke-width:1.5}
 .art .fine{fill:none;stroke:var(--stripe);stroke-width:2}
-.build-box{margin-block:22px;border-top:2px solid var(--ink);background:var(--surface);padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.build-box{margin-block:22px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
 .build-box .row>div{min-width:0}
 progress{display:block;width:100%;height:7px;appearance:none;border:0;background:var(--soft);accent-color:var(--accent)}
 progress::-webkit-progress-bar{background:var(--soft)}progress::-webkit-progress-value{background:var(--accent)}progress::-moz-progress-bar{background:var(--accent)}
@@ -335,6 +335,13 @@ input[type="number"]{font-family:var(--mono)}
   .runs-area{display:grid;grid-template-columns:320px minmax(0,1fr);gap:24px;align-items:start}
   .runs-area .build-box{margin:0}.runs-area #cut-review{margin-top:0}
 }
+/* v5: Backstage-style shapes (pill actions, rounded cards). */
+.btn,.filter,.theme-options button{border-radius:999px}
+.btn{font-weight:600}
+.btn{background:var(--clear)}
+.panel,.launch-card,.film-panel,.chip,.preview-strip button,input,select,textarea{border-radius:6px}
+.launch-card,.panel{border-radius:8px}
+.add-media{margin-top:16px}
 </style>
 <div class="shell">
   <header class="top">
@@ -407,6 +414,9 @@ const seedBoards = [
     'C, A and B behind the log. D is gone. A looks smug; B stays deadpan.',{cue:'Offscreen crunch · hold'})
 ];
 const productions=['Yellowbirds'];
+const mediaTypes=[['short','Short','Shorts','9:16'],['video','Video','Videos','16:9']];
+const productionMedia={Yellowbirds:['short']};
+const mediaOf=name=>mediaTypes.filter(([id])=>(productionMedia[name]||[]).includes(id));
 const stories=[{id:'winter-menu',title:'The Winter Menu',production:'Yellowbirds',media:'short',boards:seedBoards,selected:'b1',nextBoard:10}];
 let boards=seedBoards;
 const state={route:'editor',story:'winter-menu',selected:'b1',production:null,media:null,
@@ -517,10 +527,10 @@ function readLines(b) {
 function runTime(run) {
   return `<time datetime="${run.created}" title="Queued at ${esc(new Date(run.created).toLocaleString())}">${esc(new Date(run.created).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}))}</time>`;
 }
-function buildPanel() {
+function buildPanel(showBuild=true) {
   const done=finishedRuns();
-  return `<section class="build-box" id="build-panel" aria-label="Video runs">
-    <div class="row between"><div class="stack-tight"><h2>Runs</h2><span class="small muted">${boards.length?esc(estimate())+' · simulated':'Add a board to start.'}</span></div>${button(isRunning()?'Queue run':'Build','build-start','primary',`id="build-button" ${canBuild()?'':'disabled'}`)}</div>
+  return `<section class="build-box" id="build-panel" aria-label="Video runs" tabindex="-1">
+    <div class="row between"><div class="stack-tight"><h2>Runs</h2><span class="small muted">${boards.length?esc(estimate())+' · simulated':'Add a board to start.'}</span></div>${showBuild?button(isRunning()?'Queue run':'Build','build-start','primary',`id="build-button" ${canBuild()?'':'disabled'}`):''}</div>
     ${storyRuns().length?`<ol class="run-list">${storyRuns().map(run=>`<li class="run-item" id="run-${run.number}">
       <div class="row between">${run.status==='done'?`<button class="run-select" id="view-run-${run.number}" data-action="run-view" data-number="${run.number}" aria-label="View run ${pad(run.number)}" aria-pressed="${!state.compare&&state.activeRun===run.number}">Run ${pad(run.number)}</button>`:`<strong class="small">Run ${pad(run.number)}</strong>`}${badge(run.status==='done'?'Done':run.status==='running'?'Running':'Queued',run.status==='done'?'good':run.status==='running'?'working':'')}</div>
       <div class="meta"><span id="run-detail-${run.number}">${run.status==='done'?'100%':(run.status==='running'?run.progress+'% · ':'')+esc(run.estimate)}</span>${runTime(run)}</div>
@@ -575,7 +585,9 @@ function productionPicker() {
   return head('Choose a production')+`<div class="tree-list">${productions.map((name,i)=>`<button class="tree-link picker" data-action="pick-production" data-index="${i}"><span class="folder-mark" aria-hidden="true"></span><div><h2>${esc(name)}</h2><p class="meta">${stories.filter(s=>s.production===name).length} stories</p></div><span class="arrow" aria-hidden="true">→</span></button>`).join('')}</div>`+createForm('production','Production');
 }
 function mediaPicker() {
-  return head('Choose a media type')+`<div class="landing-grid">${[['short','Short','9:16'],['video','Video','16:9']].map(([id,label,ratio])=>`<button class="launch-card" data-action="pick-media" data-value="${id}"><span class="launch-icon" aria-hidden="true">${id==='short'?'▯':'▭'}</span><div><h2>${label}</h2><p>${ratio}</p></div></button>`).join('')}</div>`;
+  const have=mediaOf(state.production),missing=mediaTypes.filter(t=>!have.includes(t));
+  return head(have.length?'Choose a media type':'Add a media type')+(have.length?`<div class="landing-grid">${have.map(([id,label,,ratio])=>`<button class="launch-card" data-action="pick-media" data-value="${id}"><span class="launch-icon" aria-hidden="true">${id==='short'?'▯':'▭'}</span><div><h2>${label}</h2><p>${ratio}</p></div></button>`).join('')}</div>`:'')+
+    (missing.length?`<div class="row add-media">${missing.map(([id,label,,ratio])=>button(`+ ${label} · ${ratio}`,'add-media','',`data-value="${id}"`)).join('')}</div>`:'');
 }
 function storyPicker() {
   const found=stories.filter(s=>s.production===state.production&&s.media===state.media);
@@ -585,7 +597,7 @@ function productionsView() {
   return head('Productions',`<span>${productions.length} production${productions.length===1?'':'s'}</span>`)+`<div class="tree-list">${productions.map((name,i)=>`<button class="tree-link picker" data-action="review-production" data-index="${i}"><span class="folder-mark" aria-hidden="true"></span><div><h2>${esc(name)}</h2><p class="meta">${stories.filter(s=>s.production===name).length} stories</p></div><span class="arrow" aria-hidden="true">→</span></button>`).join('')}</div>`;
 }
 function productionView() {
-  return head(state.production||'Productions','',link('Open editor','editor-media'))+`<div class="media-folders">${[['Shorts','shorts-yellowbirds'],['Videos','videos-yellowbirds']].map(([name,route])=>`<a class="tree-link" href="#${route}"><span class="folder-mark" aria-hidden="true"></span><div><h2>${name}</h2></div><span class="arrow" aria-hidden="true">→</span></a>`).join('')}</div><div class="section-head"><h2>Media</h2></div>`+mediaList('production');
+  return head(state.production||'Productions','',link('Open editor','editor-media'))+`<div class="media-folders">${mediaOf(state.production).map(([id,,name])=>[name,`${id}s-yellowbirds`]).map(([name,route])=>`<a class="tree-link" href="#${route}"><span class="folder-mark" aria-hidden="true"></span><div><h2>${name}</h2></div><span class="arrow" aria-hidden="true">→</span></a>`).join('')}</div><div class="section-head"><h2>Media</h2></div>`+mediaList('production');
 }
 function mediaList(key) {
   const filter=state.mediaFilters[key];
@@ -627,7 +639,7 @@ function filmstrip() {
 function boardView() {
   const b=selected();
   const header=`<div class="workspace-head"><div><h1 id="page-title" tabindex="-1">${esc(currentStory().title)}</h1><div class="meta"><span id="story-duration">${seconds(total())}${boards.some(x=>x.lines.length&&!x.voice.version)?' + untimed boards':''}</span><span id="board-status">${b?boardStatus(b):''}</span></div></div><div class="row">${button('Assets','board-assets','','id="workspace-assets"')}${button('Runs','show-runs','quiet')}${button(isRunning()?'Queue run':'Build','build-start','primary',`id="workspace-build" ${canBuild()?'':'disabled'}`)}</div></div>`;
-  return header+(b?`<div class="workbench"><nav class="tool-rail" aria-label="Workspace tools"><button data-action="inspector-jump" data-id="script-section" aria-label="Script" title="Script">T</button><button data-action="inspector-jump" data-id="voice-section" aria-label="Voice and timing" title="Voice & timing">≋</button><button data-action="inspector-jump" data-id="photo-composer" aria-label="Reference photo" title="Reference photo">▧</button><button data-action="board-assets" aria-label="Board assets" title="Assets">▦</button></nav>${stageView(b)}${filmstrip()}${boardInspector(b)}</div>`:`<div class="empty stack"><p>No boards yet.</p>${button('+ Add board','add-board')}</div>`)+`<div id="runs" class="runs-area">${buildPanel()}<div id="run-review">${cutReview()}</div></div>`;
+  return header+(b?`<div class="workbench"><nav class="tool-rail" aria-label="Workspace tools"><button data-action="inspector-jump" data-id="script-section" aria-label="Script" title="Script">T</button><button data-action="inspector-jump" data-id="voice-section" aria-label="Voice and timing" title="Voice & timing">≋</button><button data-action="inspector-jump" data-id="photo-composer" aria-label="Reference photo" title="Reference photo">▧</button><button data-action="board-assets" aria-label="Board assets" title="Assets">▦</button></nav>${stageView(b)}${filmstrip()}${boardInspector(b)}</div>`:`<div class="empty stack"><p>No boards yet.</p>${button('+ Add board','add-board')}</div>`)+`<div id="runs" class="runs-area">${buildPanel(false)}<div id="run-review">${cutReview()}</div></div>`;
 }
 function libraryAssets() {
   const outputs=stories.flatMap(s=>s.boards.flatMap(b=>[
@@ -850,7 +862,7 @@ function refreshBoard() {
 }
 let buildTimer;
 function refreshRuns() {
-  const box=$('#build-panel');if(box){const t=document.createElement('template');t.innerHTML=buildPanel();box.replaceWith(t.content);}
+  const box=$('#build-panel');if(box){const t=document.createElement('template');t.innerHTML=buildPanel(!$('#workspace-build'));box.replaceWith(t.content);}
   if($('#workspace-build'))$('#workspace-build').textContent=isRunning()?'Queue run':'Build';
   if($('#run-review'))$('#run-review').innerHTML=cutReview();
   else if(state.route==='media-winter-menu')render();
@@ -901,6 +913,7 @@ document.addEventListener('click',event=>{
   if(action==='crumb'){crumb(el.dataset.route);return;}
   if(action==='pick-production'||action==='review-production'){state.production=productions[Number(el.dataset.index)];state.media=null;clearAssetFilters();go(action==='pick-production'?'editor-media':'prod-yellowbirds');return;}
   if(action==='pick-media'){state.media=el.dataset.value;go('editor-stories');return;}
+  if(action==='add-media'){const list=productionMedia[state.production]||(productionMedia[state.production]=[]);if(!list.includes(el.dataset.value))list.push(el.dataset.value);state.media=el.dataset.value;go('editor-stories');return;}
   if(action==='pick-story'||action==='review-story'){chooseStory(el.dataset.id);clearAssetFilters();go(action==='pick-story'?'editor-board':'media-winter-menu');return;}
   if(action==='open-library'||action==='board-assets'){openLibrary(action==='board-assets');return;}
   if(action==='clear-board-filter'){state.assetBoard=null;state.assetKind='all';state.search='';render();return;}
@@ -912,7 +925,7 @@ document.addEventListener('click',event=>{
   }
   if(action==='select-board'){stopVoice();state.selected=el.dataset.id;go('board-'+el.dataset.id);return;}
   if(action==='inspector-jump'){const section=$('#'+el.dataset.id);if(section){section.open=true;section.querySelector('input,select,textarea')?.focus();section.scrollIntoView({block:'nearest'});}return;}
-  if(action==='show-runs'){$('#runs')?.scrollIntoView({block:'start'});$('#build-button')?.focus({preventScroll:true});return;}
+  if(action==='show-runs'){$('#runs')?.scrollIntoView({block:'start'});$('#build-panel')?.focus({preventScroll:true});return;}
   if(action==='add-board'){
     const next=currentStory().nextBoard++;
     const id='b'+next;
