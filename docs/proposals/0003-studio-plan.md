@@ -32,6 +32,7 @@ each epic runs. Decisions come from Tom in the 2026-11-03 session, and are also 
 | D21 | **Re-do the PoC as a video-generation workflow** before building, because it may change the plan | "re-do the PoC using a video gen workflow with the new tools" |
 | D22 | **Speech-to-video looks great** (mouth movement OK). **Layered suits dolls.** Whole-frame is **not rejected**: Tom critiqued one clip (shot 1 with Foley: jacket not continuous, eyes wrong), not the method. **Lettering breaks in both Wan methods** | "speech-to-video looked great"; "I didn't say whole frame never will work" (2026-11-03) |
 | D23 | **Layered is the better default for the doll format:** it "moves more like dolls and less is off". Not perfect: wardrobe inconsistency (sleeves) and one doll's lettering moving must be caught automatically | "The layered looks better, moves more like dolls and less is off" (2026-11-04) |
+| D24 | **Layered speech-to-video is the default for doll talking shots:** each speaking doll gets a Wan2.2 S2V clip on green from her shot's voice track (4-step lightning LoRA), composited like any layer. Worth about 1.5 h of extra GPU per 45 s short: the quality is much better and the earlier flaws (letters, sleeves) were not noticed | "Absolutely worth it the quality is much better I didn't notice any of the flaws we had before" (2026-11-04) |
 
 ## The product model
 
@@ -163,6 +164,11 @@ In short:
 - **An upscaler and fps conversion are needed.**
 - **ControlFoley works over HTTP (83 s per 5 s window).**
 - **Ear and taste stay with Tom.**
+- **Tom's verdict on layered speech-to-video (D24): the default for talking shots.** Layered
+  5B clips stay for dolls who aren't speaking and for reactions. The 4-step lightning LoRA makes S2V
+  about 5x faster (about 4 min per 4.8 s chunk on one 3090). The Wan API's poll timeout was
+  fixed on the way (haynes-ops PR 4635). See
+  [`findings-s2v.md`](../../titles/the-winter-menu/video-e0/findings-s2v.md).
 - **Tom's comparison (D23): layered is the doll default.** His two defects both trace to
   checks the pipeline lacked (see the layered findings): a **wardrobe check at casting**
   (two dolls were cast in sleeveless or half-sleeved jackets in r1 and nobody caught it), and a
@@ -236,7 +242,8 @@ learn what the plan must change.
 
 ## Questions for grooming round 2 (one at a time)
 
-- E0 pass/fail thresholds: what drift or face change is acceptable?
+- ~~E0 pass/fail thresholds~~: answered by D23 and D24 (Tom judged the films; the automatic gates
+  are E2/E5 work calibrated against his verdicts).
 - What exactly a format definition contains, and who authors it (Tom plus the frontier
   agent?).
 - Staging-room flow: where scripts live and how a subtitle scene becomes an approved script.
