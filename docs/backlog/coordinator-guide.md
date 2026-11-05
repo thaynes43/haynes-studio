@@ -12,7 +12,7 @@ https://work.haynesnetwork.com/work_packages/422 and
 | OpenProject project `haynes-studio` (ID 11), saga https://work.haynesnetwork.com/work_packages/362 | Canonical scope, current holds, owner, budget, state and human verdict. Read current history; the review's export is a snapshot. |
 | [AGENTS.md](../../AGENTS.md) and current work order | Authorization, hard rules, resource/stop limits. A review proposal grants no execution permission. |
 | [Proposal 0003](../proposals/0003-studio-plan.md), D1–D44 | Product decisions. D29 supersedes creative approval gates; D39/D41 supersede old RBD/no-login/storage text; D40 frontier writer; D42 image lane/uploads; D43/D44 release labels/credits. Later rulings beat older prose. |
-| [Implementation map](../design/studio-ui-mockup/implementation-backlog.md), [review edits](review-2026-11-05.md#tracker-edits--existing-work-packages) | Mockup-to-story ownership and proposed field repairs. R01–R39 are review labels until searched/created in tracker, never executable IDs. |
+| [Implementation map](../design/studio-ui-mockup/implementation-backlog.md), [review edits](review-2026-11-05.md#tracker-edits--existing-work-packages) | Mockup-to-story ownership and proposed field repairs. R01–R39 are now tracker items 423–461 (R*n* = 422 + *n*); see the [label table](review-2026-11-05.md#review-labels-in-the-tracker). |
 | [v6 mockup](../design/studio-ui-mockup/index.html) and [review.md](../design/studio-ui-mockup/review.md) | Interaction reference, not real generation/auth/storage. Old question defaults are history. |
 | [E0 findings](../../titles/the-winter-menu/video-e0/findings.md), [layered](../../titles/the-winter-menu/video-e0/findings-layered.md), [S2V](../../titles/the-winter-menu/video-e0/findings-s2v.md) | Measured inputs/limits. D24/latest S2V addendum wins over early premium-only recommendation. Not fresh service health. |
 
@@ -124,45 +124,45 @@ authorized Claude story ownership can use Opus. No cross-provider fallback on qu
 | https://work.haynesnetwork.com/work_packages/419 | U | Opus | Compare must show the intended frozen inputs. | Coordinator UX/queue review |
 | https://work.haynesnetwork.com/work_packages/420 | T | Opus | Phone/accessibility fixes remain user-visible work. | Coordinator technical evidence; Tom usability verdict |
 | https://work.haynesnetwork.com/work_packages/421 | H | Sol | Safe only after R33 rubric, hosted profile and frozen corpus. | Opus eval/tool-safety review; Tom switch verdict |
-| [R01](review-2026-11-05.md#r01--canonical-contracts-and-decision-reconciliation) | H | Opus | Cross-layer semantics must be settled before cheaper implementation. | Coordinator architecture/security review; Tom on unresolved choices |
-| [R02](review-2026-11-05.md#r02--ci-and-disposable-test-foundation) | T | Sonnet | Routine harness work once interfaces are fixed. | Sol reviews fixture realism and CI permissions |
-| [R03](review-2026-11-05.md#r03--legacy-service-adapters-and-private-input-recovery-map) | I | Sol | Mechanical extraction is safe only with frozen fake-service fixtures. | Coordinator plus compatibility reviewer |
-| [R04](review-2026-11-05.md#r04--layered-images2v-method-adapter) | H | Opus | Timing, cache and sample/frame conversion can silently corrupt output. | Coordinator media/timing review with independent frame checks |
-| [R05](review-2026-11-05.md#r05--whole-frame-image-to-video-adapter) | I | Sol | A fixed supported method and tiny fixtures make this bounded. | Media/timing reviewer checks decoded boundaries |
-| [R06](review-2026-11-05.md#r06--authorized-private-winter-menu-integration-run) | T | Sol | Execution audit is routine only after all interfaces and caps exist. | Coordinator technical evidence review; Tom watches/listens separately |
-| [R07](review-2026-11-05.md#r07--scoped-core-studio-mcp-server) | H | Opus | Scopes and cross-production mutation are access boundaries. | Security and API contract review |
-| [R08](review-2026-11-05.md#r08--asynchronous-mediarun-http-and-mcp-operations) | H | Opus | Upload and side-effect retries need adversarial review. | Security/API review including upload resource limits |
-| [R09](review-2026-11-05.md#r09--cnpg-studio-database-and-least-privilege-role) | G | Opus | Shared database and credentials require precise scope. | Infrastructure/security review and Tom action gate |
-| [R10](review-2026-11-05.md#r10--authentik-oidc-application-and-scoped-identity-contract) | G | Opus | A login success alone does not prove approval authorization. | OIDC/security review; Tom identity/access authorization |
-| [R11](review-2026-11-05.md#r11--reproducible-apiwebworker-images) | I | Sonnet | Mechanical builds after entry points and locks are fixed. | Build/security review checks image contents and workflow permissions |
-| [R12](review-2026-11-05.md#r12--lan-deployment-with-replicas-nfs-ingress-and-pdbs) | G | Opus | Replicas, OIDC, storage and network must agree. | Infrastructure/security review; Tom ingress/access gate |
-| [R13](review-2026-11-05.md#r13--metadatamedia-backup-configuration-and-recovery-plan) | G | Opus | CNPG backups alone cannot recover media. | Storage/recovery review; Tom retention/backup gate |
-| [R14](review-2026-11-05.md#r14--isolated-restore-drill) | T | Sol | A bounded drill is routine after the recovery plan is reviewed. | Storage/security reviewer checks target isolation and evidence |
-| [R15](review-2026-11-05.md#r15--apiqueue-integration-and-app-replica-recovery-tests) | T | Sol | Targeted failure cases need independent evidence, not more implementation. | Coordinator queue/security review; infra owner for disruption |
-| [R16](review-2026-11-05.md#r16--playwright-behavior-and-end-to-end-suite) | T | Sol | Explicit mockup behaviors make test work safe for a cheaper worker. | UI owner checks behavioral fidelity; coordinator checks real/fake boundary |
-| [R17](review-2026-11-05.md#r17--api-and-mcp-tool-reference) | D | Grok | Mechanical contract reference is low risk with generated schema checks; use only a verified sanctioned Grok path. | Sol verifies every example/schema; coordinator reviews public text |
-| [R18](review-2026-11-05.md#r18--operator-runbook-and-user-journey-documentation) | D | Opus | User-facing instructions and recovery boundaries require careful judgment. | Coordinator user-copy/operability review |
-| [R19](review-2026-11-05.md#r19--local-model-admission-through-the-existing-wan-lease) | G | Opus | Load/inference/unload must all remain inside one compute authority. | Lease/concurrency/security review |
-| [R20](review-2026-11-05.md#r20--host-one-approved-local-multimodal-model) | G | Opus | Hosting changes the shared GPU runtime and consumes storage. | Infrastructure/model/lease review; Tom resource gate |
-| [R21](review-2026-11-05.md#r21--versioned-staging-archive-through-mcp) | I | Sol | Structured archive operations are routine with a fixed contract. | Coordinator provenance/edit-conflict review |
-| [R22](review-2026-11-05.md#r22--authorized-read-only-subtitle-source-adapter) | H | Opus | Read-only data can still exceed source rights or leak private text. | Privacy/originality review; Tom source authorization and creative feedback |
-| [R23](review-2026-11-05.md#r23--escalation-package-and-dev-env-interface-contract) | H | Opus | A responder request conveys bounded action, never broader authority. | Coordinator/dev-env owner security and budget review |
-| [R24](review-2026-11-05.md#r24--one-sanctioned-responder-integration-drill) | T | Sol | A single synthetic drill is bounded once the external contract is installed. | Coordinator/dev-env owner verifies launch authority and patch scope |
-| [R25](review-2026-11-05.md#r25--versioned-format-recipes-and-target-account-metadata) | H | Opus | Recipe authority must not become shepherd taste judgment. | Coordinator domain review; Tom actual format choice |
-| [R26](review-2026-11-05.md#r26--candidate-feedback-and-iteration-contract) | U | Opus | User feedback must target the intended immutable run. | Coordinator UX/domain review |
-| [R27](review-2026-11-05.md#r27--private-manual-release-package-and-rightsdisclosure-checks) | H | Opus | Rights and disclosure affect whether release is permitted. | Coordinator rights/security review; Tom go-live only |
-| [R28](review-2026-11-05.md#r28--wardrobedecal-drift-checks-from-e0-fixtures) | H | Opus | E0 proves correlation scores can reject good clips and miss visible defects. | Media/check reviewer; Tom labels and taste separate |
-| [R29](review-2026-11-05.md#r29--matting-and-automatic-size-matching-adapter) | H | Opus | A plausible alpha output can erase eyes or alter cast scale. | Media/licence review |
-| [R30](review-2026-11-05.md#r30--set-occlusion-masks-and-focal-prop-layout-validation) | H | Opus | False visibility checks waste full video builds. | Media/geometry reviewer checks occlusion and failure modes |
-| [R31](review-2026-11-05.md#r31--delivery-scaling-and-fps-conversion-profile) | I | Sol | Explicit conversion fixtures make source work bounded. | Media/timing review; Tom visual comparison |
-| [R32](review-2026-11-05.md#r32--bounded-local-shepherd-stage-workflow) | H | Opus | An agent workflow must not expand retries or overwrite human edits. | Coordinator workflow/lease/provenance review |
-| [R33](review-2026-11-05.md#r33--local-writer-evaluation-corpus-and-switch-rubric) | T | Sol | Scoring invariants are routine once taste criteria are explicitly owned. | Coordinator evaluation review; Tom switch bar/rubric |
-| [R34](review-2026-11-05.md#r34--reusable-asset-library-and-promote-ui) | U | Opus | Board filters and promotion are visible state with costly mistakes. | Coordinator UX/API review |
-| [R35](review-2026-11-05.md#r35--reusable-set-and-doll-motion-asset-records) | I | Terra | Mechanical record import with a strict schema suits a cheaper tier. | Sol checks immutable IDs/clock fixture tests |
-| [R36](review-2026-11-05.md#r36--product-wan-video-job-interface) | G | Opus | PoC in-pod imports are not a stable product service interface. | Wan owner/lease/API review; Tom maintenance gate if disruptive |
-| [R37](review-2026-11-05.md#r37--one-approved-matting-backend-profile-image-and-gitops-install) | G | Opus | Backend availability needs an owner; a source adapter alone cannot supply it. | Model/licence, resource and infrastructure review; Tom action gate |
-| [R38](review-2026-11-05.md#r38--one-approved-segmentationdetection-backend-profile-image-and-gitops-install) | G | Opus | Backend availability needs an owner; a source adapter alone cannot supply it. | Model/licence, resource and infrastructure review; Tom action gate |
-| [R39](review-2026-11-05.md#r39--one-approved-upscaling-backend-profile-image-and-gitops-install) | G | Opus | Backend availability needs an owner; a source adapter alone cannot supply it. | Model/licence, resource and infrastructure review; Tom action gate |
+| [R01 · 423](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/423) | H | Opus | Cross-layer semantics must be settled before cheaper implementation. | Coordinator architecture/security review; Tom on unresolved choices |
+| [R02 · 424](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/424) | T | Sonnet | Routine harness work once interfaces are fixed. | Sol reviews fixture realism and CI permissions |
+| [R03 · 425](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/425) | I | Sol | Mechanical extraction is safe only with frozen fake-service fixtures. | Coordinator plus compatibility reviewer |
+| [R04 · 426](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/426) | H | Opus | Timing, cache and sample/frame conversion can silently corrupt output. | Coordinator media/timing review with independent frame checks |
+| [R05 · 427](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/427) | I | Sol | A fixed supported method and tiny fixtures make this bounded. | Media/timing reviewer checks decoded boundaries |
+| [R06 · 428](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/428) | T | Sol | Execution audit is routine only after all interfaces and caps exist. | Coordinator technical evidence review; Tom watches/listens separately |
+| [R07 · 429](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/429) | H | Opus | Scopes and cross-production mutation are access boundaries. | Security and API contract review |
+| [R08 · 430](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/430) | H | Opus | Upload and side-effect retries need adversarial review. | Security/API review including upload resource limits |
+| [R09 · 431](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/431) | G | Opus | Shared database and credentials require precise scope. | Infrastructure/security review and Tom action gate |
+| [R10 · 432](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/432) | G | Opus | A login success alone does not prove approval authorization. | OIDC/security review; Tom identity/access authorization |
+| [R11 · 433](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/433) | I | Sonnet | Mechanical builds after entry points and locks are fixed. | Build/security review checks image contents and workflow permissions |
+| [R12 · 434](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/434) | G | Opus | Replicas, OIDC, storage and network must agree. | Infrastructure/security review; Tom ingress/access gate |
+| [R13 · 435](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/435) | G | Opus | CNPG backups alone cannot recover media. | Storage/recovery review; Tom retention/backup gate |
+| [R14 · 436](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/436) | T | Sol | A bounded drill is routine after the recovery plan is reviewed. | Storage/security reviewer checks target isolation and evidence |
+| [R15 · 437](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/437) | T | Sol | Targeted failure cases need independent evidence, not more implementation. | Coordinator queue/security review; infra owner for disruption |
+| [R16 · 438](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/438) | T | Sol | Explicit mockup behaviors make test work safe for a cheaper worker. | UI owner checks behavioral fidelity; coordinator checks real/fake boundary |
+| [R17 · 439](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/439) | D | Grok | Mechanical contract reference is low risk with generated schema checks; use only a verified sanctioned Grok path. | Sol verifies every example/schema; coordinator reviews public text |
+| [R18 · 440](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/440) | D | Opus | User-facing instructions and recovery boundaries require careful judgment. | Coordinator user-copy/operability review |
+| [R19 · 441](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/441) | G | Opus | Load/inference/unload must all remain inside one compute authority. | Lease/concurrency/security review |
+| [R20 · 442](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/442) | G | Opus | Hosting changes the shared GPU runtime and consumes storage. | Infrastructure/model/lease review; Tom resource gate |
+| [R21 · 443](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/443) | I | Sol | Structured archive operations are routine with a fixed contract. | Coordinator provenance/edit-conflict review |
+| [R22 · 444](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/444) | H | Opus | Read-only data can still exceed source rights or leak private text. | Privacy/originality review; Tom source authorization and creative feedback |
+| [R23 · 445](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/445) | H | Opus | A responder request conveys bounded action, never broader authority. | Coordinator/dev-env owner security and budget review |
+| [R24 · 446](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/446) | T | Sol | A single synthetic drill is bounded once the external contract is installed. | Coordinator/dev-env owner verifies launch authority and patch scope |
+| [R25 · 447](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/447) | H | Opus | Recipe authority must not become shepherd taste judgment. | Coordinator domain review; Tom actual format choice |
+| [R26 · 448](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/448) | U | Opus | User feedback must target the intended immutable run. | Coordinator UX/domain review |
+| [R27 · 449](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/449) | H | Opus | Rights and disclosure affect whether release is permitted. | Coordinator rights/security review; Tom go-live only |
+| [R28 · 450](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/450) | H | Opus | E0 proves correlation scores can reject good clips and miss visible defects. | Media/check reviewer; Tom labels and taste separate |
+| [R29 · 451](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/451) | H | Opus | A plausible alpha output can erase eyes or alter cast scale. | Media/licence review |
+| [R30 · 452](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/452) | H | Opus | False visibility checks waste full video builds. | Media/geometry reviewer checks occlusion and failure modes |
+| [R31 · 453](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/453) | I | Sol | Explicit conversion fixtures make source work bounded. | Media/timing review; Tom visual comparison |
+| [R32 · 454](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/454) | H | Opus | An agent workflow must not expand retries or overwrite human edits. | Coordinator workflow/lease/provenance review |
+| [R33 · 455](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/455) | T | Sol | Scoring invariants are routine once taste criteria are explicitly owned. | Coordinator evaluation review; Tom switch bar/rubric |
+| [R34 · 456](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/456) | U | Opus | Board filters and promotion are visible state with costly mistakes. | Coordinator UX/API review |
+| [R35 · 457](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/457) | I | Terra | Mechanical record import with a strict schema suits a cheaper tier. | Sol checks immutable IDs/clock fixture tests |
+| [R36 · 458](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/458) | G | Opus | PoC in-pod imports are not a stable product service interface. | Wan owner/lease/API review; Tom maintenance gate if disruptive |
+| [R37 · 459](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/459) | G | Opus | Backend availability needs an owner; a source adapter alone cannot supply it. | Model/licence, resource and infrastructure review; Tom action gate |
+| [R38 · 460](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/460) | G | Opus | Backend availability needs an owner; a source adapter alone cannot supply it. | Model/licence, resource and infrastructure review; Tom action gate |
+| [R39 · 461](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/461) | G | Opus | Backend availability needs an owner; a source adapter alone cannot supply it. | Model/licence, resource and infrastructure review; Tom action gate |
 
 A cheaper tier is unsafe for H/U work without the listed contract, negative fixture
 or reference implementation. Never ask Terra/Grok to discover architecture, change
@@ -194,8 +194,7 @@ Do not re-ask D39 storage, D41 login or D42 image placement.
 
 Use `opwork --project haynes-studio search ...`, `show ID --history`, then claim only
 a started, artifact-ready bounded story. Default project is wrong. Agents cannot
-move out of Ungroomed (HTTP 422); report the hold, do not change grants. Search before
-R-label creation; Tom/Meatball reviews the proposed split. Keep full
+move out of Ungroomed (HTTP 422); report the hold, do not change grants. The R-label stories already exist (423–461); Tom/Meatball grooms them like any other item. Keep full
 `https://work.haynesnetwork.com/work_packages/ID` links and record progress/handoff on
 the canonical item. This review session is expressly forbidden tracker writes.
 

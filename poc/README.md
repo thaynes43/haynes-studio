@@ -29,7 +29,7 @@ replaced.
 `wan.py`, and the helpers built on it (`s2v.py`, `e0_batch.py`), reach the Wan API by
 importing its `api` module inside the Wan pod and swapping `api.make_graph` for a job-local
 graph. That is a PoC shortcut and stays as it is here. Typed product Wan operations
-(image-to-video, S2V, Foley) belong to R36, a typed job interface on the Wan API (see
+(image-to-video, S2V, Foley) belong to [R36 · 458](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/458), a typed job interface on the Wan API (see
 [the backlog review](../docs/backlog/review-2026-11-05.md)), not to in-pod monkeypatching.
 
 Everything is driven by a title manifest (`titles/<slug>/manifest.json`); see the
