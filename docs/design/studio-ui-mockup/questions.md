@@ -8,6 +8,13 @@
 4. Yes. Tweak and queue a new run while one runs, then compare (D30).
 5. Persist selections: the Editor's asset library opens scoped to the current production, with filters to widen (D32).
 
+The historical questions and prototype defaults below are superseded by D29 to D44 and by
+the v3 to v6 changes in [`review.md`](review.md). The current UI uses technical layer and
+motion badges, drafts stay editable during builds, and there is no script or per-board
+approval. The 0.25 s pad and 25 fps display are prototype defaults. R01 (see
+[the backlog review](../../backlog/review-2026-11-05.md)) owns production timing; how a
+format's length range is enforced remains a grooming choice.
+
 The original questions follow.
 
 Story: https://work.haynesnetwork.com/projects/haynes-studio/work_packages/401

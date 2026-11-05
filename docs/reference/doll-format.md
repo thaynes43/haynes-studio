@@ -23,6 +23,11 @@ says otherwise.
 
 ## Motion
 
+This is the historical OP345 rigid-still baseline. For current doll talking boards, D24
+(in [proposal 0003](../proposals/0003-studio-plan.md)) selects layered speech-to-video
+(S2V), and D38 exposes the layer and motion choices with capability validation. Keep this
+baseline for legacy rendering tests, not as a prohibition on S2V mouth motion.
+
 - Each shot shows one still cutout (or several, for a group shot) over a fixed
   background with a fixed camera.
 - The whole doll moves as one rigid piece, translated and rotated as if an unseen

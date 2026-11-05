@@ -1,7 +1,7 @@
 # Manual PoC: making a doll short by hand
 
 This runbook covers making one doll short from brief to private delivery using
-in-cluster services, with an agent driving each step and Tom approving at the gates.
+in-cluster services, with an agent driving each step and Tom giving feedback.
 It is meant to be repeated: the first run on "The Winter Menu"
 ([`titles/the-winter-menu/`](../../titles/the-winter-menu/brief.md)) will correct it.
 
@@ -22,6 +22,11 @@ Read first: [services](../reference/services.md), [doll format](../reference/dol
 
 OP345 evidence (all in haynes-ops): `.agents/evidence/crunchy-butter-dolls-2026-11-01/`
 ([on GitHub](https://github.com/thaynes43/haynes-ops/tree/main/.agents/evidence/crunchy-butter-dolls-2026-11-01)).
+
+Historical evidence remains **Proven** or **Changed** for the run it actually came from.
+Current rule (D29 in [proposal 0003](../proposals/0003-studio-plan.md)): iterate the
+script and images together. Script, cast and keyframe approval is not a prerequisite to
+generation or Build. Only publication requires a formal go-live approval.
 
 ## Overview
 
@@ -65,7 +70,7 @@ backlog is written from these notes.
    A new attempt is a new revision. The job directory is on the session volume:
    rescue does not cover it (rescue only saves git worktrees) and archiving the
    session deletes it. Deliver to the PVC (stage 7) before the session ends, and copy
-   chosen images out to safety as soon as Tom approves them.
+   chosen images out to safety as soon as they are chosen.
 4. **Python venv** for editing (no system packages needed):
 
    ```bash
@@ -125,10 +130,12 @@ Rules of thumb from OP345:
 - Avoid words a recognizer will mishear. OP345 changed one line after the
   transcript heard "once" for "one".
 
-**Gate 1 (Changed 2026-11-04, D29: no longer a stop; script and images iterate together with Tom's feedback):** Tom approves the script and every detail the images depend on (cast
-looks, costume text such as a team name, the set) before any assets are generated.
-Record his reply in the run log. Line wording may still be tuned after hearing the
-voices (stage 3); note any change and let Tom see it at gate 3.
+**Gate 1 (Changed 2026-11-04, D29):** historical script/cast feedback step; no current
+stop. Before D29, Tom approved the script and every detail the images depend on (cast
+looks, costume text such as a team name, the set) here, before any assets were generated.
+Now script and images iterate together with his feedback. Record his feedback in the run
+log. Line wording may still be tuned after hearing the voices (stage 3); note any change
+and let Tom see it at gate 3.
 
 ## Stage 2: cast and set images
 
@@ -189,13 +196,16 @@ are in `titles/the-winter-menu/prompts.json`.
 7. **Copy outputs out at once.** ComfyUI deletes outputs after 30 days; `comfy.py`
    already writes every result into the job directory.
 
-**Gate 2 (Changed 2026-11-04, D29: no longer a stop):** Tom approves the cast and the set. Iterate here, not in the edit.
+**Gate 2 (Changed 2026-11-04, D29):** historical script/cast feedback step; no current
+stop. Before D29, Tom approved the cast and the set here. Iterate on them here, not in the
+edit.
 
 **Fallback:** if Qwen cannot keep a doll consistent across expressions or the cutouts
-are unusable, write down the specific failure with examples and ask Tom whether to
-use Gemini or OpenAI image APIs. That needs his approval, a cost cap and a key he
-provisions. Do not use an agent harness's built-in image tool as a quiet substitute:
-it does not leave a repeatable record.
+are unusable, write down the specific failure with examples. D42 permits a frontier
+image-capable agent, in its sanctioned subscription session, to upload a reference photo
+with provenance: the agent, model, prompt, source assets and a content hash. The studio
+itself only accepts uploads. Pay-per-token image calls (Gemini, OpenAI or other image
+APIs) need Tom's separate approval, a cost cap and a key he provisions.
 
 ## Stage 3: voices
 

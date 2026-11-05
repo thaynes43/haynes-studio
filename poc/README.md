@@ -17,11 +17,20 @@ replaced.
 | `keyframes.py` | E0 | Composes each shot's first frame from a manifest as a Wan keyframe |
 | `wan.py` | E0 | One Wan TI2V image-to-video clip through the Wan API's own `generate()` under its compute lease (OP342 path), cool-idle gate, ledger |
 | `e0_batch.py` | E0 | Sequential batch of whole-frame and layer clips for The Winter Menu |
-| `s2v.py` | E0 | Wan 2.2 speech-to-video for a talking shot (keyframe plus line audio), two-GPU CFG split |
+| `s2v.py` | E0 | Wan 2.2 speech-to-video for a talking shot (keyframe plus line audio); by default 20 steps at cfg 6 with a two-GPU CFG split |
+| `s2v.py --lightning` | E0 | The current S2V profile for doll talking shots (D24): the template's 4-step lightning LoRA at cfg 1 on one 3090, about 4 min per 4.8 s chunk |
 | `layered.py` | E0 | Layered shot: Wan set loop plus a keyed Wan doll-on-green clip, with syllable-synced bounce |
+| `layered_film.py` | E0 | Full layered film: every doll in every shot is a keyed Wan doll-on-green clip over a Wan set loop, with the manifest's layouts, talk bounce, moves and camera, muxed with a soundtrack. Shot-specific clips (such as S2V from the shot's voice track) play locked to the shot's clock. Optional decals stop the render on a weak track. `--workers` 1 in a session pod, up to 22 on studio-render |
+| `decal.py` | E0 | Tracked lettering decal: follows the jacket through a Wan doll clip (OpenCV ECC, affine), erases Wan's garbled lettering and pastes the still's lettering warped by that motion; writes per-frame tracking scores. Below `MIN_ECC` (0.8) the clip should be re-rolled |
 | `assemble_video.py` | E0 | Joins and trims Wan clips per cut, upscales, and muxes a soundtrack |
 | `foley.py` | E0 | One ControlFoley take on a Wan clip through the Foley service's HTTP API |
 | `deliver.py` | 7 | Copies assets create-only to the Wan PVC, validates and links the ledger, verifies through the API in the pod |
+
+`wan.py`, and the helpers built on it (`s2v.py`, `e0_batch.py`), reach the Wan API by
+importing its `api` module inside the Wan pod and swapping `api.make_graph` for a job-local
+graph. That is a PoC shortcut and stays as it is here. Typed product Wan operations
+(image-to-video, S2V, Foley) belong to [R36 · 458](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/458), a typed job interface on the Wan API (see
+[the backlog review](../docs/backlog/review-2026-11-05.md)), not to in-pod monkeypatching.
 
 Everything is driven by a title manifest (`titles/<slug>/manifest.json`); see the
 runbook. Run the image and edit tools with the studio venv (`~/.cache/studio-venv/bin/python`, see
