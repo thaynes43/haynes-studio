@@ -66,7 +66,7 @@ assigned to one worker.
    R06 private build requires R08/R12/R36 installed. R16 app end-to-end -> R17/R18
    references/runbooks (R17 can start earlier after API/MCP contracts). [420](https://work.haynesnetwork.com/work_packages/420) requires
    all UI, installed/technical evidence, docs and Tom's demo window.
-5. R19 tested lease source -> R20 authorized lease rollout + hosting -> [421](https://work.haynesnetwork.com/work_packages/421) local evaluation, also requiring
+5. **E10 local model benchmark and harness ([462](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/462), D46):** E10.1 corpus and rubric (455) -> E10.2 baselines ([463](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/463)) -> E10.3 harness (421); E10.4 scoreboard and intake runbook ([464](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/464)) after E10.2. R19 tested lease source -> R20 authorized lease rollout + hosting -> [421](https://work.haynesnetwork.com/work_packages/421) local evaluation, also requiring
    [411](https://work.haynesnetwork.com/work_packages/411)/R07/R33. [411](https://work.haynesnetwork.com/work_packages/411) never waits for E4. R25 format recipes -> R21 archive -> R22
    authorized subtitle adapter. R23 escalation contract -> R24 sanctioned drill.
    R37–R39 supply one approved matting/detection/upscale backend each. R29–R31
@@ -123,7 +123,7 @@ authorized Claude story ownership can use Opus. No cross-provider fallback on qu
 | https://work.haynesnetwork.com/work_packages/418 | U | Opus | Versions and stale photos drive expensive builds. | Coordinator UX/provenance review |
 | https://work.haynesnetwork.com/work_packages/419 | U | Opus | Compare must show the intended frozen inputs. | Coordinator UX/queue review |
 | https://work.haynesnetwork.com/work_packages/420 | T | Opus | Phone/accessibility fixes remain user-visible work. | Coordinator technical evidence; Tom usability verdict |
-| https://work.haynesnetwork.com/work_packages/421 | H | Sol | Safe only after R33 rubric, hosted profile and frozen corpus. | Opus eval/tool-safety review; Tom switch verdict |
+| https://work.haynesnetwork.com/work_packages/421 (E10.3) | H | Sol | Safe only after the E10.1 rubric, E10.2 baselines and a hosted profile; each harness change is measured on the frozen briefs. | Opus eval/tool-safety review; Tom switch verdict |
 | [R01 · 423](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/423) | H | Opus | Cross-layer semantics must be settled before cheaper implementation. | Coordinator architecture/security review; Tom on unresolved choices |
 | [R02 · 424](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/424) | T | Sonnet | Routine harness work once interfaces are fixed. | Sol reviews fixture realism and CI permissions |
 | [R03 · 425](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/425) | I | Sol | Mechanical extraction is safe only with frozen fake-service fixtures. | Coordinator plus compatibility reviewer |
@@ -136,7 +136,7 @@ authorized Claude story ownership can use Opus. No cross-provider fallback on qu
 | [R10 · 432](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/432) | G | Opus | A login success alone does not prove approval authorization. | OIDC/security review; Tom identity/access authorization |
 | [R11 · 433](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/433) | I | Sonnet | Mechanical builds after entry points and locks are fixed. | Build/security review checks image contents and workflow permissions |
 | [R12 · 434](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/434) | G | Opus | Replicas, OIDC, storage and network must agree. | Infrastructure/security review; Tom ingress/access gate |
-| [R13 · 435](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/435) | G | Opus | CNPG backups alone cannot recover media. | Storage/recovery review; Tom retention/backup gate |
+| [R13 · 435](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/435) | G | Sonnet | D47: database and small-PVC coverage only, following the existing VolSync/Gatus/CNPG pattern; NFS media is not backed up. | Storage/recovery review; Tom retention/backup gate |
 | [R14 · 436](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/436) | T | Sol | A bounded drill is routine after the recovery plan is reviewed. | Storage/security reviewer checks target isolation and evidence |
 | [R15 · 437](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/437) | T | Sol | Targeted failure cases need independent evidence, not more implementation. | Coordinator queue/security review; infra owner for disruption |
 | [R16 · 438](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/438) | T | Sol | Explicit mockup behaviors make test work safe for a cheaper worker. | UI owner checks behavioral fidelity; coordinator checks real/fake boundary |
@@ -156,7 +156,9 @@ authorized Claude story ownership can use Opus. No cross-provider fallback on qu
 | [R30 · 452](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/452) | H | Opus | False visibility checks waste full video builds. | Media/geometry reviewer checks occlusion and failure modes |
 | [R31 · 453](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/453) | I | Sol | Explicit conversion fixtures make source work bounded. | Media/timing review; Tom visual comparison |
 | [R32 · 454](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/454) | H | Opus | An agent workflow must not expand retries or overwrite human edits. | Coordinator workflow/lease/provenance review |
-| [R33 · 455](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/455) | T | Sol | Scoring invariants are routine once taste criteria are explicitly owned. | Coordinator evaluation review; Tom switch bar/rubric |
+| [R33 · 455](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/455) (E10.1) | T | Sol | Scoring invariants are routine once taste criteria are explicitly owned. | Coordinator evaluation review; Tom switch bar/rubric |
+| [463](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/463) (E10.2) | T | Sol | Running a frozen benchmark is routine once the corpus and hosting exist; GPU window stated in the work order. | Coordinator checks run records and model digests; Tom labels drafts |
+| [464](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/464) (E10.4) | D | Sonnet | Scoreboard and runbook from recorded data; a dry run proves it. | Sol checks the runbook by following it |
 | [R34 · 456](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/456) | U | Opus | Board filters and promotion are visible state with costly mistakes. | Coordinator UX/API review |
 | [R35 · 457](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/457) | I | Terra | Mechanical record import with a strict schema suits a cheaper tier. | Sol checks immutable IDs/clock fixture tests |
 | [R36 · 458](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/458) | G | Opus | PoC in-pod imports are not a stable product service interface. | Wan owner/lease/API review; Tom maintenance gate if disruptive |
@@ -179,7 +181,7 @@ is verified; Sonnet is the recommended already-described alternative if authoriz
 | Groom/start and Accepted | Every item: Tom/Meatball handles Ungroomed transition; authorized accepter handles Accepted. Preserve explicit holds. |
 | GPU/worker allocation, model profile/download, capacity | R06/R20/R28/R31/R32/R37–R39/[421](https://work.haynesnetwork.com/work_packages/421) and any real generation: explicit bounded window/job count/bytes/lease time; busy/unknown work stops. D2/D18 placement is already decided; no need to re-ask placement. |
 | DB role/credentials, OIDC approver identity, ingress/network/NFS access | R09/R10/R12: Tom-authorized action and owner-managed secrets, all config through haynes-ops. No new login, grant or bypass after denial. |
-| Backup route/retention/objectives and isolated restore | R13/R14: NAS/DB owner and Tom authorize path/target/caps; never overwrite originals. |
+| Backup coverage and isolated restore | D47: NFS media is not backed up; only CNPG (existing postgres16 backups) and small PVCs (shared VolSync component, plus Gatus). R13/R14: Tom authorizes the restore target; never overwrite originals. |
 | Subtitle source | R22: named sanctioned read-only path and one scene; no source text in public git. |
 | Responder launch, MCP reachability and usage cap | R23/R24: external dev-env owner verifies path; one launch only after its authorization. No fake route or borrowed credentials. |
 | Taste, format/rubric choices and writer switch | R01/R25/R28/R33/[421](https://work.haynesnetwork.com/work_packages/421)/[420](https://work.haynesnetwork.com/work_packages/420): record Tom's feedback separately from tests. No switch or Accepted from a pass-rate alone. No creative gate before Build. |
