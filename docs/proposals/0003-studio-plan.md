@@ -58,27 +58,31 @@ each epic runs. Decisions come from Tom in the 2026-11-03 session, and are also 
 
 ```mermaid
 flowchart TB
-  Format -->|defines rules, shot grammar, cast filter, gates, target accounts| Production
-  ScriptSource[Script source: subtitles or archive] --> Script
-  Script -->|approved by Tom| Production
-  Production --> Scene --> Shot
-  Shot -->|pins versions of| Asset[Assets: doll, set, sound, voice, character card]
-  Production --> Revision --> Candidate
-  Candidate -->|Tom feedback| Revision
-  Candidate -->|Tom approves| Drop[Drop: publish to an account]
+  Production[Production: themed collection] --> MediaType[Enabled media type]
+  MediaType --> Story[Story: one video]
+  Story --> Board[Ordered stable-ID boards]
+  Board --> AssetVersion[Immutable asset versions]
+  Format[Versioned format recipe] --> Story
+  ScriptSource[Private staging source] --> Story
+  Story -->|immutable queued snapshot| Run
+  Run --> Candidate[Run presented for a target]
+  Candidate -->|Tom exact-run go-live, then manual release| Drop[Recorded publication]
 ```
+
+A production is a themed collection. It contains only its enabled media types (Short
+9:16, Video 16:9); each type contains stories. A story is one video's editable ordered
+boards. A board is one intended clip, with versioned voice/photo, script, method and
+direction. A run is an immutable queued story snapshot and its outputs. Legacy
+production/revision IDs map to run/delivery IDs explicitly; they are never overwritten.
+A candidate is a run presented for a target account; a drop is an actual publication,
+separately recorded after Tom's exact-run go-live.
 
 - **Format:** style rules, shot grammar (shot types, motion, camera), a default asset label
   filter, voice and sound rules, length range, target accounts, and **gate settings** (which
-  steps stop for Tom).
-- **Production:** one piece of media (a short now, long-form later). It is split into
-  scenes and shots and pins every asset version and toolchain digest it used.
-- **Revision → Candidate:** each render is a revision. A candidate is a revision presented
-  for an account.
-- **Drop:** a publish to an account, gated by Tom, frozen afterwards.
+  steps stop for Tom; since D29, go-live is the only formal approval).
 - **Asset:** an immutable version with labels and provenance (prompts, seeds, hashes). Kinds
   are doll, set, sound, voice and character card.
-- **Feedback:** Tom's notes, tied to a revision or shot, which become patches.
+- **Feedback:** Tom's notes, tied to a run or board, which become patches.
 
 ## Who does what
 
@@ -118,10 +122,13 @@ flowchart TB
   the lease. A doll format keeps the model resident on one card while it holds the lease for
   that card. Wan jobs that need both cards cause it to be unloaded first. Household services (ComfyUI on the 2000 Ada, Muse's
   card, the voice A2000s) are never touched.
-- **Image generation** stays on the shared ComfyUI (Qwen-Image 2.1 int8), polite to Home
-  Assistant, unless E0 or E2 shows the 3090s should take it.
-- **CPU:** up to 24 vCPUs for render workers on talosw01, low priority, once E3 provides the
-  worker and AGENTS.md is amended. Until then, 2 threads.
+- **Image generation:** D42 keeps board images on the shared `comfyui-0` (talosm03) as a
+  separate lane. One prompt in flight; household first. External reference uploads through
+  the authenticated API and MCP become immutable, provenance-complete versions. The studio
+  makes no paid API call.
+- **CPU:** `ai/studio-render` already exists on talosw01 under D18: up to 24 vCPUs, low
+  priority, up to 22 workers, media at `/studio`. Session pods stay at 2 threads or fewer.
+  Do not wait for E3 to create this worker.
 - **Storage:** no per-pod volume, so app pods can replicate (D41); media in
   `gasha01:/hdd-nfs-repl/data/studio` and records in a `studio` database on
   `database/postgres16` with its backups (D39); nothing auto-purged.
@@ -134,8 +141,11 @@ flowchart TB
 
 ## Requirements across every epic
 
-- **Zero cloud tokens to produce media by default.** Every escalation and its cost is
-  recorded on the production.
+- **The media factory uses local models by default.** D40 frontier staging and board
+  writing, and sanctioned D42 external photos, are allowed within their existing session
+  scope; record their usage on the production. Pay-per-token APIs still need Tom's cost cap
+  and a key he provisions. D29 removes the script and per-board approvals; only go-live is
+  a formal approval.
 - **Immutable and pinned:** asset versions, toolchain digests per render, frozen drops.
 - **Create-only outputs; nothing auto-purged;** user-driven deletion with protection for
   approved or published items.
@@ -157,12 +167,12 @@ New epics are filed for E0, E7, E8 and E9.
 | Epic | What it delivers | Depends on |
 |---|---|---|
 | **E0 Video-generation PoC** (new, first) | The Winter Menu remade with a Wan clip per cut, testing all three talking-shot methods, with findings that decide E1 to E5's design | nothing |
-| E1 Core (372) | Production/scene/shot model, manifest v2 (clip shots, methods, formats), length-agnostic render engine with per-shot cache, atomic stages, fail-fast checks, delivery with proxies | E0 findings |
+| E1 Core (372) | Canonical story/board model with an explicit legacy adapter, cached supported-method builds and create-only delivery | E0 findings |
 | E2 Asset pipelines (373) | Matting service (studio-owned), occlusion masks, automatic size matching, character cards, immutable versioned library with labels | E0 findings, E1 |
 | E3 API, storage, queue, MCP (374) | stateless studio-api with replicas (D41), Postgres on `database/postgres16` and gasha01 NFS media (D39); a GPU scheduler owning the 3090s (Wan, Foley, local model); MCP with scoped agent keys | E1 |
 | E4 Local model hosting (375) | One multimodal local model on a 3090, loaded and unloaded by the scheduler | E3 |
-| E5 Local shepherd (376, renamed) | Moves approved content through the pipeline with technical checks only, and escalates through E8; also the local board-writer harness (E5.2, D40) | E3, E4 |
-| E6 Storyboard UI (377) | Productions, shots, keyframes, clips, playback, revisions, notes, deletion, LAN-only | E3 |
+| E5 Local shepherd (376, renamed) | Frontier board writer initially (D40), a local harness after evaluation, and a local shepherd for the technical pipeline stages; no creative judgment | E3, E4 |
+| E6 Storyboard UI (377) | The production/media/story/board UX of the [v6 mockup](../design/studio-ui-mockup/review.md), measured pre-build assets, and drafts that stay editable while immutable runs are queued; go-live is the only approval | E3 |
 | **E7 Staging room and script sources** (new) | Tom and a frontier agent (dev-env v2) adapt subtitle scenes and stage archive scripts through the studio MCP; read-only subtitle discovery on HaynesTower or Bazarr | E3 |
 | **E8 Escalation through dev-env v2** (new) | Escalation packages, a sanctioned way to request a responder, MCP access for responders, cost logging | E3, the dev-env v2 saga |
 | **E9 Formats, accounts, candidates and drops** (new) | Format definitions with gate settings, accounts, candidate review per account, feedback into revisions, a publishing gate with rights and disclosure checks. Platform integrations only with Tom's explicit approval | E1, E3, E6 |
@@ -270,8 +280,13 @@ learn what the plan must change.
 - ~~What a format definition contains, and who authors it~~: answered by D25 (a starting
   shape; fields can grow as formats are built).
 - ~~Staging-room flow~~: answered by D26 and D27 (stories of boards, edited by the user or
-  filled in by an agent, the story approved per D26). The API follows from it in E3/E6
-  design; the text-pass and length-range points in D27 stay open.
+  filled in by an agent), with D29 replacing the story approval of D26: go-live is the only
+  approval. The API follows from it in E3/E6 design.
+- ~~Whether a text-only pass comes before the photos (D26, D27)~~: answered by D29 (script
+  and images iterate together, with no script gate before photos).
+- **Format length policy (open):** how a story's free length squares with its format's
+  length range (D25, D27). See question 1 in
+  [the backlog review](../backlog/review-2026-11-05.md).
 - ~~Database model details and the gasha01 NFS folder path~~: answered by D39.
 - ~~Publishing: which accounts and platforms first, and the disclosure stance~~: answered by D43.
 - ~~Whether image generation should move to the 3090s for consistency with Wan~~: answered by D42.

@@ -101,8 +101,13 @@ unless he says so.
 
 - Work on a branch `agent/<topic>` in its own worktree. Never push to `main`.
 - Open PRs ready for review, not as drafts, so the advisory reviewer runs.
-- Squash-merge your own PR once required checks pass and any review findings are
-  handled. Record what you validated in the PR body.
+- A worker that a coordinator dispatched on a backlog story stops at a ready PR and
+  its handoff. It does not merge. The coordinator reviews the PR, handles the review
+  findings and squash-merges it. See
+  [`docs/backlog/coordinator-guide.md`](docs/backlog/coordinator-guide.md).
+- A session working directly for Tom, or the coordinator itself, squash-merges its
+  own PR once required checks pass and any review findings are handled.
+- Record what you validated in the PR body.
 
 ## Automated PR review (agents read this)
 
