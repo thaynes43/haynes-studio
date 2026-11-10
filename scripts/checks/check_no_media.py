@@ -2,16 +2,21 @@
 """Fail if any tracked file has a media or model-weight extension.
 
 The extension list is the video, audio, image, subtitle and model-weight
-groups in .gitignore. Comparison is case-insensitive. Text formats such as
-.json, .md, .py and .html are not media.
+groups in .gitignore, plus its archive and 3D/array groups, because a zip of
+clips or an array of latents carries the same content. Comparison is
+case-insensitive. Text formats such as .json, .md, .py and .html are not
+media. The key and cookie patterns in .gitignore are secrets, not media, and
+are not this check's job.
 """
 
 import subprocess
 import sys
 from pathlib import Path
 
-# Source: .gitignore (video, audio, image, subtitle and model-weight groups).
+# Source: .gitignore (video, audio, image, subtitle, model-weight, archive and
+# 3D/array groups). Keep it sorted.
 MEDIA_EXTENSIONS = (
+    '.7z',
     '.aac',
     '.aif',
     '.aiff',
@@ -19,12 +24,15 @@ MEDIA_EXTENSIONS = (
     '.avi',
     '.avif',
     '.bin',
+    '.blend',
     '.bmp',
+    '.bundle',
     '.ckpt',
     '.exr',
     '.flac',
     '.gguf',
     '.gif',
+    '.gz',
     '.heic',
     '.heif',
     '.jpeg',
@@ -37,6 +45,8 @@ MEDIA_EXTENSIONS = (
     '.mp4',
     '.mpeg',
     '.mpg',
+    '.npy',
+    '.npz',
     '.ogg',
     '.onnx',
     '.opus',
@@ -48,6 +58,8 @@ MEDIA_EXTENSIONS = (
     '.srt',
     '.ssa',
     '.sub',
+    '.tar',
+    '.tgz',
     '.tif',
     '.tiff',
     '.vtt',
@@ -55,6 +67,7 @@ MEDIA_EXTENSIONS = (
     '.webm',
     '.webp',
     '.y4m',
+    '.zip',
 )
 
 
