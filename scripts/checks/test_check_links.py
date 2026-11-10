@@ -52,6 +52,20 @@ class CheckLinksTest(unittest.TestCase):
             code, out = run(tmp)
             self.assertEqual(code, 0, out)
 
+    def test_nested_and_labelled_fences_stay_closed(self):
+        # A longer fence holds a shorter one, and a fence with an info string
+        # does not close a block; the link after the real close is checked.
+        text = (
+            "````\n```\n[a](nowhere.md)\n```\n[b](nowhere.md)\n````\n"
+            "```\n```python\n[c](nowhere.md)\n```\n"
+            "[real](missing.md)\n"
+        )
+        with make_repo({"README.md": text}) as tmp:
+            code, out = run(tmp)
+            self.assertEqual(code, 1, out)
+            self.assertIn("README.md:11: broken link 'missing.md'", out)
+            self.assertNotIn("nowhere.md", out)
+
     def test_untracked_markdown_is_ignored(self):
         with make_repo({"README.md": "hi\n"}) as tmp:
             with open(os.path.join(tmp, "extra.md"), "w") as f:

@@ -31,17 +31,19 @@ def tracked_markdown(root):
 
 def links_in(text):
     """Yield (line_number, target) for each link outside fenced code."""
-    fence = None
+    fence = None  # the opening run, such as "```" or "~~~~", while inside a block
     for number, line in enumerate(text.splitlines(), 1):
         m = FENCE.match(line)
-        if m:
-            marker = m.group(1)[0]
-            if fence is None:
-                fence = marker
-            elif fence == marker:
-                fence = None
+        if m and fence is None:
+            fence = m.group(1)
             continue
         if fence:
+            # CommonMark: a block closes on a run of the same character, at
+            # least as long as the opening one, with nothing after it. A
+            # shorter run or one with an info string is content.
+            run = line.strip()
+            if run and set(run) == {fence[0]} and len(run) >= len(fence):
+                fence = None
             continue
         for found in LINK.finditer(CODE_SPAN.sub("", line)):
             yield number, found.group(1)
