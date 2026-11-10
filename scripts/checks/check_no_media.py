@@ -11,7 +11,6 @@ are not this check's job.
 
 import subprocess
 import sys
-from pathlib import Path
 
 # Source: .gitignore (video, audio, image, subtitle, model-weight, archive and
 # 3D/array groups). Keep it sorted.
@@ -87,7 +86,10 @@ def main(argv=None):
         if not raw:
             continue
         rel = raw.decode('utf-8', 'surrogateescape')
-        ext = Path(rel).suffix.lower()
+        # The text after the last dot of the file name. Path.suffix is empty
+        # for a name that starts with a dot, so a file called ".mp4" would pass.
+        name = rel.rsplit('/', 1)[-1]
+        ext = '.' + name.rsplit('.', 1)[1].lower() if '.' in name else ''
         if ext in MEDIA_EXTENSIONS:
             print(f'{rel}: tracked file has media or model-weight extension {ext}')
             failed = True

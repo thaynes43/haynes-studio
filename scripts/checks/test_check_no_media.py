@@ -64,7 +64,7 @@ class CheckNoMediaTests(unittest.TestCase):
 
     def test_archives_and_arrays_fail_too(self):
         # A zip of clips or an array of latents carries the same content.
-        for name in ('clips.ZIP', 'latents.npy'):
+        for name in ('clips.ZIP', 'latents.npy', '.MP4'):
             (self.repo / name).write_text('', encoding='utf-8')
             git(self.repo, 'add', '-f', '--', name)
         git(self.repo, 'commit', '-m', 'add an archive and an array')
@@ -72,6 +72,8 @@ class CheckNoMediaTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn('clips.ZIP: tracked file has media or model-weight extension .zip', result.stdout)
         self.assertIn('latents.npy: tracked file has media or model-weight extension .npy', result.stdout)
+        # A name that is only an extension counts too.
+        self.assertIn('.MP4: tracked file has media or model-weight extension .mp4', result.stdout)
 
 
 if __name__ == '__main__':
