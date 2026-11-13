@@ -114,12 +114,17 @@ revision and hash.
   with the reason.
 - Each `licence` in the JSON is a contract licence object
   ([section 7](../contracts/studio-contracts-v1.md#7-provenance-licences-and-public-credits)).
-  The contract's `commercial_use` has no value for a conditional term, so the register
-  records `conditional` in `outputs_commercial_use` and `unknown` in the licence object,
-  with the conditions in its `note` (proposal).
+  When the terms were checked the contract had no value for a conditional term, so the
+  register records `conditional` in `outputs_commercial_use` and `unknown` in the licence
+  object, with the conditions in its `note`. The contract has had `conditional` since
+  2026-11-13 (P-23), and the schema accepts it since story
+  [849](https://work.haynesnetwork.com/work_packages/849); the library's lookup now
+  gives `conditional` for such an entry and keeps its note.
 - `checked_by` in each licence object is
-  `{kind: worker, worker_id: "dev-env agent session haynes-studio-1113-141004"}`
-  (proposal): the contract's agent principal needs a studio key, and none exists yet.
+  `{kind: worker, worker_id: "dev-env agent session haynes-studio-1113-141004"}`, as
+  recorded at the check, when the contract had no principal for an agent session
+  without a studio key. It has one now, `{kind: agent_session, session, harness,
+  model}` (P-24, in the schema since story 849); these entries are left as recorded.
 - To add a model or change a term: read the publisher's page and licence, add or edit the
   file and engine entries with the URL, the quoted words, the date and the checker, and
   run `uv run pytest tests/library`. Never accept terms, log in or register to read a

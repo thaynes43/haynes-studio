@@ -19,7 +19,7 @@
   "covers": "Terms as they apply to the studio running the model and using what it makes. The studio does not redistribute model weights, so redistribution terms are noted but not applied.",
   "outputs_commercial_use_values": {
     "allowed": "the text allows commercial use of outputs, with at most use restrictions",
-    "conditional": "allowed only after a step or within a limit (registration, a revenue cap); recorded as unknown in the contract's licence object (proposal)",
+    "conditional": "allowed only after a step or within a limit (registration, a revenue cap); the contract's licence object has the value conditional (P-23, in the schema since story 849), but the licence objects here were recorded as unknown before it did, and the library's lookup reads such an entry as conditional",
     "noncommercial": "the text allows only non-commercial use, or something narrower (research or evaluation only); the note says which",
     "unknown": "not confirmed from the source; the note says why"
   },
@@ -106,7 +106,7 @@
           "kind": "worker",
           "worker_id": "dev-env agent session haynes-studio-1113-141004"
         },
-        "note": "Register entry stable-audio; the most restrictive of its files. Conditional (stays unknown in the contract's enum): hobby use is free; commercial use needs registration with Stability AI and ends above USD 1,000,000 annual revenue; outputs follow the Acceptable Use Policy and the Gemma Prohibited Use Policy. The session's reading of the text, not legal advice."
+        "note": "Register entry stable-audio; the most restrictive of its files. Conditional (recorded as unknown at the check, before the contract's enum had the value): hobby use is free; commercial use needs registration with Stability AI and ends above USD 1,000,000 annual revenue; outputs follow the Acceptable Use Policy and the Gemma Prohibited Use Policy. The session's reading of the text, not legal advice."
       }
     },
     {
@@ -442,7 +442,7 @@
           "kind": "worker",
           "worker_id": "dev-env agent session haynes-studio-1113-141004"
         },
-        "note": "Conditional (the contract has no 'conditional' value, so this stays unknown). Hobby and other non-commercial use is free: 'personal use (i.e., hobbyist)' is a Non-Commercial Purpose. Commercial use needs registration with Stability AI, and every licence ends if Tom or his affiliates pass USD 1,000,000 annual revenue. Outputs belong to the user; they must follow the Acceptable Use Policy and must not train a foundational generative model. 'Powered by Stability AI' is required when distributing the model or a product that uses it; outputs are excluded from 'Derivative Work', so whether a published video needs it is left open (null). The session's reading of the text, not legal advice."
+        "note": "Conditional (recorded as unknown at the check, before the contract had a 'conditional' value). Hobby and other non-commercial use is free: 'personal use (i.e., hobbyist)' is a Non-Commercial Purpose. Commercial use needs registration with Stability AI, and every licence ends if Tom or his affiliates pass USD 1,000,000 annual revenue. Outputs belong to the user; they must follow the Acceptable Use Policy and must not train a foundational generative model. 'Powered by Stability AI' is required when distributing the model or a product that uses it; outputs are excluded from 'Derivative Work', so whether a published video needs it is left open (null). The session's reading of the text, not legal advice."
       }
     },
     {

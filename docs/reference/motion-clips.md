@@ -84,12 +84,28 @@ lists the version's `sha256` (its bytes); the version ID fixes the rest.
 `loop_phase(board_id, slot, period)`, or TIME-8), and which keying inputs
 (`record.keying`, `keyed_key`).
 
+*Superseded in part by story 426 ([layered adapter](layered-adapter.md#the-cache-plans-layered-path)):*
+the build plays a loop with the pinned record's own `N` (`trim.frames`), trim start and
+fps, and the phase this resolver gives (`loop_phase` over the record's period), never
+the toolchain's. It keys the frames with the record's keying inputs, the decal's still
+being the clip's start image (`source.image_sha256`), but writes the keyer as
+`<keyer>@<build>` (`layered.keyed.keyer_build`), so the cache key it uses is
+`keyed_key`'s inputs with the build added, not `keyed_key` itself
+([keyed frames](layered-adapter.md#keyed-frames-keyed_frames_key)).
+
 - **Cast still:** the entry's new optional `motion_asset_version_id`, else the one
   promoted doll loop whose `still_sha256` is the entry's still, in the production (the
   story's, or `production_id=`) or the global library; a pin of another production is
   `asset.scope_mismatch`. Layered I2V: every entry; layered S2V: every entry
   with no line on the board (speakers get a timed clip); whole-frame: none. A pin is
-  checked wherever it stands.
+  checked wherever it stands. *Superseded by story 426 for the build
+  ([layered adapter](layered-adapter.md#the-cache-plans-layered-path)):* `resolve_board`
+  called on its own still skips a speaker on a layered S2V board (`needs_loop`), but the
+  build calls it through `layered.pin.pin_board`, which resolves every layered board as
+  layered I2V. So every cast entry of a layered board resolves a loop, a speaker's
+  included: her loop's `source.image_sha256` is her speech-to-video start image and its
+  `keying` keys her clip. A speaker's still without a loop is `motion.clip_absent`, and
+  the plan stops on it.
 - **Set** (a layered board, given the story): the story's `set.motion_asset_version_id`,
   else the one promoted set loop of the set still, else none: a static plate, as
   `cache.plan` builds it (proposal).
