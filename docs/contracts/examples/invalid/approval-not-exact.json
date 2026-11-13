@@ -1,0 +1,57 @@
+{
+  "schema": "studio.invalid-case/v1",
+  "rule": "approval.not_exact_run",
+  "expect": "invalid",
+  "context": "write",
+  "path": "/master_sha256",
+  "why": "The master hash must be the bound delivery’s master; this is the r4 master, another run.",
+  "document": {
+    "schema": "studio.go-live-approval/v1",
+    "id": "apr_01M79V9FC00000000000000001",
+    "run_id": "run_01M79V9FC00000000000000001",
+    "run_snapshot_sha256": "d90c2dcf834137defa9e4023fbcc0b9fbc4822f2b84e0eabf05ae6bca2c5661e",
+    "delivery_id": "dlv_01M79V9FC00000000000000001",
+    "master_sha256": "45ecdc359ebe194b398a671ad63b5002c09d3b3b13b3e34b64432a9dd16681ac",
+    "approver": {
+      "kind": "human",
+      "iss": "https://authentik.example.invalid/application/o/haynes-studio/",
+      "sub": "example-subject-tom"
+    },
+    "auth_time": "2026-11-13T09:40:00Z",
+    "approved_at": "2026-11-13T09:41:10Z",
+    "release_checks": {
+      "ai_label": {
+        "result": "pass",
+        "platform_setting": true,
+        "description_line": true
+      },
+      "rights": {
+        "result": "pass",
+        "basis": "fixture result; R27 supplies real evidence"
+      },
+      "public_credits": [
+        {
+          "engine_key": "wan-s2v",
+          "text": "Video: Wan2.2 S2V-14B on an RTX 3090"
+        },
+        {
+          "engine_key": "wan-ti2v",
+          "text": "Video: Wan2.2 TI2V-5B on two RTX 3090s"
+        },
+        {
+          "engine_key": "kokoro",
+          "text": "Voices: Kokoro-82M"
+        },
+        {
+          "engine_key": "stable-audio",
+          "text": "Sound effects: Stable Audio 3 Small"
+        }
+      ]
+    },
+    "derived": {
+      "state": "active",
+      "withdrawal": null,
+      "publication_ids": []
+    }
+  }
+}

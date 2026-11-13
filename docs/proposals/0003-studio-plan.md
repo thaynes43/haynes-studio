@@ -288,9 +288,9 @@ learn what the plan must change.
   approval. The API follows from it in E3/E6 design.
 - ~~Whether a text-only pass comes before the photos (D26, D27)~~: answered by D29 (script
   and images iterate together, with no script gate before photos).
-- **Format length policy (open):** how a story's free length squares with its format's
-  length range (D25, D27). See question 1 in
-  [the backlog review](../backlog/review-2026-11-05.md).
+- ~~Format length policy~~: answered by D45 (advisory: the editor warns when a story
+  runs past its format's length and still allows Build; platform maxima are enforced at
+  release preparation).
 - ~~Database model details and the gasha01 NFS folder path~~: answered by D39.
 - ~~Publishing: which accounts and platforms first, and the disclosure stance~~: answered by D43.
 - ~~Whether image generation should move to the 3090s for consistency with Wan~~: answered by D42.

@@ -1,0 +1,45 @@
+{
+  "schema": "studio.delivery/v1",
+  "id": "dlv_01M79V9FC00000000000000002",
+  "run_id": "run_01M79V9FC00000000000000002",
+  "created_at": "2026-11-03T18:26:46Z",
+  "store": {
+    "adapter": "legacy_wan_ledger",
+    "writable": false
+  },
+  "master": {
+    "sha256": "45ecdc359ebe194b398a671ad63b5002c09d3b3b13b3e34b64432a9dd16681ac",
+    "bytes": 33288768,
+    "media_type": "video/mp4",
+    "width": 1080,
+    "height": 1920,
+    "fps": 24,
+    "frames": 1087,
+    "video_codec": "h264",
+    "audio_codec": "aac",
+    "locator": null,
+    "legacy_path": "productions/the-winter-menu-r4/edit/final.mp4"
+  },
+  "proxy": null,
+  "verification": {
+    "decoded_frames": 1087,
+    "expected_frames": 1087,
+    "sha256_verified": true,
+    "source": "titles/the-winter-menu/evidence-r4/validation.json"
+  },
+  "legacy": {
+    "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+    "kind": "edited_production",
+    "preset": "rigid-doll-dialogue-manifest",
+    "provenance": {
+      "images": "Qwen-Image 2.1 int8 on the in-cluster ComfyUI (text-to-image and edit), chroma-keyed cutouts; prompts and seeds in prompts.json.",
+      "motion": "Deterministic rigid whole-doll cutout puppetry at 12 poses/s: idle wobble, a hop and tilt on each syllable while a doll speaks (from her voice envelope), and scripted lunges; face art fixed within each shot. Campfire flicker re-drawn procedurally from the set image.",
+      "records": "haynes-studio titles/the-winter-menu/ (manifest.json, prompts.json, evidence/)",
+      "voices": "Kokoro-82M v1.0 stock voices af_bella, af_heart, af_nicole, bf_emma; no cloning, no lip sync.",
+      "sfx": "crow: audio-authoring (Stable Audio 3 Small SFX, CPU) job 3cab72ad66894693bd414e82c07a23a2 seed 501; crunch: audio-authoring (Stable Audio 3 Small SFX, CPU) job 2545b734a9b445ef8a95737521e6a870 seed 601; gavel: audio-authoring (Stable Audio 3 Small SFX, CPU) job 78f6a7c49ba84ea1b24ba1f6633b9388 seed 801; sting: audio-authoring (Stable Audio 3 Small SFX, CPU) job 065de06515274cb185710a5a2c918022 seed 901",
+      "human_approval": "Pending: gate 3 (Tom)."
+    },
+    "assets_ref": "titles/the-winter-menu/evidence-r4/production.json",
+    "url": "https://video.haynesops.com/videos/032f1bb230794aaf84dce9001181a7d7/file"
+  }
+}

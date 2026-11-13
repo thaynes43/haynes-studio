@@ -1,0 +1,33 @@
+{
+  "schema": "studio.invalid-case/v1",
+  "rule": "legacy.duration_with_lines",
+  "expect": "invalid",
+  "context": "write",
+  "path": "/shots/0",
+  "why": "Legacy edit.timeline silently ignores lines when duration is set; the adapter refuses the ambiguity.",
+  "document": {
+    "title": "Example",
+    "job": "example-r1",
+    "frame": {
+      "width": 1080,
+      "height": 1920,
+      "fps": 24
+    },
+    "shots": [
+      {
+        "id": 5,
+        "layout": "group",
+        "duration": 3.0,
+        "line": {
+          "doll": "b",
+          "text": "Example line.",
+          "start": 0.5
+        },
+        "tail": 0.7,
+        "dolls": {
+          "b": "cutouts/b-deadpan.png"
+        }
+      }
+    ]
+  }
+}

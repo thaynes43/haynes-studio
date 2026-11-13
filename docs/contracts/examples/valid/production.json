@@ -1,0 +1,25 @@
+{
+  "schema": "studio.production/v1",
+  "id": "prd_01M79V9FC00000000000000001",
+  "name": "Yellowbirds",
+  "revision": 1,
+  "media_types": [
+    {
+      "kind": "short",
+      "aspect": "9:16",
+      "width": 1080,
+      "height": 1920,
+      "fps": 24,
+      "enabled_at": "2026-11-13T07:00:00Z"
+    }
+  ],
+  "labels": [
+    "Yellowbirds"
+  ],
+  "created_at": "2026-11-13T07:00:00Z",
+  "created_by": {
+    "kind": "human",
+    "iss": "https://authentik.example.invalid/application/o/haynes-studio/",
+    "sub": "example-subject-tom"
+  }
+}

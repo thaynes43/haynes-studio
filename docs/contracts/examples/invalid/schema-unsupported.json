@@ -1,0 +1,216 @@
+{
+  "schema": "studio.invalid-case/v1",
+  "rule": "schema.unsupported",
+  "expect": "invalid",
+  "context": "write",
+  "path": "/schema",
+  "why": "Readers accept only the major versions they implement.",
+  "document": {
+    "schema": "studio.story/v2",
+    "id": "sty_01M79V9FC00000000000000001",
+    "production_id": "prd_01M79V9FC00000000000000001",
+    "media_kind": "short",
+    "title": "The Winter Menu",
+    "revision": 1,
+    "format_version_id": null,
+    "cast": [
+      {
+        "slot": "a",
+        "name": "captain",
+        "voice_version_id": "asv_01M79V9FC0000000000000000D"
+      },
+      {
+        "slot": "b",
+        "name": "chair",
+        "voice_version_id": "asv_01M79V9FC0000000000000000E"
+      },
+      {
+        "slot": "c",
+        "name": "grudge",
+        "voice_version_id": "asv_01M79V9FC0000000000000000F"
+      },
+      {
+        "slot": "d",
+        "name": "cheerful",
+        "voice_version_id": "asv_01M79V9FC0000000000000000G"
+      }
+    ],
+    "narrator_voice_version_id": null,
+    "set": {
+      "asset_version_id": "asv_01M79V9FC00000000000000007",
+      "motion_asset_version_id": null,
+      "foreground_edge_px": [
+        [
+          0,
+          1310
+        ],
+        [
+          180,
+          1340
+        ],
+        [
+          360,
+          1390
+        ],
+        [
+          540,
+          1425
+        ],
+        [
+          720,
+          1455
+        ],
+        [
+          900,
+          1470
+        ],
+        [
+          1080,
+          1480
+        ]
+      ],
+      "foreground_feather_px": 20,
+      "legacy_fire": {
+        "box": [
+          190,
+          900,
+          480,
+          1275
+        ],
+        "glow_center": [
+          330,
+          1120
+        ],
+        "glow_radius": 650,
+        "strength": 0.85,
+        "doll_glow": 0.045,
+        "seed": 7
+      },
+      "note": "top edge of the mossy log in set-left-s221 after fitting to 1080x1920, read off a ruler overlay (poc scratch set-ruler.jpg); the log curves down to the right"
+    },
+    "layouts": {
+      "single": {
+        "height": 1240,
+        "x": 0.62,
+        "bottom": 1560
+      },
+      "group": {
+        "slots": {
+          "a": {
+            "x": 0.12,
+            "height": 860,
+            "bottom": 1430
+          },
+          "c": {
+            "x": 0.36,
+            "height": 900,
+            "bottom": 1470
+          },
+          "d": {
+            "x": 0.68,
+            "height": 1000,
+            "bottom": 1560
+          },
+          "b": {
+            "x": 0.92,
+            "height": 1000,
+            "bottom": 1580
+          }
+        },
+        "note": "A and C further back on the left looking right; D and B closer on the right, D facing left at them. Draw order is the dolls order in each shot (back to front)."
+      },
+      "trio": {
+        "slots": {
+          "a": {
+            "x": 0.17,
+            "height": 880,
+            "bottom": 1480
+          },
+          "c": {
+            "x": 0.5,
+            "height": 900,
+            "bottom": 1520
+          },
+          "b": {
+            "x": 0.86,
+            "height": 1000,
+            "bottom": 1580
+          }
+        },
+        "note": "ending: D is gone, leaving a gap between C and B; A, C and B all face the camera side"
+      },
+      "closeup": {
+        "slots": {
+          "d": {
+            "x": 0.56,
+            "height": 2300,
+            "bottom": 2420,
+            "crop": [
+              0.27,
+              0.0,
+              0.9,
+              0.75
+            ]
+          }
+        },
+        "note": "D reaction close-up; no foreground log"
+      }
+    },
+    "motion_style": {
+      "idle_scale": 0.3,
+      "talk_hop": 34,
+      "talk_tilt": 3.2,
+      "talk_shuffle": 7
+    },
+    "mix": {
+      "line_rms_dbfs": -22,
+      "master_lufs": -20,
+      "true_peak_dbtp": -3.5
+    },
+    "beds": [
+      {
+        "id": "cue_01M79V9FC0000000000000000J",
+        "type": "bed",
+        "asset_version_id": "asv_01M79V9FC0000000000000000C",
+        "level_rms_dbfs": -40,
+        "clock": "film"
+      }
+    ],
+    "checks": {
+      "asr_tolerances": {
+        "340": "three hundred forty",
+        "mos": "moss"
+      },
+      "asr_tolerances_note": "Recognizer writes numbers as digits; \"MOS\" for \"moss\" seen on the isolated line only. A \"need -> needs\" tolerance for \"Needs salt.\" was tried and removed: it rewrote the real \"need\" in \"We need to discuss\" (word-level tolerances apply to every occurrence), and the full mix heard \"Needs salt.\" correctly anyway."
+    },
+    "board_order": [],
+    "boards": [],
+    "origin": {
+      "source_key": "legacy:the-winter-menu",
+      "legacy_revision": 4,
+      "tracker": "https://work.haynesnetwork.com/work_packages/371",
+      "manifest": "titles/the-winter-menu/manifest-r4.json"
+    },
+    "derived": {
+      "board_count": 9,
+      "next_board_number": 10,
+      "timed_boards": 9,
+      "untimed_boards": 0,
+      "frames": 1087,
+      "fps": 24,
+      "duration_ms": 45291,
+      "warnings": []
+    },
+    "created_at": "2026-11-13T07:00:00Z",
+    "updated_at": "2026-11-13T07:00:00Z",
+    "created_by": {
+      "kind": "cli",
+      "command": "studio legacy import",
+      "operator": {
+        "kind": "human",
+        "iss": "https://authentik.example.invalid/application/o/haynes-studio/",
+        "sub": "example-subject-tom"
+      }
+    }
+  }
+}

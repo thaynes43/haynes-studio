@@ -1,0 +1,81 @@
+{
+  "schema": "studio.invalid-case/v1",
+  "rule": "prov.licence_missing",
+  "expect": "invalid",
+  "context": "write",
+  "path": "/licence",
+  "why": "Every asset version records a licence object, even when its terms are still unknown.",
+  "document": {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_01M79V9FC00000000000000001",
+    "asset_id": "ast_01M79V9FC00000000000000001",
+    "number": 1,
+    "kind": "cast",
+    "name": "A · proud",
+    "scope": {
+      "production_id": "prd_01M79V9FC00000000000000001"
+    },
+    "state": "promoted",
+    "labels": [
+      "Yellowbirds",
+      "A"
+    ],
+    "attributes": {
+      "character_slot": "a",
+      "expression": "proud"
+    },
+    "capabilities": [
+      "rgba_cutout"
+    ],
+    "content": {
+      "sha256": "4ea3005f4effebda7f4ce9b083da55e8529db4269c96104364e5dc74b25969de",
+      "bytes": 1850605,
+      "media_type": "image/png",
+      "locator": "productions/prd_01M79V9FC00000000000000001/sha256/4e/4ea3005f4effebda7f4ce9b083da55e8529db4269c96104364e5dc74b25969de.png"
+    },
+    "provenance": {
+      "origin": "imported",
+      "generator": {
+        "role": "image",
+        "engine": "ComfyUI 0.39.0 on ai/comfyui-0",
+        "model": "Qwen-Image 2.1 int8 (qwen_image_2.1_int8_convrot), text encoder qwen3vl_8b_int8_convrot, VAE qwen_image_2.1_vae_bf16",
+        "workflow_sha256": "33673300cfde09ea39e9b9083b5954b3c5c2063f5af2b42a7e5ab5c605571747",
+        "seed": 101,
+        "prompt_ref": "prompts/a-base.txt",
+        "engine_job_id": "54b94a44-1ea6-4a01-8c30-57287a434db9",
+        "hardware": "RTX 2000 Ada 16 GB (talosm03)",
+        "post": {
+          "tool": "poc/cutout.py key",
+          "lo": 20,
+          "hi": 70,
+          "protect": [
+            [
+              540,
+              380,
+              760,
+              520
+            ]
+          ],
+          "source_sha256": "c71ba33b3e037a13fe4167722a1035fc401e24f187b051f37b5f0f81d5c9384f"
+        }
+      },
+      "external": null,
+      "source_key": "legacy:the-winter-menu-r4:file:cutouts/a-proud.png",
+      "created_by": {
+        "kind": "cli",
+        "command": "studio legacy import",
+        "operator": {
+          "kind": "human",
+          "iss": "https://authentik.example.invalid/application/o/haynes-studio/",
+          "sub": "example-subject-tom"
+        }
+      },
+      "created_at": "2026-11-13T07:00:00Z"
+    },
+    "legacy": {
+      "source_key": "legacy:the-winter-menu-r4:file:cutouts/a-proud.png",
+      "path": "cutouts/a-proud.png",
+      "job": "the-winter-menu-r4"
+    }
+  }
+}

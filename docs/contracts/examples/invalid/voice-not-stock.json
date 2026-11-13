@@ -1,0 +1,64 @@
+{
+  "schema": "studio.invalid-case/v1",
+  "rule": "voice.not_stock",
+  "expect": "invalid",
+  "context": "write",
+  "path": "/attributes/stock",
+  "why": "Voices are stock TTS voices only (P-22); AGENTS.md forbids a real person’s voice, and cloning is excluded (story 405).",
+  "document": {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_01M79V9FC00000000000000013",
+    "asset_id": "ast_01M79V9FC00000000000000012",
+    "number": 1,
+    "kind": "voice",
+    "name": "Voice cloned from a recording",
+    "scope": {
+      "production_id": null
+    },
+    "state": "promoted",
+    "labels": [
+      "stock-voice"
+    ],
+    "attributes": {
+      "voice_id": "cloned-from-sample",
+      "stock": false
+    },
+    "capabilities": [
+      "tts_voice"
+    ],
+    "content": null,
+    "provenance": {
+      "origin": "generated",
+      "generator": {
+        "role": "voice",
+        "engine": "example voice-cloning tool",
+        "model": null,
+        "voice_id": "cloned-from-sample",
+        "stock": false,
+        "source_sample_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "cli",
+        "command": "studio legacy import",
+        "operator": {
+          "kind": "human",
+          "iss": "https://authentik.example.invalid/application/o/haynes-studio/",
+          "sub": "example-subject-tom"
+        }
+      },
+      "created_at": "2026-11-13T07:00:00Z"
+    },
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Terms not yet checked (proposal 0003, Requirements: licences)."
+    },
+    "legacy": null
+  }
+}

@@ -1,0 +1,322 @@
+{
+  "schema": "studio.invalid-case/v1",
+  "rule": "cue.slot_not_on_board",
+  "expect": "invalid",
+  "context": "write",
+  "path": "/cues/2/slot",
+  "why": "A move animates a cast slot placed on this board.",
+  "document": {
+    "schema": "studio.board/v1",
+    "id": "brd_01M79V9FC00000000000000008",
+    "story_id": "sty_01M79V9FC00000000000000001",
+    "number": 8,
+    "revision": 1,
+    "title": "The vote",
+    "lines": [
+      {
+        "id": "lin_01M79V9FC00000000000000007",
+        "speaker": "b",
+        "text": "All in favor?",
+        "gap_before_ms": null
+      },
+      {
+        "id": "lin_01M79V9FC00000000000000008",
+        "speaker": "a",
+        "text": "Aye.",
+        "gap_before_ms": 300
+      },
+      {
+        "id": "lin_01M79V9FC00000000000000009",
+        "speaker": "c",
+        "text": "Aye.",
+        "gap_before_ms": 200
+      },
+      {
+        "id": "lin_01M79V9FC0000000000000000A",
+        "speaker": "d",
+        "text": "Nay!",
+        "gap_before_ms": 250
+      },
+      {
+        "id": "lin_01M79V9FC0000000000000000B",
+        "speaker": "b",
+        "text": "Motion carried.",
+        "gap_before_ms": 700
+      },
+      {
+        "id": "lin_01M79V9FC0000000000000000C",
+        "speaker": "b",
+        "text": "Bibs on, ladies.",
+        "gap_before_ms": 900
+      }
+    ],
+    "timing": {
+      "lead_ms": 1900,
+      "tail_ms": 800,
+      "hold_ms": null
+    },
+    "voice": {
+      "style": "cast",
+      "current_version_id": "asv_01M79V9FC0000000000000000Y"
+    },
+    "photo": {
+      "current_version_id": "asv_01M79V9FC0000000000000000Z",
+      "prompt": null,
+      "input_asset_version_ids": [
+        "asv_01M79V9FC00000000000000002",
+        "asv_01M79V9FC00000000000000003",
+        "asv_01M79V9FC00000000000000004",
+        "asv_01M79V9FC00000000000000006",
+        "asv_01M79V9FC00000000000000007"
+      ]
+    },
+    "cast": [
+      {
+        "slot": "a",
+        "asset_version_id": "asv_01M79V9FC00000000000000002"
+      },
+      {
+        "slot": "c",
+        "asset_version_id": "asv_01M79V9FC00000000000000004"
+      },
+      {
+        "slot": "d",
+        "asset_version_id": "asv_01M79V9FC00000000000000006"
+      },
+      {
+        "slot": "b",
+        "asset_version_id": "asv_01M79V9FC00000000000000003"
+      }
+    ],
+    "layout": {
+      "preset": "group",
+      "foreground": true
+    },
+    "method": {
+      "layer": "layered",
+      "motion": "s2v"
+    },
+    "seeds": {
+      "s2v:a": 516,
+      "s2v:b": 517,
+      "s2v:c": 518,
+      "s2v:d": 519
+    },
+    "cues": [
+      {
+        "id": "cue_01M79V9FC00000000000000003",
+        "type": "sound",
+        "asset_version_id": "asv_01M79V9FC00000000000000008",
+        "anchor": {
+          "at_ms": 750
+        },
+        "trim_ms": [
+          450,
+          1600
+        ],
+        "level_rms_dbfs": -26
+      },
+      {
+        "id": "cue_01M79V9FC00000000000000004",
+        "type": "sound",
+        "asset_version_id": "asv_01M79V9FC0000000000000000A",
+        "anchor": {
+          "after_line_id": "lin_01M79V9FC0000000000000000B",
+          "offset_ms": 50
+        },
+        "trim_ms": [
+          1300,
+          1950
+        ],
+        "level_rms_dbfs": -20
+      },
+      {
+        "id": "cue_01M79V9FC00000000000000005",
+        "type": "move",
+        "slot": "e",
+        "anchor": {
+          "at_ms": 300
+        },
+        "duration_ms": 250,
+        "dx_px": 48,
+        "dy_px": 0,
+        "angle_deg": -4,
+        "steps": 3
+      },
+      {
+        "id": "cue_01M79V9FC00000000000000006",
+        "type": "move",
+        "slot": "c",
+        "anchor": {
+          "at_ms": 300
+        },
+        "duration_ms": 250,
+        "dx_px": 42,
+        "dy_px": 0,
+        "angle_deg": -4,
+        "steps": 3
+      },
+      {
+        "id": "cue_01M79V9FC00000000000000007",
+        "type": "move",
+        "slot": "b",
+        "anchor": {
+          "at_ms": 350
+        },
+        "duration_ms": 250,
+        "dx_px": -46,
+        "dy_px": 0,
+        "angle_deg": 4,
+        "steps": 3
+      },
+      {
+        "id": "cue_01M79V9FC00000000000000008",
+        "type": "move",
+        "slot": "d",
+        "anchor": {
+          "at_ms": 450
+        },
+        "duration_ms": 170,
+        "dx_px": 14,
+        "dy_px": -22,
+        "angle_deg": 2.5,
+        "steps": 3
+      },
+      {
+        "id": "cue_01M79V9FC00000000000000009",
+        "type": "move",
+        "slot": "a",
+        "anchor": {
+          "after_line_id": "lin_01M79V9FC0000000000000000B",
+          "offset_ms": 80
+        },
+        "duration_ms": 0,
+        "dx_px": 0,
+        "dy_px": -26,
+        "angle_deg": 0,
+        "steps": 3
+      },
+      {
+        "id": "cue_01M79V9FC0000000000000000A",
+        "type": "move",
+        "slot": "a",
+        "anchor": {
+          "after_line_id": "lin_01M79V9FC0000000000000000B",
+          "offset_ms": 250
+        },
+        "duration_ms": 0,
+        "dx_px": 0,
+        "dy_px": 26,
+        "angle_deg": 0,
+        "steps": 3
+      },
+      {
+        "id": "cue_01M79V9FC0000000000000000B",
+        "type": "move",
+        "slot": "c",
+        "anchor": {
+          "after_line_id": "lin_01M79V9FC0000000000000000B",
+          "offset_ms": 80
+        },
+        "duration_ms": 0,
+        "dx_px": 0,
+        "dy_px": -26,
+        "angle_deg": 0,
+        "steps": 3
+      },
+      {
+        "id": "cue_01M79V9FC0000000000000000C",
+        "type": "move",
+        "slot": "c",
+        "anchor": {
+          "after_line_id": "lin_01M79V9FC0000000000000000B",
+          "offset_ms": 250
+        },
+        "duration_ms": 0,
+        "dx_px": 0,
+        "dy_px": 26,
+        "angle_deg": 0,
+        "steps": 3
+      },
+      {
+        "id": "cue_01M79V9FC0000000000000000D",
+        "type": "move",
+        "slot": "d",
+        "anchor": {
+          "after_line_id": "lin_01M79V9FC0000000000000000B",
+          "offset_ms": 80
+        },
+        "duration_ms": 0,
+        "dx_px": 0,
+        "dy_px": -26,
+        "angle_deg": 0,
+        "steps": 3
+      },
+      {
+        "id": "cue_01M79V9FC0000000000000000E",
+        "type": "move",
+        "slot": "d",
+        "anchor": {
+          "after_line_id": "lin_01M79V9FC0000000000000000B",
+          "offset_ms": 250
+        },
+        "duration_ms": 0,
+        "dx_px": 0,
+        "dy_px": 26,
+        "angle_deg": 0,
+        "steps": 3
+      },
+      {
+        "id": "cue_01M79V9FC0000000000000000F",
+        "type": "move",
+        "slot": "b",
+        "anchor": {
+          "after_line_id": "lin_01M79V9FC0000000000000000B",
+          "offset_ms": 80
+        },
+        "duration_ms": 0,
+        "dx_px": 0,
+        "dy_px": -26,
+        "angle_deg": 0,
+        "steps": 3
+      },
+      {
+        "id": "cue_01M79V9FC0000000000000000G",
+        "type": "move",
+        "slot": "b",
+        "anchor": {
+          "after_line_id": "lin_01M79V9FC0000000000000000B",
+          "offset_ms": 250
+        },
+        "duration_ms": 0,
+        "dx_px": 0,
+        "dy_px": 26,
+        "angle_deg": 0,
+        "steps": 3
+      }
+    ],
+    "notes": [
+      {
+        "id": "nte_01M79V9FC00000000000000002",
+        "text": "the vote: gavel and a group jump on \"Motion carried.\", then a beat"
+      }
+    ],
+    "drafted_by": {
+      "kind": "cli",
+      "command": "studio legacy import",
+      "operator": {
+        "kind": "human",
+        "iss": "https://authentik.example.invalid/application/o/haynes-studio/",
+        "sub": "example-subject-tom"
+      }
+    },
+    "origin": {
+      "source_key": "legacy:the-winter-menu-r4:shot:8",
+      "legacy_revision": 4,
+      "legacy_shot": 8,
+      "manifest": "titles/the-winter-menu/manifest-r4.json"
+    },
+    "created_at": "2026-11-13T07:00:00Z",
+    "updated_at": "2026-11-13T07:00:00Z"
+  }
+}

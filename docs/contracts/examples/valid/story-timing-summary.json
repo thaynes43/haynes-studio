@@ -1,0 +1,87 @@
+{
+  "schema": "studio.story-timing/v1",
+  "story_id": "sty_01M79V9FC00000000000000001",
+  "story_revision": 2,
+  "fps": 24,
+  "boards": [
+    {
+      "board_id": "brd_01M79V9FC00000000000000001",
+      "state": "timed",
+      "frames": 153,
+      "film_start_frame": 0
+    },
+    {
+      "board_id": "brd_01M79V9FC00000000000000002",
+      "state": "timed",
+      "frames": 94,
+      "film_start_frame": 153
+    },
+    {
+      "board_id": "brd_01M79V9FC00000000000000003",
+      "state": "timed",
+      "frames": 146,
+      "film_start_frame": 247
+    },
+    {
+      "board_id": "brd_01M79V9FC00000000000000004",
+      "state": "timed",
+      "frames": 84,
+      "film_start_frame": 393
+    },
+    {
+      "board_id": "brd_01M79V9FC00000000000000005",
+      "state": "timed",
+      "frames": 83,
+      "film_start_frame": 477
+    },
+    {
+      "board_id": "brd_01M79V9FC00000000000000006",
+      "state": "timed",
+      "frames": 122,
+      "film_start_frame": 560
+    },
+    {
+      "board_id": "brd_01M79V9FC00000000000000007",
+      "state": "timed",
+      "frames": 46,
+      "film_start_frame": 682
+    },
+    {
+      "board_id": "brd_01M79V9FC00000000000000008",
+      "state": "timed",
+      "frames": 251,
+      "film_start_frame": 728
+    },
+    {
+      "board_id": "brd_01M79V9FC0000000000000000A",
+      "state": "untimed",
+      "frames": null,
+      "film_start_frame": null,
+      "reason": "voice.absent"
+    }
+  ],
+  "frames_known": 979,
+  "complete": false,
+  "format_length": {
+    "format_version_id": "fmv_01M79V9FC00000000000000001",
+    "min_ms": 15000,
+    "max_ms": 40000,
+    "source": "example format recipe (E9.2 not built); numbers are illustrative"
+  },
+  "warnings": [
+    {
+      "code": "format.length_exceeded",
+      "severity": "warning",
+      "message": "Timed boards already run 40.792 s, past the format maximum of 40 s.",
+      "build_allowed": true,
+      "decision": "D45"
+    }
+  ],
+  "build_allowed": false,
+  "build_blockers": [
+    {
+      "code": "voice.absent",
+      "board_id": "brd_01M79V9FC0000000000000000A"
+    }
+  ]
+}

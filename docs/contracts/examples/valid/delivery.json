@@ -1,0 +1,43 @@
+{
+  "schema": "studio.delivery/v1",
+  "id": "dlv_01M79V9FC00000000000000001",
+  "run_id": "run_01M79V9FC00000000000000001",
+  "created_at": "2026-11-13T09:20:00Z",
+  "store": {
+    "adapter": "nfs",
+    "writable": true
+  },
+  "master": {
+    "sha256": "f10b4e92c5345cf96678a93e67c18cb0751207d3b9d5fca8a90f5820469516de",
+    "bytes": 64000000,
+    "media_type": "video/mp4",
+    "width": 1080,
+    "height": 1920,
+    "fps": 24,
+    "frames": 1087,
+    "video_codec": "h264",
+    "audio_codec": "aac",
+    "legacy_path": null,
+    "locator": "productions/prd_01M79V9FC00000000000000001/sha256/f1/f10b4e92c5345cf96678a93e67c18cb0751207d3b9d5fca8a90f5820469516de.mp4"
+  },
+  "proxy": {
+    "sha256": "2fa334a3b6e6eabb72bf8d4e53099141c0147b222f6d143639e2a349f5d6e609",
+    "bytes": 21500000,
+    "media_type": "video/mp4",
+    "width": 720,
+    "height": 1280,
+    "fps": 24,
+    "frames": 1087,
+    "video_codec": "h264",
+    "audio_codec": "aac",
+    "legacy_path": null,
+    "locator": "productions/prd_01M79V9FC00000000000000001/sha256/2f/2fa334a3b6e6eabb72bf8d4e53099141c0147b222f6d143639e2a349f5d6e609.mp4"
+  },
+  "verification": {
+    "decoded_frames": 1087,
+    "expected_frames": 1087,
+    "sha256_verified": true,
+    "proxy_under_bytes": 25000000
+  },
+  "legacy": null
+}
