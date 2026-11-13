@@ -1,0 +1,1323 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://haynes-studio.invalid/schemas/studio.run.v1.schema.json",
+  "title": "studio.run/v1: one build of one story snapshot (contract sections 7 and 8, D30)",
+  "description": "The contract's fields are id, story_id, number, status with wait_reason, the snapshot (its sha256, the story revision, the board count and the blob's locator), queued_by, queued_at, idempotency_key, the estimate, progress, stages, outputs, checks, provenance (toolchain, engines, inputs_externally_generated, usage, public credits), delivery_id, legacy, started_at and finished_at. Story 406 proposes the rest: transitions (every status change with time, actor and reason), error (the code, board and stage a failed run stopped at), phase, and the per-board and per-check detail fields listed below.",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "story_id",
+    "number",
+    "status",
+    "wait_reason",
+    "snapshot",
+    "queued_by",
+    "queued_at",
+    "idempotency_key",
+    "progress",
+    "stages",
+    "outputs",
+    "checks",
+    "provenance",
+    "delivery_id",
+    "legacy"
+  ],
+  "properties": {
+    "schema": {
+      "const": "studio.run/v1",
+      "x-studio": {
+        "const": {
+          "rule": "schema.unsupported",
+          "message": "must be studio.run/v1"
+        }
+      }
+    },
+    "id": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/run_id"
+    },
+    "story_id": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/sty_id"
+    },
+    "number": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+    },
+    "status": {
+      "enum": [
+        "queued",
+        "running",
+        "succeeded",
+        "failed",
+        "cancelled",
+        "held",
+        "imported"
+      ]
+    },
+    "wait_reason": {
+      "enum": [
+        null,
+        "lease_busy",
+        "gpu_unavailable"
+      ]
+    },
+    "phase": {
+      "enum": [
+        "all",
+        "service",
+        "offline"
+      ],
+      "$comment": "proposal (story 406): which phase of a build the run ran"
+    },
+    "snapshot": {
+      "type": "object",
+      "x-studio": {
+        "type": {
+          "rule": "run.snapshot_missing",
+          "message": "a run is an immutable snapshot (D30)"
+        },
+        "required": {
+          "rule": "run.snapshot_missing",
+          "message": "a run is an immutable snapshot (D30)"
+        }
+      },
+      "required": [
+        "sha256",
+        "story_revision",
+        "board_count",
+        "locator"
+      ],
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64,
+          "x-studio": {
+            "type": {
+              "rule": "run.snapshot_missing",
+              "message": "a run has its snapshot's sha256"
+            },
+            "pattern": {
+              "rule": "run.snapshot_missing",
+              "message": "a run has its snapshot's sha256"
+            }
+          }
+        },
+        "story_revision": {
+          "type": "integer",
+          "minimum": 1,
+          "x-studio": {
+            "type": {
+              "rule": "run.snapshot_missing",
+              "message": "a snapshot names its story revision"
+            },
+            "minimum": {
+              "rule": "run.snapshot_missing",
+              "message": "a snapshot names its story revision"
+            }
+          }
+        },
+        "board_count": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/count"
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "queued_by": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/principal"
+    },
+    "queued_at": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/timestamp"
+    },
+    "idempotency_key": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          },
+          "maxLength": 255
+        }
+      ]
+    },
+    "estimate": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "basis",
+        "uncertain"
+      ],
+      "properties": {
+        "gpu_wall_s": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "items": false,
+              "minItems": 2
+            }
+          ]
+        },
+        "cpu_wall_s": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "items": false,
+              "minItems": 2
+            }
+          ]
+        },
+        "basis": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          }
+        },
+        "uncertain": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "progress": {
+      "type": "object",
+      "required": [
+        "percent",
+        "stage"
+      ],
+      "properties": {
+        "percent": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "stage": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "minLength": 1,
+              "not": {
+                "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+              },
+              "x-studio": {
+                "not": {
+                  "message": "must not contain control characters"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "stages": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/board_stage"
+      }
+    },
+    "outputs": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "if": {
+        "type": "object"
+      },
+      "then": {
+        "$ref": "#/$defs/outputs"
+      }
+    },
+    "checks": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "$ref": "#/$defs/check"
+      }
+    },
+    "provenance": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "if": {
+        "type": "object"
+      },
+      "then": {
+        "$ref": "#/$defs/provenance"
+      }
+    },
+    "delivery_id": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/dlv_id_or_null"
+    },
+    "legacy": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "started_at": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "studio.defs.v1.schema.json#/$defs/timestamp"
+        }
+      ]
+    },
+    "finished_at": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "studio.defs.v1.schema.json#/$defs/timestamp"
+        }
+      ]
+    },
+    "transitions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/transition"
+      },
+      "$comment": "proposal (story 406): every status change, in order"
+    },
+    "error": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "$comment": "proposal (story 406): why a failed run stopped",
+      "if": {
+        "type": "object"
+      },
+      "then": {
+        "required": [
+          "code",
+          "message",
+          "board_id",
+          "stage"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "not": {
+              "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+            },
+            "x-studio": {
+              "not": {
+                "message": "must not contain control characters"
+              }
+            },
+            "maxLength": 80
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "not": {
+              "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+            },
+            "x-studio": {
+              "not": {
+                "message": "must not contain control characters"
+              }
+            }
+          },
+          "board_id": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "studio.defs.v1.schema.json#/$defs/brd_id"
+              }
+            ]
+          },
+          "board_number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "not": {
+                  "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+                },
+                "x-studio": {
+                  "not": {
+                    "message": "must not contain control characters"
+                  }
+                }
+              }
+            ]
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "succeeded"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "delivery_id": {
+            "$ref": "studio.defs.v1.schema.json#/$defs/dlv_id"
+          },
+          "outputs": {
+            "type": "object"
+          },
+          "provenance": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "queued"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "else": {
+        "properties": {
+          "wait_reason": {
+            "const": null
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "transition": {
+      "type": "object",
+      "required": [
+        "from",
+        "to",
+        "at",
+        "by",
+        "reason"
+      ],
+      "properties": {
+        "from": {
+          "enum": [
+            null,
+            "queued",
+            "running",
+            "held"
+          ]
+        },
+        "to": {
+          "enum": [
+            "queued",
+            "running",
+            "succeeded",
+            "failed",
+            "cancelled",
+            "held"
+          ]
+        },
+        "at": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/timestamp"
+        },
+        "by": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/principal"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "board_stage": {
+      "type": "object",
+      "required": [
+        "board_id",
+        "method",
+        "frames",
+        "film_start_frame",
+        "clips",
+        "segment_sha256"
+      ],
+      "properties": {
+        "board_id": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/brd_id"
+        },
+        "board_number": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+        },
+        "method": {
+          "type": "object",
+          "required": [
+            "layer",
+            "motion"
+          ],
+          "properties": {
+            "layer": {
+              "enum": [
+                "layered",
+                "whole_frame",
+                "rigid_cutout"
+              ]
+            },
+            "motion": {
+              "enum": [
+                "s2v",
+                "i2v",
+                "none"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "frames": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+        },
+        "film_start_frame": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/count"
+        },
+        "clips": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/clip"
+          }
+        },
+        "segment_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "segment_key": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "segment_note": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          }
+        },
+        "compositor": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifact"
+          }
+        },
+        "report": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/check"
+          }
+        },
+        "render_s": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "clip": {
+      "type": "object",
+      "required": [
+        "role",
+        "sha256"
+      ],
+      "properties": {
+        "role": {
+          "enum": [
+            "s2v_clip",
+            "i2v_clip",
+            "doll_clip",
+            "set_loop",
+            "whole_frame_clip"
+          ]
+        },
+        "slot": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "studio.defs.v1.schema.json#/$defs/slot"
+            }
+          ]
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "key": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "frames": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "fps": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "requested_length": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "chunks": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "seed": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "engine": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "minLength": 1,
+              "not": {
+                "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+              },
+              "x-studio": {
+                "not": {
+                  "message": "must not contain control characters"
+                }
+              }
+            }
+          ]
+        },
+        "engine_job_id": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "minLength": 1,
+              "not": {
+                "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+              },
+              "x-studio": {
+                "not": {
+                  "message": "must not contain control characters"
+                }
+              }
+            }
+          ]
+        },
+        "files_sha256": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "render_s": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "source_frames_used": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "held_frames": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "trimmed": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "made": {
+          "type": "boolean"
+        },
+        "library_version_id": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/asv_id_or_null"
+        },
+        "clips": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "artifact": {
+      "type": "object",
+      "required": [
+        "name",
+        "kind",
+        "key",
+        "sha256",
+        "made"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          }
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          }
+        },
+        "key": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "made": {
+          "type": "boolean"
+        },
+        "seconds": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "outputs": {
+      "type": "object",
+      "required": [
+        "frames",
+        "fps"
+      ],
+      "properties": {
+        "frames": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/count"
+        },
+        "fps": {
+          "const": 24
+        },
+        "picture_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "mix_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "master_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "proxy_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "keys": {
+          "type": "object"
+        },
+        "placement": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "check": {
+      "type": "object",
+      "required": [
+        "check",
+        "result"
+      ],
+      "properties": {
+        "check": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          },
+          "maxLength": 80
+        },
+        "result": {
+          "enum": [
+            "pass",
+            "pass_with_tolerances",
+            "fail",
+            "overridden"
+          ]
+        },
+        "expected": {},
+        "actual": {},
+        "artifact": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          }
+        },
+        "value": {
+          "type": "number"
+        },
+        "threshold": {
+          "type": "number"
+        },
+        "override": {
+          "type": "object",
+          "required": [
+            "by",
+            "reason"
+          ],
+          "properties": {
+            "by": {
+              "$ref": "studio.defs.v1.schema.json#/$defs/principal"
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1,
+              "not": {
+                "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+              },
+              "x-studio": {
+                "not": {
+                  "message": "must not contain control characters"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "tolerances_used": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "board_id": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/brd_id"
+        },
+        "key": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          }
+        },
+        "measured": {},
+        "thresholds": {}
+      },
+      "additionalProperties": false
+    },
+    "engine_file": {
+      "type": "object",
+      "required": [
+        "name",
+        "sha256",
+        "licence"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          }
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "minLength": 1,
+              "not": {
+                "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+              },
+              "x-studio": {
+                "not": {
+                  "message": "must not contain control characters"
+                }
+              }
+            }
+          ]
+        },
+        "licence": {
+          "$ref": "studio.asset-version.v1.schema.json#/$defs/licence"
+        }
+      },
+      "additionalProperties": false
+    },
+    "engine": {
+      "type": "object",
+      "required": [
+        "key",
+        "role",
+        "name",
+        "licence",
+        "hardware"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          },
+          "maxLength": 64
+        },
+        "role": {
+          "enum": [
+            "video",
+            "voice",
+            "sound",
+            "image",
+            "writer",
+            "composite",
+            "check"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          }
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/engine_file"
+          }
+        },
+        "licence": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "profile": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "hardware": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "minLength": 1,
+              "not": {
+                "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+              },
+              "x-studio": {
+                "not": {
+                  "message": "must not contain control characters"
+                }
+              }
+            }
+          ]
+        },
+        "used_by": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "$comment": "Every engine and engine file has a licence object (section 7); a writer, which is a person or an agent and loads no model file, may have none, as the contract's example records (proposal, story 406).",
+      "if": {
+        "properties": {
+          "role": {
+            "const": "writer"
+          }
+        },
+        "required": [
+          "role"
+        ]
+      },
+      "then": {
+        "properties": {
+          "licence": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "studio.asset-version.v1.schema.json#/$defs/licence"
+              }
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "licence": {
+            "$ref": "studio.asset-version.v1.schema.json#/$defs/licence"
+          }
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "toolchain",
+        "engines",
+        "inputs_externally_generated",
+        "public",
+        "usage"
+      ],
+      "properties": {
+        "toolchain": {
+          "type": "object",
+          "required": [
+            "studio"
+          ],
+          "properties": {
+            "studio": {
+              "type": "string",
+              "minLength": 1,
+              "not": {
+                "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+              },
+              "x-studio": {
+                "not": {
+                  "message": "must not contain control characters"
+                }
+              }
+            }
+          }
+        },
+        "engines": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/engine"
+          }
+        },
+        "hardware": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "inputs_externally_generated": {
+          "type": "array"
+        },
+        "usage": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "public": {
+          "type": "object",
+          "required": [
+            "ai_generated",
+            "credits"
+          ],
+          "properties": {
+            "ai_generated": {
+              "const": true
+            },
+            "credits": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "engine_key",
+                  "text"
+                ],
+                "properties": {
+                  "engine_key": {
+                    "type": "string",
+                    "minLength": 1,
+                    "not": {
+                      "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+                    },
+                    "x-studio": {
+                      "not": {
+                        "message": "must not contain control characters"
+                      }
+                    },
+                    "maxLength": 64
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "not": {
+                      "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+                    },
+                    "x-studio": {
+                      "not": {
+                        "message": "must not contain control characters"
+                      }
+                    },
+                    "maxLength": 200
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "derived_from_roles": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "video",
+                  "voice",
+                  "sound"
+                ]
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

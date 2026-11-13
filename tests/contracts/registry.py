@@ -16,6 +16,7 @@ Keys are names from ``harness.ALL_TYPES``.
 
 from __future__ import annotations
 
+from haynes_studio.build.validate import validate_run, validate_run_snapshot
 from haynes_studio.canonical import (
     validate_board,
     validate_legacy_import,
@@ -58,4 +59,7 @@ VALIDATORS: dict[str, Validator] = {
     "job": validate_job,
     # story 381
     "delivery": validate_delivery,
+    # story 406
+    "run": validate_run,
+    "run-snapshot": validate_run_snapshot,
 }
