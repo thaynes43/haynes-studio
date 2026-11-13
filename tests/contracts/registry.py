@@ -16,6 +16,9 @@ Keys are names from ``harness.ALL_TYPES``.
 
 from __future__ import annotations
 
+from haynes_studio.legacy import validate_manifest
 from tests.contracts.harness import Validator
 
-VALIDATORS: dict[str, Validator] = {}
+VALIDATORS: dict[str, Validator] = {
+    "legacy.manifest": validate_manifest,  # story 378
+}
