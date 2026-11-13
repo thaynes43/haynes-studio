@@ -114,6 +114,13 @@ def main(argv: Sequence[str] | None = None, *, stdout: TextIO | None = None,
         args = parser.parse_args(argv)
     except SystemExit as exit_:  # --help, --version and usage errors
         return int(exit_.code or 0)
+    # The same depth limit for every command, so the answer does not depend on how deep
+    # this Python version can recurse before a loader gives up.
+    for name in ("manifest", "speech", "compare"):
+        path = getattr(args, name, None)
+        if path is not None and _nested_too_deeply(path):
+            print(f"studio: {path}: nested deeper than {MAX_DEPTH} levels", file=err)
+            return USAGE
     try:
         return args.handler(args, out, err)
     except ContractError as error:
@@ -258,10 +265,6 @@ def _import(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
             raise
         except ValueError as error:
             print(f"studio: {error}", file=err)
-            return USAGE
-    for path in (args.manifest, args.speech):
-        if _nested_too_deeply(path):
-            print(f"studio: {path}: nested deeper than {MAX_DEPTH} levels", file=err)
             return USAGE
     manifest = legacy_manifest.load(args.manifest)
     result = import_manifest(

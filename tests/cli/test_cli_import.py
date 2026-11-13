@@ -145,8 +145,8 @@ def test_a_deeply_nested_input_is_a_one_line_usage_error(tmp_path):
     code, _, err = run("legacy", "import", str(deep_manifest), "--speech", str(speech_path(4)),
                        *OPERATOR_ARGS)
     assert (code, err) == (2, f"studio: {deep_manifest}: nested deeper than 64 levels\n")
-    code, _, err = run("legacy", "validate", str(deep_manifest))  # story 378's loader
-    assert (code, err) == (2, "studio: an input file is nested too deeply to read\n")
+    code, _, err = run("legacy", "validate", str(deep_manifest))  # story 378's commands too
+    assert (code, err) == (2, f"studio: {deep_manifest}: nested deeper than 64 levels\n")
 
 
 @pytest.mark.parametrize("iss,sub,flag", [
