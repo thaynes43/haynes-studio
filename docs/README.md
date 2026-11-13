@@ -8,6 +8,7 @@
 | [process/testing.md](process/testing.md) | you are running or adding tests, registering a contract validator, or reading a CI check: suites, commands, limits, fixtures and check names |
 | [reference/studio-cli.md](reference/studio-cli.md) | you are running the `studio` command or building on the `haynes_studio` package: commands, the legacy manifest schema and version map, its rules, and the timeline check against r1 to r4 |
 | [reference/services.md](reference/services.md) | you need to know which in-cluster service does what and how to reach it |
+| [reference/legacy-adapters.md](reference/legacy-adapters.md) | you are calling Kokoro, Whisper, ComfyUI or the legacy Wan ledger from code (runner, clients, pinned graphs and snippets, fakes), or recovering The Winter Menu's private inputs with the [recovery map](reference/legacy-recovery-map.md) |
 | [reference/doll-format.md](reference/doll-format.md) | you are writing a brief, prompting art or editing; the style rules |
 | [reference/baseline-op345.md](reference/baseline-op345.md) | you want to see how the first doll short was made and which scripts it used |
 | [proposals/0003-studio-plan.md](proposals/0003-studio-plan.md) | you are planning or building the studio: decisions, product model, pipeline, epics |
