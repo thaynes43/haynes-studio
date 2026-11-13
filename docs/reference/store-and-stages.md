@@ -73,15 +73,21 @@ there:
 | 2. `fsync` | the staging descriptor | `_sync_and_check` | `fsync` |
 | 2. check size and hash, and the expected hash | re-read through the staging descriptor (`pread`), never by name | `_sync_and_check` | `check` |
 | 3. `link()` to the final path | the same name and mode check (`store.collision`), re-read the hash (`store.hash_mismatch`), then `link("/proc/self/fd/<fd>", name, dst_dir_fd=<final folder>)`: the checked inode, not a name. Afterwards the final path, walked again from the root, must be a regular file with that device and inode, else `store.collision` naming the final path and nothing further changes | `_link` | `link` |
-| 3. on `EEXIST`, re-hash the existing file | success only if it is a regular file (not a link) of the staged hash and size, with no write bit, and every other name it has is a `.part` in the store's `.staging`; else `store.collision`. It is never changed or `chmod`ed | `_adopt` | `link` |
-| 4. unlink the staging file | `unlink(name, dir_fd=<.staging>)`, only if the root's `.staging` is still the folder the publication holds and the name still names its inode; otherwise, or if the unlink fails, the name is left and a `StagingLeftoverWarning` says so (the publication succeeded) | `_finish` | `unlink` |
+| 3. on `EEXIST`, re-hash the existing file | held open from here to the end; success only if it is a regular file (not a link) of the staged hash and size, with no write bit, and every other name it has is a `.part` in the store's `.staging`; else `store.collision`. The names are counted by sampling the link count, listing `.staging` for `.part` names of that inode, sampling again, and checking each counted name again; it counts only if nothing moved (up to three tries), and then the link count less one must equal the count. The file is never changed or `chmod`ed | `_adopt` | `link` |
+| 4. unlink the staging file | `unlink(name, dir_fd=<.staging>)`, only if the root's `.staging` is still the folder the publication holds, the staging file has exactly two names (its `.part` and the final name; one, the `.part`, when the final file was adopted) and the name still names it; otherwise, or if the unlink fails, the name is left and a `StagingLeftoverWarning` says so (the publication succeeded) | `_finish` | `unlink` |
 | 4. `fsync` the directories | the final and staging folders' descriptors | `_finish` | `fsync_dir` |
 
 - Final paths are only ever opened `O_RDONLY | O_NOFOLLOW | O_NONBLOCK`. A link,
   folder, FIFO or socket at a final path is a collision (and `mismatch` to `verify`).
   Published files are mode `0444`; nothing ever `chmod`s, truncates or renames.
 - If `/proc/self/fd/<fd>` does not reach the staging descriptor's inode, publication
-  fails closed with `OSError` (`ENOTSUP`); it never falls back to linking a name.
+  fails closed with `OSError` (`ENOTSUP`); it never falls back to linking a name. The
+  store relies on `/proc` being the kernel's procfs, where that path is a magic link
+  to the open file itself (only a test replaces the constant `_PROC_FD`).
+- Wherever the store asks whether a file is still the one it checked, one side is a
+  descriptor it has held open since the check. ext4 gives a freed inode number to the
+  next file at once, so a device and inode taken from a closed descriptor or an
+  earlier `stat` proves nothing.
 - `verify` and `open` raise the `OSError` of a blob they cannot read (a mode, a
   folder's mode, a lease); the ledger and the pre-build check turn it into
   `store.blob_missing`.
@@ -123,26 +129,34 @@ What another writer does, and what the store then does (tests:
 | just before the `.part` is created | swaps `.staging` for a link out of the root | the `.part` is made in the store's own folder (moved aside); its unlink is skipped with a warning; nothing outside |
 | after `link` | swaps `.staging` for a link, or replaces the `.part` name | no unlink, a warning; the other file is untouched |
 | after `link` | makes `.staging` read-only | the unlink fails: a warning, the publication stands |
+| after `link` | gives the staging file another name | no unlink (it has three names, not two), a warning |
 | before the publish | leaves a writable file, or one with another name (outside the root, or in the store but not a `.part` in `.staging`), at the final path | `store.collision`; the file is not changed |
-| after a record's blob checks (`record:check`) | removes a blob, or replaces it with other bytes of the same size | `store.blob_missing` or `store.hash_mismatch`; no record |
+| while an existing final file's names are counted | adds `.part` links of it only for the count, and removes them before the second sample | `store.collision` (a counted name is gone at the re-check); the file is not changed |
+| after a record's blob checks (`record:check`) | removes a blob | `store.blob_missing`; no record |
+| after a record's blob checks (`record:check`) | unlinks a blob and creates other bytes of the same size in its place (on ext4 that new file would get the freed inode number, but the store holds the hashed blob open, so the number is not free) | `store.hash_mismatch`; no record |
+| after a record's blob checks (`record:check`) | rewrites a blob in place (`chmod`, write, `chmod` back) | if its size, `st_mtime` or `st_ctime` moved, the store hashes it again: `store.hash_mismatch`, no record. A rewrite that moves none of them (see the limits) is not seen here; readers and the doctor find it by re-hashing |
 | any time | plants other bytes of the recorded size at a blob's locator | `complete_stage` and `stage_record`: `store.hash_mismatch`; doctor: `damaged` and `mismatched` |
 | any time | makes a blob or its folder unreadable | the pre-build check reports `store.blob_missing` for that locator; the doctor lists it in `unreadable` |
 
 Threat model: another writer with write access to the folders inside the root can
 create, remove, rename, link, `chmod` or rewrite any entry there at any moment. It
 cannot make the store follow a symbolic link, write or remove an entry outside the
-folders the store opened, remove any name but a publication's own staging name, or get
-a file linked or recorded other than the inode the store hashed; it can still change
-that inode's bytes in place (`chmod`, then write) after the store's last read of it,
-which only a re-hash finds.
+folders the store opened, remove any name but a publication's own staging name (except
+in the one gap below), or get a file linked or recorded other than the inode the store
+hashed and still holds open; it can still change that inode's bytes in place (`chmod`,
+then write) after the store's last read of it, which only a re-hash finds.
 
 Limits that remain:
 
 - Every check is a moment: one system call separates it from the call it guards (the
   name and mode checks and re-read before the link, the blob checks before a record's
-  link, the name check before the unlink). A writer that renames a file onto a
-  `.part` name between that name check and the unlink loses that entry, which is in
-  `.staging`; nothing else can be removed.
+  link, the name and link-count checks before the unlink).
+- There is no call that removes a name only if it is a given inode. A rename of the
+  held folder plus a name swap in that last gap can remove a different file, possibly
+  outside the root: a writer that moves `.staging` out of the root and renames another
+  file onto the `.part` name between the checks and the unlink loses that file, and no
+  warning is given (`test_limit_a_folder_move_and_a_name_swap_in_the_last_gap_remove_the_other_file`).
+  The checks narrow the gap to that one call; they cannot close it.
 - The `.part` has a name from step 1 (section 8 requires it), so a writer can hard-link
   or rename it onto a final path while the bytes are written. The final name then shows
   what the store wrote up to its next check (at most one chunk after the link); the
@@ -153,8 +167,12 @@ Limits that remain:
   system) moves the link or the `.part` with it. The store notices and fails, or keeps
   the `.part` with a warning, but cannot undo it.
 - On `EEXIST`, a read-only regular file of the right bytes with no other name is
-  adopted, whoever wrote it; its owner is not checked. A writer that races a `.part`
-  name into `.staging` and out again around the count can get one outside name past it.
+  adopted, whoever wrote it; its owner is not checked. No sequence of samples is
+  atomic: a writer that times its link and unlink calls around each sample (adding
+  `.part` links of the file for the listing, removing them just before the second
+  sample and adding them back before the re-check) can still hide outside names, as
+  many as it adds `.part` links for. One outside name is enough to change the bytes
+  later, if its writer may write the file.
 - The same rule refuses honest second names: a hard-link dedupe (`hardlink`, `rdfind`)
   across the store, a hard-link backup of it (`cp -al`, rsnapshot), or a leftover
   `.part` moved out of `.staging`. Publishing those bytes again, or retrying a
@@ -166,9 +184,25 @@ Limits that remain:
   descriptor after the store's last read: the mode and name checks cannot see an open
   descriptor. `verify`, `stage_record` (by default), the pre-build check and the doctor
   find it by re-hashing; only running the store as its own user would prevent it.
-- The root itself is opened by its path once per operation (one publication; one
-  `complete_stage`, which holds it across its blob checks and the record). A writer
-  that can rename the root, from its parent folder, is outside this model.
+- Before a record's link, an in-place rewrite of a blob is seen only through the held
+  file's size, `st_mtime` and `st_ctime`. On a kernel without fine-grained file
+  timestamps (Linux before 6.13, or a file system without them) the times move in
+  clock ticks of a few milliseconds, so a same-size rewrite within the tick of the hash
+  can leave all three unchanged and the record goes in; readers and the doctor still
+  find it by re-hashing. A move (a link count that changed, say) makes the store hash
+  the file again, up to three times, before it gives up with `store.hash_mismatch`.
+- The root itself is opened by its path, without `O_NOFOLLOW` (the caller names it and
+  may name a link), once per operation: one publication, or one `complete_stage`, which
+  holds it across its blob checks and the record. Every folder below it is reached
+  with `O_NOFOLLOW`. A writer that can rename or replace the root, from its parent
+  folder, is outside this model.
+- The store relies on `/proc` being the kernel's procfs. If a normal symbolic link
+  stood in place of `/proc/self/fd/<fd>`, a writer able to retarget it between the
+  store's check and its `link` could deposit another file at the final path; the call
+  then raises `store.collision` and that file stays.
+- A stage lists at most `MAX_OUTPUTS` (256) outputs (proposal): `complete_stage` holds
+  one descriptor per output until the record is linked. `commit_stage` and
+  `StageRecord` refuse more with `store.record_invalid` before anything is written.
 
 ## Stage commit
 
@@ -179,12 +213,17 @@ folder in name order, then writes one completion record through the ledger
 (`store.complete_stage`). Readers use `completed_stage(ledger, ...)`, which returns
 `None` until the record exists.
 
-- `complete_stage` re-hashes every blob the record lists through the descriptor walk:
-  each must be a regular file of its recorded hash and size (`store.blob_missing` if
-  absent or unreadable, `store.hash_mismatch` otherwise). Immediately before the
-  record's `link`, each must still be a regular file of that size with the same device
-  and inode it hashed. Otherwise the store links no record. The checks and the record's
-  publication share one root descriptor.
+- `complete_stage` opens every blob the record lists read-only through the descriptor
+  walk and re-hashes it: each must be a regular file of its recorded hash and size
+  (`store.blob_missing` if absent or unreadable, `store.hash_mismatch` otherwise). It
+  keeps each descriptor open until the record's `link` has returned, which pins the
+  inode: its number cannot be given to a file created in its place. Immediately before
+  that `link`, each locator must still name the held inode (walked again, no link
+  followed), and the held file's size, `st_mtime_ns` and `st_ctime_ns` must be as they
+  were when it was hashed; if they moved, it is hashed again through the held
+  descriptor (up to three times). Otherwise the store links no record. The checks and
+  the record's publication share one root descriptor. A stage lists at most
+  `MAX_OUTPUTS` (256) outputs, so at most that many descriptors are held.
 - `LocalStore.stage_record(..., verify=True)` refuses a record whose blob is absent
   (`store.blob_missing`) or not a regular file of the recorded size
   (`store.hash_mismatch`). With `verify` (the default) it also re-hashes every blob,
@@ -263,14 +302,14 @@ call. On the nine-board r4 fixture it takes about 20 ms; the store is only read.
 | `id.malformed`, `id.type_mismatch` | invalid | contract section 2 (production and run IDs) |
 | `store.hash_mismatch` | failed | **proposal**: bytes are not the expected hash and size, or what a record names is not a regular file |
 | `store.blob_missing` | failed | **proposal**: no file where a record or story needs one (in the pre-build check, also one that cannot be read) |
-| `store.record_invalid` | invalid | **proposal**: a stage name, output set or record file is malformed |
+| `store.record_invalid` | invalid | **proposal**: a stage name, output set (none, or more than 256) or record file is malformed |
 | `store.media_type_unsupported` | invalid | **proposal**: no extension for the media type |
 | `asset.unresolved` | invalid | **proposal**: the library did not resolve a referenced version |
 
 ## Proposals beyond the contract
 
 - Stage names: 1 to 128 of `A-Z a-z 0-9 _ -` (no dot). Output names: 1 to 128 of
-  `A-Z a-z 0-9 _ . : -`.
+  `A-Z a-z 0-9 _ . : -`. A stage has 1 to 256 outputs (`MAX_OUTPUTS`).
 - The record is `studio.stage-record/v1` canonical JSON with no time or writer.
 - Published files are read-only (`0444`).
 - A story reads blobs only from the library and its own production's folder.

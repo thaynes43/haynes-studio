@@ -10,6 +10,7 @@ from haynes_studio.store import (
     BLOB_MISSING,
     COLLISION,
     LOCATOR_INVALID,
+    MAX_OUTPUTS,
     RECORD_INVALID,
     Blob,
     LocalStore,
@@ -68,6 +69,14 @@ def test_non_canonical_or_non_json_bytes_are_record_invalid():
         with pytest.raises(StoreError) as caught:
             StageRecord.decode(bad, source="r.json")
         assert caught.value.code == RECORD_INVALID
+
+
+def test_a_record_lists_at_most_max_outputs_blobs():
+    StageRecord(PRD, RUN, "voice", {f"t:{i}": _blob(str(i).encode()) for i in range(MAX_OUTPUTS)})
+    with pytest.raises(StoreError) as caught:
+        StageRecord(PRD, RUN, "voice", {f"t:{i}": _blob(str(i).encode())
+                                        for i in range(MAX_OUTPUTS + 1)})
+    assert caught.value.code == RECORD_INVALID
 
 
 def test_a_record_names_only_its_own_productions_blobs():

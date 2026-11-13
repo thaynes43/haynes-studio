@@ -23,17 +23,24 @@ Step  Section 8, as implemented                                               ``
       and the expected hash when the caller gave one
 3     the same name and mode check, re-read the hash, then ``link``           ``link``
       ``/proc/self/fd/<fd>`` (the checked inode, not a name) into the final
-      folder's descriptor. On ``EEXIST`` the existing entry is success only
-      if it is a regular file of the staged bytes, with no write bit and no
-      name outside ``.staging``; else ``store.collision``. Then the final
-      path, walked again from the root, must name that inode
+      folder's descriptor. On ``EEXIST`` the existing entry, held open, is
+      success only if it is a regular file of the staged bytes, with no
+      write bit and no name outside ``.staging``; else ``store.collision``.
+      Then the final path, walked again from the root, must name the held
+      inode (the staging file's, or the adopted file's)
 4     unlink the staging name through the ``.staging`` descriptor, only if    ``unlink``
-      that folder and that name still hold the staging inode; otherwise
-      leave it and warn (:class:`StagingLeftoverWarning`)
+      that folder is still the root's, the staging file has exactly its
+      ``.part`` and final names (only the ``.part`` if adopted) and the
+      name still names it; otherwise leave it and warn
+      (:class:`StagingLeftoverWarning`)
 4     ``fsync`` the final and staging folders                                 ``fsync_dir``
 ====  ======================================================================  ==========
 
 ``on_step`` receives ``"<what>:<step>"``, where ``what`` is ``blob`` or ``record``.
+
+Wherever the store asks "is this still the same file", one side is a descriptor it has
+held open since the check: an inode number is reused at once on ext4 when nothing
+holds the inode, so a device and inode taken from a closed descriptor proves nothing.
 
 Never ``rename()``; never open a final path for writing (only the staging file is
 opened with a write flag; every final path is opened ``O_RDONLY | O_NOFOLLOW``); never
@@ -53,7 +60,6 @@ import os
 import secrets
 import stat
 import warnings
-from collections import Counter
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from typing import Any, BinaryIO
@@ -97,6 +103,7 @@ _READ = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
 _DIR = os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC
 _SUBDIR = _DIR | os.O_NOFOLLOW
 _ABSENT, _NOT_REGULAR = "absent", "not a regular file"
+_OURS, _FOREIGN, _UNSTABLE = "ours", "foreign", "unstable"  # see LocalStore._other_names
 # The staging file, and nothing else: created here and read back through the same
 # descriptor (pread), so read-write. No O_TRUNC, no O_APPEND.
 _CREATE = os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW
@@ -105,10 +112,17 @@ _CREATE = os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW
 FILE_MODE = 0o444
 DIR_MODE = 0o755
 _WRITE_BITS = 0o222
-_PROC_FD = "/proc/self/fd"  # step 3 links the checked inode through this (Linux)
+# Step 3 links the checked inode through this. It must be the kernel's procfs, where
+# /proc/self/fd/<fd> is a magic link to the open file itself. A constant: only a test
+# replaces it (to prove that publication fails closed without it).
+_PROC_FD = "/proc/self/fd"
+# How many times a check that saw a file or its links move is taken again before it
+# fails: a concurrent publication of the same bytes changes a link count once.
+_SETTLE = 3
 
 Step = Callable[[str], None]
 _Inode = tuple[int, int]  # (st_dev, st_ino)
+_Stamp = tuple[int, int, int]  # (st_size, st_mtime_ns, st_ctime_ns)
 
 
 class StagingLeftoverWarning(UserWarning):
@@ -237,39 +251,102 @@ class LocalStore(Store, StageLedger):
     def complete_stage(self, record: StageRecord) -> StageRecord:
         """Publish the record create-only, after re-hashing every blob it lists: each
         must be a regular file of its recorded hash and size (``store.blob_missing``
-        if absent, ``store.hash_mismatch`` otherwise; no record is written).
-        Immediately before the record's ``link`` each blob must still be that file:
-        regular, same size, same device and inode. Same record bytes again succeed;
-        other bytes are ``store.collision`` and the finished record is left as it was. The
-        checks and the record's publication share one root descriptor."""
+        if absent or unreadable, ``store.hash_mismatch`` otherwise; no record is linked).
+
+        Each blob's read-only descriptor stays open from its hash until the record's
+        ``link`` has returned, which pins the inode: its number cannot be given to a
+        file created in its place. Immediately before that ``link``, each locator must
+        still name the held inode, and the held file's size, ``st_mtime_ns`` and
+        ``st_ctime_ns`` must be as they were when it was hashed; if they moved (an
+        in-place rewrite, or only a link count that changed), the file is hashed again
+        through the held descriptor. A record lists at most
+        :data:`~haynes_studio.store.records.MAX_OUTPUTS` blobs, so at most that many
+        descriptors are held.
+
+        Same record bytes again succeed; other bytes are ``store.collision`` and the
+        finished record is left as it was. The checks and the record's publication share
+        one root descriptor."""
         path = record_path(record.production_id, record.run_id, record.stage)
         data = record.encode()
-        root = os.open(self.root, _DIR)
-        try:
-            checked = {name: self._check_blob(name, blob, digest=True, root=root)
-                       for name, blob in record.blobs.items()}
-
-            def blobs_unchanged() -> None:
-                for name, blob in record.blobs.items():
-                    try:
-                        info = self._lstat(blob.locator, root=root)
-                    except OSError as error:
-                        raise StoreError(BLOB_MISSING, f"output {name!r} cannot be read after "
-                                         f"its check ({_reason(error)}); the store linked no "
-                                         "record", locator=blob.locator) from None
-                    if info == _ABSENT:
-                        raise StoreError(BLOB_MISSING, f"output {name!r} was removed after its "
-                                         "check; the store linked no record", locator=blob.locator)
-                    if (isinstance(info, str) or not stat.S_ISREG(info.st_mode)
-                            or info.st_size != blob.bytes or _inode(info) != checked[name]):
-                        raise StoreError(HASH_MISMATCH, f"output {name!r} was replaced after its "
-                                         "check; the store linked no record", locator=blob.locator)
-
+        with contextlib.ExitStack() as held:
+            root = _hold(held, os.open(self.root, _DIR))
+            blobs = {name: self._hold_blob(held, root, name, blob)
+                     for name, blob in record.blobs.items()}
             self._publish(_chunks(data, self._chunk), hashlib.sha256(data).hexdigest(), "record",
-                          lambda sha: path, before_link=blobs_unchanged, root=root)
-        finally:
-            os.close(root)
+                          lambda sha: path, root=root,
+                          before_link=lambda: self._blobs_unchanged(root, record, blobs))
         return record
+
+    def _hold_blob(self, held: contextlib.ExitStack, root: int, name: str,
+                   blob: Blob) -> list[Any]:
+        """``[descriptor, stamp]`` for a record's blob: opened read-only through the
+        root descriptor, kept open in ``held``, and hashed (:meth:`_hashed_stamp`)."""
+        try:
+            fd = self._open_fd(blob.locator, root)
+        except OSError as error:
+            raise StoreError(BLOB_MISSING, f"output {name!r}: the blob cannot be read "
+                             f"({_reason(error)})", locator=blob.locator) from None
+        if fd == _ABSENT:
+            raise StoreError(BLOB_MISSING, f"output {name!r}: no blob at its locator",
+                             locator=blob.locator)
+        if isinstance(fd, str):
+            raise StoreError(HASH_MISMATCH, f"output {name!r}: {fd} at its locator",
+                             locator=blob.locator)
+        _hold(held, fd)
+        return [fd, self._hashed_stamp(fd, name, blob)]
+
+    def _hashed_stamp(self, fd: int, name: str, blob: Blob) -> _Stamp:
+        """Hash the held blob and return its size and times, taken around a read that
+        they did not change across; ``store.hash_mismatch`` if the bytes are not the
+        recorded ones, or if the file would not hold still for :data:`_SETTLE` reads."""
+        for _attempt in range(_SETTLE):
+            before = _stamp(os.fstat(fd))
+            try:
+                found = _read_back(fd, self._chunk)
+            except OSError as error:
+                raise StoreError(BLOB_MISSING, f"output {name!r}: the blob cannot be read "
+                                 f"({_reason(error)})", locator=blob.locator) from None
+            after = _stamp(os.fstat(fd))
+            if found != (blob.sha256, blob.bytes):
+                raise StoreError(HASH_MISMATCH, f"output {name!r}: the file is not the recorded "
+                                 f"{blob.bytes} bytes hashing to {blob.sha256}",
+                                 locator=blob.locator)
+            if before == after:
+                return after
+        raise StoreError(HASH_MISMATCH, f"output {name!r} kept changing while it was hashed",
+                         locator=blob.locator)
+
+    def _blobs_unchanged(self, root: int, record: StageRecord, blobs: dict[str, list[Any]]) -> None:
+        """Immediately before the record's ``link``: every locator still names the held
+        inode, and every held file still has the stamp its last hash was taken at (a
+        moved stamp is hashed again). Otherwise the record is not linked."""
+        for _attempt in range(_SETTLE):
+            for name, blob in record.blobs.items():
+                fd, stamp = blobs[name]
+                if _stamp(os.fstat(fd)) != stamp:
+                    blobs[name][1] = self._hashed_stamp(fd, name, blob)
+            settled = True
+            for name, blob in record.blobs.items():
+                fd, stamp = blobs[name]
+                try:
+                    info = self._lstat(blob.locator, root=root)
+                except OSError as error:
+                    raise StoreError(BLOB_MISSING, f"output {name!r} cannot be read after its "
+                                     f"check ({_reason(error)}); the store linked no record",
+                                     locator=blob.locator) from None
+                if info == _ABSENT:
+                    raise StoreError(BLOB_MISSING, f"output {name!r} was removed after its "
+                                     "check; the store linked no record", locator=blob.locator)
+                now = os.fstat(fd)
+                if (isinstance(info, str) or not stat.S_ISREG(info.st_mode)
+                        or _inode(info) != _inode(now)):
+                    raise StoreError(HASH_MISMATCH, f"output {name!r} was replaced after its "
+                                     "check; the store linked no record", locator=blob.locator)
+                settled = settled and _stamp(now) == stamp
+            if settled:
+                return
+        raise StoreError(HASH_MISMATCH, "an output kept changing after its check; the store "
+                         "linked no record", locator=next(iter(record.blobs.values())).locator)
 
     def stage_record(self, production_id: str, run_id: str, stage: str, *,
                      verify: bool = True) -> StageRecord | None:
@@ -348,29 +425,30 @@ class LocalStore(Store, StageLedger):
                             unexpected=tuple(sorted(unexpected)), broken_records=tuple(sorted(broken)),
                             dangling=tuple(sorted(dangling)), damaged=tuple(sorted(damaged)),
                             mismatched=tuple(sorted(mismatched)),
-                            foreign=self._foreign(sorted(blobs) + record_files, staging),
+                            foreign=self._foreign(sorted(blobs) + record_files),
                             unreadable=tuple(sorted(unreadable)), referenced=frozenset(known))
 
-    def _foreign(self, finals: list[str], staging: list[str]) -> tuple[str, ...]:
+    def _foreign(self, finals: list[str]) -> tuple[str, ...]:
         """The final files a publication of the same bytes would refuse (see
-        :meth:`_adopt`): a write bit, or a name that is not a ``.part`` in ``.staging``."""
-        parts: Counter[_Inode] = Counter()
-        for rel in staging:
-            if rel.endswith(PART) and rel.count("/") == 1:
-                with contextlib.suppress(OSError):
-                    info = self._lstat(rel)
-                    if not isinstance(info, str) and stat.S_ISREG(info.st_mode):
-                        parts[_inode(info)] += 1
+        :meth:`_adopt`): a write bit, or a name that is not a ``.part`` in ``.staging``.
+        Each file is held open while its names are counted."""
         foreign = []
-        for rel in finals:
-            try:
-                info = self._lstat(rel)
-            except OSError:
-                continue
-            if isinstance(info, str) or not stat.S_ISREG(info.st_mode):
-                continue
-            if info.st_mode & _WRITE_BITS or info.st_nlink - 1 > parts[_inode(info)]:
-                foreign.append(rel)
+        root = os.open(self.root, _DIR)
+        try:
+            for rel in finals:
+                try:
+                    fd = self._open_fd(rel, root)
+                except OSError:
+                    continue  # unreadable: reported with the blob's hash, or as a broken record
+                if isinstance(fd, str):
+                    continue
+                try:
+                    if os.fstat(fd).st_mode & _WRITE_BITS or self._other_names(root, fd) != _OURS:
+                        foreign.append(rel)
+                finally:
+                    os.close(fd)
+        finally:
+            os.close(root)
         return tuple(sorted(foreign))
 
     # The four steps ------------------------------------------------------------------
@@ -390,8 +468,9 @@ class LocalStore(Store, StageLedger):
             self._sync_and_check(fd, staged, expected, what)  # step 2
             final_rel = final_for(staged.sha256)
             final_dir = _hold(held, self._descend(root, final_rel.rpartition("/")[0], create=True))
-            self._link(root, staging, final_dir, fd, staged, final_rel, what, before_link)  # step 3
-            self._finish(root, staging, final_dir, fd, staged, what)  # step 4
+            adopted = self._link(held, root, staging, final_dir, fd, staged, final_rel, what,
+                                 before_link)  # step 3
+            self._finish(root, staging, final_dir, fd, staged, what, adopted)  # step 4
             return staged
 
     def _step(self, what: str, step: str) -> None:
@@ -436,12 +515,14 @@ class LocalStore(Store, StageLedger):
                              f"expected {expected}", locator=staged.rel)
         self._step(what, "check")
 
-    def _link(self, root: int, staging: int, final_dir: int, fd: int, staged: _Staged,
-              final_rel: str, what: str, before_link: Callable[[], None] | None) -> None:
+    def _link(self, held: contextlib.ExitStack, root: int, staging: int, final_dir: int,
+              fd: int, staged: _Staged, final_rel: str, what: str,
+              before_link: Callable[[], None] | None) -> bool:
         """Step 3: link the checked inode itself (``/proc/self/fd/<fd>``) to the final
         name in the final folder's descriptor; on ``EEXIST``, adopt the existing file
         only if this store could have published it. Then the final path, walked again
-        from the root, must name the inode that was checked."""
+        from the root, must name the inode that was checked: the staging file, or the
+        adopted file, each still held open. Returns whether the file was adopted."""
         folder, _, name = final_rel.rpartition("/")
         _require_untouched(fd, staging, staged.name)
         if _read_back(fd, self._chunk) != (staged.sha256, staged.size):
@@ -455,58 +536,67 @@ class LocalStore(Store, StageLedger):
             before_link()
         try:
             os.link(source, name, dst_dir_fd=final_dir, follow_symlinks=True)
-            inode = _inode(os.fstat(fd))
+            final, adopted = fd, False
         except FileExistsError:
-            inode = self._adopt(root, final_dir, name, final_rel, staged)
+            final, adopted = self._adopt(held, root, final_dir, name, final_rel, staged), True
         except FileNotFoundError:  # the staging file lost its name, or the folder went
             raise StoreError(COLLISION, "another writer removed the staging file or the final "
                              "folder just before the link; nothing was linked",
                              locator=final_rel) from None
         info = _lstat_at(final_dir, name)
-        if (info is None or not stat.S_ISREG(info.st_mode) or _inode(info) != inode
+        if (info is None or not stat.S_ISREG(info.st_mode)
+                or _inode(info) != _inode(os.fstat(final))
                 or not self._still_holds(root, folder, final_dir)):
             raise StoreError(COLLISION, "after the link the final path does not name the "
                              "checked file (another writer replaced it or its folder); "
                              "nothing further was changed", locator=final_rel)
         self._step(what, "link")
+        return adopted
 
-    def _adopt(self, root: int, final_dir: int, name: str, final_rel: str,
-               staged: _Staged) -> _Inode:
+    def _adopt(self, held: contextlib.ExitStack, root: int, final_dir: int, name: str,
+               final_rel: str, staged: _Staged) -> int:
         """``EEXIST``: the existing entry is success only if it is a regular file (not a
         link) holding the staged bytes, with no write bit, and every other name it has
         is a ``.part`` in the store's ``.staging`` folder (this store's own publication
         between its link and its unlink, or one interrupted there). Anything else is
-        ``store.collision``; the file is never changed, never ``chmod``-ed."""
+        ``store.collision``; the file is never changed, never ``chmod``-ed. Returns its
+        read-only descriptor, held in ``held`` so the check after it compares against
+        the same file (an inode number is not reused while a descriptor holds it)."""
         fd = _open_at(final_dir, name)
         if isinstance(fd, str):
             raise _collision(final_rel, "it was removed while being checked" if fd == _ABSENT
                              else "it is not a regular file")
-        try:
-            found = _read_back(fd, self._chunk)
-            staging_names = self._staging_names(root, _inode(os.fstat(fd)))
-            info = os.fstat(fd)  # after the count: a .part only ever loses its name
-        finally:
-            os.close(fd)
-        if found != (staged.sha256, staged.size):
+        _hold(held, fd)
+        if _read_back(fd, self._chunk) != (staged.sha256, staged.size):
             raise _collision(final_rel, "it holds other bytes")
+        info = os.fstat(fd)
         if info.st_mode & _WRITE_BITS:
             raise _collision(final_rel, f"it is writable (mode {stat.S_IMODE(info.st_mode):o})")
-        if info.st_nlink - 1 > staging_names:
-            raise _collision(final_rel, "it has a name outside the store's .staging folder")
-        return _inode(info)
+        names = self._other_names(root, fd)
+        if names != _OURS:
+            raise _collision(final_rel, "it has a name outside the store's .staging folder"
+                             if names == _FOREIGN else "its link count kept changing")
+        return fd
 
     def _finish(self, root: int, staging: int, final_dir: int, fd: int, staged: _Staged,
-                what: str) -> None:
+                what: str, adopted: bool) -> None:
         """Step 4: unlink the staging name through the ``.staging`` descriptor, only if
-        that folder is still the root's ``.staging`` and the name still names this
-        publication's inode; then ``fsync`` the final and staging folders."""
+        that folder is still the root's ``.staging``, the staging file has exactly its
+        expected names (its ``.part`` and the final name it was linked to; only the
+        ``.part`` when the final file was adopted) and the name still names it. Then
+        ``fsync`` the final and staging folders. No call removes a name only if it is a
+        given inode, so a rename of the held folder plus a name swap between these
+        checks and the unlink still removes the other file (a documented limit)."""
         left = None
         if not self._still_holds(root, STAGING, staging):
             left = "the .staging folder was moved or replaced"
         else:
             info = _lstat_at(staging, staged.name)
+            links, expected = os.fstat(fd).st_nlink, 1 if adopted else 2
             if info is not None and _inode(info) != _inode(os.fstat(fd)):
                 left = "the name no longer names this publication's staging file"
+            elif info is not None and links != expected:
+                left = f"the staging file has {links} names, not {expected}"
             elif info is not None:
                 try:
                     os.unlink(staged.name, dir_fd=staging)  # the only unlink: its own name
@@ -570,23 +660,36 @@ class LocalStore(Store, StageLedger):
         finally:
             os.close(folder)
 
-    def _staging_names(self, root: int, inode: _Inode) -> int:
-        """How many ``.part`` entries of the root's ``.staging`` folder name ``inode``."""
-        try:
-            folder = self._descend(root, STAGING, create=False)
-        except OSError:
-            return 0
-        try:
-            with os.scandir(folder) as entries:
-                names = [entry.name for entry in entries if entry.name.endswith(PART)]
-            count = 0
-            for name in names:
-                info = _lstat_at(folder, name)
-                if info is not None and stat.S_ISREG(info.st_mode) and _inode(info) == inode:
-                    count += 1
-            return count
-        finally:
-            os.close(folder)
+    def _other_names(self, root: int, fd: int) -> str:
+        """Whether every name of the held file ``fd`` but one (its final name) is a
+        ``.part`` in the root's ``.staging``: :data:`_OURS` or :data:`_FOREIGN`. Each
+        try samples the link count, lists ``.staging`` for ``.part`` names of that
+        inode, samples the link count again, then checks each counted name is still
+        that inode; it counts only if nothing moved, and then ``links - 1`` must equal
+        the count. A count that moved :data:`_SETTLE` times in a row is
+        :data:`_UNSTABLE` (another publication's ``.part`` losing its name moves it
+        once)."""
+        inode = _inode(os.fstat(fd))
+        for _attempt in range(_SETTLE):
+            first = os.fstat(fd).st_nlink
+            try:
+                folder = self._descend(root, STAGING, create=False)
+            except OSError:
+                folder = None
+            try:
+                parts: list[str] = []
+                if folder is not None:
+                    with os.scandir(folder) as entries:
+                        names = [entry.name for entry in entries if entry.name.endswith(PART)]
+                    parts = [name for name in names if _names(folder, name, inode)]
+                second = os.fstat(fd).st_nlink
+                kept = all(_names(folder, name, inode) for name in parts)  # type: ignore[arg-type]
+            finally:
+                if folder is not None:
+                    os.close(folder)
+            if first == second and kept:
+                return _OURS if second - 1 == len(parts) else _FOREIGN
+        return _UNSTABLE
 
     def _folder_of(self, rel: str, root: int | None = None) -> tuple[int, str] | str:
         """``(descriptor of the folder holding rel, rel's last component)``, or
@@ -637,19 +740,15 @@ class LocalStore(Store, StageLedger):
             os.close(folder)
         return _ABSENT if info is None else info
 
-    def _examine(self, rel: str, *, digest: bool,
-                 root: int | None = None) -> tuple[str, int, _Inode] | str:
-        """``(sha256, size, inode)`` of the regular file at ``rel`` (``sha256`` is
-        empty without ``digest``), or :data:`_ABSENT` or :data:`_NOT_REGULAR`."""
-        fd = self._open_fd(rel, root)
+    def _examine(self, rel: str, *, digest: bool) -> tuple[str, int] | str:
+        """``(sha256, size)`` of the regular file at ``rel`` (``sha256`` is empty
+        without ``digest``), or :data:`_ABSENT` or :data:`_NOT_REGULAR`. It returns no
+        inode: the descriptor is closed, so its number could already name another file."""
+        fd = self._open_fd(rel)
         if isinstance(fd, str):
             return fd
         try:
-            info = os.fstat(fd)
-            if not digest:
-                return "", info.st_size, _inode(info)
-            found, size = _read_back(fd, self._chunk)
-            return found, size, _inode(info)
+            return _read_back(fd, self._chunk) if digest else ("", os.fstat(fd).st_size)
         finally:
             os.close(fd)
 
@@ -662,15 +761,14 @@ class LocalStore(Store, StageLedger):
             return None
         if isinstance(found, str):
             return ("", -1)
-        return found[0], found[1]
+        return found
 
-    def _check_blob(self, name: str, blob: Blob, *, digest: bool,
-                    root: int | None = None) -> _Inode:
-        """The inode of a record's blob, after checking it is a regular file of the
-        recorded size (and hash, with ``digest``). A blob that cannot be read is
-        ``store.blob_missing``, never a bare ``OSError``."""
+    def _check_blob(self, name: str, blob: Blob, *, digest: bool) -> None:
+        """Check a record's blob is a regular file of the recorded size (and hash, with
+        ``digest``), for a reader. A blob that cannot be read is ``store.blob_missing``,
+        never a bare ``OSError``."""
         try:
-            found = self._examine(blob.locator, digest=digest, root=root)
+            found = self._examine(blob.locator, digest=digest)
         except OSError as error:
             raise StoreError(BLOB_MISSING, f"output {name!r}: the blob cannot be read "
                              f"({_reason(error)})", locator=blob.locator) from None
@@ -680,11 +778,10 @@ class LocalStore(Store, StageLedger):
         if isinstance(found, str):
             raise StoreError(HASH_MISMATCH, f"output {name!r}: {found} at its locator",
                              locator=blob.locator)
-        sha, size, inode = found
+        sha, size = found
         if size != blob.bytes or (digest and sha != blob.sha256):
             raise StoreError(HASH_MISMATCH, f"output {name!r}: the file is not the recorded "
                              f"{blob.bytes} bytes hashing to {blob.sha256}", locator=blob.locator)
-        return inode
 
     def _load_record(self, production_id: str, run_id: str, stage: str) -> StageRecord | None:
         """The record file decoded, or ``None``; its blobs are not looked at."""
@@ -751,6 +848,12 @@ def _inode(info: os.stat_result) -> _Inode:
     return info.st_dev, info.st_ino
 
 
+def _stamp(info: os.stat_result) -> _Stamp:
+    """What an in-place rewrite moves: the size and the modification and change times
+    (a write sets both; resetting ``st_mtime`` with ``utime`` still sets ``st_ctime``)."""
+    return info.st_size, info.st_mtime_ns, info.st_ctime_ns
+
+
 def _reason(error: OSError) -> str:
     return error.strerror or type(error).__name__
 
@@ -811,6 +914,13 @@ def _lstat_at(folder: int, name: str) -> os.stat_result | None:
         return os.stat(name, dir_fd=folder, follow_symlinks=False)
     except FileNotFoundError:
         return None
+
+
+def _names(folder: int, name: str, inode: _Inode) -> bool:
+    """Whether ``name`` in ``folder`` is, right now, a regular file with ``inode`` (the
+    inode of a descriptor the caller holds open, so its number is not reused)."""
+    info = _lstat_at(folder, name)
+    return info is not None and stat.S_ISREG(info.st_mode) and _inode(info) == inode
 
 
 def _proc_path(fd: int) -> str:

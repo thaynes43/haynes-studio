@@ -29,6 +29,9 @@ from haynes_studio.store.layout import (
 )
 
 STAGE_RECORD_SCHEMA = "studio.stage-record/v1"  # proposal: a local-adapter file, not an API type
+# Proposal: a stage lists at most this many outputs. The local adapter holds one open
+# descriptor per output while it records the stage (well under the usual 1024 limit).
+MAX_OUTPUTS = 256
 # Proposal: an output name is a record key, not a path ("s2v_clip:a", "segment").
 _NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}")
 _FIELDS = {"schema", "production_id", "run_id", "stage", "blobs"}
@@ -91,6 +94,9 @@ class StageRecord:
         check_stage(self.stage)
         if not self.blobs:
             raise StoreError(RECORD_INVALID, "a stage record lists at least one blob")
+        if len(self.blobs) > MAX_OUTPUTS:
+            raise StoreError(RECORD_INVALID, f"a stage record lists at most {MAX_OUTPUTS} "
+                             f"blobs, got {len(self.blobs)}")
         blobs = {}
         for name, blob in self.blobs.items():
             check_name(name)

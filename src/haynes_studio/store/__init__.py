@@ -34,11 +34,11 @@ from haynes_studio.store.layout import (
     record_path,
 )
 from haynes_studio.store.local import DoctorReport, LocalStore, StagingLeftoverWarning
-from haynes_studio.store.records import Blob, StageRecord, canonical_json
+from haynes_studio.store.records import MAX_OUTPUTS, Blob, StageRecord, canonical_json
 
 __all__ = [
     "BLOB_MISSING", "Blob", "COLLISION", "DoctorReport", "EXTENSIONS", "HASH_MISMATCH",
-    "LIBRARY", "LOCATOR_INVALID", "LocalStore", "Locator", "MEDIA_TYPE_UNSUPPORTED",
+    "LIBRARY", "LOCATOR_INVALID", "LocalStore", "Locator", "MAX_OUTPUTS", "MEDIA_TYPE_UNSUPPORTED",
     "MISMATCH", "MISSING", "PRESENT", "RECORD_INVALID", "StageLedger", "StageRecord",
     "StagingLeftoverWarning", "Store", "StoreError", "blob_locator", "canonical_json",
     "is_locator", "is_sha256", "parse_locator", "record_path",

@@ -35,7 +35,7 @@ from haynes_studio.store.layout import (
     extension,
     is_sha256,
 )
-from haynes_studio.store.records import check_name
+from haynes_studio.store.records import MAX_OUTPUTS, check_name
 
 
 @dataclass(frozen=True)
@@ -65,6 +65,9 @@ def commit_stage(store: Store, *, production_id: str, run_id: str, stage: str,
     check_stage(stage)
     if not outputs:
         raise StoreError(RECORD_INVALID, "a stage commits at least one output")
+    if len(outputs) > MAX_OUTPUTS:
+        raise StoreError(RECORD_INVALID, f"a stage commits at most {MAX_OUTPUTS} outputs, "
+                         f"got {len(outputs)}")
     for name, output in outputs.items():
         check_name(name)
         extension(output.media_type)

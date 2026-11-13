@@ -9,6 +9,7 @@ and the planted outside file is untouched. Linux only, like the store."""
 
 from __future__ import annotations
 
+import contextlib
 import errno
 import os
 import stat
@@ -194,6 +195,48 @@ def test_f2_a_staging_name_replaced_before_the_unlink_is_left_alone(root):
     assert only_entry(root / ".staging").read_bytes() == b"another writer's file"
     final = root / blob.locator
     assert final.read_bytes() == GOOD and final.stat().st_nlink == 1
+
+
+@pytest.mark.parametrize("final", ["linked", "adopted"])
+def test_a_staging_file_with_an_extra_name_before_the_unlink_is_left_with_a_warning(root, final):
+    """Second review, finding 2: right before the unlink the staging file must have
+    exactly its ``.part`` and the final name (only the ``.part`` when the final file
+    was adopted). An extra name leaves it in place."""
+    if final == "adopted":
+        LocalStore(root).publish(GOOD, scope="library", media_type="video/mp4")
+    extra = root / "library" / "extra-name"
+
+    def add_name():
+        extra.parent.mkdir(exist_ok=True)
+        os.link(only_entry(root / ".staging"), extra)
+
+    with pytest.warns(StagingLeftoverWarning, match="names, not"):
+        blob = LocalStore(root, on_step=At("blob:link", add_name)).publish(
+            GOOD, scope="library", media_type="video/mp4")
+    assert (root / blob.locator).read_bytes() == GOOD
+    part = only_entry(root / ".staging")
+    assert part.stat().st_ino == extra.stat().st_ino  # both names kept
+
+
+def test_limit_a_folder_move_and_a_name_swap_in_the_last_gap_remove_the_other_file(
+        root, outside, monkeypatch):
+    """A documented limit: no call removes a name only if it is a given inode. A writer
+    that moves the held ``.staging`` out of the root and renames another file onto the
+    ``.part`` name between the last check and the unlink loses that file."""
+    victim = outside / "victim"
+    victim.write_bytes(b"VICTIM-BYTES")
+    real_unlink = os.unlink
+
+    def unlink(name, *, dir_fd):
+        os.rename(root / ".staging", outside / "moved")
+        os.rename(victim, outside / "moved" / name)
+        return real_unlink(name, dir_fd=dir_fd)
+
+    monkeypatch.setattr(os, "unlink", unlink)
+    blob = LocalStore(root).publish(GOOD, scope="library", media_type="video/mp4")
+    monkeypatch.undo()
+    assert (root / blob.locator).read_bytes() == GOOD
+    assert not victim.exists() and list((outside / "moved").iterdir()) == []
 
 
 # Finding 3: a folder swapped for a link is never followed on the write path ------------
@@ -389,6 +432,71 @@ def test_eexist_adopts_a_file_whose_other_name_is_a_publication_between_link_and
     assert files(root, ".staging") == []
 
 
+def test_part_names_added_only_for_the_count_do_not_hide_outside_names(root, outside, monkeypatch):
+    """Second review, finding 3: a read-only final file of the right bytes with two
+    names outside the root. While ``.staging`` is listed, another writer adds two
+    ``.part`` links of it, and removes them just before the link count is sampled
+    again (so both samples agree). The counted names are checked again afterwards."""
+    locator = good_locator()
+    final = plant(root, locator, GOOD)
+    final.chmod(0o444)
+    for name in ("one.mp4", "two.mp4"):
+        os.link(final, outside / name)
+    (root / ".staging").mkdir()
+    temps = [root / ".staging" / "temp-a.part", root / ".staging" / "temp-b.part"]
+    real_scandir, real_fstat, listing = os.scandir, os.fstat, []
+
+    def scandir(path=None):
+        if isinstance(path, int) and not listing:  # the store lists .staging by descriptor
+            for temp in temps:
+                os.link(final, temp)
+            listing.append(True)
+        return real_scandir(path) if path is not None else real_scandir()
+
+    def fstat(fd):
+        if listing:  # the next fstat after the listing is the second sample
+            for temp in temps:
+                temp.unlink()
+            listing.clear()
+        return real_fstat(fd)
+
+    monkeypatch.setattr(os, "scandir", scandir)
+    monkeypatch.setattr(os, "fstat", fstat)
+    before, before_outside = tree(root)[locator], tree(outside)
+    with pytest.raises(StoreError) as caught:
+        LocalStore(root).publish(GOOD, scope="library", media_type="video/mp4")
+    monkeypatch.undo()
+    assert (caught.value.code, caught.value.locator) == (COLLISION, locator)
+    assert tree(root)[locator] == before and tree(outside) == before_outside
+    assert final.stat().st_nlink == 3 and final.read_bytes() == GOOD
+
+
+def test_an_adoption_that_sees_the_other_part_lose_its_name_mid_count_succeeds(root, monkeypatch):
+    """The legitimate move: while the second publication counts names, the first
+    publication's ``.part`` loses its name (its unlink). The count is taken again."""
+    real_scandir, seen = os.scandir, {}
+
+    def second():
+        part = only_entry(root / ".staging")  # the first publication's .part
+
+        def scandir(path=None):
+            entries = list(real_scandir(path))
+            if isinstance(path, int) and part.exists():
+                os.unlink(part)  # as the first publication's own step 4 would
+            return contextlib.nullcontext(entries)
+
+        monkeypatch.setattr(os, "scandir", scandir)
+        try:
+            seen["blob"] = LocalStore(root).publish(GOOD, scope="library", media_type="video/mp4")
+        finally:
+            monkeypatch.setattr(os, "scandir", real_scandir)
+
+    first = LocalStore(root, on_step=At("blob:link", second)).publish(
+        GOOD, scope="library", media_type="video/mp4")
+    assert seen["blob"] == first
+    assert (root / first.locator).read_bytes() == GOOD and files(root, ".staging") == []
+
+
 def test_eexist_adopts_a_read_only_single_name_file_of_the_same_bytes(root):
     locator = good_locator()
     plant(root, locator, GOOD).chmod(0o444)
@@ -542,6 +650,82 @@ def test_f6_a_blob_removed_or_replaced_before_the_record_link_leaves_no_record(r
     assert (caught.value.code, caught.value.locator) == (code, take.locator)
     assert not os.path.lexists(root / record_path(PRD, RUN, "voice"))
     assert store.stage_record(PRD, RUN, "voice") is None
+
+
+def reuses_inode_numbers(folder: Path) -> bool:
+    """Whether this file system gives a freed inode number to the next file created
+    (ext4 does at once; xfs does not)."""
+    folder.mkdir()
+    probe = folder / "probe"
+    probe.write_bytes(b"first")
+    number = probe.stat().st_ino
+    probe.unlink()
+    probe.write_bytes(b"other")
+    return probe.stat().st_ino == number
+
+
+def test_f6_a_blob_replaced_where_inode_numbers_are_reused_leaves_no_record(root, tmp_path):
+    """Second review, finding 1: on ext4 a blob unlinked and created again gets the
+    freed inode number, so a device-and-inode check against a closed descriptor passes.
+    The store holds the hashed blob open, so its number is not free to be reused."""
+    if not reuses_inode_numbers(tmp_path / "inode-probe"):
+        pytest.skip("tmp_path's file system does not give a freed inode number to the next "
+                    "file (xfs); run with --basetemp on ext4 to exercise this")
+    store = LocalStore(root)
+    take = store.publish(b"take one", scope=PRD, media_type="audio/wav")
+    path = root / take.locator
+
+    def replace():
+        os.unlink(path)
+        path.write_bytes(b"take two")  # the same size; the freed number, were it free
+
+    with pytest.raises(StoreError) as caught:
+        LocalStore(root, on_step=At("record:check", replace)).complete_stage(
+            StageRecord(PRD, RUN, "voice", {"take:1": take}))
+    assert (caught.value.code, caught.value.locator) == (HASH_MISMATCH, take.locator)
+    assert not os.path.lexists(root / record_path(PRD, RUN, "voice"))
+    assert store.stage_record(PRD, RUN, "voice") is None
+
+
+def test_f6_a_blob_rewritten_in_place_before_the_record_link_leaves_no_record(root):
+    """Second review, finding 6 note: chmod, write other bytes of the same size, chmod
+    back. The held file's times move, so it is hashed again before the record's link.
+    (Its mtime is set far back first, so the rewrite moves it whatever the clock's
+    granularity.)"""
+    store = LocalStore(root)
+    take = store.publish(b"take one", scope=PRD, media_type="audio/wav")
+    path = root / take.locator
+    os.utime(path, ns=(0, 0))
+
+    def rewrite():
+        path.chmod(0o644)
+        with open(path, "r+b") as handle:
+            handle.write(b"take two")
+        path.chmod(0o444)
+
+    with pytest.raises(StoreError) as caught:
+        LocalStore(root, on_step=At("record:check", rewrite)).complete_stage(
+            StageRecord(PRD, RUN, "voice", {"take:1": take}))
+    assert (caught.value.code, caught.value.locator) == (HASH_MISMATCH, take.locator)
+    assert not os.path.lexists(root / record_path(PRD, RUN, "voice"))
+
+
+def test_a_blob_whose_times_moved_with_the_same_bytes_is_hashed_again_and_recorded(root):
+    """A link count that moves (another publication of the same bytes unlinking its
+    ``.part``) moves ``st_ctime``; the bytes are hashed again and the record goes in."""
+    store = LocalStore(root)
+    take = store.publish(b"take one", scope=PRD, media_type="audio/wav")
+    path = root / take.locator
+
+    def touch():
+        extra = path.with_name("extra-name")
+        os.link(path, extra)
+        os.unlink(extra)
+        os.utime(path, ns=(1, 1))  # makes the move visible whatever the clock's granularity
+
+    record = LocalStore(root, on_step=At("record:check", touch)).complete_stage(
+        StageRecord(PRD, RUN, "voice", {"take:1": take}))
+    assert store.stage_record(PRD, RUN, "voice") == record
 
 
 @pytest.mark.skipif(os.geteuid() == 0, reason="root reads files whatever their mode")

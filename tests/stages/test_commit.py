@@ -11,6 +11,7 @@ from haynes_studio.stages import StageOutput, commit_stage, completed_stage
 from haynes_studio.store import (
     COLLISION,
     HASH_MISMATCH,
+    MAX_OUTPUTS,
     MEDIA_TYPE_UNSUPPORTED,
     RECORD_INVALID,
     LocalStore,
@@ -151,6 +152,16 @@ def test_a_retried_commit_of_a_finished_stage_cannot_overwrite_it(root):
     assert tree(root)[RECORD] == before[RECORD]
     assert read(store) == finished
     assert store.doctor().orphans  # the new render's blob is an orphan, harmless
+
+
+def test_a_stage_with_more_outputs_than_the_limit_is_refused_before_anything_is_written(root):
+    """The local ledger holds one descriptor per output while it records a stage, so a
+    stage lists at most MAX_OUTPUTS outputs (proposal)."""
+    many = {f"take:{i}": StageOutput(f"take {i}".encode(), "audio/wav") for i in range(MAX_OUTPUTS + 1)}
+    with pytest.raises(StoreError) as caught:
+        commit_stage(LocalStore(root), production_id=PRD, run_id=RUN, stage="voice", outputs=many)
+    assert caught.value.code == RECORD_INVALID and str(MAX_OUTPUTS) in caught.value.message
+    assert tree(root) == {}
 
 
 def test_expected_hashes_are_checked_before_the_record(root):
