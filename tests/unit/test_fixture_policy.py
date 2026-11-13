@@ -71,9 +71,19 @@ def test_thread_limits_cap_and_keep_smaller_values():
         assert 1 <= int(os.environ[name]) <= limit
 
 
-def test_redaction_hides_secret_values_and_url_passwords():
+def test_redaction_hides_secret_values_and_passwords():
     environ = {"STUDIO_FAKE_TOKEN": "canary-token-value", "HOME": "/home/someone"}
-    text = "got canary-token-value from postgresql://user:hunter22@db:5432/studio_test in /home/someone"
-    assert policy.redact(text, environ) == (
-        "got <redacted> from postgresql://user:<redacted>@db:5432/studio_test in /home/someone"
-    )
+    cases = {
+        "got canary-token-value in /home/someone": "got <redacted> in /home/someone",
+        "postgresql://user:hunter22@db:5432/studio_test":
+            "postgresql://user:<redacted>@db:5432/studio_test",
+        "postgresql://user:p@ss@db/studio_test": "postgresql://user:<redacted>@db/studio_test",
+        "postgresql://postgres@localhost:5432/studio_test":
+            "postgresql://postgres@localhost:5432/studio_test",
+        "host=db password=hunter22 dbname=studio_test":
+            "host=db password=<redacted> dbname=studio_test",
+        "host=db password = 'a secret' dbname=x": "host=db password = <redacted> dbname=x",
+        "https://example.invalid:8080/path": "https://example.invalid:8080/path",
+    }
+    for text, expected in cases.items():
+        assert policy.redact(text, environ) == expected

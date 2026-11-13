@@ -40,15 +40,17 @@ is unset (the CI `db` job uses it, so it cannot pass on skipped tests);
   are collected and **skipped with their reason** when `STUDIO_TEST_DATABASE_URL` is
   unset; `live` tests are skipped unless asked for.
 - **`db`**: tests marked `@pytest.mark.db`, using the `studio_db` or `db_conn`
-  fixture.
+  fixture. A test that uses either fixture without the marker is a usage error, so
+  it cannot fall outside both the `source` and `db` jobs.
 - **`browser`**: Playwright specs in `web/e2e/`. Today one smoke opens the committed
   mockup [`docs/design/studio-ui-mockup/index.html`](../design/studio-ui-mockup/index.html)
   and checks that it renders with no script error and no network request. The web app
   (E6) adds its own specs here.
 - **`live`**: tests marked `@pytest.mark.live(story=<id>)`. They run only with
-  `-m live --live-story=<id>` naming that story; a live test without `story=` is a
-  usage error. A live run writes to a new private job directory and stops at its
-  story's caps.
+  exactly `-m live --live-story=<id>` naming that story, and never when `CI` or
+  `GITHUB_ACTIONS` is set; any other `-m` with `--live-story`, or a live test
+  without `story=`, is a usage error. A live run writes to a new private job
+  directory and stops at its story's caps.
 
 ## Limits
 
@@ -63,10 +65,12 @@ is unset (the CI `db` job uses it, so it cannot pass on skipped tests);
 ## Output
 
 Failures print codes and paths, not data: the harness fails with one line per problem
-and no traceback. The plugin also redacts failure text and captured output: values of
-environment variables whose names contain `TOKEN`, `SECRET`, `PASSWORD`, `API_KEY`,
-`DATABASE_URL` and similar, and any `scheme://user:password@` password, become
-`<redacted>`. Never print `os.environ` or a connection string in a test.
+and no traceback. The plugin also redacts failure text, collection errors and captured
+output: values (8 characters or more) of environment variables whose names contain
+`TOKEN`, `SECRET`, `PASSWORD`, `API_KEY`, `DATABASE_URL` and similar, any
+`scheme://user:password@` password and any conninfo `password=` value become
+`<redacted>`. Output a test prints under `-s` is not captured, so it is not redacted.
+Never print `os.environ` or a connection string in a test.
 
 ## Fixture policy
 
@@ -82,8 +86,12 @@ environment variables whose names contain `TOKEN`, `SECRET`, `PASSWORD`, `API_KE
   frozen responses are JSON with hashes.
 - **Checkout guard:** the plugin snapshots `git status` (untracked, ignored and changed
   files) when the session starts and fails the session if anything new appears by the
-  end, listing each path. Only `__pycache__/` and `.pytest_cache/` are exempt.
-  Playwright writes its results to the OS temp directory for the same reason.
+  end, listing each path. `__pycache__/` and `.pytest_cache/` are exempt. An ignored
+  directory that already exists (`.venv/`, `web/node_modules/`, an old `/jobs/`) is
+  one entry, so files added inside it are not seen; a new directory is. The guard is
+  off when the rootdir is not the top of a git checkout; the header line
+  `studio checkout guard:` says which. Playwright writes its results to the OS temp
+  directory for the same reason.
 
 ## Disposable Postgres (`db`)
 
@@ -107,16 +115,19 @@ never `database/postgres16`.
 `tests/contracts/test_examples.py` checks every file under
 [`docs/contracts/examples/`](../contracts/examples/):
 
-- `test_example_shape`: the file is JSON and an object of a known type (a `schema` of
-  `studio.<type>/v<major>` with a section 2 type; the legacy manifest, detected by
-  `shots`, `frame` and `job`; or the section 12 error envelope). An invalid case has
-  exactly the `studio.invalid-case/v1` wrapper fields, a JSON Pointer `path`, a `rule`
-  in the [rule index](../contracts/studio-contracts-v1.md#15-rule-index) and an `expect`
-  that matches that rule's status. The index's example links must point at cases that
-  declare the rule.
+- `test_example_shape`: the file is strict JSON (no duplicate keys, no `NaN`) and an
+  object of a known type (a `schema` of `studio.<type>/v<major>` with a section 2 type,
+  `v1` for a valid example; the legacy manifest, detected by `shots`, `frame` and
+  `job`; or the section 12 error envelope). An invalid case has exactly the
+  `studio.invalid-case/v1` wrapper fields, a JSON Pointer `path`, a `rule` in the
+  [rule index](../contracts/studio-contracts-v1.md#15-rule-index), an `expect` that
+  matches that rule's status, and context `queue_run` when the status says the rule
+  fires at queue. The index's example links must point at cases that declare the
+  rule.
 - `test_example_validates`: if `tests/contracts/registry.py` has a validator for the
   example's type, a valid example must validate and an invalid case must fail with
-  exactly its `rule` and `expect`. With no validator the test reports **PENDING**
+  exactly its `rule` and `expect`. A malformed example fails here too, never pending.
+  With no validator the test reports **PENDING**
   (letter `P`), the summary counts it as `pending`, never `passed` or `skipped`, and a
   closing **contract validators pending** section lists every pending type by name.
 

@@ -34,8 +34,10 @@ _SENSITIVE_NAME = re.compile(
     re.IGNORECASE,
 )
 _MIN_SECRET_LENGTH = 8
-# scheme://user:password@ -> scheme://user:<redacted>@
-_URL_PASSWORD = re.compile(r"(?P<head>\b[a-z][a-z0-9+.-]*://[^\s/:@]*:)[^\s/@]+@", re.IGNORECASE)
+# scheme://user:password@ -> scheme://user:<redacted>@ (a password may contain @)
+_URL_PASSWORD = re.compile(r"(?P<head>\b[a-z][a-z0-9+.-]*://[^\s/:@]*:)[^\s/]+@", re.IGNORECASE)
+# libpq conninfo: password=secret or password='a secret'
+_CONNINFO_PASSWORD = re.compile(r"(?P<head>\bpassword\s*=\s*)('[^']*'|[^\s']+)", re.IGNORECASE)
 REDACTED = "<redacted>"
 
 
@@ -50,7 +52,8 @@ def sensitive_values(environ=os.environ) -> list[str]:
 def redact(text: str, environ=os.environ) -> str:
     for value in sensitive_values(environ):
         text = text.replace(value, REDACTED)
-    return _URL_PASSWORD.sub(r"\g<head>" + REDACTED + "@", text)
+    text = _URL_PASSWORD.sub(r"\g<head>" + REDACTED + "@", text)
+    return _CONNINFO_PASSWORD.sub(r"\g<head>" + REDACTED, text)
 
 
 # Tool caches that a test session may create; everything else is a new file.
@@ -59,6 +62,10 @@ _CACHE_PARTS = {"__pycache__", ".pytest_cache"}
 
 def checkout_snapshot(root: Path) -> frozenset[str] | None:
     """Status entries (untracked, ignored and changed) of the git checkout at root.
+
+    An ignored directory (``.venv/``, ``web/node_modules/``, an existing ``/jobs/``)
+    is one entry, so new files inside a directory that was already there are not
+    seen; a new directory is.
 
     Returns None when root is not the top of a git checkout, so the guard is off
     rather than guessing.

@@ -25,6 +25,13 @@ INNER = textwrap.dedent("""
 """)
 
 
+@pytest.fixture(autouse=True)
+def not_ci(monkeypatch):
+    """The inner sessions run in-process; GitHub's CI variables would block live tests."""
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+
 @pytest.fixture
 def inner(pytester, monkeypatch):
     monkeypatch.delenv("STUDIO_TEST_DATABASE_URL", raising=False)
@@ -50,9 +57,10 @@ def test_require_db_turns_the_skip_into_an_error(inner):
 
 
 def test_live_needs_marker_expression_and_matching_story(inner):
-    result = inner.runpytest(*PLUGIN, "--live-story=512")
-    assert result.ret == pytest.ExitCode.USAGE_ERROR
-    result.stderr.fnmatch_lines(["*--live-story needs -m live*"])
+    for extra in ((), ("-m", "not db"), ("-m", "live or db")):
+        result = inner.runpytest(*PLUGIN, *extra, "--live-story=512")
+        assert result.ret == pytest.ExitCode.USAGE_ERROR
+        result.stderr.fnmatch_lines(["*--live-story needs exactly -m live*"])
 
     result = inner.runpytest(*PLUGIN, "-m", "live", "--live-story=512")
     result.assert_outcomes(passed=1, deselected=2)
@@ -60,6 +68,29 @@ def test_live_needs_marker_expression_and_matching_story(inner):
     result = inner.runpytest(*PLUGIN, "-m", "live", "--live-story=999", "-rs")
     result.assert_outcomes(skipped=1, deselected=2)
     result.stdout.fnmatch_lines(["*live: authorized by story 512, not --live-story=999*"])
+
+
+def test_live_never_runs_in_ci(inner, monkeypatch):
+    monkeypatch.setenv("CI", "true")
+    result = inner.runpytest(*PLUGIN, "-m", "live", "--live-story=512")
+    assert result.ret == pytest.ExitCode.USAGE_ERROR
+    result.stderr.fnmatch_lines(["*live tests never run in CI*"])
+
+
+def test_db_fixture_without_db_marker_is_a_usage_error(pytester):
+    pytester.makepyfile(test_unmarked="""
+        def test_unmarked(db_conn):
+            pass
+    """)
+    result = pytester.runpytest(*PLUGIN)
+    assert result.ret == pytest.ExitCode.USAGE_ERROR
+    result.stderr.fnmatch_lines(["*test_unmarked*uses db_conn, studio_db; mark it @pytest.mark.db*"])
+
+
+def test_header_reports_the_guard_state(pytester):
+    pytester.makepyfile(test_plain="def test_plain():\n    pass\n")
+    result = pytester.runpytest(*PLUGIN)
+    result.stdout.fnmatch_lines(["studio checkout guard: off (rootdir is not a git checkout top)"])
 
 
 def test_live_test_must_name_its_story(pytester):
@@ -92,6 +123,20 @@ def test_failure_output_is_redacted(pytester, monkeypatch):
     assert "canary-token-5d1e" not in output and "pw-canary-77" not in output
 
 
+def test_collection_errors_are_redacted(pytester, monkeypatch):
+    monkeypatch.setenv("STUDIO_FAKE_TOKEN", "canary-token-8b2c")
+    pytester.makepyfile(test_broken_import="""
+        import os
+
+        raise RuntimeError("cannot load with " + os.environ["STUDIO_FAKE_TOKEN"])
+    """)
+    result = pytester.runpytest(*PLUGIN)
+    result.assert_outcomes(errors=1)
+    output = result.stdout.str()
+    assert "cannot load with <redacted>" in output
+    assert "canary-token-8b2c" not in output
+
+
 def test_session_that_writes_into_the_checkout_fails(pytester, monkeypatch):
     import subprocess
 
@@ -107,6 +152,7 @@ def test_session_that_writes_into_the_checkout_fails(pytester, monkeypatch):
     result.assert_outcomes(passed=1)
     assert result.ret == pytest.ExitCode.TESTS_FAILED
     result.stdout.fnmatch_lines([
+        "studio checkout guard: on",
         "*checkout guard: the session changed the checkout*",
         "*?? render.out*",
     ])

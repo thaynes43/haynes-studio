@@ -4,11 +4,15 @@
 - ``db`` tests skip with a reason unless STUDIO_TEST_DATABASE_URL is set;
   ``--require-db`` turns that skip into a usage error, so a CI job cannot pass
   green on skipped database tests.
-- ``live`` tests run only with ``-m live --live-story=<id>``, and only those whose
-  ``@pytest.mark.live(story=<id>)`` names that story.
+- ``live`` tests run only with exactly ``-m live --live-story=<id>``, outside CI,
+  and only those whose ``@pytest.mark.live(story=<id>)`` names that story.
+- A test that uses the db fixtures must carry the ``db`` marker (usage error
+  otherwise), so it cannot fall outside both the source and the db jobs.
 - The checkout guard fails the session if it adds a file to the checkout.
-- Failure text and captured output are redacted: values of token, secret and
-  database-URL variables, and URL passwords, never reach the log.
+- Failure text, collection errors and captured output are redacted: values of
+  token, secret and database-URL variables, and passwords in URLs or conninfo,
+  never reach the log. Output a test prints under ``-s`` is not captured, so it is
+  not redacted.
 """
 
 from __future__ import annotations
@@ -24,6 +28,7 @@ from tests.support import database, policy, synthetic
 _GUARD_BEFORE = pytest.StashKey[frozenset]()
 _GUARD_ADDED = pytest.StashKey[list]()
 _LIVE_HELP = "live: runs only with -m live --live-story=<id> (docs/process/testing.md)"
+_DB_FIXTURES = ("studio_db", "db_conn")
 MARKERS = (
     f"db: needs {database.URL_ENV} to a disposable PostgreSQL 16 database whose name "
     f"starts with {database.DATABASE_PREFIX}; skipped with a reason when unset",
@@ -53,25 +58,35 @@ def pytest_configure(config: pytest.Config) -> None:
     if story is not None:
         if not story.isdigit():
             raise pytest.UsageError("--live-story takes a tracker story number, e.g. 512")
-        if not config.getoption("markexpr"):
-            raise pytest.UsageError("--live-story needs -m live")
+        if config.getoption("markexpr").strip() != "live":
+            raise pytest.UsageError("--live-story needs exactly -m live")
+        if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"):
+            raise pytest.UsageError("live tests never run in CI")
 
 
 def pytest_report_header(config: pytest.Config) -> list[str]:
     limits = " ".join(f"{name}={os.environ[name]}" for name in policy.THREAD_LIMITS)
     url_state = "set" if os.environ.get(database.URL_ENV) else "unset, db tests skip"
     story = config.getoption("--live-story")
+    guard = "on" if _GUARD_BEFORE in config.stash else "off (rootdir is not a git checkout top)"
     return [
         f"studio limits: {limits}; serial, no xdist",
         f"studio db: {database.URL_ENV} {url_state}",
         f"studio live: {'story ' + story if story else 'off'}",
+        f"studio checkout guard: {guard}",
     ]
 
 
+@pytest.hookimpl(tryfirst=True)  # before -m deselects anything
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     url_set = bool(os.environ.get(database.URL_ENV))
     story = config.getoption("--live-story")
     for item in items:
+        uses_db = set(_DB_FIXTURES) & set(getattr(item, "fixturenames", ()))
+        if uses_db and not item.get_closest_marker("db"):
+            raise pytest.UsageError(
+                f"{item.nodeid}: uses {', '.join(sorted(uses_db))}; mark it @pytest.mark.db"
+            )
         if item.get_closest_marker("db") and not url_set:
             if config.getoption("--require-db"):
                 raise pytest.UsageError(f"--require-db: {database.URL_ENV} is unset")
@@ -95,6 +110,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 # Checkout guard -------------------------------------------------------------
 
 
+@pytest.hookimpl(tryfirst=True)  # before the terminal header reads the guard state
 def pytest_sessionstart(session: pytest.Session) -> None:
     before = policy.checkout_snapshot(session.config.rootpath)
     if before is not None:
@@ -127,9 +143,7 @@ def pytest_terminal_summary(terminalreporter, config: pytest.Config) -> None:
 # Redaction ------------------------------------------------------------------
 
 
-@pytest.hookimpl(wrapper=True)
-def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo):
-    report = yield
+def _redact_report(report):
     if report.longrepr is not None:
         if isinstance(report.longrepr, tuple):  # a skip: (path, line, reason)
             path, line, reason = report.longrepr
@@ -141,6 +155,16 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo):
                 report.longrepr = clean
     report.sections = [(title, policy.redact(body)) for title, body in report.sections]
     return report
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo):
+    return _redact_report((yield))
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_make_collect_report(collector: pytest.Collector):
+    return _redact_report((yield))
 
 
 # Fixtures -------------------------------------------------------------------

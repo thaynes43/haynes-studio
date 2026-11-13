@@ -146,6 +146,25 @@ def discover(examples_dir: Path = EXAMPLES_DIR) -> list[Path]:
     return sorted(path for path in examples_dir.rglob("*") if path.is_file())
 
 
+def _reject_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    seen: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in seen:
+            raise ValueError(f"duplicate key {key!r}")
+        seen[key] = value
+    return seen
+
+
+def _reject_constant(name: str) -> Any:
+    raise ValueError(f"{name} is not JSON")
+
+
+def parse_json(text: str) -> Any:
+    """Strict JSON: no duplicate keys (the last would win silently), no NaN or Infinity."""
+    return json.loads(text, object_pairs_hook=_reject_duplicates,
+                      parse_constant=_reject_constant)
+
+
 def _label(path: Path, root: Path) -> str:
     try:
         return path.relative_to(root).as_posix()
@@ -186,7 +205,7 @@ def load(path: Path, *, examples_dir: Path = EXAMPLES_DIR,
     if kind not in ("valid", "invalid") or path.parent == examples_dir:
         return None, [Problem(label, "example.location", "must be under valid/ or invalid/")]
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = parse_json(path.read_text(encoding="utf-8"))
     except (UnicodeDecodeError, ValueError) as error:
         first = str(error).splitlines()[0] if str(error) else type(error).__name__
         return None, [Problem(label, "example.json", f"not JSON: {first}")]
@@ -211,6 +230,10 @@ def load(path: Path, *, examples_dir: Path = EXAMPLES_DIR,
         where = "document " if kind == "invalid" else ""
         problems.append(Problem(label, "example.type", f"{where}{error}", rule))
         return None, problems
+    if kind == "valid" and isinstance(document.get("schema"), str) \
+            and not document["schema"].endswith("/v1"):
+        problems.append(Problem(label, "example.version",
+                                f"a valid v1 example has schema {document['schema']!r}"))
     example = Example(path=path, label=label, kind=kind, data=data, document=document,
                       type=doc_type, rule=rule)
     return example, problems
@@ -254,11 +277,21 @@ def check_example(path: Path, rules: Mapping[str, Rule], *,
     if entry is None:
         problems.append(Problem(example.label, "case.rule_unknown",
                                 "not in the contract's rule index (section 15)", example.rule))
-    elif data.get("expect") in EXPECT and data["expect"] not in re.findall(r"[a-z_]+", entry.status):
-        problems.append(Problem(
-            example.label, "case.expect_mismatch",
-            f"expect {data['expect']!r} but the rule index says {entry.status!r}", example.rule,
-        ))
+    else:
+        words = re.findall(r"[a-z_]+", entry.status)
+        if data.get("expect") in EXPECT and data["expect"] not in words:
+            problems.append(Problem(
+                example.label, "case.expect_mismatch",
+                f"expect {data['expect']!r} but the rule index says {entry.status!r}",
+                example.rule,
+            ))
+        at_queue = any(word.startswith("queue") for word in words)
+        if at_queue and data.get("context") in CASE_CONTEXTS and data["context"] != "queue_run":
+            problems.append(Problem(
+                example.label, "case.context_mismatch",
+                f"context {data['context']!r} but the rule index says {entry.status!r}",
+                example.rule,
+            ))
     return problems
 
 

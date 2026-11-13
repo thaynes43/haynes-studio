@@ -28,8 +28,7 @@ def test_example_shape(path):
 @pytest.mark.parametrize("path", PATHS, ids=_id)
 def test_example_validates(path, request):
     example, problems = harness.load(path)
-    if example is None:
-        harness.fail_on(problems)
+    harness.fail_on(problems)  # a malformed example is never pending
     request.node.user_properties.append((harness.CHECKED, example.type))
     validator = VALIDATORS.get(example.type)
     if validator is None:

@@ -1,9 +1,10 @@
 """Target checks for the disposable Postgres fixture.
 
-The fixture may only ever touch a database whose name starts with ``studio_test``,
-so it cannot reach ``database/postgres16``. The name is checked twice: in the URL
-before connecting, and on the open connection before the first statement. The
-fixture creates one fresh schema per session and drops only that schema.
+The fixture only ever touches a database whose name starts with ``studio_test``.
+Production databases (``database/postgres16``) never use that prefix; the name is
+the only thing checked. It is checked twice: in the URL before connecting, and on
+the open connection before the first statement. The fixture creates one fresh
+schema per session and drops only that schema.
 """
 
 from __future__ import annotations
