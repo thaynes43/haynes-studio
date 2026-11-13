@@ -207,6 +207,10 @@
           },
           "asset_version_id": {
             "$ref": "studio.defs.v1.schema.json#/$defs/asv_id"
+          },
+          "motion_asset_version_id": {
+            "$ref": "studio.defs.v1.schema.json#/$defs/asv_id",
+            "description": "Optional pin of this cast still's motion loop (story 457, proposal): a library motion version with a motion block. Absent: the one promoted loop of the still."
           }
         },
         "additionalProperties": false

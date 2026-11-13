@@ -214,6 +214,13 @@ def board_rules(document: Mapping, prefix: str, *, context: str, facts: Facts,
             if capabilities is not None and not capabilities & LAYER_CAPABILITIES:
                 found.append(_v("asset.capability_mismatch", at("cast", i, "asset_version_id"),
                                 "a layered cast still needs rgba_cutout or keyed_layer (review M6)"))
+            # Story 457 (proposal): a pinned motion loop is a doll clip.
+            motion = (None if entry.motion_asset_version_id is None
+                      else facts.capabilities.get(entry.motion_asset_version_id))
+            if motion is not None and "motion_clip" not in motion:
+                found.append(_v("asset.capability_mismatch",
+                                at("cast", i, "motion_asset_version_id"),
+                                "a cast still's motion pin is a doll clip (motion_clip)"))
     if methods.status(method.layer, method.motion) == methods.UNAVAILABLE:
         found.append(_v(METHOD_UNAVAILABLE, at("method"),
                         "whole-frame speech-to-video has no adapter yet; it saves and Build refuses it",

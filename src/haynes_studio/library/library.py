@@ -314,6 +314,7 @@ class VersionRequest:
     attributes: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}))
     legacy: Mapping[str, Any] | None = None
     voice: Any = None  # BoardVoice
+    motion: Mapping[str, Any] | None = None  # a motion version's clip record (story 457)
     version_id: str | None = None
     asset_id: str | None = None
 
@@ -365,7 +366,8 @@ def import_version(library: Library, request: VersionRequest, *, by: Principal, 
         capabilities=tuple(request.capabilities), content=request.content,
         provenance=freeze(provenance), licence=request.licence,
         legacy=None if request.legacy is None else freeze(normalize(request.legacy)),
-        voice=request.voice)
+        voice=request.voice,
+        motion=None if request.motion is None else freeze(normalize(dict(request.motion))))
     wanted = pin(candidate, asset)
     for existing in library.versions_of(asset.id):
         if pin(existing, asset) != wanted:
