@@ -32,7 +32,7 @@ start from E1 source contracts; E1 live acceptance can use partial E3 installati
 | Production / media type / story | Themed collection (Yellowbirds) / enabled Short 9:16 or Video 16:9 / one video. Story in this domain differs from a tracker work package. |
 | Board / run | One intended clip with stable ID / immutable queued snapshot of a story plus outputs. Draft edits never mutate queued or finished runs. |
 | Revision / candidate / drop | Versioned edit / a run presented for a target / actual publication after exact-run go-live. Legacy production IDs map explicitly to run/delivery IDs. |
-| Format | Immutable recipe authored by Tom + staging agent; shepherd reads only. Length enforcement is unresolved; no invented script/photo approval. |
+| Format | Immutable recipe authored by Tom + staging agent; shepherd reads only. Length is advisory (D45): the editor warns, Build stays allowed, and platform maxima are enforced at release preparation; no invented script/photo approval. |
 | Method | Exactly one layer (layered, whole-frame) × one motion (S2V, I2V). Spoken boards default S2V, disabled without lines; only implemented combinations are buildable. |
 | Voice/photo asset | Immutable version made before Build, with input signature/hash. Measured voice sets duration plus agreed pad; silent board uses hold. Mockup's 0.25 s/25 fps are not production decisions. |
 | Direction | Editable notes. Free text is not an executable shell, guaranteed cue interpretation or new renderer capability. Structured cue mapping belongs to R01. |
@@ -48,7 +48,7 @@ All execution items in the supplied export are Ungroomed. No dispatch from that 
 The story blocks are the detailed edge list; the following groups are not whole epics
 assigned to one worker.
 
-1. R01 contracts -> R02 test foundation -> [378](https://work.haynesnetwork.com/work_packages/378) legacy core -> [404](https://work.haynesnetwork.com/work_packages/404) canonical boards.
+1. R01 contracts (merged 2026-11-13: [docs/contracts](../contracts/README.md)) -> R02 test foundation -> [378](https://work.haynesnetwork.com/work_packages/378) legacy core -> [404](https://work.haynesnetwork.com/work_packages/404) canonical boards.
    R03 adapters follows [378](https://work.haynesnetwork.com/work_packages/378). After [404](https://work.haynesnetwork.com/work_packages/404), [379](https://work.haynesnetwork.com/work_packages/379) atomic stages and [382](https://work.haynesnetwork.com/work_packages/382) library can run
    independently only if schema files stay fixed. Then [380](https://work.haynesnetwork.com/work_packages/380) cache / [381](https://work.haynesnetwork.com/work_packages/381) delivery,
    [405](https://work.haynesnetwork.com/work_packages/405) voice, [407](https://work.haynesnetwork.com/work_packages/407) photo -> [408](https://work.haynesnetwork.com/work_packages/408) promotion, R35 motion records.
