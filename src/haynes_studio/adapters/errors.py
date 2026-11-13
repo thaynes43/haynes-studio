@@ -19,6 +19,9 @@ TIMEOUT = "adapter.timeout"
 RESPONSE_INVALID = "adapter.response_invalid"
 NOT_FOUND = "adapter.not_found"
 BUSY = "adapter.busy"
+JOB_FAILED = "adapter.job_failed"  # story 842: a Wan job ended in a state other than succeeded
+COMPETING_WORK = "adapter.competing_work"  # story 842: foreign engine work seen during a job
+JOURNAL_FAILED = "adapter.journal_failed"  # story 842: the Wan journal could not be read exactly or written
 
 DETAIL_LIMIT = 300
 REDACTED = "<redacted>"
@@ -128,5 +131,27 @@ class ImageError(AdapterError):
         self.prompt_id = prompt_id
         if prompt_id:
             message += f"; ComfyUI accepted prompt {prompt_id}: read its history, do not resubmit"
+        super().__init__(code, label, message, detail=detail, returncode=returncode,
+                         redacted_stderr=redacted_stderr)
+
+
+class WanError(AdapterError):
+    """A Wan clip call that was refused or failed (story 842).
+
+    ``job_id`` is the Wan job's ID once the client has made one (it names the ledger at
+    ``/videos/<job_id>``); ``in_flight`` is True when the job may still be running, so
+    the process refuses to submit again until it has been read. ``clip`` is set only for
+    ``adapter.competing_work``: the job succeeded and its clip was fetched and checked,
+    but foreign engine work was seen during it, so the output is kept and no further job
+    is submitted until :meth:`WanClipClient.clear_halt` is called."""
+
+    def __init__(self, code: str, label: str, message: str, *, job_id: str | None = None,
+                 in_flight: bool = False, clip=None, detail: str = "",
+                 returncode: int | None = None, redacted_stderr: str = ""):
+        self.job_id = job_id
+        self.in_flight = in_flight
+        self.clip = clip
+        if job_id and in_flight:
+            message += f"; Wan job {job_id} may still be running: read /videos/{job_id}, do not resubmit"
         super().__init__(code, label, message, detail=detail, returncode=returncode,
                          redacted_stderr=redacted_stderr)
