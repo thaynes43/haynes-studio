@@ -12,6 +12,8 @@ outputs writes the same record bytes and succeeds; one with other outputs ends i
 
 from __future__ import annotations
 
+import itertools
+
 from collections.abc import Mapping
 from dataclasses import dataclass
 
@@ -65,9 +67,11 @@ def commit_stage(store: Store, *, production_id: str, run_id: str, stage: str,
     check_stage(stage)
     if not outputs:
         raise StoreError(RECORD_INVALID, "a stage commits at least one output")
-    if len(outputs) > MAX_OUTPUTS:
-        raise StoreError(RECORD_INVALID, f"a stage commits at most {MAX_OUTPUTS} outputs, "
-                         f"got {len(outputs)}")
+    # Counted as copied, before anything is written: a mapping may lie about its length.
+    items = list(itertools.islice(outputs.items(), MAX_OUTPUTS + 1))
+    if len(items) > MAX_OUTPUTS:
+        raise StoreError(RECORD_INVALID, f"a stage commits at most {MAX_OUTPUTS} outputs")
+    outputs = dict(items)
     for name, output in outputs.items():
         check_name(name)
         extension(output.media_type)

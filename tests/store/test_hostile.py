@@ -757,3 +757,62 @@ def test_f6_readers_refuse_a_record_whose_blob_was_removed_after_the_commit(root
         completed_stage(store, production_id=PRD, run_id=RUN, stage="voice")
     assert caught.value.code == BLOB_MISSING
     assert store.doctor().dangling == ((record_path(PRD, RUN, "voice"), take.locator),)
+
+
+# Third review: an earlier output replaced while a later one is being looked at ---------
+
+
+def test_an_output_replaced_while_a_later_one_is_checked_leaves_no_record(root, monkeypatch):
+    """Third review, finding 1: two outputs; while the final check looks at the second,
+    the first is removed and re-created with other bytes of the same size. The second
+    sample of the names sees it, and no record is linked."""
+    store = LocalStore(root)
+    first = store.publish(b"take one", scope=PRD, media_type="audio/wav")
+    second = store.publish(b"bbbbbbbb", scope=PRD, media_type="audio/wav")
+    record = StageRecord(PRD, RUN, "voice", {"aaa": first, "zzz": second})
+    state = {"armed": False, "done": False}
+    lstat = LocalStore._lstat
+
+    def swapping(self, rel, root=None):
+        if state["armed"] and not state["done"] and rel == second.locator:
+            state["done"] = True  # during the look at "zzz", after "aaa" was accepted
+            path = Path(self.root) / first.locator
+            os.unlink(path)
+            path.write_bytes(b"take two")
+        return lstat(self, rel, root)
+
+    monkeypatch.setattr(LocalStore, "_lstat", swapping)
+
+    def arm():
+        state["armed"] = True
+
+    with pytest.raises(StoreError) as caught:
+        LocalStore(root, on_step=At("record:check", arm)).complete_stage(record)
+    assert state["done"]
+    assert (caught.value.code, caught.value.locator) == (HASH_MISMATCH, first.locator)
+    assert not os.path.lexists(root / record_path(PRD, RUN, "voice"))
+
+
+class _Liar(dict):
+    """A mapping that claims one item whatever it holds."""
+
+    def __len__(self) -> int:
+        return 1
+
+
+def test_the_output_limit_counts_items_not_what_the_mapping_claims(root):
+    """Third review, finding 2: a mapping whose ``len`` lies is counted as it is copied,
+    in the record and in the commit, before anything is written."""
+    from haynes_studio.store import MAX_OUTPUTS
+
+    store = LocalStore(root)
+    blob = store.publish(b"take one", scope=PRD, media_type="audio/wav")
+    with pytest.raises(StoreError) as caught:
+        StageRecord(PRD, RUN, "voice", _Liar({f"take:{i}": blob for i in range(MAX_OUTPUTS + 1)}))
+    assert caught.value.code == "store.record_invalid"
+    before = tree(root)
+    outputs = _Liar({f"take:{i}": StageOutput(b"x", "audio/wav") for i in range(MAX_OUTPUTS + 1)})
+    with pytest.raises(StoreError) as caught:
+        commit_stage(store, production_id=PRD, run_id=RUN, stage="voice-2", outputs=outputs)
+    assert caught.value.code == "store.record_invalid"
+    assert tree(root) == before  # the refused commit wrote nothing

@@ -98,7 +98,10 @@ class StageRecord:
             raise StoreError(RECORD_INVALID, f"a stage record lists at most {MAX_OUTPUTS} "
                              f"blobs, got {len(self.blobs)}")
         blobs = {}
-        for name, blob in self.blobs.items():
+        for count, (name, blob) in enumerate(self.blobs.items(), start=1):
+            if count > MAX_OUTPUTS:  # counted as copied: a mapping may lie about its length
+                raise StoreError(RECORD_INVALID, f"a stage record lists at most {MAX_OUTPUTS} "
+                                 "blobs")
             check_name(name)
             if not isinstance(blob, Blob):
                 raise StoreError(RECORD_INVALID, f"output {name!r} is not a Blob")

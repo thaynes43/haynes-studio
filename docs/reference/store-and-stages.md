@@ -204,6 +204,30 @@ Limits that remain:
   one descriptor per output until the record is linked. `commit_stage` and
   `StageRecord` refuse more with `store.record_invalid` before anything is written.
 
+### What the store promises, and what it does not
+
+The store is not a security boundary against a process that can write inside its root.
+What it guarantees to such a writer's peers is this: a file is never published outside
+the root or over another file, and a reader that verifies (the default for
+`stage_record`, and what `verify`, the pre-build check and the doctor do) either gets
+the bytes the record names or an error. The checks made while publishing are early
+detection, not proof. Three gaps are known and stay open:
+
+- **Between the last look at a blob and the record's link.** The final check samples
+  every output's name twice in a row, so a blob replaced during the first sample is
+  caught by the second. A blob replaced during the second sample is not: with *n*
+  outputs that window is up to *n* system calls. The record then names bytes that are
+  no longer there; a verifying reader and the doctor report it.
+- **The last call of a publication.** A writer that renames the held staging folder
+  out of the root and swaps the staging name inside the `unlink` call gets another
+  file removed, possibly outside the root. Inside that same call, a hard link made
+  from the staging name to a path outside the root survives, so the published file
+  keeps an outside name through which it can later be rewritten. There is no
+  unlink-by-inode call to close this.
+- **Adoption of an existing final file.** A writer that adds and removes staging names
+  exactly around both link-count samples can hide outside names of a file the store
+  then accepts as its own.
+
 ## Stage commit
 
 `commit_stage(store, production_id=, run_id=, stage=, outputs={name: StageOutput(source,

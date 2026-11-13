@@ -319,34 +319,45 @@ class LocalStore(Store, StageLedger):
     def _blobs_unchanged(self, root: int, record: StageRecord, blobs: dict[str, list[Any]]) -> None:
         """Immediately before the record's ``link``: every locator still names the held
         inode, and every held file still has the stamp its last hash was taken at (a
-        moved stamp is hashed again). Otherwise the record is not linked."""
+        moved stamp is hashed again). The names are sampled twice in a row and both
+        samples must match, so a blob replaced while a later one was being looked at is
+        caught by the second sample. Otherwise the record is not linked. A replacement
+        during the second sample is the gap that remains (see the reference)."""
         for _attempt in range(_SETTLE):
             for name, blob in record.blobs.items():
                 fd, stamp = blobs[name]
                 if _stamp(os.fstat(fd)) != stamp:
                     blobs[name][1] = self._hashed_stamp(fd, name, blob)
-            settled = True
-            for name, blob in record.blobs.items():
-                fd, stamp = blobs[name]
-                try:
-                    info = self._lstat(blob.locator, root=root)
-                except OSError as error:
-                    raise StoreError(BLOB_MISSING, f"output {name!r} cannot be read after its "
-                                     f"check ({_reason(error)}); the store linked no record",
-                                     locator=blob.locator) from None
-                if info == _ABSENT:
-                    raise StoreError(BLOB_MISSING, f"output {name!r} was removed after its "
-                                     "check; the store linked no record", locator=blob.locator)
-                now = os.fstat(fd)
-                if (isinstance(info, str) or not stat.S_ISREG(info.st_mode)
-                        or _inode(info) != _inode(now)):
-                    raise StoreError(HASH_MISMATCH, f"output {name!r} was replaced after its "
-                                     "check; the store linked no record", locator=blob.locator)
-                settled = settled and _stamp(now) == stamp
-            if settled:
+            if self._names_still_held(root, record, blobs) \
+                    and self._names_still_held(root, record, blobs):
                 return
         raise StoreError(HASH_MISMATCH, "an output kept changing after its check; the store "
                          "linked no record", locator=next(iter(record.blobs.values())).locator)
+
+    def _names_still_held(self, root: int, record: StageRecord,
+                          blobs: dict[str, list[Any]]) -> bool:
+        """One sample: each locator must be a regular file that is the held inode
+        (``store.blob_missing`` or ``store.hash_mismatch`` otherwise). True when every
+        held file also still has its hashed stamp."""
+        settled = True
+        for name, blob in record.blobs.items():
+            fd, stamp = blobs[name]
+            try:
+                info = self._lstat(blob.locator, root=root)
+            except OSError as error:
+                raise StoreError(BLOB_MISSING, f"output {name!r} cannot be read after its "
+                                 f"check ({_reason(error)}); the store linked no record",
+                                 locator=blob.locator) from None
+            if info == _ABSENT:
+                raise StoreError(BLOB_MISSING, f"output {name!r} was removed after its "
+                                 "check; the store linked no record", locator=blob.locator)
+            now = os.fstat(fd)
+            if (isinstance(info, str) or not stat.S_ISREG(info.st_mode)
+                    or _inode(info) != _inode(now)):
+                raise StoreError(HASH_MISMATCH, f"output {name!r} was replaced after its "
+                                 "check; the store linked no record", locator=blob.locator)
+            settled = settled and _stamp(now) == stamp
+        return settled
 
     def stage_record(self, production_id: str, run_id: str, stage: str, *,
                      verify: bool = True) -> StageRecord | None:
