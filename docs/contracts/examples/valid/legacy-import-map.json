@@ -1,0 +1,220 @@
+{
+  "schema": "studio.legacy-import/v1",
+  "source_key": "legacy:the-winter-menu",
+  "production_id": "prd_01M79V9FC00000000000000001",
+  "media_kind": "short",
+  "story_id": "sty_01M79V9FC00000000000000001",
+  "draft_from_revision": 4,
+  "writes_legacy": false,
+  "revisions": [
+    {
+      "legacy_revision": 1,
+      "revision_field_present": false,
+      "manifest": "titles/the-winter-menu/manifest.json",
+      "manifest_sha256": "e8174b5f1884234dc398087df393ee59003d2d4f64b2e83af47c35c0f5b8fbee",
+      "job": "the-winter-menu-r1",
+      "tracker": "https://work.haynesnetwork.com/work_packages/369",
+      "imported_run_id": "run_01M79V9FC00000000000000004",
+      "run_status": "imported",
+      "method": {
+        "legacy": "rigid_cutout"
+      },
+      "delivery_id": "dlv_01M79V9FC00000000000000003",
+      "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+      "master_sha256": "6c972c6390f181c86bf5785d07bfc7a31ee324502e7a6fa685a4625c49cad221",
+      "frames": 662,
+      "shots": 6
+    },
+    {
+      "legacy_revision": 2,
+      "revision_field_present": true,
+      "manifest": "titles/the-winter-menu/manifest-r2.json",
+      "manifest_sha256": "ed154d1c2fb1c3f45b3f5f7d1e03a7470520f4dd9aaa96011d663955565461ea",
+      "job": "the-winter-menu-r2",
+      "tracker": "https://work.haynesnetwork.com/work_packages/369",
+      "imported_run_id": "run_01M79V9FC00000000000000005",
+      "run_status": "imported",
+      "method": {
+        "legacy": "rigid_cutout"
+      },
+      "delivery_id": "dlv_01M79V9FC00000000000000004",
+      "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+      "master_sha256": "11ed1cac5afef236e43ff65c39487be8aa665ed1545b8a9c9ac22170d73e3eac",
+      "frames": 823,
+      "shots": 8
+    },
+    {
+      "legacy_revision": 3,
+      "revision_field_present": true,
+      "manifest": "titles/the-winter-menu/manifest-r3.json",
+      "manifest_sha256": "42308d514092859517fc55a51ea923d5ecc1dc46f13e336d41d290c1218398fd",
+      "job": "the-winter-menu-r3",
+      "tracker": "https://work.haynesnetwork.com/work_packages/371",
+      "imported_run_id": "run_01M79V9FC00000000000000006",
+      "run_status": "imported",
+      "method": {
+        "legacy": "rigid_cutout"
+      },
+      "delivery_id": "dlv_01M79V9FC00000000000000005",
+      "ledger_id": "11d41839ef134a76abe46370105a99fe",
+      "master_sha256": "724208f7347192f982394ba49c23552a570faa37b3d445d46535df0ae857e780",
+      "frames": 1094,
+      "shots": 9
+    },
+    {
+      "legacy_revision": 4,
+      "revision_field_present": true,
+      "manifest": "titles/the-winter-menu/manifest-r4.json",
+      "manifest_sha256": "98a9cfb747dd088edb65d3b7565344f3eab8c40c51bf56d6aa4948f04d47702d",
+      "job": "the-winter-menu-r4",
+      "tracker": "https://work.haynesnetwork.com/work_packages/371",
+      "imported_run_id": "run_01M79V9FC00000000000000003",
+      "run_status": "imported",
+      "method": {
+        "legacy": "rigid_cutout"
+      },
+      "delivery_id": "dlv_01M79V9FC00000000000000002",
+      "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+      "master_sha256": "45ecdc359ebe194b398a671ad63b5002c09d3b3b13b3e34b64432a9dd16681ac",
+      "frames": 1087,
+      "shots": 9
+    }
+  ],
+  "boards_from_r4": [
+    {
+      "legacy_shot": 1,
+      "board_id": "brd_01M79V9FC00000000000000001",
+      "lines": [
+        {
+          "legacy_k": 0,
+          "line_id": "lin_01M79V9FC00000000000000001"
+        }
+      ]
+    },
+    {
+      "legacy_shot": 2,
+      "board_id": "brd_01M79V9FC00000000000000002",
+      "lines": [
+        {
+          "legacy_k": 0,
+          "line_id": "lin_01M79V9FC00000000000000002"
+        }
+      ]
+    },
+    {
+      "legacy_shot": 3,
+      "board_id": "brd_01M79V9FC00000000000000003",
+      "lines": [
+        {
+          "legacy_k": 0,
+          "line_id": "lin_01M79V9FC00000000000000003"
+        }
+      ]
+    },
+    {
+      "legacy_shot": 4,
+      "board_id": "brd_01M79V9FC00000000000000004",
+      "lines": [
+        {
+          "legacy_k": 0,
+          "line_id": "lin_01M79V9FC00000000000000004"
+        }
+      ]
+    },
+    {
+      "legacy_shot": 5,
+      "board_id": "brd_01M79V9FC00000000000000005",
+      "lines": [
+        {
+          "legacy_k": 0,
+          "line_id": "lin_01M79V9FC00000000000000005"
+        }
+      ]
+    },
+    {
+      "legacy_shot": 6,
+      "board_id": "brd_01M79V9FC00000000000000006",
+      "lines": [
+        {
+          "legacy_k": 0,
+          "line_id": "lin_01M79V9FC00000000000000006"
+        }
+      ]
+    },
+    {
+      "legacy_shot": 7,
+      "board_id": "brd_01M79V9FC00000000000000007",
+      "lines": []
+    },
+    {
+      "legacy_shot": 8,
+      "board_id": "brd_01M79V9FC00000000000000008",
+      "lines": [
+        {
+          "legacy_k": 0,
+          "line_id": "lin_01M79V9FC00000000000000007"
+        },
+        {
+          "legacy_k": 1,
+          "line_id": "lin_01M79V9FC00000000000000008"
+        },
+        {
+          "legacy_k": 2,
+          "line_id": "lin_01M79V9FC00000000000000009"
+        },
+        {
+          "legacy_k": 3,
+          "line_id": "lin_01M79V9FC0000000000000000A"
+        },
+        {
+          "legacy_k": 4,
+          "line_id": "lin_01M79V9FC0000000000000000B"
+        },
+        {
+          "legacy_k": 5,
+          "line_id": "lin_01M79V9FC0000000000000000C"
+        }
+      ]
+    },
+    {
+      "legacy_shot": 9,
+      "board_id": "brd_01M79V9FC00000000000000009",
+      "lines": [
+        {
+          "legacy_k": 0,
+          "line_id": "lin_01M79V9FC0000000000000000D"
+        }
+      ]
+    }
+  ],
+  "e0_deliveries": [
+    {
+      "label": "E0 layered v1",
+      "ledger_id": "d81353cdf8f84f999a9c41b43c4be569",
+      "method": {
+        "layer": "layered",
+        "motion": "i2v"
+      }
+    },
+    {
+      "label": "E0 layered v2",
+      "ledger_id": "c3711fb4fcef40ea861da35f9da2758f",
+      "method": {
+        "layer": "layered",
+        "motion": "i2v"
+      }
+    },
+    {
+      "label": "E0 layered S2V",
+      "ledger_id": "e6659b3f1c4242eb85485f3cc82c557a",
+      "method": {
+        "layer": "layered",
+        "motion": "s2v"
+      }
+    }
+  ],
+  "not_imported": [
+    "job_dir (private, non-portable locator; R03 recovery map)",
+    "revision_note text (becomes feedback in E9.3)"
+  ]
+}

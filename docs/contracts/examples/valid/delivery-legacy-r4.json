@@ -1,0 +1,35 @@
+{
+  "schema": "studio.delivery/v1",
+  "id": "dlv_01M79V9FC00000000000000002",
+  "run_id": "run_01M79V9FC00000000000000003",
+  "created_at": "2026-11-03T00:00:00Z",
+  "store": {
+    "adapter": "legacy_wan_ledger",
+    "writable": false
+  },
+  "master": {
+    "sha256": "45ecdc359ebe194b398a671ad63b5002c09d3b3b13b3e34b64432a9dd16681ac",
+    "bytes": 33288768,
+    "media_type": "video/mp4",
+    "width": 1080,
+    "height": 1920,
+    "fps": 24,
+    "frames": 1087,
+    "video_codec": "h264",
+    "audio_codec": "aac",
+    "locator": null,
+    "legacy_path": "productions/the-winter-menu-r4/edit/final.mp4"
+  },
+  "proxy": null,
+  "verification": {
+    "decoded_frames": 1087,
+    "expected_frames": 1087,
+    "sha256_verified": true,
+    "source": "titles/the-winter-menu/evidence-r4/validation.json"
+  },
+  "legacy": {
+    "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+    "kind": "edited_production",
+    "url": "https://video.haynesops.com/videos/032f1bb230794aaf84dce9001181a7d7/file"
+  }
+}

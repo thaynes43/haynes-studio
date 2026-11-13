@@ -1,0 +1,71 @@
+{
+  "schema": "studio.method-capabilities/v1",
+  "contract": "docs/contracts/studio-contracts-v1.md#5-method-capability-matrix",
+  "cells": [
+    {
+      "layer": "layered",
+      "motion": "s2v",
+      "status": "buildable",
+      "adapter_story": 426,
+      "evidence": [
+        "titles/the-winter-menu/video-e0/findings-s2v.md",
+        "D24"
+      ],
+      "profile": {
+        "engine": "Wan2.2 S2V-14B fp8 + lightx2v 4-step LoRA",
+        "fps": 16,
+        "chunk_frames": 77,
+        "gpus": 1
+      }
+    },
+    {
+      "layer": "layered",
+      "motion": "i2v",
+      "status": "buildable",
+      "adapter_story": 426,
+      "evidence": [
+        "titles/the-winter-menu/video-e0/findings-layered.md",
+        "D23"
+      ],
+      "profile": {
+        "engine": "Wan2.2 TI2V-5B",
+        "fps": 24,
+        "frames": 121,
+        "gpus": 2
+      }
+    },
+    {
+      "layer": "whole_frame",
+      "motion": "i2v",
+      "status": "buildable",
+      "adapter_story": 427,
+      "evidence": [
+        "titles/the-winter-menu/video-e0/findings.md#whole-frame-e02",
+        "D22"
+      ],
+      "profile": {
+        "engine": "Wan2.2 TI2V-5B",
+        "fps": 24,
+        "frames": 121,
+        "gpus": 2
+      }
+    },
+    {
+      "layer": "whole_frame",
+      "motion": "s2v",
+      "status": "unavailable",
+      "adapter_story": null,
+      "evidence": [
+        "titles/the-winter-menu/video-e0/findings.md#speech-to-video-e04"
+      ],
+      "reason": "One single-doll 20-step clip only; never assembled or delivered, no lightning profile, multi-speaker undefined; story 427 excludes it."
+    }
+  ],
+  "rules": [
+    "method.s2v_needs_line",
+    "method.s2v_needs_onscreen_speaker",
+    "method.layered_needs_cast",
+    "method.unavailable",
+    "method.unknown"
+  ]
+}

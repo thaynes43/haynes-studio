@@ -1,0 +1,40 @@
+{
+  "schema": "studio.invalid-case/v1",
+  "rule": "approval.approver_not_permitted",
+  "expect": "forbidden",
+  "path": "/approver",
+  "why": "Only Tom, as a verified human OIDC subject, approves go-live (D29); agent keys never can.",
+  "document": {
+    "schema": "studio.go-live-approval/v1",
+    "id": "apr_01M79V9FC00000000000000001",
+    "run_id": "run_01M79V9FC00000000000000002",
+    "run_snapshot_sha256": "cce17f7dfa2537b9f34f157c478af281f380197e9b770aa608bc426c3ea4c072",
+    "delivery_id": "dlv_01M79V9FC00000000000000001",
+    "master_sha256": "f10b4e92c5345cf96678a93e67c18cb0751207d3b9d5fca8a90f5820469516de",
+    "approver": {
+      "kind": "agent",
+      "key_id": "key_01M79V9FC00000000000000001"
+    },
+    "auth_time": "2026-11-13T09:40:00Z",
+    "approved_at": "2026-11-13T09:41:10Z",
+    "release_checks": {
+      "ai_label": {
+        "result": "pass",
+        "platform_setting": true,
+        "description_line": true
+      },
+      "rights": {
+        "result": "pass",
+        "basis": "fixture result; R27 supplies real evidence"
+      },
+      "public_credits": [
+        "Video: Wan2.2 S2V-14B and Wan2.2 TI2V-5B on RTX 3090s",
+        "Voices: Kokoro-82M",
+        "Sound effects: Stable Audio 3 Small"
+      ]
+    },
+    "state": "active",
+    "withdrawn_at": null,
+    "publication_ids": []
+  }
+}

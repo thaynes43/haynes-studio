@@ -1,0 +1,50 @@
+{
+  "schema": "studio.invalid-case/v1",
+  "rule": "run.snapshot_missing",
+  "expect": "invalid",
+  "path": "/snapshot/sha256",
+  "why": "A run is an immutable snapshot (D30); it cannot exist without one.",
+  "document": {
+    "schema": "studio.run/v1",
+    "id": "run_01M79V9FC00000000000000001",
+    "story_id": "sty_01M79V9FC00000000000000001",
+    "number": 1,
+    "status": "queued",
+    "wait_reason": "lease_busy",
+    "snapshot": {
+      "sha256": null,
+      "story_revision": null,
+      "board_count": 9,
+      "locator": "productions/prd_01M79V9FC00000000000000001/sha256/cc/cce17f7dfa2537b9f34f157c478af281f380197e9b770aa608bc426c3ea4c072.json"
+    },
+    "queued_by": {
+      "kind": "human",
+      "iss": "https://authentik.example.invalid/application/o/haynes-studio/",
+      "sub": "example-subject-tom"
+    },
+    "queued_at": "2026-11-13T07:30:00Z",
+    "idempotency_key": "ui-7f3c-example",
+    "estimate": {
+      "gpu_wall_s": [
+        5400,
+        7800
+      ],
+      "cpu_wall_s": [
+        300,
+        900
+      ],
+      "basis": "E0 layered S2V batch: about 92 min render and cooldown for 22 S2V chunks plus reused layered clips; compositing 393 s on studio-render",
+      "uncertain": true
+    },
+    "progress": {
+      "percent": 0,
+      "stage": null
+    },
+    "stages": [],
+    "outputs": null,
+    "checks": null,
+    "provenance": null,
+    "delivery_id": null,
+    "legacy": null
+  }
+}

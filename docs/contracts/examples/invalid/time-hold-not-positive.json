@@ -1,0 +1,101 @@
+{
+  "schema": "studio.invalid-case/v1",
+  "rule": "time.hold_not_positive",
+  "expect": "invalid",
+  "path": "/timing/hold_ms",
+  "why": "A silent board needs a positive hold (story 404): 100 to 120000 ms.",
+  "document": {
+    "schema": "studio.board/v1",
+    "id": "brd_01M79V9FC00000000000000007",
+    "story_id": "sty_01M79V9FC00000000000000001",
+    "number": 7,
+    "revision": 1,
+    "title": "Reaction close-up",
+    "lines": [],
+    "timing": {
+      "lead_ms": null,
+      "tail_ms": null,
+      "hold_ms": 0
+    },
+    "voice": {
+      "style": null,
+      "current_version_id": null
+    },
+    "photo": {
+      "current_version_id": "asv_01M79V9FC0000000000000000X",
+      "prompt": null,
+      "input_asset_version_ids": [
+        "asv_01M79V9FC00000000000000006",
+        "asv_01M79V9FC00000000000000007"
+      ]
+    },
+    "cast": [
+      {
+        "slot": "d",
+        "asset_version_id": "asv_01M79V9FC00000000000000006"
+      }
+    ],
+    "layout": {
+      "preset": "closeup",
+      "foreground": false
+    },
+    "method": {
+      "layer": "layered",
+      "motion": "i2v"
+    },
+    "seeds": {},
+    "cues": [
+      {
+        "id": "cue_01M79V9FC00000000000000001",
+        "type": "sound",
+        "asset_version_id": "asv_01M79V9FC0000000000000000B",
+        "anchor": {
+          "at_ms": 0
+        },
+        "trim_ms": [
+          550,
+          2600
+        ],
+        "gain_db": -22
+      },
+      {
+        "id": "cue_01M79V9FC00000000000000002",
+        "type": "camera",
+        "anchor": {
+          "at_ms": 0
+        },
+        "duration_ms": 350,
+        "zoom_from": 1.0,
+        "zoom_to": 1.2,
+        "center_px": [
+          400,
+          620
+        ],
+        "easing": "ease_out_cubic"
+      }
+    ],
+    "notes": [
+      {
+        "id": "nte_01M79V9FC00000000000000001",
+        "text": "zoomed-in reaction"
+      }
+    ],
+    "drafted_by": {
+      "kind": "cli",
+      "command": "studio legacy import",
+      "operator": {
+        "kind": "human",
+        "iss": "https://authentik.example.invalid/application/o/haynes-studio/",
+        "sub": "example-subject-tom"
+      }
+    },
+    "origin": {
+      "source_key": "legacy:the-winter-menu-r4:shot:7",
+      "legacy_revision": 4,
+      "legacy_shot": 7,
+      "manifest": "titles/the-winter-menu/manifest-r4.json"
+    },
+    "created_at": "2026-11-13T07:00:00Z",
+    "updated_at": "2026-11-13T07:00:00Z"
+  }
+}

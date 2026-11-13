@@ -1,0 +1,76 @@
+{
+  "schema": "studio.invalid-case/v1",
+  "rule": "id.malformed",
+  "expect": "invalid",
+  "path": "/id",
+  "why": "ULIDs are 26 upper-case Crockford base32 characters (no I, L, O or U).",
+  "document": {
+    "schema": "studio.board/v1",
+    "id": "brd_01jcil0u000000000000000001",
+    "story_id": "sty_01M79V9FC00000000000000001",
+    "number": 1,
+    "revision": 1,
+    "title": "Day 340",
+    "lines": [
+      {
+        "id": "lin_01M79V9FC00000000000000001",
+        "speaker": "a",
+        "text": "Day three hundred forty. I've mastered fire, shelter, and emotionally supportive moss.",
+        "gap_before_ms": null
+      }
+    ],
+    "timing": {
+      "lead_ms": 500,
+      "tail_ms": 700,
+      "hold_ms": null
+    },
+    "voice": {
+      "style": "cast",
+      "current_version_id": "asv_01M79V9FC0000000000000000H"
+    },
+    "photo": {
+      "current_version_id": "asv_01M79V9FC0000000000000000J",
+      "prompt": null,
+      "input_asset_version_ids": [
+        "asv_01M79V9FC00000000000000001",
+        "asv_01M79V9FC00000000000000007"
+      ]
+    },
+    "cast": [
+      {
+        "slot": "a",
+        "asset_version_id": "asv_01M79V9FC00000000000000001"
+      }
+    ],
+    "layout": {
+      "preset": "single",
+      "foreground": true
+    },
+    "method": {
+      "layer": "layered",
+      "motion": "s2v"
+    },
+    "seeds": {
+      "s2v:a": 510
+    },
+    "cues": [],
+    "notes": [],
+    "drafted_by": {
+      "kind": "cli",
+      "command": "studio legacy import",
+      "operator": {
+        "kind": "human",
+        "iss": "https://authentik.example.invalid/application/o/haynes-studio/",
+        "sub": "example-subject-tom"
+      }
+    },
+    "origin": {
+      "source_key": "legacy:the-winter-menu-r4:shot:1",
+      "legacy_revision": 4,
+      "legacy_shot": 1,
+      "manifest": "titles/the-winter-menu/manifest-r4.json"
+    },
+    "created_at": "2026-11-13T07:00:00Z",
+    "updated_at": "2026-11-13T07:00:00Z"
+  }
+}

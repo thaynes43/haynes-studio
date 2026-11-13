@@ -1,0 +1,11 @@
+{
+  "error": {
+    "code": "method.unavailable",
+    "status": "unavailable",
+    "http_status": 422,
+    "path": "/boards/brd_01M79V9FC00000000000000002/method",
+    "message": "Whole-frame speech-to-video is not buildable yet; use layered speech-to-video or whole-frame image-to-video.",
+    "board_id": "brd_01M79V9FC00000000000000002",
+    "request_id": "req-example-0001"
+  }
+}

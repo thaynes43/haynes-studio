@@ -1,0 +1,75 @@
+{
+  "schema": "studio.invalid-case/v1",
+  "rule": "prov.external_incomplete",
+  "expect": "invalid",
+  "path": "/provenance/external/externally_generated",
+  "why": "An agent upload must carry the externally generated marker (D42).",
+  "document": {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_01M79V9FC00000000000000012",
+    "asset_id": "ast_01M79V9FC0000000000000000X",
+    "number": 2,
+    "kind": "photo",
+    "name": "Reaction close-up reference",
+    "scope": {
+      "production_id": "prd_01M79V9FC00000000000000001",
+      "story_id": "sty_01M79V9FC00000000000000001",
+      "board_id": "brd_01M79V9FC00000000000000007"
+    },
+    "state": "board",
+    "labels": [],
+    "attributes": {},
+    "capabilities": [
+      "opaque_photo"
+    ],
+    "content": {
+      "sha256": "2fddb36d8a16f71d834ccf755ab06a24632704bcdec96acc818f004b4ba7fb55",
+      "bytes": 1843200,
+      "media_type": "image/png",
+      "width": 1080,
+      "height": 1920,
+      "locator": "productions/prd_01M79V9FC00000000000000001/sha256/2f/2fddb36d8a16f71d834ccf755ab06a24632704bcdec96acc818f004b4ba7fb55.png"
+    },
+    "provenance": {
+      "origin": "uploaded",
+      "generator": {
+        "role": "image",
+        "engine": null,
+        "model": "frontier-image-model (as declared)",
+        "prompt": "Close-up of D, shocked. Face fills the upper frame. No foreground log.",
+        "source_asset_version_ids": [
+          "asv_01M79V9FC00000000000000006",
+          "asv_01M79V9FC00000000000000007"
+        ]
+      },
+      "external": {
+        "externally_generated": false,
+        "agent": {
+          "kind": "agent",
+          "key_id": "key_01M79V9FC00000000000000001",
+          "session": "dev-env-session-example",
+          "harness": "example-harness"
+        },
+        "paid_api": false,
+        "declared_by": "agent",
+        "server_computed_sha256": true
+      },
+      "source_key": null,
+      "created_by": {
+        "kind": "agent",
+        "key_id": "key_01M79V9FC00000000000000001"
+      },
+      "created_at": "2026-11-13T07:20:00Z"
+    },
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Agent-generated in its own sanctioned session (D42); terms of the declared model not checked."
+    },
+    "legacy": null
+  }
+}
