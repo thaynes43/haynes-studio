@@ -1,0 +1,1 @@
+import sys,json,urllib.request;sys.path.insert(0,"/config/video");import api;h=json.load(urllib.request.urlopen("http://127.0.0.1:8080/health",timeout=10));print(json.dumps({"health":h,"sample":api.gpu_sample(),"queue":api.engine("/queue")}))
