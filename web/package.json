@@ -1,0 +1,20 @@
+{
+  "name": "haynes-studio-web",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Browser tests for Haynes Studio; the web app (E6) lands here later.",
+  "license": "MIT",
+  "packageManager": "pnpm@12.16.1",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.0",
+    "@types/node": "24.19.2",
+    "typescript": "7.0.2"
+  }
+}

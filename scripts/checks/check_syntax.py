@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Compile tracked PoC Python and parse tracked title/graph JSON without running it."""
+"""Compile tracked PoC Python and parse tracked title, graph and contract-example JSON
+without running it."""
 
 import json
 import os
@@ -27,7 +28,9 @@ def main():
     for name in result.stdout.split(b"\0"):
         path = os.fsdecode(name)
         is_python = path.startswith("poc/") and path.endswith(".py")
-        is_json = path.startswith(("titles/", "poc/graphs/")) and path.endswith(".json")
+        is_json = path.startswith(
+            ("titles/", "poc/graphs/", "docs/contracts/examples/")
+        ) and path.endswith(".json")
         if not (is_python or is_json):
             continue
         try:

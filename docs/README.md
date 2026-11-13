@@ -5,6 +5,7 @@
 | [backlog/coordinator-guide.md](backlog/coordinator-guide.md) | you are coordinating without prior chat context: truth, readiness, order, worker tiers and gates |
 | [backlog/review-2026-11-05.md](backlog/review-2026-11-05.md) | you are grooming the exported backlog: ranked findings, tracker repairs and splits (applied to the tracker on 2026-11-05; R01 to R39 are items 423 to 461) |
 | [process/manual-short-poc.md](process/manual-short-poc.md) | you are making a short by hand, or turning a manual step into a tool |
+| [process/testing.md](process/testing.md) | you are running or adding tests, registering a contract validator, or reading a CI check: suites, commands, limits, fixtures and check names |
 | [reference/services.md](reference/services.md) | you need to know which in-cluster service does what and how to reach it |
 | [reference/doll-format.md](reference/doll-format.md) | you are writing a brief, prompting art or editing; the style rules |
 | [reference/baseline-op345.md](reference/baseline-op345.md) | you want to see how the first doll short was made and which scripts it used |
