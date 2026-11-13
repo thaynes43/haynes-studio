@@ -166,7 +166,11 @@ workers=)`, in order:
    `deliver` makes the proxy itself, so the plan's `proxy` key is recorded with the
    delivery's proxy and is not a separate cache entry (**proposal**).
 7. **Verified success.** `read_delivery` re-hashes the master, the proxy and the
-   document; it must hold the plan's master. Only then is the run `succeeded`.
+   document; it must hold the plan's master and decode to the plan's frames. Only then
+   is the run `succeeded`. The success record is validated before `deliver` is called,
+   so a record that could not be written never leaves a delivery behind a failed run;
+   if a run still fails after its delivery was published, its failure names that
+   delivery (`delivery_id` and the message).
 
 Any error stops the run as `failed` with its code, the board it was on and the stage.
 Every stage already completed stays in the store, and the next run reuses it.

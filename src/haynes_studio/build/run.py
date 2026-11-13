@@ -123,6 +123,10 @@ class RunRecords:
         self.production_id = check_production_id(production_id)
         self._versions: dict[str, int] = {}
 
+    def check(self, run: Mapping[str, Any]) -> None:
+        """Refuse (``AssertionError``) a document that would not validate as written."""
+        self._check(run)
+
     def _check(self, run: Mapping[str, Any]) -> bytes:
         problems = blocking(validate_run(run, context=WRITE))
         if problems:  # a bug in the build, never a user input

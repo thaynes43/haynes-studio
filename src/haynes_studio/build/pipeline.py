@@ -645,6 +645,31 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
             if failed:
                 raise BuildError(CHECK_FAILED, "checks did not pass, so nothing was delivered: "
                                  + ", ".join(failed), stage="checks")
+            if transcript_key is not None and "asr" in register.engines:
+                recorder.use("asr", "check", f"check/{TRANSCRIPT}")
+            library_uses(register, library, _input_versions(prepared, recorder), recorder.uses,
+                         recorder.unregistered)
+            prov = provenance(register=register, uses=recorder.uses, unregistered=recorder.unregistered,
+                              library=library, inputs=_input_versions(prepared, recorder),
+                              toolchain=toolchain_record(studio=inputs.studio, image_digest=inputs.image_digest,
+                                                         tools=_tools(toolchain)))
+            outputs = {"frames": plan.frames, "fps": media.fps,
+                       "picture_sha256": plan.film_picture.content, "mix_sha256": plan.mix.content,
+                       "master_sha256": plan.master.content, "proxy_sha256": None,
+                       "keys": {"film_picture": plan.film_picture.key.value, "mix": plan.mix.key.value,
+                                "master": plan.master.key.value, "proxy": plan.proxy.key.value},
+                       "placement": sound.placement}
+
+            def succeeded(delivery_id: str, proxy_sha256: str, frames: int) -> dict[str, Any]:
+                return advance(run, SUCCEEDED, at=now(), by=actor, reason="delivered and verified",
+                               stages=stages, outputs={**outputs, "proxy_sha256": proxy_sha256},
+                               checks=[*checks, {"check": "frame_count", "result": "pass",
+                                                 "expected": plan.frames, "actual": frames}],
+                               provenance=prov, delivery_id=delivery_id,
+                               progress={"percent": 100, "stage": "delivered"})
+            # The success record is checked before anything is delivered, so a record that
+            # could not be written never leaves a delivery behind a failed run.
+            records.check(succeeded(PLACEHOLDER_DELIVERY, "0" * 64, plan.frames))
             build.where = (None, "delivery")
             master_path, cleanup = _master_file(store, production, plan.master.content, scratch_dir)
             delivered = deliver(master_path, store=store, production_id=production, run_id=run_id,
@@ -661,26 +686,7 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
             if decoded != plan.frames:
                 raise BuildError(DELIVERY_UNVERIFIED, f"the delivery decoded {decoded} frames, the "
                                  f"plan holds {plan.frames} (TIME-11)", stage="delivery")
-            checks.append({"check": "frame_count", "result": "pass", "expected": plan.frames,
-                           "actual": decoded})
-            if transcript_key is not None and "asr" in register.engines:
-                recorder.use("asr", "check", f"check/{TRANSCRIPT}")
-            library_uses(register, library, _input_versions(prepared, recorder), recorder.uses,
-                         recorder.unregistered)
-            prov = provenance(register=register, uses=recorder.uses, unregistered=recorder.unregistered,
-                              library=library, inputs=_input_versions(prepared, recorder),
-                              toolchain=toolchain_record(studio=inputs.studio, image_digest=inputs.image_digest,
-                                                         tools=_tools(toolchain)))
-            outputs = {"frames": plan.frames, "fps": media.fps,
-                       "picture_sha256": plan.film_picture.content, "mix_sha256": plan.mix.content,
-                       "master_sha256": plan.master.content, "proxy_sha256": verified.proxy.sha256,
-                       "keys": {"film_picture": plan.film_picture.key.value, "mix": plan.mix.key.value,
-                                "master": plan.master.key.value, "proxy": plan.proxy.key.value},
-                       "placement": sound.placement}
-            run = records.write(advance(
-                run, SUCCEEDED, at=now(), by=actor, reason="delivered and verified",
-                stages=stages, outputs=outputs, checks=checks, provenance=prov,
-                delivery_id=verified.id, progress={"percent": 100, "stage": "delivered"}))
+            run = records.write(succeeded(verified.id, verified.proxy.sha256, decoded))
             return BuildResult(run, plan, (*build.cache.stats.made, *build.worker_made),
                                build.source_calls(), tuple(build.worker_made))
     except Exception as error:  # every failure is recorded on the run, then reported
@@ -690,18 +696,36 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
         if failure.board_id is not None:
             number = next((b.number for b in story.boards or () if b.id == failure.board_id), None)
         failure = replace(failure, board_number=failure.board_number or number)
+        published = _published_delivery(store, production, run_id) if build is not None else None
+        if published is not None:  # never hidden: a failed run says what was delivered
+            failure = replace(failure, message=f"{failure.message} (delivery {published} of this "
+                              "run was published before the failure)")
         reason = f"{failure.code}: {failure.message}"[:500]
         progress = {"percent": 100, "stage": failure.stage}
         try:
             run = records.write(advance(run, FAILED, at=now(), by=actor, reason=reason,
                                         error=failure.to_document(), stages=stages,
-                                        checks=checks, progress=progress))
+                                        checks=checks, progress=progress,
+                                        delivery_id=published))
         except AssertionError:  # detail that does not validate never hides the failure
             run = records.write(advance(run, FAILED, at=now(), by=actor, reason=reason,
-                                        error=failure.to_document(), progress=progress))
+                                        error=failure.to_document(), progress=progress,
+                                        delivery_id=published))
         return BuildResult(run, plan, () if build is None else
                            (*build.cache.stats.made, *build.worker_made),
                            0 if build is None else build.source_calls())
+
+
+PLACEHOLDER_DELIVERY = "dlv_00000000000000000000000000"  # checks the record's shape only
+
+
+def _published_delivery(store: Store, production_id: str, run_id: str) -> str | None:
+    """The ID of a delivery this run already published, if any (read-only)."""
+    try:
+        found = read_delivery(store, production_id=production_id, run_id=run_id)
+    except Exception:  # noqa: BLE001 - a damaged delivery is not this failure's subject
+        return None
+    return None if found is None else found.id
 
 
 def _parse(stamp: str) -> datetime:

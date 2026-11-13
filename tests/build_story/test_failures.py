@@ -173,3 +173,19 @@ def test_a_board_voice_without_a_track_fails_the_run(world, voiced, first):
     result = f.build(world, document, f.Library.from_version_documents(docs), source=sources)
     assert_failed(world, result, "build.voice_track_missing", board=f.B1, stage="voice")
     assert sources.s2v.calls == []
+
+
+def test_a_success_record_that_would_not_validate_stops_the_run_before_delivery(
+        world, voiced, first, monkeypatch):
+    # The success record is checked before deliver is called, so a record that could
+    # not be written never leaves a published delivery behind a failed run.
+    document, library = voiced
+    real = pipeline.provenance
+
+    def credits_a_check_engine(**kwargs):
+        prov = real(**kwargs)
+        prov["public"]["credits"].append({"engine_key": "asr", "text": "Checks: a recognizer"})
+        return prov
+    monkeypatch.setattr(pipeline, "provenance", credits_a_check_engine)
+    run = assert_failed(world, f.build(world, document, library), "build.internal")
+    assert "credit.outside_video_sound" in run["error"]["message"]
