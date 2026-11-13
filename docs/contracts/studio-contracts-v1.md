@@ -52,7 +52,7 @@ a canonical ID. Worked map: [`legacy-import-map.json`](examples/valid/legacy-imp
 | Legacy name (file) | Legacy meaning | Canonical target |
 |---|---|---|
 | `titles/<slug>/`, manifest `title` | One video's working folder | Story `title`. The production (Yellowbirds) and media kind (`short`, from 1080x1920) are import parameters; no manifest names them. |
-| manifest `story` ([manifest-r4.json](../../titles/the-winter-menu/manifest-r4.json)) | A tracker URL (work package 371) | `origin.tracker`. **Not** a domain story. |
+| manifest `story` ([manifest-r4.json](../../titles/the-winter-menu/manifest-r4.json)) | A tracker URL (work package [371](https://work.haynesnetwork.com/work_packages/371)) | `origin.tracker`. **Not** a domain story. |
 | manifest `revision` (absent in r1 = 1; 2, 3, 4) | A whole-script revision | One imported run per revision, `status: imported`, `legacy.revision`. |
 | manifest `job` (`the-winter-menu-r4`) | Job folder name, also `productions/<job>/` on the Wan PVC | `legacy.job` on the imported run. Never an ID. |
 | manifest `job_dir` (`~/studio-jobs/...`) | Private, non-portable input path | Not imported. Story [425](https://work.haynesnetwork.com/work_packages/425) owns the private-input recovery map. |
@@ -270,7 +270,8 @@ display only.
   (P-05). Legacy (`DollClip.frame_at` in `poc/layered_film.py`).
 - **TIME-9 Speech-to-video request.** Each on-screen speaker gets a drive track of exactly
   `F / 24` seconds: her lines at their offsets, silence elsewhere. Requested length
-  `L = 4 * ceil(F / 24 * 16 / 4) + 1`; if `L > 77`, `L = 77 * ceil(L / 77)`.
+  `L = 4 * ceil(F / 6) + 1` (that is, `F / 24 * 16` source frames rounded up to `4k + 1`);
+  if `L > 77`, `L = 77 * ceil(L / 77)`.
   `L` must be at least the frames TIME-8 needs. Legacy (`poc/s2v.py` with pad 0, as the
   layered S2V film used it).
 - **TIME-10 Sound cues.** A cue's resolved start lies in `[0, board length)`; its sound may
@@ -306,7 +307,7 @@ All frame counts match the recorded timeline.
 
 1087 frames / 24 = 45.2917 s, the recorded `total_s`; `validation.json` decoded 1087.
 
-Board 1: `(6363 * 24 + 999) div 1000 = 153`. S2V: `153 / 24 * 16 = 102`, so
+Board 1: `(6363 * 24 + 999) div 1000 = 153`. S2V: `ceil(153 / 6) = 26`, so
 `L = 4 * 26 + 1 = 105 > 77`, giving `77 * 2 = 154`; frame 152 shows source frame
 `floor(304 / 3) = 101`, so 102 source frames are used and 56 trimmed.
 
@@ -377,7 +378,7 @@ toolchain digest (P-07).
 ### Invalidation set per edit
 
 "Reused" means the key is unchanged, so the cached artifact is used. The table is the
-expected result of the keys; tests in story 380 assert it.
+expected result of the keys; tests in story [380](https://work.haynesnetwork.com/work_packages/380) assert it.
 
 | Edit | Pre-build assets | Board *k* picture | Other boards' pictures | Film picture, mix, master, proxy |
 |---|---|---|---|---|
@@ -430,7 +431,8 @@ How each buildable cell uses its inputs:
 
 **Whole-frame + S2V, reconciled.** `findings.md` records one whole-frame S2V clip
 (`s2-s2v-b`: the shot-2 keyframe with set, one doll, 20-step path on both GPUs, 49 frames,
-724 s), and D22 ("speech-to-video looked great") was said about that clip. The review
+724 s), and it was the only S2V clip that existed when Tom said "speech-to-video looked
+great" (D22, 2026-11-03; the layered S2V film came on 2026-11-04). The review
 (H4) and story 427 treat the combination as unproved. Both hold: E0 showed the model can
 animate a whole frame from speech once, but never assembled one into a delivered film,
 never ran it on the lightning profile now used for S2V, and left open what drives a frame
@@ -659,8 +661,9 @@ out of scope for E1 to E3 (P-11). The Wan PVC (`ai/wan-video`) ledger and
   `samples`, `duration_ms`, `offset_ms`) and the assembled track. It is made while
   editing, before any Build, and can be played and regenerated.
 - **VOICE-3** Take signature: `sha256` of canonical `{engine, model digest, voice_id,
-  text (NFC), speed}`. Version signature: takes plus lead and gaps. Only takes whose
-  signature changed go back to TTS; a lead or gap edit only re-assembles.
+  text (NFC), speed}`; legacy imports had no recorded digest and use the model name.
+  Version signature: takes plus lead and gaps. Only takes whose signature changed go back
+  to TTS; a lead or gap edit only re-assembles.
 - **VOICE-4** A voice job records the signature it started from. When it finishes, its
   result is always kept as a version, but becomes the board's current voice only if the
   board's signature still matches; otherwise it is kept as stale. Nothing is overwritten
@@ -703,7 +706,9 @@ does. Example: [`go-live-approval.json`](examples/valid/go-live-approval.json).
   blobs. It is stateless, with at least two replicas.
 - **Web UI** is a static app. All data goes through studio-api; it has no database or
   store access. Media streams through authenticated `GET /v1/media/{sha256}` with Range
-  support. Per-user selections persist through the API (D32).
+  support; the server serves a hash only if a production in the caller's scope references
+  it, and answers `not_found` otherwise, so a known hash grants nothing. Per-user
+  selections persist through the API (D32).
 - **MCP server** is a separate process that calls studio-api with the agent's key. It
   returns compact JSON and no media bytes by default. It has no approval, publication,
   deletion, shell or raw-graph tool.
@@ -910,7 +915,7 @@ default, granted by Tom per production. (c) Any key with `draft:write`.
 giving every drafting key GPU spend.
 
 **Q-03 For a layered board, what is the reference photo?** Affects `board.photo`, the
-invalidation row "Board photo version", and stories 417, 418 and 426. Layered builds use
+invalidation row "Board photo version", and stories [417](https://work.haynesnetwork.com/work_packages/417), [418](https://work.haynesnetwork.com/work_packages/418) and 426. Layered builds use
 cast stills, the set and the layout (E0-proven); a prompt-generated photo cannot be split
 into those layers without matting (story [451](https://work.haynesnetwork.com/work_packages/451),
 unbuilt). (a) The photo is a preview for layered boards; the UI labels it so and shows
