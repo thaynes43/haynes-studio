@@ -120,3 +120,16 @@ def test_time_helpers_import_no_media_or_schema_library():
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
                             check=True)
     assert result.stdout.strip() == "[]"
+
+
+@pytest.mark.parametrize("value", [10**30 + 1, "1e999999", 1e308, -(10**15)])
+def test_ms_from_seconds_refuses_out_of_range_values(value):
+    with pytest.raises(ValueError, match="out of range"):
+        tb.ms_from_seconds(value)
+
+
+def test_ms_from_seconds_is_exact_beyond_the_decimal_context():
+    # 28 significant digits is Decimal's default precision; the result must not round.
+    with pytest.raises(ValueError, match="whole number"):
+        tb.ms_from_seconds("0.0010000000000000000000000000001")
+    assert tb.ms_from_seconds(10**15 - 1) == (10**15 - 1) * 1000

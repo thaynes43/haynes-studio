@@ -138,10 +138,43 @@ def test_timeline_mismatch_exits_1(tmp_path):
     recorded["shots"][0]["frames"] = 152
     path = tmp_path / "timeline.json"
     path.write_text(json.dumps(recorded), encoding="utf-8")
+    code, out, err = run("legacy", "timeline", rel(TITLE / "manifest-r4.json"),
+                         "--speech", rel(TITLE / "evidence-r4/speech.json"), "--compare", str(path))
+    assert code == 1
+    assert f"compared with {path}: 2 mismatch(es);" in out
+    assert err.splitlines() == [
+        f"{path}: rule legacy.timeline_mismatch at /shots/0/frames: shot 1 frames: "
+        "computed 153, recorded 152 (exact)",
+        f"{path}: rule legacy.timeline_mismatch at /shots: film frames: computed 1087, "
+        "recorded 1086 (exact)",
+    ]
+
+
+def test_timeline_json_mismatches_carry_paths(tmp_path):
+    recorded = json.loads((TITLE / "evidence-r4/timeline.json").read_text(encoding="utf-8"))
+    recorded["total_s"] = 45.3
+    path = tmp_path / "timeline.json"
+    path.write_text(json.dumps(recorded), encoding="utf-8")
     code, out, _ = run("legacy", "timeline", rel(TITLE / "manifest-r4.json"),
+                       "--speech", rel(TITLE / "evidence-r4/speech.json"), "--compare", str(path),
+                       "--json")
+    assert code == 1
+    assert json.loads(out)["comparison"]["mismatches"] == [
+        "rule legacy.timeline_mismatch at /total_s: film total: computed 45.2917, recorded "
+        "45.3 (4 decimals, diff -8.333 ms)"]
+
+
+def test_a_malformed_record_exits_1_without_a_traceback(tmp_path):
+    recorded = json.loads((TITLE / "evidence-r4/timeline.json").read_text(encoding="utf-8"))
+    recorded["audio"][0]["shot"] = [1]
+    path = tmp_path / "timeline.json"
+    path.write_text(json.dumps(recorded).replace('"start_s": 0.5,', '"start_s": 1e400,', 1),
+                    encoding="utf-8")
+    code, _, err = run("legacy", "timeline", rel(TITLE / "manifest-r4.json"),
                        "--speech", rel(TITLE / "evidence-r4/speech.json"), "--compare", str(path))
     assert code == 1
-    assert f"{path}: rule legacy.timeline_mismatch: shot 1 frames: computed 153, recorded 152" in out
+    assert err.splitlines() == [f"{path}: rule legacy.invalid at (root): not JSON: 1e400 is too "
+                                "large for a number"]
 
 
 def test_timeline_with_the_wrong_speech_exits_1():

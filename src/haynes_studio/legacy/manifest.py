@@ -13,6 +13,7 @@ millisecond is refused (``time.not_integer_ms``), never rounded.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,7 +22,7 @@ from typing import Any
 from haynes_studio.errors import ContractError, Violation, blocking, pointer
 from haynes_studio.jsonio import freeze, read_json
 from haynes_studio.schemas import schema_violations
-from haynes_studio.timebase import ms_from_seconds
+from haynes_studio.timebase import SECONDS_LIMIT, ms_from_seconds
 
 SCHEMA_NAME = "legacy.manifest/v1"
 SCHEMA_FILE = "legacy.manifest.v1.schema.json"
@@ -64,6 +65,7 @@ def validate(document: Any, *, context: str = "read") -> list[Violation]:
         return [Violation(UNSUPPORTED, "", "not a legacy manifest: needs an object with "
                                            "shots, frame and job, and no schema field")]
     found = schema_violations(SCHEMA_FILE, document, default_rule=INVALID)
+    found += _non_finite(document)
     found += _whole_milliseconds(document)
     found += _trim_order(document)
     found += _references(document)
@@ -126,11 +128,36 @@ def _is_number(value: Any) -> bool:
     return isinstance(value, int | float) and not isinstance(value, bool)
 
 
+def _integer(value: Any) -> int | None:
+    """``value`` as an int if it is a JSON integer (draft 2020-12 counts ``4.0`` as one),
+    else ``None``."""
+    if isinstance(value, bool) or not _is_number(value):
+        return None
+    if isinstance(value, float):
+        return int(value) if value.is_integer() else None
+    return value
+
+
+def _non_finite(value: Any, path: str = "") -> list[Violation]:
+    """NaN and infinities, which a document built in memory may hold (strict JSON
+    cannot)."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return [Violation(INVALID, path, "must be a finite number")]
+    if isinstance(value, dict):
+        return [v for key, item in value.items() for v in _non_finite(item, path + pointer(key))]
+    if isinstance(value, list):
+        return [v for i, item in enumerate(value) for v in _non_finite(item, path + pointer(i))]
+    return []
+
+
 def _whole_milliseconds(document: Mapping) -> list[Violation]:
     found = []
     for path, value in _seconds_fields(document):
-        if not _is_number(value):
-            continue  # the schema reports the type
+        if not _is_number(value) or not math.isfinite(value):
+            continue  # the schema or _non_finite reports it
+        if abs(value) >= SECONDS_LIMIT:
+            found.append(Violation(INVALID, path, f"{value!r} s is out of range"))
+            continue
         try:
             ms_from_seconds(value)
         except ValueError:
@@ -159,8 +186,8 @@ def _references(document: Mapping) -> list[Violation]:
     seen: set[int] = set()
     for i, shot in _shots(document):
         base = pointer("shots", i)
-        shot_id = shot.get("id")
-        if isinstance(shot_id, int) and not isinstance(shot_id, bool):
+        shot_id = _integer(shot.get("id"))
+        if shot_id is not None:
             if shot_id in seen:
                 found.append(Violation(REFERENCE, base + pointer("id"),
                                        f"shot id {shot_id} is not unique"))
@@ -168,8 +195,8 @@ def _references(document: Mapping) -> list[Violation]:
         count = len(_raw_lines(shot))
         for list_name in ("sfx", "moves"):
             for j, item in _dicts(shot.get(list_name)):
-                after = item.get("after_line")
-                if isinstance(after, int) and not isinstance(after, bool) and after >= count:
+                after = _integer(item.get("after_line"))
+                if after is not None and after >= count:
                     found.append(Violation(
                         REFERENCE, base + pointer(list_name, j, "after_line"),
                         f"after_line {after} but the shot has {count} line(s)"))
@@ -334,7 +361,7 @@ def _ms(value: Any) -> int | None:
 
 
 def _anchor(item: Mapping) -> Anchor:
-    return Anchor(at_ms=_ms(item.get("at")), after_line=item.get("after_line"),
+    return Anchor(at_ms=_ms(item.get("at")), after_line=_integer(item.get("after_line")),
                   offset_ms=_ms(item.get("offset")))
 
 
@@ -358,7 +385,7 @@ def _shot(index: int, raw: Mapping) -> Shot:
     camera = raw.get("camera")
     return Shot(
         index=index,
-        id=raw["id"],
+        id=_integer(raw["id"]),
         layout=raw["layout"],
         dolls=tuple(raw["dolls"].items()),
         lead_ms=ms_from_seconds(raw_lines[0]["start"]) if raw_lines else None,
@@ -400,10 +427,10 @@ def from_document(document: Any, *, source: str = "<document>",
         story=document.get("story"),
         job=document["job"],
         job_dir=document.get("job_dir"),
-        revision=document.get("revision", DEFAULT_REVISION),
+        revision=_integer(document.get("revision", DEFAULT_REVISION)),
         revision_field_present="revision" in document,
         revision_note=document.get("revision_note"),
-        frame=Frame(**document["frame"]),
+        frame=Frame(**{name: _integer(value) for name, value in document["frame"].items()}),
         cast=tuple(CastMember(slot=slot, name=member["name"], voice=member["voice"])
                    for slot, member in document.get("cast", {}).items()),
         shots=tuple(_shot(i, shot) for i, shot in enumerate(document["shots"])),

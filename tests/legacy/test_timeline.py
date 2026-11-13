@@ -251,3 +251,93 @@ def test_timeline_is_json_serializable_through_the_cli_shape():
     result = _timeline_json(timeline_of(4), compare(timeline_of(4), recorded_of(4)))
     assert json.loads(json.dumps(result))["frames"] == 1087
     assert result["comparison"]["match"] is True
+
+
+# Review findings: precision, repeats and malformed records ---------------------------
+
+
+@pytest.mark.parametrize("field", ["start_s", "end_s"])
+def test_a_shot_time_off_by_one_record_unit_is_a_mismatch(field):
+    recorded = copy.deepcopy(recorded_of(4))
+    recorded["shots"][3][field] = round(recorded["shots"][3][field] + 0.0001, 4)
+    comparison = compare(timeline_of(4), recorded)
+    assert [(c.item, c.path) for c in comparison.mismatches] == [
+        ("shot 4", f"/shots/3/{field}")]
+    assert comparison.mismatches[0].allowance == "4 decimals"
+
+
+def test_total_off_by_one_record_unit_is_a_mismatch():
+    recorded = copy.deepcopy(recorded_of(4))
+    recorded["total_s"] = 45.2918
+    assert [c.path for c in compare(timeline_of(4), recorded).mismatches] == ["/total_s"]
+
+
+@pytest.mark.parametrize(("offset_ms", "ok"), [(Fraction(99, 100), True), (Fraction(101, 100), False),
+                                               (Fraction(-99, 100), True), (Fraction(-101, 100), False)])
+def test_audio_allowance_edges(offset_ms, ok):
+    timeline = timeline_of(4)
+    recorded = copy.deepcopy(recorded_of(4))
+    line = timeline.shots[7].lines[4]
+    index, entry = next((i, a) for i, a in enumerate(recorded["audio"])
+                        if a["kind"] == "line" and a["shot"] == 8 and a["k"] == 4)
+    entry["start_s"] = float(Fraction(line.start_sample, 48_000) - offset_ms / 1000)
+    comparison = compare(timeline, recorded)
+    assert comparison.ok is ok
+    if not ok:
+        assert [c.path for c in comparison.mismatches] == [f"/audio/{index}/start_s"]
+
+
+def test_a_repeated_line_or_bed_record_is_a_mismatch():
+    recorded = copy.deepcopy(recorded_of(4))
+    line = next(a for a in recorded["audio"] if a["kind"] == "line")
+    recorded["audio"].insert(0, dict(line, start_s=30.0))
+    found = {(c.item, c.field) for c in compare(timeline_of(4), recorded).mismatches}
+    assert ("film", "line count") in found and ("audio 1", "repeated line") in found
+    recorded = copy.deepcopy(recorded_of(4))
+    bed = next(a for a in recorded["audio"] if a["kind"] == "bed")
+    recorded["audio"].append(dict(bed))
+    found = {(c.item, c.field) for c in compare(timeline_of(4), recorded).mismatches}
+    assert found == {("film", "bed count"), (f"audio {len(recorded['audio']) - 1}", "repeated bed")}
+
+
+def test_a_bed_end_or_unknown_kind_is_a_mismatch():
+    recorded = copy.deepcopy(recorded_of(4))
+    bed = next(i for i, a in enumerate(recorded["audio"]) if a["kind"] == "bed")
+    recorded["audio"][bed]["end_s"] = 45.0
+    recorded["audio"].append({"kind": "music", "start_s": 0, "end_s": 1})
+    found = {(c.item, c.field, c.path) for c in compare(timeline_of(4), recorded).mismatches}
+    assert found == {("bed fire", "end", f"/audio/{bed}/end_s"),
+                     (f"audio {len(recorded['audio']) - 1}", "kind",
+                      f"/audio/{len(recorded['audio']) - 1}/kind")}
+
+
+@pytest.mark.parametrize(("mutate", "path"), [
+    (lambda r: r["audio"][0].update(shot=[1]), "/audio/0/shot"),
+    (lambda r: r["audio"][-1].update(cue={}), "/audio/17/cue"),
+    (lambda r: r["audio"][0].update(start_s=float("inf")), "/audio/0/start_s"),
+    (lambda r: r["shots"][0].update(frames=153.0), "/shots/0/frames"),
+    (lambda r: r["audio"][0].update(k="0"), "/audio/0/k"),
+])
+def test_malformed_record_fields_are_reported_not_raised(mutate, path):
+    recorded = copy.deepcopy(recorded_of(4))
+    assert len(recorded["audio"]) == 18  # 13 lines, 4 sounds, 1 bed
+    mutate(recorded)
+    with pytest.raises(ContractError) as caught:
+        compare(timeline_of(4), recorded, source="t.json")
+    assert [(v.rule, v.path) for v in caught.value.violations] == [("legacy.invalid", path)]
+
+
+def test_a_sound_cut_at_film_end_is_compared_with_the_legacy_cut():
+    manifest = synthetic(
+        [{"id": 1, "layout": "single", "dolls": {"a": "a.png"}, "duration": 1.0,
+          "sfx": [{"cue": "boom", "at": 0.5}]}],
+        sfx={"boom": {"file": "boom.wav", "trim": [0.0, 2.0], "gain_db": -20}})
+    timeline = compute(manifest, takes())
+    recorded = {"total_s": 1.0, "shots": [{"shot": 1, "start_s": 0.0, "end_s": 1.0, "frames": 24}],
+                "audio": [{"kind": "sfx", "cue": "boom", "start_s": 0.5, "end_s": 1.1}]}
+    comparison = compare(timeline, recorded)
+    assert comparison.ok
+    assert [c.field for c in comparison.checks if c.item == "shot 1 sfx boom"] == [
+        "cue", "start", "end (legacy cut)"]
+    recorded["audio"][0]["end_s"] = 1.0
+    assert not compare(timeline, recorded).ok

@@ -347,3 +347,54 @@ def test_schema_alone_accepts_the_fixtures_and_refuses_the_invalid_example():
         assert list(validator.iter_errors(read_json(fixture(revision)).document)) == []
     case = json.loads(INVALID_EXAMPLE.read_text(encoding="utf-8"))
     assert [error.validator for error in validator.iter_errors(case["document"])] == ["not"]
+
+
+def test_json_integers_written_as_floats_load_as_ints():
+    # Draft 2020-12 counts 4.0 as an integer; the model never carries a float id or index.
+    document = base()
+    document["revision"] = 2.0
+    document["frame"]["width"] = 1080.0
+    shot = document["shots"][0]
+    shot["id"] = 1.0
+    shot["sfx"] = [{"cue": "crow", "after_line": 0.0, "offset": 0.05}]
+    manifest = lm.from_document(document)
+    assert type(manifest.revision) is int and type(manifest.frame.width) is int
+    assert type(manifest.shots[0].id) is int
+    assert type(manifest.shots[0].sfx[0].anchor.after_line) is int
+    shot["sfx"][0]["after_line"] = 1.0
+    assert rules(document) == {("legacy.reference", "/shots/0/sfx/0/after_line")}
+
+
+@pytest.mark.parametrize(("path", "value", "expected"), [
+    (["shots", 0, "tail"], float("inf"), {("legacy.invalid", "/shots/0/tail")}),
+    (["master"], {"lufs": float("nan"), "true_peak": -3.5}, {("legacy.invalid", "/master/lufs")}),
+    (["shots", 1, "duration"], 10**30 + 1, {("legacy.invalid", "/shots/1/duration")}),
+])
+def test_non_finite_and_huge_numbers_are_invalid_not_rounded(path, value, expected):
+    document = base()
+    _set(path, value)(document)
+    assert rules(document) == expected
+
+
+def test_a_number_too_large_for_a_float_is_not_json(tmp_path):
+    path = tmp_path / "manifest.json"
+    path.write_text(json.dumps(base()).replace('"tail": 0.7', '"tail": 1e400'), encoding="utf-8")
+    with pytest.raises(ContractError, match="1e400 is too large") as caught:
+        lm.load(path)
+    assert str(caught.value).startswith(f"{path}: rule legacy.invalid at (root): not JSON")
+
+
+def test_deep_nesting_is_reported_not_raised(tmp_path):
+    path = tmp_path / "manifest.json"
+    path.write_text("[" * 100_000 + "]" * 100_000, encoding="utf-8")
+    with pytest.raises(ContractError, match="nested too deeply"):
+        lm.load(path)
+
+
+def test_two_problems_at_one_path_are_both_reported():
+    document = base()
+    document["shots"][0]["dolls"] = {"ab": 1}
+    found = [(v.rule, v.path, v.message) for v in lm.validate(document)]
+    assert [path for _, path, _ in found] == ["/shots/0/dolls/ab", "/shots/0/dolls/ab"]
+    assert {message for _, _, message in found} == {"key 'ab': must match ^[a-z]$",
+                                                   "must be of type string"}

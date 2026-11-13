@@ -13,6 +13,10 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from fractions import Fraction
 
+# ms_from_seconds refuses magnitudes of 10**15 s or more: no legacy time comes close,
+# and it keeps exact conversion cheap.
+SECONDS_LIMIT = 10**15
+
 DELIVERY_FPS = 24
 MIX_RATE = 48_000
 SAMPLES_PER_FRAME = MIX_RATE // DELIVERY_FPS  # 2000
@@ -128,9 +132,11 @@ def display_seconds(frames: int, fps: int = DELIVERY_FPS) -> str:
 
 def ms_from_seconds(value: int | float | str | Decimal) -> int:
     """Decimal seconds as written in a legacy file (``0.35``, ``1.9``, ``5.163``) to whole
-    milliseconds, exactly. A float is read by its shortest repr, which is the JSON text
-    it came from. Raises ``ValueError`` for a value that is not a whole number of ms
-    (no rounding), and ``TypeError`` for a bool or a non-number."""
+    milliseconds, exactly, with no rounding. A float is read by its shortest repr, which
+    is the JSON text it came from for any text of up to 15 significant digits (longer
+    text was already rounded when it was parsed into a float). Raises ``ValueError`` for
+    a value that is not a whole number of ms, not finite, or 10**15 s or more, and
+    ``TypeError`` for a bool or a non-number."""
     if isinstance(value, bool):
         raise TypeError("seconds must be a number, got bool")
     try:
@@ -144,7 +150,9 @@ def ms_from_seconds(value: int | float | str | Decimal) -> int:
         raise ValueError(f"{value!r} is not a number of seconds") from None
     if not seconds.is_finite():
         raise ValueError(f"{value!r} is not a finite number of seconds")
-    millis = seconds * 1000
-    if millis != millis.to_integral_value():
+    if abs(seconds) >= SECONDS_LIMIT:
+        raise ValueError(f"{value!r} s is out of range")
+    millis = Fraction(seconds) * 1000  # exact, whatever the decimal context's precision
+    if millis.denominator != 1:
         raise ValueError(f"{value!r} s is not a whole number of milliseconds")
     return int(millis)

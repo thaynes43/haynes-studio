@@ -77,12 +77,14 @@ def main(argv: Sequence[str] | None = None, *, stdout: TextIO | None = None,
     except SystemExit as exit_:  # --help, --version and usage errors
         return int(exit_.code or 0)
     try:
-        return args.handler(args, out)
+        return args.handler(args, out, err)
     except ContractError as error:
         print(error, file=err)
         return FAILED
     except OSError as error:
-        print(f"studio: cannot read {error.filename or 'input'}: "
+        if error.filename is None:  # not an input file (a closed pipe, for example)
+            raise
+        print(f"studio: cannot read {error.filename}: "
               f"{error.strerror or type(error).__name__}", file=err)
         return USAGE
 
@@ -90,7 +92,7 @@ def main(argv: Sequence[str] | None = None, *, stdout: TextIO | None = None,
 # legacy validate --------------------------------------------------------------------
 
 
-def _validate(args: argparse.Namespace, out: TextIO) -> int:
+def _validate(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
     manifest = legacy_manifest.load(args.manifest)
     spoken = [shot for shot in manifest.shots if shot.spoken]
     summary = {
@@ -130,7 +132,7 @@ def _count(number: int, noun: str) -> str:
 # legacy timeline --------------------------------------------------------------------
 
 
-def _timeline(args: argparse.Namespace, out: TextIO) -> int:
+def _timeline(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
     manifest = legacy_manifest.load(args.manifest)
     timeline = compute(manifest, load_speech(args.speech))
     comparison = None
@@ -142,7 +144,11 @@ def _timeline(args: argparse.Namespace, out: TextIO) -> int:
         out.write("\n")
     else:
         _timeline_text(timeline, comparison, out)
-    return OK if comparison is None or comparison.ok else FAILED
+    if comparison is None:
+        return OK
+    for violation in comparison.violations():
+        print(f"{comparison.recorded}: {violation}", file=err)
+    return OK if comparison.ok else FAILED
 
 
 def _timeline_json(timeline: LegacyTimeline, comparison: Comparison | None) -> dict:
@@ -179,7 +185,7 @@ def _timeline_json(timeline: LegacyTimeline, comparison: Comparison | None) -> d
             "recorded": comparison.recorded,
             "match": comparison.ok,
             "checks": len(comparison.checks),
-            "mismatches": [describe(check) for check in comparison.mismatches],
+            "mismatches": [str(violation) for violation in comparison.violations()],
             "max_audio_diff_ms": ms_text(_max_audio_diff(comparison)).lstrip("+"),
         }
     return result
@@ -222,5 +228,3 @@ def _timeline_text(timeline: LegacyTimeline, comparison: Comparison | None,
     out.write(f"compared with {comparison.recorded}: {verdict}; {len(comparison.checks)} "
               f"checks (frames exact, shot times to 4 decimals, lines and sounds within "
               f"{SAMPLES_PER_MS} samples = 1 ms; largest audio difference {worst} ms)\n")
-    for check in comparison.mismatches:
-        out.write(f"{comparison.recorded}: rule legacy.timeline_mismatch: {describe(check)}\n")

@@ -19,7 +19,7 @@ from haynes_studio.errors import ContractError, Violation, pointer
 from haynes_studio.jsonio import read_json
 from haynes_studio.legacy.manifest import INVALID, LegacyManifest
 from haynes_studio.schemas import UNKNOWN_FIELD
-from haynes_studio.timebase import ms_from_seconds
+from haynes_studio.timebase import SECONDS_LIMIT, ms_from_seconds
 
 DURATION_SOURCE = "legacy_duration_s"
 SPEECH_MISMATCH = "legacy.speech_mismatch"
@@ -92,9 +92,9 @@ def validate_speech(document: Any) -> list[Violation]:
         duration = take.get("duration_s")
         if "duration_s" in take:
             if isinstance(duration, bool) or not isinstance(duration, int | float) \
-                    or duration <= 0:
+                    or not 0 < duration < SECONDS_LIMIT:
                 found.append(Violation(INVALID, base + "/duration_s",
-                                       "must be a number of seconds greater than 0"))
+                                       "must be a finite number of seconds greater than 0"))
             else:
                 try:
                     ms_from_seconds(duration)

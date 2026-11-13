@@ -46,11 +46,11 @@ def validator_for(filename: str) -> Draft202012Validator:
 
 def schema_violations(filename: str, document: Any, *, default_rule: str) -> list[Violation]:
     """Every schema error in ``document`` as violations, sorted by path then rule."""
-    found: dict[tuple[str, str], Violation] = {}
+    found: dict[tuple[str, str, str], Violation] = {}
     for error in validator_for(filename).iter_errors(document):
         for violation in _from_error(error, default_rule):
-            found.setdefault((violation.path, violation.rule), violation)
-    return sorted(found.values(), key=lambda v: (v.path, v.rule))
+            found.setdefault((violation.path, violation.rule, violation.message), violation)
+    return sorted(found.values(), key=lambda v: (v.path, v.rule, v.message))
 
 
 def _from_error(error: ValidationError, default_rule: str) -> list[Violation]:

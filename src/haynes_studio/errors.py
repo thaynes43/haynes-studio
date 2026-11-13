@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 INVALID = "invalid"
 WARNING = "warning"
+ROOT = "(root)"  # how the empty pointer (the whole document) prints; "/" is the key ""
 
 
 def pointer(*parts: str | int) -> str:
@@ -29,7 +30,7 @@ class Violation:
     status: str = INVALID
 
     def __str__(self) -> str:
-        return f"rule {self.rule} at {self.path or '/'}: {self.message}"
+        return f"rule {self.rule} at {self.path or ROOT}: {self.message}"
 
 
 def blocking(violations: Iterable[Violation]) -> list[Violation]:

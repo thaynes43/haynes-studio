@@ -24,9 +24,10 @@ uv run studio --version                                    # studio 0.1.0.dev0
 | `studio legacy timeline <manifest> --speech <speech.json> [--compare <timeline.json>] [--json]` | Computes frames per shot, film start frames, and the placement of every line, sound cue and bed in mix samples (rules TIME-1 to TIME-4, TIME-7, TIME-10). With `--compare`, checks a recorded `timeline.json` under rule TIME-12. |
 
 Exit status: `0` valid, or the timelines match; `1` a rule failed, or the timelines
-differ; `2` a usage error or an unreadable file. A problem prints as one line:
-`<file>: rule <code> at <path>: <message>`, where `<path>` is a JSON Pointer into that
-file. `--json` prints integers only (ms, frames, samples) plus display text.
+differ; `2` a usage error or an unreadable file. Each problem prints on stderr as one
+line: `<file>: rule <code> at <path>: <message>`, where `<path>` is a JSON Pointer into
+that file and `(root)` is the whole document. Results print on stdout; `--json` prints
+integers only (ms, frames, samples) plus display text.
 
 ```sh
 uv run studio legacy validate titles/the-winter-menu/manifest-r4.json
@@ -64,11 +65,14 @@ rewrites a legacy file. One typed model holds every revision:
 - Two defaults only, both named by the contract: a later line without `gap` gets 300 ms
   (`gap_defaulted: true`, `edit.resolve_lines`), and no `revision` is revision 1
   (`revision_field_present: false`). Every other absent field is `None`, or an empty
-  tuple for a list; for example `foreground`, `camera.over` and move `dur` stay `None`
-  where the legacy renderer assumed a value.
+  tuple for a list or table (`moves`, `sfx`, `cast`, `beds`); for example `foreground`,
+  `camera.over` and move `dur` stay `None` where the legacy renderer assumed a value.
+  An absent `job_dir` is accepted (the PoC required it); it is never imported.
 - Times are integer milliseconds, converted exactly from the decimal seconds as written
   (`timebase.ms_from_seconds`); a value that is not a whole millisecond is refused, never
-  rounded. Sound `gain_db` is `level_rms_dbfs`: a target RMS level, not a gain.
+  rounded. A JSON number is read through a float, so text with more than 15 significant
+  digits is already rounded when parsed. Sound `gain_db` is `level_rms_dbfs`: a target
+  RMS level, not a gain. A JSON integer written as `4.0` loads as `4`.
 - Render presets (`layouts`), `set`, `motion`, `master`, tolerances and provenance are
   kept verbatim as read-only JSON.
 - `sha256` is the hash of the file's bytes; it equals `manifest_sha256` in the
@@ -91,10 +95,10 @@ the legacy import on these two modules.
 | `time.negative` | contract | a negative `start`, `gap`, `at`, `offset`, `dur` or trim point |
 | `time.not_integer_ms` | contract | a time in seconds that is not a whole millisecond, in a manifest or a take's `duration_s` |
 | `cue.out_of_range` | contract | a sound's resolved start is outside its shot (TIME-10), found by `timeline` |
-| `legacy.invalid` | proposal | any other schema failure: a missing or mistyped field, `fps` other than 24, `line` and `lines` together, a later line with `start`, a spoken shot without `tail` or a silent one with it, a sound or move without exactly one anchor (`at`, or `after_line` with `offset`), a reversed trim; also a file that is not strict JSON (duplicate keys, NaN) |
+| `legacy.invalid` | proposal | any other schema failure: a missing or mistyped field, `fps` other than 24, `line` and `lines` together, a later line with `start`, a spoken shot without `tail` or a silent one with it, a sound or move without exactly one anchor (`at`, or `after_line` with `offset`), a reversed trim, a non-finite number or a time of 10^15 s or more; also a file that is not strict JSON (duplicate keys, NaN, a number too large for a float, nesting too deep), and a malformed `speech.json` or `timeline.json` |
 | `legacy.reference` | proposal | what the timeline depends on: a repeated shot `id`, a sound not in the `sfx` table, an `after_line` beyond the shot's lines |
 | `legacy.speech_mismatch` | proposal | a line has no take in `speech.json`, a take has no line, or a take's doll or text differs; a take without `k` on a shot with several lines |
-| `legacy.timeline_mismatch` | proposal | `--compare` found a value outside its allowance |
+| `legacy.timeline_mismatch` | proposal | `--compare` found a value outside its allowance, a missing or repeated record, or an unknown audio `kind`; the path points into `timeline.json` |
 
 Not checked here: render and voice references (layout preset names, cast slots, still
 paths). Story 404's import checks them against the canonical rules when it maps them.
@@ -109,7 +113,10 @@ paths). Story 404's import checks them against the canonical rules when it maps 
 
 The legacy editor rounded shot starts to 0.1 ms before placing samples and measured line
 ends from the resampled audio; the canonical end is the start plus the recorded
-`duration_s`. Results on the public fixtures:
+`duration_s`. Recorded sounds carry no shot id and are matched in shot order. A sound
+that runs past the last cut ends at film end (TIME-10); the legacy editor cut it 100 ms
+later, so its recorded end is checked against that legacy cut (`end (legacy cut)`). No
+Winter Menu sound reaches the end. Results on the public fixtures:
 
 | Revision | Shots | Frames (computed = recorded) | Lines | Sound cues | Beds | Checks | Mismatches | Largest audio difference |
 |---|---|---|---|---|---|---|---|---|
