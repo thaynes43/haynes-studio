@@ -103,8 +103,11 @@ def fail(job: Job, code: str, message: str, *, now: str) -> Job:
 
 
 def cancel(job: Job, *, now: str) -> Job:
-    """``queued`` or ``running`` to ``cancelled``. A worker that finishes after this
-    cannot succeed the job; a version it already made stays in the library."""
+    """``queued`` or ``running`` to ``cancelled``. A cancelled job never changes again,
+    so a worker that finishes later cannot succeed it, provided the worker's result is
+    checked against the stored job: ``run_voice_job`` does so with ``reload``, and
+    otherwise the store must write a terminal job only over a ``running`` one
+    (compare-and-set). A version the worker already made stays in the library."""
     return _move(job, CANCELLED, now)
 
 

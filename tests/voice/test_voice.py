@@ -30,13 +30,14 @@ from haynes_studio.voice import (
     board_voice_versions,
     cancel,
     make_voice,
+    start,
     plan_board_voice,
     run_voice_job,
     voice_facts,
     with_current_voice,
 )
 from haynes_studio.voice.plan import board_voice_key
-from tests.canonical.fixtures import EXAMPLES
+from tests.canonical.fixtures import EXAMPLES, NOW
 from tests.library.fixtures import BY
 from tests.voice.fixtures import (
     LATER,
@@ -616,3 +617,33 @@ def test_a_board_silenced_while_its_job_ran_keeps_the_result_stale():
     with pytest.raises(ContractError) as caught:
         with_current_voice(silent, board["id"], run.version.id)
     assert {v.rule for v in caught.value.violations} == {"voice.not_needed"}
+
+
+def test_a_job_cancelled_while_it_runs_is_not_succeeded():
+    """Advisory review: the worker re-reads the stored job before succeeding it. A
+    cancel made while Kokoro ran stands; the version stays; the board is not moved."""
+    studio = fresh_r4()
+    board_id = studio.board(9)["id"]
+    outcome = studio.request(board_id)
+    stored = {}
+
+    def reload():  # the API cancels the job while the speech call runs
+        stored.setdefault("job", cancel(start(outcome.job, now=NOW), now=LATER))
+        return stored["job"]
+
+    run = studio.run(outcome.job, reload=reload)
+    assert (run.job.status, run.job.result_version_id, run.make_current) == ("cancelled", None, False)
+    assert run.version is not None and run.version.id in studio.library.versions  # kept
+    assert studio.board(9)["voice"]["current_version_id"] is None
+    assert studio.calls == 1
+
+
+def test_a_failure_after_a_cancel_leaves_the_job_cancelled():
+    studio = fresh_r4()
+    outcome = studio.request(studio.board(1)["id"])
+    cancelled = cancel(start(outcome.job, now=NOW), now=LATER)
+    run = run_voice_job(outcome.job, studio.library, draft=lambda: studio.story,
+                        speech=KokoroClient(FailingRunner(1, b"boom")),
+                        publish=studio.store.publish, fetch=studio.store.fetch, by=BY, now=LATER,
+                        reload=lambda: cancelled)
+    assert run.job == cancelled and run.version is None

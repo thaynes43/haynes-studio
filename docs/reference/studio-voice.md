@@ -148,7 +148,9 @@ is always kept as a version. The job is `succeeded` with `result_is_current: tru
 if the board as drafted now is still the job's input (`is_current`). Otherwise
 `result_is_current` is `false`, the board keeps its old current voice, and the result
 stays as a stale version that later requests can reuse takes from. A rule or adapter
-error fails the job with its code, and no version is made. Blobs that were already
+error fails the job with its code, and no version is made. Before it succeeds or fails
+the job, the worker re-reads it (`reload`): a job cancelled meanwhile stays cancelled,
+its version is kept, and the board is not repointed. Blobs that were already
 published stay; they are harmless orphans (section 8).
 
 ## Timing and Build (VOICE-5, VOICE-6)
@@ -164,7 +166,7 @@ and accepts the rest. Voices are never made inside a run.
 | Operation | Call | Notes |
 |---|---|---|
 | `generate_board_voice` `POST /boards/{id}/voice-jobs` | `request_voice(story, board_id, library, jobs=in_flight, by=, now=)` | Returns `plan`, `job` and `created`. `job` is null for `current` (answer 200 with the version) and `existing` (point the board at `make_current` as a board edit, with a revision bump). An in-flight job for the same input is returned with `created: false`. With `Idempotency-Key`, the same key and body return the same job. Show `plan.speech_lines` and `plan.action` before or after queueing. |
-| worker | `run_voice_job(job, library, draft=lambda: current_story, speech=KokoroClient(SubprocessRunner()), publish=store.publish, fetch=store.fetch, by=worker, now=)` | Claim, run, complete through the internal endpoints. If `make_current`, set `board.voice.current_version_id` to `version.id` (`with_current_voice` shows the change) and bump the story's revision. Persist the terminal job and the new version. |
+| worker | `run_voice_job(job, library, draft=lambda: current_story, reload=lambda: stored_job, speech=KokoroClient(SubprocessRunner()), publish=store.publish, fetch=store.fetch, by=worker, now=)` | Claim, run, complete through the internal endpoints. Persist the new version, then write the terminal job only over a stored `running` one (compare-and-set), so a cancel made meanwhile stands. Only then, if `make_current`, set `board.voice.current_version_id` to `version.id` (`with_current_voice` shows the change) and bump the story's revision. |
 | `get_job` `GET /jobs/{id}` | `job.to_document()` | Valid `studio.job/v1`. |
 | `list_board_voice_versions` `GET /boards/{id}/voice-versions` | `board_voice_versions(library, board_id)`, then `library.document(id)` | Newest first, legacy and generated, current and stale. Mark the board's current one. |
 | play | `GET /media/{sha256}` with `version.voice.track.sha256` (the board), or a take's `sha256` (one line) | Track and takes are `audio/wav` at the take rate. Offsets for a waveform or captions are each take's `offset_ms` and `duration_ms`. Legacy versions have no track (`track: null`, `track_note`), and their take bytes are private until story 428 imports them. |

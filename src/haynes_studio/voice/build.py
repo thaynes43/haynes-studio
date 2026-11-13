@@ -261,13 +261,20 @@ class JobRun:
 
 def run_voice_job(job: Job, library: Library, *, draft: Callable[[], Mapping[str, Any]],
                   speech: Speech, publish: Publish, fetch: Fetch, by: Principal, now: str,
-                  minter: Minter | None = None, engine: Engine = Engine()) -> JobRun:
+                  minter: Minter | None = None, engine: Engine = Engine(),
+                  reload: Callable[[], Job] | None = None) -> JobRun:
     """Start a queued voice job (a running one continues), make its version, and
     succeed it with ``result_is_current`` from ``draft()``, the story as it is when the
     job finishes. A terminal job is refused (``job.transition``) before anything runs.
     A rule or adapter error fails the job with its code; the library is then unchanged.
     Any other exception propagates and leaves the job running, for the caller's worker
-    loop to fail."""
+    loop to fail.
+
+    ``reload()`` returns the job as stored now. It is read once the work is done: if the
+    job is no longer running (cancelled meanwhile), it is returned as it is, a version
+    already made stays in the returned library, and the board is not repointed. Without
+    ``reload`` the caller must persist the returned job only if the stored one is still
+    ``running`` (compare-and-set), or a cancel is lost."""
     if job.kind != VOICE or job.voice is None:
         raise _error("schema.invalid", "/kind", "not a voice job")
     problems = blocking(validate_job(job.to_document()))  # stock voices, signatures
@@ -278,15 +285,31 @@ def run_voice_job(job: Job, library: Library, *, draft: Callable[[], Mapping[str
         made = make_voice(running.voice, running.target_id, library, speech=speech,
                           publish=publish, fetch=fetch, by=by, now=now, minter=minter,
                           engine=engine)
-    except ContractError as error:
-        first = error.violations[0]
-        return JobRun(fail(running, first.rule, first.message, now=now), library, None, False, ())
-    except AdapterError as error:
+    except (ContractError, AdapterError) as error:
+        stored = _stored(running, reload)
+        if stored.status != RUNNING:
+            return JobRun(stored, library, None, False, ())
+        if isinstance(error, ContractError):
+            first = error.violations[0]
+            return JobRun(fail(running, first.rule, first.message, now=now), library, None,
+                          False, ())
         return JobRun(fail(running, error.code, f"{error.label}: {error.message}", now=now),
                       library, None, False, ())
+    stored = _stored(running, reload)
+    if stored.status != RUNNING:  # cancelled while it ran: the version stays, unused
+        return JobRun(stored, made.library, made.version, made.created, made.synthesized)
     current = is_current(running, draft(), made.library)
     done = succeed(running, made.version.id, is_current=current, now=now)
     return JobRun(done, made.library, made.version, made.created, made.synthesized)
+
+
+def _stored(job: Job, reload: Callable[[], Job] | None) -> Job:
+    if reload is None:
+        return job
+    stored = reload()
+    if stored.id != job.id:
+        raise _error("ref.unknown", "/id", f"reload returned {stored.id}, not {job.id}")
+    return stored
 
 
 def with_current_voice(story: Mapping[str, Any], board_id: str, version_id: str) -> dict[str, Any]:

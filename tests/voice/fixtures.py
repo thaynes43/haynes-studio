@@ -86,10 +86,11 @@ class Studio:
             self.story = with_current_voice(self.story, board_id, outcome.make_current)
         return outcome
 
-    def run(self, job, *, draft=None, now: str = NOW):
+    def run(self, job, *, draft=None, reload=None, now: str = NOW):
         run = run_voice_job(job, self.library, draft=draft or (lambda: self.story),
                             speech=self.client, publish=self.store.publish, fetch=self.store.fetch,
-                            by=BY, now=now, minter=self.minter, engine=self.engine)
+                            by=BY, now=now, minter=self.minter, engine=self.engine,
+                            reload=reload)
         self.jobs = [run.job if j.id == run.job.id else j for j in self.jobs]
         self.library = run.library
         if run.make_current:
