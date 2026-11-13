@@ -1,0 +1,338 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://haynes-studio.invalid/schemas/studio.board.v1.schema.json",
+  "title": "studio.board/v1: one board (contract sections 2, 3, 5, 6)",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "story_id",
+    "number",
+    "revision",
+    "title",
+    "lines",
+    "timing",
+    "voice",
+    "photo",
+    "cast",
+    "layout",
+    "method",
+    "seeds",
+    "cues",
+    "notes",
+    "drafted_by",
+    "origin"
+  ],
+  "properties": {
+    "schema": {
+      "const": "studio.board/v1",
+      "x-studio": {
+        "const": {
+          "rule": "schema.unsupported",
+          "message": "must be studio.board/v1"
+        }
+      }
+    },
+    "id": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/brd_id"
+    },
+    "story_id": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/sty_id"
+    },
+    "number": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+    },
+    "revision": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "lines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "speaker",
+          "text",
+          "gap_before_ms"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "studio.defs.v1.schema.json#/$defs/lin_id"
+          },
+          "speaker": {
+            "$ref": "studio.defs.v1.schema.json#/$defs/speaker"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1200
+          },
+          "gap_before_ms": {
+            "$ref": "studio.defs.v1.schema.json#/$defs/ms_or_null"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "timing": {
+      "type": "object",
+      "required": [
+        "lead_ms",
+        "tail_ms",
+        "hold_ms"
+      ],
+      "properties": {
+        "lead_ms": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/ms_or_null"
+        },
+        "tail_ms": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/tail_ms_or_null"
+        },
+        "hold_ms": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/hold_ms_or_null"
+        },
+        "duration_ms": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/duration_is_derived"
+        },
+        "frames": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/duration_is_derived"
+        },
+        "content_ms": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/duration_is_derived"
+        }
+      },
+      "additionalProperties": false
+    },
+    "duration_ms": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/duration_is_derived"
+    },
+    "voice": {
+      "type": "object",
+      "required": [
+        "style",
+        "current_version_id"
+      ],
+      "properties": {
+        "style": {
+          "enum": [
+            "cast",
+            "narrator",
+            null
+          ]
+        },
+        "current_version_id": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/asv_id_or_null"
+        }
+      },
+      "additionalProperties": false
+    },
+    "photo": {
+      "type": "object",
+      "required": [
+        "current_version_id",
+        "prompt",
+        "input_asset_version_ids"
+      ],
+      "properties": {
+        "current_version_id": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/asv_id_or_null"
+        },
+        "prompt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 1800
+        },
+        "input_asset_version_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "studio.defs.v1.schema.json#/$defs/asv_id"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "cast": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "slot",
+          "asset_version_id"
+        ],
+        "properties": {
+          "slot": {
+            "$ref": "studio.defs.v1.schema.json#/$defs/slot"
+          },
+          "asset_version_id": {
+            "$ref": "studio.defs.v1.schema.json#/$defs/asv_id"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "layout": {
+      "type": "object",
+      "required": [
+        "preset",
+        "foreground"
+      ],
+      "properties": {
+        "preset": {
+          "type": "string",
+          "minLength": 1
+        },
+        "foreground": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "method": {
+      "type": "object",
+      "required": [
+        "layer",
+        "motion"
+      ],
+      "properties": {
+        "layer": {
+          "enum": [
+            "layered",
+            "whole_frame"
+          ],
+          "x-studio": {
+            "enum": {
+              "rule": "method.unknown",
+              "message": "layer must be layered or whole_frame (D38)"
+            }
+          }
+        },
+        "motion": {
+          "enum": [
+            "s2v",
+            "i2v"
+          ],
+          "x-studio": {
+            "enum": {
+              "rule": "method.unknown",
+              "message": "motion must be s2v or i2v (D38)"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "seeds": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^(s2v:[a-z]|i2v:frame)$"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "cues": {
+      "type": "array",
+      "items": {
+        "$ref": "studio.defs.v1.schema.json#/$defs/board_cue"
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "$ref": "studio.defs.v1.schema.json#/$defs/note"
+      }
+    },
+    "drafted_by": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/principal"
+    },
+    "origin": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "source_key",
+        "legacy_revision",
+        "legacy_shot",
+        "manifest"
+      ],
+      "properties": {
+        "source_key": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/source_key"
+        },
+        "legacy_revision": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+        },
+        "legacy_shot": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+        },
+        "manifest": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "derived": {
+      "type": "object",
+      "required": [
+        "timing_state",
+        "content_ms",
+        "frames",
+        "film_start_frame",
+        "voice_state",
+        "photo_state"
+      ],
+      "properties": {
+        "timing_state": {
+          "enum": [
+            "timed",
+            "untimed"
+          ]
+        },
+        "content_ms": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/frames_or_null"
+        },
+        "frames": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/frames_or_null"
+        },
+        "film_start_frame": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/frames_or_null"
+        },
+        "voice_state": {
+          "enum": [
+            "not_needed",
+            "absent",
+            "generating",
+            "current",
+            "stale"
+          ]
+        },
+        "photo_state": {
+          "enum": [
+            "absent",
+            "generating",
+            "current",
+            "stale"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "created_at": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/timestamp"
+    },
+    "updated_at": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/timestamp"
+    }
+  },
+  "additionalProperties": false
+}

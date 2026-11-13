@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://haynes-studio.invalid/schemas/studio.method-capabilities.v1.schema.json",
+  "title": "studio.method-capabilities/v1: the method matrix (contract section 5)",
+  "type": "object",
+  "required": [
+    "schema",
+    "contract",
+    "cells",
+    "rules"
+  ],
+  "properties": {
+    "schema": {
+      "const": "studio.method-capabilities/v1",
+      "x-studio": {
+        "const": {
+          "rule": "schema.unsupported",
+          "message": "must be studio.method-capabilities/v1"
+        }
+      }
+    },
+    "contract": {
+      "type": "string",
+      "minLength": 1
+    },
+    "cells": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "required": [
+          "layer",
+          "motion",
+          "status",
+          "adapter_story",
+          "evidence"
+        ],
+        "properties": {
+          "layer": {
+            "enum": [
+              "layered",
+              "whole_frame"
+            ]
+          },
+          "motion": {
+            "enum": [
+              "s2v",
+              "i2v"
+            ]
+          },
+          "status": {
+            "enum": [
+              "buildable",
+              "unavailable"
+            ]
+          },
+          "adapter_story": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "profile": {
+            "type": "object"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false,
+        "if": {
+          "properties": {
+            "status": {
+              "const": "unavailable"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        "then": {
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "adapter_story": {
+              "type": "null"
+            }
+          }
+        },
+        "else": {
+          "required": [
+            "profile"
+          ],
+          "properties": {
+            "adapter_story": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^method\\.[a-z0-9_]+$"
+      }
+    }
+  },
+  "additionalProperties": false
+}

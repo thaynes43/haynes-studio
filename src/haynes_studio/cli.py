@@ -1,7 +1,8 @@
 """The ``studio`` command line. Standard library only; the work is in the package.
 
-Exit status: 0 valid (or the timelines match), 1 a rule failed (or the timelines
-differ), 2 a usage error or an unreadable file. Problems print one per line as
+Exit status: 0 valid (or the timelines match, or the import succeeded), 1 a rule
+failed (or the timelines differ), 2 a usage error, an unreadable file or an output
+file that already exists. Problems print one per line as
 ``<file>: rule <code> at <path>: <message>``.
 """
 
@@ -9,12 +10,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from collections.abc import Sequence
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import TextIO
 
 from haynes_studio import __version__
+from haynes_studio.canonical.ids import is_id
+from haynes_studio.canonical.legacy_import import import_manifest
+from haynes_studio.canonical.model import Principal
 from haynes_studio.errors import ContractError
+from haynes_studio.jsonio import read_json
 from haynes_studio.legacy import manifest as legacy_manifest
 from haynes_studio.legacy.speech import load_speech
 from haynes_studio.legacy.timeline import (
@@ -34,7 +42,8 @@ OK, FAILED, USAGE = 0, 1, 2
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="studio",
-        description="Haynes Studio tooling. Reads legacy PoC files; writes nothing.",
+        description="Haynes Studio tooling. Reads legacy PoC files and never writes them; "
+                    "`legacy import --out` creates new files only.",
         epilog="Reference: docs/reference/studio-cli.md",
     )
     parser.add_argument("--version", action="version", version=f"studio {__version__}")
@@ -64,6 +73,32 @@ def _parser() -> argparse.ArgumentParser:
                           help="a recorded timeline.json to compare with")
     timeline.add_argument("--json", action="store_true", help="print the result as JSON")
     timeline.set_defaults(handler=_timeline)
+
+    imp = actions.add_parser(
+        "import", help="import a manifest as one canonical story (studio.story/v1)",
+        description="Map a legacy manifest and its speech.json to one canonical story with "
+                    "boards, lines, cues, notes and layout references, and a "
+                    "studio.legacy-import/v1 map (contract section 1). IDs come from --map "
+                    "when given, so a second import returns the same IDs; otherwise they are "
+                    "minted. Never writes a legacy file.")
+    imp.add_argument("manifest", help="a titles/<slug>/manifest*.json file")
+    imp.add_argument("--speech", required=True, metavar="SPEECH",
+                     help="the speech.json recorded for that manifest")
+    imp.add_argument("--map", metavar="IMPORT_MAP",
+                     help="an existing studio.legacy-import/v1 map whose IDs to reuse")
+    imp.add_argument("--production", metavar="PRD_ID",
+                     help="the production to import into (prd_...); minted when absent and "
+                          "no --map names one")
+    imp.add_argument("--operator-iss", required=True, metavar="ISS",
+                     help="the OIDC issuer of the person running the import")
+    imp.add_argument("--operator-sub", required=True, metavar="SUB",
+                     help="that person's OIDC subject (never an email or display name)")
+    imp.add_argument("--out", metavar="DIR",
+                     help="write story.json and legacy-import.json into DIR (created if "
+                          "needed); an existing file is never overwritten")
+    imp.add_argument("--json", action="store_true",
+                     help="print {story, legacy_import} as JSON instead of a summary")
+    imp.set_defaults(handler=_import)
     return parser
 
 
@@ -127,6 +162,90 @@ def _validate(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
 
 def _count(number: int, noun: str) -> str:
     return f"{number} {noun}" + ("" if number == 1 else "s")
+
+
+# legacy import ----------------------------------------------------------------------
+
+STORY_FILE, MAP_FILE = "story.json", "legacy-import.json"
+
+
+def _now() -> str:
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _label(path: str) -> str:
+    """The manifest path recorded in the story: relative to the working directory
+    (the repository root, normally) when it lies inside it."""
+    resolved = Path(path).resolve()
+    try:
+        return resolved.relative_to(Path.cwd().resolve()).as_posix()
+    except ValueError:
+        return Path(path).as_posix()
+
+
+def _import(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
+    if args.production is not None and not is_id(args.production, "prd"):
+        print(f"studio: --production {args.production!r} is not a prd_ ID", file=err)
+        return USAGE
+    out_dir = Path(args.out) if args.out else None
+    if out_dir is not None:
+        existing = [str(out_dir / name) for name in (STORY_FILE, MAP_FILE)
+                    if (out_dir / name).exists()]
+        if existing:
+            print(f"studio: will not overwrite {', '.join(existing)}", file=err)
+            return USAGE
+    existing_map = None
+    if args.map:
+        try:
+            existing_map = read_json(args.map).document
+        except ValueError as error:
+            print(f"studio: {error}", file=err)
+            return USAGE
+    manifest = legacy_manifest.load(args.manifest)
+    result = import_manifest(
+        manifest, load_speech(args.speech), manifest_label=_label(args.manifest),
+        operator=Principal(kind="human", iss=args.operator_iss, sub=args.operator_sub),
+        now=_now(), existing=existing_map, production_id=args.production,
+        map_label=args.map or "<import map>")
+    if out_dir is not None:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        for name, document in ((STORY_FILE, result.story), (MAP_FILE, result.import_map)):
+            _create(out_dir / name, document)
+    if args.json:
+        json.dump({"story": result.story, "legacy_import": result.import_map}, out, indent=2,
+                  ensure_ascii=False)
+        out.write("\n")
+        return OK
+    story = result.story
+    boards = story["boards"]
+    derived = story["derived"]
+    out.write(
+        f"{manifest.source}: imported revision {manifest.revision} as story {story['id']} "
+        f"(production {story['production_id']}, {story['media_kind']}): "
+        f"{_count(len(boards), 'board')}, "
+        f"{_count(sum(len(b['lines']) for b in boards), 'line')}, "
+        f"{_count(sum(len(b['cues']) for b in boards), 'cue')}, "
+        f"{_count(sum(len(b['notes']) for b in boards), 'note')}, "
+        f"{_count(len(story['beds']), 'bed')}; {derived['frames']} frames "
+        f"({display_seconds(derived['frames'])} s); IDs: {result.reused} from the map, "
+        f"{result.minted} minted\n")
+    for board, number in ((b, b["number"]) for b in boards):
+        d = board["derived"]
+        out.write(f"  B{number:02d} {board['id']} shot {board['origin']['legacy_shot']}: "
+                  f"{d['frames']} frames from film frame {d['film_start_frame']}, "
+                  f"{board['method']['layer']} {board['method']['motion']}, voice "
+                  f"{d['voice_state']}, photo {d['photo_state']}\n")
+    if out_dir is not None:
+        out.write(f"wrote {out_dir / STORY_FILE} and {out_dir / MAP_FILE}\n")
+    return OK
+
+
+def _create(path: Path, document: dict) -> None:
+    """Write a new JSON file; ``FileExistsError`` if it appeared meanwhile."""
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    with os.fdopen(os.open(path, flags, 0o644), "w", encoding="utf-8") as handle:
+        json.dump(document, handle, indent=2, ensure_ascii=False)
+        handle.write("\n")
 
 
 # legacy timeline --------------------------------------------------------------------

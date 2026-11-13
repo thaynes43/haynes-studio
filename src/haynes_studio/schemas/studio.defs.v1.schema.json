@@ -1,0 +1,931 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://haynes-studio.invalid/schemas/studio.defs.v1.schema.json",
+  "title": "Shared definitions for studio.*/v1 documents (story 404)",
+  "description": "Identifiers, times, principals, cues and notes. x-studio annotations name the contract rule a failing keyword reports; anything else is schema.invalid, and an unknown field is schema.unknown_field.",
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "x-studio": {
+        "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        }
+      }
+    },
+    "prd_id": {
+      "type": "string",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "x-studio": {
+        "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        }
+      },
+      "if": {
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+      },
+      "then": {
+        "pattern": "^prd_",
+        "x-studio": {
+          "pattern": {
+            "rule": "id.type_mismatch",
+            "message": "must be a prd_ ID"
+          }
+        }
+      }
+    },
+    "sty_id": {
+      "type": "string",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "x-studio": {
+        "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        }
+      },
+      "if": {
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+      },
+      "then": {
+        "pattern": "^sty_",
+        "x-studio": {
+          "pattern": {
+            "rule": "id.type_mismatch",
+            "message": "must be a sty_ ID"
+          }
+        }
+      }
+    },
+    "brd_id": {
+      "type": "string",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "x-studio": {
+        "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        }
+      },
+      "if": {
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+      },
+      "then": {
+        "pattern": "^brd_",
+        "x-studio": {
+          "pattern": {
+            "rule": "id.type_mismatch",
+            "message": "must be a brd_ ID"
+          }
+        }
+      }
+    },
+    "lin_id": {
+      "type": "string",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "x-studio": {
+        "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        }
+      },
+      "if": {
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+      },
+      "then": {
+        "pattern": "^lin_",
+        "x-studio": {
+          "pattern": {
+            "rule": "id.type_mismatch",
+            "message": "must be a lin_ ID"
+          }
+        }
+      }
+    },
+    "cue_id": {
+      "type": "string",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "x-studio": {
+        "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        }
+      },
+      "if": {
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+      },
+      "then": {
+        "pattern": "^cue_",
+        "x-studio": {
+          "pattern": {
+            "rule": "id.type_mismatch",
+            "message": "must be a cue_ ID"
+          }
+        }
+      }
+    },
+    "nte_id": {
+      "type": "string",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "x-studio": {
+        "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        }
+      },
+      "if": {
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+      },
+      "then": {
+        "pattern": "^nte_",
+        "x-studio": {
+          "pattern": {
+            "rule": "id.type_mismatch",
+            "message": "must be a nte_ ID"
+          }
+        }
+      }
+    },
+    "asv_id": {
+      "type": "string",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "x-studio": {
+        "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        }
+      },
+      "if": {
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+      },
+      "then": {
+        "pattern": "^asv_",
+        "x-studio": {
+          "pattern": {
+            "rule": "id.type_mismatch",
+            "message": "must be a asv_ ID"
+          }
+        }
+      }
+    },
+    "fmv_id": {
+      "type": "string",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "x-studio": {
+        "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        }
+      },
+      "if": {
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+      },
+      "then": {
+        "pattern": "^fmv_",
+        "x-studio": {
+          "pattern": {
+            "rule": "id.type_mismatch",
+            "message": "must be a fmv_ ID"
+          }
+        }
+      }
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "x-studio": {
+        "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        }
+      },
+      "if": {
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+      },
+      "then": {
+        "pattern": "^run_",
+        "x-studio": {
+          "pattern": {
+            "rule": "id.type_mismatch",
+            "message": "must be a run_ ID"
+          }
+        }
+      }
+    },
+    "dlv_id": {
+      "type": "string",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "x-studio": {
+        "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        }
+      },
+      "if": {
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+      },
+      "then": {
+        "pattern": "^dlv_",
+        "x-studio": {
+          "pattern": {
+            "rule": "id.type_mismatch",
+            "message": "must be a dlv_ ID"
+          }
+        }
+      }
+    },
+    "asv_id_or_null": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "x-studio": {
+        "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        }
+      },
+      "if": {
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+      },
+      "then": {
+        "pattern": "^asv_",
+        "x-studio": {
+          "pattern": {
+            "rule": "id.type_mismatch",
+            "message": "must be a asv_ ID"
+          }
+        }
+      }
+    },
+    "fmv_id_or_null": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "x-studio": {
+        "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        }
+      },
+      "if": {
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+      },
+      "then": {
+        "pattern": "^fmv_",
+        "x-studio": {
+          "pattern": {
+            "rule": "id.type_mismatch",
+            "message": "must be a fmv_ ID"
+          }
+        }
+      }
+    },
+    "run_id_or_null": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "x-studio": {
+        "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        }
+      },
+      "if": {
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+      },
+      "then": {
+        "pattern": "^run_",
+        "x-studio": {
+          "pattern": {
+            "rule": "id.type_mismatch",
+            "message": "must be a run_ ID"
+          }
+        }
+      }
+    },
+    "dlv_id_or_null": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "x-studio": {
+        "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        }
+      },
+      "if": {
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+      },
+      "then": {
+        "pattern": "^dlv_",
+        "x-studio": {
+          "pattern": {
+            "rule": "id.type_mismatch",
+            "message": "must be a dlv_ ID"
+          }
+        }
+      }
+    },
+    "ms": {
+      "type": "integer",
+      "minimum": 0,
+      "x-studio": {
+        "type": {
+          "rule": "time.not_integer_ms",
+          "message": "must be integer milliseconds"
+        },
+        "minimum": {
+          "rule": "time.negative",
+          "message": "must not be negative"
+        }
+      }
+    },
+    "ms_or_null": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "x-studio": {
+        "type": {
+          "rule": "time.not_integer_ms",
+          "message": "must be integer milliseconds"
+        },
+        "minimum": {
+          "rule": "time.negative",
+          "message": "must not be negative"
+        }
+      }
+    },
+    "tail_ms_or_null": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 250,
+      "x-studio": {
+        "type": {
+          "rule": "time.not_integer_ms",
+          "message": "must be integer milliseconds"
+        },
+        "minimum": {
+          "rule": "time.tail_too_short",
+          "message": "must be at least 250 ms (TIME-5)"
+        }
+      }
+    },
+    "hold_ms_or_null": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 100,
+      "maximum": 120000,
+      "x-studio": {
+        "type": {
+          "rule": "time.not_integer_ms",
+          "message": "must be integer milliseconds"
+        },
+        "minimum": {
+          "rule": "time.hold_out_of_range",
+          "message": "must be 100 to 120000 ms (TIME-4)"
+        },
+        "maximum": {
+          "rule": "time.hold_out_of_range",
+          "message": "must be 100 to 120000 ms (TIME-4)"
+        }
+      }
+    },
+    "duration_is_derived": {
+      "not": {},
+      "x-studio": {
+        "not": {
+          "rule": "time.duration_is_derived",
+          "message": "a board's length is derived from its takes or hold (TIME-4, D33)"
+        }
+      }
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "positive": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "frames_or_null": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+    },
+    "slot": {
+      "type": "string",
+      "pattern": "^[a-z]$"
+    },
+    "speaker": {
+      "type": "string",
+      "pattern": "^([a-z]|narrator)$"
+    },
+    "source_key": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*:[^\\s]+$"
+    },
+    "text_line": {
+      "type": "string",
+      "minLength": 1
+    },
+    "media_kind": {
+      "enum": [
+        "short",
+        "video"
+      ]
+    },
+    "human": {
+      "type": "object",
+      "required": [
+        "kind",
+        "iss",
+        "sub"
+      ],
+      "properties": {
+        "kind": {
+          "const": "human"
+        },
+        "iss": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sub": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "principal": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "human",
+            "agent",
+            "worker",
+            "cli"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "human"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/human"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "agent"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "kind",
+              "key_id"
+            ],
+            "properties": {
+              "kind": true,
+              "key_id": {
+                "type": "string",
+                "pattern": "^key_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "worker"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "kind",
+              "worker_id"
+            ],
+            "properties": {
+              "kind": true,
+              "worker_id": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "cli"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "kind",
+              "command",
+              "operator"
+            ],
+            "properties": {
+              "kind": true,
+              "command": {
+                "type": "string",
+                "minLength": 1
+              },
+              "operator": {
+                "$ref": "#/$defs/human"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    "anchor": {
+      "type": "object",
+      "properties": {
+        "at_ms": {
+          "$ref": "#/$defs/ms"
+        },
+        "after_line_id": {
+          "$ref": "#/$defs/lin_id"
+        },
+        "offset_ms": {
+          "$ref": "#/$defs/ms"
+        }
+      },
+      "additionalProperties": false,
+      "if": {
+        "required": [
+          "at_ms"
+        ]
+      },
+      "then": {
+        "properties": {
+          "after_line_id": false,
+          "offset_ms": false
+        }
+      },
+      "else": {
+        "required": [
+          "after_line_id",
+          "offset_ms"
+        ]
+      }
+    },
+    "trim_ms": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/ms"
+        },
+        {
+          "$ref": "#/$defs/ms"
+        }
+      ],
+      "minItems": 2,
+      "items": false
+    },
+    "level": {
+      "type": "number",
+      "maximum": 0
+    },
+    "sound_cue": {
+      "type": "object",
+      "required": [
+        "id",
+        "type",
+        "asset_version_id",
+        "anchor",
+        "trim_ms",
+        "level_rms_dbfs"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/cue_id"
+        },
+        "type": {
+          "const": "sound"
+        },
+        "asset_version_id": {
+          "$ref": "#/$defs/asv_id"
+        },
+        "anchor": {
+          "$ref": "#/$defs/anchor"
+        },
+        "trim_ms": {
+          "$ref": "#/$defs/trim_ms"
+        },
+        "level_rms_dbfs": {
+          "$ref": "#/$defs/level"
+        }
+      },
+      "additionalProperties": false
+    },
+    "move_cue": {
+      "type": "object",
+      "required": [
+        "id",
+        "type",
+        "slot",
+        "anchor",
+        "duration_ms",
+        "dx_px",
+        "dy_px",
+        "angle_deg",
+        "steps"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/cue_id"
+        },
+        "type": {
+          "const": "move"
+        },
+        "slot": {
+          "$ref": "#/$defs/slot"
+        },
+        "anchor": {
+          "$ref": "#/$defs/anchor"
+        },
+        "duration_ms": {
+          "$ref": "#/$defs/ms"
+        },
+        "dx_px": {
+          "type": "number"
+        },
+        "dy_px": {
+          "type": "number"
+        },
+        "angle_deg": {
+          "type": "number"
+        },
+        "steps": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "camera_cue": {
+      "type": "object",
+      "required": [
+        "id",
+        "type",
+        "anchor",
+        "duration_ms",
+        "zoom_from",
+        "zoom_to",
+        "center_px",
+        "easing"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/cue_id"
+        },
+        "type": {
+          "const": "camera"
+        },
+        "anchor": {
+          "$ref": "#/$defs/anchor"
+        },
+        "duration_ms": {
+          "$ref": "#/$defs/ms"
+        },
+        "zoom_from": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "zoom_to": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "center_px": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "minItems": 2,
+          "items": false
+        },
+        "easing": {
+          "enum": [
+            "ease_out_cubic"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "board_cue": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "sound",
+            "move",
+            "camera"
+          ],
+          "x-studio": {
+            "enum": {
+              "rule": "cue.type_unknown",
+              "message": "board cues are sound, move or camera (contract section 6)"
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "sound"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/sound_cue"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "move"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/move_cue"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "camera"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/camera_cue"
+          }
+        }
+      ]
+    },
+    "bed_cue": {
+      "type": "object",
+      "required": [
+        "id",
+        "type",
+        "asset_version_id",
+        "level_rms_dbfs",
+        "clock"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/cue_id"
+        },
+        "type": {
+          "enum": [
+            "bed"
+          ],
+          "x-studio": {
+            "enum": {
+              "rule": "cue.type_unknown",
+              "message": "story cues are beds (contract section 6)"
+            }
+          }
+        },
+        "asset_version_id": {
+          "$ref": "#/$defs/asv_id"
+        },
+        "level_rms_dbfs": {
+          "$ref": "#/$defs/level"
+        },
+        "clock": {
+          "const": "film"
+        }
+      },
+      "additionalProperties": false
+    },
+    "note": {
+      "description": "Free-text direction. Fields other than id and text are note.text_only, checked in code.",
+      "type": "object",
+      "required": [
+        "id",
+        "text"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nte_id"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        }
+      }
+    },
+    "warning": {
+      "type": "object",
+      "required": [
+        "code",
+        "severity",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "severity": {
+          "const": "warning"
+        },
+        "message": {
+          "type": "string"
+        },
+        "build_allowed": {
+          "type": "boolean"
+        },
+        "decision": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

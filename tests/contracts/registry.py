@@ -16,9 +16,36 @@ Keys are names from ``harness.ALL_TYPES``.
 
 from __future__ import annotations
 
+from haynes_studio.canonical import (
+    validate_board,
+    validate_legacy_import,
+    validate_method_capabilities,
+    validate_production,
+    validate_story,
+    validate_story_timing,
+)
 from haynes_studio.legacy import validate_manifest
+from tests.canonical.fixtures import board_context, example_context
 from tests.contracts.harness import Validator
+
+
+def _board(document, *, context):
+    """Story 404: a board is checked against its story's cast and layouts, with the
+    voice, photo and capability facts of the public fixtures (tests/canonical/fixtures.py)."""
+    return validate_board(document, context=context, **board_context(document))
+
+
+def _story(document, *, context):
+    return validate_story(document, context=context, facts=example_context().facts)
+
 
 VALIDATORS: dict[str, Validator] = {
     "legacy.manifest": validate_manifest,  # story 378
+    # story 404
+    "production": validate_production,
+    "story": _story,
+    "board": _board,
+    "story-timing": validate_story_timing,
+    "method-capabilities": validate_method_capabilities,
+    "legacy-import": validate_legacy_import,
 }
