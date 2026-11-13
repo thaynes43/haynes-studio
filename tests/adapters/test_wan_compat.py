@@ -18,9 +18,9 @@ import types
 import pytest
 
 from haynes_studio.adapters import pinned, wan
-from haynes_studio.adapters.fakes import s2v_frames_delivered, synthetic_png
+from haynes_studio.adapters.fakes import synthetic_png
 from haynes_studio.adapters.runner import WAN_API
-from haynes_studio.adapters.wan import ImageToVideo, SpeechToVideo, WanClipClient
+from haynes_studio.adapters.wan import ImageToVideo, MemoryJournal, SpeechToVideo, WanClipClient, s2v_frames_delivered
 from tests.adapters import poc_source as poc
 from tests.support.policy import REPO_ROOT
 
@@ -44,7 +44,14 @@ class _NoRunner:
 
 
 def client():
-    return WanClipClient(_NoRunner())
+    return WanClipClient(_NoRunner(), journal=MemoryJournal())
+
+
+def poc_job_plus_graph_sha256(poc_job, graph):
+    """The one named difference from the PoC's job: ``graph_sha256`` of the graph sent
+    with it, as the last key (``recover`` proves a ledger is the request's job with it)."""
+    assert "graph_sha256" not in poc_job
+    return {**poc_job, "graph_sha256": wan.graph_sha256(graph)}
 
 
 def test_the_records_are_the_ones_this_file_describes():
@@ -131,7 +138,10 @@ def test_run_command_line_payload_and_timeout_match_poc():
     graph, job = _poc_i2v(request.prompt, request.negative, request.width, request.height, request.length,
                           request.seed, wan.upload_name(request.image_png, ".png"), request.image_sha256,
                           job_id, created)
-    assert command.stdin == json.dumps({'job': job, 'graph': graph, 'prompt': request.prompt}).encode()
+    sent = json.loads(command.stdin)
+    assert set(sent["job"]) - set(job) == {"graph_sha256"}  # exactly one key more than the PoC's job
+    assert command.stdin == json.dumps({'job': poc_job_plus_graph_sha256(job, graph), 'graph': graph,
+                                        'prompt': request.prompt}).encode()
 
 
 # The cool-idle wait ----------------------------------------------------------------------------
@@ -202,15 +212,19 @@ def test_i2v_rebuilds_every_recorded_graph_and_job(record):
     assert graph == expected_graph
     assert json.dumps(job) == json.dumps(expected_job)  # same keys, same order
     assert record["negative"] == wan.NEGATIVE
-    assert record["frames"] >= record["length"]  # E0 never delivered a short clip
+    assert record["frames"] == record["length"]  # E0 delivered exactly the frames asked for
 
 
 def test_i2v_client_passes_the_request_to_the_poc_builder():
     request = ImageToVideo(image_png=synthetic_png(seed=6), prompt="p", seed=3, story=wan.I2V_STORY,
                            width=576, height=1024, length=121)
-    expected, _ = _poc_i2v("p", wan.NEGATIVE, 576, 1024, 121, 3, wan.upload_name(request.image_png, ".png"),
-                           request.image_sha256, "d" * 32, 0.0)
+    expected, expected_job = _poc_i2v("p", wan.NEGATIVE, 576, 1024, 121, 3,
+                                      wan.upload_name(request.image_png, ".png"), request.image_sha256,
+                                      "d" * 32, 0.0)
     assert client().graph(request, "d" * 32) == expected
+    job = client().job(request, "d" * 32, 0.0)
+    assert set(job) - set(expected_job) == {"graph_sha256"}  # exactly one key more than the PoC's job
+    assert json.dumps(job) == json.dumps(poc_job_plus_graph_sha256(expected_job, expected))
 
 
 # Speech to video: the same graph and job for every recorded clip --------------------------------
@@ -291,7 +305,9 @@ def test_s2v_client_passes_the_request_to_the_poc_builder():
         "p", image, audio, request.image_sha256, hashlib.sha256(request.drive_wav).hexdigest(),
         576, 1024, 65, 501, "e" * 32, 5.0)
     assert client().graph(request, "e" * 32) == expected_graph
-    assert json.dumps(client().job(request, "e" * 32, 5.0)) == json.dumps(expected_job)
+    job = client().job(request, "e" * 32, 5.0)
+    assert set(job) - set(expected_job) == {"graph_sha256"}  # exactly one key more than the PoC's job
+    assert json.dumps(job) == json.dumps(poc_job_plus_graph_sha256(expected_job, expected_graph))
 
 
 def test_the_whole_frame_20_step_s2v_record_is_not_a_profile_this_client_builds():

@@ -28,6 +28,7 @@ from collections.abc import Iterable, Mapping
 
 from haynes_studio.adapters.pinned import PINS
 from haynes_studio.adapters.runner import Command, Completed
+from haynes_studio.adapters.wan import s2v_frames_delivered  # E0's S2V frame counts (test_wan_compat)
 
 _BY_SHA = {pin.sha256: name for name, pin in PINS.items() if pin.kind == "snippet"}
 
@@ -349,14 +350,6 @@ class _Namespace:
         self.__dict__.update(members)
 
 
-def s2v_frames_delivered(chunk_lengths: Iterable[int]) -> int:
-    """The frames an S2V graph delivers, as every E0 clip did: each chunk's latent frames
-    (``(length - 1) // 4 + 1``) plus the doubled first one, decoded (4 frames per latent
-    after the first), less the 3 that ``ImageFromBatch`` drops. 65 asked: 66; 154: 158."""
-    latents = sum((length - 1) // 4 + 1 for length in chunk_lengths) + 1
-    return 4 * (latents - 1) + 1 - 3
-
-
 class FakeWan:
     """The Wan API container (``ai/deploy/wan-video``, container ``api``) for the Wan clip
     client's tests. It **runs the pinned snippets themselves** (``wan_probe.py``,
@@ -381,6 +374,7 @@ class FakeWan:
     (foreign prompt IDs in the queue while the job runs); ``slow_reads`` (that many
     engine history reads time out first); ``slow_prompt`` (the ``/prompt`` write times
     out); ``outcome`` (``"success"``, ``"error"``, ``"no_mp4"``); ``deliver_frames``; ``deliver_size``;
+    ``deliver_fps`` (the clip is encoded at another rate than the graph's);
     ``corrupt_clip``; ``lose`` (``"timeout"``, ``"empty"``, ``"exit"``: the run's answer is
     lost after the job ran, and ``lost_state`` is what its ledger then reads, ``None`` for
     no ledger; ``"no_start"``: the command fails before the snippet starts);
@@ -403,7 +397,7 @@ class FakeWan:
                  foreign_during_job: Iterable[str] = (), slow_reads: int = 0,
                  slow_prompt: bool = False, history_polls: int = 2, outcome: str = "success",
                  deliver_frames: int | None = None, deliver_size: tuple[int, int] | None = None,
-                 corrupt_clip: bool = False,
+                 deliver_fps: int | None = None, corrupt_clip: bool = False,
                  lose: str | None = None, lost_state: str | None = "running",
                  mangle_fetch: bool = False, files: Mapping[str, bytes] | None = None):
         self.health = {'api': 'ok', 'accepting_jobs': accepting, 'active_job': active_job}
@@ -420,6 +414,7 @@ class FakeWan:
         self.outcome = outcome
         self.deliver_frames = deliver_frames
         self.deliver_size = deliver_size
+        self.deliver_fps = deliver_fps
         self.corrupt_clip = corrupt_clip
         self.lose = lose
         self.lost_state = lost_state
@@ -617,7 +612,7 @@ class FakeWan:
             frames = self.deliver_frames
         if self.deliver_size is not None:
             width, height = self.deliver_size
-        fps = int(nodes["CreateVideo"]["fps"])
+        fps = int(nodes["CreateVideo"]["fps"]) if self.deliver_fps is None else self.deliver_fps
         pictures = (np.full((height, width, 3), (i * 7) % 256, dtype=np.uint8) for i in range(frames))
         return encode_segment(pictures, frames_expected=frames, width=width, height=height, fps=fps,
                               settings=EncoderSettings())

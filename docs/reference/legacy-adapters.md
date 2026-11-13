@@ -115,7 +115,8 @@ message: `adapter.request_invalid` (names the field, before anything runs),
 `adapter.pin_mismatch`, `adapter.command_failed` (non-zero exit), `adapter.not_found`
 (an HTTP 404 inside the pod), `adapter.timeout`, `adapter.response_invalid`,
 `adapter.busy`, and for the Wan clip clients `adapter.job_failed` (the Wan job ended
-other than `succeeded`) and `adapter.competing_work` (foreign engine work seen). The package never puts the request payload, the snippet, the full
+other than `succeeded`), `adapter.competing_work` (foreign engine work seen) and
+`adapter.journal_failed` (the Wan journal could not be read exactly or written). The package never puts the request payload, the snippet, the full
 command line or an environment value into an error, and the real runner drops the raw
 `subprocess` exception (it is not kept as the error's cause or context). The only
 service text in a message is `detail`: the last 300 characters of stderr after
@@ -240,9 +241,10 @@ changed. **Source and tested with fakes only**: story
 
 ```python
 from haynes_studio.adapters.runner import SubprocessRunner
-from haynes_studio.adapters.wan import ImageToVideo, SpeechToVideo, WanClipClient
+from haynes_studio.adapters.wan import FileJournal, ImageToVideo, SpeechToVideo, WanClipClient
 
-client = WanClipClient(SubprocessRunner())  # tests: FakeRunner(FakeWan())
+client = WanClipClient(SubprocessRunner(), journal=FileJournal(run_dir / "wan-journal.jsonl"))
+# tests: WanClipClient(FakeRunner(FakeWan()), journal=MemoryJournal())
 clip = client.render(ImageToVideo(image_png=png, prompt=text, seed=101, story=STORY_URL))
 talk = client.render(SpeechToVideo(image_png=png, drive_wav=drive, board_frames=94,
                                    prompt=text, seed=501, story=STORY_URL))
@@ -263,39 +265,81 @@ request needs a drive track of `board_frames / 24` seconds to one sample (TIME-9
 Each guard stops before anything is submitted unless the row says otherwise. Tests
 are in [`test_wan_clips.py`](../../tests/adapters/test_wan_clips.py) unless a file is
 named. A mutation run removed each client-side guard in turn (42 mutations), and a
-named test failed every time (story 842's PR). The in-pod guards are the PoC's snippets
-byte for byte ([`test_wan_compat.py`](../../tests/adapters/test_wan_compat.py)), and the
-fake pod runs them.
+named test failed every time (story 842's PR). The fixes for the cross-family review
+of that PR (findings 1 to 7, marked below) were checked the same way: 44 mutations of
+the new and changed guards, each failing a named test. The in-pod guards are the PoC's
+snippets byte for byte ([`test_wan_compat.py`](../../tests/adapters/test_wan_compat.py)),
+and the fake pod runs them.
 
 | # | Guard | PoC line | Client | Test |
 |---|---|---|---|---|
 | 1 | Template and snippets pinned, checked before any command; the template's edited nodes have their classes | `poc/wan.py` 107-111 (the PoC checked after uploading, from a mutable checkout) | `_check_pins`, `i2v_graph` | `test_g10_a_changed_template_or_snippet_is_refused_before_anything_runs` |
-| 2 | One job per process (`adapter.busy`) | new (the `ImageClient` rule; the PoC ran one job per script) | `render`: `WanClipClient._lock` | `test_g1_one_job_per_process` |
-| 3 | Nothing after foreign engine work was seen, until `clear_halt()` (`adapter.competing_work`) | `poc/wan.py` 146-147, `poc/s2v.py` 137-138 (the script stops) | `_check_halt` | `test_g5_foreign_work_keeps_the_output_and_stops_further_submissions` |
-| 4 | Nothing while an earlier job may be running: its ledger must read `succeeded` or `failed`; a missing ledger or a failed read keeps it, until `clear_in_flight()` | new (scope c; services.md: read the job before resubmitting) | `_settle_in_flight` | `test_g7_*` |
-| 5 | API busy or holding: refuse at once | `poc/wan.py` 82-83 | `wait_cool` | `test_g2_a_busy_or_holding_api_is_refused_at_once` |
-| 6 | Any engine work queued or running: refuse, preserve it | 84-85 | `wait_cool` | `test_g2_queued_unknown_work_is_refused_and_preserved` |
-| 7 | Wait (reading only) until every GPU is under 62 C and at most 5 % busy, a probe every 10 s; a sample with no GPU is an error | 86-88, 91 | `wait_cool`, `probe`, `Probe.cool` | `test_g2_hot_gpus_are_waited_for_reading_only`, `test_g2_an_unreadable_probe_is_an_error_not_a_pass` |
-| 8 | Not cool after 1800 s: refuse | 77, 89-90 | `wait_cool` | `test_g2_gpus_that_never_cool_stop_before_submission` |
-| 9 | Inputs created once under `studio-e0/<16 hex>`; another file of that name is refused, never overwritten; the read-back hash must match | 29-37, 102-106; `poc/s2v.py` 21-26 | `upload`, `wan_upload.py` | `test_g8_*` |
-| 10 | The job is remembered as in flight before the run starts; only a run that never started, the admission readback's refusal, or a finished ledger read clears it | new (scope c) | `_submit`, `render` | `test_g7_*`, `test_g3_*` |
-| 11 | Admission readback of `/health` just before submission; its refusal submits nothing (`adapter.busy`) | `RUN` 43-46 | `wan_run.py`; `_submit` | `test_g3_*` |
-| 12 | The API's compute lease: busy is a failed job, never a wait (`adapter.busy`) | haynes-ops `api.py` `generate` 154-157 | `wan_run.py`; `render` | `test_g4_a_busy_lease_is_a_refusal_never_a_wait` |
-| 13 | The API's own GPU and queue checks before it submits | `api.py` 158-163 | `wan_run.py` | `test_g4_gpus_busy_at_generate_*`, `test_g4_work_queued_after_the_probe_*` |
-| 14 | A slow engine read is retried (6 tries, 5 s apart) and counted; a write never | `RUN` 47-55 | `wan_run.py` | `test_g6_*` |
-| 15 | Foreign prompt IDs seen during the job are recorded | `RUN` 56-61 | `wan_run.py` | `test_g5_*` |
-| 16 | A lost answer, timeout or non-zero exit leaves the job in flight; never resubmitted | new (scope c) | `_submit` | `test_g7_a_lost_answer_is_never_followed_by_a_resubmission` |
-| 17 | Foreign work latches the halt before the job is forgotten, whatever happens next | 146-147 | `render`, `_settle_in_flight`, `recover` | `test_g5_*`, `test_g7_a_settled_job_that_saw_foreign_work_halts` |
-| 18 | A job that did not succeed is an error (`adapter.job_failed`) | 125-126; `poc/s2v.py` 115-116 | `render` | `test_g9_a_failed_job_is_an_error` |
-| 19 | The clip is fetched read-only, its bytes equal to the pod's own hash and size and to the ledger's size | 127-128 (the hash is new) | `_fetch`, `wan_clip_fetch.py` | `test_g9_a_clip_cut_in_transfer_is_an_error`, `test_g9_a_clip_of_another_size_than_the_ledger_is_an_error` |
-| 20 | The clip decodes; fewer frames than asked or another size is an error, never a clip | 131-136 (decode); short and size are new (TIME-8) | `_check_clip` | `test_g9_a_corrupt_clip_is_an_error`, `test_g9_a_short_*`, `test_g9_a_clip_of_another_size_is_an_error` |
-| 21 | Foreign work during a job: the clip is checked and kept on the error | 146-147 | `render` | `test_g5_foreign_work_keeps_the_output_and_stops_further_submissions` |
-| 22 | A finished job whose answer or fetch was lost is collected, read-only, with `recover(request, job_id)`, never rendered again; the ledger must be this request's job | new | `recover` | `test_g11_*` |
-| 23 | No snippet deletes, moves, interrupts or overwrites; the only open is `'xb'` | snippet text | pins | `test_no_snippet_deletes_moves_interrupts_or_overwrites` |
+| 2 | The client needs a journal, loads it when made and again before each call: a job or halt an earlier process left there blocks this one as its own; a journal that is not read exactly (a malformed or incomplete line, two unsettled jobs, a settle or clear of something not set) or cannot be read is `adapter.journal_failed`; a journal job other than the one the process holds is `adapter.busy` | new (finding 6) | `__init__`, `_adopt`, `Journal._replay`, `FileJournal` | `test_g12_*` |
+| 3 | One job per process (`adapter.busy`) | new (the `ImageClient` rule; the PoC ran one job per script) | `render`: `WanClipClient._lock` | `test_g1_one_job_per_process` |
+| 4 | Nothing after foreign engine work was seen, by this process or a later one on the same journal, until `clear_halt()` (`adapter.competing_work`) | `poc/wan.py` 146-147, `poc/s2v.py` 137-138 (the script stops) | `_check_halt`, `_latch_halt` | `test_g5_foreign_work_keeps_the_output_and_stops_further_submissions`, `test_g12_the_halt_outlives_the_process` |
+| 5 | Nothing while an earlier job may be running: only its ledger reading `failed` settles it; `succeeded` makes it uncollected (row 6); a missing ledger or a failed read keeps it, until `clear_in_flight()` | new (scope c; services.md: read the job before resubmitting) | `_settle_in_flight` | `test_g7_*` |
+| 6 | Nothing while a succeeded job's clip is uncollected (a lost answer, fetch or clip check): refused at once, naming the job and `recover(request, job_id)`, until `recover` fetches and checks the clip or a person calls `clear_in_flight()` | new (finding 2) | `_settle_in_flight`, `_mark_uncollected`, `render`, `recover` | `test_g7_a_lost_fetch_keeps_the_job_uncollected_and_blocks_the_next_render`, `test_g7_a_lost_answer_whose_ledger_reads_succeeded_waits_for_recover`, `test_g7_a_clip_that_fails_its_checks_stays_uncollected_until_a_person_clears_it`, `test_g11_a_recover_whose_fetch_fails_leaves_the_job_uncollected` |
+| 7 | A probe answer without `accepting_jobs` or the `active_job` key, without both queue lists (null, missing, another type, an error body), or with other than exactly `expected_gpus` (2) GPUs is `adapter.response_invalid`, never idle | new (findings 4 and 7: the PoC read a missing list as empty and passed any GPU count) | `probe` | `test_g2_a_queue_answer_without_both_lists_is_an_error_never_idle`, `test_g2_a_health_answer_without_accepting_jobs_or_active_job_is_an_error`, `test_g2_a_sample_with_other_than_two_gpus_is_an_error` |
+| 8 | API busy or holding: refuse at once | `poc/wan.py` 82-83 | `wait_cool` | `test_g2_a_busy_or_holding_api_is_refused_at_once` |
+| 9 | Any engine work queued or running: refuse, preserve it | 84-85 | `wait_cool` | `test_g2_queued_unknown_work_is_refused_and_preserved` |
+| 10 | Wait (reading only) until every GPU is under 62 C and at most 5 % busy, a probe every 10 s; a sample with no GPU is an error | 86-88, 91 | `wait_cool`, `probe`, `Probe.cool` | `test_g2_hot_gpus_are_waited_for_reading_only`, `test_g2_an_unreadable_probe_is_an_error_not_a_pass` |
+| 11 | Not cool after 1800 s: refuse | 77, 89-90 | `wait_cool` | `test_g2_gpus_that_never_cool_stop_before_submission` |
+| 12 | Inputs created once under `studio-e0/<16 hex>`; another file of that name is refused, never overwritten; the read-back hash must match | 29-37, 102-106; `poc/s2v.py` 21-26 | `upload`, `wan_upload.py` | `test_g8_*` |
+| 13 | Cool idle again right before the run (rows 7 to 11): at once when still cool, else the same wait or refusal; the record's `cooldown_s` and `start_temps` are this probe's, `cool_before_upload` the first's | new (finding 3) | `render`, `wait_cool` | `test_g2_cool_idle_is_checked_again_right_before_the_run`, `test_g2_work_a_hold_or_heat_that_starts_during_the_uploads_stops_before_the_run` |
+| 14 | The job is journalled as in flight before the run starts (a journal that cannot be written runs nothing); only a run that never started, the admission readback's refusal, a finished ledger that reads `failed`, or a collected clip settles it | new (scope c; finding 6) | `_submit`, `_remember`, `render` | `test_g12_the_job_is_journalled_before_the_run_starts`, `test_g12_a_journal_that_cannot_be_written_runs_nothing`, `test_g7_*`, `test_g3_*` |
+| 15 | Admission readback of `/health` just before submission; its refusal submits nothing (`adapter.busy`) | `RUN` 43-46 | `wan_run.py`; `_submit` | `test_g3_*` |
+| 16 | The API's compute lease: busy is a failed job, never a wait (`adapter.busy`) | haynes-ops `api.py` `generate` 154-157 | `wan_run.py`; `render` | `test_g4_a_busy_lease_is_a_refusal_never_a_wait` |
+| 17 | The API's own GPU and queue checks before it submits | `api.py` 158-163 | `wan_run.py` | `test_g4_gpus_busy_at_generate_*`, `test_g4_work_queued_after_the_probe_*` |
+| 18 | A slow engine read is retried (6 tries, 5 s apart) and counted; a write never | `RUN` 47-55 | `wan_run.py` | `test_g6_*` |
+| 19 | Foreign prompt IDs seen during the job are recorded | `RUN` 56-61 | `wan_run.py` | `test_g5_*` |
+| 20 | A lost answer, timeout or non-zero exit leaves the job in flight; never resubmitted | new (scope c) | `_submit` | `test_g7_a_lost_answer_is_never_followed_by_a_resubmission` |
+| 21 | Foreign work latches the halt (journalled) before the job is settled, whatever happens next | 146-147 | `render`, `_settle_in_flight`, `recover` | `test_g5_*`, `test_g7_a_settled_job_that_saw_foreign_work_halts` |
+| 22 | A job that did not succeed is an error (`adapter.job_failed`) | 125-126; `poc/s2v.py` 115-116 | `render` | `test_g9_a_failed_job_is_an_error` |
+| 23 | The clip is fetched read-only, its bytes equal to the pod's own hash and size and to the ledger's size | 127-128 (the hash is new) | `_fetch`, `wan_clip_fetch.py` | `test_g9_a_clip_cut_in_transfer_is_an_error`, `test_g9_a_clip_of_another_size_than_the_ledger_is_an_error` |
+| 24 | The clip decodes, with exactly the frames (image-to-video `length`; speech-to-video `s2v_frames_delivered` for its chunks, as every E0 clip), the size and the measured rate (24 fps; 16 fps) its graph makes; anything else is an error, never a clip, and the job stays uncollected | 131-136 (decode); the rest new (TIME-8; finding 5) | `_check_clip` | `test_g9_a_corrupt_clip_is_an_error`, `test_g9_a_short_*`, `test_g9_a_clip_of_another_size_is_an_error`, `test_g9_a_clip_with_other_frames_than_its_graph_makes_is_an_error`, `test_g9_a_clip_at_another_rate_is_an_error`, `test_g9_a_clip_with_no_measured_rate_is_an_error` |
+| 25 | Foreign work during a job: the clip is checked and kept on the error | 146-147 | `render` | `test_g5_foreign_work_keeps_the_output_and_stops_further_submissions` |
+| 26 | A finished job whose answer, fetch or clip check failed is collected, read-only, with `recover(request, job_id)`, never rendered again. The ledger's `graph_sha256` must equal the graph rebuilt for `request` and `job_id` (it holds the prompt, negative, seed, size, length, input names and output prefix), and its `story`, preset, seed and inputs must match; a ledger without `graph_sha256` (every E0 job) is refused | new (finding 1) | `recover`, `job` | `test_g11_*` |
+| 27 | No snippet deletes, moves, interrupts or overwrites; the only open is `'xb'` | snippet text | pins | `test_no_snippet_deletes_moves_interrupts_or_overwrites` |
 
 `api.generate()` is the installed code the PoC ran; when its own job fails after
 submission it removes or interrupts *its own* prompt (`api.py` 211-223). That is the
 API's behaviour, kept; the client itself never cancels or interrupts anything.
+
+**What `/health` does not see.** Its `active_job` names only a job started through the
+API's own HTTP route (`POST /videos` sets it in the server process). A job this route
+starts runs `api.generate()` in its own snippet process, so `active_job` stays `null`
+while it runs, and rows 8 and 15 refuse only HTTP-route jobs and holds. What protects
+this route's jobs is the engine queue check (rows 9 and 17: the job's prompt is on
+ComfyUI's queue while it runs), the API's compute lease taken inside `generate()` (row
+16), and the journal (rows 2, 5, 6 and 14). One window stays: GPUs that heat between
+row 13's probe and the admission readback are caught only by `generate()`'s own check,
+which reads utilization and memory, not temperature. Closing it would change
+`wan_run.py`, which stays the PoC's byte for byte.
+
+### The journal
+
+`WanClipClient(runner, journal=...)` requires a `Journal`. `FileJournal(path)` is the
+one for real runs: an append-only JSON-lines file, one line per event, each written with
+one `os.write` to a descriptor opened `O_APPEND`, then `fsync` (and the directory's
+`fsync` when the line created the file). It is never rewritten, truncated or deleted; a
+missing file is an empty journal. `MemoryJournal()` keeps the same lines in memory, for
+tests. Keep the file under the run's own directory and use it from one process at a
+time: it is a record, not a lock (the API's compute lease stays the lock).
+
+| Event | Written | Keys besides `v`, `event`, `at` |
+|---|---|---|
+| `remember` | before the run command starts (`state` `in_flight`), and when its ledger reads `succeeded` (`uncollected`) | `job_id`, `state`, `graph_sha256` |
+| `settle` | when the job stops blocking: `collected` (a clip fetched and checked), `failed` (its ledger), `no_submission` (the run never started, or the admission readback refused), `cleared` (`clear_in_flight()`) | `job_id`, `outcome` |
+| `halt` | foreign engine work seen | `job_id`, `unexpected_work_seen` |
+| `clear_halt` | `clear_halt()` | `job_id` |
+
+`journal.load()` replays the lines and returns the job that blocks (`InFlightJob`: ID,
+code `journal`, state, `graph_sha256`) or `None`; `load_halt()` the halt. A new client
+loads both when it is made, so a new process behaves as the one that submitted. The
+memory and the journal change together: remembering a job writes the journal first (a
+job whose line could not be written never runs); a state change, settle or halt keeps
+the job or sets the halt in memory if its write fails. A journal that does not read
+exactly submits nothing; a person inspects it, and a new file starts empty.
 
 ### The provenance record
 
@@ -304,10 +348,13 @@ API's behaviour, kept; the client itself never cancels or interrupts anything.
 `graph_sha256` (SHA-256 of `json.dumps(graph, sort_keys=True)`), `template_sha256`
 (image-to-video), `run_snippet_sha256`, `model_files_sha256` (the graph's model files
 with the [licence register](model-licences.json)'s SHA-256; not re-hashed on the
-volume), `seed`, `width`, `height`, `fps`, `frames_requested`, `frames_delivered`,
+volume), `seed`, `width`, `height`, `fps` (as measured, which row 24 holds to the
+graph's), `frames_requested`, `frames_delivered`,
 `measured` (decoded size and rate), `inputs` (each upload's name, SHA-256 and size),
-`prompt`, `negative`, `clip_sha256`, `clip_bytes`, `cooldown_s`, `start_temps` (each
-GPU's temperature and utilization at the passing probe), `render_s`, `fetch_s`,
+`prompt`, `negative`, `clip_sha256`, `clip_bytes`, `cooldown_s` and `start_temps` (each
+GPU's temperature and utilization at the passing probe right before the run),
+`cool_before_upload` (the first passing probe's `cooldown_s` and `start_temps`; `null`
+for a recovered clip), `render_s`, `fetch_s`,
 `wall_s`, the job's `created`, `started` and `finished` times, `admission_readback_at`,
 `engine_read_retries`, `poll_misses`, `unexpected_work_seen`, `telemetry_tail` (last
 three GPU samples), `peak_gpu_mib`, `recovered`, `at`; for speech-to-video also `method`, `chunks`,
@@ -317,8 +364,14 @@ clip-source interfaces of stories 426 and 427, `WanClip` exposes `engine`, `job_
 
 ### Differences from the PoC
 
-- After a lost answer or a failed fetch, `recover(request, job_id)` collects a finished
-  job's clip read-only; the PoC stopped and a person fetched it.
+- The job handed to `api.generate()` is the PoC's plus one key, `graph_sha256` (the
+  SHA-256 of the graph sent with it). The PoC already stored fields of its own on the
+  job (`reference_image`, `story`, `live_admission_readback`); the API saves the whole
+  job, so the ledger keeps it. The compatibility tests hold the job to exactly the
+  PoC's plus this key.
+- After a lost answer or a failed fetch or clip check, `recover(request, job_id)`
+  collects a finished job's clip read-only, once the ledger's `graph_sha256` and story
+  match the request; the PoC stopped and a person fetched it.
 - The client returns bytes; writing the clip create-only, its first and last frame
   PNGs and a records file is the caller's job (`render` in the PoC did it).
 - The graph and the pins are checked before anything runs; the PoC read the template
@@ -326,11 +379,18 @@ clip-source interfaces of stories 426 and 427, `WanClip` exposes `engine`, `job_
 - The fetch snippet takes the job ID as an argument (the PoC built the code around
   it) and states the SHA-256 and size it read; the client checks both and the
   ledger's `bytes`.
-- Short, wrong-size, undecodable and cut clips are errors (the PoC wrote whatever came).
-- A probe with no GPU sample is an error (the PoC's `all()` passed it).
+- A clip whose frame count, size or measured rate is not exactly what its graph makes,
+  an undecodable clip and a cut transfer are errors (the PoC wrote whatever came).
+- A probe with other than two GPUs (none included: the PoC's `all()` passed it),
+  without both queue lists, or without `accepting_jobs` or the `active_job` key is an
+  error (the PoC read a missing list or key as idle).
+- Cool idle is probed twice, before the uploads and right before the run (the PoC
+  probed once, before the uploads).
 - Foreign work in a failed job latches the halt as well (the PoC stopped at the failure).
-- A job left in flight, the halt and the one-job lock are process state, as in
-  `ImageClient`; the PoC stopped its script instead.
+- The one-job lock is process state, as in `ImageClient`. The job that blocks (in
+  flight, or succeeded with its clip uncollected) and the halt are process state written
+  through to a journal file, so a later process inherits them; the PoC stopped its
+  script instead.
 - Probe, fetch and job reads send empty stdin (the PoC's `remote()` inherited it).
 - `story` comes from the request; speech-to-video uses `board_frames` and TIME-9
   (`poc/s2v.py` with pad 0) instead of `--pad-s`; only the lightning profile is built
@@ -348,32 +408,44 @@ cleanup of its own prompt), on a pod clock where a timed-out engine read takes t
 every E0 clip did, `s2v_frames_delivered`). It can be busy or holding, hold only at the
 admission readback, hold the lease, run hot or busy GPUs, queue foreign work before or
 during the job, time out reads or the `/prompt` write, fail, deliver short, odd-sized
-or corrupt clips, lose the run's answer (timeout, empty, non-zero exit, never started)
-and cut a fetch. It records every run payload, graph submitted, engine call and volume
-write.
+or corrupt clips, lose the run's answer (timeout, empty, non-zero exit, never started),
+encode a clip at another rate (`deliver_fps`) and cut a fetch. It records every run
+payload, graph submitted, engine call and volume write. Speech-to-video frame counts
+come from `wan.s2v_frames_delivered`, the client's own exact rule, which the
+compatibility tests hold to all 11 E0 speech clips.
 
 ### Before the first live job (story 428)
 
 Run these read-only checks with the coordinator watching, then one job:
 
+0. Construct the client with `journal=FileJournal(<the run's own directory>/wan-journal.jsonl)`,
+   never `MemoryJournal`, and keep that path for every later call of the run.
 1. `git -C ~/repos/haynes-ops fetch` and check that
    `kubernetes/main/apps/ai/wan-video/app/workflow.json` still hashes to
    `88fe79ad...136b` and that `api.py` still has `acquire_compute`, `gpu_sample`,
-   `engine`, `save` and `generate(job, prompt, lease=None)` with the checks in rows 11
-   and 12 (last changed in `429473c8`, 2026-11-04). A change there is a stop.
+   `engine`, `save` and `generate(job, prompt, lease=None)` with the checks in rows 16
+   and 17, that `save` still writes the whole job and `GET /videos/<id>` still returns it
+   (row 26 needs `graph_sha256` back), and that `/health`'s `active_job` is still set
+   only by `POST /videos` (last changed in `429473c8`, 2026-11-04). A change there is a
+   stop.
 2. `kubectl -n ai get deploy wan-video` is ready with containers `api`, `app`, `foley`,
    and `/config/video/api.py` in the `api` container is the haynes-ops file.
 3. One `client.probe()`: `accepting_jobs` true, no active job, empty engine queue,
    exactly the two approved GPU UUIDs, temperatures and utilization read sensibly.
 4. Free space on PVC `ai/wan-video` (80 Gi, no retention) for the inputs and clips.
-5. `WanClipClient.in_flight()` and `halted()` are `None` in the process that will run.
+5. `WanClipClient.in_flight()` and `halted()` are `None` once the client is made (it
+   loads the journal).
 6. Run one `ImageToVideo` at 576x1024 and 121 frames: check the record (121 frames
-   delivered, 576x1024, `engine_read_retries`, no `unexpected_work_seen`), then read
-   `/videos/<job_id>` and confirm the ledger shows `succeeded` with the same `bytes`.
+   delivered, 576x1024, `fps` 24 as measured, `cool_before_upload`,
+   `engine_read_retries`, no `unexpected_work_seen`), then read `/videos/<job_id>` and
+   confirm the ledger shows `succeeded` with the same `bytes` and `graph_sha256`, and the
+   journal ends with that job's `settle collected` line.
 7. Only then one `SpeechToVideo`, on a board of at most one chunk first.
 
-If any call fails, stop and read `/videos/<job_id>` before anything else; a finished
-job's clip is collected with `recover(request, job_id)`; never resubmit to recover.
+If any call fails, stop and read the journal before anything else (the file, or
+`FileJournal(path).load()` and `.load_halt()`), then `/videos/<job_id>` for the job it
+names; a finished job's clip is collected with `recover(request, job_id)`; never
+resubmit to recover, and never start a new journal file to get past a blocked one.
 
 ### Proposals (story 842)
 
@@ -382,16 +454,26 @@ job's clip is collected with `recover(request, job_id)`; never resubmit to recov
   to 342 frames; the longest E0 job took 716 s of the API's 1200 s); prompts up to 4096
   characters and seeds up to 2^53 - 1 (the API's own limits on `POST /videos`); inputs
   under 20 000 000 bytes (the upload snippet's assertion).
-- **P-842-02** A job left in flight is settled only by its ledger reading `succeeded`
-  or `failed`. A missing ledger (the run may never have started) is not taken as proof
-  and needs `clear_in_flight()` after a person checks the `api` container.
+- **P-842-02** A job that blocks is settled only by its ledger reading `failed`, by
+  its clip fetched and checked (`render` or `recover`), or by `clear_in_flight()` after
+  a person checks. A ledger reading `succeeded` is not collection. A missing ledger (the
+  run may never have started) is not taken as proof and needs `clear_in_flight()` after
+  a person checks the `api` container.
 - **P-842-03** Foreign work latches a per-process halt that only `clear_halt()` lifts.
 - **P-842-04** The fetch states the SHA-256 and size it read, and the client checks
   them and the ledger's size.
-- **P-842-05** A clip with fewer frames than asked for, or of another size, is an
-  error; extra frames are kept and recorded (TIME-8 trims them).
+- **P-842-05** A clip whose frame count is not exactly what its graph makes
+  (image-to-video `length`, as every E0 clip; speech-to-video `s2v_frames_delivered`,
+  as every E0 clip, whose extra frames TIME-8 trims later), of another size, or at
+  another measured rate is an error. The measured rate of a live Wan clip is not in the
+  E0 evidence; story 428's first clip shows it.
 - **P-842-06** The upload folder and presets keep the PoC's `studio-e0` names, so the
   jobs match E0's byte for byte; renaming them is a separate change.
 - **P-842-07** `recover(request, job_id)` collects a finished job's clip after a lost
-  answer or a failed fetch, read-only, once the ledger matches the request (preset,
-  seed, input names and hashes); its record says `recovered: true`.
+  answer or a failed fetch or clip check, read-only, once the ledger matches the
+  request (`graph_sha256`, story, preset, seed, input names and hashes); its record says
+  `recovered: true`. E0 jobs, whose ledgers have no `graph_sha256`, are imported another
+  way.
+- **P-842-08** The journal is a JSON-lines file under the run's own directory, used by
+  one process at a time; it records, it does not lock. A journal that does not read
+  exactly is a stop for a person, never skipped.

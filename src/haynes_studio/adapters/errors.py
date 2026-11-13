@@ -21,6 +21,7 @@ NOT_FOUND = "adapter.not_found"
 BUSY = "adapter.busy"
 JOB_FAILED = "adapter.job_failed"  # story 842: a Wan job ended in a state other than succeeded
 COMPETING_WORK = "adapter.competing_work"  # story 842: foreign engine work seen during a job
+JOURNAL_FAILED = "adapter.journal_failed"  # story 842: the Wan journal could not be read exactly or written
 
 DETAIL_LIMIT = 300
 REDACTED = "<redacted>"
