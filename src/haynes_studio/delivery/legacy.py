@@ -27,6 +27,7 @@ incomplete validation, a frame size that is no media kind) is refused with
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
@@ -59,12 +60,16 @@ def legacy_delivery(ledger: Mapping[str, Any], validation: Mapping[str, Any], *,
     an answer (``adapter.response_invalid``)."""
     record = record_from_document(thaw(ledger), label="legacy_delivery")
     evidence = _evidence(validation, record.sha256, record.bytes)
+    try:
+        created_at = datetime.fromtimestamp(math.floor(record.created_at), UTC)
+    except (OverflowError, ValueError, OSError):
+        raise DeliveryError(LEGACY_MISMATCH, f"ledger {record.id} has a created_at no "
+                            "calendar date can hold") from None
     document = {
         "schema": DELIVERY_SCHEMA,
         "id": delivery_id,
         "run_id": run_id,
-        "created_at": datetime.fromtimestamp(int(record.created_at), UTC)
-                              .strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "created_at": created_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "store": {"adapter": ADAPTER, "writable": False},
         "master": {
             "sha256": record.sha256, "bytes": record.bytes, "media_type": MP4,

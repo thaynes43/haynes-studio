@@ -46,12 +46,13 @@ store detail beyond the store object. In order:
 2. If the run already has a completed delivery, it is returned when it holds this
    master at this frame count and kind, and nothing is written; any other master is
    `store.collision`.
-3. The master is checked by decoding it through the same descriptor
-   (`/proc/self/fd/<fd>`). Any failure is `delivery.master_invalid`, listing every
-   problem, and **nothing is written**.
+3. The master is checked by decoding the same file (`/proc/self/fd/<fd>`: a new
+   descriptor of the inode that was hashed, never the name again). Any failure is
+   `delivery.master_invalid`, listing every problem, and **nothing is written**.
 4. The proxy is encoded into a scratch folder outside the store (`workdir`, else the
    system temporary folder; removed afterwards) and checked the same way, with the
-   byte limit. A failure is `delivery.proxy_invalid`; nothing is written.
+   byte limit and exact audio length. A failure is `delivery.proxy_invalid`; nothing
+   is written.
 5. If the master's inode, size or times changed since it was hashed:
    `delivery.master_changed`; nothing is written.
 6. The master and the proxy are published (create-only, by content hash, with the
@@ -62,13 +63,16 @@ store detail beyond the store object. In order:
    and `delivery`. The store re-hashes all three before it links the record.
 
 `read_delivery(store, production_id=, run_id=)` returns the completed delivery or
-`None`. It re-hashes every file the record lists and refuses
-(`delivery.record_invalid`) a stage that is not exactly a master, a proxy and a valid
-delivery document naming those two files.
+`None`. It re-hashes every file the record lists, hashes the document bytes it parses
+against the record (at most 1 MiB, proposal), and refuses (`delivery.record_invalid`)
+a stage that is not exactly a master, a proxy and a valid delivery document naming
+those two files, or a document that is not strict JSON (including one nested too
+deeply to parse).
 
 ### Checks
 
-Every video and audio frame is decoded; nothing is taken from the header alone.
+Every video and audio frame is decoded, and the frame count, timing and audio length
+are checked as decoded as well as from the header.
 
 | Check | Master | Proxy | Source |
 |---|---|---|---|
@@ -80,14 +84,20 @@ Every video and audio frame is decoded; nothing is taken from the header alone.
 | `frame_count` | decoded = expected | same | TIME-11 |
 | `duration` | video stream = expected/24 s, within half a frame | same | TIME-11 |
 | `audio_codec`, `audio_rate` | AAC, 48 000 Hz | same | section 8, section 3 |
-| `audio_duration` | expected x 2000 samples, within 1024 | exactly expected x 2000 | TIME-11; the tolerance is a proposal |
-| `decode` | every packet decodes | same | section 8 |
+| `audio_duration` | expected x 2000 samples, recorded and decoded, within 1024 | exactly expected x 2000 | TIME-11; the tolerance is a proposal |
+| `audio_continuity` | decoded audio runs on from 0: no hole, no late start (within 1024) | same | TIME-11; proposal |
+| `decode` | every packet decodes; no frame marked corrupt | same | section 8 |
 | `bytes` | none | under `proxy_byte_limit(frames)` | P-10 |
 
 The audio tolerance: AAC in MP4 records a stream's length at the encoder's
 granularity, and the PoC cut its masters with `-t` at 4 decimals; a master made the
 PoC's way is a few samples off (`tests/delivery/test_media.py`). One AAC frame (1024
-samples, 21 ms) covers it.
+samples, 21 ms) covers it. The decoder returns whole AAC frames, so the decoded count
+may run up to one more frame of encoder padding past that.
+
+H.264 carries no checksum: some damage decodes without error (about half of the
+single-packet corruptions tried in review). The decoder's corrupt flag catches the
+rest; the SHA-256, not the decode, proves the bytes are the ones the build made.
 
 ### The proxy
 
@@ -104,7 +114,8 @@ strict (`bytes < limit`). Tests: a 60 s 1080x1920 fixture delivers once per run,
 
 ## Idempotence, interruption and races
 
-- Same master again: the completed delivery, unchanged; no store call at all.
+- Same master again: the completed delivery, unchanged. The store is only read (the
+  record and its files re-hashed); no publication step runs.
 - Interrupted at any of the 28 store steps (three blobs, then the record): no
   delivery until the record's `link()`, then a complete one. Leftovers are orphan
   blobs and `.part` files, which no reader trusts and `store doctor` lists; nothing
@@ -175,6 +186,10 @@ The validator uses the contract's codes: `schema.*`, `id.*`, `store.locator_inva
 - The master is checked and published through one descriptor; a change in place that
   keeps its size and times between the hash and the publication is caught by the
   store's expected-hash check, not before.
-- The proxy needs a few seconds of CPU per minute of video at 2 threads (about 11 s for
-  60 s of the synthetic fixture in a session pod; real pictures cost more).
+- The proxy needs a few seconds per minute of video at 2 threads: 60 s of the
+  synthetic fixture took 6.4 s and 10.2 s of CPU (1.6 cores) in a session pod; real
+  pictures cost more. PyAV's audio resampler and AAC encoder each build a libavfilter
+  graph whose thread pool starts one thread per CPU; no filter in them is
+  slice-threaded, and those threads used no CPU in that measurement. PyAV gives no way
+  to size that pool.
 - A legacy delivery's codecs come from the PoC's encoder settings, not a decode.

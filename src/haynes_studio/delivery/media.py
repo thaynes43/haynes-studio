@@ -7,7 +7,7 @@ count are measured, not read from the container's header:
 
 | Check | Expected |
 |---|---|
-| ``container`` | MP4: an ``ftyp`` box first, not a QuickTime (``qt  ``) brand |
+| ``container`` | a readable file; MP4: an ``ftyp`` box first, not a QuickTime (``qt  ``) brand |
 | ``streams`` | exactly one video and one audio stream, nothing else |
 | ``video_codec``, ``pixel_format`` | H.264, ``yuv420p`` (proposal: what phones play; the PoC's masters) |
 | ``frame_size`` | the profile's width x height |
@@ -15,9 +15,14 @@ count are measured, not read from the container's header:
 | ``frame_count`` | decoded frames equal the expected count (TIME-11) |
 | ``duration`` | the video stream lasts expected / 24 s, within half a frame (TIME-11) |
 | ``audio_codec``, ``audio_rate`` | AAC at 48 000 Hz (the mix rate, section 3) |
-| ``audio_duration`` | expected x 2000 samples, within one AAC frame of 1024 samples (proposal) |
-| ``decode`` | every packet decodes |
+| ``audio_duration`` | expected x 2000 samples, both as recorded and as decoded, within a tolerance (one AAC frame of 1024 samples for a master, proposal; 0 for the proxy, whose length is exact) |
+| ``audio_continuity`` | each decoded audio frame starts where the samples before it end, from 0, within one AAC frame (no hole, no late start) |
+| ``decode`` | every packet decodes, and the decoder marks no video frame corrupt |
 | ``bytes`` | under a limit, when the caller gives one (the proxy, P-10) |
+
+H.264 has no checksum: damage the decoder cannot see (about half of single-packet
+corruptions in a test) decodes without error. The SHA-256, not the decode, proves the
+bytes are the ones the build made.
 
 The audio tolerance is a proposal: TIME-11 makes the mix exactly ``frames x 2000``
 samples, but AAC in MP4 records the stream's length at the encoder's granularity, and
@@ -26,8 +31,12 @@ audio stream is 32 samples short).
 
 :func:`make_proxy` encodes the phone proxy from a checked master: H.264 at the
 profile's size, a capped bit rate so the size bound holds for any picture, AAC with
-exactly ``frames x 2000`` samples, ``+faststart``. Encoders and decoders use at most
-``threads`` threads (2 in session pods and tests).
+exactly ``frames x 2000`` samples, ``+faststart``. Decoders, the scaler and x264 are
+given ``threads`` threads (2 in session pods and tests). PyAV's audio resampler and its
+AAC encoder each build a libavfilter graph whose thread pool starts one thread per CPU;
+no filter in those graphs is slice-threaded, so the pool stays idle. Measured in a
+session pod: a 60 s proxy took 6.4 s and 10.2 s of CPU (1.6 cores), and the pool's
+threads used none.
 """
 
 from __future__ import annotations
@@ -39,6 +48,7 @@ from typing import Any
 
 import av
 import numpy as np
+from av.video.reformatter import VideoReformatter
 
 from haynes_studio.delivery.model import (
     AAC,
@@ -88,8 +98,8 @@ class Problem:
 @dataclass(frozen=True, slots=True)
 class MediaReport:
     """What :func:`inspect` measured, and every problem. ``frames`` is the number of
-    video frames decoded; ``audio_samples`` the audio stream's recorded length in
-    samples at its own rate."""
+    video frames decoded; ``audio_samples`` the audio stream's recorded length and
+    ``decoded_audio_samples`` the samples decoded, both at the stream's own rate."""
 
     brand: str | None
     video_codec: str | None
@@ -100,6 +110,7 @@ class MediaReport:
     frames: int
     audio_rate: int | None
     audio_samples: int | None
+    decoded_audio_samples: int
     problems: tuple[Problem, ...]
 
     @property
@@ -125,23 +136,29 @@ def _seconds(value: Fraction) -> str:
 
 
 def inspect(path: str | os.PathLike[str], *, width: int, height: int, expected_frames: int,
-            threads: int = 2, max_bytes: int | None = None) -> MediaReport:
+            threads: int = 2, max_bytes: int | None = None,
+            audio_tolerance: int = AAC_FRAME) -> MediaReport:
     """Check the MP4 at ``path`` against a delivery profile: ``width`` x ``height`` at
-    24 fps, ``expected_frames`` frames, H.264 and AAC, and (when given) strictly fewer
-    than ``max_bytes`` bytes. Every problem is reported; nothing is raised for a bad
-    file."""
+    24 fps, ``expected_frames`` frames, H.264 and AAC with ``expected_frames x 2000``
+    samples (within ``audio_tolerance``), and (when given) strictly fewer than
+    ``max_bytes`` bytes. Every problem is reported; nothing is raised for a bad or
+    unreadable file."""
     if isinstance(expected_frames, bool) or not isinstance(expected_frames, int) \
             or expected_frames < 1:
         raise ValueError(f"expected_frames must be a positive integer, got {expected_frames!r}")
     problems: list[Problem] = []
     found: dict[str, Any] = {"brand": None, "video_codec": None, "audio_codec": None,
                              "width": None, "height": None, "pixel_format": None,
-                             "frames": 0, "audio_rate": None, "audio_samples": None}
-    if max_bytes is not None:
+                             "frames": 0, "audio_rate": None, "audio_samples": None,
+                             "decoded_audio_samples": 0}
+    try:
         size = os.stat(path).st_size
-        if size >= max_bytes:
-            problems.append(Problem("bytes", f"under {max_bytes} bytes", f"{size} bytes"))
-    brand = _brand(path)
+        brand = _brand(path)
+    except OSError as error:
+        problems.append(Problem("container", "a readable file", type(error).__name__))
+        return _report(found, problems)
+    if max_bytes is not None and size >= max_bytes:
+        problems.append(Problem("bytes", f"under {max_bytes} bytes", f"{size} bytes"))
     found["brand"] = _brand_text(brand)
     if brand is None or brand == QUICKTIME_BRAND:
         problems.append(Problem("container", "MP4 (an ftyp box first, not QuickTime)",
@@ -154,7 +171,8 @@ def inspect(path: str | os.PathLike[str], *, width: int, height: int, expected_f
         return _report(found, problems)
     with container:
         _check(container, problems, found, width=width, height=height,
-               expected_frames=expected_frames, threads=threads)
+               expected_frames=expected_frames, threads=threads,
+               audio_tolerance=audio_tolerance)
     return _report(found, problems)
 
 
@@ -163,35 +181,46 @@ def _report(found: dict[str, Any], problems: list[Problem]) -> MediaReport:
 
 
 def _check(container: Any, problems: list[Problem], found: dict[str, Any], *, width: int,
-           height: int, expected_frames: int, threads: int) -> None:
+           height: int, expected_frames: int, threads: int, audio_tolerance: int) -> None:
     videos, audios = list(container.streams.video), list(container.streams.audio)
     others = len(container.streams) - len(videos) - len(audios)
     if (len(videos), len(audios), others) != (1, 1, 0):
         problems.append(Problem("streams", "one video and one audio stream",
                                 f"{len(videos)} video, {len(audios)} audio, {others} other"))
-    video = videos[0] if videos else None
-    audio = audios[0] if audios else None
-    expected_length = Fraction(expected_frames, FPS)
+    video = videos[0] if videos and videos[0].codec_context is not None else None
+    audio = audios[0] if audios and audios[0].codec_context is not None else None
+    if videos and video is None:
+        problems.append(Problem("video_codec", H264, "a codec with no decoder"))
+    if audios and audio is None:
+        problems.append(Problem("audio_codec", AAC, "a codec with no decoder"))
+    expected_samples = expected_frames * AUDIO_SAMPLES_PER_FRAME
     if video is not None:
-        _video_header(video, problems, found, width, height, expected_length)
+        _video_header(video, problems, found, width, height, Fraction(expected_frames, FPS))
     if audio is not None:
-        _audio_header(audio, problems, found, expected_frames)
+        _audio_header(audio, problems, found, expected_samples, audio_tolerance)
     if video is None:
         return
     for stream in (video, audio):
         if stream is not None:
             stream.thread_type = "AUTO"
             stream.codec_context.thread_count = threads
-    late: tuple[int, Fraction] | None = None
-    decoded_samples = 0
+    late: tuple[int, Fraction | None] | None = None
+    corrupt: int | None = None
+    gap: tuple[int, int | None] | None = None  # (samples decoded so far, the frame's start)
+    decoded = 0
     try:
         for packet in container.demux(*(s for s in (video, audio) if s is not None)):
             for frame in packet.decode():
                 if packet.stream is audio:
-                    decoded_samples += frame.samples
+                    start = None if frame.pts is None else frame.pts * frame.time_base * AUDIO_RATE
+                    if gap is None and (start is None or abs(start - decoded) >= AAC_FRAME):
+                        gap = (decoded, None if start is None else int(start))
+                    decoded += frame.samples
                     continue
                 index = found["frames"]
                 found["frames"] += 1
+                if corrupt is None and frame.is_corrupt:
+                    corrupt = index
                 if late is None:
                     at = None if frame.pts is None else frame.pts * frame.time_base
                     if at is None or abs(at - index * FRAME) >= HALF_FRAME:
@@ -199,6 +228,10 @@ def _check(container: Any, problems: list[Problem], found: dict[str, Any], *, wi
     except (av.FFmpegError, ValueError) as error:
         problems.append(Problem("decode", "every packet decodes",
                                 f"{type(error).__name__} after {found['frames']} frames"))
+    found["decoded_audio_samples"] = decoded
+    if corrupt is not None:
+        problems.append(Problem("decode", "every frame decodes undamaged",
+                                f"frame {corrupt} marked corrupt by the decoder"))
     if late is not None:
         index, at = late
         problems.append(Problem("frame_rate", f"frame {index} at {_seconds(index * FRAME)}",
@@ -206,8 +239,25 @@ def _check(container: Any, problems: list[Problem], found: dict[str, Any], *, wi
     if found["frames"] != expected_frames:
         problems.append(Problem("frame_count", f"{expected_frames} frames",
                                 f"{found['frames']} decoded"))
-    if audio is not None and decoded_samples == 0:
-        problems.append(Problem("decode", "decodable audio", "no audio samples decoded"))
+    if audio is not None and audio.codec_context.sample_rate == AUDIO_RATE:
+        _decoded_audio(problems, decoded, gap, expected_samples, audio_tolerance)
+
+
+def _decoded_audio(problems: list[Problem], decoded: int, gap: tuple[int, int | None] | None,
+                   expected: int, tolerance: int) -> None:
+    """The audio as decoded: continuous from 0 (each frame starts where the samples
+    before it end, within one AAC frame), and ``expected`` samples long within the
+    tolerance. The decoder returns whole AAC frames, so up to one frame of the
+    encoder's end padding comes on top."""
+    if gap is not None:
+        at, start = gap
+        problems.append(Problem("audio_continuity", f"audio continuous from 0: a frame at "
+                                f"sample {at}", "no timestamp" if start is None
+                                else f"a frame at sample {start}"))
+    if not expected - tolerance <= decoded < expected + tolerance + AAC_FRAME:
+        problems.append(Problem("audio_duration", f"{expected} samples decoded (within "
+                                f"{tolerance}, plus one AAC frame of padding)",
+                                f"{decoded} samples decoded"))
 
 
 def _video_header(video: Any, problems: list[Problem], found: dict[str, Any], width: int,
@@ -234,22 +284,21 @@ def _video_header(video: Any, problems: list[Problem], found: dict[str, Any], wi
             problems.append(Problem("duration", _seconds(expected_length), _seconds(length)))
 
 
-def _audio_header(audio: Any, problems: list[Problem], found: dict[str, Any],
-                  expected_frames: int) -> None:
+def _audio_header(audio: Any, problems: list[Problem], found: dict[str, Any], expected: int,
+                  tolerance: int) -> None:
     context = audio.codec_context
     found.update(audio_codec=context.name, audio_rate=context.sample_rate)
     if context.name != AAC:
         problems.append(Problem("audio_codec", AAC, str(context.name)))
     if context.sample_rate != AUDIO_RATE:
         problems.append(Problem("audio_rate", f"{AUDIO_RATE} Hz", f"{context.sample_rate} Hz"))
-    expected = expected_frames * AUDIO_SAMPLES_PER_FRAME
     if audio.duration is None or audio.time_base is None:
         problems.append(Problem("audio_duration", f"{expected} samples", "no recorded duration"))
         return
     samples = audio.duration * audio.time_base * AUDIO_RATE
     found["audio_samples"] = int(samples)
-    if abs(samples - expected) > AAC_FRAME:
-        problems.append(Problem("audio_duration", f"{expected} samples (within {AAC_FRAME})",
+    if abs(samples - expected) > tolerance:
+        problems.append(Problem("audio_duration", f"{expected} samples (within {tolerance})",
                                 f"{float(samples):.0f} samples"))
 
 
@@ -277,6 +326,7 @@ def make_proxy(source: str | os.PathLike[str], dest: str | os.PathLike[str], *, 
         audio.codec_context.thread_count = 1
         resampler = av.AudioResampler(format="fltp", layout=PROXY_AUDIO_LAYOUT, rate=AUDIO_RATE)
         sink = _AudioSink(proxy, audio, total)
+        scaler = VideoReformatter()  # one scaler, held to ``threads`` (the default is all CPUs)
         written = 0
         for packet in master.demux(video_in, audio_in):
             for frame in packet.decode():
@@ -284,8 +334,9 @@ def make_proxy(source: str | os.PathLike[str], dest: str | os.PathLike[str], *, 
                     for part in resampler.resample(frame):
                         sink.add(part.to_ndarray())
                 elif written < frames:
-                    picture = frame.reformat(width=width, height=height, format=PIXEL_FORMAT,
-                                             interpolation="AREA")
+                    picture = scaler.reformat(frame, width=width, height=height,
+                                              format=PIXEL_FORMAT, interpolation="AREA",
+                                              threads=threads)
                     picture.pts, picture.time_base = written, FRAME
                     written += 1
                     for out in video.encode(picture):

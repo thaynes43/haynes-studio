@@ -26,7 +26,14 @@ from haynes_studio.delivery import (
     validate_delivery,
 )
 from haynes_studio.stages import StageOutput, commit_stage
-from haynes_studio.store import COLLISION, LocalStore, StoreError, record_path
+from haynes_studio.store import (
+    COLLISION,
+    LocalStore,
+    StageRecord,
+    StoreError,
+    canonical_json,
+    record_path,
+)
 from tests.delivery.media import write_master
 from tests.store.helpers import (
     PRD,
@@ -251,7 +258,8 @@ def test_an_interrupted_delivery_leaves_one_complete_delivery_or_none(root, mast
 
 def _race(root, first, second):
     """Two deliveries of one run in lockstep at every store check (a barrier, no
-    sleeps), one encoder thread each so the pair stays within 2 threads."""
+    sleeps), with one decoder, scaler and encoder thread each, so the pair works on
+    about 2 threads."""
     barrier = threading.Barrier(2, timeout=60)
 
     def lockstep(step: str) -> None:
@@ -312,7 +320,6 @@ def test_a_delivery_document_that_names_other_files_is_refused(root, master, tmp
     store = LocalStore(root)
     blobs = {name: store.publish(root / getattr(delivery, name).locator, scope=PRD,
                                  media_type="video/mp4") for name in ("master", "proxy")}
-    from haynes_studio.store import StageRecord, canonical_json
     blobs["delivery"] = store.publish(canonical_json({**document, "run_id": other_run}),
                                       scope=PRD, media_type="application/json")
     store.complete_stage(StageRecord(production_id=PRD, run_id=other_run, stage=STAGE,
@@ -325,3 +332,19 @@ def test_a_delivery_document_that_names_other_files_is_refused(root, master, tmp
 def test_no_run_has_a_delivery_until_one_completes(root):
     assert read_delivery(LocalStore(root), production_id=PRD, run_id=RUN) is None
     assert os.listdir(root) == []
+
+
+@pytest.mark.parametrize("document", [b"[" * 200_000 + b"]" * 200_000, b"\xff\xfe", b"{}"],
+                         ids=["deeply-nested", "not-utf8", "empty-object"])
+def test_a_delivery_document_that_is_not_one_is_refused_never_raised(root, master, document):
+    delivery = run(LocalStore(root), master)
+    store = LocalStore(root)
+    other_run = "run_01M79V9FC00000000000000003"
+    blobs = {name: store.publish(root / getattr(delivery, name).locator, scope=PRD,
+                                 media_type="video/mp4") for name in ("master", "proxy")}
+    blobs["delivery"] = store.publish(document, scope=PRD, media_type="application/json")
+    store.complete_stage(StageRecord(production_id=PRD, run_id=other_run, stage=STAGE,
+                                     blobs=blobs))
+    with pytest.raises(DeliveryError) as caught:
+        read_delivery(store, production_id=PRD, run_id=other_run)
+    assert caught.value.code == RECORD_INVALID

@@ -25,10 +25,13 @@ def write_master(path: Path, *, frames: int, width: int = 1080, height: int = 19
                  fps: int = 24, video_codec: str = "libx264", audio_codec: str | None = "aac",
                  audio_rate: int = 48_000, audio_samples: int | None = None,
                  container: str = "mp4", noise: bool = False, seed: int = 0,
-                 threads: int = 2, long: bool = False) -> Path:
+                 threads: int = 2, long: bool = False,
+                 audio_gap: tuple[int, int] | None = None) -> Path:
     """Write a synthetic master and return its path. ``audio_samples`` defaults to
     ``frames x audio_rate / fps`` (2000 per frame at 48 kHz); ``audio_codec=None``
-    writes no audio stream."""
+    writes no audio stream. ``audio_gap`` leaves out the audio frames that start in
+    that range of samples, keeping the later frames' timestamps (a hole, or with a
+    start of 0 a late start)."""
     path = Path(path)
     if path.resolve().is_relative_to(ROOT):
         raise ValueError(f"synthetic media must be written outside the checkout: {path}")
@@ -62,6 +65,8 @@ def write_master(path: Path, *, frames: int, width: int = 1080, height: int = 19
             total = frames * audio_rate // fps if audio_samples is None else audio_samples
             size = audio.codec_context.frame_size or 1024
             for start in range(0, total, size):
+                if audio_gap is not None and audio_gap[0] <= start < audio_gap[1]:
+                    continue
                 count = min(size, total - start)
                 tone = 0.1 * np.sin(2 * np.pi * 440 * np.arange(start, start + count) / audio_rate)
                 samples = np.ascontiguousarray(np.stack([tone, tone]).astype(np.float32))

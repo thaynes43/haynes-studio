@@ -164,3 +164,11 @@ def test_bad_identifiers_are_refused():
                         verification_ref="b.json")
     assert caught.value.code == LEGACY_MISMATCH
     assert "id.type_mismatch" in str(caught.value) and "/legacy/assets_ref" in str(caught.value)
+
+
+@pytest.mark.parametrize("created_at", [1e20, -1e20, 1e300])
+def test_a_ledger_time_no_date_can_hold_is_refused(created_at):
+    ledger = {**_read("evidence-r4", "production.json"), "created_at": created_at}
+    with pytest.raises(DeliveryError) as caught:
+        _map("evidence-r4", ledger=ledger)
+    assert caught.value.code == LEGACY_MISMATCH

@@ -80,7 +80,7 @@ from haynes_studio.store.layout import check_production_id, check_run_id
 STAGE = "delivery"
 MASTER, PROXY, RECORD = "master", "proxy", "delivery"  # the stage's output names
 JSON = "application/json"
-RECORD_MAX_BYTES = 1 << 20  # a delivery document is about 1.5 KB
+RECORD_MAX_BYTES = 1 << 20  # a delivery document is about 1.5 KB (proposal)
 
 _CHUNK = 1 << 20
 
@@ -147,7 +147,7 @@ def deliver(master: os.PathLike[str], *, store: Store, production_id: str, run_i
             limit = proxy_byte_limit(expected_frames)
             proxy_report = inspect(proxy_path, width=proxy_width, height=proxy_height,
                                    expected_frames=expected_frames, threads=threads,
-                                   max_bytes=limit)
+                                   max_bytes=limit, audio_tolerance=0)
             if not proxy_report.ok:
                 raise DeliveryError(PROXY_INVALID, "the proxy made from the master failed its "
                                     "checks; nothing was published", proxy_report.problems)
@@ -210,11 +210,19 @@ def read_delivery(store: Store, *, production_id: str, run_id: str,
     if set(record.blobs) != {MASTER, PROXY, RECORD} or record.blobs[RECORD].media_type != JSON:
         raise DeliveryError(RECORD_INVALID, f"stage {STAGE!r} of {run_id} lists "
                             f"{sorted(record.blobs)}, not a master, a proxy and a delivery")
-    with store.open(record.blobs[RECORD].locator) as handle:
+    blob = record.blobs[RECORD]
+    if blob.bytes > RECORD_MAX_BYTES:
+        raise DeliveryError(RECORD_INVALID, f"the delivery document of {run_id} is "
+                            f"{blob.bytes} bytes, over {RECORD_MAX_BYTES}")
+    with store.open(blob.locator) as handle:
         data = handle.read(RECORD_MAX_BYTES + 1)
+    # The bytes parsed are the bytes the record names: hashed again after this read.
+    if (len(data), hashlib.sha256(data).hexdigest()) != (blob.bytes, blob.sha256):
+        raise DeliveryError(RECORD_INVALID, f"the delivery document of {run_id} is not the "
+                            "blob its record names")
     try:
         document = parse_strict(data.decode("utf-8"))
-    except (UnicodeDecodeError, ValueError) as error:
+    except (UnicodeDecodeError, ValueError, RecursionError) as error:
         raise DeliveryError(RECORD_INVALID, f"the delivery document of {run_id} is not strict "
                             f"JSON ({type(error).__name__})") from None
     problems = validate_delivery(document, context=READ)
