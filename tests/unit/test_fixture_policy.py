@@ -84,6 +84,48 @@ def test_redaction_hides_secret_values_and_passwords():
             "host=db password=<redacted> dbname=studio_test",
         "host=db password = 'a secret' dbname=x": "host=db password = <redacted> dbname=x",
         "https://example.invalid:8080/path": "https://example.invalid:8080/path",
+        # a password with a slash, in a URL that is not an exact environment value
+        "postgresql://u:sec/retextra@127.0.0.1/studio_test":
+            "postgresql://u:<redacted>@127.0.0.1/studio_test",
+        # conninfo quoting: doubled and escaped quotes, double quotes with a space
+        "host=db password='it''s quotedtail' dbname=x": "host=db password=<redacted> dbname=x",
+        "host=db password='it\\'s tail' dbname=x": "host=db password=<redacted> dbname=x",
+        'host=db password="my tail-secret" dbname=x': "host=db password=<redacted> dbname=x",
     }
     for text, expected in cases.items():
         assert policy.redact(text, environ) == expected
+
+
+def test_redaction_survives_a_sensitive_value_that_is_a_keyword():
+    environ = {"DB_PASSWORD": "password"}
+    clean = policy.redact("host=localhost password=SuperSecret9 dbname=studio_test", environ)
+    assert "SuperSecret9" not in clean
+    assert clean.endswith("=<redacted> dbname=studio_test")
+
+
+def test_redaction_hides_a_whole_database_url_value():
+    environ = {"STUDIO_TEST_DATABASE_URL": "postgresql://u:hunter22@db.internal/studio_test"}
+    text = "cannot reach postgresql://u:hunter22@db.internal/studio_test now"
+    assert policy.redact(text, environ) == "cannot reach <redacted> now"
+
+
+@pytest.mark.parametrize("value", ["canary\nleakXXXX", "canary\\leakXY", "it's canary-token"])
+def test_redaction_covers_the_forms_pytest_prints(value):
+    environ = {"STUDIO_FAKE_TOKEN": value}
+    lines = "\n".join(f"+ {line}" for line in value.splitlines())
+    report = f"AssertionError: assert {value!r} == 'nope'\n{lines}\nraw {value}"
+    clean = policy.redact(report, environ)
+    for piece in value.splitlines():
+        if len(piece) >= 8:
+            assert piece not in clean
+    assert repr(value)[1:-1] not in clean
+
+
+def test_checkout_guard_ignores_git_environment(tmp_path, monkeypatch):
+    root = tmp_path / "checkout"
+    root.mkdir()
+    _git(root, "init", "--quiet")
+    (root / "render.out").write_text("oops\n", encoding="utf-8")
+    for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
+        monkeypatch.setenv(name, str(tmp_path / "elsewhere"))
+    assert policy.checkout_snapshot(root) == frozenset({"?? render.out"})

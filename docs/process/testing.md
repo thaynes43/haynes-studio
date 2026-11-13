@@ -69,8 +69,13 @@ and no traceback. The plugin also redacts failure text, collection errors and ca
 output: values (8 characters or more) of environment variables whose names contain
 `TOKEN`, `SECRET`, `PASSWORD`, `API_KEY`, `DATABASE_URL` and similar, any
 `scheme://user:password@` password and any conninfo `password=` value become
-`<redacted>`. Output a test prints under `-s` is not captured, so it is not redacted.
-Never print `os.environ` or a connection string in a test.
+`<redacted>`. A value is also redacted in the forms a report prints it: escaped as
+`repr()` shows it, and line by line when it spans several lines (lines of 8 characters
+or more). Values under 8 characters are left alone, so short words in paths survive;
+do not rely on redaction for a short secret. Redaction works on the finished report, so
+text that pytest streams live is not redacted: output under `-s` or
+`--capture=tee-sys`, and live log lines under `--log-cli-level`. Never print
+`os.environ` or a connection string in a test.
 
 ## Fixture policy
 
@@ -88,10 +93,14 @@ Never print `os.environ` or a connection string in a test.
   files) when the session starts and fails the session if anything new appears by the
   end, listing each path. `__pycache__/` and `.pytest_cache/` are exempt. An ignored
   directory that already exists (`.venv/`, `web/node_modules/`, an old `/jobs/`) is
-  one entry, so files added inside it are not seen; a new directory is. The guard is
-  off when the rootdir is not the top of a git checkout; the header line
-  `studio checkout guard:` says which. Playwright writes its results to the OS temp
-  directory for the same reason.
+  one entry, so files added inside it are not seen; a new directory is. Nothing under
+  `.git/` is listed, and a second edit to a file that was already listed adds no entry.
+  The guard catches output left in the checkout by mistake; it is not a sandbox. The
+  guard is off when the rootdir is not the top of a git checkout; the header line
+  `studio checkout guard:` says which. Once it is on, a scan that cannot run when the
+  session ends fails the session, and the scan ignores every `GIT_*` variable, so a
+  test cannot point it at another repository. Playwright writes its results to the OS
+  temp directory for the same reason.
 
 ## Disposable Postgres (`db`)
 
@@ -190,7 +199,7 @@ pinned by commit SHA. The checks, by exact name:
 |---|---|
 | `source (3.11)` | `uv sync --locked`, then `uv run pytest` on Python 3.11 |
 | `source (3.12)` | the same on Python 3.12 |
-| `db` | `uv run pytest -m db --require-db` against a `postgres:16` service container |
+| `db` | `uv run pytest -m db --require-db` against a `postgres:16` service container, pinned by digest |
 | `browser` | `pnpm install --frozen-lockfile`, `pnpm typecheck`, then `pnpm test:e2e` on Chromium (headless shell) |
 | `check-links` | [`check-links.yml`](../../.github/workflows/check-links.yml): relative Markdown links |
 | `check-syntax` | [`check-syntax.yml`](../../.github/workflows/check-syntax.yml): PoC Python, title, graph and contract-example JSON |
@@ -198,3 +207,9 @@ pinned by commit SHA. The checks, by exact name:
 
 The coordinator chooses which checks are required; the Claude review
 (`claude-code-review.yml`) is advisory and never required.
+
+The Postgres image is `postgres:16@sha256:<digest>`. To refresh it, read the
+`docker-content-digest` header of
+`https://registry-1.docker.io/v2/library/postgres/manifests/16` (with an anonymous pull
+token and an `Accept` header for the OCI image index) and replace the digest in
+`tests.yml`.

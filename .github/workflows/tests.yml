@@ -58,7 +58,9 @@ jobs:
     timeout-minutes: 10
     services:
       postgres:
-        image: postgres:16
+        # postgres:16 pinned by its index digest (looked up on Docker Hub, 2026-11-13);
+        # to refresh, see docs/process/testing.md.
+        image: postgres:16@sha256:63e83b5a3dc36a917dccb76fe1bd2ac51f1ec9c1deb47ff20d4f04233bf6eae9
         env:
           POSTGRES_DB: studio_test
           # A throwaway container: trust auth means no password exists to reach the log.

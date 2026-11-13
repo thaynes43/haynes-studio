@@ -156,3 +156,44 @@ def test_session_that_writes_into_the_checkout_fails(pytester, monkeypatch):
         "*checkout guard: the session changed the checkout*",
         "*?? render.out*",
     ])
+
+
+def test_git_environment_cannot_blind_the_guard(pytester, monkeypatch):
+    import subprocess
+
+    subprocess.run(["git", "init", "--quiet", str(pytester.path)], check=True,
+                   capture_output=True)
+    # The inner test sets GIT_DIR for the rest of the process; these two lines make
+    # monkeypatch remove it again afterwards.
+    monkeypatch.setenv("GIT_DIR", "placeholder")
+    monkeypatch.delenv("GIT_DIR")
+    pytester.makepyfile(test_hides="""
+        import os
+        from pathlib import Path
+
+        def test_hides():
+            Path(__file__).with_name("leftover.txt").write_text("oops")
+            os.environ["GIT_DIR"] = "/nonexistent/git-dir"
+    """)
+    result = pytester.runpytest(*PLUGIN, "-p", "no:cacheprovider")
+    result.assert_outcomes(passed=1)
+    assert result.ret == pytest.ExitCode.TESTS_FAILED
+    result.stdout.fnmatch_lines(["*?? leftover.txt*"])
+
+
+def test_session_fails_when_the_final_scan_cannot_run(pytester, monkeypatch):
+    from tests.support import policy
+
+    answers = iter([frozenset(), None])
+    monkeypatch.setattr(policy, "checkout_snapshot", lambda root: next(answers))
+    pytester.makepyfile(test_ok="""
+        def test_ok():
+            pass
+    """)
+    result = pytester.runpytest(*PLUGIN, "-p", "no:cacheprovider")
+    result.assert_outcomes(passed=1)
+    assert result.ret == pytest.ExitCode.TESTS_FAILED
+    result.stdout.fnmatch_lines([
+        "*checkout guard: the checkout could not be checked*",
+        "*could not run git*",
+    ])

@@ -8,11 +8,13 @@
   and only those whose ``@pytest.mark.live(story=<id>)`` names that story.
 - A test that uses the db fixtures must carry the ``db`` marker (usage error
   otherwise), so it cannot fall outside both the source and the db jobs.
-- The checkout guard fails the session if it adds a file to the checkout.
+- The checkout guard fails the session if it adds a file to the checkout, or if
+  the checkout cannot be scanned when the session ends.
 - Failure text, collection errors and captured output are redacted: values of
   token, secret and database-URL variables, and passwords in URLs or conninfo,
-  never reach the log. Output a test prints under ``-s`` is not captured, so it is
-  not redacted.
+  never reach the log. Redaction works on the finished report, so text pytest
+  streams live is not redacted: output under ``-s`` or ``--capture=tee-sys``, and
+  live log lines under ``--log-cli-level``.
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ from tests.support import database, policy, synthetic
 
 _GUARD_BEFORE = pytest.StashKey[frozenset]()
 _GUARD_ADDED = pytest.StashKey[list]()
+_GUARD_SCAN_FAILED = "the end-of-session scan could not run git, so the checkout was not checked"
 _LIVE_HELP = "live: runs only with -m live --live-story=<id> (docs/process/testing.md)"
 _DB_FIXTURES = ("studio_db", "db_conn")
 MARKERS = (
@@ -121,8 +124,11 @@ def pytest_sessionfinish(session: pytest.Session) -> None:
     before = session.config.stash.get(_GUARD_BEFORE, None)
     if before is None:
         return
-    after = policy.checkout_snapshot(session.config.rootpath) or frozenset()
-    added = policy.checkout_changes(before, after)
+    after = policy.checkout_snapshot(session.config.rootpath)
+    if after is None:  # fail closed: an unreadable checkout is never "nothing changed"
+        added = [_GUARD_SCAN_FAILED]
+    else:
+        added = policy.checkout_changes(before, after)
     session.config.stash[_GUARD_ADDED] = added
     if added and session.exitstatus == pytest.ExitCode.OK:
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
@@ -132,7 +138,12 @@ def pytest_terminal_summary(terminalreporter, config: pytest.Config) -> None:
     added = config.stash.get(_GUARD_ADDED, [])
     if not added:
         return
-    terminalreporter.write_sep("=", "checkout guard: the session changed the checkout", red=True)
+    if added == [_GUARD_SCAN_FAILED]:
+        terminalreporter.write_sep("=", "checkout guard: the checkout could not be checked",
+                                   red=True)
+    else:
+        terminalreporter.write_sep("=", "checkout guard: the session changed the checkout",
+                                   red=True)
     for entry in added:
         terminalreporter.write_line(f"  {entry}")
     terminalreporter.write_line(

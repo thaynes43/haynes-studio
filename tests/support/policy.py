@@ -34,26 +34,50 @@ _SENSITIVE_NAME = re.compile(
     re.IGNORECASE,
 )
 _MIN_SECRET_LENGTH = 8
-# scheme://user:password@ -> scheme://user:<redacted>@ (a password may contain @)
-_URL_PASSWORD = re.compile(r"(?P<head>\b[a-z][a-z0-9+.-]*://[^\s/:@]*:)[^\s/]+@", re.IGNORECASE)
-# libpq conninfo: password=secret or password='a secret'
-_CONNINFO_PASSWORD = re.compile(r"(?P<head>\bpassword\s*=\s*)('[^']*'|[^\s']+)", re.IGNORECASE)
+# scheme://user:password@ -> scheme://user:<redacted>@. The password runs to the last @
+# of the token, so one that contains @ or / is covered. A URL with a port and an @ later
+# in its path loses that stretch too, which is the safe direction.
+_URL_PASSWORD = re.compile(r"(?P<head>\b[a-z][a-z0-9+.-]*://[^\s/:@]*:)\S+@", re.IGNORECASE)
+# libpq conninfo: password=secret, password='a secret' (with \' or '' inside) or
+# password="a secret"
+_CONNINFO_PASSWORD = re.compile(
+    r"""(?P<head>\bpassword\s*=\s*)(?:'(?:[^'\\]|\\.|'')*'|"[^"]*"|[^\s'"]+)""",
+    re.IGNORECASE,
+)
 REDACTED = "<redacted>"
 
 
+def _redact_patterns(text: str) -> str:
+    text = _URL_PASSWORD.sub(r"\g<head>" + REDACTED + "@", text)
+    return _CONNINFO_PASSWORD.sub(r"\g<head>" + REDACTED, text)
+
+
+def _forms(value: str) -> set[str]:
+    """The shapes a value takes in a report: as is, as repr() prints it, line by line
+    (pytest diffs print one line each), and each of those after the patterns ran."""
+    forms = {value, repr(value)[1:-1]}
+    for form in tuple(forms):
+        forms.update(line for line in form.splitlines() if len(line) >= _MIN_SECRET_LENGTH)
+    forms.update(_redact_patterns(form) for form in tuple(forms))
+    forms.discard("")
+    return forms
+
+
 def sensitive_values(environ=os.environ) -> list[str]:
-    values = {
-        value for name, value in environ.items()
-        if _SENSITIVE_NAME.search(name) and len(value) >= _MIN_SECRET_LENGTH
-    }
+    values: set[str] = set()
+    for name, value in environ.items():
+        if _SENSITIVE_NAME.search(name) and len(value) >= _MIN_SECRET_LENGTH:
+            values |= _forms(value)
     return sorted(values, key=len, reverse=True)
 
 
 def redact(text: str, environ=os.environ) -> str:
+    # Patterns first: a sensitive value that equals a keyword ("password") must not
+    # rewrite the text the patterns look for.
+    text = _redact_patterns(text)
     for value in sensitive_values(environ):
         text = text.replace(value, REDACTED)
-    text = _URL_PASSWORD.sub(r"\g<head>" + REDACTED + "@", text)
-    return _CONNINFO_PASSWORD.sub(r"\g<head>" + REDACTED, text)
+    return text
 
 
 # Tool caches that a test session may create; everything else is a new file.
@@ -63,24 +87,32 @@ _CACHE_PARTS = {"__pycache__", ".pytest_cache"}
 def checkout_snapshot(root: Path) -> frozenset[str] | None:
     """Status entries (untracked, ignored and changed) of the git checkout at root.
 
-    An ignored directory (``.venv/``, ``web/node_modules/``, an existing ``/jobs/``)
-    is one entry, so new files inside a directory that was already there are not
-    seen; a new directory is.
+    The guard catches a test that leaves output in the checkout by mistake. It is not
+    a sandbox: an ignored directory (``.venv/``, ``web/node_modules/``, an existing
+    ``/jobs/``) is one entry, so new files inside a directory that was already there
+    are not seen (a new directory is); nothing under ``.git/`` is listed; any path with
+    a ``__pycache__`` or ``.pytest_cache`` part is exempt; and a second edit to a file
+    that was already listed does not add an entry.
 
-    Returns None when root is not the top of a git checkout, so the guard is off
-    rather than guessing.
+    Returns None when root is not the top of a git checkout, or when git cannot run.
+    At session start that turns the guard off rather than guessing; at session end
+    the plugin treats it as a failure, never as "nothing changed".
+
+    git runs without any GIT_* variable, so a test that sets GIT_DIR, GIT_WORK_TREE or
+    GIT_INDEX_FILE cannot point the scan at another repository.
     """
+    env = {name: value for name, value in os.environ.items() if not name.startswith("GIT_")}
     try:
         top = subprocess.run(
             ["git", "-C", str(root), "rev-parse", "--show-toplevel"],
-            capture_output=True, text=True, check=True,
+            capture_output=True, text=True, check=True, env=env,
         ).stdout.strip()
         if Path(top).resolve() != Path(root).resolve():
             return None
         listed = subprocess.run(
             ["git", "-C", str(root), "status", "--porcelain=v1", "-z",
              "--untracked-files=all", "--ignored=matching"],
-            capture_output=True, check=True,
+            capture_output=True, check=True, env=env,
         ).stdout
     except (OSError, subprocess.CalledProcessError):
         return None
