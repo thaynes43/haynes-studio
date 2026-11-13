@@ -170,10 +170,10 @@ def test_a_reader_detects_a_damaged_blob_of_a_completed_stage(root):
     path = root / blob.locator
     path.chmod(0o644)
     plant(root, blob.locator, b"damaged")
-    assert read(store, verify=False) == record
-    with pytest.raises(StoreError) as caught:
-        read(store)
-    assert (caught.value.code, caught.value.locator) == (HASH_MISMATCH, blob.locator)
+    for verify in (False, True):  # the local ledger re-hashes by default (review finding 4)
+        with pytest.raises(StoreError) as caught:
+            read(store, verify=verify)
+        assert (caught.value.code, caught.value.locator) == (HASH_MISMATCH, blob.locator)
 
 
 def _race(root, changed_second: str | None):

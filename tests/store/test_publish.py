@@ -156,6 +156,12 @@ def test_a_directory_or_fifo_at_the_path_is_a_collision(root, kind):
     assert caught.value.code == "store.blob_missing"
 
 
+@pytest.mark.parametrize("chunk_size", [0, -1, 1.5, True])
+def test_a_chunk_size_that_is_not_a_positive_integer_is_refused(root, chunk_size):
+    with pytest.raises(ValueError):  # 0 used to publish any source as the empty blob
+        LocalStore(root, chunk_size=chunk_size)
+
+
 def test_a_directory_source_is_refused_before_any_write(root, tmp_path):
     with pytest.raises(IsADirectoryError):
         LocalStore(root).publish(tmp_path, scope="library", media_type="image/png")
@@ -283,7 +289,10 @@ def test_each_fsync_comes_before_what_depends_on_it(root, monkeypatch):
         return real_fsync(fd)
 
     def link(src, dst, **kwargs):
-        events.append(("link", os.fspath(dst)))
+        folder = kwargs.get("dst_dir_fd")  # the store links into a folder's descriptor
+        full = os.fspath(dst) if folder is None else os.path.join(
+            os.readlink(f"/proc/self/fd/{folder}"), os.fspath(dst))
+        events.append(("link", full))
         return real_link(src, dst, **kwargs)
 
     monkeypatch.setattr(os, "fsync", fsync)

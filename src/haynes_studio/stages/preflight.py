@@ -240,7 +240,11 @@ def _check_blob(ref: BlobRef, allowed: set[str], store: Store) -> tuple[str, str
     if locator.scope not in allowed:
         return LOCATOR_INVALID, (f"locator {ref.locator} is in another production's folder; "
                                  "a story reads the library and its own production")
-    state = store.verify(ref.locator, ref.sha256)
+    try:
+        state = store.verify(ref.locator, ref.sha256)
+    except OSError as error:  # unreadable (a mode, a folder's mode, an I/O error): report it
+        return BLOB_MISSING, (f"the blob at {ref.locator} cannot be read: "
+                              f"{error.strerror or type(error).__name__}")
     if state == PRESENT:
         return None
     if state == MISSING:

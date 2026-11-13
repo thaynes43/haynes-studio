@@ -5,6 +5,8 @@ asset version published into a store under ``tmp_path``."""
 from __future__ import annotations
 
 import copy
+import os
+import stat
 import time
 from collections.abc import Callable
 
@@ -222,6 +224,31 @@ def test_bytes_are_needed_except_for_stock_voices(fx):
     assert summary(fx.check(resolved=resolved)) == [(BLOB_MISSING, 7, 7, "/cues/0/asset_version_id")]
     voices = [member.voice_version_id for member in fx.story.cast]
     assert all(fx.resolved[voice] == DEFINITION_ONLY for voice in voices)
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root reads files whatever their mode")
+@pytest.mark.parametrize("locked", ["file", "folder"])
+def test_an_unreadable_blob_is_a_reported_problem_not_an_exception(fx, locked):
+    """Review finding 7: a blob (or its folder) of mode 000 is a problem for that
+    locator; the check returns its report and ``ensure_buildable`` raises
+    ``PreflightError``, never ``PermissionError``."""
+    blob = fx.resolved[SOUND_9].blobs[0]
+    target = fx.root / blob.locator if locked == "file" else (fx.root / blob.locator).parent
+    mode = stat.S_IMODE(target.stat().st_mode)
+    target.chmod(0o000)
+    try:
+        report = fx.check()
+        with pytest.raises(PreflightError) as caught:
+            ensure_buildable(fx.story, facts=fx.facts, resolved=fx.resolved, store=fx.store)
+    finally:
+        target.chmod(mode)
+    assert caught.value.report == report and not report.ok
+    mine = [p for p in report.blocking if p.locator == blob.locator]
+    assert [(p.rule, p.board_number, p.field) for p in mine] == [
+        (BLOB_MISSING, 9, "/cues/0/asset_version_id")]
+    # A locked folder may hold other blobs of the fixture too: each is reported the same way.
+    assert all(p.rule == BLOB_MISSING and "cannot be read: Permission denied" in p.message
+               for p in report.blocking)
 
 
 def test_a_story_without_embedded_boards_cannot_be_checked(fx):

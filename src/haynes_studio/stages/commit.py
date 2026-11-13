@@ -83,7 +83,9 @@ def commit_stage(store: Store, *, production_id: str, run_id: str, stage: str,
 def completed_stage(ledger: StageLedger, *, production_id: str, run_id: str, stage: str,
                     store: Store | None = None) -> StageRecord | None:
     """The stage's record if it completed, else ``None``: the only way a reader should
-    find a stage's blobs. With ``store``, every blob is re-hashed first
+    find a stage's blobs. A :class:`~haynes_studio.store.LocalStore` ledger already
+    re-hashes every blob the record lists (reading each in full). With ``store``, every
+    blob is also re-hashed through the store, for a ledger that cannot see the blobs
     (``store.blob_missing`` or ``store.hash_mismatch`` if one is not as recorded)."""
     record = ledger.stage_record(production_id, run_id, stage)
     if record is None or store is None:

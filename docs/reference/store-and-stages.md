@@ -13,6 +13,10 @@ Only the `local` adapter (the CLI and tests) is built. The installed store, NFS 
 with a Postgres ledger and a start-up probe, is story
 [434](https://work.haynesnetwork.com/work_packages/434).
 
+The target is Linux (session pods, CI, the render worker): the adapter walks folders
+with `openat` and links through `/proc/self/fd`. It needs a file system that keeps
+file modes and hard links, with `/proc` mounted.
+
 ## Modules
 
 | Module | What |
@@ -51,30 +55,43 @@ bytes. Another media type is `store.media_type_unsupported`.
 `LocalStore(root).publish(source, scope=..., media_type=..., expected_sha256=None)`
 returns a `Blob` (`sha256`, `bytes`, `media_type`, `locator`). `scope` is `"library"`
 or a production ID; `source` is bytes, a `pathlib.Path` or a binary file object (a
-plain `str` is refused). Each step of section 8 is one method, and `on_step` is
-called after each one, so a test can inject a failure there:
+plain `str` is refused).
 
-| Section 8 step | Method | `on_step` |
-|---|---|---|
-| 1. open `.staging/<random>.part` with `O_CREAT \| O_EXCL` | `_open_staging` | `open` |
-| 1. stream the bytes while hashing | `_stream` | `write` |
-| 2. `fsync` | `_sync_and_check` | `fsync` |
-| 2. check size and hash (re-read), and the expected hash | `_sync_and_check` | `check` |
-| 3. `link()` to the final path; on `EEXIST` re-hash: equal is success, different is `store.collision` | `_link` | `link` |
-| 4. unlink the staging file | `_finish` | `unlink` |
-| 4. `fsync` the final and staging directories | `_finish` | `fsync_dir` |
+Every write works on descriptors, as every read does. A publication opens the root
+once and reaches each folder below it one component at a time with
+`O_DIRECTORY | O_NOFOLLOW`, making a missing one with `mkdir` relative to its parent's
+descriptor and `fsync`ing that parent (also when another writer made the folder, so a
+blob's name is durable before a record that names it). A symbolic link or a file where
+a folder belongs is `store.collision`; it is never followed. Each step of section 8 is
+one method, and `on_step` is called after each one, so a test can inject a failure
+there:
 
-- Final paths are only ever opened `O_RDONLY | O_NOFOLLOW | O_NONBLOCK`, each folder
-  on the way opened relative to the last with `O_NOFOLLOW`, so no symbolic link in the
-  path is followed out of the store. A link, folder, FIFO or socket at a final path is
-  a collision (and `mismatch` to `verify`). Published files are mode `0444`.
-- Folders are made one at a time with `mkdir`, and the parent of every folder on the
-  way is `fsync`ed, also when another writer made the folder, so a blob's name is
-  durable before a record that names it. Something other than a folder where one
-  belongs is `store.collision`.
-- The only `unlink` is step 4's, of the store's own staging file once the final path
-  holds its bytes. A refused or interrupted publication leaves its `.part` file; the
-  doctor reports it.
+| Section 8 step | As implemented | Method | `on_step` |
+|---|---|---|---|
+| 1. open `.staging/<random>.part` with `O_CREAT \| O_EXCL` | `O_CREAT \| O_EXCL \| O_NOFOLLOW`, relative to the `.staging` descriptor; the file's and the folder's descriptors stay open until the publication ends | `_open_staging` | `open` |
+| 1. stream the bytes while hashing | before each write the file's only name must still be its `.part` in the held `.staging` (not linked or renamed elsewhere) and it must have no write bit, else `store.collision` | `_stream` | `write` |
+| 2. `fsync` | the staging descriptor | `_sync_and_check` | `fsync` |
+| 2. check size and hash, and the expected hash | re-read through the staging descriptor (`pread`), never by name | `_sync_and_check` | `check` |
+| 3. `link()` to the final path | the same name and mode check (`store.collision`), re-read the hash (`store.hash_mismatch`), then `link("/proc/self/fd/<fd>", name, dst_dir_fd=<final folder>)`: the checked inode, not a name. Afterwards the final path, walked again from the root, must be a regular file with that device and inode, else `store.collision` naming the final path and nothing further changes | `_link` | `link` |
+| 3. on `EEXIST`, re-hash the existing file | success only if it is a regular file (not a link) of the staged hash and size, with no write bit, and every other name it has is a `.part` in the store's `.staging`; else `store.collision`. It is never changed or `chmod`ed | `_adopt` | `link` |
+| 4. unlink the staging file | `unlink(name, dir_fd=<.staging>)`, only if the root's `.staging` is still the folder the publication holds and the name still names its inode; otherwise, or if the unlink fails, the name is left and a `StagingLeftoverWarning` says so (the publication succeeded) | `_finish` | `unlink` |
+| 4. `fsync` the directories | the final and staging folders' descriptors | `_finish` | `fsync_dir` |
+
+- Final paths are only ever opened `O_RDONLY | O_NOFOLLOW | O_NONBLOCK`. A link,
+  folder, FIFO or socket at a final path is a collision (and `mismatch` to `verify`).
+  Published files are mode `0444`; nothing ever `chmod`s, truncates or renames.
+- If `/proc/self/fd/<fd>` does not reach the staging descriptor's inode, publication
+  fails closed with `OSError` (`ENOTSUP`); it never falls back to linking a name.
+- `verify` and `open` raise the `OSError` of a blob they cannot read (a mode, a
+  folder's mode, a lease); the ledger and the pre-build check turn it into
+  `store.blob_missing`.
+- The only `unlink` is step 4's, of the publication's own staging name. A refused or
+  interrupted publication leaves its `.part` file; nothing tidies it, and the doctor
+  reports it. `tests/store/test_doctor.py` checks the source: one `os.unlink`, in
+  `_finish`, with `dir_fd`; a write flag only in the staging file's open; one
+  `os.link`, of `/proc/self/fd`, into a folder descriptor.
+- Cost: each published byte is read three times (hashed while streaming, re-read in
+  step 2, re-read before the link), the re-reads from the page cache.
 
 After a crash at each step (tests: `tests/store/test_publish.py`):
 
@@ -89,6 +106,70 @@ After a crash at each step (tests: `tests/store/test_publish.py`):
 A retry of the same bytes then succeeds. A crash during a retry of a published file
 changes nothing about that file (same inode, mode, mtime and bytes).
 
+### Another writer inside the root
+
+What another writer does, and what the store then does (tests:
+`tests/store/test_hostile.py`; the review of PR 46, findings 1 to 6):
+
+| When | The other writer | Result |
+|---|---|---|
+| after `check` | replaces the `.part` name with other bytes or a symbolic link | `store.collision` (the checked inode lost its name); nothing published; the swapped-in entry stays in `.staging`; a later publish of the right bytes succeeds |
+| after `check` | makes the `.part` writable and rewrites it | `store.collision` (write bit), or `store.hash_mismatch` if it restored the mode (re-read before the link) |
+| during the stream | hard-links or renames the `.part` onto the final path (a blob's, or a record's, which is known in advance) | `store.collision` at the store's next check, before its next write: the final name shows only what was written up to then (nothing, if before the first write); a retry is `store.collision`; the doctor lists a blob as `damaged`, readers refuse a record (`store.record_invalid`) |
+| after the last write | renames the `.part` onto the final path | `store.collision` at the name check before the link; nothing is linked |
+| in the last gap before `link` | removes the `.part` | `store.collision` (`link` finds no file); nothing is linked |
+| just before `link` | swaps the final folder for a link out of the root | the link lands in the store's own folder (moved aside); the walk after it fails: `store.collision`, `.part` kept, nothing outside |
+| just after `link` | replaces the final name | `store.collision` naming the final path; `.part` kept |
+| just before the `.part` is created | swaps `.staging` for a link out of the root | the `.part` is made in the store's own folder (moved aside); its unlink is skipped with a warning; nothing outside |
+| after `link` | swaps `.staging` for a link, or replaces the `.part` name | no unlink, a warning; the other file is untouched |
+| after `link` | makes `.staging` read-only | the unlink fails: a warning, the publication stands |
+| before the publish | leaves a writable file, or one with another name (outside the root, or in the store but not a `.part` in `.staging`), at the final path | `store.collision`; the file is not changed |
+| after a record's blob checks (`record:check`) | removes a blob, or replaces it with other bytes of the same size | `store.blob_missing` or `store.hash_mismatch`; no record |
+| any time | plants other bytes of the recorded size at a blob's locator | `complete_stage` and `stage_record`: `store.hash_mismatch`; doctor: `damaged` and `mismatched` |
+| any time | makes a blob or its folder unreadable | the pre-build check reports `store.blob_missing` for that locator; the doctor lists it in `unreadable` |
+
+Threat model: another writer with write access to the folders inside the root can
+create, remove, rename, link, `chmod` or rewrite any entry there at any moment. It
+cannot make the store follow a symbolic link, write or remove an entry outside the
+folders the store opened, remove any name but a publication's own staging name, or get
+a file linked or recorded other than the inode the store hashed; it can still change
+that inode's bytes in place (`chmod`, then write) after the store's last read of it,
+which only a re-hash finds.
+
+Limits that remain:
+
+- Every check is a moment: one system call separates it from the call it guards (the
+  name and mode checks and re-read before the link, the blob checks before a record's
+  link, the name check before the unlink). A writer that renames a file onto a
+  `.part` name between that name check and the unlink loses that entry, which is in
+  `.staging`; nothing else can be removed.
+- The `.part` has a name from step 1 (section 8 requires it), so a writer can hard-link
+  or rename it onto a final path while the bytes are written. The final name then shows
+  what the store wrote up to its next check (at most one chunk after the link); the
+  store stops, refuses, and the path stays refused for the real bytes until a person
+  removes the file (D17). Only an unnamed staging file (`O_TMPFILE`) would close this,
+  and section 8 does not use one.
+- A writer that moves a folder the publication holds out of the root (on the same file
+  system) moves the link or the `.part` with it. The store notices and fails, or keeps
+  the `.part` with a warning, but cannot undo it.
+- On `EEXIST`, a read-only regular file of the right bytes with no other name is
+  adopted, whoever wrote it; its owner is not checked. A writer that races a `.part`
+  name into `.staging` and out again around the count can get one outside name past it.
+- The same rule refuses honest second names: a hard-link dedupe (`hardlink`, `rdfind`)
+  across the store, a hard-link backup of it (`cp -al`, rsnapshot), or a leftover
+  `.part` moved out of `.staging`. Publishing those bytes again, or retrying a
+  completed stage's commit, is then `store.collision` and leaves a `.part` each time
+  (nothing tidies it, D17). Back the store up by copying, not by hard links. The
+  doctor lists such files as `foreign`.
+- A writer running as the store's user can `chmod` a file and open it for writing at
+  any time (a `.part` from its creation on, or a published file) and write through that
+  descriptor after the store's last read: the mode and name checks cannot see an open
+  descriptor. `verify`, `stage_record` (by default), the pre-build check and the doctor
+  find it by re-hashing; only running the store as its own user would prevent it.
+- The root itself is opened by its path once per operation (one publication; one
+  `complete_stage`, which holds it across its blob checks and the record). A writer
+  that can rename the root, from its parent folder, is outside this model.
+
 ## Stage commit
 
 `commit_stage(store, production_id=, run_id=, stage=, outputs={name: StageOutput(source,
@@ -96,7 +177,23 @@ media_type, expected_sha256)})` checks the IDs, the stage name, the output names
 media types before writing anything, publishes every output into the production's
 folder in name order, then writes one completion record through the ledger
 (`store.complete_stage`). Readers use `completed_stage(ledger, ...)`, which returns
-`None` until the record exists; with `store=` it re-hashes every blob first.
+`None` until the record exists.
+
+- `complete_stage` re-hashes every blob the record lists through the descriptor walk:
+  each must be a regular file of its recorded hash and size (`store.blob_missing` if
+  absent or unreadable, `store.hash_mismatch` otherwise). Immediately before the
+  record's `link`, each must still be a regular file of that size with the same device
+  and inode it hashed. Otherwise the store links no record. The checks and the record's
+  publication share one root descriptor.
+- `LocalStore.stage_record(..., verify=True)` refuses a record whose blob is absent
+  (`store.blob_missing`) or not a regular file of the recorded size
+  (`store.hash_mismatch`). With `verify` (the default) it also re-hashes every blob,
+  which reads all of the stage's outputs on every call: about the cost of reading the
+  files once. `verify=False` costs one `fstat` per blob and does not prove the bytes;
+  use it only to list.
+- `completed_stage(..., store=)` re-hashes every blob again through the store, for a
+  ledger that cannot see the blobs (the product's Postgres ledger, story 434). With
+  the local ledger it is already done by default.
 
 The record (`studio.stage-record/v1`, a local-adapter file) is canonical JSON of
 `production_id`, `run_id`, `stage` and `blobs` (`name` to `sha256`, `bytes`,
@@ -106,9 +203,7 @@ the first is published:
 
 - Any crash before the record's `link()` leaves no record: only orphan blobs and
   staging leftovers, which no reader trusts. From the record's `link()` on, the record
-  exists and every blob it names is already published. `complete_stage` also refuses a
-  record that names a blob that is not a published file of its size
-  (`store.blob_missing`).
+  exists and every blob it names is already published with its recorded hash.
 - A retried or concurrent commit of the same outputs succeeds and returns the same
   record. One with other outputs fails `store.collision` and the finished record is
   unchanged; its new blobs stay as orphans.
@@ -125,9 +220,13 @@ threads in lockstep at every `check` step (a barrier, no sleeps).
 `.staging/`, including one being written right now: check its age before removing
 it), `unexpected` (files and links not in the layout; empty folders are not listed),
 `broken_records` (unreadable or malformed records), `dangling` (a record naming a
-missing blob; publication order makes this impossible) and `unreadable` (folders it
-could not list). It removes, moves and repairs nothing; removing a leftover is a user
-action (D17).
+missing blob; publication order makes this impossible), `damaged` (a blob whose bytes
+do not hash to its name), `mismatched` (a record naming a blob that is there but not
+its recorded hash and size), `foreign` (a blob or record file with a write bit, or a
+name outside `.staging`: publishing it again is `store.collision`) and `unreadable`
+(folders it could not list, blobs it could not read). It walks the tree through descriptors without following a link, and
+reads every blob in full. It removes, moves and repairs nothing; removing a leftover
+is a user action (D17).
 
 ## Pre-build check
 
@@ -143,7 +242,9 @@ ones first, then by the board's place in `board_order`, then field:
    build reads is at a valid locator in the library or the story's own production
    (`store.locator_invalid`) and present (`store.blob_missing`) with its hash
    (`store.hash_mismatch`, re-hashed). Only the story's cast voices and narrator voice
-   may resolve without bytes.
+   may resolve without bytes. A blob that cannot be read (its mode, its folder's mode,
+   an I/O error) is a `store.blob_missing` problem for that locator; the check never
+   raises it.
 
 Each `Problem` has `rule`, `status`, `path` (in the story document), `board_id`,
 `board_number`, `legacy_shot` (from the board's `origin`), `field` (in the board),
@@ -158,10 +259,10 @@ call. On the nine-board r4 fixture it takes about 20 ms; the store is only read.
 | Code | Status | Source |
 |---|---|---|
 | `store.locator_invalid` | invalid | contract section 8; also a `sha256` or `expected_sha256` that is not 64 lower-case hex digits, since it cannot name a locator |
-| `store.collision` | failed | contract section 8 |
+| `store.collision` | failed | contract section 8; also a staging file another writer linked, removed or made writable, and a final name or folder replaced during a publication |
 | `id.malformed`, `id.type_mismatch` | invalid | contract section 2 (production and run IDs) |
-| `store.hash_mismatch` | failed | **proposal**: bytes are not the expected hash |
-| `store.blob_missing` | failed | **proposal**: no file where a record or story needs one |
+| `store.hash_mismatch` | failed | **proposal**: bytes are not the expected hash and size, or what a record names is not a regular file |
+| `store.blob_missing` | failed | **proposal**: no file where a record or story needs one (in the pre-build check, also one that cannot be read) |
 | `store.record_invalid` | invalid | **proposal**: a stage name, output set or record file is malformed |
 | `store.media_type_unsupported` | invalid | **proposal**: no extension for the media type |
 | `asset.unresolved` | invalid | **proposal**: the library did not resolve a referenced version |

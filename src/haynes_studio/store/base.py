@@ -67,8 +67,11 @@ class StageLedger(ABC):
     def complete_stage(self, record: StageRecord) -> StageRecord:
         """Record a stage as complete, create-only. The same record again succeeds; a
         different record for that stage is ``store.collision`` and changes nothing.
-        Every blob it lists must already be published."""
+        Every blob it lists must already be published with its recorded hash and size."""
 
     @abstractmethod
     def stage_record(self, production_id: str, run_id: str, stage: str) -> StageRecord | None:
-        """The completed stage's record, or ``None`` if the stage has not completed."""
+        """The completed stage's record, or ``None`` if the stage has not completed. A
+        ledger that can see the blobs (the local adapter) refuses a record whose blob
+        is missing or not as recorded; for one that cannot, pass the store to
+        :func:`haynes_studio.stages.completed_stage`."""
