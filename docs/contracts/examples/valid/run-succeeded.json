@@ -329,8 +329,9 @@
       "threshold": 0.8,
       "override": {
         "by": {
-          "kind": "agent",
-          "key_id": "key_01M79V9FC00000000000000002"
+          "kind": "human",
+          "iss": "https://authentik.example.invalid/application/o/haynes-studio/",
+          "sub": "example-subject-tom"
         },
         "reason": "Lettering stays on the jacket by eye; low score from creasing (findings-s2v.md)."
       }
