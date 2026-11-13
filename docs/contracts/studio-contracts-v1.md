@@ -107,7 +107,8 @@ does not pair with the manifest's lines) and `legacy.timeline_mismatch` (a compu
 timeline that differs from a recorded `timeline.json` by more than TIME-12 allows). The
 import (story [404](https://work.haynesnetwork.com/work_packages/404)) adds
 `legacy.import_map_mismatch`: an existing import map from another title, draft revision,
-production, manifest file or `speech.json`. An import map may also carry, as optional
+production, media kind, manifest file or `speech.json`; the importer also reports it for
+a manifest whose frame size matches no media kind. An import map may also carry, as optional
 fields, a `source_key` per board and line, the `cues` and `notes` of each board, and
 `story_records` (beds and asset versions), so that a second import returns every
 identifier of the first.
