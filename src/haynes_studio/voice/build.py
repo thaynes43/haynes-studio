@@ -385,11 +385,15 @@ def with_current_voice(story: Mapping[str, Any], board_id: str, version_id: str)
     return out
 
 
-def voice_facts(library: Library, story: Mapping[str, Any], jobs: Iterable[Job] = ()) -> Facts:
+def voice_facts(library: Library, story: Mapping[str, Any], jobs: Iterable[Job] = (), *,
+                current_engine: str | None = None) -> Facts:
     """Story 404's facts for this story: the library's measured takes and currency
     (VOICE-5), plus every board with a voice or photo job in flight (VOICE-6:
-    ``queue_run`` refuses it as ``asset.generating``)."""
-    return library.facts(story).merged(generating(jobs))
+    ``queue_run`` refuses it as ``asset.generating``). ``current_engine`` (proposal,
+    story 849) passes to :meth:`Library.facts`: a board voice signed with another
+    engine is stale (VOICE-9); ``Engine().signing_name`` is the engine a request signs
+    with today."""
+    return library.facts(story, current_engine=current_engine).merged(generating(jobs))
 
 
 __all__ = [

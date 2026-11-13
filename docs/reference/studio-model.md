@@ -23,6 +23,11 @@ normative form; the contract's examples are their fixtures.
 | `studio.legacy-import/v1` | `studio.legacy-import.v1.schema.json` | `validate_legacy_import` |
 | shared `$defs` | `studio.defs.v1.schema.json` | (IDs, times, principals, cues, notes) |
 
+A principal is `human`, `agent`, `worker`, `cli` or, since story 849, `agent_session`
+(`{kind, session, harness, model}`, P-24): an agent working in its own dev-env session
+without a studio key. Every place that takes a principal accepts it; it records who did
+the work and grants nothing (it cannot be a command line's human `operator`).
+
 The files reference each other by `$id` (`https://haynes-studio.invalid/schemas/...`, a
 name that is never fetched); `haynes_studio.schemas` registers them together.
 
@@ -63,7 +68,7 @@ characters (U+0000 to U+001F, U+007F to U+009F) with a `not` pattern. Statuses:
 |---|---|
 | `schema.unsupported` | code, first: another type or major stops validation |
 | `schema.unknown_field` | schema (`additionalProperties: false`); `derived` on write in code |
-| `schema.invalid` | schema default, including a board's shape (a later line without a gap, a spoken board without lead, tail or voice style, a silent board with lead, tail or voice), an identifier or slot with trailing characters, a control character; code-only (JSON Schema cannot express them): a reversed trim, a note that is not NFC, a timing summary whose `complete`, `frames_known` or `build_allowed` disagree with its rows and blockers, a method cell whose status differs from the contract's matrix, a document nested deeper than 64 levels |
+| `schema.invalid` | schema default, including a board's shape (a later line without a gap, a spoken board without lead, tail or voice style, a silent board with lead, tail or voice), a lead or gap over 120000 ms and more than 256 lines on a board (TIME-5, story 849), an identifier or slot with trailing characters, a control character; code-only (JSON Schema cannot express them): a reversed trim, a note that is not NFC, a timing summary whose `complete`, `frames_known` or `build_allowed` disagree with its rows and blockers, a method cell whose status differs from the contract's matrix, a document nested deeper than 64 levels |
 | `id.malformed`, `id.type_mismatch` | schema (`$defs/<prefix>_id`) |
 | `time.not_integer_ms`, `time.negative`, `time.tail_too_short`, `time.duration_is_derived` | schema |
 | `time.hold_out_of_range` | schema (bounds, and a silent board without a hold) |

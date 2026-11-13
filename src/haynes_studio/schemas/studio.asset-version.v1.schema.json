@@ -997,6 +997,7 @@
         "commercial_use": {
           "enum": [
             "allowed",
+            "conditional",
             "noncommercial",
             "unknown"
           ]
@@ -1040,32 +1041,62 @@
         }
       },
       "additionalProperties": false,
-      "if": {
-        "properties": {
-          "commercial_use": {
-            "enum": [
-              "allowed",
-              "noncommercial"
+      "$comment": "A checked value (allowed, conditional, noncommercial) names the licence, when and by whom it was checked; a conditional term also keeps its conditions in note (section 7, P-23).",
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "commercial_use": {
+                "enum": [
+                  "allowed",
+                  "conditional",
+                  "noncommercial"
+                ]
+              }
+            },
+            "required": [
+              "commercial_use"
             ]
+          },
+          "then": {
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "checked_at": {
+                "type": "string"
+              },
+              "checked_by": {
+                "type": "object"
+              }
+            }
           }
         },
-        "required": [
-          "commercial_use"
-        ]
-      },
-      "then": {
-        "properties": {
-          "name": {
-            "type": "string"
+        {
+          "if": {
+            "properties": {
+              "commercial_use": {
+                "const": "conditional"
+              }
+            },
+            "required": [
+              "commercial_use"
+            ]
           },
-          "checked_at": {
-            "type": "string"
-          },
-          "checked_by": {
-            "type": "object"
+          "then": {
+            "properties": {
+              "note": {
+                "type": "string",
+                "x-studio": {
+                  "type": {
+                    "message": "a conditional term records its conditions in note (P-23)"
+                  }
+                }
+              }
+            }
           }
         }
-      }
+      ]
     },
     "take": {
       "type": "object",

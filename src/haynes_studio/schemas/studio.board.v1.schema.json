@@ -52,6 +52,12 @@
     },
     "lines": {
       "type": "array",
+      "maxItems": 256,
+      "x-studio": {
+        "maxItems": {
+          "message": "a board has at most 256 lines (TIME-5)"
+        }
+      },
       "items": {
         "type": "object",
         "required": [
@@ -109,6 +115,7 @@
                   "type": "null"
                 },
                 "minimum": 0,
+                "maximum": 120000,
                 "x-studio": {
                   "type": {
                     "rule": "time.not_integer_ms",
@@ -120,6 +127,9 @@
                   "minimum": {
                     "rule": "time.negative",
                     "message": "must not be negative"
+                  },
+                  "maximum": {
+                    "message": "must be at most 120000 ms, the longest hold (TIME-5)"
                   }
                 }
               }
@@ -386,7 +396,7 @@
       "$ref": "studio.defs.v1.schema.json#/$defs/timestamp"
     }
   },
-  "$comment": "A board with lines is spoken (lead, tail, voice style; no hold), without lines silent (a hold of 100 to 120000 ms; no lead, tail or voice). Each branch checks the shape before any range, so a hold on a spoken board is always time.hold_on_spoken_board (contract sections 2 and 3, TIME-2 to TIME-5).",
+  "$comment": "A board with lines is spoken (lead of 0 to 120000 ms, tail, voice style; no hold), without lines silent (a hold of 100 to 120000 ms; no lead, tail or voice). A board has at most 256 lines and each later gap is 0 to 120000 ms (TIME-5). Each branch checks the shape before any range, so a hold on a spoken board is always time.hold_on_spoken_board (contract sections 2 and 3, TIME-2 to TIME-5).",
   "if": {
     "properties": {
       "lines": {
@@ -410,6 +420,7 @@
               "type": "null"
             },
             "minimum": 0,
+            "maximum": 120000,
             "x-studio": {
               "type": {
                 "rule": "time.not_integer_ms",
@@ -421,6 +432,9 @@
               "minimum": {
                 "rule": "time.negative",
                 "message": "must not be negative"
+              },
+              "maximum": {
+                "message": "must be at most 120000 ms, the longest hold (TIME-5)"
               }
             }
           },
