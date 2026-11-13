@@ -1,7 +1,8 @@
 """``studio voice``, ``studio build`` and ``studio run show`` (story 406), with fake
-clients passed in at the edge. The live clip-source hook is left unfilled: the service
-phase (and a full build) stop with its message and make no run; an offline build needs
-nothing from it."""
+clients passed in at the edge. The live clip-source hook (story 851) is replaced here by
+the adapters' fake sources; its own command-line tests, on the Wan client's fake pod,
+are in ``tests/build_story/test_live_sources.py``. An offline build needs nothing from
+it."""
 
 from __future__ import annotations
 
@@ -11,11 +12,13 @@ import json
 import pytest
 
 import haynes_studio.build as studio_build
+from haynes_studio.adapters.fakes import FakeRunner, FakeWan
 from haynes_studio.cli import Clients, main
 from haynes_studio.store import StoreError
 from haynes_studio.store.errors import COLLISION
 from tests.build_story import fixtures as f
 
+WAN_STORY = ["--wan-story", "https://work.haynesnetwork.com/work_packages/851"]
 OPERATOR = ["--operator-iss", "https://authentik.example.invalid/application/o/haynes-studio/",
             "--operator-sub", "example-subject-build"]
 
@@ -36,7 +39,8 @@ class Fakes:
             client, runner = f.kokoro()
             self.speech_runs.append(runner)
             return client
-        return Clients(speech=speech, transcriber=lambda: f.transcriber(self.heard)[0])
+        return Clients(speech=speech, transcriber=lambda: f.transcriber(self.heard)[0],
+                       wan_runner=lambda: FakeRunner(FakeWan()))
 
 
 @pytest.fixture(scope="module")
@@ -79,14 +83,13 @@ def test_voice_makes_the_board_voices_and_writes_new_files(setup):
     assert refused[0] == 2 and "will not overwrite" in refused[2]
 
 
-def test_the_unfilled_hook_stops_the_service_phase_and_a_full_build_with_no_run(setup):
+def test_the_service_phase_and_a_full_build_need_a_wan_story_and_make_no_run(setup):
     world, files = setup
     before = studio_build.local_run_ids(world.store, f.PRODUCTION)
     for extra in (("--phase", "service"), ()):
         code, _, err = run_cli("build", *args(world, files / "story.json", files / "library.json",
                                               *extra), clients=Fakes().clients())
-        assert code == 1
-        assert "build.clip_sources_unwired" in err and "--offline" in err
+        assert code == 2 and "--wan-story" in err
     assert studio_build.local_run_ids(world.store, f.PRODUCTION) == before
 
 
@@ -94,22 +97,24 @@ def test_service_then_offline_builds_and_run_show_reads_the_run(setup, monkeypat
     world, files = setup
     voiced = files / "voiced"
     sources = f.sources()
-    monkeypatch.setattr(studio_build, "live_clip_sources", lambda: sources)
+    monkeypatch.setattr(studio_build, "live_clip_sources", lambda *a, **k: sources)
     base = args(world, voiced / "story.json", voiced / "library.json", "--toolchain",
                 str(files / "toolchain.json"), "--register", str(f.REGISTER), "--studio-commit", "abc123")
-    code, out, err = run_cli("build", *base, "--phase", "service", clients=Fakes().clients())
+    code, out, err = run_cli("build", *base, "--phase", "service", *WAN_STORY, clients=Fakes().clients())
     assert code == 0, err
     assert "(service phase): cancelled" in out
     assert len(sources.s2v.calls) == 1 and len(sources.i2v.calls) == 1
-    monkeypatch.setattr(studio_build, "live_clip_sources", lambda: pytest.fail("offline asks no hook"))
+    monkeypatch.setattr(studio_build, "live_clip_sources",
+                        lambda *a, **k: pytest.fail("offline asks no hook"))
     # Offline renders the picture and master, then stops at the transcript check (a
     # service call); the service phase checks the cached master; offline then delivers.
     code, out, err = run_cli("build", *base, "--offline", clients=Fakes().clients())
     assert code == 1 and "rule build.offline_missing" in err and "(stage check_result)" in err
-    monkeypatch.setattr(studio_build, "live_clip_sources", lambda: sources)
-    code, out, err = run_cli("build", *base, "--phase", "service", clients=Fakes().clients())
+    monkeypatch.setattr(studio_build, "live_clip_sources", lambda *a, **k: sources)
+    code, out, err = run_cli("build", *base, "--phase", "service", *WAN_STORY, clients=Fakes().clients())
     assert code == 0, err
-    monkeypatch.setattr(studio_build, "live_clip_sources", lambda: pytest.fail("offline asks no hook"))
+    monkeypatch.setattr(studio_build, "live_clip_sources",
+                        lambda *a, **k: pytest.fail("offline asks no hook"))
     code, out, err = run_cli("build", *base, "--offline", "--json", clients=Fakes().clients())
     assert code == 0, err
     run = json.loads(out)
@@ -134,9 +139,9 @@ def test_a_failed_transcript_in_the_service_phase_exits_1(setup, monkeypatch):
     story = json.loads((voiced / "story.json").read_text())
     story["checks"]["asr_tolerances"] = {"2": "two", "3": "three"}
     (files / "retolerated.json").write_text(json.dumps(story))
-    monkeypatch.setattr(studio_build, "live_clip_sources", lambda: f.sources())
+    monkeypatch.setattr(studio_build, "live_clip_sources", lambda *a, **k: f.sources())
     code, out, err = run_cli("build", *args(world, files / "retolerated.json", voiced / "library.json",
-                                            "--phase", "service", "--toolchain",
+                                            "--phase", "service", *WAN_STORY, "--toolchain",
                                             str(files / "toolchain.json"), "--register", str(f.REGISTER)),
                              clients=Fakes(heard="stop team two").clients())
     assert code == 1 and "(service phase): failed" in out

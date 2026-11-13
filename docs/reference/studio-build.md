@@ -16,8 +16,10 @@ board voices ([studio-voice.md](studio-voice.md)), the library
 ([legacy-adapters.md](legacy-adapters.md)).
 
 **State: source and tested with fakes only.** No service, GPU or production media has
-been used. The service phase's live clip sources are a hook left unfilled until story
-[842](https://work.haynesnetwork.com/work_packages/842)'s Wan clients merge. Story
+been used. The service phase's live clip sources (story
+[851](https://work.haynesnetwork.com/work_packages/851)) are story
+[842](https://work.haynesnetwork.com/work_packages/842)'s Wan clip client, tested with its
+fake pod only ([below](#live-clip-sources-story-851)). Story
 [428](https://work.haynesnetwork.com/work_packages/428) makes the first live build
 ([below](#what-story-428-runs)). Every choice beyond the contract is a **proposal**.
 
@@ -30,11 +32,12 @@ been used. The service phase's live clip sources are a hook left unfilled until 
 | `build.run` | run states and transitions (`new_run`, `advance`), `RunRecords` (the run's record on the store), `local_run_ids` |
 | `build.validate` | `validate_run`, `validate_run_snapshot` (registered with the contract harness) |
 | `build.sources` | `ClipSources`, the offline sources that refuse, the local pass's recording sources, and the hook `live_clip_sources` |
+| `build.live` | the live clip sources on the Wan client (`WanClips`, `WanS2VSource`, `WanChainSource`), the store's one journal (`journal_path`), the dry run's clip list (`planned_clips`) and its E0 estimate (`estimate`, `dry_run_report`) |
 | `build.transcript` | `Transcriber`, `WhisperTranscriber`, `TranscriptChecks` (the master's transcript check, cached) |
 | `build.provenance` | engines, licences and public credits from the [licence register](model-licences.md) |
 | `build.voice` | `make_story_voices`: every spoken board's voice before a build |
 | `build.workers` | segments rendered in up to N processes |
-| `build.errors` | `BuildError`, `RunUnrecorded`, `failure_of` and the codes below |
+| `build.errors` | `BuildError`, `RunHeld`, `RunUnrecorded`, `failure_of` and the codes below |
 
 Schemas: `studio.run.v1.schema.json` and `studio.run-snapshot.v1.schema.json` in
 `src/haynes_studio/schemas/`. The contract's `run` and `run-snapshot` examples validate
@@ -47,16 +50,16 @@ draft (`--story`, a `studio.story/v1` file with its boards embedded), the librar
 (`--library`, a JSON array of `studio.asset-version/v1` documents) and the operator
 (`--operator-iss`, `--operator-sub`, as `studio legacy import`). Exit status: `0` done,
 `1` a rule failed or the run failed, `2` a usage error. Problems print on stderr, one per
-line: a failed run as `<story file>: rule <code> [at board <brd_id>] (stage <stage>):
-<message>`; a pre-build problem of a story that makes no run as `<story file>: rule
-<code> at <board or story> field <pointer>: <message>`; the unfilled hook as `<story
-file>: rule build.clip_sources_unwired: <message>`; a failure the run's record could not
-take as `<story file>: rule build.run_unrecorded: <message>` (below).
+line: a failed or held run as `<story file>: rule <code> [at board <brd_id>] (stage
+<stage>): <message>` (a held run's message starts `held`); a pre-build problem of a story
+that makes no run as `<story file>: rule <code> at <board or story> field <pointer>:
+<message>`; a failure the run's record could not take as `<story file>: rule
+build.run_unrecorded: <message>` (below).
 
 | Command | Does |
 |---|---|
 | `studio voice --store ROOT --story S --library L --operator-iss ISS --operator-sub SUB --out DIR [--register R] [--json]` | Makes every spoken board's current voice (below) and writes `story.json` and `library.json` into `DIR`; an existing file is never overwritten. Prints each board's action: `current`, `existing`, `made` or `failed` with the job's code. |
-| `studio build --store ROOT --story S --library L --operator-iss ISS --operator-sub SUB [--phase service \| --offline] [--workers N] [--toolchain T] [--register R] [--studio-commit SHA] [--json]` | Builds the draft as one new run and prints its summary (or the run document with `--json`). |
+| `studio build --store ROOT --story S --library L --operator-iss ISS --operator-sub SUB [--phase service [--dry-run] \| --offline] [--wan-story URL] [--workers N] [--toolchain T] [--register R] [--studio-commit SHA] [--json]` | Builds the draft as one new run and prints its summary (or the run document with `--json`). Exit 1 for a `failed` or `held` run. |
 | `studio run show RUN_ID --store ROOT --production PRD [--history] [--json]` | Prints a run's newest record, or every recorded version with `--history`. |
 
 - `--register` defaults to `docs/reference/model-licences.json` (run from the checkout).
@@ -65,10 +68,20 @@ take as `<story file>: rule build.run_unrecorded: <message>` (below).
   `procedural_seed` (proposal). Without it the toolchain's defaults apply (E0's
   576x1024 profiles).
 - `--studio-commit` is recorded as `git:<SHA>` in the snapshot and the provenance.
+- `--wan-story` (story 851): the full `https://work.haynesnetwork.com/work_packages/<id>`
+  URL the Wan ledger records each clip job under. Every phase but `--offline` needs it
+  (a usage error, exit 2, and no run otherwise).
+- `--dry-run` (story 851, only with `--phase service`): the pre-build check, the local
+  pass, the check of every clip request and the mix, then the run ends `cancelled` and
+  the command lists the clip jobs the phase would request, in order, with their E0 GPU
+  time (`--json`: `{"run": ..., "dry_run": {"clips": [...], "total": {...}}}`). No client
+  is made, no journal is read, no service is asked.
 - The command line is the only place a live client is made: the Kokoro client for
-  `studio voice` and the Whisper client for `studio build`, each with the real runner;
-  the service phase's clip sources come from `haynes_studio.build.live_clip_sources`.
-  `main(..., clients=Clients(...))` takes fakes in tests. Importing the package starts
+  `studio voice`, the Whisper client for `studio build`, and the runner of the Wan clip
+  client (`Clients.wan_runner`, the real `kubectl exec` runner), which
+  `haynes_studio.build.live_clip_sources(store_root, story=, runner=)` is given for the
+  service phase and a full build. `main(..., clients=Clients(...))` takes fakes in tests
+  (`Clients` without a `wan_runner` refuses to make one). Importing the package starts
   no process.
 
 ### `studio voice`
@@ -87,16 +100,13 @@ The service phase and the offline phase are one build with different clip source
 
 | Phase | Flag | Services | Makes | The run ends |
 |---|---|---|---|---|
-| all | none | `live_clip_sources()` and the Whisper client | everything, then the delivery | `succeeded`, or `failed` |
-| service | `--phase service` | `live_clip_sources()` and the Whisper client | what needs a service: drive tracks (the clip requests' input) and clips, speech-to-video and whole-frame; and the transcript check of a master the cache already holds. Also the mix and its own checks, before any clip is asked for (**proposal**, the confirming review's finding a: the mix needs no clip, so it is the cheapest proof that the story's sound can be built before GPU time is spent). Everything else is looked up in the cache, never made. The run lists the mix checks and any transcript check | `cancelled`, reason `service phase complete` (**proposal**: a run is never `succeeded` without a delivery); `failed` with `build.check_failed` (stage `checks`, exit 1) when a transcript check it made or read from the cache did not pass |
+| all | none | `live_clip_sources(...)` and the Whisper client | everything, then the delivery | `succeeded`, `failed`, or `held` (a refusal of the Wan client) |
+| service | `--phase service` | `live_clip_sources(...)` and the Whisper client | what needs a service: drive tracks (the clip requests' input) and clips, speech-to-video and whole-frame; and the transcript check of a master the cache already holds. Also the mix and its own checks, before any clip is asked for (**proposal**, the confirming review's finding a: the mix needs no clip, so it is the cheapest proof that the story's sound can be built before GPU time is spent). Everything else is looked up in the cache, never made. The run lists the mix checks and any transcript check | `cancelled`, reason `service phase complete` (**proposal**: a run is never `succeeded` without a delivery); `failed` with `build.check_failed` (stage `checks`, exit 1) when a transcript check it made or read from the cache did not pass; `held` (exit 1) on any refusal of the Wan client |
 | offline | `--offline` | none: `OfflineS2VSource` and `OfflineClipSource` refuse every call, and no recognizer is used | keyed frames, segments, the film, the sound, the sound checks and the delivery, from the cache | `succeeded`, or `failed` |
 
-- **The hook is not wired yet.** `live_clip_sources()` raises
-  `build.clip_sources_unwired` ("the Wan clip clients (story 842) are not on main; build
-  from cached clips with `studio build --offline`"). The command line calls it before it
-  makes a run, so `studio build` and `studio build --phase service` stop with that
-  message, exit 1 and record nothing. A later story fills the hook with story 842's
-  clients; nothing else changes.
+- **The live clip sources** (story 851) are story 842's Wan clip client on the store's
+  one journal, `<store root>/wan-journal.jsonl`; any refusal of the client ends the run
+  `held` and nothing further is submitted ([below](#live-clip-sources-story-851)).
 - **Offline needs no client.** An offline build of a story whose clips and transcript
   check are cached succeeds with no client at all. One that lacks a clip stops the run
   with `build.offline_missing`, naming the clip's key, its board and the stage, before
@@ -227,6 +237,148 @@ no lock or delete is added. A worker sends back its renderer's report and checks
 error's code, and the parent fails the run naming the board. Workers need the local
 store. Tests: two workers give the same decoded frames as one.
 
+## Live clip sources (story 851)
+
+`live_clip_sources(store_root, *, story, runner=None, dry_run=False)` (the hook, in
+`build.sources`; the code is `build.live`) fills the service phase's `ClipSources` with
+story 842's `WanClipClient` ([legacy-adapters.md](legacy-adapters.md#wan-clip-clients-story-842)).
+Glue only: every guard is the client's. Nothing here retries, waits, loops, catches a
+refusal to go on, or calls `clear_in_flight()` or `clear_halt()` (those are a person's).
+Making the sources contacts nothing and reads nothing; the one client is made on the
+first clip request, so a phase whose clips are all cached never reads the journal.
+
+- **One journal per store.** `journal_path(root)` is `<store root>/wan-journal.jsonl`
+  (P-842-08), the only path ever given to the client, for every run of the store; it
+  cannot be passed in (`client_options={"journal": ...}` is a `TypeError`). Keep the
+  store on a local file system (`flock`). Nothing here deletes, moves, empties or
+  replaces it or its `.lock` file.
+- **One request, one call, in plan order.** The adapters ask for clips in plan order,
+  each missing clip once (a hit is never asked). A speech-to-video request becomes one
+  `SpeechToVideo` and one `render`; a whole-frame chain one `ImageToVideo` and one
+  `render` per clip, in order, clip *k* starting on clip *k - 1*'s last frame
+  (`wholeframe.source.last_frame_png`). The two sources share the one client.
+- **Checked before any clip.** After the local pass, before the mix, every recorded
+  request is turned into its Wan request(s), sending nothing (`ClipSources.check`). A
+  request the client would refuse (`adapter.request_invalid`: a side not a multiple of
+  32, more than 3 chunks, an empty prompt or negative prompt, ...) or a key whose
+  profile the client does not make (`build.live_unsupported`) fails the run at that
+  board with "(found before any clip was requested)".
+- **A job the journal holds is settled first.** After a lost answer, fetch or clip
+  check, the client keeps the job `in_flight` or `uncollected`. Before any `render`, if
+  the client holds such a job and the graph it rebuilds for the current request under
+  that job ID hashes to the journal's `graph_sha256` (the same request), the clip is
+  collected with `recover(request, job_id)`, read-only, never rendered again; `recover`
+  itself refuses unless the ledger reads `succeeded` and matches. Any other request
+  stops the phase `held` with `build.wan_unsettled`, asking the client nothing.
+- **Any refusal ends the phase `held`.** Every exception `render`, `recover` or the
+  client's construction raises becomes `errors.RunHeld`: the run is recorded `held`
+  (table below) and the sources refuse every later call with the same stop, without
+  asking the client. A `held` run is a safety stop (section 8): it resumes only after a
+  person reconciles it, never by resubmitting.
+- **Foreign work during this request's own job** (`adapter.competing_work` with the
+  clip): the clip passed every check and the client kept it (guard 27), so it is handed
+  to the adapter and cached, and the build stops `held` right after
+  (`ClipSources.stopped`); the next run finds it cached and is stopped by the
+  journal's halt before any submission.
+
+### Request mapping
+
+| Adapter request | Wan request field | From |
+|---|---|---|
+| `S2VRequest` (story 426) | `SpeechToVideo.image_png`, `drive_wav`, `board_frames`, `prompt`, `negative`, `seed`, `width`/`height` | `start_image`, `drive_track`, `board_frames`, `prompt`, `negative_prompt`, `seed`, `profile.size`; `story` is `--wan-story`. The client's `length` must equal the request's `frames` (both TIME-9). |
+| `ClipRequest` (story 427), clip *k* | `ImageToVideo.image_png`, `prompt`, `seed`, `length`, `width`/`height` | the photo (*k* = 0) or clip *k - 1*'s last frame; `prompt`; `clips[k].seed`; `clips[k].frames`; `profile.size`. The chain names no negative prompt: the client's own (E0's) is used and recorded. |
+| profile | | speech-to-video: `model` `wan2.2-s2v-14b-fp8`, `lora` `lightx2v-4step`, `steps` 4, `cfg` 1, `chunk` 77, `source_fps` 16, plus `size` and `delivery`; image-to-video: `model` `wan2.2-ti2v-5b`, `source_fps` 24, plus `size`, `adapter`, `delivery`. Any other value or key is `build.live_unsupported`. |
+
+### Clip record mapping
+
+| Adapter provenance (`S2VClip`, `SourceClip`) | From `WanClip` |
+|---|---|
+| `data` | `data` (the MP4 the client fetched and checked) |
+| `seed`, `frames_requested` | `record.seed`, `record.frames_requested` (the adapter checks both against its request) |
+| `start_image_sha256` | `record.inputs.image.sha256` |
+| `drive_track_sha256` (speech-to-video) | `record.inputs.audio.sha256` |
+| `engine`, `engine_job_id`, `files_sha256` | `record.engine`, `record.job_id`, `record.model_files_sha256` |
+| `index` (whole-frame) | the chain's `clips[k].index` |
+| `extra` | `{"wan": record}`: the whole record, every field (graph and template hashes, preset, story, prompt, negative, size, fps, frames requested and delivered, timings, temperatures, telemetry tail, `recovered`) |
+
+The adapter then measures the clip itself (hash, frames, size) and records the source
+name (`studio.build.wan-s2v/1`, `studio.build.wan-i2v/1`). The run's board stage takes
+its clip entry from that record (engine, job ID, model files, seed, lengths).
+
+### Held states
+
+Each row ends the run `held` at the request's board and stage (`s2v_clip` or
+`whole_frame_clip`), exit 1. `error.problems[0]` is `{rule, status: "held", job_id,
+check, journal, in_flight, halt, collected_before_stop[, clip_kept]}`: the code, the Wan
+job (null when no job reached the run step; the journal still names it, settled
+`no_submission`), what a person must check, the journal's path, the job the client still
+holds and its state, the halt, and the clips of a chain collected before the stop. Tests
+are in `tests/build_story/test_live_sources.py`.
+
+| Client refusal or state | Code | What the build does | Test |
+|---|---|---|---|
+| API holding (`accepting_jobs` false) | `adapter.busy` | held; nothing ran | `test_every_refusal_..._further[api_holding]` |
+| API busy (an `active_job`) | `adapter.busy` | held; nothing ran | `[api_busy]` |
+| unknown engine work queued | `adapter.busy` | held; nothing ran | `[unknown_work_queued]` |
+| GPUs not cool after the client's own 1800 s wait | `adapter.busy` | held; nothing ran | `[gpus_never_cool]` |
+| the admission readback holds | `adapter.busy` | held; the run step submitted nothing | `[admission_readback_holds]` |
+| the compute lease is busy | `adapter.busy` | held; the job failed without a prompt | `[compute_lease_busy]` |
+| GPUs busy at `generate()` | `adapter.job_failed` | held | `[gpus_busy_at_generate]` |
+| the job failed | `adapter.job_failed` | held | `[job_failed]` |
+| the answer lost (timeout) | `adapter.timeout` | held; the job stays in flight | `[answer_lost]` |
+| the clip cut in transfer (or failing its checks) | `adapter.response_invalid` | held; the job stays uncollected | `[clip_cut_in_transfer]` |
+| the pod cannot be reached | `adapter.command_failed` | held | `test_a_runner_that_cannot_reach_the_pod_stops_the_phase_held` |
+| a journal it cannot read | `adapter.journal_failed` | held at the client's construction; no command; the file is not touched | `test_an_unreadable_journal_stops_the_phase_held_before_any_command` |
+| the journal held by another holder | `adapter.busy` | held; no command | `test_a_journal_another_holder_has_stops_the_phase_held_before_any_command` |
+| foreign work during the job | `adapter.competing_work` | the checked clip is cached, then held; the next run is held by the halt with nothing submitted | `test_competing_work_keeps_the_checked_clip_then_holds_and_the_halt_holds_the_next_run` |
+| an earlier job in flight whose ledger reads succeeded, same request | (none) | `recover`, then the next clip | `test_a_lost_answer_is_recovered_by_the_next_phase_never_rendered_again` |
+| an earlier job uncollected, same request | (none) | `recover`, then the next clip | `test_a_lost_fetch_is_recovered_by_the_next_phase_never_rendered_again` |
+| an earlier job still running / with no ledger / failed | `adapter.busy` / `adapter.not_found` / `adapter.job_failed` | `recover` refuses: held, no render | `test_a_lost_job_that_has_not_succeeded_stops_the_next_phase_held_without_a_render` |
+| an earlier job made for another request | `build.wan_unsettled` | held; neither `recover` nor `render` | `test_a_journal_job_made_for_another_request_stops_the_phase_held` |
+| any other exception of the client | its code, else `build.internal` | held | (the same path) |
+
+Every refusal test also checks that the client was called once, that the next clip was
+never asked for, and that a later request to the stopped sources raises the same stop
+without a call.
+
+### The dry run
+
+`studio build ... --phase service --dry-run --wan-story URL` lists, in the order the
+phase would request them, the clip jobs the plan lacks: kind, board, slot (speech) or
+chain index (whole-frame), requested length, size, chunks and seed, each with its GPU
+time from the E0 records (`titles/the-winter-menu/video-e0/clip-records*.jsonl`, read
+from the checkout): the range of `render_s` and the longest `wall_s` (with its cool-down
+wait) of the E0 jobs of the same kind and size, speech-to-video by chunk count,
+image-to-video of at least its length (E0 ran 121 frames only), marked an upper or lower
+bound when E0's lengths were longer or shorter (proposal). The one 20-step speech job is
+another profile and is left out. A shape E0 never ran has no estimate, and the total is
+then unknown. The fixture's output (its clips are 288x512, a size E0 never ran):
+
+```text
+dry run: 2 clip job(s) would be requested, in this order (nothing was asked of a service):
+  s2v board 1 brd_01JB4060000000000000000001 slot a: 13 frames at 288x512, 1 chunk(s), seed 11; no E0 estimate
+  i2v board 3 brd_01JB4060000000000000000003 clip 0: 121 frames at 288x512, seed 31; no E0 estimate
+  total: 2 Wan job(s); unknown: a job has no E0 job of its shape
+```
+
+The same two clips at E0's 576x1024 read `GPU 142.5-203.1 s, at most 328.9 s with
+cool-down (4 E0 jobs)` and `GPU 116.5-152.1 s, at most 294.1 s with cool-down (24 E0
+jobs)`, `total: 2 Wan job(s), GPU 259-355.2 s, at most 623 s with cool-down`.
+
+### Known limits
+
+- **A chain stopped after its first clip** keeps nothing in the cache: a chain is
+  committed whole or not at all (story 427), so clips 0 to *k - 1* collected before a
+  stop at clip *k* are named in the held record (`collected_before_stop`: index, job,
+  SHA-256) and stay on the Wan volume. A lost answer on clip *k* > 0 holds every later
+  run with `build.wan_unsettled` (the next run asks for clip 0 first) until a person
+  collects it with `recover` (its start image is clip *k - 1*'s last frame) or clears it
+  after checking. With the default 121-frame clips a chain is one clip for a board of up
+  to 5 s.
+- **No negative prompt is invented.** The toolchain's default `s2v_negative_prompt` is
+  empty, which the Wan graph refuses (`adapter.request_invalid`, before any clip): story
+  428 sets it in `--toolchain` (E0's is the client's `NEGATIVE`).
+
 ## The run
 
 `studio.run/v1` holds the contract's fields and these proposals: `phase`,
@@ -237,6 +389,9 @@ problems).
 - **States** (section 8): `queued` then `running`, then `succeeded`, `failed` or
   `cancelled`; `held` is a safety stop that resumes only after reconciliation (story
   410). A terminal run never changes (`run.transition`), and a run ID is never reused.
+  A build records `held` (from `running`) when a live clip source stops it (story 851):
+  `finished_at` stays null, `error` holds the code, message and the held problem above.
+  Nothing in the build moves a held run on; a later build is a new run.
 - **On the store** (proposal; the product's is a Postgres row, story 434): each
   version of a run document is a completed stage of the run, `run-0001` (with the
   snapshot blob as its second output), `run-0002` and so on. A stage name is
@@ -306,7 +461,7 @@ tests there would never run in `uv run pytest` or CI).
 
 | Code | Stage | When | Test |
 |---|---|---|---|
-| `build.clip_sources_unwired` | (no run) | `studio build` or `--phase service` while the hook is unfilled | `tests/cli/test_cli_build.py::test_the_unfilled_hook_stops_the_service_phase_and_a_full_build_with_no_run` |
+| (usage, exit 2) | (no run) | `studio build` or `--phase service` without a valid `--wan-story`; `--dry-run` without `--phase service` | `tests/cli/test_cli_build.py::test_the_service_phase_and_a_full_build_need_a_wan_story_and_make_no_run`, `test_live_sources.py::test_the_cli_needs_a_wan_story_and_a_dry_run_only_of_the_service_phase` |
 | `asset.unresolved`, `ref.unknown`, `store.*` | (no run) | a reference the library or the store cannot give; nothing can be pinned | `test_failures.py::test_a_story_whose_assets_do_not_resolve_makes_no_run` |
 | `voice.absent` | `prebuild` | a spoken board without a current voice | `test_failures.py::test_a_missing_voice_fails_the_run` |
 | `voice.stale` | `prebuild` | a board voice that is not the board's lines, or signed with another engine (VOICE-9) | `test_a_stale_voice_fails_the_run`, `test_a_voice_signed_with_another_engine_is_stale` |
@@ -317,6 +472,8 @@ tests there would never run in `uv run pytest` or CI).
 | `build.voice_track_missing` | `voice` | a current board voice that records no assembled track (a legacy import's), which the picture's envelope and the mix read | `test_failures.py::test_a_board_voice_without_a_track_fails_the_run` |
 | `cache.key_input_invalid` (a missing seed, ...), `motion.*` and `store.*` (a library timed clip that is damaged, ambiguous or cannot be played), `layered.*`, `wholeframe.*` (a clip request's inputs) | `plan`, `s2v_clip`, `s2v_drive_track`, `whole_frame_clip`, ... | the local pass finds it anywhere in the story, before any clip of any board is asked for; no clip source is asked, and the message ends "(found before any clip was requested)" | `test_local_pass.py::test_a_damaged_timed_clip_of_a_later_speaker_stops_the_run_before_any_clip`, `test_a_later_boards_missing_seed_stops_the_run_before_an_earlier_boards_clip` |
 | `mix.input_invalid`, `cue.out_of_range`, `store.*`, `time.conservation`; `build.check_failed` (a mix check) | `mix`; `checks` | the mix, made after the local pass in a full build or the service phase, is refused (a `true_peak_dbtp` of -30 the schema accepts and the limiter cannot reach, a cue outside its board, a sound blob) or fails one of its own checks (a `master_lufs` the limited speech cannot reach); no clip source is asked, and the message ends "(found before any clip was requested)" | `test_local_pass.py::test_a_mix_the_limiter_refuses_stops_the_service_phase_before_any_clip`, `test_a_mix_the_limiter_refuses_stops_a_full_build_before_any_clip` (1 and 2 workers), `test_a_mix_that_fails_its_own_checks_stops_before_any_clip` |
+| `adapter.request_invalid`, `build.live_unsupported` | `s2v_clip`, `whole_frame_clip` | a live source's check of a request the local pass recorded: the Wan client would refuse it, or does not make its profile; before the mix and any clip, "(found before any clip was requested)" | `test_live_sources.py::test_a_request_the_client_would_refuse_fails_the_run_before_any_clip`, `test_a_profile_the_client_does_not_make_fails_the_run_before_any_clip` |
+| `adapter.*`, `build.wan_unsettled`, `build.internal` (status **held**) | `s2v_clip`, `whole_frame_clip` | any refusal of the Wan client ([held states](#held-states)) | `test_live_sources.py` |
 | `layered.clip_invalid`, `wholeframe.clip_invalid`, `time.source_short` | `s2v_clip`, `whole_frame_clip`, `segment` | a clip source's answer that is not what was asked, or a clip too short | `test_a_failed_clip_fails_the_run_on_its_board` |
 | `build.offline_missing` | `s2v_clip`, `whole_frame_clip`, `check_result` | the offline phase needs a clip, or a transcript check of a new master, that no run made | `test_phases.py::test_the_offline_phase_refuses_a_service_call_naming_the_missing_artifact`, `test_the_service_phase_fills_the_cache_and_the_offline_phase_never_asks_the_recognizer` |
 | `layered.decal_weak`, render and splice codes (`render.*`, `splice.incompatible`, `time.conservation`) | `segment`, `film_picture` | a decal track below its floor, a renderer, encoder or splice refusal | the adapters' and cache's own tests |
@@ -328,14 +485,17 @@ tests there would never run in `uv run pytest` or CI).
 
 | Code | Status | Source |
 |---|---|---|
-| `build.clip_sources_unwired` | failed | proposal |
 | `build.offline_missing` | failed | proposal |
 | `build.check_failed` | failed | proposal |
 | `build.delivery_unverified` | failed | proposal |
 | `build.voice_track_missing` | failed | proposal |
 | `build.run_unrecorded` | failed (not recorded on the run) | proposal |
 | `run.transition`, `run.unknown` | conflict, invalid | proposals |
-| `build.internal` | failed | proposal |
+| `build.internal` | failed (held when a live source raised it) | proposal |
+| `build.wan_unsettled` | held | proposal (story 851) |
+| `build.live_unsupported` | failed | proposal (story 851) |
+| `build.dry_run_asked` | failed (a dry run's source was asked: a bug) | proposal (story 851) |
+| `adapter.*` from a live source's call | held | story 842's codes |
 
 ## What story 428 runs
 
@@ -371,13 +531,19 @@ decision are marked **(428 decides)**.
    seed, or a library timed clip (an E0 clip) that is damaged or cannot be played shows
    here first, before any service is asked. A run that stops in the local pass says
    "(found before any clip was requested)".
-6. **The service phase** (after the hook is filled with story 842's clients):
-   `uv run studio build ... --phase service`. The local pass runs first, then the mix
-   is made and its four checks run, so no Wan job is submitted for a story that the
-   local checks or its sound refuse anywhere; it fails as in step 5 with nothing
-   asked. Otherwise the run ends `cancelled` with "service phase complete" and lists
-   the mix checks; the mix and every clip are now cached. Watch the Wan compute lease;
-   never bypass it.
+6. **The service phase** (story 851's live sources), with the coordinator watching:
+   first `uv run studio build ... --phase service --dry-run --wan-story
+   https://work.haynesnetwork.com/work_packages/428`, which lists every clip job, in
+   order, with its length, seed and E0 GPU time, and asks nothing; put that list in
+   front of the coordinator. The toolchain file must set `s2v_negative_prompt` (the
+   default is empty, which the Wan graph refuses before any clip; E0's is the client's
+   `NEGATIVE`). Then work through the [checklist](#before-the-first-live-job) and run
+   the same command without `--dry-run`. The local pass, the check of every request
+   and the mix run first, so no Wan job is submitted for a story they refuse anywhere.
+   Otherwise the run ends `cancelled` with "service phase complete"; the mix and every
+   clip are now cached. A refusal ends it `held` (exit 1, `rule adapter.<code> ...
+   held ...`): stop and follow the held record's `check` before anything else. Watch the
+   Wan compute lease; never bypass it.
 7. **The offline phase.** `nice -n 10 uv run studio build ... --offline --workers N`
    (N up to 22 on `ai/studio-render`, 1 in a session pod). It renders the picture, the
    mix and the master, then stops at the transcript check with `build.offline_missing`
@@ -401,6 +567,52 @@ decision are marked **(428 decides)**.
 11. **Record** the run's timings (each artifact's `seconds`, `render_s`), sizes and IO,
    and compare with the E0 delivery. Tom watches the delivery for the demo; a source PR
    and a delivered run are not his acceptance.
+
+### Before the first live job
+
+Story 842's own checklist ([legacy-adapters.md](legacy-adapters.md#before-the-first-live-job-story-428)),
+as the build runs it. Read-only checks with the coordinator watching, then one job:
+
+0. The store root is on a local file system, and every run of it uses the one journal,
+   `<store root>/wan-journal.jsonl` (the build gives the client no other). If a run is
+   held with `adapter.busy` naming the journal, find the process holding it; never point
+   a run at another store root or file. Never delete, move, empty or replace the journal
+   or its `.lock` file while a build runs; a journal missing beside its lock file, or
+   empty, is a stop until a person has checked the Wan service. Keep the store writable
+   by the build only.
+1. `git -C ~/repos/haynes-ops fetch`; `kubernetes/main/apps/ai/wan-video/app/workflow.json`
+   still hashes to `88fe79ad...136b`, and `api.py` still has `acquire_compute`,
+   `gpu_sample`, `engine`, `save` and `generate(job, prompt, lease=None)` with the
+   checks in story 842's rows 18 and 19; `save` still writes the whole job and
+   `GET /videos/<id>` still returns it (`recover` needs `graph_sha256` back); `/health`'s
+   `active_job` is still set only by `POST /videos`; `EXPECTED` is still the two IDs in
+   `pinned.WAN_GPU_UUIDS`. A change there is a stop.
+2. `kubectl -n ai get deploy wan-video` is ready with containers `api`, `app`, `foley`,
+   and `/config/video/api.py` in the `api` container is the haynes-ops file.
+3. One `WanClipClient.probe()` (outside the build): `accepting_jobs` true, no active job,
+   both queue lists empty, exactly the two approved GPUs, temperatures and utilization
+   sensible.
+4. Free space on PVC `ai/wan-video` for the inputs and clips.
+5. The journal holds no job and no halt: `FileJournal(<store root>/wan-journal.jsonl)
+   .read_state()` shows `job` and `halt` `None` (or the file does not exist yet).
+6. The dry run's list is what the coordinator expects. The first live service phase
+   asks for one `ImageToVideo` at 576x1024 and 121 frames: build a draft whose only
+   missing clip is that one (the dry run shows exactly one `i2v` job). Watch the GPUs
+   during the job. Check the clip record in the cache (the whole-frame clip set's
+   `extra.wan`: 121 frames delivered, 576x1024, `fps` 24 as measured,
+   `cool_before_upload`, `engine_read_retries`, no `unexpected_work_seen`), read
+   `/videos/<job_id>` (`succeeded`, the same `bytes` and `graph_sha256`), and confirm the
+   journal ends with that job's `settle collected` line.
+7. Only then one `SpeechToVideo`, on a board of at most one chunk (the dry run shows one
+   `s2v` job, `1 chunk(s)`).
+
+If a run is held, read its record (`studio run show RUN_ID --store ROOT --production
+PRD --json`, `error.problems[0]`), then the journal, then `/videos/<job_id>` for the job
+it names and the engine queue. A finished job whose answer was lost is collected by the
+next service phase of the same draft with `recover`, never rendered again; a failed job
+whose prompt was accepted clears itself once a probe shows the queue empty; anything
+else is a person's: never resubmit to recover, never call `clear_in_flight()` or
+`clear_halt()` without checking, and never start a new journal to get past a blocked one.
 
 Known blockers with r4 as imported, both observations in the PR: O-406-1, the phone
 proxy of a film whose frame count is not a multiple of 3 fails `delivery.proxy_invalid`
@@ -438,3 +650,12 @@ and `studio voice` reports those boards `current` (story 405's planner).
 - The transcript check runs in the service phase (it is a service call), on a master the
   cache holds; the offline phase reads it from the cache only.
 - The codes above; `--toolchain`, `--studio-commit`, the library file as a JSON array.
+- Story 851: the live sources' glue (`build.live`): the journal at
+  `<store root>/wan-journal.jsonl`; the client made on the first clip request; a held
+  run for every refusal, recorded from `running` with the held problem; `recover` for a
+  journal job whose graph matches the current request, `build.wan_unsettled` otherwise;
+  a kept clip (foreign work during its own job) cached, then held; the check of every
+  request before the mix; the profile match (`build.live_unsupported`); `--wan-story`,
+  `--dry-run`, the dry run as a recorded run ended `cancelled`, the E0 estimate rule;
+  the source names `studio.build.wan-s2v/1` and `studio.build.wan-i2v/1`; the whole Wan
+  record kept as the clip's `extra.wan`.
