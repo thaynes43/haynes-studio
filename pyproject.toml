@@ -16,6 +16,14 @@ dependencies = [
     # Resolves references between the shipped schema files offline (story 404);
     # jsonschema 4.23 needs at least 0.28.4.
     "referencing>=0.28.4,<1",
+    # Media libraries of the stack pin (contract section 13), at the versions the PoC
+    # is known to work with (docs/reference/services.md). Stories 380 and 381 are the
+    # first to use them: arrays, images, audio and video containers, and an ffmpeg
+    # binary, because session pods have no system ffmpeg.
+    "numpy>=2.4,<3",
+    "Pillow>=13,<14",
+    "av>=18.1,<19",
+    "imageio-ffmpeg>=0.7,<0.8",
 ]
 
 [project.scripts]
