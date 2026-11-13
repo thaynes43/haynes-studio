@@ -20,7 +20,7 @@ dependencies = [
     # is known to work with (docs/reference/services.md). Stories 380 and 381 are the
     # first to use them: arrays, images, audio and video containers, and an ffmpeg
     # binary, because session pods have no system ffmpeg.
-    "numpy>=2.4,<3",
+    "numpy>=2.4,<2.5",  # one version for Python 3.11 and 3.12 (2.5 needs 3.12)
     "Pillow>=13,<14",
     "av>=18.1,<19",
     "imageio-ffmpeg>=0.7,<0.8",
