@@ -23,6 +23,7 @@ from haynes_studio.timebase import DELIVERY_FPS, ceil_div
 SET_SLOT = "set"  # proposal: the slot name of the set loop in its phase
 S2V_CHUNK = 77  # TIME-9: speech-to-video chunks of 77 source frames
 I2V_CLIP_FRAMES = 121  # TI2V-5B: 121 frames at 24 fps (section 3)
+I2V_MAX_CLIPS = 3  # proposal (story 427): the longest whole-frame chain E0 delivered
 
 
 def _whole(name: str, value: object, minimum: int = 0) -> int:
@@ -85,13 +86,38 @@ def s2v_request_frames(frames: int) -> int:
     return S2V_CHUNK * ceil_div(length, S2V_CHUNK) if length > S2V_CHUNK else length
 
 
-def i2v_clip_lengths(frames_needed: int, clip_frames: int = I2V_CLIP_FRAMES) -> tuple[int, ...]:
-    """**Placeholder chain policy** (story 427 owns the real one): whole clips of
-    ``clip_frames`` until ``frames_needed`` source frames are covered. The requested
-    lengths are a key input of the whole-frame clip, so a hold edit that still fits
-    the same clips reuses them."""
-    count = ceil_div(_whole("frames_needed", frames_needed, 1), _whole("clip_frames", clip_frames, 1))
-    return (clip_frames,) * count
+def i2v_chain_frames(clip_lengths: tuple[int, ...] | list[int]) -> int:
+    """The distinct source frames a chain of whole-frame clips yields: every clip after
+    the first starts on the previous clip's last frame, which is dropped, so a chain
+    gives ``sum(lengths) - (clips - 1)`` frames (E0: 241 from two 121-frame clips)."""
+    lengths = [_whole(f"clip_lengths[{i}]", n, 1) for i, n in enumerate(clip_lengths)]
+    if not lengths:
+        raise ValueError("a chain has at least one clip")
+    return sum(lengths) - (len(lengths) - 1)
+
+
+def i2v_clip_lengths(frames_needed: int, clip_frames: int = I2V_CLIP_FRAMES,
+                     max_clips: int = I2V_MAX_CLIPS) -> tuple[int, ...]:
+    """The whole-frame chain policy (story 427, a **proposal** from the E0 evidence):
+    the clip lengths requested for a board that needs ``frames_needed`` source frames
+    (TIME-8).
+
+    - Every clip is a whole clip of ``clip_frames`` (121, the only length E0 made), so
+      a hold or tail edit that still fits the same chain keeps the clips (section 4).
+    - A board longer than one clip **chains**: each later clip starts on the previous
+      clip's last frame and adds ``clip_frames - 1`` new frames, so ``n`` clips cover
+      ``1 + n * (clip_frames - 1)`` frames (121, 241, 361). Extra frames are trimmed by
+      the renderer. No stretch (it would break TIME-8's 24 fps mapping) and no hold.
+    - At most ``max_clips`` clips (3: 361 frames, 15.04 s, E0's longest chain, shot 8),
+      because drift compounds along a chain; a longer board is a ``ValueError``."""
+    needed = _whole("frames_needed", frames_needed, 1)
+    size = _whole("clip_frames", clip_frames, 2)  # a chain adds clip_frames - 1 frames per clip
+    limit = _whole("max_clips", max_clips, 1)
+    count = 1 if needed <= size else 1 + ceil_div(needed - size, size - 1)
+    if count > limit:
+        raise ValueError(f"{needed} source frames need {count} chained clips of {size}; the "
+                         f"chain limit is {limit} clips ({1 + limit * (size - 1)} frames)")
+    return (size,) * count
 
 
 def board_stream(seed: int, board_id: str) -> int:
