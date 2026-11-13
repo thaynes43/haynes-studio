@@ -1,0 +1,5440 @@
+{
+ "story": "https://work.haynesnetwork.com/work_packages/840",
+ "source_manifest": "titles/the-winter-menu/manifest-r4.json",
+ "label_voice": "am_michael",
+ "engine": "Kokoro-82M v1.0",
+ "requests": {
+  "tts": 87,
+  "asr": 87,
+  "cap_each": 150
+ },
+ "tolerances": {
+  "declared_before_run": {
+   "340": "three hundred forty",
+   "mos": "moss",
+   "0": "zero",
+   "1": "one",
+   "2": "two",
+   "3": "three",
+   "4": "four",
+   "5": "five",
+   "6": "six"
+  },
+  "declared_after_run_words": [
+   {
+    "heard": "core",
+    "means": "kore",
+    "applies_to": "label",
+    "why": "proper name; 'core' is how Kore is said"
+   },
+   {
+    "heard": "corn",
+    "means": "kore",
+    "applies_to": "label",
+    "why": "proper name; heard as 'Corn' in the whole-reel transcript of reel A's first build"
+   },
+   {
+    "heard": "auled",
+    "means": "aoede",
+    "applies_to": "label",
+    "why": "proper name the recognizer does not know"
+   },
+   {
+    "heard": "ayuled",
+    "means": "aoede",
+    "applies_to": "label",
+    "why": "proper name the recognizer does not know"
+   },
+   {
+    "heard": "dahl",
+    "means": "doll",
+    "applies_to": "label",
+    "why": "American 'doll' heard as the name Dahl (the A and D intros were heard as 'Doll')"
+   }
+  ],
+  "declared_after_run_phrases": [
+   {
+    "heard": "need salt",
+    "means": "needs salt",
+    "applies_to": "line",
+    "why": "the same af_heart bytes were heard as 'Need salt.' in r2, r3 and r4 (evidence-r2..r4/speech.json, sha256 4e12138ee373...); an s-s merge at the word boundary that the recognizer makes"
+   },
+   {
+    "heard": "is abella",
+    "means": "isabella",
+    "applies_to": "label",
+    "why": "proper name the recognizer does not know; the card shows the voice ID"
+   }
+  ]
+ },
+ "duration_rule": {
+  "line": "0.5 to 2.0 times the r4 take of the same line (titles/the-winter-menu/evidence-r4/speech.json)",
+  "label": "0.5 to 4.0 s"
+ },
+ "summary": {
+  "planned": 82,
+  "passed": 74,
+  "failed": [
+   "b02-af_nova-s2",
+   "b02-af_nova-s9",
+   "b03-af_alloy-s9",
+   "b05-af_river-s8-4",
+   "b05-af_river-s9",
+   "d03-af_jessica-s5",
+   "d03-af_jessica-s8-3",
+   "d05-bf_lily-s8-3"
+  ],
+  "label_voice_median_f0_hz": 127.2
+ },
+ "voices": {
+  "af_alloy": {
+   "accent": "American English",
+   "sex": "female",
+   "kokoro_target_quality": "B",
+   "kokoro_overall_grade": "C",
+   "median_f0_hz": 151.9,
+   "median_words_per_s": 2.04,
+   "takes": 5,
+   "passed": 4
+  },
+  "af_aoede": {
+   "accent": "American English",
+   "sex": "female",
+   "kokoro_target_quality": "B",
+   "kokoro_overall_grade": "C+",
+   "median_f0_hz": 190.6,
+   "median_words_per_s": 3.54,
+   "takes": 4,
+   "passed": 4
+  },
+  "af_bella": {
+   "accent": "American English",
+   "sex": "female",
+   "kokoro_target_quality": "A",
+   "kokoro_overall_grade": "A-",
+   "median_f0_hz": 218.3,
+   "median_words_per_s": 2.21,
+   "takes": 2,
+   "passed": 2
+  },
+  "af_heart": {
+   "accent": "American English",
+   "sex": "female",
+   "kokoro_target_quality": "A",
+   "kokoro_overall_grade": "flagship, overall grade not printed",
+   "median_f0_hz": 214.3,
+   "median_words_per_s": 2.04,
+   "takes": 5,
+   "passed": 5
+  },
+  "af_jessica": {
+   "accent": "American English",
+   "sex": "female",
+   "kokoro_target_quality": "C",
+   "kokoro_overall_grade": "D",
+   "median_f0_hz": 211.9,
+   "median_words_per_s": 2.26,
+   "takes": 4,
+   "passed": 2
+  },
+  "af_kore": {
+   "accent": "American English",
+   "sex": "female",
+   "kokoro_target_quality": "B",
+   "kokoro_overall_grade": "C+",
+   "median_f0_hz": 183.9,
+   "median_words_per_s": 2.31,
+   "takes": 7,
+   "passed": 7
+  },
+  "af_nicole": {
+   "accent": "American English",
+   "sex": "female",
+   "kokoro_target_quality": "B",
+   "kokoro_overall_grade": "B-",
+   "median_f0_hz": 158.0,
+   "median_words_per_s": 2.52,
+   "takes": 2,
+   "passed": 2
+  },
+  "af_nova": {
+   "accent": "American English",
+   "sex": "female",
+   "kokoro_target_quality": "B",
+   "kokoro_overall_grade": "C",
+   "median_f0_hz": 181.1,
+   "median_words_per_s": 1.4,
+   "takes": 3,
+   "passed": 1
+  },
+  "af_river": {
+   "accent": "American English",
+   "sex": "female",
+   "kokoro_target_quality": "C",
+   "kokoro_overall_grade": "D",
+   "median_f0_hz": 186.0,
+   "median_words_per_s": 2.47,
+   "takes": 5,
+   "passed": 3
+  },
+  "af_sarah": {
+   "accent": "American English",
+   "sex": "female",
+   "kokoro_target_quality": "B",
+   "kokoro_overall_grade": "C+",
+   "median_f0_hz": 205.1,
+   "median_words_per_s": 3.02,
+   "takes": 5,
+   "passed": 5
+  },
+  "af_sky": {
+   "accent": "American English",
+   "sex": "female",
+   "kokoro_target_quality": "B",
+   "kokoro_overall_grade": "C-",
+   "median_f0_hz": 185.1,
+   "median_words_per_s": 1.5,
+   "takes": 2,
+   "passed": 2
+  },
+  "bf_alice": {
+   "accent": "British English",
+   "sex": "female",
+   "kokoro_target_quality": "C",
+   "kokoro_overall_grade": "D",
+   "median_f0_hz": 235.3,
+   "median_words_per_s": 2.58,
+   "takes": 2,
+   "passed": 2
+  },
+  "bf_emma": {
+   "accent": "British English",
+   "sex": "female",
+   "kokoro_target_quality": "B",
+   "kokoro_overall_grade": "B-",
+   "median_f0_hz": 186.4,
+   "median_words_per_s": 2.98,
+   "takes": 2,
+   "passed": 2
+  },
+  "bf_isabella": {
+   "accent": "British English",
+   "sex": "female",
+   "kokoro_target_quality": "B",
+   "kokoro_overall_grade": "C",
+   "median_f0_hz": 216.2,
+   "median_words_per_s": 2.75,
+   "takes": 2,
+   "passed": 2
+  },
+  "bf_lily": {
+   "accent": "British English",
+   "sex": "female",
+   "kokoro_target_quality": "C",
+   "kokoro_overall_grade": "D",
+   "median_f0_hz": 206.1,
+   "median_words_per_s": 1.9,
+   "takes": 4,
+   "passed": 3
+  }
+ },
+ "takes": [
+  {
+   "id": "a00-intro",
+   "slot": "a",
+   "candidate": 0,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Doll A, the captain.",
+   "text_sha256": "762cdc2f8bc6bb1f2c674ad7566fd4eed28fb6718fd4ab663cc4b508dbcfb426",
+   "signature": "sha256:f99a699b00f3b34890c32004586016c94a3fc4c770cf8230add9a64b328f8212",
+   "file": "takes/a00-intro.wav",
+   "sha256": "518a0083cee62a2eff111f0315c795b3fba4b90d93f7355d2de5c3746f5398d5",
+   "bytes": 71724,
+   "rate": 24000,
+   "frames": 35840,
+   "duration_s": 1.493,
+   "duration_ms": 1494,
+   "words_per_s": 2.68,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -22.77,
+   "peak_dbfs": -4.26,
+   "median_f0_hz": 133.3,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Doll A. The Captain",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "a00-intro",
+     "started_at": "2026-11-13T19:19:16+00:00",
+     "sha256": "518a0083cee62a2eff111f0315c795b3fba4b90d93f7355d2de5c3746f5398d5",
+     "text": "Doll A, the captain.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Doll A. The Captain",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.32,
+     "asr_s": 0.3,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "a01-label",
+   "slot": "a",
+   "candidate": 1,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "One. Emma, the current voice.",
+   "text_sha256": "0804ca391de16363d9045d45f92667fdc2be7c87fd7c17e7ab153894d17e648a",
+   "signature": "sha256:b6ffade75ce1f3d14276a4bc94415f64dd20fa4bb0188ef706dc367ecbcb2a42",
+   "file": "takes/a01-label.wav",
+   "sha256": "bf09d869b082a36f8ceaf96df88574f4288125c64f3f65547ced92d49496bce0",
+   "bytes": 111660,
+   "rate": 24000,
+   "frames": 55808,
+   "duration_s": 2.325,
+   "duration_ms": 2326,
+   "words_per_s": 2.15,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -21.73,
+   "peak_dbfs": -1.94,
+   "median_f0_hz": 130.1,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "1. Emma the current voice",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "1"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "a01-label",
+     "started_at": "2026-11-13T19:19:17+00:00",
+     "sha256": "bf09d869b082a36f8ceaf96df88574f4288125c64f3f65547ced92d49496bce0",
+     "text": "One. Emma, the current voice.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "1. Emma the current voice",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.4,
+     "asr_s": 0.29,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "a01-bf_emma-s1",
+   "slot": "a",
+   "candidate": 1,
+   "kind": "line",
+   "voice": "bf_emma",
+   "current_voice": true,
+   "r4_line": {
+    "shot": 1,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Day three hundred forty. I've mastered fire, shelter, and emotionally supportive moss.",
+   "text_sha256": "5f24a9fa45469a22d9d74d261c909ec1b5e512c01acea3eb497a65d87258a20d",
+   "signature": "sha256:aef343d22bd045bee792db12a15c59916811da8b1004683f08c60b563a8e1a41",
+   "file": "takes/a01-bf_emma-s1.wav",
+   "sha256": "b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78",
+   "bytes": 247852,
+   "rate": 24000,
+   "frames": 123904,
+   "duration_s": 5.163,
+   "duration_ms": 5163,
+   "words_per_s": 2.32,
+   "r4_duration_s": 5.163,
+   "duration_vs_r4": 1.0,
+   "rms_dbfs": -19.54,
+   "peak_dbfs": -3.64,
+   "median_f0_hz": 184.6,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Day 340. I've mastered fire, shelter, and emotionally supportive MOS.",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "340",
+     "mos"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "a01-bf_emma-s1",
+     "started_at": "2026-11-13T19:19:17+00:00",
+     "sha256": "b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78",
+     "text": "Day three hundred forty. I've mastered fire, shelter, and emotionally supportive moss.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Day 340. I've mastered fire, shelter, and emotionally supportive MOS.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.46,
+     "asr_s": 0.31,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "a01-bf_emma-s4",
+   "slot": "a",
+   "candidate": 1,
+   "kind": "line",
+   "voice": "bf_emma",
+   "current_voice": true,
+   "r4_line": {
+    "shot": 4,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Or we could just eat the crunchy butter squishies.",
+   "text_sha256": "3a496fbc894052dee1f2f882e8df8d989c0aa8d3436cf184d183a5b6b98223e4",
+   "signature": "sha256:5b9b6c5d97dfcd455228cce97ad5a512883aadf8b8676ee182d3dafcf8f522c5",
+   "file": "takes/a01-bf_emma-s4.wav",
+   "sha256": "0063d7e0e0d8a551fece4373ba1252d94339c00e10155bd08804b44c388773fd",
+   "bytes": 118828,
+   "rate": 24000,
+   "frames": 59392,
+   "duration_s": 2.475,
+   "duration_ms": 2475,
+   "words_per_s": 3.64,
+   "r4_duration_s": 2.475,
+   "duration_vs_r4": 1.0,
+   "rms_dbfs": -19.41,
+   "peak_dbfs": -3.62,
+   "median_f0_hz": 188.2,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Or we could just eat the crunchy butter squishies.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "a01-bf_emma-s4",
+     "started_at": "2026-11-13T19:19:18+00:00",
+     "sha256": "0063d7e0e0d8a551fece4373ba1252d94339c00e10155bd08804b44c388773fd",
+     "text": "Or we could just eat the crunchy butter squishies.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Or we could just eat the crunchy butter squishies.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.31,
+     "asr_s": 0.32,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "a02-label",
+   "slot": "a",
+   "candidate": 2,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Two. Isabella.",
+   "text_sha256": "a96f81f0a65c9c66d339d42c5e4c1ee0717e9b8fd5a386fe6e5af7d77bd3487b",
+   "signature": "sha256:7bda71d9df039973483f5a669529b76e435c42c94e70472f96b7e821fc4c60ba",
+   "file": "takes/a02-label.wav",
+   "sha256": "a8f7da348fe5c37b2eb06840cf70a061dbdbd356d34278ba98b0df02f2ddde32",
+   "bytes": 88108,
+   "rate": 24000,
+   "frames": 44032,
+   "duration_s": 1.835,
+   "duration_ms": 1835,
+   "words_per_s": 1.09,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -21.47,
+   "peak_dbfs": -3.08,
+   "median_f0_hz": 130.4,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "2. Is Abella.",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "2",
+     "is abella"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "a02-label",
+     "started_at": "2026-11-13T19:19:19+00:00",
+     "sha256": "a8f7da348fe5c37b2eb06840cf70a061dbdbd356d34278ba98b0df02f2ddde32",
+     "text": "Two. Isabella.",
+     "status_at_run": "failed",
+     "reason_at_run": "transcript differs from the text after the declared tolerances",
+     "heard": "2. Is Abella.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.37,
+     "asr_s": 0.32,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "a02-bf_isabella-s1",
+   "slot": "a",
+   "candidate": 2,
+   "kind": "line",
+   "voice": "bf_isabella",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 1,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Day three hundred forty. I've mastered fire, shelter, and emotionally supportive moss.",
+   "text_sha256": "5f24a9fa45469a22d9d74d261c909ec1b5e512c01acea3eb497a65d87258a20d",
+   "signature": "sha256:e38874461bbba1484f95d488ce9c1733af85b45e18d1624f995fba0313fc9d65",
+   "file": "takes/a02-bf_isabella-s1.wav",
+   "sha256": "9630f6af76d0d01eb62ae1c52d38b56944de15fd3aa82740e8b4c8df20f945bc",
+   "bytes": 266284,
+   "rate": 24000,
+   "frames": 133120,
+   "duration_s": 5.547,
+   "duration_ms": 5547,
+   "words_per_s": 2.16,
+   "r4_duration_s": 5.163,
+   "duration_vs_r4": 1.07,
+   "rms_dbfs": -16.95,
+   "peak_dbfs": -0.0,
+   "median_f0_hz": 218.2,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": true,
+    "heard": "Day 340. I've mastered fire, shelter, and emotionally supportive MOS.",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "340",
+     "mos"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "a02-bf_isabella-s1",
+     "started_at": "2026-11-13T19:19:20+00:00",
+     "sha256": "9630f6af76d0d01eb62ae1c52d38b56944de15fd3aa82740e8b4c8df20f945bc",
+     "text": "Day three hundred forty. I've mastered fire, shelter, and emotionally supportive moss.",
+     "status_at_run": "failed",
+     "reason_at_run": "decode check: clipped",
+     "heard": null,
+     "requests": {
+      "tts": 1,
+      "asr": 0
+     },
+     "tts_s": 0.49,
+     "asr_s": null,
+     "retry_of": null,
+     "recheck_of": null
+    },
+    {
+     "take_id": "a02-bf_isabella-s1",
+     "started_at": "2026-11-13T19:21:54+00:00",
+     "sha256": "9630f6af76d0d01eb62ae1c52d38b56944de15fd3aa82740e8b4c8df20f945bc",
+     "text": "Day three hundred forty. I've mastered fire, shelter, and emotionally supportive moss.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Day 340. I've mastered fire, shelter, and emotionally supportive MOS.",
+     "requests": {
+      "tts": 0,
+      "asr": 1
+     },
+     "tts_s": 0.49,
+     "asr_s": 0.37,
+     "retry_of": null,
+     "recheck_of": "a02-bf_isabella-s1"
+    }
+   ]
+  },
+  {
+   "id": "a02-bf_isabella-s4",
+   "slot": "a",
+   "candidate": 2,
+   "kind": "line",
+   "voice": "bf_isabella",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 4,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Or we could just eat the crunchy butter squishies.",
+   "text_sha256": "3a496fbc894052dee1f2f882e8df8d989c0aa8d3436cf184d183a5b6b98223e4",
+   "signature": "sha256:00e2be154bc5272d73a9cbaccc8cfa5336f921b856c6782d9a1b833042d2685a",
+   "file": "takes/a02-bf_isabella-s4.wav",
+   "sha256": "bed186d3921b3d0f34321cd72bfeae01b8b4dc9a463b396baa598dad9de7ad28",
+   "bytes": 129068,
+   "rate": 24000,
+   "frames": 64512,
+   "duration_s": 2.688,
+   "duration_ms": 2688,
+   "words_per_s": 3.35,
+   "r4_duration_s": 2.475,
+   "duration_vs_r4": 1.09,
+   "rms_dbfs": -16.94,
+   "peak_dbfs": -2.34,
+   "median_f0_hz": 214.3,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Or we could just eat the crunchy butter squishies.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "a02-bf_isabella-s4",
+     "started_at": "2026-11-13T19:19:20+00:00",
+     "sha256": "bed186d3921b3d0f34321cd72bfeae01b8b4dc9a463b396baa598dad9de7ad28",
+     "text": "Or we could just eat the crunchy butter squishies.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Or we could just eat the crunchy butter squishies.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.35,
+     "asr_s": 0.31,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "a03-label",
+   "slot": "a",
+   "candidate": 3,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Three. Lily.",
+   "text_sha256": "a6985d220f8d54da2d84aee99f718a5fa2fb4d6802f15bb6df763645ea1930c2",
+   "signature": "sha256:bf625b78863eb3ee2d9c5d9d0b3b24c05fdfb643bc580a12705de5f345a7ed45",
+   "file": "takes/a03-label.wav",
+   "sha256": "e1494e80cbc55a2465a38933ef8cebc1973bc58fbc61d206b680c543896ddae0",
+   "bytes": 73772,
+   "rate": 24000,
+   "frames": 36864,
+   "duration_s": 1.536,
+   "duration_ms": 1536,
+   "words_per_s": 1.3,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -20.46,
+   "peak_dbfs": -2.46,
+   "median_f0_hz": 121.8,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "3. Lily",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "3"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "a03-label",
+     "started_at": "2026-11-13T19:19:21+00:00",
+     "sha256": "e1494e80cbc55a2465a38933ef8cebc1973bc58fbc61d206b680c543896ddae0",
+     "text": "Three. Lily.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "3. Lily",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.39,
+     "asr_s": 0.29,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "a03-bf_lily-s1",
+   "slot": "a",
+   "candidate": 3,
+   "kind": "line",
+   "voice": "bf_lily",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 1,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Day three hundred forty. I've mastered fire, shelter, and emotionally supportive moss.",
+   "text_sha256": "5f24a9fa45469a22d9d74d261c909ec1b5e512c01acea3eb497a65d87258a20d",
+   "signature": "sha256:026ed1335b2e181dbb77ec2958b0207063eef5b4e7e03f771266e61804c4545b",
+   "file": "takes/a03-bf_lily-s1.wav",
+   "sha256": "cc01486141bd138d8d23a1d53af46c6748a0fd8a5fdf696b9ca2bc35a811f23f",
+   "bytes": 274476,
+   "rate": 24000,
+   "frames": 137216,
+   "duration_s": 5.717,
+   "duration_ms": 5718,
+   "words_per_s": 2.1,
+   "r4_duration_s": 5.163,
+   "duration_vs_r4": 1.11,
+   "rms_dbfs": -20.29,
+   "peak_dbfs": -2.37,
+   "median_f0_hz": 208.7,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Day 340. I've mastered fire, shelter, and emotionally supportive MOS.",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "340",
+     "mos"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "a03-bf_lily-s1",
+     "started_at": "2026-11-13T19:19:22+00:00",
+     "sha256": "cc01486141bd138d8d23a1d53af46c6748a0fd8a5fdf696b9ca2bc35a811f23f",
+     "text": "Day three hundred forty. I've mastered fire, shelter, and emotionally supportive moss.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Day 340. I've mastered fire, shelter, and emotionally supportive MOS.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.45,
+     "asr_s": 0.33,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "a03-bf_lily-s4",
+   "slot": "a",
+   "candidate": 3,
+   "kind": "line",
+   "voice": "bf_lily",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 4,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Or we could just eat the crunchy butter squishies.",
+   "text_sha256": "3a496fbc894052dee1f2f882e8df8d989c0aa8d3436cf184d183a5b6b98223e4",
+   "signature": "sha256:ad302ef670667a1f85db56aee9608843bb0aadfbb13f19568353618e97d0f2f6",
+   "file": "takes/a03-bf_lily-s4.wav",
+   "sha256": "bc6c385253652c11a89c23898e0a7d30a599b908228d13446d5cd12ed0f904e7",
+   "bytes": 140332,
+   "rate": 24000,
+   "frames": 70144,
+   "duration_s": 2.923,
+   "duration_ms": 2923,
+   "words_per_s": 3.08,
+   "r4_duration_s": 2.475,
+   "duration_vs_r4": 1.18,
+   "rms_dbfs": -20.2,
+   "peak_dbfs": -2.32,
+   "median_f0_hz": 212.4,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Or we could just eat the crunchy butter squishies.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "a03-bf_lily-s4",
+     "started_at": "2026-11-13T19:19:23+00:00",
+     "sha256": "bc6c385253652c11a89c23898e0a7d30a599b908228d13446d5cd12ed0f904e7",
+     "text": "Or we could just eat the crunchy butter squishies.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Or we could just eat the crunchy butter squishies.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.32,
+     "asr_s": 0.3,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "a04-label",
+   "slot": "a",
+   "candidate": 4,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Four. Alice.",
+   "text_sha256": "3c03c0441d10f71a248646901fa88d2f1f6e1013b8ed212dad6faa3ad12cb4e7",
+   "signature": "sha256:6f3cfdfb9141885d660c9bf1709e23ed0bb26aafc8b227c3bf6afb890bec931a",
+   "file": "takes/a04-label.wav",
+   "sha256": "6824aecd4623cacc321075a5c839439c700d15234f3809f8579839a752ab44ea",
+   "bytes": 79916,
+   "rate": 24000,
+   "frames": 39936,
+   "duration_s": 1.664,
+   "duration_ms": 1664,
+   "words_per_s": 1.2,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -21.06,
+   "peak_dbfs": -4.14,
+   "median_f0_hz": 123.7,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "4. Alice",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "4"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "a04-label",
+     "started_at": "2026-11-13T19:19:23+00:00",
+     "sha256": "6824aecd4623cacc321075a5c839439c700d15234f3809f8579839a752ab44ea",
+     "text": "Four. Alice.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "4. Alice",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.32,
+     "asr_s": 0.26,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "a04-bf_alice-s1",
+   "slot": "a",
+   "candidate": 4,
+   "kind": "line",
+   "voice": "bf_alice",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 1,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Day three hundred forty. I've mastered fire, shelter, and emotionally supportive moss.",
+   "text_sha256": "5f24a9fa45469a22d9d74d261c909ec1b5e512c01acea3eb497a65d87258a20d",
+   "signature": "sha256:f7cc1f68a2ad5e19a3f787a72488e652272a845576e3556c0f78db06f70da9bf",
+   "file": "takes/a04-bf_alice-s1.wav",
+   "sha256": "d0cb83acc26b161ece4453ee4fbb6462d124fc61bbf6c2d573073ad88a7fddc7",
+   "bytes": 272428,
+   "rate": 24000,
+   "frames": 136192,
+   "duration_s": 5.675,
+   "duration_ms": 5675,
+   "words_per_s": 2.11,
+   "r4_duration_s": 5.163,
+   "duration_vs_r4": 1.1,
+   "rms_dbfs": -19.94,
+   "peak_dbfs": -1.87,
+   "median_f0_hz": 235.3,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Day 340. I've mastered fire, shelter, and emotionally supportive MOS.",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "340",
+     "mos"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "a04-bf_alice-s1",
+     "started_at": "2026-11-13T19:19:25+00:00",
+     "sha256": "d0cb83acc26b161ece4453ee4fbb6462d124fc61bbf6c2d573073ad88a7fddc7",
+     "text": "Day three hundred forty. I've mastered fire, shelter, and emotionally supportive moss.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Day 340. I've mastered fire, shelter, and emotionally supportive MOS.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.47,
+     "asr_s": 0.31,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "a04-bf_alice-s4",
+   "slot": "a",
+   "candidate": 4,
+   "kind": "line",
+   "voice": "bf_alice",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 4,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Or we could just eat the crunchy butter squishies.",
+   "text_sha256": "3a496fbc894052dee1f2f882e8df8d989c0aa8d3436cf184d183a5b6b98223e4",
+   "signature": "sha256:c021ebf45cb4c63176bfbb797db4f10952430a83c4d105af3dc23d5d3f94aae0",
+   "file": "takes/a04-bf_alice-s4.wav",
+   "sha256": "0bfb78d0c7596df70c7b6ac009bf2cbd4d4095897bf0e2e93ba183388fab5475",
+   "bytes": 141356,
+   "rate": 24000,
+   "frames": 70656,
+   "duration_s": 2.944,
+   "duration_ms": 2944,
+   "words_per_s": 3.06,
+   "r4_duration_s": 2.475,
+   "duration_vs_r4": 1.19,
+   "rms_dbfs": -19.6,
+   "peak_dbfs": -1.04,
+   "median_f0_hz": 235.3,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Or we could just eat the crunchy butter squishies.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "a04-bf_alice-s4",
+     "started_at": "2026-11-13T19:19:25+00:00",
+     "sha256": "0bfb78d0c7596df70c7b6ac009bf2cbd4d4095897bf0e2e93ba183388fab5475",
+     "text": "Or we could just eat the crunchy butter squishies.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Or we could just eat the crunchy butter squishies.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.31,
+     "asr_s": 0.33,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "a05-label",
+   "slot": "a",
+   "candidate": 5,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Five. Kore.",
+   "text_sha256": "7a807c37f289c4f2fa74acb553a74be7704c82221b1069617e07ce5625cf9779",
+   "signature": "sha256:3970306fca4f3d0a7bf9a1a4c2cdcf598ee794fc6d07e7d842ca438c4bb11db8",
+   "file": "takes/a05-label.wav",
+   "sha256": "3fcd796a09eb0dc285bd4138f8b15589477763eee2d74939e44b8c498b0bcc00",
+   "bytes": 76844,
+   "rate": 24000,
+   "frames": 38400,
+   "duration_s": 1.6,
+   "duration_ms": 1600,
+   "words_per_s": 1.25,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -20.8,
+   "peak_dbfs": -0.09,
+   "median_f0_hz": 128.0,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "5. Core",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "5",
+     "core"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "a05-label",
+     "started_at": "2026-11-13T19:19:26+00:00",
+     "sha256": "3fcd796a09eb0dc285bd4138f8b15589477763eee2d74939e44b8c498b0bcc00",
+     "text": "Five. Kore.",
+     "status_at_run": "failed",
+     "reason_at_run": "transcript differs from the text after the declared tolerances",
+     "heard": "5. Core",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.38,
+     "asr_s": 0.3,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "a05-af_kore-s1",
+   "slot": "a",
+   "candidate": 5,
+   "kind": "line",
+   "voice": "af_kore",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 1,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Day three hundred forty. I've mastered fire, shelter, and emotionally supportive moss.",
+   "text_sha256": "5f24a9fa45469a22d9d74d261c909ec1b5e512c01acea3eb497a65d87258a20d",
+   "signature": "sha256:fdd4c789579d31312381bb5a7e79b6f6030c01d0c68d3f7f9a144eae38c22dfe",
+   "file": "takes/a05-af_kore-s1.wav",
+   "sha256": "ee3c19168a82ec19139250498f5de110b4b1ff847a797935ad126b3309d5d29b",
+   "bytes": 248876,
+   "rate": 24000,
+   "frames": 124416,
+   "duration_s": 5.184,
+   "duration_ms": 5184,
+   "words_per_s": 2.31,
+   "r4_duration_s": 5.163,
+   "duration_vs_r4": 1.0,
+   "rms_dbfs": -18.27,
+   "peak_dbfs": -3.23,
+   "median_f0_hz": 156.9,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Day 340. I've mastered fire, shelter, and emotionally supportive moss.",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "340"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "a05-af_kore-s1",
+     "started_at": "2026-11-13T19:19:27+00:00",
+     "sha256": "ee3c19168a82ec19139250498f5de110b4b1ff847a797935ad126b3309d5d29b",
+     "text": "Day three hundred forty. I've mastered fire, shelter, and emotionally supportive moss.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Day 340. I've mastered fire, shelter, and emotionally supportive moss.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.45,
+     "asr_s": 0.31,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "a05-af_kore-s4",
+   "slot": "a",
+   "candidate": 5,
+   "kind": "line",
+   "voice": "af_kore",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 4,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Or we could just eat the crunchy butter squishies.",
+   "text_sha256": "3a496fbc894052dee1f2f882e8df8d989c0aa8d3436cf184d183a5b6b98223e4",
+   "signature": "sha256:8e681bb6e4f6fc8d9a2f05f5f89ec2f8de971fdac95d95b94ea08a0d8894712f",
+   "file": "takes/a05-af_kore-s4.wav",
+   "sha256": "b7b9cb0e3b5ab05c6766d8b570f329160bd3c2373dde9f800b751342e323cf0d",
+   "bytes": 127020,
+   "rate": 24000,
+   "frames": 63488,
+   "duration_s": 2.645,
+   "duration_ms": 2646,
+   "words_per_s": 3.4,
+   "r4_duration_s": 2.475,
+   "duration_vs_r4": 1.07,
+   "rms_dbfs": -18.06,
+   "peak_dbfs": -2.46,
+   "median_f0_hz": 167.8,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Or we could just eat the crunchy butter squishies.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "a05-af_kore-s4",
+     "started_at": "2026-11-13T19:19:27+00:00",
+     "sha256": "b7b9cb0e3b5ab05c6766d8b570f329160bd3c2373dde9f800b751342e323cf0d",
+     "text": "Or we could just eat the crunchy butter squishies.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Or we could just eat the crunchy butter squishies.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.31,
+     "asr_s": 0.3,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "a06-label",
+   "slot": "a",
+   "candidate": 6,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Number six. Aoede.",
+   "text_sha256": "4fa0be0793e31c5dfcb69d5ac9491beeb5d0e72c4a3fc62c815b29040412c038",
+   "signature": "sha256:f9ad6ab3274a9c929505bd0ed5d3143e51d3f655292d9040622f2e15d4af0759",
+   "file": "takes/a06-label-retry1.wav",
+   "sha256": "ddc1a6797be658aa9f2f4960a82cc726b487799e013ba9bba359d131ce96fab7",
+   "bytes": 98348,
+   "rate": 24000,
+   "frames": 49152,
+   "duration_s": 2.048,
+   "duration_ms": 2048,
+   "words_per_s": 1.46,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -21.81,
+   "peak_dbfs": -2.34,
+   "median_f0_hz": 131.1,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Number 6. AULED",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "6",
+     "auled"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "a06-label",
+     "started_at": "2026-11-13T19:19:28+00:00",
+     "sha256": "9d59ebf61bdc0d7aabfc91250595a84d5cc1f25f2e1b406eb7256fe9653db8f3",
+     "text": "Six. Aoede.",
+     "status_at_run": "failed",
+     "reason_at_run": "transcript differs from the text after the declared tolerances",
+     "heard": "Zix. AULED.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.37,
+     "asr_s": 0.35,
+     "retry_of": null,
+     "recheck_of": null
+    },
+    {
+     "take_id": "a06-label-retry1",
+     "started_at": "2026-11-13T19:21:55+00:00",
+     "sha256": "ddc1a6797be658aa9f2f4960a82cc726b487799e013ba9bba359d131ce96fab7",
+     "text": "Number six. Aoede.",
+     "status_at_run": "failed",
+     "reason_at_run": "transcript differs from the text after the declared tolerances",
+     "heard": "Number 6. AULED",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.43,
+     "asr_s": 0.3,
+     "retry_of": "a06-label",
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "a06-af_aoede-s1",
+   "slot": "a",
+   "candidate": 6,
+   "kind": "line",
+   "voice": "af_aoede",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 1,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Day three hundred forty. I've mastered fire, shelter, and emotionally supportive moss.",
+   "text_sha256": "5f24a9fa45469a22d9d74d261c909ec1b5e512c01acea3eb497a65d87258a20d",
+   "signature": "sha256:7d6eabaeee94983d307efe487e6554bad126ea6a4c8abdabb38e1f36371b9995",
+   "file": "takes/a06-af_aoede-s1.wav",
+   "sha256": "7b22021280d206bfc190520b7ae61f4e3d6dc122a33684ec11116c95315f9a64",
+   "bytes": 229420,
+   "rate": 24000,
+   "frames": 114688,
+   "duration_s": 4.779,
+   "duration_ms": 4779,
+   "words_per_s": 2.51,
+   "r4_duration_s": 5.163,
+   "duration_vs_r4": 0.93,
+   "rms_dbfs": -17.11,
+   "peak_dbfs": -1.54,
+   "median_f0_hz": 186.0,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Day 340, I've mastered fire, shelter, and emotionally supportive moss.",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "340"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "a06-af_aoede-s1",
+     "started_at": "2026-11-13T19:19:29+00:00",
+     "sha256": "7b22021280d206bfc190520b7ae61f4e3d6dc122a33684ec11116c95315f9a64",
+     "text": "Day three hundred forty. I've mastered fire, shelter, and emotionally supportive moss.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Day 340, I've mastered fire, shelter, and emotionally supportive moss.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.49,
+     "asr_s": 0.34,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "a06-af_aoede-s4",
+   "slot": "a",
+   "candidate": 6,
+   "kind": "line",
+   "voice": "af_aoede",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 4,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Or we could just eat the crunchy butter squishies.",
+   "text_sha256": "3a496fbc894052dee1f2f882e8df8d989c0aa8d3436cf184d183a5b6b98223e4",
+   "signature": "sha256:bedfdee56f3175b2dd584b1fca0350013288403d2bb26c61eca09573433c23df",
+   "file": "takes/a06-af_aoede-s4.wav",
+   "sha256": "6ab44a3f0e7550350bf520d53f6b8ff84f6c67f3519305a5374e2e1aa87365ce",
+   "bytes": 112684,
+   "rate": 24000,
+   "frames": 56320,
+   "duration_s": 2.347,
+   "duration_ms": 2347,
+   "words_per_s": 3.83,
+   "r4_duration_s": 2.475,
+   "duration_vs_r4": 0.95,
+   "rms_dbfs": -16.83,
+   "peak_dbfs": -1.27,
+   "median_f0_hz": 195.1,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Or we could just eat the crunchy butter squishies.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "a06-af_aoede-s4",
+     "started_at": "2026-11-13T19:19:30+00:00",
+     "sha256": "6ab44a3f0e7550350bf520d53f6b8ff84f6c67f3519305a5374e2e1aa87365ce",
+     "text": "Or we could just eat the crunchy butter squishies.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Or we could just eat the crunchy butter squishies.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.32,
+     "asr_s": 0.31,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b00-intro",
+   "slot": "b",
+   "candidate": 0,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Doll B, the chair.",
+   "text_sha256": "af66a633bcc69a916fc1f15ab298adc1ed2e57f5f0ebb361a90bd9eba9f6564c",
+   "signature": "sha256:05d7b04c677ed6215623ca50bbe9777731e26f45850ea9c751d567cc7c44bb28",
+   "file": "takes/b00-intro.wav",
+   "sha256": "d7d97abf8e39e409c74d1407233083d5a87e9481d848069f4fb0e907a8c61ec6",
+   "bytes": 68652,
+   "rate": 24000,
+   "frames": 34304,
+   "duration_s": 1.429,
+   "duration_ms": 1430,
+   "words_per_s": 2.8,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -21.83,
+   "peak_dbfs": -2.61,
+   "median_f0_hz": 137.1,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Dahl B the chair.",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "dahl"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "b00-intro",
+     "started_at": "2026-11-13T19:19:31+00:00",
+     "sha256": "d7d97abf8e39e409c74d1407233083d5a87e9481d848069f4fb0e907a8c61ec6",
+     "text": "Doll B, the chair.",
+     "status_at_run": "failed",
+     "reason_at_run": "transcript differs from the text after the declared tolerances",
+     "heard": "Dahl B the chair.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.28,
+     "asr_s": 0.29,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b01-label",
+   "slot": "b",
+   "candidate": 1,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "One. Heart, the current voice.",
+   "text_sha256": "9da144d3cfb03858f51062dff39ea8bcbe13b073ec51c6f44bc4f51ad5de8efc",
+   "signature": "sha256:70e50db72a1b1b6302596c8b4855bfe17cca3860bf40212a26cd3fda50430779",
+   "file": "takes/b01-label.wav",
+   "sha256": "2a4c4757754115abb9fd98f36c7c3885ff87419efa0f61b7dbab18b51431f165",
+   "bytes": 110636,
+   "rate": 24000,
+   "frames": 55296,
+   "duration_s": 2.304,
+   "duration_ms": 2304,
+   "words_per_s": 2.17,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -21.4,
+   "peak_dbfs": -1.94,
+   "median_f0_hz": 122.4,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "1. Heart the current voice",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "1"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "b01-label",
+     "started_at": "2026-11-13T19:19:31+00:00",
+     "sha256": "2a4c4757754115abb9fd98f36c7c3885ff87419efa0f61b7dbab18b51431f165",
+     "text": "One. Heart, the current voice.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "1. Heart the current voice",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.38,
+     "asr_s": 0.28,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b01-af_heart-s2",
+   "slot": "b",
+   "candidate": 1,
+   "kind": "line",
+   "voice": "af_heart",
+   "current_voice": true,
+   "r4_line": {
+    "shot": 2,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Winter's coming. We need to discuss the menu.",
+   "text_sha256": "bb3f5578c0bf112dcfa77c431c0147e53560397adc510a0ad7f81eb65d1be34b",
+   "signature": "sha256:677b982476debf458f50d1878a8be2c7adab3af3a3c2a4322dc9783c6fd99085",
+   "file": "takes/b01-af_heart-s2.wav",
+   "sha256": "7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50",
+   "bytes": 129068,
+   "rate": 24000,
+   "frames": 64512,
+   "duration_s": 2.688,
+   "duration_ms": 2688,
+   "words_per_s": 2.98,
+   "r4_duration_s": 2.688,
+   "duration_vs_r4": 1.0,
+   "rms_dbfs": -21.49,
+   "peak_dbfs": -3.81,
+   "median_f0_hz": 224.3,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Winter's coming, we need to discuss the menu.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "b01-af_heart-s2",
+     "started_at": "2026-11-13T19:19:10+00:00",
+     "sha256": "7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50",
+     "text": "Winter's coming. We need to discuss the menu.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Winter's coming, we need to discuss the menu.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.44,
+     "asr_s": 0.33,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b01-af_heart-s8-4",
+   "slot": "b",
+   "candidate": 1,
+   "kind": "line",
+   "voice": "af_heart",
+   "current_voice": true,
+   "r4_line": {
+    "shot": 8,
+    "k": 4
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Motion carried.",
+   "text_sha256": "2cd975a9ee63ac0547481de853464ca93d64c05920b70dfd40b0786db9d5125e",
+   "signature": "sha256:6a9f70a149975df0a83ff316ffea2a4b13a199ff788a68d2e1f5066c7f8f44b2",
+   "file": "takes/b01-af_heart-s8-4.wav",
+   "sha256": "9b3ba267baecf4407cb1ec7dfa66598566e83e615b009f307a47c4b3be4aaad9",
+   "bytes": 49196,
+   "rate": 24000,
+   "frames": 24576,
+   "duration_s": 1.024,
+   "duration_ms": 1024,
+   "words_per_s": 1.95,
+   "r4_duration_s": 1.024,
+   "duration_vs_r4": 1.0,
+   "rms_dbfs": -20.69,
+   "peak_dbfs": -6.16,
+   "median_f0_hz": 210.5,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Motion carried.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "b01-af_heart-s8-4",
+     "started_at": "2026-11-13T19:19:32+00:00",
+     "sha256": "9b3ba267baecf4407cb1ec7dfa66598566e83e615b009f307a47c4b3be4aaad9",
+     "text": "Motion carried.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Motion carried.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.27,
+     "asr_s": 0.27,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b01-af_heart-s9",
+   "slot": "b",
+   "candidate": 1,
+   "kind": "line",
+   "voice": "af_heart",
+   "current_voice": true,
+   "r4_line": {
+    "shot": 9,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Needs salt.",
+   "text_sha256": "717838cc99d8ce1bfb2c8374754d124620dcb57c123e5bc6a271977f2d283257",
+   "signature": "sha256:bea8fa07768ccf98d21d9597fcb83091eeb347f86c847f203df3a4ee89471e01",
+   "file": "takes/b01-af_heart-s9.wav",
+   "sha256": "4e12138ee373ac45b6fce8f9049680d5494892fcc13a511bc77dbf37afbb5d31",
+   "bytes": 47148,
+   "rate": 24000,
+   "frames": 23552,
+   "duration_s": 0.981,
+   "duration_ms": 982,
+   "words_per_s": 2.04,
+   "r4_duration_s": 0.981,
+   "duration_vs_r4": 1.0,
+   "rms_dbfs": -20.44,
+   "peak_dbfs": -4.24,
+   "median_f0_hz": 226.4,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Need salt.",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "need salt"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "b01-af_heart-s9",
+     "started_at": "2026-11-13T19:19:32+00:00",
+     "sha256": "4e12138ee373ac45b6fce8f9049680d5494892fcc13a511bc77dbf37afbb5d31",
+     "text": "Needs salt.",
+     "status_at_run": "failed",
+     "reason_at_run": "transcript differs from the text after the declared tolerances",
+     "heard": "Need salt.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.28,
+     "asr_s": 0.23,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b02-label",
+   "slot": "b",
+   "candidate": 2,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Two. Nova.",
+   "text_sha256": "0580cfb37bb74f94a4c1229f499bf884ee0eff8d8eace42a9fc56702f8ed886c",
+   "signature": "sha256:642e451c7bf55ed5f4f399c89065a01d2f286bcbf3c7e7b29696dd0b63a3fce4",
+   "file": "takes/b02-label.wav",
+   "sha256": "f57f3dca37a364ed0e9296232b274a812e128111091fce65fa30b416bb5f87fb",
+   "bytes": 72748,
+   "rate": 24000,
+   "frames": 36352,
+   "duration_s": 1.515,
+   "duration_ms": 1515,
+   "words_per_s": 1.32,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -20.92,
+   "peak_dbfs": -4.81,
+   "median_f0_hz": 127.0,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "2. Nova",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "2"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "b02-label",
+     "started_at": "2026-11-13T19:19:33+00:00",
+     "sha256": "f57f3dca37a364ed0e9296232b274a812e128111091fce65fa30b416bb5f87fb",
+     "text": "Two. Nova.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "2. Nova",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.37,
+     "asr_s": 0.3,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b02-af_nova-s2",
+   "slot": "b",
+   "candidate": 2,
+   "kind": "line",
+   "voice": "af_nova",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 2,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Winter's coming. We need to discuss the menu.",
+   "text_sha256": "bb3f5578c0bf112dcfa77c431c0147e53560397adc510a0ad7f81eb65d1be34b",
+   "signature": "sha256:7f7ecf57a0436713f64ffdabca203f6c8c41534bcb2117f3112b02aa4bd4febd",
+   "file": "takes/b02-af_nova-s2.wav",
+   "sha256": "764f4c59c45fe54bddc616274f9aefd2128061602f1df3f900dd369b23ba6778",
+   "bytes": 190508,
+   "rate": 24000,
+   "frames": 95232,
+   "duration_s": 3.968,
+   "duration_ms": 3968,
+   "words_per_s": 2.02,
+   "r4_duration_s": 2.688,
+   "duration_vs_r4": 1.48,
+   "rms_dbfs": -25.47,
+   "peak_dbfs": -7.05,
+   "median_f0_hz": 170.2,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Winter is coming. We need to discuss the menu.",
+    "exact_match": false,
+    "match_with_tolerances": false,
+    "tolerances_used": []
+   },
+   "status": "failed",
+   "reason": "transcript check: heard 'Winter is coming. We need to discuss the menu.'",
+   "attempts": [
+    {
+     "take_id": "b02-af_nova-s2",
+     "started_at": "2026-11-13T19:19:34+00:00",
+     "sha256": "764f4c59c45fe54bddc616274f9aefd2128061602f1df3f900dd369b23ba6778",
+     "text": "Winter's coming. We need to discuss the menu.",
+     "status_at_run": "failed",
+     "reason_at_run": "transcript differs from the text after the declared tolerances",
+     "heard": "Winter is coming. We need to discuss the menu.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.4,
+     "asr_s": 0.31,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b02-af_nova-s8-4",
+   "slot": "b",
+   "candidate": 2,
+   "kind": "line",
+   "voice": "af_nova",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 8,
+    "k": 4
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Motion carried.",
+   "text_sha256": "2cd975a9ee63ac0547481de853464ca93d64c05920b70dfd40b0786db9d5125e",
+   "signature": "sha256:d9263eb7b2a0b3d3e7e35291ae1242c739bfc60c868c4bd850f98f86b3d12be1",
+   "file": "takes/b02-af_nova-s8-4.wav",
+   "sha256": "0b1473d4f145ada4830754fd9782cd71917624380138bf7587078b91d5b55389",
+   "bytes": 76844,
+   "rate": 24000,
+   "frames": 38400,
+   "duration_s": 1.6,
+   "duration_ms": 1600,
+   "words_per_s": 1.25,
+   "r4_duration_s": 1.024,
+   "duration_vs_r4": 1.56,
+   "rms_dbfs": -24.81,
+   "peak_dbfs": -7.51,
+   "median_f0_hz": 181.1,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Motion carried.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "b02-af_nova-s8-4",
+     "started_at": "2026-11-13T19:19:34+00:00",
+     "sha256": "0b1473d4f145ada4830754fd9782cd71917624380138bf7587078b91d5b55389",
+     "text": "Motion carried.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Motion carried.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.27,
+     "asr_s": 0.31,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b02-af_nova-s9",
+   "slot": "b",
+   "candidate": 2,
+   "kind": "line",
+   "voice": "af_nova",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 9,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Needs salt.",
+   "text_sha256": "717838cc99d8ce1bfb2c8374754d124620dcb57c123e5bc6a271977f2d283257",
+   "signature": "sha256:ba066c18265a9780c5bf92bc99c3c95f9e615a7398b7203889be74680c0574b9",
+   "file": "takes/b02-af_nova-s9-retry1.wav",
+   "sha256": "76efe83cd3d52f1b0cfb42486682c4977dc1bfb3d4326c67e275f6669e0df490",
+   "bytes": 68652,
+   "rate": 24000,
+   "frames": 34304,
+   "duration_s": 1.429,
+   "duration_ms": 1430,
+   "words_per_s": 1.4,
+   "r4_duration_s": 0.981,
+   "duration_vs_r4": 1.46,
+   "rms_dbfs": -24.53,
+   "peak_dbfs": -9.96,
+   "median_f0_hz": 195.9,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Nades Salt",
+    "exact_match": false,
+    "match_with_tolerances": false,
+    "tolerances_used": []
+   },
+   "status": "failed",
+   "reason": "transcript check: heard 'Nades Salt'",
+   "attempts": [
+    {
+     "take_id": "b02-af_nova-s9",
+     "started_at": "2026-11-13T19:19:35+00:00",
+     "sha256": "76efe83cd3d52f1b0cfb42486682c4977dc1bfb3d4326c67e275f6669e0df490",
+     "text": "Needs salt.",
+     "status_at_run": "failed",
+     "reason_at_run": "transcript differs from the text after the declared tolerances",
+     "heard": "Nades Salt",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.28,
+     "asr_s": 0.28,
+     "retry_of": null,
+     "recheck_of": null
+    },
+    {
+     "take_id": "b02-af_nova-s9-retry1",
+     "started_at": "2026-11-13T19:21:55+00:00",
+     "sha256": "76efe83cd3d52f1b0cfb42486682c4977dc1bfb3d4326c67e275f6669e0df490",
+     "text": "Needs salt.",
+     "status_at_run": "failed",
+     "reason_at_run": "transcript differs from the text after the declared tolerances",
+     "heard": "Nades Salt",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.29,
+     "asr_s": 0.28,
+     "retry_of": "b02-af_nova-s9",
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b03-label",
+   "slot": "b",
+   "candidate": 3,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Three. Alloy.",
+   "text_sha256": "7d62ea2d12e631bbd2d9df47fd7e4e7eab7ddf3a4fe544cf17d03b1747a95584",
+   "signature": "sha256:db6d13759bdc98b743dee73cf54183ecf8d5d55332073fd8720c429879fa20a0",
+   "file": "takes/b03-label.wav",
+   "sha256": "8563296d556e994991737637b072c75b7fcaf48c73595adb3e4c4635cf69fc3c",
+   "bytes": 80940,
+   "rate": 24000,
+   "frames": 40448,
+   "duration_s": 1.685,
+   "duration_ms": 1686,
+   "words_per_s": 1.19,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -21.77,
+   "peak_dbfs": -3.71,
+   "median_f0_hz": 127.3,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "3. Alloy",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "3"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "b03-label",
+     "started_at": "2026-11-13T19:19:36+00:00",
+     "sha256": "8563296d556e994991737637b072c75b7fcaf48c73595adb3e4c4635cf69fc3c",
+     "text": "Three. Alloy.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "3. Alloy",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.36,
+     "asr_s": 0.29,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b03-af_alloy-s2",
+   "slot": "b",
+   "candidate": 3,
+   "kind": "line",
+   "voice": "af_alloy",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 2,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Winter's coming. We need to discuss the menu.",
+   "text_sha256": "bb3f5578c0bf112dcfa77c431c0147e53560397adc510a0ad7f81eb65d1be34b",
+   "signature": "sha256:1f15b53a8da62a11051420db497ced98d452c59cd1f51880f356ea1cc45b0dbc",
+   "file": "takes/b03-af_alloy-s2.wav",
+   "sha256": "3c83a852559cb7fb4896f8dcad3c70870f7370c6ea5ca31c64dbe6598a03399f",
+   "bytes": 188460,
+   "rate": 24000,
+   "frames": 94208,
+   "duration_s": 3.925,
+   "duration_ms": 3926,
+   "words_per_s": 2.04,
+   "r4_duration_s": 2.688,
+   "duration_vs_r4": 1.46,
+   "rms_dbfs": -20.08,
+   "peak_dbfs": -1.18,
+   "median_f0_hz": 152.9,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Winter's coming. We need to discuss the menu.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "b03-af_alloy-s2",
+     "started_at": "2026-11-13T19:19:36+00:00",
+     "sha256": "3c83a852559cb7fb4896f8dcad3c70870f7370c6ea5ca31c64dbe6598a03399f",
+     "text": "Winter's coming. We need to discuss the menu.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Winter's coming. We need to discuss the menu.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.42,
+     "asr_s": 0.32,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b03-af_alloy-s8-4",
+   "slot": "b",
+   "candidate": 3,
+   "kind": "line",
+   "voice": "af_alloy",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 8,
+    "k": 4
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Motion carried.",
+   "text_sha256": "2cd975a9ee63ac0547481de853464ca93d64c05920b70dfd40b0786db9d5125e",
+   "signature": "sha256:d574efb7b3af1ac79cf964ffa97627a8437eab83391923f7135b782c7573959e",
+   "file": "takes/b03-af_alloy-s8-4.wav",
+   "sha256": "5536777fc739fff88f405dbd1b110c05fedb57dc70db3c5b74af1cceac641290",
+   "bytes": 76844,
+   "rate": 24000,
+   "frames": 38400,
+   "duration_s": 1.6,
+   "duration_ms": 1600,
+   "words_per_s": 1.25,
+   "r4_duration_s": 1.024,
+   "duration_vs_r4": 1.56,
+   "rms_dbfs": -19.79,
+   "peak_dbfs": -1.82,
+   "median_f0_hz": 151.9,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Motion carried.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "b03-af_alloy-s8-4",
+     "started_at": "2026-11-13T19:19:37+00:00",
+     "sha256": "5536777fc739fff88f405dbd1b110c05fedb57dc70db3c5b74af1cceac641290",
+     "text": "Motion carried.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Motion carried.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.27,
+     "asr_s": 0.27,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b03-af_alloy-s9",
+   "slot": "b",
+   "candidate": 3,
+   "kind": "line",
+   "voice": "af_alloy",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 9,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Needs salt.",
+   "text_sha256": "717838cc99d8ce1bfb2c8374754d124620dcb57c123e5bc6a271977f2d283257",
+   "signature": "sha256:f9a8df0d3330bb47f529a209c4e839ce357cc0a55c2aa9870b81014d03147199",
+   "file": "takes/b03-af_alloy-s9.wav",
+   "sha256": "b97f6ced788d8495d6501c4aecc77d4a22a477aa402ba7fe5ffa5ffd1f21d2cf",
+   "bytes": 72748,
+   "rate": 24000,
+   "frames": 36352,
+   "duration_s": 1.515,
+   "duration_ms": 1515,
+   "words_per_s": 1.32,
+   "r4_duration_s": 0.981,
+   "duration_vs_r4": 1.54,
+   "rms_dbfs": -19.58,
+   "peak_dbfs": -2.5,
+   "median_f0_hz": 157.9,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Nades salt.",
+    "exact_match": false,
+    "match_with_tolerances": false,
+    "tolerances_used": []
+   },
+   "status": "failed",
+   "reason": "transcript check: heard 'Nades salt.'",
+   "attempts": [
+    {
+     "take_id": "b03-af_alloy-s9",
+     "started_at": "2026-11-13T19:19:38+00:00",
+     "sha256": "b97f6ced788d8495d6501c4aecc77d4a22a477aa402ba7fe5ffa5ffd1f21d2cf",
+     "text": "Needs salt.",
+     "status_at_run": "failed",
+     "reason_at_run": "transcript differs from the text after the declared tolerances",
+     "heard": "Nades salt.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.28,
+     "asr_s": 0.28,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b04-label",
+   "slot": "b",
+   "candidate": 4,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Four. Sarah.",
+   "text_sha256": "7a38671edd9acda70b82f72ede99706735a186668045294cfe03dcbc29fb8c74",
+   "signature": "sha256:2cdb6eb0a64d550c5e84e432d6d36a0d4c3f44ba3e869870111b8dd04099ffe7",
+   "file": "takes/b04-label.wav",
+   "sha256": "f784ec907a55dca36d1b19f8fcaa10dd7aac22460a0081bb7cea0d4fea076d24",
+   "bytes": 77868,
+   "rate": 24000,
+   "frames": 38912,
+   "duration_s": 1.621,
+   "duration_ms": 1622,
+   "words_per_s": 1.23,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -20.79,
+   "peak_dbfs": -4.14,
+   "median_f0_hz": 127.0,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "4. Sarah",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "4"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "b04-label",
+     "started_at": "2026-11-13T19:19:38+00:00",
+     "sha256": "f784ec907a55dca36d1b19f8fcaa10dd7aac22460a0081bb7cea0d4fea076d24",
+     "text": "Four. Sarah.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "4. Sarah",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.37,
+     "asr_s": 0.29,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b04-af_sarah-s2",
+   "slot": "b",
+   "candidate": 4,
+   "kind": "line",
+   "voice": "af_sarah",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 2,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Winter's coming. We need to discuss the menu.",
+   "text_sha256": "bb3f5578c0bf112dcfa77c431c0147e53560397adc510a0ad7f81eb65d1be34b",
+   "signature": "sha256:d5661a2f1bd825ef6c73c1471fe64d992c06a714ab5b68bb906ca204c5101345",
+   "file": "takes/b04-af_sarah-s2.wav",
+   "sha256": "45e317b333a86d500249f7d879b3aa4f78f5c40ed07a1317c12292ce5205121b",
+   "bytes": 127020,
+   "rate": 24000,
+   "frames": 63488,
+   "duration_s": 2.645,
+   "duration_ms": 2646,
+   "words_per_s": 3.02,
+   "r4_duration_s": 2.688,
+   "duration_vs_r4": 0.98,
+   "rms_dbfs": -19.3,
+   "peak_dbfs": -0.92,
+   "median_f0_hz": 193.5,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Winter's coming, we need to discuss the menu.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "b04-af_sarah-s2",
+     "started_at": "2026-11-13T19:19:39+00:00",
+     "sha256": "45e317b333a86d500249f7d879b3aa4f78f5c40ed07a1317c12292ce5205121b",
+     "text": "Winter's coming. We need to discuss the menu.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Winter's coming, we need to discuss the menu.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.42,
+     "asr_s": 0.27,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b04-af_sarah-s8-4",
+   "slot": "b",
+   "candidate": 4,
+   "kind": "line",
+   "voice": "af_sarah",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 8,
+    "k": 4
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Motion carried.",
+   "text_sha256": "2cd975a9ee63ac0547481de853464ca93d64c05920b70dfd40b0786db9d5125e",
+   "signature": "sha256:9e117f1194652f0b569277566b8f0f642f620e1f9557cbff773471711e6cf390",
+   "file": "takes/b04-af_sarah-s8-4.wav",
+   "sha256": "be8165265348733797a97ea5cfb421586a01c350c75dc6a0c18fcc721bd9dd98",
+   "bytes": 49196,
+   "rate": 24000,
+   "frames": 24576,
+   "duration_s": 1.024,
+   "duration_ms": 1024,
+   "words_per_s": 1.95,
+   "r4_duration_s": 1.024,
+   "duration_vs_r4": 1.0,
+   "rms_dbfs": -18.47,
+   "peak_dbfs": -0.68,
+   "median_f0_hz": 208.7,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Motion carried.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "b04-af_sarah-s8-4",
+     "started_at": "2026-11-13T19:19:40+00:00",
+     "sha256": "be8165265348733797a97ea5cfb421586a01c350c75dc6a0c18fcc721bd9dd98",
+     "text": "Motion carried.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Motion carried.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.28,
+     "asr_s": 0.28,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b04-af_sarah-s9",
+   "slot": "b",
+   "candidate": 4,
+   "kind": "line",
+   "voice": "af_sarah",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 9,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Needs salt.",
+   "text_sha256": "717838cc99d8ce1bfb2c8374754d124620dcb57c123e5bc6a271977f2d283257",
+   "signature": "sha256:60e6e67e9bbeeac4e1525d3bf66a1cf0e64901ac65e87925b7ae28074ce8c362",
+   "file": "takes/b04-af_sarah-s9.wav",
+   "sha256": "7fac9060e612caee8841828b0681eff575d3f9822ae9fd3da40926a2c523afa3",
+   "bytes": 45100,
+   "rate": 24000,
+   "frames": 22528,
+   "duration_s": 0.939,
+   "duration_ms": 939,
+   "words_per_s": 2.13,
+   "r4_duration_s": 0.981,
+   "duration_vs_r4": 0.96,
+   "rms_dbfs": -18.64,
+   "peak_dbfs": -3.51,
+   "median_f0_hz": 224.3,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Need salt.",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "need salt"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "b04-af_sarah-s9",
+     "started_at": "2026-11-13T19:19:41+00:00",
+     "sha256": "7fac9060e612caee8841828b0681eff575d3f9822ae9fd3da40926a2c523afa3",
+     "text": "Needs salt.",
+     "status_at_run": "failed",
+     "reason_at_run": "transcript differs from the text after the declared tolerances",
+     "heard": "Need salt.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.27,
+     "asr_s": 0.27,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b05-label",
+   "slot": "b",
+   "candidate": 5,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Five. River.",
+   "text_sha256": "bd324ad9a606905aefa991abd185e6e41a520409158b4b25d10d82087aba27af",
+   "signature": "sha256:0328123f8defa9bc625e53740cdf293a44d19764c8d114cc278316d13896af43",
+   "file": "takes/b05-label.wav",
+   "sha256": "ae44c7799096dd48276b3ab5974daeedf196736238f12fc024e98e2c24cc245a",
+   "bytes": 74796,
+   "rate": 24000,
+   "frames": 37376,
+   "duration_s": 1.557,
+   "duration_ms": 1558,
+   "words_per_s": 1.28,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -20.29,
+   "peak_dbfs": -0.09,
+   "median_f0_hz": 126.0,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Five river",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "b05-label",
+     "started_at": "2026-11-13T19:19:42+00:00",
+     "sha256": "ae44c7799096dd48276b3ab5974daeedf196736238f12fc024e98e2c24cc245a",
+     "text": "Five. River.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Five river",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.38,
+     "asr_s": 0.28,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b05-af_river-s2",
+   "slot": "b",
+   "candidate": 5,
+   "kind": "line",
+   "voice": "af_river",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 2,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Winter's coming. We need to discuss the menu.",
+   "text_sha256": "bb3f5578c0bf112dcfa77c431c0147e53560397adc510a0ad7f81eb65d1be34b",
+   "signature": "sha256:d8419cc4694406f3a91d2c3293713679eebf9c80857d3e5d77d0e9937c74b290",
+   "file": "takes/b05-af_river-s2.wav",
+   "sha256": "c82447c55b2c4d44ce9dbf53cc1049709cb94dac41259dfdff79d59b9de1e3fc",
+   "bytes": 155692,
+   "rate": 24000,
+   "frames": 77824,
+   "duration_s": 3.243,
+   "duration_ms": 3243,
+   "words_per_s": 2.47,
+   "r4_duration_s": 2.688,
+   "duration_vs_r4": 1.21,
+   "rms_dbfs": -20.12,
+   "peak_dbfs": -2.12,
+   "median_f0_hz": 187.5,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Winter's coming. We need to discuss the menu.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "b05-af_river-s2",
+     "started_at": "2026-11-13T19:19:43+00:00",
+     "sha256": "c82447c55b2c4d44ce9dbf53cc1049709cb94dac41259dfdff79d59b9de1e3fc",
+     "text": "Winter's coming. We need to discuss the menu.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Winter's coming. We need to discuss the menu.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.41,
+     "asr_s": 0.33,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b05-af_river-s8-4",
+   "slot": "b",
+   "candidate": 5,
+   "kind": "line",
+   "voice": "af_river",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 8,
+    "k": 4
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Motion carried.",
+   "text_sha256": "2cd975a9ee63ac0547481de853464ca93d64c05920b70dfd40b0786db9d5125e",
+   "signature": "sha256:ca7251c80f7068b26ebe3f69aca652b98f94ed2033ee5162ce08c035f2a50fee",
+   "file": "takes/b05-af_river-s8-4.wav",
+   "sha256": "4f4403c65e1cd82e3951416e8cd9822c1c7fd21f30c614ff55fe1da6fff9fb2b",
+   "bytes": 62508,
+   "rate": 24000,
+   "frames": 31232,
+   "duration_s": 1.301,
+   "duration_ms": 1302,
+   "words_per_s": 1.54,
+   "r4_duration_s": 1.024,
+   "duration_vs_r4": 1.27,
+   "rms_dbfs": -19.78,
+   "peak_dbfs": -2.17,
+   "median_f0_hz": 186.0,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Motion carried a",
+    "exact_match": false,
+    "match_with_tolerances": false,
+    "tolerances_used": []
+   },
+   "status": "failed",
+   "reason": "transcript check: heard 'Motion carried a'",
+   "attempts": [
+    {
+     "take_id": "b05-af_river-s8-4",
+     "started_at": "2026-11-13T19:19:43+00:00",
+     "sha256": "4f4403c65e1cd82e3951416e8cd9822c1c7fd21f30c614ff55fe1da6fff9fb2b",
+     "text": "Motion carried.",
+     "status_at_run": "failed",
+     "reason_at_run": "transcript differs from the text after the declared tolerances",
+     "heard": "Motion carried a",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.29,
+     "asr_s": 0.29,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b05-af_river-s9",
+   "slot": "b",
+   "candidate": 5,
+   "kind": "line",
+   "voice": "af_river",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 9,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Needs salt.",
+   "text_sha256": "717838cc99d8ce1bfb2c8374754d124620dcb57c123e5bc6a271977f2d283257",
+   "signature": "sha256:48b3ca8e8e28b07b7ac3fbf6068dd58e11d720742f8353fda01f54242a13e713",
+   "file": "takes/b05-af_river-s9.wav",
+   "sha256": "d757de79fa056a05d926f87525000c5374c2b847582ea204c3e06952fcb7a9d5",
+   "bytes": 59436,
+   "rate": 24000,
+   "frames": 29696,
+   "duration_s": 1.237,
+   "duration_ms": 1238,
+   "words_per_s": 1.62,
+   "r4_duration_s": 0.981,
+   "duration_vs_r4": 1.26,
+   "rms_dbfs": -19.67,
+   "peak_dbfs": -2.04,
+   "median_f0_hz": 187.5,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Nade Salter.",
+    "exact_match": false,
+    "match_with_tolerances": false,
+    "tolerances_used": []
+   },
+   "status": "failed",
+   "reason": "transcript check: heard 'Nade Salter.'",
+   "attempts": [
+    {
+     "take_id": "b05-af_river-s9",
+     "started_at": "2026-11-13T19:19:44+00:00",
+     "sha256": "d757de79fa056a05d926f87525000c5374c2b847582ea204c3e06952fcb7a9d5",
+     "text": "Needs salt.",
+     "status_at_run": "failed",
+     "reason_at_run": "transcript differs from the text after the declared tolerances",
+     "heard": "Nade Salter.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.28,
+     "asr_s": 0.28,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b06-label",
+   "slot": "b",
+   "candidate": 6,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Number six. Kore.",
+   "text_sha256": "0b8c4255c74d77f7c0b44b6eb8e87340752287628af28f995fba0c7c6cf33d62",
+   "signature": "sha256:cc26663ae4a678271686217c05033324b89a449c0a8a2da3022a3d5d1cb5baf0",
+   "file": "takes/b06-label-retry1.wav",
+   "sha256": "79235cef9514a9c445af4f82f17fa03048c8cbef26711e1541a59031c86d5593",
+   "bytes": 89132,
+   "rate": 24000,
+   "frames": 44544,
+   "duration_s": 1.856,
+   "duration_ms": 1856,
+   "words_per_s": 1.62,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -21.08,
+   "peak_dbfs": -2.34,
+   "median_f0_hz": 131.1,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Number 6. Core",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "6",
+     "core"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "b06-label",
+     "started_at": "2026-11-13T19:19:45+00:00",
+     "sha256": "e63ea059af03f12f45cf692f107121b08b8b30796ca51221406a4a4f875c9e2f",
+     "text": "Six. Kore.",
+     "status_at_run": "failed",
+     "reason_at_run": "transcript differs from the text after the declared tolerances",
+     "heard": "Zix. Core.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.4,
+     "asr_s": 0.3,
+     "retry_of": null,
+     "recheck_of": null
+    },
+    {
+     "take_id": "b06-label-retry1",
+     "started_at": "2026-11-13T19:21:56+00:00",
+     "sha256": "79235cef9514a9c445af4f82f17fa03048c8cbef26711e1541a59031c86d5593",
+     "text": "Number six. Kore.",
+     "status_at_run": "failed",
+     "reason_at_run": "transcript differs from the text after the declared tolerances",
+     "heard": "Number 6. Core",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.38,
+     "asr_s": 0.31,
+     "retry_of": "b06-label",
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b06-af_kore-s2",
+   "slot": "b",
+   "candidate": 6,
+   "kind": "line",
+   "voice": "af_kore",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 2,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Winter's coming. We need to discuss the menu.",
+   "text_sha256": "bb3f5578c0bf112dcfa77c431c0147e53560397adc510a0ad7f81eb65d1be34b",
+   "signature": "sha256:4f1e1dac700a258310d4f11ab59ffc2b433aea7d2e0618d8e4ff67d397bf8676",
+   "file": "takes/b06-af_kore-s2.wav",
+   "sha256": "407720db8ddf4990d8c422ee27cb544377f99a9e854b1d7d6786af5bb1f55741",
+   "bytes": 128044,
+   "rate": 24000,
+   "frames": 64000,
+   "duration_s": 2.667,
+   "duration_ms": 2667,
+   "words_per_s": 3.0,
+   "r4_duration_s": 2.688,
+   "duration_vs_r4": 0.99,
+   "rms_dbfs": -17.64,
+   "peak_dbfs": -2.97,
+   "median_f0_hz": 183.2,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Winter's coming, we need to discuss the menu.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "b06-af_kore-s2",
+     "started_at": "2026-11-13T19:19:46+00:00",
+     "sha256": "407720db8ddf4990d8c422ee27cb544377f99a9e854b1d7d6786af5bb1f55741",
+     "text": "Winter's coming. We need to discuss the menu.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Winter's coming, we need to discuss the menu.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.44,
+     "asr_s": 0.31,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b06-af_kore-s8-4",
+   "slot": "b",
+   "candidate": 6,
+   "kind": "line",
+   "voice": "af_kore",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 8,
+    "k": 4
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Motion carried.",
+   "text_sha256": "2cd975a9ee63ac0547481de853464ca93d64c05920b70dfd40b0786db9d5125e",
+   "signature": "sha256:0847dacdaa76a0b5e65331a455f244e1ebe87a7aaddeb9caaf8a0d36b1031cfe",
+   "file": "takes/b06-af_kore-s8-4.wav",
+   "sha256": "e43c33585939fc12e8b2f99d88fbf8140fb564e6151030e79aad24935592f02c",
+   "bytes": 51244,
+   "rate": 24000,
+   "frames": 25600,
+   "duration_s": 1.067,
+   "duration_ms": 1067,
+   "words_per_s": 1.87,
+   "r4_duration_s": 1.024,
+   "duration_vs_r4": 1.04,
+   "rms_dbfs": -17.51,
+   "peak_dbfs": -4.38,
+   "median_f0_hz": 183.9,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Motion carried.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "b06-af_kore-s8-4",
+     "started_at": "2026-11-13T19:19:46+00:00",
+     "sha256": "e43c33585939fc12e8b2f99d88fbf8140fb564e6151030e79aad24935592f02c",
+     "text": "Motion carried.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Motion carried.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.28,
+     "asr_s": 0.25,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "b06-af_kore-s9",
+   "slot": "b",
+   "candidate": 6,
+   "kind": "line",
+   "voice": "af_kore",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 9,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Needs salt.",
+   "text_sha256": "717838cc99d8ce1bfb2c8374754d124620dcb57c123e5bc6a271977f2d283257",
+   "signature": "sha256:28a9820462f466e3377175d6297ba80659c4d8ed476e130baf43e605cf455cdb",
+   "file": "takes/b06-af_kore-s9.wav",
+   "sha256": "bc2d2fc5005b61770aa26f8faa892ddf0736ec5d2640f8bd94d30b10bc53d48d",
+   "bytes": 43052,
+   "rate": 24000,
+   "frames": 21504,
+   "duration_s": 0.896,
+   "duration_ms": 896,
+   "words_per_s": 2.23,
+   "r4_duration_s": 0.981,
+   "duration_vs_r4": 0.91,
+   "rms_dbfs": -17.04,
+   "peak_dbfs": -3.36,
+   "median_f0_hz": 197.5,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Need salt.",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "need salt"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "b06-af_kore-s9",
+     "started_at": "2026-11-13T19:19:47+00:00",
+     "sha256": "bc2d2fc5005b61770aa26f8faa892ddf0736ec5d2640f8bd94d30b10bc53d48d",
+     "text": "Needs salt.",
+     "status_at_run": "failed",
+     "reason_at_run": "transcript differs from the text after the declared tolerances",
+     "heard": "Need salt.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.27,
+     "asr_s": 0.27,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "c00-intro",
+   "slot": "c",
+   "candidate": 0,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Doll C, the grudge holder.",
+   "text_sha256": "c7cf5d6a810533826b19e52d716f8521585af952146eefabe7f117f98c3ce5cc",
+   "signature": "sha256:f2098ee0e9f13eff33ad2e1fd0c7cd20d370aa86c27a948327754959f055298a",
+   "file": "takes/c00-intro.wav",
+   "sha256": "f65c15989f799777df4feebe0712903e06fa7f017b427e567e1f6a227b499854",
+   "bytes": 95276,
+   "rate": 24000,
+   "frames": 47616,
+   "duration_s": 1.984,
+   "duration_ms": 1984,
+   "words_per_s": 2.52,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -22.72,
+   "peak_dbfs": -2.2,
+   "median_f0_hz": 127.0,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Dahl C, the Grudge Holder.",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "dahl"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "c00-intro",
+     "started_at": "2026-11-13T19:19:47+00:00",
+     "sha256": "f65c15989f799777df4feebe0712903e06fa7f017b427e567e1f6a227b499854",
+     "text": "Doll C, the grudge holder.",
+     "status_at_run": "failed",
+     "reason_at_run": "transcript differs from the text after the declared tolerances",
+     "heard": "Dahl C, the Grudge Holder.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.31,
+     "asr_s": 0.3,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "c01-label",
+   "slot": "c",
+   "candidate": 1,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "One. Nicole, the current voice.",
+   "text_sha256": "7833d2025f89e33fb25ba7cc159a7d45cce09d87cefd6129f1f28e91525dd517",
+   "signature": "sha256:45ffdbb45c07f388151b48eb35db124111edb2c466bb0abde0af386ef50938c5",
+   "file": "takes/c01-label.wav",
+   "sha256": "9e01c4324c40ff5cb7044599371fd0f1a3ab389c1e4863cae0b2edb26097ea0d",
+   "bytes": 109612,
+   "rate": 24000,
+   "frames": 54784,
+   "duration_s": 2.283,
+   "duration_ms": 2283,
+   "words_per_s": 2.19,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -21.15,
+   "peak_dbfs": -1.94,
+   "median_f0_hz": 117.6,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "1. Nicole the current voice",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "1"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "c01-label",
+     "started_at": "2026-11-13T19:19:48+00:00",
+     "sha256": "9e01c4324c40ff5cb7044599371fd0f1a3ab389c1e4863cae0b2edb26097ea0d",
+     "text": "One. Nicole, the current voice.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "1. Nicole the current voice",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.4,
+     "asr_s": 0.33,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "c01-af_nicole-s3",
+   "slot": "c",
+   "candidate": 1,
+   "kind": "line",
+   "voice": "af_nicole",
+   "current_voice": true,
+   "r4_line": {
+    "shot": 3,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "I nominate whoever brought orange slices. They know what they did.",
+   "text_sha256": "0b03af28a7d3c69fe53e16ca7cdd69d77513a1c3b8d0e6adaa3c4c561847c84c",
+   "signature": "sha256:a640f838175682c99904b4384fa889fca32e33f649d4aca221d488b55a47e807",
+   "file": "takes/c01-af_nicole-s3.wav",
+   "sha256": "6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36",
+   "bytes": 233516,
+   "rate": 24000,
+   "frames": 116736,
+   "duration_s": 4.864,
+   "duration_ms": 4864,
+   "words_per_s": 2.26,
+   "r4_duration_s": 4.864,
+   "duration_vs_r4": 1.0,
+   "rms_dbfs": -21.17,
+   "peak_dbfs": -1.9,
+   "median_f0_hz": 153.8,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "I nominate whoever brought orange slices. They know what they did.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "c01-af_nicole-s3",
+     "started_at": "2026-11-13T19:19:49+00:00",
+     "sha256": "6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36",
+     "text": "I nominate whoever brought orange slices. They know what they did.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "I nominate whoever brought orange slices. They know what they did.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.47,
+     "asr_s": 0.31,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "c01-af_nicole-s6",
+   "slot": "c",
+   "candidate": 1,
+   "kind": "line",
+   "voice": "af_nicole",
+   "current_voice": true,
+   "r4_line": {
+    "shot": 6,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "If we can't eat the squishies, why don't we just eat her?",
+   "text_sha256": "4c400ecd33ddb1909717652a9659688e11cb178d6a253794003e8fdb60f1056b",
+   "signature": "sha256:db7b4e058fbf90e45a326aff6ca94d9b85705546c1f72a06c2fba11467dd07af",
+   "file": "takes/c01-af_nicole-s6.wav",
+   "sha256": "46bf17ecaa3a9729b16fd45ba67c2f123b32756cf36eef133abf029c681a7395",
+   "bytes": 206892,
+   "rate": 24000,
+   "frames": 103424,
+   "duration_s": 4.309,
+   "duration_ms": 4310,
+   "words_per_s": 2.78,
+   "r4_duration_s": 4.309,
+   "duration_vs_r4": 1.0,
+   "rms_dbfs": -21.34,
+   "peak_dbfs": -4.61,
+   "median_f0_hz": 162.2,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "If we can't eat the Squishies, why don't we just eat her?",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "c01-af_nicole-s6",
+     "started_at": "2026-11-13T19:19:51+00:00",
+     "sha256": "46bf17ecaa3a9729b16fd45ba67c2f123b32756cf36eef133abf029c681a7395",
+     "text": "If we can't eat the squishies, why don't we just eat her?",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "If we can't eat the Squishies, why don't we just eat her?",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.37,
+     "asr_s": 0.3,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "c02-label",
+   "slot": "c",
+   "candidate": 2,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Two. Sarah.",
+   "text_sha256": "e29317f521da488a7bcca656647ef46d08de2292965a70458163b48e4c27b4c5",
+   "signature": "sha256:c5b238675ce8ab4f9af8b29adc89cb45bc7472d8cffef77dfd1d85d3bd667fcb",
+   "file": "takes/c02-label.wav",
+   "sha256": "b01e76eaa611ecbac26cc96f4b660a70698a008abf8132529967f8d2b6eb90da",
+   "bytes": 72748,
+   "rate": 24000,
+   "frames": 36352,
+   "duration_s": 1.515,
+   "duration_ms": 1515,
+   "words_per_s": 1.32,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -20.94,
+   "peak_dbfs": -4.49,
+   "median_f0_hz": 118.5,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "2. Sarah",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "2"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "c02-label",
+     "started_at": "2026-11-13T19:19:51+00:00",
+     "sha256": "b01e76eaa611ecbac26cc96f4b660a70698a008abf8132529967f8d2b6eb90da",
+     "text": "Two. Sarah.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "2. Sarah",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.38,
+     "asr_s": 0.31,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "c02-af_sarah-s3",
+   "slot": "c",
+   "candidate": 2,
+   "kind": "line",
+   "voice": "af_sarah",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 3,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "I nominate whoever brought orange slices. They know what they did.",
+   "text_sha256": "0b03af28a7d3c69fe53e16ca7cdd69d77513a1c3b8d0e6adaa3c4c561847c84c",
+   "signature": "sha256:54f2aa2a5413321af755a59fc1a81d2439f332579da348aeaf043c1e9abc8adb",
+   "file": "takes/c02-af_sarah-s3.wav",
+   "sha256": "1af3e2977ba3579ebb41f63ce48923bbf31c2b60e9958b16ee38a2cdb7e0ec6a",
+   "bytes": 169004,
+   "rate": 24000,
+   "frames": 84480,
+   "duration_s": 3.52,
+   "duration_ms": 3520,
+   "words_per_s": 3.12,
+   "r4_duration_s": 4.864,
+   "duration_vs_r4": 0.72,
+   "rms_dbfs": -19.75,
+   "peak_dbfs": -0.22,
+   "median_f0_hz": 205.1,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "I nominate whoever brought orange slices. They know what they did.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "c02-af_sarah-s3",
+     "started_at": "2026-11-13T19:19:52+00:00",
+     "sha256": "1af3e2977ba3579ebb41f63ce48923bbf31c2b60e9958b16ee38a2cdb7e0ec6a",
+     "text": "I nominate whoever brought orange slices. They know what they did.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "I nominate whoever brought orange slices. They know what they did.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.44,
+     "asr_s": 0.34,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "c02-af_sarah-s6",
+   "slot": "c",
+   "candidate": 2,
+   "kind": "line",
+   "voice": "af_sarah",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 6,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "If we can't eat the squishies, why don't we just eat her?",
+   "text_sha256": "4c400ecd33ddb1909717652a9659688e11cb178d6a253794003e8fdb60f1056b",
+   "signature": "sha256:fbb178870db62d3a06cbcb22057b669cd93c91b8803a419fb523bcdfd9b371bd",
+   "file": "takes/c02-af_sarah-s6.wav",
+   "sha256": "ea306090183029c56c19cad1fce8c25028eba4a9d8ce613a4bb34d304a0753ce",
+   "bytes": 135212,
+   "rate": 24000,
+   "frames": 67584,
+   "duration_s": 2.816,
+   "duration_ms": 2816,
+   "words_per_s": 4.26,
+   "r4_duration_s": 4.309,
+   "duration_vs_r4": 0.65,
+   "rms_dbfs": -20.19,
+   "peak_dbfs": -1.06,
+   "median_f0_hz": 201.7,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "If we can't eat the squishies, why don't we just eat her?",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "c02-af_sarah-s6",
+     "started_at": "2026-11-13T19:19:53+00:00",
+     "sha256": "ea306090183029c56c19cad1fce8c25028eba4a9d8ce613a4bb34d304a0753ce",
+     "text": "If we can't eat the squishies, why don't we just eat her?",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "If we can't eat the squishies, why don't we just eat her?",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.34,
+     "asr_s": 0.33,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "c03-label",
+   "slot": "c",
+   "candidate": 3,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Three. Jessica.",
+   "text_sha256": "cd1b7b759660a47dbff66fb7ce1e2b680b9f2094dd8fcdae546c5b4b3aef5c25",
+   "signature": "sha256:8f48b8acdb131e1f86a00855aa90f1014de03a0451448d4aa82bb9e8481b0016",
+   "file": "takes/c03-label.wav",
+   "sha256": "cdafdcc186a9260b49efb7c3818f60de882e9e8eb99afc4816b8434132901037",
+   "bytes": 84012,
+   "rate": 24000,
+   "frames": 41984,
+   "duration_s": 1.749,
+   "duration_ms": 1750,
+   "words_per_s": 1.14,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -20.98,
+   "peak_dbfs": -2.06,
+   "median_f0_hz": 140.4,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "3. Jessica",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "3"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "c03-label",
+     "started_at": "2026-11-13T19:19:54+00:00",
+     "sha256": "cdafdcc186a9260b49efb7c3818f60de882e9e8eb99afc4816b8434132901037",
+     "text": "Three. Jessica.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "3. Jessica",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.39,
+     "asr_s": 0.31,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "c03-af_jessica-s3",
+   "slot": "c",
+   "candidate": 3,
+   "kind": "line",
+   "voice": "af_jessica",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 3,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "I nominate whoever brought orange slices. They know what they did.",
+   "text_sha256": "0b03af28a7d3c69fe53e16ca7cdd69d77513a1c3b8d0e6adaa3c4c561847c84c",
+   "signature": "sha256:494457a39fd5e4434a2b7de264d51f705e51332e46c779fd01f954323eb40344",
+   "file": "takes/c03-af_jessica-s3.wav",
+   "sha256": "c25ea30e4081a3119da01f2025a50ca925d588c56b73888c94df3026c4cbe2cd",
+   "bytes": 199724,
+   "rate": 24000,
+   "frames": 99840,
+   "duration_s": 4.16,
+   "duration_ms": 4160,
+   "words_per_s": 2.64,
+   "r4_duration_s": 4.864,
+   "duration_vs_r4": 0.86,
+   "rms_dbfs": -20.83,
+   "peak_dbfs": -0.0,
+   "median_f0_hz": 222.2,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": true,
+    "heard": "I nominate whoever brought orange slices. They know what they did.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "c03-af_jessica-s3",
+     "started_at": "2026-11-13T19:19:54+00:00",
+     "sha256": "c25ea30e4081a3119da01f2025a50ca925d588c56b73888c94df3026c4cbe2cd",
+     "text": "I nominate whoever brought orange slices. They know what they did.",
+     "status_at_run": "failed",
+     "reason_at_run": "decode check: clipped",
+     "heard": null,
+     "requests": {
+      "tts": 1,
+      "asr": 0
+     },
+     "tts_s": 0.43,
+     "asr_s": null,
+     "retry_of": null,
+     "recheck_of": null
+    },
+    {
+     "take_id": "c03-af_jessica-s3",
+     "started_at": "2026-11-13T19:21:54+00:00",
+     "sha256": "c25ea30e4081a3119da01f2025a50ca925d588c56b73888c94df3026c4cbe2cd",
+     "text": "I nominate whoever brought orange slices. They know what they did.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "I nominate whoever brought orange slices. They know what they did.",
+     "requests": {
+      "tts": 0,
+      "asr": 1
+     },
+     "tts_s": 0.43,
+     "asr_s": 0.36,
+     "retry_of": null,
+     "recheck_of": "c03-af_jessica-s3"
+    }
+   ]
+  },
+  {
+   "id": "c03-af_jessica-s6",
+   "slot": "c",
+   "candidate": 3,
+   "kind": "line",
+   "voice": "af_jessica",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 6,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "If we can't eat the squishies, why don't we just eat her?",
+   "text_sha256": "4c400ecd33ddb1909717652a9659688e11cb178d6a253794003e8fdb60f1056b",
+   "signature": "sha256:2563bea613c57717bd6abcd3fdc348d32f95e0bc13c3ef231f4f7f2287ebc6a8",
+   "file": "takes/c03-af_jessica-s6.wav",
+   "sha256": "d8952dbddbdce49849c2410c471702a6dd217079873ce734ca5a323b0eb6bde8",
+   "bytes": 132140,
+   "rate": 24000,
+   "frames": 66048,
+   "duration_s": 2.752,
+   "duration_ms": 2752,
+   "words_per_s": 4.36,
+   "r4_duration_s": 4.309,
+   "duration_vs_r4": 0.64,
+   "rms_dbfs": -21.64,
+   "peak_dbfs": -2.71,
+   "median_f0_hz": 211.5,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "If we can't eat the squishies, why don't we just eat her?",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "c03-af_jessica-s6",
+     "started_at": "2026-11-13T19:19:57+00:00",
+     "sha256": "d8952dbddbdce49849c2410c471702a6dd217079873ce734ca5a323b0eb6bde8",
+     "text": "If we can't eat the squishies, why don't we just eat her?",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "If we can't eat the squishies, why don't we just eat her?",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.35,
+     "asr_s": 0.29,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "c04-label",
+   "slot": "c",
+   "candidate": 4,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Four. Aoede.",
+   "text_sha256": "71aed06ae52b4b547fd47c0ac6d013fb6b4c588767d7ea807a8c3f6f11542dba",
+   "signature": "sha256:5e06a943aec088257ae40fad451898a00ce85159aced1526c3b178d3c8dd018f",
+   "file": "takes/c04-label.wav",
+   "sha256": "f0789713fa74143caa51a3f3fd5a5ff243d0708b46784dffe02bb16678f3c295",
+   "bytes": 85036,
+   "rate": 24000,
+   "frames": 42496,
+   "duration_s": 1.771,
+   "duration_ms": 1771,
+   "words_per_s": 1.13,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -21.49,
+   "peak_dbfs": -4.14,
+   "median_f0_hz": 128.3,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "4. Ayuled.",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "4",
+     "ayuled"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "c04-label",
+     "started_at": "2026-11-13T19:19:57+00:00",
+     "sha256": "f0789713fa74143caa51a3f3fd5a5ff243d0708b46784dffe02bb16678f3c295",
+     "text": "Four. Aoede.",
+     "status_at_run": "failed",
+     "reason_at_run": "transcript differs from the text after the declared tolerances",
+     "heard": "4. Ayuled.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.37,
+     "asr_s": 0.34,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "c04-af_aoede-s3",
+   "slot": "c",
+   "candidate": 4,
+   "kind": "line",
+   "voice": "af_aoede",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 3,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "I nominate whoever brought orange slices. They know what they did.",
+   "text_sha256": "0b03af28a7d3c69fe53e16ca7cdd69d77513a1c3b8d0e6adaa3c4c561847c84c",
+   "signature": "sha256:1a2a66803c1c29c31ea613af67ef2bd76e798849b8b3755bfb50ab162c383ea7",
+   "file": "takes/c04-af_aoede-s3.wav",
+   "sha256": "6a24106f93ee5176deda00238d82c2ccefb983688145ca2a45bec187491e9a0b",
+   "bytes": 161836,
+   "rate": 24000,
+   "frames": 80896,
+   "duration_s": 3.371,
+   "duration_ms": 3371,
+   "words_per_s": 3.26,
+   "r4_duration_s": 4.864,
+   "duration_vs_r4": 0.69,
+   "rms_dbfs": -16.49,
+   "peak_dbfs": -1.46,
+   "median_f0_hz": 207.8,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "I nominate whoever brought orange slices. They know what they did.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "c04-af_aoede-s3",
+     "started_at": "2026-11-13T19:19:58+00:00",
+     "sha256": "6a24106f93ee5176deda00238d82c2ccefb983688145ca2a45bec187491e9a0b",
+     "text": "I nominate whoever brought orange slices. They know what they did.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "I nominate whoever brought orange slices. They know what they did.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.43,
+     "asr_s": 0.31,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "c04-af_aoede-s6",
+   "slot": "c",
+   "candidate": 4,
+   "kind": "line",
+   "voice": "af_aoede",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 6,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "If we can't eat the squishies, why don't we just eat her?",
+   "text_sha256": "4c400ecd33ddb1909717652a9659688e11cb178d6a253794003e8fdb60f1056b",
+   "signature": "sha256:48cea171ff0339dddfd7b144a74af7b8f6fed0f70d2309ecdb8d611fc55efc6d",
+   "file": "takes/c04-af_aoede-s6.wav",
+   "sha256": "217f949cd10917635c1b4f23bf4ed8a674d6cea9677b464dc80a20d612be6f78",
+   "bytes": 129068,
+   "rate": 24000,
+   "frames": 64512,
+   "duration_s": 2.688,
+   "duration_ms": 2688,
+   "words_per_s": 4.46,
+   "r4_duration_s": 4.309,
+   "duration_vs_r4": 0.62,
+   "rms_dbfs": -17.03,
+   "peak_dbfs": -1.2,
+   "median_f0_hz": 181.8,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "If we can't eat the squishies, why don't we just eat her?",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "c04-af_aoede-s6",
+     "started_at": "2026-11-13T19:19:59+00:00",
+     "sha256": "217f949cd10917635c1b4f23bf4ed8a674d6cea9677b464dc80a20d612be6f78",
+     "text": "If we can't eat the squishies, why don't we just eat her?",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "If we can't eat the squishies, why don't we just eat her?",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.31,
+     "asr_s": 0.29,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "c05-label",
+   "slot": "c",
+   "candidate": 5,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Five. Alloy.",
+   "text_sha256": "db1c06b2157e49e36d398071c3e5772b6fb5ff9ef0c8802b3297fe577891baed",
+   "signature": "sha256:f713c51bd55bf24a6c59f6b342490a6371c227b73e6fd04d874bee011d74e18a",
+   "file": "takes/c05-label.wav",
+   "sha256": "9a3579326c84b91bf4aa2ccef1d2c6b3393b4af0a89e4a36159ff2247dc1d3e3",
+   "bytes": 82988,
+   "rate": 24000,
+   "frames": 41472,
+   "duration_s": 1.728,
+   "duration_ms": 1728,
+   "words_per_s": 1.16,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -21.52,
+   "peak_dbfs": -0.09,
+   "median_f0_hz": 127.0,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "5. Alloy",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "5"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "c05-label",
+     "started_at": "2026-11-13T19:20:00+00:00",
+     "sha256": "9a3579326c84b91bf4aa2ccef1d2c6b3393b4af0a89e4a36159ff2247dc1d3e3",
+     "text": "Five. Alloy.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "5. Alloy",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.4,
+     "asr_s": 0.33,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "c05-af_alloy-s3",
+   "slot": "c",
+   "candidate": 5,
+   "kind": "line",
+   "voice": "af_alloy",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 3,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "I nominate whoever brought orange slices. They know what they did.",
+   "text_sha256": "0b03af28a7d3c69fe53e16ca7cdd69d77513a1c3b8d0e6adaa3c4c561847c84c",
+   "signature": "sha256:d776759bd00e490386737284e6b9c995ade4266d057bb441126a1edef95da2c2",
+   "file": "takes/c05-af_alloy-s3.wav",
+   "sha256": "e9a86c9d4de43acabbdbfb71d7110271f5b5b73ccc2425574f051ae7d9d50348",
+   "bytes": 243756,
+   "rate": 24000,
+   "frames": 121856,
+   "duration_s": 5.077,
+   "duration_ms": 5078,
+   "words_per_s": 2.17,
+   "r4_duration_s": 4.864,
+   "duration_vs_r4": 1.04,
+   "rms_dbfs": -20.85,
+   "peak_dbfs": -2.96,
+   "median_f0_hz": 150.0,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "I nominate whoever brought orange slices. They know what they did.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "c05-af_alloy-s3",
+     "started_at": "2026-11-13T19:20:08+00:00",
+     "sha256": "e9a86c9d4de43acabbdbfb71d7110271f5b5b73ccc2425574f051ae7d9d50348",
+     "text": "I nominate whoever brought orange slices. They know what they did.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "I nominate whoever brought orange slices. They know what they did.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.46,
+     "asr_s": 0.31,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "c05-af_alloy-s6",
+   "slot": "c",
+   "candidate": 5,
+   "kind": "line",
+   "voice": "af_alloy",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 6,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "If we can't eat the squishies, why don't we just eat her?",
+   "text_sha256": "4c400ecd33ddb1909717652a9659688e11cb178d6a253794003e8fdb60f1056b",
+   "signature": "sha256:7b70d401bdbac932199de5139eba68b18ebbd133bbe4d14649788c8a296c1209",
+   "file": "takes/c05-af_alloy-s6.wav",
+   "sha256": "62aab8cd50a114d42fce0a833b43edc22e77979102b786889a69a457d574eef1",
+   "bytes": 160812,
+   "rate": 24000,
+   "frames": 80384,
+   "duration_s": 3.349,
+   "duration_ms": 3350,
+   "words_per_s": 3.58,
+   "r4_duration_s": 4.309,
+   "duration_vs_r4": 0.78,
+   "rms_dbfs": -21.59,
+   "peak_dbfs": -3.58,
+   "median_f0_hz": 148.1,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "If we can't eat the squishies, why don't we just eat her?",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "c05-af_alloy-s6",
+     "started_at": "2026-11-13T19:20:08+00:00",
+     "sha256": "62aab8cd50a114d42fce0a833b43edc22e77979102b786889a69a457d574eef1",
+     "text": "If we can't eat the squishies, why don't we just eat her?",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "If we can't eat the squishies, why don't we just eat her?",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.31,
+     "asr_s": 0.29,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "c06-label",
+   "slot": "c",
+   "candidate": 6,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Number six. River.",
+   "text_sha256": "aed081e49241ada70390ab27388fcc92fc66a748e82ccfd7acd4d6e2ba3136c5",
+   "signature": "sha256:5da7efc53fe7fbc2ed4d2d56da11916970a5a9c08cb8c2a05dc3d7c94964b6ac",
+   "file": "takes/c06-label-retry1.wav",
+   "sha256": "9e8f0f75baf452623457d277d24232b389035cfcfb12589750d3efc17920d749",
+   "bytes": 87084,
+   "rate": 24000,
+   "frames": 43520,
+   "duration_s": 1.813,
+   "duration_ms": 1814,
+   "words_per_s": 1.65,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -20.62,
+   "peak_dbfs": -2.34,
+   "median_f0_hz": 131.1,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Number 6. River",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "6"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "c06-label",
+     "started_at": "2026-11-13T19:20:09+00:00",
+     "sha256": "a9e36a0bd6099b3974ca39280726cbb6e1b261b652b837ee010f898eab86292b",
+     "text": "Six. River.",
+     "status_at_run": "failed",
+     "reason_at_run": "transcript differs from the text after the declared tolerances",
+     "heard": "Zix, river.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.35,
+     "asr_s": 0.27,
+     "retry_of": null,
+     "recheck_of": null
+    },
+    {
+     "take_id": "c06-label-retry1",
+     "started_at": "2026-11-13T19:21:57+00:00",
+     "sha256": "9e8f0f75baf452623457d277d24232b389035cfcfb12589750d3efc17920d749",
+     "text": "Number six. River.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Number 6. River",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.4,
+     "asr_s": 0.3,
+     "retry_of": "c06-label",
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "c06-af_river-s3",
+   "slot": "c",
+   "candidate": 6,
+   "kind": "line",
+   "voice": "af_river",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 3,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "I nominate whoever brought orange slices. They know what they did.",
+   "text_sha256": "0b03af28a7d3c69fe53e16ca7cdd69d77513a1c3b8d0e6adaa3c4c561847c84c",
+   "signature": "sha256:de62ac75d2868aaef0519f88214ba02ecccebf620988e35dbf5c6aad73564d95",
+   "file": "takes/c06-af_river-s3.wav",
+   "sha256": "2b4c57fb99112c50eb6b4bbd1c8ec5b2fa917a335b2baa90936856b86f6f467c",
+   "bytes": 203820,
+   "rate": 24000,
+   "frames": 101888,
+   "duration_s": 4.245,
+   "duration_ms": 4246,
+   "words_per_s": 2.59,
+   "r4_duration_s": 4.864,
+   "duration_vs_r4": 0.87,
+   "rms_dbfs": -20.5,
+   "peak_dbfs": -1.82,
+   "median_f0_hz": 184.6,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "I nominate whoever brought orange slices. They know what they did.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "c06-af_river-s3",
+     "started_at": "2026-11-13T19:20:10+00:00",
+     "sha256": "2b4c57fb99112c50eb6b4bbd1c8ec5b2fa917a335b2baa90936856b86f6f467c",
+     "text": "I nominate whoever brought orange slices. They know what they did.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "I nominate whoever brought orange slices. They know what they did.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.49,
+     "asr_s": 0.31,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "c06-af_river-s6",
+   "slot": "c",
+   "candidate": 6,
+   "kind": "line",
+   "voice": "af_river",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 6,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "If we can't eat the squishies, why don't we just eat her?",
+   "text_sha256": "4c400ecd33ddb1909717652a9659688e11cb178d6a253794003e8fdb60f1056b",
+   "signature": "sha256:c1cda3fa9616ca35222755805f873054f0328d00c933f0517cb690e20334c4f9",
+   "file": "takes/c06-af_river-s6.wav",
+   "sha256": "f69fba02252bc794ee49d5b41f4d5dca9d355e9ddc28b7b10f1e3050802559a7",
+   "bytes": 134188,
+   "rate": 24000,
+   "frames": 67072,
+   "duration_s": 2.795,
+   "duration_ms": 2795,
+   "words_per_s": 4.29,
+   "r4_duration_s": 4.309,
+   "duration_vs_r4": 0.65,
+   "rms_dbfs": -21.07,
+   "peak_dbfs": -2.78,
+   "median_f0_hz": 183.2,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "If we can't eat the squishies, why don't we just eat her?",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "c06-af_river-s6",
+     "started_at": "2026-11-13T19:20:10+00:00",
+     "sha256": "f69fba02252bc794ee49d5b41f4d5dca9d355e9ddc28b7b10f1e3050802559a7",
+     "text": "If we can't eat the squishies, why don't we just eat her?",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "If we can't eat the squishies, why don't we just eat her?",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.29,
+     "asr_s": 0.29,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "d00-intro",
+   "slot": "d",
+   "candidate": 0,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Doll D, the cheerful one.",
+   "text_sha256": "9e7d1788677d6471040d813eca8a81b3ab7fe7ce4a502812a011240c8279758c",
+   "signature": "sha256:38b0155a064d1a35c53b93835097a55acc8eeb4ecbd5e73b4ead10ecd82fd238",
+   "file": "takes/d00-intro.wav",
+   "sha256": "519a0394568ef96e66bacd70198a7f172e6d21496e976040f03d9300c691d736",
+   "bytes": 86060,
+   "rate": 24000,
+   "frames": 43008,
+   "duration_s": 1.792,
+   "duration_ms": 1792,
+   "words_per_s": 2.79,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -22.43,
+   "peak_dbfs": -1.61,
+   "median_f0_hz": 135.2,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Doll D the Cheerful One.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "d00-intro",
+     "started_at": "2026-11-13T19:20:11+00:00",
+     "sha256": "519a0394568ef96e66bacd70198a7f172e6d21496e976040f03d9300c691d736",
+     "text": "Doll D, the cheerful one.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Doll D the Cheerful One.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.29,
+     "asr_s": 0.28,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "d01-label",
+   "slot": "d",
+   "candidate": 1,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "One. Bella, the current voice.",
+   "text_sha256": "ebd65b55d64b37656419e5c7d39cd36859de3be16579cfd5f15db45a9105c27e",
+   "signature": "sha256:14268cb9b01447d6f1d4b1489cb8b810929a9b02a1f4533cb7084d39c9e6abc5",
+   "file": "takes/d01-label.wav",
+   "sha256": "d004733964ab1b07c2f1733e0ca8b8761c5c7a0f3fe3188ae19de882f9e8bbb1",
+   "bytes": 105516,
+   "rate": 24000,
+   "frames": 52736,
+   "duration_s": 2.197,
+   "duration_ms": 2198,
+   "words_per_s": 2.28,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -21.05,
+   "peak_dbfs": -1.94,
+   "median_f0_hz": 126.0,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "1. Bella the Current Voice",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "1"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "d01-label",
+     "started_at": "2026-11-13T19:20:12+00:00",
+     "sha256": "d004733964ab1b07c2f1733e0ca8b8761c5c7a0f3fe3188ae19de882f9e8bbb1",
+     "text": "One. Bella, the current voice.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "1. Bella the Current Voice",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.37,
+     "asr_s": 0.31,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "d01-af_bella-s5",
+   "slot": "d",
+   "candidate": 1,
+   "kind": "line",
+   "voice": "af_bella",
+   "current_voice": true,
+   "r4_line": {
+    "shot": 5,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Absolutely not. These are limited edition.",
+   "text_sha256": "1ce05ca500c6a2c857dbe1b6fb66b5709323531e03ca340790622052b7239c4f",
+   "signature": "sha256:b0486833add2ac2d596359a20a9e94a59b940ad8e5463302cad0f6ab8661cfe1",
+   "file": "takes/d01-af_bella-s5.wav",
+   "sha256": "f89e05a2c53e9be7edd35f3b31862da311ce2730cb330421cb93e25b20a3ab59",
+   "bytes": 116780,
+   "rate": 24000,
+   "frames": 58368,
+   "duration_s": 2.432,
+   "duration_ms": 2432,
+   "words_per_s": 2.47,
+   "r4_duration_s": 2.432,
+   "duration_vs_r4": 1.0,
+   "rms_dbfs": -21.54,
+   "peak_dbfs": -5.3,
+   "median_f0_hz": 206.9,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Absolutely not. These are limited edition.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "d01-af_bella-s5",
+     "started_at": "2026-11-13T19:20:12+00:00",
+     "sha256": "f89e05a2c53e9be7edd35f3b31862da311ce2730cb330421cb93e25b20a3ab59",
+     "text": "Absolutely not. These are limited edition.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Absolutely not. These are limited edition.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.39,
+     "asr_s": 0.3,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "d01-af_bella-s8-3",
+   "slot": "d",
+   "candidate": 1,
+   "kind": "line",
+   "voice": "af_bella",
+   "current_voice": true,
+   "r4_line": {
+    "shot": 8,
+    "k": 3
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Nay!",
+   "text_sha256": "8ec4deb2bbe39b66496c96728e43d6d0cade3b366486ba84a766d8b53f833ee6",
+   "signature": "sha256:8932df67a0a85b938e80e87d7faa117225e1d30862c7a572b47e69ac99780b61",
+   "file": "takes/d01-af_bella-s8-3.wav",
+   "sha256": "5fc1718e8659568b2234544470bce9c23404b855b9c563ea90f4f75596773b35",
+   "bytes": 24620,
+   "rate": 24000,
+   "frames": 12288,
+   "duration_s": 0.512,
+   "duration_ms": 512,
+   "words_per_s": 1.95,
+   "r4_duration_s": 0.512,
+   "duration_vs_r4": 1.0,
+   "rms_dbfs": -20.89,
+   "peak_dbfs": -10.49,
+   "median_f0_hz": 229.7,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Nay.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "d01-af_bella-s8-3",
+     "started_at": "2026-11-13T19:20:15+00:00",
+     "sha256": "5fc1718e8659568b2234544470bce9c23404b855b9c563ea90f4f75596773b35",
+     "text": "Nay!",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Nay.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.3,
+     "asr_s": 0.31,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "d02-label",
+   "slot": "d",
+   "candidate": 2,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Two. Sky.",
+   "text_sha256": "cf978425f8a85ec31e43b58da698c722c716565a6991b9c0f22a81a3a2aad2fd",
+   "signature": "sha256:85dab7a84eb88b4f30c0da9b52a2df0064badd7e87d8d5f452b0d6d82eeb6973",
+   "file": "takes/d02-label.wav",
+   "sha256": "ef33b0b6e48039abcacaa2b8a99ccdb1b5bbddf31d04d7e09e090733216f36e1",
+   "bytes": 73772,
+   "rate": 24000,
+   "frames": 36864,
+   "duration_s": 1.536,
+   "duration_ms": 1536,
+   "words_per_s": 1.3,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -20.92,
+   "peak_dbfs": -3.94,
+   "median_f0_hz": 119.4,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "2. Sky",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "2"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "d02-label",
+     "started_at": "2026-11-13T19:20:15+00:00",
+     "sha256": "ef33b0b6e48039abcacaa2b8a99ccdb1b5bbddf31d04d7e09e090733216f36e1",
+     "text": "Two. Sky.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "2. Sky",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.42,
+     "asr_s": 0.27,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "d02-af_sky-s5",
+   "slot": "d",
+   "candidate": 2,
+   "kind": "line",
+   "voice": "af_sky",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 5,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Absolutely not. These are limited edition.",
+   "text_sha256": "1ce05ca500c6a2c857dbe1b6fb66b5709323531e03ca340790622052b7239c4f",
+   "signature": "sha256:8e578b5a5cc751ad438684c5ef18085516248f15ad399cd728a8731f98ef0ec5",
+   "file": "takes/d02-af_sky-s5.wav",
+   "sha256": "4fe2ee0c561a595c6dffc3ef31ce9fe91e9dd595cf7d8e51cf3ec2cf3bc7423b",
+   "bytes": 159788,
+   "rate": 24000,
+   "frames": 79872,
+   "duration_s": 3.328,
+   "duration_ms": 3328,
+   "words_per_s": 1.8,
+   "r4_duration_s": 2.432,
+   "duration_vs_r4": 1.37,
+   "rms_dbfs": -22.42,
+   "peak_dbfs": -4.28,
+   "median_f0_hz": 179.1,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Absolutely not. These are limited edition.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "d02-af_sky-s5",
+     "started_at": "2026-11-13T19:20:16+00:00",
+     "sha256": "4fe2ee0c561a595c6dffc3ef31ce9fe91e9dd595cf7d8e51cf3ec2cf3bc7423b",
+     "text": "Absolutely not. These are limited edition.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Absolutely not. These are limited edition.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.42,
+     "asr_s": 0.28,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "d02-af_sky-s8-3",
+   "slot": "d",
+   "candidate": 2,
+   "kind": "line",
+   "voice": "af_sky",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 8,
+    "k": 3
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Nay!",
+   "text_sha256": "8ec4deb2bbe39b66496c96728e43d6d0cade3b366486ba84a766d8b53f833ee6",
+   "signature": "sha256:5a717d1145bf779ec196b8a728dc8ef85790866594d15eca0c0afcb45cefdc11",
+   "file": "takes/d02-af_sky-s8-3.wav",
+   "sha256": "9253d50788f7962d8b8ecc9f5588110e52ec4bc9e36259607d732f3f634ec8f3",
+   "bytes": 39980,
+   "rate": 24000,
+   "frames": 19968,
+   "duration_s": 0.832,
+   "duration_ms": 832,
+   "words_per_s": 1.2,
+   "r4_duration_s": 0.512,
+   "duration_vs_r4": 1.62,
+   "rms_dbfs": -21.61,
+   "peak_dbfs": -5.17,
+   "median_f0_hz": 191.2,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Nay.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "d02-af_sky-s8-3",
+     "started_at": "2026-11-13T19:20:17+00:00",
+     "sha256": "9253d50788f7962d8b8ecc9f5588110e52ec4bc9e36259607d732f3f634ec8f3",
+     "text": "Nay!",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Nay.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.27,
+     "asr_s": 0.26,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "d03-label",
+   "slot": "d",
+   "candidate": 3,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Three. Jessica.",
+   "text_sha256": "cd1b7b759660a47dbff66fb7ce1e2b680b9f2094dd8fcdae546c5b4b3aef5c25",
+   "signature": "sha256:8f48b8acdb131e1f86a00855aa90f1014de03a0451448d4aa82bb9e8481b0016",
+   "file": "takes/d03-label.wav",
+   "sha256": "cdafdcc186a9260b49efb7c3818f60de882e9e8eb99afc4816b8434132901037",
+   "bytes": 84012,
+   "rate": 24000,
+   "frames": 41984,
+   "duration_s": 1.749,
+   "duration_ms": 1750,
+   "words_per_s": 1.14,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -20.98,
+   "peak_dbfs": -2.06,
+   "median_f0_hz": 140.4,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "3. Jessica",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "3"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "d03-label",
+     "started_at": "2026-11-13T19:20:17+00:00",
+     "sha256": "cdafdcc186a9260b49efb7c3818f60de882e9e8eb99afc4816b8434132901037",
+     "text": "Three. Jessica.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "3. Jessica",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.39,
+     "asr_s": 0.29,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "d03-af_jessica-s5",
+   "slot": "d",
+   "candidate": 3,
+   "kind": "line",
+   "voice": "af_jessica",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 5,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Absolutely not. These are limited edition.",
+   "text_sha256": "1ce05ca500c6a2c857dbe1b6fb66b5709323531e03ca340790622052b7239c4f",
+   "signature": "sha256:c4b5721a8b2beb9deb462cd0395b10ffd8e74069afaa9459894af53db578207d",
+   "file": "takes/d03-af_jessica-s5.wav",
+   "sha256": "30e9bc3528a5a9de28bb28f9c5ffb0c59aa9a7a1f2ff08c385c79e2ecf3faa14",
+   "bytes": 153644,
+   "rate": 24000,
+   "frames": 76800,
+   "duration_s": 3.2,
+   "duration_ms": 3200,
+   "words_per_s": 1.88,
+   "r4_duration_s": 2.432,
+   "duration_vs_r4": 1.32,
+   "rms_dbfs": -20.94,
+   "peak_dbfs": -0.49,
+   "median_f0_hz": 212.4,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Absolutely not. These are limited editions.",
+    "exact_match": false,
+    "match_with_tolerances": false,
+    "tolerances_used": []
+   },
+   "status": "failed",
+   "reason": "transcript check: heard 'Absolutely not. These are limited editions.'",
+   "attempts": [
+    {
+     "take_id": "d03-af_jessica-s5",
+     "started_at": "2026-11-13T19:20:18+00:00",
+     "sha256": "30e9bc3528a5a9de28bb28f9c5ffb0c59aa9a7a1f2ff08c385c79e2ecf3faa14",
+     "text": "Absolutely not. These are limited edition.",
+     "status_at_run": "failed",
+     "reason_at_run": "transcript differs from the text after the declared tolerances",
+     "heard": "Absolutely not. These are limited editions.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.4,
+     "asr_s": 0.3,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "d03-af_jessica-s8-3",
+   "slot": "d",
+   "candidate": 3,
+   "kind": "line",
+   "voice": "af_jessica",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 8,
+    "k": 3
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Nay!",
+   "text_sha256": "8ec4deb2bbe39b66496c96728e43d6d0cade3b366486ba84a766d8b53f833ee6",
+   "signature": "sha256:a361a6c1a077da9725500bc841cd294d45392810329b64feefa2c1de58759c58",
+   "file": "takes/d03-af_jessica-s8-3.wav",
+   "sha256": "e217d019c7f3a62775df065f858804f5e61bf2b180080ee402d6b97c4ecb3e98",
+   "bytes": 33836,
+   "rate": 24000,
+   "frames": 16896,
+   "duration_s": 0.704,
+   "duration_ms": 704,
+   "words_per_s": 1.42,
+   "r4_duration_s": 0.512,
+   "duration_vs_r4": 1.38,
+   "rms_dbfs": -21.81,
+   "peak_dbfs": -4.01,
+   "median_f0_hz": 200.0,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Nairo.",
+    "exact_match": false,
+    "match_with_tolerances": false,
+    "tolerances_used": []
+   },
+   "status": "failed",
+   "reason": "transcript check: heard 'Nairo.'",
+   "attempts": [
+    {
+     "take_id": "d03-af_jessica-s8-3",
+     "started_at": "2026-11-13T19:20:19+00:00",
+     "sha256": "e217d019c7f3a62775df065f858804f5e61bf2b180080ee402d6b97c4ecb3e98",
+     "text": "Nay!",
+     "status_at_run": "failed",
+     "reason_at_run": "transcript differs from the text after the declared tolerances",
+     "heard": "Nairo.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.27,
+     "asr_s": 0.27,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "d04-label",
+   "slot": "d",
+   "candidate": 4,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Four. Kore.",
+   "text_sha256": "22b51e7ba60198dc61ee55e600126ee0e501ce68a61086623b1ba852f6aa8075",
+   "signature": "sha256:e3d28ae6bd1e91b25a73107b82fcb694d8d3891383d3a0560876203bd8aa46be",
+   "file": "takes/d04-label.wav",
+   "sha256": "f8ec5743ec34ecdf0622cd394df3188e5a3f1a1d7907b568c1b7df57b8a3d366",
+   "bytes": 75820,
+   "rate": 24000,
+   "frames": 37888,
+   "duration_s": 1.579,
+   "duration_ms": 1579,
+   "words_per_s": 1.27,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -20.67,
+   "peak_dbfs": -4.14,
+   "median_f0_hz": 127.0,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "4. Core",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "4",
+     "core"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "d04-label",
+     "started_at": "2026-11-13T19:20:19+00:00",
+     "sha256": "f8ec5743ec34ecdf0622cd394df3188e5a3f1a1d7907b568c1b7df57b8a3d366",
+     "text": "Four. Kore.",
+     "status_at_run": "failed",
+     "reason_at_run": "transcript differs from the text after the declared tolerances",
+     "heard": "4. Core",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.38,
+     "asr_s": 0.31,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "d04-af_kore-s5",
+   "slot": "d",
+   "candidate": 4,
+   "kind": "line",
+   "voice": "af_kore",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 5,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Absolutely not. These are limited edition.",
+   "text_sha256": "1ce05ca500c6a2c857dbe1b6fb66b5709323531e03ca340790622052b7239c4f",
+   "signature": "sha256:898e0359ab52b684b7b7353efa3a1ddd61f9b1e83c341e374234be119bbc5068",
+   "file": "takes/d04-af_kore-s5.wav",
+   "sha256": "f7017acadd577c5ea1648171ee0a82d8630f4d7fdb7ba441d117de148bff2879",
+   "bytes": 123948,
+   "rate": 24000,
+   "frames": 61952,
+   "duration_s": 2.581,
+   "duration_ms": 2582,
+   "words_per_s": 2.32,
+   "r4_duration_s": 2.432,
+   "duration_vs_r4": 1.06,
+   "rms_dbfs": -17.6,
+   "peak_dbfs": -3.29,
+   "median_f0_hz": 189.0,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Absolutely not. These are limited edition.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "d04-af_kore-s5",
+     "started_at": "2026-11-13T19:20:20+00:00",
+     "sha256": "f7017acadd577c5ea1648171ee0a82d8630f4d7fdb7ba441d117de148bff2879",
+     "text": "Absolutely not. These are limited edition.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Absolutely not. These are limited edition.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.41,
+     "asr_s": 0.32,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "d04-af_kore-s8-3",
+   "slot": "d",
+   "candidate": 4,
+   "kind": "line",
+   "voice": "af_kore",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 8,
+    "k": 3
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Nay!",
+   "text_sha256": "8ec4deb2bbe39b66496c96728e43d6d0cade3b366486ba84a766d8b53f833ee6",
+   "signature": "sha256:1fb629d26d8c4e6cac25a461b4a3a7102ca999053fd52432fafe7a516a790760",
+   "file": "takes/d04-af_kore-s8-3.wav",
+   "sha256": "5fe04c60a5de281fd29fe70b6cf72b7ecee2a9daddd6260c792f5ae9acb50695",
+   "bytes": 27692,
+   "rate": 24000,
+   "frames": 13824,
+   "duration_s": 0.576,
+   "duration_ms": 576,
+   "words_per_s": 1.74,
+   "r4_duration_s": 0.512,
+   "duration_vs_r4": 1.12,
+   "rms_dbfs": -18.26,
+   "peak_dbfs": -4.75,
+   "median_f0_hz": 189.0,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Nay.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "d04-af_kore-s8-3",
+     "started_at": "2026-11-13T19:20:21+00:00",
+     "sha256": "5fe04c60a5de281fd29fe70b6cf72b7ecee2a9daddd6260c792f5ae9acb50695",
+     "text": "Nay!",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Nay.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.27,
+     "asr_s": 0.28,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "d05-label",
+   "slot": "d",
+   "candidate": 5,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Five. Lily.",
+   "text_sha256": "39147a9b6e201cc4eeb63a83b31a1bfc1a3aab779f5da1228d8b9a87b3c59214",
+   "signature": "sha256:b930fe8f70f4fb0b208abdce2630e0c9c15fbe6352a394984e9ea64f2a8617b6",
+   "file": "takes/d05-label.wav",
+   "sha256": "11c8a317cdac2cbf2d1bc809f9faa4d3b7afd43b8b2bc4566d1e05b3d6a58f8f",
+   "bytes": 75820,
+   "rate": 24000,
+   "frames": 37888,
+   "duration_s": 1.579,
+   "duration_ms": 1579,
+   "words_per_s": 1.27,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -20.28,
+   "peak_dbfs": -0.09,
+   "median_f0_hz": 121.2,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "5. Lily",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "5"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "d05-label",
+     "started_at": "2026-11-13T19:20:21+00:00",
+     "sha256": "11c8a317cdac2cbf2d1bc809f9faa4d3b7afd43b8b2bc4566d1e05b3d6a58f8f",
+     "text": "Five. Lily.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "5. Lily",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.38,
+     "asr_s": 0.3,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "d05-bf_lily-s5",
+   "slot": "d",
+   "candidate": 5,
+   "kind": "line",
+   "voice": "bf_lily",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 5,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Absolutely not. These are limited edition.",
+   "text_sha256": "1ce05ca500c6a2c857dbe1b6fb66b5709323531e03ca340790622052b7239c4f",
+   "signature": "sha256:00f5e6522de59d695d89166492b4ce5cbdc14dd14d6f51b76f65e3ccf4a82ea6",
+   "file": "takes/d05-bf_lily-s5.wav",
+   "sha256": "0fe3e4d3bc81357930da255244e5a77cb27c55c69864b66d3f873f9bbb7ce3c0",
+   "bytes": 169004,
+   "rate": 24000,
+   "frames": 84480,
+   "duration_s": 3.52,
+   "duration_ms": 3520,
+   "words_per_s": 1.7,
+   "r4_duration_s": 2.432,
+   "duration_vs_r4": 1.45,
+   "rms_dbfs": -19.67,
+   "peak_dbfs": -0.61,
+   "median_f0_hz": 198.3,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Absolutely not. These are limited edition.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "d05-bf_lily-s5",
+     "started_at": "2026-11-13T19:20:22+00:00",
+     "sha256": "0fe3e4d3bc81357930da255244e5a77cb27c55c69864b66d3f873f9bbb7ce3c0",
+     "text": "Absolutely not. These are limited edition.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Absolutely not. These are limited edition.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.4,
+     "asr_s": 0.28,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "d05-bf_lily-s8-3",
+   "slot": "d",
+   "candidate": 5,
+   "kind": "line",
+   "voice": "bf_lily",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 8,
+    "k": 3
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Nay!",
+   "text_sha256": "8ec4deb2bbe39b66496c96728e43d6d0cade3b366486ba84a766d8b53f833ee6",
+   "signature": "sha256:12299e56a15594e0c34056f9535523bc120b787c74a3ee380fbab75d9f10b758",
+   "file": "takes/d05-bf_lily-s8-3.wav",
+   "sha256": "ef3f5082e1af74107e8660031018158619fdd2f7728badb48d27a0f8a78e4a10",
+   "bytes": 49196,
+   "rate": 24000,
+   "frames": 24576,
+   "duration_s": 1.024,
+   "duration_ms": 1024,
+   "words_per_s": 0.98,
+   "r4_duration_s": 0.512,
+   "duration_vs_r4": 2.0,
+   "rms_dbfs": -19.39,
+   "peak_dbfs": -4.99,
+   "median_f0_hz": 203.4,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Yeah.",
+    "exact_match": false,
+    "match_with_tolerances": false,
+    "tolerances_used": []
+   },
+   "status": "failed",
+   "reason": "transcript check: heard 'Yeah.'",
+   "attempts": [
+    {
+     "take_id": "d05-bf_lily-s8-3",
+     "started_at": "2026-11-13T19:20:23+00:00",
+     "sha256": "ef3f5082e1af74107e8660031018158619fdd2f7728badb48d27a0f8a78e4a10",
+     "text": "Nay!",
+     "status_at_run": "failed",
+     "reason_at_run": "transcript differs from the text after the declared tolerances",
+     "heard": "Yeah.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.28,
+     "asr_s": 0.24,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "d06-label",
+   "slot": "d",
+   "candidate": 6,
+   "kind": "label",
+   "voice": "am_michael",
+   "current_voice": false,
+   "r4_line": null,
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Number six. Heart.",
+   "text_sha256": "0c7d241a51594fb2f6d6d93591ef6b58fa531d7c336af83333dfa52c5c5d5109",
+   "signature": "sha256:d9edf2c1d4e41e1813950ee4c98601f6a61dfa2f3ac70bcd50d24f6b5270b744",
+   "file": "takes/d06-label-retry1.wav",
+   "sha256": "fa616e50283c502e980ea56bd5f02fb045b739a27d4bd3cdadbd1ffd46ccb089",
+   "bytes": 88108,
+   "rate": 24000,
+   "frames": 44032,
+   "duration_s": 1.835,
+   "duration_ms": 1835,
+   "words_per_s": 1.63,
+   "r4_duration_s": null,
+   "duration_vs_r4": null,
+   "rms_dbfs": -21.2,
+   "peak_dbfs": -2.34,
+   "median_f0_hz": 131.1,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Number 6. Heart",
+    "exact_match": false,
+    "match_with_tolerances": true,
+    "tolerances_used": [
+     "6"
+    ]
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "d06-label",
+     "started_at": "2026-11-13T19:20:23+00:00",
+     "sha256": "503ed59f72299b05a6015ef3cadc3cec3f8f249a4c398b590bedce3d2e20759f",
+     "text": "Six. Heart.",
+     "status_at_run": "failed",
+     "reason_at_run": "transcript differs from the text after the declared tolerances",
+     "heard": "Zexo. Hard.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.4,
+     "asr_s": 0.29,
+     "retry_of": null,
+     "recheck_of": null
+    },
+    {
+     "take_id": "d06-label-retry1",
+     "started_at": "2026-11-13T19:21:58+00:00",
+     "sha256": "fa616e50283c502e980ea56bd5f02fb045b739a27d4bd3cdadbd1ffd46ccb089",
+     "text": "Number six. Heart.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Number 6. Heart",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.38,
+     "asr_s": 0.25,
+     "retry_of": "d06-label",
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "d06-af_heart-s5",
+   "slot": "d",
+   "candidate": 6,
+   "kind": "line",
+   "voice": "af_heart",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 5,
+    "k": 0
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Absolutely not. These are limited edition.",
+   "text_sha256": "1ce05ca500c6a2c857dbe1b6fb66b5709323531e03ca340790622052b7239c4f",
+   "signature": "sha256:09d8e1fdaa57ceb13a04debc867a88fb4a84e236e8fa7e30834e0406639ab252",
+   "file": "takes/d06-af_heart-s5.wav",
+   "sha256": "ca698de6b2392ff82d0ad8a3501c13adf59447db6985f7dadafe17a1269245bb",
+   "bytes": 129068,
+   "rate": 24000,
+   "frames": 64512,
+   "duration_s": 2.688,
+   "duration_ms": 2688,
+   "words_per_s": 2.23,
+   "r4_duration_s": 2.432,
+   "duration_vs_r4": 1.11,
+   "rms_dbfs": -22.01,
+   "peak_dbfs": -3.44,
+   "median_f0_hz": 206.9,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Absolutely not. These are limited edition.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "d06-af_heart-s5",
+     "started_at": "2026-11-13T19:20:24+00:00",
+     "sha256": "ca698de6b2392ff82d0ad8a3501c13adf59447db6985f7dadafe17a1269245bb",
+     "text": "Absolutely not. These are limited edition.",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Absolutely not. These are limited edition.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.41,
+     "asr_s": 0.32,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  },
+  {
+   "id": "d06-af_heart-s8-3",
+   "slot": "d",
+   "candidate": 6,
+   "kind": "line",
+   "voice": "af_heart",
+   "current_voice": false,
+   "r4_line": {
+    "shot": 8,
+    "k": 3
+   },
+   "setting": {
+    "speed": 1.0,
+    "source": "server default (KOKORO_SPEED=1.0); the client sends no speed"
+   },
+   "text": "Nay!",
+   "text_sha256": "8ec4deb2bbe39b66496c96728e43d6d0cade3b366486ba84a766d8b53f833ee6",
+   "signature": "sha256:c6861e958e48e5b4aa9a4630d32384bb4ffb104b75d46787587cbe26438adfc8",
+   "file": "takes/d06-af_heart-s8-3.wav",
+   "sha256": "a414ec3d0721de524604da001773df8890123d33b56b0e6058f3b637e6dd61f4",
+   "bytes": 31788,
+   "rate": 24000,
+   "frames": 15872,
+   "duration_s": 0.661,
+   "duration_ms": 662,
+   "words_per_s": 1.51,
+   "r4_duration_s": 0.512,
+   "duration_vs_r4": 1.29,
+   "rms_dbfs": -20.96,
+   "peak_dbfs": -7.48,
+   "median_f0_hz": 214.3,
+   "checks": {
+    "decodes": true,
+    "duration_ok": true,
+    "full_scale_samples_warning": false,
+    "heard": "Nay.",
+    "exact_match": true,
+    "match_with_tolerances": true,
+    "tolerances_used": []
+   },
+   "status": "passed",
+   "reason": null,
+   "attempts": [
+    {
+     "take_id": "d06-af_heart-s8-3",
+     "started_at": "2026-11-13T19:20:25+00:00",
+     "sha256": "a414ec3d0721de524604da001773df8890123d33b56b0e6058f3b637e6dd61f4",
+     "text": "Nay!",
+     "status_at_run": "passed",
+     "reason_at_run": null,
+     "heard": "Nay.",
+     "requests": {
+      "tts": 1,
+      "asr": 1
+     },
+     "tts_s": 0.29,
+     "asr_s": 0.29,
+     "retry_of": null,
+     "recheck_of": null
+    }
+   ]
+  }
+ ]
+}

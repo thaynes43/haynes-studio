@@ -1,0 +1,464 @@
+{
+ "story": "https://work.haynesnetwork.com/work_packages/840",
+ "read_at": "2026-11-13T19:15:12Z",
+ "request": "Wyoming Describe to 127.0.0.1:10210 inside ai/deploy/kokoro, container app (the runbook's stage 3 snippet, printing the whole Info event)",
+ "service": {
+  "deployment": "ai/deploy/kokoro",
+  "node": "talosm01",
+  "image": "ghcr.io/flight777/kokoro-wyoming-ml@sha256:46418df6e485de71f7177a61bab931fa8ad9d67c901fc13ba2534b5c19017e6c",
+  "server": "/app/main.py (wyoming 1.6.0, kokoro-onnx 0.4.5, onnxruntime-gpu), model file kokoro-v1.0.onnx, voices file voices-v1.0.bin",
+  "env": {
+   "KOKORO_SPEED": "1.0",
+   "KOKORO_VOICE": "af_heart",
+   "ONNX_PROVIDER": "CUDAExecutionProvider"
+  }
+ },
+ "server_facts": [
+  "Speed is one server-wide value (KOKORO_SPEED, read once at start); a Synthesize request carries no speed, so every take is at 1.0.",
+  "The server reads only the voice name from a request. The Wyoming language and speaker fields are ignored; the phonemizer language follows the voice ID's first letter (a = en-us, b = en-gb).",
+  "A voice name the server does not have is replaced by the default voice (af_heart) with only a log warning; the answer does not say so.",
+  "Voice blending (a mix of two voices) is not offered: the server passes the name string to kokoro-onnx unchanged.",
+  "Text is split into sentences at . ! ? followed by a space, and each sentence is synthesized in turn; one request at a time (a semaphore of 1)."
+ ],
+ "program": {
+  "name": "kokoro",
+  "version": "1.0",
+  "description": "Kokoro-82M multilingual TTS (ONNX, CUDA)",
+  "attribution": {
+   "name": "hexgrad",
+   "url": "https://huggingface.co/hexgrad/Kokoro-82M"
+  }
+ },
+ "count": 54,
+ "voices": [
+  {
+   "name": "af_alloy",
+   "languages": [
+    "en-US",
+    "en"
+   ]
+  },
+  {
+   "name": "af_aoede",
+   "languages": [
+    "en-US",
+    "en"
+   ]
+  },
+  {
+   "name": "af_bella",
+   "languages": [
+    "en-US",
+    "en"
+   ]
+  },
+  {
+   "name": "af_heart",
+   "languages": [
+    "en-US",
+    "en"
+   ]
+  },
+  {
+   "name": "af_jessica",
+   "languages": [
+    "en-US",
+    "en"
+   ]
+  },
+  {
+   "name": "af_kore",
+   "languages": [
+    "en-US",
+    "en"
+   ]
+  },
+  {
+   "name": "af_nicole",
+   "languages": [
+    "en-US",
+    "en"
+   ]
+  },
+  {
+   "name": "af_nova",
+   "languages": [
+    "en-US",
+    "en"
+   ]
+  },
+  {
+   "name": "af_river",
+   "languages": [
+    "en-US",
+    "en"
+   ]
+  },
+  {
+   "name": "af_sarah",
+   "languages": [
+    "en-US",
+    "en"
+   ]
+  },
+  {
+   "name": "af_sky",
+   "languages": [
+    "en-US",
+    "en"
+   ]
+  },
+  {
+   "name": "am_adam",
+   "languages": [
+    "en-US",
+    "en"
+   ]
+  },
+  {
+   "name": "am_echo",
+   "languages": [
+    "en-US",
+    "en"
+   ]
+  },
+  {
+   "name": "am_eric",
+   "languages": [
+    "en-US",
+    "en"
+   ]
+  },
+  {
+   "name": "am_fenrir",
+   "languages": [
+    "en-US",
+    "en"
+   ]
+  },
+  {
+   "name": "am_liam",
+   "languages": [
+    "en-US",
+    "en"
+   ]
+  },
+  {
+   "name": "am_michael",
+   "languages": [
+    "en-US",
+    "en"
+   ]
+  },
+  {
+   "name": "am_onyx",
+   "languages": [
+    "en-US",
+    "en"
+   ]
+  },
+  {
+   "name": "am_puck",
+   "languages": [
+    "en-US",
+    "en"
+   ]
+  },
+  {
+   "name": "am_santa",
+   "languages": [
+    "en-US",
+    "en"
+   ]
+  },
+  {
+   "name": "bf_alice",
+   "languages": [
+    "en-GB",
+    "en"
+   ]
+  },
+  {
+   "name": "bf_emma",
+   "languages": [
+    "en-GB",
+    "en"
+   ]
+  },
+  {
+   "name": "bf_isabella",
+   "languages": [
+    "en-GB",
+    "en"
+   ]
+  },
+  {
+   "name": "bf_lily",
+   "languages": [
+    "en-GB",
+    "en"
+   ]
+  },
+  {
+   "name": "bm_daniel",
+   "languages": [
+    "en-GB",
+    "en"
+   ]
+  },
+  {
+   "name": "bm_fable",
+   "languages": [
+    "en-GB",
+    "en"
+   ]
+  },
+  {
+   "name": "bm_george",
+   "languages": [
+    "en-GB",
+    "en"
+   ]
+  },
+  {
+   "name": "bm_lewis",
+   "languages": [
+    "en-GB",
+    "en"
+   ]
+  },
+  {
+   "name": "ef_dora",
+   "languages": [
+    "es-ES",
+    "es"
+   ]
+  },
+  {
+   "name": "em_alex",
+   "languages": [
+    "es-ES",
+    "es"
+   ]
+  },
+  {
+   "name": "em_santa",
+   "languages": [
+    "es-ES",
+    "es"
+   ]
+  },
+  {
+   "name": "ff_siwis",
+   "languages": [
+    "fr-FR",
+    "fr"
+   ]
+  },
+  {
+   "name": "hf_alpha",
+   "languages": [
+    "hi-IN",
+    "hi"
+   ]
+  },
+  {
+   "name": "hf_beta",
+   "languages": [
+    "hi-IN",
+    "hi"
+   ]
+  },
+  {
+   "name": "hm_omega",
+   "languages": [
+    "hi-IN",
+    "hi"
+   ]
+  },
+  {
+   "name": "hm_psi",
+   "languages": [
+    "hi-IN",
+    "hi"
+   ]
+  },
+  {
+   "name": "if_sara",
+   "languages": [
+    "it-IT",
+    "it"
+   ]
+  },
+  {
+   "name": "im_nicola",
+   "languages": [
+    "it-IT",
+    "it"
+   ]
+  },
+  {
+   "name": "jf_alpha",
+   "languages": [
+    "ja-JP",
+    "ja"
+   ]
+  },
+  {
+   "name": "jf_gongitsune",
+   "languages": [
+    "ja-JP",
+    "ja"
+   ]
+  },
+  {
+   "name": "jf_nezumi",
+   "languages": [
+    "ja-JP",
+    "ja"
+   ]
+  },
+  {
+   "name": "jf_tebukuro",
+   "languages": [
+    "ja-JP",
+    "ja"
+   ]
+  },
+  {
+   "name": "jm_kumo",
+   "languages": [
+    "ja-JP",
+    "ja"
+   ]
+  },
+  {
+   "name": "pf_dora",
+   "languages": [
+    "pt-BR",
+    "pt"
+   ]
+  },
+  {
+   "name": "pm_alex",
+   "languages": [
+    "pt-BR",
+    "pt"
+   ]
+  },
+  {
+   "name": "pm_santa",
+   "languages": [
+    "pt-BR",
+    "pt"
+   ]
+  },
+  {
+   "name": "zf_xiaobei",
+   "languages": [
+    "zh-CN",
+    "zh",
+    "cmn"
+   ]
+  },
+  {
+   "name": "zf_xiaoni",
+   "languages": [
+    "zh-CN",
+    "zh",
+    "cmn"
+   ]
+  },
+  {
+   "name": "zf_xiaoxiao",
+   "languages": [
+    "zh-CN",
+    "zh",
+    "cmn"
+   ]
+  },
+  {
+   "name": "zf_xiaoyi",
+   "languages": [
+    "zh-CN",
+    "zh",
+    "cmn"
+   ]
+  },
+  {
+   "name": "zm_yunjian",
+   "languages": [
+    "zh-CN",
+    "zh",
+    "cmn"
+   ]
+  },
+  {
+   "name": "zm_yunxi",
+   "languages": [
+    "zh-CN",
+    "zh",
+    "cmn"
+   ]
+  },
+  {
+   "name": "zm_yunxia",
+   "languages": [
+    "zh-CN",
+    "zh",
+    "cmn"
+   ]
+  },
+  {
+   "name": "zm_yunyang",
+   "languages": [
+    "zh-CN",
+    "zh",
+    "cmn"
+   ]
+  }
+ ],
+ "describe_sha256": "fe03f3f8951c35d066c59428899a987c681536431dc2c98560797cc749b5d66b",
+ "english_female": [
+  "af_alloy",
+  "af_aoede",
+  "af_bella",
+  "af_heart",
+  "af_jessica",
+  "af_kore",
+  "af_nicole",
+  "af_nova",
+  "af_river",
+  "af_sarah",
+  "af_sky",
+  "bf_alice",
+  "bf_emma",
+  "bf_isabella",
+  "bf_lily"
+ ],
+ "stock_list_story_405": {
+  "where": "STOCK_VOICES in src/haynes_studio/library/model.py (not edited here)",
+  "recorded_now": [
+   "af_bella",
+   "af_heart",
+   "af_nicole",
+   "am_puck",
+   "bf_emma"
+  ],
+  "auditioned_not_recorded": [
+   "af_alloy",
+   "af_aoede",
+   "af_jessica",
+   "af_kore",
+   "af_nova",
+   "af_river",
+   "af_sarah",
+   "af_sky",
+   "bf_alice",
+   "bf_isabella",
+   "bf_lily"
+  ],
+  "label_voice_not_recorded": "am_michael (used only to announce candidates; not a cast candidate)",
+  "note": "A voice Tom picks must be added to the recorded stock list before the library or a voice job will accept it (voice.not_stock). All 54 names above are the server's stock voices as reported."
+ }
+}
