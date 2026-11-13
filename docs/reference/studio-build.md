@@ -88,7 +88,7 @@ The service phase and the offline phase are one build with different clip source
 | Phase | Flag | Services | Makes | The run ends |
 |---|---|---|---|---|
 | all | none | `live_clip_sources()` and the Whisper client | everything, then the delivery | `succeeded`, or `failed` |
-| service | `--phase service` | `live_clip_sources()` and the Whisper client | only what needs a service: drive tracks (the clip requests' input) and clips, speech-to-video and whole-frame; and the transcript check of a master the cache already holds. Everything else is looked up in the cache, never made | `cancelled`, reason `service phase complete` (**proposal**: a run is never `succeeded` without a delivery); `failed` with `build.check_failed` (stage `checks`, exit 1) when a transcript check it made or read from the cache did not pass |
+| service | `--phase service` | `live_clip_sources()` and the Whisper client | what needs a service: drive tracks (the clip requests' input) and clips, speech-to-video and whole-frame; and the transcript check of a master the cache already holds. Also the mix and its own checks, before any clip is asked for (**proposal**, the confirming review's finding a: the mix needs no clip, so it is the cheapest proof that the story's sound can be built before GPU time is spent). Everything else is looked up in the cache, never made. The run lists the mix checks and any transcript check | `cancelled`, reason `service phase complete` (**proposal**: a run is never `succeeded` without a delivery); `failed` with `build.check_failed` (stage `checks`, exit 1) when a transcript check it made or read from the cache did not pass |
 | offline | `--offline` | none: `OfflineS2VSource` and `OfflineClipSource` refuse every call, and no recognizer is used | keyed frames, segments, the film, the sound, the sound checks and the delivery, from the cache | `succeeded`, or `failed` |
 
 - **The hook is not wired yet.** `live_clip_sources()` raises
@@ -149,6 +149,19 @@ workers=)`, in order:
    `s2v_clip` for a library timed clip), its message ending "(found before any clip was
    requested)", and no clip source has been asked. Only a clean pass goes on. The
    drive tracks it made are recorded as made by this run.
+
+   **Then the mix** (`pipeline._early_mix`), in the full build and the service phase
+   (the phases that may ask a clip source; the offline phase never asks one and makes
+   the mix where the plan reaches it): the mix key names the voice tracks, the sound
+   cues, the beds and the story's levels and never a clip, so the local pass's plan
+   holds the real key. The sound builder makes the mix (a cached artifact: a later
+   phase finds it) and runs the four checks on the mix (`mix.length`, `mix.loudness`,
+   `mix.true_peak`, `mix.clipping`; the master's wait for the master). A refusal
+   (`mix.input_invalid`, such as a `true_peak_dbtp` the limiter cannot reach;
+   `cue.out_of_range`; a sound blob that is missing or not its hash; a trim past the
+   sound's end) fails the run at stage `mix`, and a failed mix check fails it with
+   `build.check_failed` at stage `checks`, each with the same "(found before any clip
+   was requested)" ending and no clip source asked.
 5. **The plan** (story 380's `plan_story`) with one content chain:
 
    | Kind | Made by |
@@ -169,7 +182,8 @@ workers=)`, in order:
    `sound_toolchain` names the mixer and mux. The chain records each answer: its key,
    its hash, whether this run made it and how long it took.
 6. **Checks.** `film_sound(story, plan, sound)` gives the placement record and the
-   seven sound checks; the transcript check compares the master's audio (16 kHz mono)
+   seven sound checks (the four on the mix found in the cache, made after the local
+   pass); the transcript check compares the master's audio (16 kHz mono)
    with the script, word by word, each heard word replaced by the story's
    `checks.asr_tolerances` (the PoC's `poc/edit.py transcript`). Any failed check stops
    the run with `build.check_failed` naming them, and **nothing is delivered**. A decal
@@ -302,6 +316,7 @@ tests there would never run in `uv run pytest` or CI).
 | `photo.absent` | `prebuild` | a whole-frame board without a current photo | the pre-build check's own tests (story 379, 427) |
 | `build.voice_track_missing` | `voice` | a current board voice that records no assembled track (a legacy import's), which the picture's envelope and the mix read | `test_failures.py::test_a_board_voice_without_a_track_fails_the_run` |
 | `cache.key_input_invalid` (a missing seed, ...), `motion.*` and `store.*` (a library timed clip that is damaged, ambiguous or cannot be played), `layered.*`, `wholeframe.*` (a clip request's inputs) | `plan`, `s2v_clip`, `s2v_drive_track`, `whole_frame_clip`, ... | the local pass finds it anywhere in the story, before any clip of any board is asked for; no clip source is asked, and the message ends "(found before any clip was requested)" | `test_local_pass.py::test_a_damaged_timed_clip_of_a_later_speaker_stops_the_run_before_any_clip`, `test_a_later_boards_missing_seed_stops_the_run_before_an_earlier_boards_clip` |
+| `mix.input_invalid`, `cue.out_of_range`, `store.*`, `time.conservation`; `build.check_failed` (a mix check) | `mix`; `checks` | the mix, made after the local pass in a full build or the service phase, is refused (a `true_peak_dbtp` of -30 the schema accepts and the limiter cannot reach, a cue outside its board, a sound blob) or fails one of its own checks (a `master_lufs` the limited speech cannot reach); no clip source is asked, and the message ends "(found before any clip was requested)" | `test_local_pass.py::test_a_mix_the_limiter_refuses_stops_the_service_phase_before_any_clip`, `test_a_mix_the_limiter_refuses_stops_a_full_build_before_any_clip` (1 and 2 workers), `test_a_mix_that_fails_its_own_checks_stops_before_any_clip` |
 | `layered.clip_invalid`, `wholeframe.clip_invalid`, `time.source_short` | `s2v_clip`, `whole_frame_clip`, `segment` | a clip source's answer that is not what was asked, or a clip too short | `test_a_failed_clip_fails_the_run_on_its_board` |
 | `build.offline_missing` | `s2v_clip`, `whole_frame_clip`, `check_result` | the offline phase needs a clip, or a transcript check of a new master, that no run made | `test_phases.py::test_the_offline_phase_refuses_a_service_call_naming_the_missing_artifact`, `test_the_service_phase_fills_the_cache_and_the_offline_phase_never_asks_the_recognizer` |
 | `layered.decal_weak`, render and splice codes (`render.*`, `splice.incompatible`, `time.conservation`) | `segment`, `film_picture` | a decal track below its floor, a renderer, encoder or splice refusal | the adapters' and cache's own tests |
@@ -357,10 +372,12 @@ decision are marked **(428 decides)**.
    here first, before any service is asked. A run that stops in the local pass says
    "(found before any clip was requested)".
 6. **The service phase** (after the hook is filled with story 842's clients):
-   `uv run studio build ... --phase service`. The local pass runs first, so no Wan job
-   is submitted for a story that the local checks refuse anywhere; it fails as in step
-   5 with nothing asked. Otherwise the run ends `cancelled` with "service phase
-   complete"; every clip is now cached. Watch the Wan compute lease; never bypass it.
+   `uv run studio build ... --phase service`. The local pass runs first, then the mix
+   is made and its four checks run, so no Wan job is submitted for a story that the
+   local checks or its sound refuse anywhere; it fails as in step 5 with nothing
+   asked. Otherwise the run ends `cancelled` with "service phase complete" and lists
+   the mix checks; the mix and every clip are now cached. Watch the Wan compute lease;
+   never bypass it.
 7. **The offline phase.** `nice -n 10 uv run studio build ... --offline --workers N`
    (N up to 22 on `ai/studio-render`, 1 in a session pod). It renders the picture, the
    mix and the master, then stops at the transcript check with `build.offline_missing`
@@ -401,6 +418,9 @@ and `studio voice` reports those boards `current` (story 405's planner).
   other engine and file has a licence object).
 - A service-phase run ends `cancelled` at the phase boundary, or `failed` with
   `build.check_failed` when a check it made or read did not pass.
+- The mix and its own checks are made after the local pass and before any clip is
+  asked for, in the full build and the service phase; the service phase therefore
+  makes the mix too, and its run lists the mix checks.
 - The local pass before any clip request, with recording clip sources, and the stage
   `plan` for a refusal the plan makes itself.
 - A failure that cannot be written raises `build.run_unrecorded` and is never returned.

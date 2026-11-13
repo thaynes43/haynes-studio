@@ -16,8 +16,10 @@ In order:
 2. **The local pass** (:func:`_local_pass`): the whole story planned once with clip
    sources that only record the request they would send, so every drive track is
    made, every library timed clip resolved, every seed checked and every clip's inputs
-   read before the first clip of any board is asked for. Any error fails the run here
-   and no clip source has been asked.
+   read before the first clip of any board is asked for. Then, in a phase that may ask
+   a clip source (``all``, ``service``), the mix, which needs no clip, is made and its
+   own checks run (:func:`_early_mix`). Any error fails the run here and no clip source
+   has been asked.
 3. **The plan** (story 380's :func:`~haynes_studio.cache.plan.plan_story`) with one
    content chain: the layered stages (drive tracks, speech-to-video clips, keyed
    frames, story 426), the whole-frame clip sets (story 427), one picture builder per
@@ -41,14 +43,15 @@ failure that cannot be written to the run's record raises
 :class:`~.errors.RunUnrecorded` (``build.run_unrecorded``), naming the run and the
 delivery; it is never returned as a result.
 
-**Phases.** ``service`` fills the cache through the clip sources and nothing else:
-drive tracks (the clip requests' input) and clips are made; keyed frames, segments,
-the film, the sound, the checks and the delivery are left to the offline phase, and
+**Phases.** ``service`` fills the cache through the clip sources: drive tracks (the
+clip requests' input), the mix and its checks (before any clip, the cheapest proof the
+story's sound can be built) and the clips are made; keyed frames, segments, the film
+picture, the master, its checks and the delivery are left to the offline phase, and
 the run ends ``cancelled`` at that boundary (proposal: a run is not ``succeeded``
 without a delivery), unless a transcript check it made or read of a cached master
 failed: then it ends ``failed`` with ``build.check_failed``. ``offline`` is the same
-build with sources that refuse every call
-(:func:`.sources.offline_sources`). ``all`` is both with the given sources.
+build with sources that refuse every call (:func:`.sources.offline_sources`); it makes
+the mix where the plan reaches it. ``all`` is both with the given sources.
 
 **Workers.** With ``workers`` over 1 the plan runs twice after the local pass: once to
 make every clip and keyed frame and collect the segments the cache lacks, which up to
@@ -581,11 +584,16 @@ class _Recorder:
         return None, []
 
 
-def _sound_checks(sound: Any) -> list[dict[str, Any]]:
+def _check_entries(results: Any) -> list[dict[str, Any]]:
+    """Sound check results (story 841's ``CheckResult``) as run checks."""
     return [{"check": r.check, "result": "pass" if r.passed else "fail", "key": r.key.value,
              "sha256": r.sha256, "version": str(r.document.get("version")),
              "thresholds": r.document.get("thresholds"), "measured": r.document.get("measured")}
-            for r in sound.checks]
+            for r in results]
+
+
+def _sound_checks(sound: Any) -> list[dict[str, Any]]:
+    return _check_entries(sound.checks)
 
 
 def _transcript_entry(result: Mapping[str, Any], key: str, sha256: str) -> dict[str, Any]:
@@ -672,7 +680,14 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
                            earlier_runs=earlier_runs, sources=sources, transcriber=transcriber,
                            toolchain=toolchain, media=media, timer=timer, workdir=scratch_dir)
             register = Register(inputs.register)
-            local = _local_pass(build)  # no clip is asked for before this passes
+            local, local_plan = _local_pass(build)  # no clip is asked for before this passes
+            mix_checks: list[dict[str, Any]] = []
+            if phase != OFFLINE:  # a phase that may ask a clip source: the sound first
+                mix_checks = checks = _early_mix(build, local_plan)
+                failed = [c["check"] for c in mix_checks if c["result"] == "fail"]
+                if failed:
+                    raise BuildError(CHECK_FAILED, "checks of the mix did not pass: "
+                                     + ", ".join(failed), stage="checks")
             checked_locally = True
             if phase == SERVICE:
                 chain = _Chain(build, service=True)
@@ -680,7 +695,7 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
                 _keep_made(chain.records, local)
                 recorder = _Recorder(build, plan, chain.records, register)
                 stages = recorder.stages()
-                checks = _service_checks(build, plan, chain.records) or None
+                checks = [*mix_checks, *_service_checks(build, plan, chain.records)] or None
                 failed = [c["check"] for c in checks or () if c["result"] == "fail"]
                 if failed:  # a cached master's transcript did not pass: never "complete"
                     build.where = (None, "checks")
@@ -689,11 +704,12 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
                 made = sum(1 for m in chain.records.values() if m.made and m.kind in (S2V_CLIP, WHOLE_FRAME_CLIP))
                 checked = sum(1 for m in chain.records.values() if m.made and m.kind == CHECK_RESULT)
                 run = records.write(advance(
-                    run, CANCELLED, at=now(), by=actor, stages=stages,
+                    run, CANCELLED, at=now(), by=actor, stages=stages, checks=checks,
                     progress={"percent": 100, "stage": "service_phase_complete"},
-                    reason=f"service phase complete: {made} clip artifacts made and {checked} "
-                           "transcript checks run, the rest found in the cache; build the picture "
-                           "with --offline (proposal: a run without a delivery is never succeeded)"))
+                    reason=f"service phase complete: the mix passed its {len(mix_checks)} checks; "
+                           f"{made} clip artifacts made and {checked} transcript checks run, the "
+                           "rest found in the cache; build the picture with --offline (proposal: "
+                           "a run without a delivery is never succeeded)"))
                 return BuildResult(run, plan, (*build.cache.stats.made, *build.worker_made),
                                build.source_calls())
             first_pass: dict[str, Made] = {}
@@ -804,7 +820,7 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
 PLACEHOLDER_DELIVERY = "dlv_00000000000000000000000000"  # checks the record's shape only
 
 
-def _local_pass(build: _Build) -> dict[str, Made]:
+def _local_pass(build: _Build) -> tuple[dict[str, Made], StoryPlan]:
     """The build's first pass, before any clip is asked of the phase's sources (review
     finding 1 of story 406): the whole story is planned with the recording sources, so
     every drive track is made (a local stage), every speaker's library timed clip is
@@ -812,10 +828,25 @@ def _local_pass(build: _Build) -> dict[str, Made]:
     is checked, each clip is a checked cache hit or a request whose inputs the adapter
     read and re-hashed, and every other artifact is looked up in the cache. Nothing else
     is made and no service is asked. Any error stops the run here with its own code,
-    board and stage. Returns the pass's records (the drive tracks it made)."""
+    board and stage. Returns the pass's records (the drive tracks it made) and its plan,
+    whose keys are real wherever no clip is an input (the mix's, for one)."""
     chain = _Chain(build, local=True)
-    build.plan(chain)
-    return chain.records
+    plan = build.plan(chain)
+    return chain.records, plan
+
+
+def _early_mix(build: _Build, plan: StoryPlan) -> list[dict[str, Any]]:
+    """The mix and its own checks (those on the mix, not the master), made after the
+    local pass and before any clip is asked for (the confirming check's finding a). The
+    mix key names the voice tracks, the sound cues, the beds and the story's levels and
+    never a clip, so the local pass's plan holds the real key, and a later pass or phase
+    finds the mix and its check results in the cache. A refusal (``mix.input_invalid``,
+    ``cue.out_of_range``, a sound blob missing or not its hash) raises with its own code
+    at stage ``mix``. Returns the checks as run checks."""
+    build.where = (None, MIX)
+    made = build.sound.mix(plan.mix.key)
+    build.where = (None, "checks")
+    return _check_entries(build.sound.checks(plan.mix.key, made.sha256, None))
 
 
 def _keep_made(records: dict[str, Made], *passes: Mapping[str, Made]) -> None:

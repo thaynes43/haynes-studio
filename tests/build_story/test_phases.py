@@ -100,7 +100,10 @@ def test_a_failed_transcript_in_the_service_phase_fails_the_run(world, voiced, f
     assert run["status"] == "failed" and len(whisper.heard) == 1
     assert run["error"]["code"] == "build.check_failed" and run["error"]["stage"] == "checks"
     assert "master.transcript" in run["error"]["message"] and run["delivery_id"] is None
-    assert [(c["check"], c["result"]) for c in run["checks"]] == [("master.transcript", "fail")]
+    results = {c["check"]: c["result"] for c in run["checks"]}
+    assert results.pop("master.transcript") == "fail"  # and the mix's own checks, passed
+    assert results == dict.fromkeys(("mix.length", "mix.loudness", "mix.true_peak",
+                                     "mix.clipping"), "pass")
     assert made_names(made) == {"check/master.transcript"}
     # A later service phase reads that cached failure: failed again, nothing asked.
     recognizer, whisper = f.transcriber()

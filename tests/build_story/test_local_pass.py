@@ -1,9 +1,10 @@
 """No clip is asked for until the whole story has passed its local checks (story 406,
 review finding 1): drive tracks are made, every speaker's library timed clip resolved,
 every seed the plan needs checked and every board planned with clip sources that only
-record what they would be asked, before the first clip of any board is requested. A
-story that cannot be built fails its run with no clip asked; a buildable one is asked
-once per missing clip."""
+record what they would be asked, before the first clip of any board is requested; then
+the mix, which needs no clip, is made and its own checks run (the confirming check's
+finding a). A story that cannot be built fails its run with no clip asked; a buildable
+one is asked once per missing clip, and its mix is made once across the phases."""
 
 from __future__ import annotations
 
@@ -11,6 +12,9 @@ import copy
 import hashlib
 from pathlib import Path
 
+import pytest
+
+from haynes_studio.build import offline_sources
 from haynes_studio.library.model import locator_for
 from haynes_studio.motion.winter_menu import complete_block
 from tests.build_story import fixtures as f
@@ -97,9 +101,60 @@ def test_a_later_boards_missing_seed_stops_the_run_before_an_earlier_boards_clip
     assert "s2v:a" in run["error"]["message"]
 
 
+def unlimitable(document: dict) -> dict:
+    """A true-peak target the story schema accepts (a level, at most 0) and the mixer's
+    limiter cannot reach (its limit range): refused from that number alone."""
+    edited = copy.deepcopy(document)
+    edited["mix"]["true_peak_dbtp"] = -30
+    return edited
+
+
+def test_a_mix_the_limiter_refuses_stops_the_service_phase_before_any_clip(world, voiced, first):
+    document, library = voiced
+    edited = unlimitable(document)
+    f.board_of(edited, f.B1)["seeds"]["s2v:a"] = 25  # two clips no run made
+    f.board_of(edited, f.B3)["seeds"]["i2v:frame"] = 41
+    sources = f.sources()
+    result = f.build(world, edited, library, phase="service", source=sources)
+    assert sources.s2v.calls == [] and sources.i2v.calls == []
+    run = assert_failed(world, result, "mix.input_invalid", stage="mix")
+    assert run["error"]["message"].endswith("(found before any clip was requested)")
+
+
+@pytest.mark.parametrize("workers", [1, 2])
+def test_a_mix_the_limiter_refuses_stops_a_full_build_before_any_clip(world, voiced, first, workers):
+    document, library = voiced
+    edited = unlimitable(document)
+    f.board_of(edited, f.B1)["seeds"]["s2v:a"] = 25 + workers  # a clip no run made
+    sources = f.sources()
+    result = f.build(world, edited, library, source=sources, workers=workers)
+    assert sources.s2v.calls == [] and sources.i2v.calls == []
+    run = assert_failed(world, result, "mix.input_invalid", stage="mix")
+    assert run["error"]["message"].endswith("(found before any clip was requested)")
+
+
+def test_a_mix_that_fails_its_own_checks_stops_before_any_clip(world, voiced, first):
+    # A loudness target the limited speech cannot reach: the mix is made, and its
+    # loudness check (a mix-side check, no master needed) fails.
+    document, library = voiced
+    edited = copy.deepcopy(document)
+    edited["mix"]["master_lufs"] = -2
+    f.board_of(edited, f.B1)["seeds"]["s2v:a"] = 28  # a clip no run made
+    sources = f.sources()
+    result = f.build(world, edited, library, source=sources)
+    assert sources.s2v.calls == [] and sources.i2v.calls == []
+    run = assert_failed(world, result, "build.check_failed", stage="checks")
+    assert "mix.loudness" in run["error"]["message"]
+    assert run["error"]["message"].endswith("(found before any clip was requested)")
+    assert {c["check"] for c in run["checks"]} == {"mix.length", "mix.loudness", "mix.true_peak",
+                                                    "mix.clipping"}
+    assert next(c for c in run["checks"] if c["check"] == "mix.loudness")["result"] == "fail"
+
+
 def test_a_buildable_story_asks_each_missing_clip_exactly_once(world, voiced, first):
     document, library = voiced
     edited = copy.deepcopy(document)
+    edited["mix"]["line_rms_dbfs"] = -23  # a new mix, which no run made
     f.board_of(edited, f.B1)["seeds"]["s2v:a"] = 22  # a re-roll on the first board
     f.board_of(edited, f.B3)["seeds"]["i2v:frame"] = 39  # and on the last
     sources = f.sources()
@@ -109,4 +164,13 @@ def test_a_buildable_story_asks_each_missing_clip_exactly_once(world, voiced, fi
     assert [[c.seed for c in r.clips] for r in sources.i2v.calls] == [[39]]
     assert built.source_calls == 2
     made = {n for n, p in built.plan.artifacts.items() if p.key.value in built.made}
-    assert made == {f"{f.B1}/s2v_clip/a", f"{f.B3}/whole_frame_clip"}
+    assert made == {f"{f.B1}/s2v_clip/a", f"{f.B3}/whole_frame_clip", "film/mix"}
+    checks = {c["check"]: c["result"] for c in built.run["checks"] or ()}
+    assert checks == dict.fromkeys(("mix.length", "mix.loudness", "mix.true_peak",
+                                    "mix.clipping"), "pass")
+    # The offline phase reuses that mix and those clips: it renders, then stops at the
+    # new master's transcript (a service call), and makes no mix.
+    offline = f.build(world, edited, library, phase="offline", source=offline_sources())
+    assert offline.run["error"]["code"] == "build.offline_missing", offline.run["error"]
+    assert offline.run["error"]["stage"] == "check_result" and offline.source_calls == 0
+    assert built.plan.artifacts["film/mix"].key.value not in offline.made
