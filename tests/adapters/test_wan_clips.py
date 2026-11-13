@@ -1798,6 +1798,46 @@ def test_g18_two_processes_on_two_names_before_either_remembers_one_proceeds(tmp
     assert outcomes[0].frames == 9 and runs(runner) == 1
 
 
+def test_g18_a_journal_another_name_fills_while_this_hold_creates_it_gets_no_second_created_line(
+        tmp_path, monkeypatch):
+    """Confirming review, section d: A finds no journal, and before A's creating open a
+    second name creates it, records a job in flight and releases. A must write nothing
+    (the file is not empty when A holds it), must see that job and refuse, and the
+    journal must still load."""
+    path = tmp_path / "wan-journal.jsonl"
+    other = tmp_path / "other-name.jsonl"
+    other.symlink_to(path)  # dangling until someone creates the journal
+    inside, go = threading.Event(), threading.Event()
+    real = wan._create_or_open
+
+    def paused(target, flags):
+        if target == path and not inside.is_set():  # A's creating open, once
+            inside.set()
+            assert go.wait(30), "the test never released A"
+        return real(target, flags)
+    monkeypatch.setattr(wan, "_create_or_open", paused)
+    pod = FakeWan()
+    runner = FakeRunner(pod)
+    client = client_for(runner, journal=FileJournal(path))
+    thread, outcomes = in_thread(lambda: client.render(i2v()))
+    try:
+        assert inside.wait(30)
+        second = FileJournal(other)
+        second.hold()
+        second.remember("c" * 32, IN_FLIGHT, G)
+        second.release()
+        written = path.read_bytes()
+    finally:
+        go.set()
+        thread.join(30)
+    error = outcomes[0]
+    assert isinstance(error, WanError) and error.code == BUSY and "no ledger" in str(error), error
+    assert path.read_bytes() == written  # A wrote nothing
+    assert FileJournal(path).load() == InFlightJob("c" * 32, "journal", IN_FLIGHT, G)  # still loads
+    assert runs(runner) == 0
+    nothing_submitted(pod)
+
+
 def timed_out_job(journal):
     """A render that timed out inside its run, leaving its job in flight in ``journal``,
     then a new process: the job is the journal's only record of it."""

@@ -920,7 +920,7 @@ class FileJournal(Journal):
                 if not first_use:  # the lock file shows it was used: it was removed since
                     raise _journal_error(_missing_after_use(self.path)) from None
                 fd, made = _create_or_open(self.path, os.O_RDWR | os.O_APPEND)
-                created = True  # it did not exist a moment ago, and the lock file is held
+                created = True  # it did not exist a moment ago (another name may fill it since)
                 if not made:  # created through a symlink (O_EXCL refuses one): sync its directory
                     _sync_directory(Path(os.path.realpath(self.path)).parent)
         except OSError as error:
@@ -933,7 +933,11 @@ class FileJournal(Journal):
             # The journal file itself too: another name for it (a symlink, a hard link) has
             # another lock file, but not another file.
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            if created:  # its first line, before any job can be remembered
+            # Its first line, before any job can be remembered: decided from the locked file
+            # itself. Only a file this call found missing, and still empty now that both
+            # locks are held, gets it; one another name filled meanwhile is read as it is,
+            # and one that existed empty (a creation that crashed) stays refused.
+            if created and os.fstat(fd).st_size == 0:
                 line = self._created_line()
                 if os.write(fd, line) != len(line):
                     raise OSError(errno.EIO, "short write to the journal")
