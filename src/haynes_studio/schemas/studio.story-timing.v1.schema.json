@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://haynes-studio.invalid/schemas/studio.story-timing.v1.schema.json",
+  "title": "studio.story-timing/v1: a story's timing summary (contract section 3, D45)",
+  "type": "object",
+  "required": [
+    "schema",
+    "story_id",
+    "story_revision",
+    "fps",
+    "boards",
+    "frames_known",
+    "complete",
+    "format_length",
+    "warnings",
+    "build_allowed",
+    "build_blockers"
+  ],
+  "properties": {
+    "schema": {
+      "const": "studio.story-timing/v1",
+      "x-studio": {
+        "const": {
+          "rule": "schema.unsupported",
+          "message": "must be studio.story-timing/v1"
+        }
+      }
+    },
+    "story_id": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/sty_id"
+    },
+    "story_revision": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+    },
+    "fps": {
+      "const": 24
+    },
+    "boards": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "board_id",
+          "state",
+          "frames",
+          "film_start_frame"
+        ],
+        "properties": {
+          "board_id": {
+            "$ref": "studio.defs.v1.schema.json#/$defs/brd_id"
+          },
+          "state": {
+            "enum": [
+              "timed",
+              "untimed"
+            ]
+          },
+          "frames": {
+            "$ref": "studio.defs.v1.schema.json#/$defs/frames_or_null"
+          },
+          "film_start_frame": {
+            "$ref": "studio.defs.v1.schema.json#/$defs/frames_or_null"
+          },
+          "reason": {
+            "enum": [
+              "voice.absent",
+              "voice.stale"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "if": {
+          "properties": {
+            "state": {
+              "const": "untimed"
+            }
+          },
+          "required": [
+            "state"
+          ]
+        },
+        "then": {
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "frames": {
+              "type": "null"
+            },
+            "film_start_frame": {
+              "type": "null"
+            }
+          }
+        },
+        "else": {
+          "properties": {
+            "frames": {
+              "type": "integer"
+            },
+            "reason": false
+          }
+        }
+      }
+    },
+    "frames_known": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/count"
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "format_length": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "format_version_id",
+        "min_ms",
+        "max_ms"
+      ],
+      "properties": {
+        "format_version_id": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/fmv_id"
+        },
+        "min_ms": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/ms"
+        },
+        "max_ms": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/ms"
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "$ref": "studio.defs.v1.schema.json#/$defs/warning"
+      }
+    },
+    "build_allowed": {
+      "type": "boolean"
+    },
+    "build_blockers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "board_id": {
+            "$ref": "studio.defs.v1.schema.json#/$defs/brd_id"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
