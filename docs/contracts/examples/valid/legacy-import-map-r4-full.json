@@ -1,0 +1,483 @@
+{
+  "schema": "studio.legacy-import/v1",
+  "source_key": "legacy:the-winter-menu",
+  "production_id": "prd_01M79V9FC00000000000000001",
+  "media_kind": "short",
+  "story_id": "sty_01M79V9FC00000000000000001",
+  "draft_from_revision": 4,
+  "writes_legacy": false,
+  "revisions": [
+    {
+      "legacy_revision": 1,
+      "revision_field_present": false,
+      "manifest": "titles/the-winter-menu/manifest.json",
+      "manifest_sha256": "e8174b5f1884234dc398087df393ee59003d2d4f64b2e83af47c35c0f5b8fbee",
+      "job": "the-winter-menu-r1",
+      "tracker": "https://work.haynesnetwork.com/work_packages/369",
+      "imported_run_id": "run_01M79V9FC00000000000000003",
+      "run_status": "imported",
+      "method": {
+        "legacy": "rigid_cutout"
+      },
+      "delivery_id": "dlv_01M79V9FC00000000000000003",
+      "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+      "master_sha256": "6c972c6390f181c86bf5785d07bfc7a31ee324502e7a6fa685a4625c49cad221",
+      "frames": 662,
+      "shots": 6
+    },
+    {
+      "legacy_revision": 2,
+      "revision_field_present": true,
+      "manifest": "titles/the-winter-menu/manifest-r2.json",
+      "manifest_sha256": "ed154d1c2fb1c3f45b3f5f7d1e03a7470520f4dd9aaa96011d663955565461ea",
+      "job": "the-winter-menu-r2",
+      "tracker": "https://work.haynesnetwork.com/work_packages/369",
+      "imported_run_id": "run_01M79V9FC00000000000000004",
+      "run_status": "imported",
+      "method": {
+        "legacy": "rigid_cutout"
+      },
+      "delivery_id": "dlv_01M79V9FC00000000000000004",
+      "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+      "master_sha256": "11ed1cac5afef236e43ff65c39487be8aa665ed1545b8a9c9ac22170d73e3eac",
+      "frames": 823,
+      "shots": 8
+    },
+    {
+      "legacy_revision": 3,
+      "revision_field_present": true,
+      "manifest": "titles/the-winter-menu/manifest-r3.json",
+      "manifest_sha256": "42308d514092859517fc55a51ea923d5ecc1dc46f13e336d41d290c1218398fd",
+      "job": "the-winter-menu-r3",
+      "tracker": "https://work.haynesnetwork.com/work_packages/371",
+      "imported_run_id": "run_01M79V9FC00000000000000005",
+      "run_status": "imported",
+      "method": {
+        "legacy": "rigid_cutout"
+      },
+      "delivery_id": "dlv_01M79V9FC00000000000000005",
+      "ledger_id": "11d41839ef134a76abe46370105a99fe",
+      "master_sha256": "724208f7347192f982394ba49c23552a570faa37b3d445d46535df0ae857e780",
+      "frames": 1094,
+      "shots": 9
+    },
+    {
+      "legacy_revision": 4,
+      "revision_field_present": true,
+      "manifest": "titles/the-winter-menu/manifest-r4.json",
+      "manifest_sha256": "98a9cfb747dd088edb65d3b7565344f3eab8c40c51bf56d6aa4948f04d47702d",
+      "job": "the-winter-menu-r4",
+      "tracker": "https://work.haynesnetwork.com/work_packages/371",
+      "imported_run_id": "run_01M79V9FC00000000000000002",
+      "run_status": "imported",
+      "method": {
+        "legacy": "rigid_cutout"
+      },
+      "delivery_id": "dlv_01M79V9FC00000000000000002",
+      "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+      "master_sha256": "45ecdc359ebe194b398a671ad63b5002c09d3b3b13b3e34b64432a9dd16681ac",
+      "frames": 1087,
+      "shots": 9,
+      "speech_sha256": "a2bdcc53292fcbbd7cc5411348613b551be4928d742d2e33d9cf39c37aa7085a"
+    }
+  ],
+  "boards_from_r4": [
+    {
+      "legacy_shot": 1,
+      "board_id": "brd_01M79V9FC00000000000000001",
+      "source_key": "legacy:the-winter-menu-r4:shot:1",
+      "lines": [
+        {
+          "legacy_k": 0,
+          "line_id": "lin_01M79V9FC00000000000000001",
+          "source_key": "legacy:the-winter-menu-r4:shot:1:line:0"
+        }
+      ],
+      "cues": [],
+      "notes": []
+    },
+    {
+      "legacy_shot": 2,
+      "board_id": "brd_01M79V9FC00000000000000002",
+      "source_key": "legacy:the-winter-menu-r4:shot:2",
+      "lines": [
+        {
+          "legacy_k": 0,
+          "line_id": "lin_01M79V9FC00000000000000002",
+          "source_key": "legacy:the-winter-menu-r4:shot:2:line:0"
+        }
+      ],
+      "cues": [],
+      "notes": []
+    },
+    {
+      "legacy_shot": 3,
+      "board_id": "brd_01M79V9FC00000000000000003",
+      "source_key": "legacy:the-winter-menu-r4:shot:3",
+      "lines": [
+        {
+          "legacy_k": 0,
+          "line_id": "lin_01M79V9FC00000000000000003",
+          "source_key": "legacy:the-winter-menu-r4:shot:3:line:0"
+        }
+      ],
+      "cues": [],
+      "notes": []
+    },
+    {
+      "legacy_shot": 4,
+      "board_id": "brd_01M79V9FC00000000000000004",
+      "source_key": "legacy:the-winter-menu-r4:shot:4",
+      "lines": [
+        {
+          "legacy_k": 0,
+          "line_id": "lin_01M79V9FC00000000000000004",
+          "source_key": "legacy:the-winter-menu-r4:shot:4:line:0"
+        }
+      ],
+      "cues": [],
+      "notes": []
+    },
+    {
+      "legacy_shot": 5,
+      "board_id": "brd_01M79V9FC00000000000000005",
+      "source_key": "legacy:the-winter-menu-r4:shot:5",
+      "lines": [
+        {
+          "legacy_k": 0,
+          "line_id": "lin_01M79V9FC00000000000000005",
+          "source_key": "legacy:the-winter-menu-r4:shot:5:line:0"
+        }
+      ],
+      "cues": [],
+      "notes": []
+    },
+    {
+      "legacy_shot": 6,
+      "board_id": "brd_01M79V9FC00000000000000006",
+      "source_key": "legacy:the-winter-menu-r4:shot:6",
+      "lines": [
+        {
+          "legacy_k": 0,
+          "line_id": "lin_01M79V9FC00000000000000006",
+          "source_key": "legacy:the-winter-menu-r4:shot:6:line:0"
+        }
+      ],
+      "cues": [],
+      "notes": []
+    },
+    {
+      "legacy_shot": 7,
+      "board_id": "brd_01M79V9FC00000000000000007",
+      "source_key": "legacy:the-winter-menu-r4:shot:7",
+      "lines": [],
+      "cues": [
+        {
+          "source_key": "legacy:the-winter-menu-r4:shot:7:sfx:0",
+          "cue_id": "cue_01M79V9FC00000000000000001"
+        },
+        {
+          "source_key": "legacy:the-winter-menu-r4:shot:7:camera",
+          "cue_id": "cue_01M79V9FC00000000000000002"
+        }
+      ],
+      "notes": [
+        {
+          "source_key": "legacy:the-winter-menu-r4:shot:7:note",
+          "note_id": "nte_01M79V9FC00000000000000001"
+        }
+      ]
+    },
+    {
+      "legacy_shot": 8,
+      "board_id": "brd_01M79V9FC00000000000000008",
+      "source_key": "legacy:the-winter-menu-r4:shot:8",
+      "lines": [
+        {
+          "legacy_k": 0,
+          "line_id": "lin_01M79V9FC00000000000000007",
+          "source_key": "legacy:the-winter-menu-r4:shot:8:line:0"
+        },
+        {
+          "legacy_k": 1,
+          "line_id": "lin_01M79V9FC00000000000000008",
+          "source_key": "legacy:the-winter-menu-r4:shot:8:line:1"
+        },
+        {
+          "legacy_k": 2,
+          "line_id": "lin_01M79V9FC00000000000000009",
+          "source_key": "legacy:the-winter-menu-r4:shot:8:line:2"
+        },
+        {
+          "legacy_k": 3,
+          "line_id": "lin_01M79V9FC0000000000000000A",
+          "source_key": "legacy:the-winter-menu-r4:shot:8:line:3"
+        },
+        {
+          "legacy_k": 4,
+          "line_id": "lin_01M79V9FC0000000000000000B",
+          "source_key": "legacy:the-winter-menu-r4:shot:8:line:4"
+        },
+        {
+          "legacy_k": 5,
+          "line_id": "lin_01M79V9FC0000000000000000C",
+          "source_key": "legacy:the-winter-menu-r4:shot:8:line:5"
+        }
+      ],
+      "cues": [
+        {
+          "source_key": "legacy:the-winter-menu-r4:shot:8:sfx:0",
+          "cue_id": "cue_01M79V9FC00000000000000003"
+        },
+        {
+          "source_key": "legacy:the-winter-menu-r4:shot:8:sfx:1",
+          "cue_id": "cue_01M79V9FC00000000000000004"
+        },
+        {
+          "source_key": "legacy:the-winter-menu-r4:shot:8:move:0",
+          "cue_id": "cue_01M79V9FC00000000000000005"
+        },
+        {
+          "source_key": "legacy:the-winter-menu-r4:shot:8:move:1",
+          "cue_id": "cue_01M79V9FC00000000000000006"
+        },
+        {
+          "source_key": "legacy:the-winter-menu-r4:shot:8:move:2",
+          "cue_id": "cue_01M79V9FC00000000000000007"
+        },
+        {
+          "source_key": "legacy:the-winter-menu-r4:shot:8:move:3",
+          "cue_id": "cue_01M79V9FC00000000000000008"
+        },
+        {
+          "source_key": "legacy:the-winter-menu-r4:shot:8:move:4",
+          "cue_id": "cue_01M79V9FC00000000000000009"
+        },
+        {
+          "source_key": "legacy:the-winter-menu-r4:shot:8:move:5",
+          "cue_id": "cue_01M79V9FC0000000000000000A"
+        },
+        {
+          "source_key": "legacy:the-winter-menu-r4:shot:8:move:6",
+          "cue_id": "cue_01M79V9FC0000000000000000B"
+        },
+        {
+          "source_key": "legacy:the-winter-menu-r4:shot:8:move:7",
+          "cue_id": "cue_01M79V9FC0000000000000000C"
+        },
+        {
+          "source_key": "legacy:the-winter-menu-r4:shot:8:move:8",
+          "cue_id": "cue_01M79V9FC0000000000000000D"
+        },
+        {
+          "source_key": "legacy:the-winter-menu-r4:shot:8:move:9",
+          "cue_id": "cue_01M79V9FC0000000000000000E"
+        },
+        {
+          "source_key": "legacy:the-winter-menu-r4:shot:8:move:10",
+          "cue_id": "cue_01M79V9FC0000000000000000F"
+        },
+        {
+          "source_key": "legacy:the-winter-menu-r4:shot:8:move:11",
+          "cue_id": "cue_01M79V9FC0000000000000000G"
+        }
+      ],
+      "notes": [
+        {
+          "source_key": "legacy:the-winter-menu-r4:shot:8:note",
+          "note_id": "nte_01M79V9FC00000000000000002"
+        }
+      ]
+    },
+    {
+      "legacy_shot": 9,
+      "board_id": "brd_01M79V9FC00000000000000009",
+      "source_key": "legacy:the-winter-menu-r4:shot:9",
+      "lines": [
+        {
+          "legacy_k": 0,
+          "line_id": "lin_01M79V9FC0000000000000000D",
+          "source_key": "legacy:the-winter-menu-r4:shot:9:line:0"
+        }
+      ],
+      "cues": [
+        {
+          "source_key": "legacy:the-winter-menu-r4:shot:9:sfx:0",
+          "cue_id": "cue_01M79V9FC0000000000000000H"
+        }
+      ],
+      "notes": [
+        {
+          "source_key": "legacy:the-winter-menu-r4:shot:9:note",
+          "note_id": "nte_01M79V9FC00000000000000003"
+        }
+      ]
+    }
+  ],
+  "e0_deliveries": [
+    {
+      "label": "E0 layered v1",
+      "ledger_id": "d81353cdf8f84f999a9c41b43c4be569",
+      "method": {
+        "layer": "layered",
+        "motion": "i2v"
+      }
+    },
+    {
+      "label": "E0 layered v2",
+      "ledger_id": "c3711fb4fcef40ea861da35f9da2758f",
+      "method": {
+        "layer": "layered",
+        "motion": "i2v"
+      }
+    },
+    {
+      "label": "E0 layered S2V",
+      "ledger_id": "e6659b3f1c4242eb85485f3cc82c557a",
+      "method": {
+        "layer": "layered",
+        "motion": "s2v"
+      }
+    }
+  ],
+  "imported_run_notes": [
+    "provenance (free text, verbatim)",
+    "revision_note (verbatim; E9.3 may turn it into feedback)"
+  ],
+  "hidden_candidates": [
+    {
+      "from": "manifest sfx.<name>.rejected[]",
+      "becomes": "sound candidate records with provenance and no bytes"
+    }
+  ],
+  "not_imported": [
+    "job_dir (private, non-portable locator; story 425 recovery map)"
+  ],
+  "story_records": [
+    {
+      "source_key": "legacy:the-winter-menu-r4:still:cutouts/a-proud.png",
+      "kind": "asset_version",
+      "id": "asv_01M79V9FC00000000000000001"
+    },
+    {
+      "source_key": "legacy:the-winter-menu-r4:still:cutouts/a-staring.png",
+      "kind": "asset_version",
+      "id": "asv_01M79V9FC00000000000000002"
+    },
+    {
+      "source_key": "legacy:the-winter-menu-r4:still:cutouts/b-deadpan.png",
+      "kind": "asset_version",
+      "id": "asv_01M79V9FC00000000000000003"
+    },
+    {
+      "source_key": "legacy:the-winter-menu-r4:still:cutouts/c-staring.png",
+      "kind": "asset_version",
+      "id": "asv_01M79V9FC00000000000000004"
+    },
+    {
+      "source_key": "legacy:the-winter-menu-r4:still:cutouts/c-suspicious.png",
+      "kind": "asset_version",
+      "id": "asv_01M79V9FC00000000000000005"
+    },
+    {
+      "source_key": "legacy:the-winter-menu-r4:still:cutouts/d-shocked.png",
+      "kind": "asset_version",
+      "id": "asv_01M79V9FC00000000000000006"
+    },
+    {
+      "source_key": "legacy:the-winter-menu-r4:set:cutouts/set.png",
+      "kind": "asset_version",
+      "id": "asv_01M79V9FC00000000000000007"
+    },
+    {
+      "source_key": "legacy:the-winter-menu-r4:sfx:crow",
+      "kind": "asset_version",
+      "id": "asv_01M79V9FC00000000000000008"
+    },
+    {
+      "source_key": "legacy:the-winter-menu-r4:sfx:crunch",
+      "kind": "asset_version",
+      "id": "asv_01M79V9FC00000000000000009"
+    },
+    {
+      "source_key": "legacy:the-winter-menu-r4:sfx:gavel",
+      "kind": "asset_version",
+      "id": "asv_01M79V9FC0000000000000000A"
+    },
+    {
+      "source_key": "legacy:the-winter-menu-r4:sfx:sting",
+      "kind": "asset_version",
+      "id": "asv_01M79V9FC0000000000000000B"
+    },
+    {
+      "source_key": "legacy:the-winter-menu-r4:bed:fire",
+      "kind": "asset_version",
+      "id": "asv_01M79V9FC0000000000000000C"
+    },
+    {
+      "source_key": "legacy:the-winter-menu-r4:voice:bf_emma",
+      "kind": "asset_version",
+      "id": "asv_01M79V9FC0000000000000000D"
+    },
+    {
+      "source_key": "legacy:the-winter-menu-r4:voice:af_heart",
+      "kind": "asset_version",
+      "id": "asv_01M79V9FC0000000000000000E"
+    },
+    {
+      "source_key": "legacy:the-winter-menu-r4:voice:af_nicole",
+      "kind": "asset_version",
+      "id": "asv_01M79V9FC0000000000000000F"
+    },
+    {
+      "source_key": "legacy:the-winter-menu-r4:voice:af_bella",
+      "kind": "asset_version",
+      "id": "asv_01M79V9FC0000000000000000G"
+    },
+    {
+      "source_key": "legacy:the-winter-menu-r4:speech:shot:1",
+      "kind": "asset_version",
+      "id": "asv_01M79V9FC0000000000000000H"
+    },
+    {
+      "source_key": "legacy:the-winter-menu-r4:speech:shot:2",
+      "kind": "asset_version",
+      "id": "asv_01M79V9FC0000000000000000K"
+    },
+    {
+      "source_key": "legacy:the-winter-menu-r4:speech:shot:3",
+      "kind": "asset_version",
+      "id": "asv_01M79V9FC0000000000000000N"
+    },
+    {
+      "source_key": "legacy:the-winter-menu-r4:speech:shot:4",
+      "kind": "asset_version",
+      "id": "asv_01M79V9FC0000000000000000Q"
+    },
+    {
+      "source_key": "legacy:the-winter-menu-r4:speech:shot:5",
+      "kind": "asset_version",
+      "id": "asv_01M79V9FC0000000000000000S"
+    },
+    {
+      "source_key": "legacy:the-winter-menu-r4:speech:shot:6",
+      "kind": "asset_version",
+      "id": "asv_01M79V9FC0000000000000000V"
+    },
+    {
+      "source_key": "legacy:the-winter-menu-r4:speech:shot:8",
+      "kind": "asset_version",
+      "id": "asv_01M79V9FC0000000000000000Y"
+    },
+    {
+      "source_key": "legacy:the-winter-menu-r4:speech:shot:9",
+      "kind": "asset_version",
+      "id": "asv_01M79V9FC00000000000000010"
+    },
+    {
+      "source_key": "legacy:the-winter-menu-r4:bed:fire",
+      "kind": "bed",
+      "id": "cue_01M79V9FC0000000000000000J"
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+{
+  "schema": "studio.job/v1",
+  "id": "job_01M79V9FC00000000000000001",
+  "kind": "voice",
+  "target_id": "brd_01M79V9FC00000000000000008",
+  "input_signature": "sha256:cedb526436a1faf1fdd7c8536003eeeb68f5f5fc58daed07fe5495ff0f2c80c2",
+  "status": "succeeded",
+  "result_version_id": "asv_01M79V9FC00000000000000100",
+  "result_is_current": false,
+  "error": null,
+  "created_by": {
+    "kind": "human",
+    "iss": "https://authentik.example.invalid/application/o/haynes-studio/",
+    "sub": "example-subject-tom"
+  },
+  "created_at": "2026-11-13T07:00:00Z",
+  "updated_at": "2026-11-14T09:00:00Z",
+  "voice": {
+    "production_id": "prd_01M79V9FC00000000000000001",
+    "story_id": "sty_01M79V9FC00000000000000001",
+    "name": "Shot 8 voice",
+    "engine": "Kokoro-82M v1.0",
+    "model": "Kokoro-82M v1.0",
+    "lead_ms": 1900,
+    "gaps_ms": [
+      300,
+      200,
+      250,
+      700,
+      900
+    ],
+    "lines": [
+      {
+        "line_id": "lin_01M79V9FC00000000000000007",
+        "speaker": "b",
+        "text": "All in favor?",
+        "voice_version_id": "asv_01M7B0EA3K8ENAHGT72MDDM1KJ",
+        "voice_id": "af_heart",
+        "signature": "sha256:a450fb775beecdbf838c655c8b876917225318876c34bd6668c15c26397ac4af"
+      },
+      {
+        "line_id": "lin_01M79V9FC00000000000000008",
+        "speaker": "a",
+        "text": "Aye.",
+        "voice_version_id": "asv_01M7B0EA3K8ENAHGT72MDDM1KH",
+        "voice_id": "bf_emma",
+        "signature": "sha256:95f285f02833fe20be0869fd6976ed525abf071fdf1f983adb1ccdd5055431f1"
+      },
+      {
+        "line_id": "lin_01M79V9FC00000000000000009",
+        "speaker": "c",
+        "text": "Aye.",
+        "voice_version_id": "asv_01M7B0EA3K8ENAHGT72MDDM1KK",
+        "voice_id": "af_nicole",
+        "signature": "sha256:e040814d77d907772d546419c3903ffc2c8ecf5b3bc9d910942f913198ae7b6b"
+      },
+      {
+        "line_id": "lin_01M79V9FC0000000000000000A",
+        "speaker": "d",
+        "text": "Nay!",
+        "voice_version_id": "asv_01M7B0EA3K8ENAHGT72MDDM1KM",
+        "voice_id": "af_bella",
+        "signature": "sha256:8932df67a0a85b938e80e87d7faa117225e1d30862c7a572b47e69ac99780b61"
+      },
+      {
+        "line_id": "lin_01M79V9FC0000000000000000B",
+        "speaker": "b",
+        "text": "Motion carried.",
+        "voice_version_id": "asv_01M7B0EA3K8ENAHGT72MDDM1KJ",
+        "voice_id": "af_heart",
+        "signature": "sha256:6a9f70a149975df0a83ff316ffea2a4b13a199ff788a68d2e1f5066c7f8f44b2"
+      },
+      {
+        "line_id": "lin_01M79V9FC0000000000000000C",
+        "speaker": "b",
+        "text": "Bibs on, ladies.",
+        "voice_version_id": "asv_01M7B0EA3K8ENAHGT72MDDM1KJ",
+        "voice_id": "af_heart",
+        "signature": "sha256:b5c691bc2757f255a44076bd89ca1e0fc618aacac9a1dd81c5b65c18c7a24c4f"
+      }
+    ]
+  }
+}

@@ -14,7 +14,10 @@ license, which Tom left open and Claude chose.
    stay on private cluster storage. The license is MIT, chosen by Claude after Tom
    said on 2026-11-03 that he did not mind which; it replaced the initial AGPL-3.0.
    MIT is the simplest permissive license and puts no obligations on a future hosted
-   API or UI. It covers the code and docs, not the media.
+   API or UI. It covers the code and docs, not the media. (*Amended by D48 in
+   [proposal 0003](../proposals/0003-studio-plan.md), 2026-11-13: the code stays MIT,
+   and the creative work is all rights reserved wherever it appears in the repository,
+   docs included; see [RIGHTS.md](../../RIGHTS.md).*)
 3. **Manual first.** One short is made by hand and documented step by step before
    any tooling is built. The tooling backlog is then written from the run log, with
    each epic ending in something Tom can use and demo, building toward an API and a

@@ -64,7 +64,9 @@ but a dev-env session pod's egress does not allow it. Agents use the in-pod rout
 - Timing from the deployment notes: warm Qwen-Image 2.1 edit render 80 to 86 s, cold
   first render about 306 s while models load off NFS.
 - **Output retention: 30 days.** A CronJob deletes top-level output images older
-  than 30 days. Copy anything you need into the job directory straight away.
+  than 30 days. Copy anything you need into the job directory straight away. Whether
+  it also reaches subfolders such as `studio/` is not recorded (story
+  [425](https://work.haynesnetwork.com/work_packages/425)'s recovery map).
 - The UI is at `https://comfyui.haynesops.com` for people on the LAN. Agents use the
   in-pod HTTP API (`/prompt`, `/history/<id>`, `/view?filename=...`).
 - No alpha output: Qwen renders an opaque image. Doll cutouts need a background
@@ -98,13 +100,18 @@ but a dev-env session pod's egress does not allow it. Agents use the in-pod rout
   checksum. Runbook: haynes-ops `.agents/runbooks/audio-authoring.md`.
 - Text-only sound effects were judged harsh or out of sync in the butter ASMR work
   (OP343). Short single cues (a crow caw, a twig snap) are a better fit than beds.
-- Commercial licensing for this model has not been checked. Settle that in the
-  release story, before anything is published.
+- Its terms are recorded in the [model licence register](model-licences.md):
+  Stability AI Community License, conditional (commercial use needs registration with
+  Stability AI and ends above a revenue limit). They block nothing while the studio's
+  use is research and personal development (D49 in
+  [proposal 0003](../proposals/0003-studio-plan.md)).
 
 ## Wan API (storage and delivery)
 
 - `ai/deploy/wan-video` has containers `api` (port 8080), `app` (ComfyUI with Wan,
-  port 8188) and `foley` (port 8189). The two RTX 3090s are on `talosw01`.
+  port 8188) and `foley` (port 8189). The two RTX 3090s are on `talosw01`. They are
+  this project's: its work may use them without asking each time, one job at a time
+  through the compute lease (D50 in [proposal 0003](../proposals/0003-studio-plan.md)).
 - Video presets: `preview` 832x480, 49 frames, 24 fps; `720p` 1280x704, 81 frames.
   One active compute lease, `409` when busy, 20 minute timeout. Do not resubmit
   blindly after a lost response; read the job first.
@@ -112,7 +119,9 @@ but a dev-env session pod's egress does not allow it. Agents use the in-pod rout
   `/workspace/output/productions/<id>/` on PVC `ai/wan-video`, with a ledger JSON in
   `/workspace/jobs/`. The API then serves them at
   `https://video.haynesops.com/videos/<ledger-id>/file`, the same as GPU outputs.
-  Reference: haynes-ops `scripts/wan-video/preserve_doll_short.py`.
+  Reference: haynes-ops `scripts/wan-video/preserve_doll_short.py`. Edited
+  productions never copied their sound beds to the PVC (`poc/deliver.py` did not), so
+  a bed cannot be recovered from there (story 425).
 - The API reads every ledger in `/workspace/jobs/` at startup with no error handling.
   A malformed ledger crashes the shared service on its next restart, so validate
   before linking one (required fields are in the runbook, stage 7).

@@ -465,6 +465,38 @@
               },
               "note": "Apache-2.0; the Wan model card says 'We claim no rights over the your generated contents'. Wan model card: no shared content that violates applicable laws, causes harm, disseminates personal information intended for harm, spreads misinformation or targets vulnerable populations. The session's reading of the text, not legal advice."
             }
+          },
+          {
+            "name": "umt5_xxl_fp8_e4m3fn_scaled",
+            "sha256": "<pinned in haynes-ops>",
+            "licence": {
+              "name": "Apache-2.0",
+              "url": "https://www.apache.org/licenses/LICENSE-2.0",
+              "commercial_use": "allowed",
+              "attribution_required": false,
+              "checked_at": "2026-11-13T14:18:00Z",
+              "checked_by": {
+                "kind": "worker",
+                "worker_id": "dev-env agent session haynes-studio-1113-141004"
+              },
+              "note": "Apache-2.0 (repackaged umT5-XXL encoder, shipped with the Wan models). The session's reading of the text, not legal advice."
+            }
+          },
+          {
+            "name": "wan2.2_vae",
+            "sha256": "<pinned in haynes-ops>",
+            "licence": {
+              "name": "Apache-2.0",
+              "url": "https://www.apache.org/licenses/LICENSE-2.0",
+              "commercial_use": "allowed",
+              "attribution_required": false,
+              "checked_at": "2026-11-13T14:18:00Z",
+              "checked_by": {
+                "kind": "worker",
+                "worker_id": "dev-env agent session haynes-studio-1113-141004"
+              },
+              "note": "Apache-2.0, as the TI2V model. The session's reading of the text, not legal advice."
+            }
           }
         ],
         "licence": {
