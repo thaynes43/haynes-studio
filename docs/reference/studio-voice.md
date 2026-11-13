@@ -32,6 +32,11 @@ They are the library's functions, not copies:
   applies.
 - `gaps_ms` holds one gap before each later line (`len(lines) - 1` values).
 
+New versions take their licence from the [model licence register](model-licences.md)
+(story [809](https://work.haynesnetwork.com/work_packages/809)): `make_voice` and
+`run_voice_job` accept `licences=`, and the voice model's entry becomes the version's
+licence. Without a register the licence is `unknown` with that reason; it is never guessed.
+
 ## What an edit costs
 
 `plan_board_voice(story, board_id, library, engine=Engine())` answers it. The function
@@ -106,7 +111,7 @@ order:
 7. The track is published, and the version is imported through
    `library.import_version`. It is a `board_voice` in state `board`, origin `generated`,
    under source key `board-voice:<board_id>`, so each board's generated versions are
-   numbered 1, 2, ... on one asset. Its licence is `unknown`. Takes have `heard` and
+   numbered 1, 2, ... on one asset. Its licence comes from the model licence register when one is given, else it is `unknown`. Takes have `heard` and
    `heard_matches` null (the transcript check is VOICE-8). The library validates it
    (TIME-1, TIME-2, stock voices, the track's locator).
 

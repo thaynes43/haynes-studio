@@ -814,3 +814,24 @@ def test_only_a_move_from_running_is_written():
     again = studio.run(running)  # reload reads the store: succeeded
     assert (again.moved, again.make_current, again.job) == (False, False, first.job)
     assert studio.stored(running.id) == first.job
+
+
+def test_a_new_voice_takes_its_licence_from_the_register_or_says_unknown():
+    """Story 809's register names the voice model; without a register nothing is guessed."""
+    from tests.library.fixtures import register
+
+    studio = fresh_r4()
+    first, second = studio.board(1)["id"], studio.board(2)["id"]
+    with_register = make_voice(studio.request(first).job.voice, first, studio.library,
+                               speech=studio.client, publish=studio.store.publish,
+                               fetch=studio.store.fetch, by=BY, now=LATER, licences=register())
+    expected = register().licence_for("voice", with_register.version.voice["model"]) \
+        if isinstance(with_register.version.voice, dict) else None
+    licence = with_register.version.licence
+    assert licence.commercial_use == "allowed" and licence.name == "Apache-2.0"
+    assert expected is None or licence == expected
+    without = make_voice(studio.request(second).job.voice, second, studio.library,
+                         speech=studio.client, publish=studio.store.publish,
+                         fetch=studio.store.fetch, by=BY, now=LATER)
+    assert without.version.licence.commercial_use == "unknown"
+    assert "No licence register" in without.version.licence.note

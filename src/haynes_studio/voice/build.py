@@ -51,7 +51,7 @@ from haynes_studio.library.model import (
 )
 from haynes_studio.library.resolve import BYTES_MISSING
 from haynes_studio.library.validate import LOCATOR_INVALID
-from haynes_studio.library.winter_menu import LICENCE_NOTES
+from haynes_studio.library.winter_menu import LicenceRegister
 from haynes_studio.timebase import line_spans, take_duration_ms
 from haynes_studio.voice.jobs import fail, generating, start, succeed
 from haynes_studio.voice.model import (
@@ -135,9 +135,19 @@ def _fetch(fetch: Fetch, take: Take, production_id: str, path: str) -> Pcm:
     return read_wav(data, path)
 
 
+def _voice_licence(licences: LicenceRegister | None, model: str) -> Licence:
+    """The new version's licence: the voice model's entry in the model licence register
+    (story 809) when a register is given, else ``unknown`` with the reason. Never guessed."""
+    if licences is None:
+        return Licence.unknown("No licence register was given to the voice builder; "
+                               "terms not recorded.")
+    return licences.licence_for("voice", model)
+
+
 def make_voice(voice: VoiceInput, board_id: str, library: Library, *, speech: Speech,
                publish: Publish, fetch: Fetch, by: Principal, now: str,
-               minter: Minter | None = None, engine: Engine = Engine()) -> Made:
+               minter: Minter | None = None, engine: Engine = Engine(),
+               licences: LicenceRegister | None = None) -> Made:
     """One board voice version for ``voice`` (VOICE-2). The input is checked first with
     the job's voice rules (:func:`~haynes_studio.voice.validate.voice_input_violations`):
     a voice that is not a recorded stock voice of its model is ``voice.not_stock``
@@ -218,7 +228,7 @@ def make_voice(voice: VoiceInput, board_id: str, library: Library, *, speech: Sp
         capabilities=("board_voice",), content=None, voice=board_voice,
         provenance={"origin": "generated", "generator": generator, "external": None,
                     "source_key": _source_key(library, board_id, voice, board_voice)},
-        licence=Licence.unknown(LICENCE_NOTES["voice"]))
+        licence=_voice_licence(licences, voice.model))
     outcome = import_version(library, version, by=by, now=now, minter=minter)
     return Made(outcome.library, outcome.version, outcome.created,
                 tuple(voice.lines[i].line_id for i in requests),
@@ -294,7 +304,8 @@ class JobRun:
 def run_voice_job(job: Job, library: Library, *, draft: Callable[[], Mapping[str, Any]],
                   speech: Speech, publish: Publish, fetch: Fetch, by: Principal, now: str,
                   minter: Minter | None = None, engine: Engine = Engine(),
-                  reload: Callable[[], Job] | None = None) -> JobRun:
+                  reload: Callable[[], Job] | None = None,
+                  licences: LicenceRegister | None = None) -> JobRun:
     """Start a queued voice job (a running one continues), make its version, and
     succeed it with ``result_is_current`` from ``draft()``, the story as it is when the
     job finishes. The job document is validated first (stock voices, signatures, time
@@ -320,7 +331,7 @@ def run_voice_job(job: Job, library: Library, *, draft: Callable[[], Mapping[str
     try:
         made = make_voice(running.voice, running.target_id, library, speech=speech,
                           publish=publish, fetch=fetch, by=by, now=now, minter=minter,
-                          engine=engine)
+                          engine=engine, licences=licences)
     except (ContractError, AdapterError) as error:
         stored = _stored(running, reload)
         if stored.status != RUNNING:  # cancelled or finished meanwhile: no change
