@@ -13,10 +13,11 @@ import json
 import os
 import re
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TextIO
+from typing import Any, TextIO
 from urllib.parse import urlsplit
 
 from haynes_studio import __version__
@@ -102,11 +103,77 @@ def _parser() -> argparse.ArgumentParser:
     imp.add_argument("--json", action="store_true",
                      help="print {story, legacy_import} as JSON instead of a summary")
     imp.set_defaults(handler=_import)
+    _build_parsers(commands)
     return parser
 
 
+def _store_and_story(command: argparse.ArgumentParser) -> None:
+    command.add_argument("--store", required=True, metavar="ROOT",
+                         help="the root of the local store (contract section 8 layout)")
+    command.add_argument("--story", required=True, metavar="STORY",
+                         help="the draft: a studio.story/v1 file with its boards embedded")
+    command.add_argument("--library", required=True, metavar="LIBRARY",
+                         help="a JSON array of studio.asset-version/v1 documents")
+    command.add_argument("--operator-iss", required=True, metavar="ISS",
+                         help="the OIDC issuer of the person running the command")
+    command.add_argument("--operator-sub", required=True, metavar="SUB",
+                         help="that person's OIDC subject (never an email or display name)")
+    command.add_argument("--json", action="store_true", help="print the result as JSON")
+
+
+def _build_parsers(commands) -> None:
+    """``studio voice``, ``studio build`` and ``studio run show`` (story 406)."""
+    voice = commands.add_parser(
+        "voice", help="make the board voices of a story before a build",
+        description="Make every spoken board's current voice through the voice job of story "
+                    "405 and the Kokoro speech client, publish the takes and tracks to the "
+                    "store, and write the updated draft and library as new files in --out.")
+    _store_and_story(voice)
+    voice.add_argument("--register", metavar="REGISTER", default=_REGISTER,
+                       help="the model licence register (default: %(default)s)")
+    voice.add_argument("--out", required=True, metavar="DIR",
+                       help="write story.json and library.json into DIR; an existing file is "
+                            "never overwritten")
+    voice.set_defaults(handler=_voice)
+
+    build = commands.add_parser(
+        "build", help="build a story from its boards to a verified delivery",
+        description="Build the draft as one new run: the pre-build check, each board through "
+                    "its method's adapter, the film picture, the sound and master, the checks, "
+                    "and the delivery with its phone proxy. The run is recorded in the store.")
+    _store_and_story(build)
+    phase = build.add_mutually_exclusive_group()
+    phase.add_argument("--phase", choices=("service",), help="only make what needs a service: "
+                       "clips through the live clip sources, and the transcript check of a "
+                       "master the cache already holds")
+    phase.add_argument("--offline", action="store_true", help="build from the cache only; any "
+                       "clip or transcript check it lacks stops the run (no service is called)")
+    build.add_argument("--workers", type=int, default=1, metavar="N",
+                       help="render boards in up to N processes (default 1)")
+    build.add_argument("--register", metavar="REGISTER", default=_REGISTER,
+                       help="the model licence register (default: %(default)s)")
+    build.add_argument("--toolchain", metavar="TOOLCHAIN",
+                       help="a JSON object of toolchain profiles (s2v_profile, i2v_profile, "
+                            "i2v_clip_frames, prompts)")
+    build.add_argument("--studio-commit", default="unknown", metavar="SHA",
+                       help="the studio commit the run records as git:<SHA>")
+    build.set_defaults(handler=_build)
+
+    run = commands.add_parser("run", help="read a run's record",
+                              description="Read runs recorded in the local store.")
+    actions = run.add_subparsers(dest="action", metavar="ACTION", required=True)
+    show = actions.add_parser("show", help="show a run", description="Show a run's newest "
+                              "record (or every version with --history).")
+    show.add_argument("run_id", metavar="RUN_ID")
+    show.add_argument("--store", required=True, metavar="ROOT", help="the local store's root")
+    show.add_argument("--production", required=True, metavar="PRD_ID")
+    show.add_argument("--history", action="store_true", help="every recorded version")
+    show.add_argument("--json", action="store_true", help="print the record as JSON")
+    show.set_defaults(handler=_run_show)
+
+
 def main(argv: Sequence[str] | None = None, *, stdout: TextIO | None = None,
-         stderr: TextIO | None = None) -> int:
+         stderr: TextIO | None = None, clients: Clients | None = None) -> int:
     out = stdout or sys.stdout
     err = stderr or sys.stderr
     parser = _parser()
@@ -114,6 +181,7 @@ def main(argv: Sequence[str] | None = None, *, stdout: TextIO | None = None,
         args = parser.parse_args(argv)
     except SystemExit as exit_:  # --help, --version and usage errors
         return int(exit_.code or 0)
+    args.clients = clients or LIVE
     # The same depth limit for every command, so the answer does not depend on how deep
     # this Python version can recurse before a loader gives up.
     for name in ("manifest", "speech", "compare"):
@@ -441,3 +509,217 @@ def _timeline_text(timeline: LegacyTimeline, comparison: Comparison | None,
     out.write(f"compared with {comparison.recorded}: {verdict}; {len(comparison.checks)} "
               f"checks (frames exact, shot times to 4 decimals, lines and sounds within "
               f"{SAMPLES_PER_MS} samples = 1 ms; largest audio difference {worst} ms)\n")
+
+
+# voice, build, run show (story 406) ---------------------------------------------------
+
+_REGISTER = "docs/reference/model-licences.json"
+STORY_OUT, LIBRARY_OUT = "story.json", "library.json"
+
+
+def _live_speech() -> Any:
+    """Story 425's Kokoro client with the real runner: made here and nowhere else."""
+    from haynes_studio.adapters.kokoro import KokoroClient
+    from haynes_studio.adapters.runner import SubprocessRunner
+    return KokoroClient(SubprocessRunner())
+
+
+def _live_transcriber() -> Any:
+    """Story 425's Whisper client with the real runner, as the build's transcriber."""
+    from haynes_studio.adapters.runner import SubprocessRunner
+    from haynes_studio.adapters.whisper import WhisperClient
+    from haynes_studio.build import WhisperTranscriber
+    return WhisperTranscriber(WhisperClient(SubprocessRunner()))
+
+
+@dataclass(frozen=True)
+class Clients:
+    """The live clients the command line makes (tests pass fakes): the speech client
+    for ``studio voice`` and the transcriber for ``studio build``. The clip sources of
+    the service phase come from the hook ``haynes_studio.build.live_clip_sources``."""
+
+    speech: Callable[[], Any]
+    transcriber: Callable[[], Any]
+
+
+LIVE = Clients(speech=_live_speech, transcriber=_live_transcriber)
+
+
+def _operator(args: argparse.Namespace, command: str, err: TextIO) -> dict | None:
+    problem = _operator_problem(args.operator_iss, args.operator_sub)
+    if problem:
+        print(f"studio: {problem}", file=err)
+        return None
+    return {"kind": "cli", "command": command,
+            "operator": {"kind": "human", "iss": args.operator_iss, "sub": args.operator_sub}}
+
+
+def _read_inputs(args: argparse.Namespace):
+    """The draft story and the library from their files."""
+    from haynes_studio.library import Library
+    story = read_json(args.story).document
+    if too_deep(story) or not isinstance(story, dict):
+        raise ContractError(args.story, [Violation("schema.invalid", "", "a story file holds "
+                                                   "one studio.story/v1 object")])
+    versions = read_json(args.library).document
+    if too_deep(versions) or not isinstance(versions, list):
+        raise ContractError(args.library, [Violation("schema.invalid", "", "a library file "
+                                                     "holds a JSON array of asset versions")])
+    return story, Library.from_version_documents(versions)
+
+
+def _store(root: str):
+    from haynes_studio.store import LocalStore
+    return LocalStore(root)
+
+
+def _voice(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
+    from haynes_studio.build import make_story_voices
+    from haynes_studio.library.winter_menu import load_licence_register
+    operator = _operator(args, "studio voice", err)
+    if operator is None:
+        return USAGE
+    out_dir = Path(args.out)
+    existing = [str(out_dir / n) for n in (STORY_OUT, LIBRARY_OUT) if os.path.lexists(out_dir / n)]
+    if existing:
+        print(f"studio: will not overwrite {', '.join(existing)}", file=err)
+        return USAGE
+    story, library = _read_inputs(args)
+    result = make_story_voices(story, library, store=_store(args.store),
+                               speech=args.clients.speech(), by=operator, now=_now(),
+                               licences=load_licence_register(args.register))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+    for name, document in ((STORY_OUT, result.story), (LIBRARY_OUT, result.library.documents())):
+        try:
+            _create(out_dir / name, document)
+        except OSError as error:
+            _cannot_write(out_dir / name, error, written, err)
+            return USAGE
+        written.append(out_dir / name)
+    rows = [{"board_id": o.board_id, "action": o.action, "version_id": o.version_id,
+             "synthesized": list(o.synthesized), "code": o.code, "message": o.message}
+            for o in result.outcomes]
+    if args.json:
+        print(json.dumps({"boards": rows, "written": [str(p) for p in written]}, indent=2), file=out)
+    else:
+        for row in rows:
+            detail = f"{row['code']}: {row['message']}" if row["code"] else (row["version_id"] or "")
+            print(f"{row['board_id']}: {row['action']} {detail}".rstrip(), file=out)
+        print(f"wrote {', '.join(str(p) for p in written)}", file=out)
+    for row in rows:
+        if row["code"]:
+            print(f"{args.story}: rule {row['code']} at board {row['board_id']}: {row['message']}",
+                  file=err)
+    return OK if result.ok else FAILED
+
+
+def _toolchain(path: str | None):
+    """The build's toolchain: the defaults, with the profiles a toolchain file names."""
+    from dataclasses import fields, replace
+    from haynes_studio.cache.plan import Toolchain
+    tools = Toolchain()
+    if path is None:
+        return tools
+    document = read_json(path).document
+    allowed = {"s2v_profile", "i2v_profile", "i2v_clip_frames", "s2v_prompt",
+               "s2v_negative_prompt", "i2v_prompt", "procedural_seed"}
+    names = {f.name for f in fields(Toolchain)}
+    if not isinstance(document, dict) or not set(document) <= (allowed & names):
+        raise ContractError(path, [Violation("schema.invalid", "", "a toolchain file is an "
+                                             f"object of {', '.join(sorted(allowed))}")])
+    return replace(tools, **document)
+
+
+def _build(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
+    from haynes_studio import build as studio_build
+    from haynes_studio.stages.preflight import PreflightError
+    operator = _operator(args, "studio build", err)
+    if operator is None:
+        return USAGE
+    if args.workers < 1:
+        print("studio: --workers is at least 1", file=err)
+        return USAGE
+    phase = "offline" if args.offline else (args.phase or "all")
+    try:
+        sources = studio_build.offline_sources() if phase == "offline" else \
+            studio_build.live_clip_sources()
+    except studio_build.BuildError as error:
+        print(f"{args.story}: rule {error.code}: {error.message}", file=err)
+        return FAILED
+    story, library = _read_inputs(args)
+    store = _store(args.store)
+    production = story.get("production_id")
+    if not is_id(production, "prd"):
+        print(f"studio: the story names no production (prd_...)", file=err)
+        return USAGE
+    earlier = studio_build.local_run_ids(store, production)
+    inputs = studio_build.BuildInputs(
+        story=story, library=library, register=read_json(args.register).document,
+        toolchain=_toolchain(args.toolchain), studio=f"git:{args.studio_commit}")
+    try:
+        result = studio_build.build_story(
+            inputs, store=store, phase=phase, sources=sources,
+            transcriber=None if phase == "offline" else args.clients.transcriber(),
+            actor=operator, earlier_runs=earlier, workers=args.workers,
+            run_number=len(earlier) + 1)
+    except PreflightError as error:  # nothing to snapshot: no run is made
+        for problem in error.report.blocking:
+            print(f"{args.story}: rule {problem.rule} at {problem.where} field "
+                  f"{problem.field or '(root)'}: {problem.message}", file=err)
+        return FAILED
+    except studio_build.BuildError as error:  # build.run_unrecorded: the run and delivery named
+        print(f"{args.story}: rule {error.code}: {error.message}", file=err)
+        return FAILED
+    run = result.run
+    if args.json:
+        print(json.dumps(run, indent=2, ensure_ascii=False), file=out)
+    else:
+        print(_run_summary(run), file=out)
+    if run["status"] == "failed":
+        e = run["error"]
+        where = f" at board {e['board_id']}" if e.get("board_id") else ""
+        print(f"{args.story}: rule {e['code']}{where} (stage {e.get('stage')}): {e['message']}",
+              file=err)
+        return FAILED
+    return OK
+
+
+def _run_summary(run: dict) -> str:
+    lines = [f"run {run['id']} ({run.get('phase', 'all')} phase): {run['status']}"]
+    if run.get("delivery_id"):
+        outputs = run["outputs"]
+        lines.append(f"delivery {run['delivery_id']}: master {outputs['master_sha256']}, proxy "
+                     f"{outputs['proxy_sha256']}, {outputs['frames']} frames")
+    for stage in run.get("stages") or []:
+        made = sum(1 for a in stage.get("artifacts", []) if a["made"])
+        lines.append(f"  board {stage['board_id']} {stage['method']['layer']}+"
+                     f"{stage['method']['motion']}: {stage['frames']} frames, {made} made")
+    for check in run.get("checks") or []:
+        lines.append(f"  check {check['check']}: {check['result']}")
+    if run.get("error"):
+        lines.append(f"  stopped: {run['error']['code']}")
+    return "\n".join(lines)
+
+
+def _run_show(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
+    from haynes_studio.build import RunRecords
+    if not is_id(args.production, "prd") or not is_id(args.run_id, "run"):
+        print("studio: --production is a prd_ ID and RUN_ID a run_ ID", file=err)
+        return USAGE
+    records = RunRecords(_store(args.store), args.production)
+    if args.history:
+        versions = records.history(args.run_id)
+        if not versions:
+            print(f"studio: no run {args.run_id} in {args.production}", file=err)
+            return FAILED
+        print(json.dumps(versions, indent=2, ensure_ascii=False) if args.json else
+              "\n".join(f"{i}: {v['status']} ({v['transitions'][-1]['reason']})"
+                        for i, v in enumerate(versions, 1)), file=out)
+        return OK
+    run = records.latest(args.run_id)
+    if run is None:
+        print(f"studio: no run {args.run_id} in {args.production}", file=err)
+        return FAILED
+    print(json.dumps(run, indent=2, ensure_ascii=False) if args.json else _run_summary(run), file=out)
+    return OK
