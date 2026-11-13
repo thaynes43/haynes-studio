@@ -24,6 +24,7 @@ from haynes_studio.canonical import (
     validate_story,
     validate_story_timing,
 )
+from haynes_studio.delivery import validate_delivery
 from haynes_studio.legacy import validate_manifest
 from haynes_studio.library import validate_asset, validate_asset_version
 from haynes_studio.voice import validate_job
@@ -55,4 +56,6 @@ VALIDATORS: dict[str, Validator] = {
     "asset-version": validate_asset_version,
     # story 405
     "job": validate_job,
+    # story 381
+    "delivery": validate_delivery,
 }

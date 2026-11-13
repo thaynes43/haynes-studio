@@ -1,0 +1,444 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://haynes-studio.invalid/schemas/studio.delivery.v1.schema.json",
+  "title": "studio.delivery/v1: a run's verified master and phone proxy (contract section 8)",
+  "description": "The contract's fields are id, run_id, created_at, store, master, proxy, verification and legacy; master and proxy carry sha256, bytes, frames, codecs and a locator. Story 381 proposes the rest: the shape rules per store adapter, the media type, the legacy_path of a legacy master, verification.source and the legacy block's url.",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "run_id",
+    "created_at",
+    "store",
+    "master",
+    "proxy",
+    "verification",
+    "legacy"
+  ],
+  "properties": {
+    "schema": {
+      "const": "studio.delivery/v1",
+      "x-studio": {
+        "const": {
+          "rule": "schema.unsupported",
+          "message": "must be studio.delivery/v1"
+        }
+      }
+    },
+    "id": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/dlv_id"
+    },
+    "run_id": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/run_id"
+    },
+    "created_at": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/timestamp"
+    },
+    "store": {
+      "type": "object",
+      "required": [
+        "adapter",
+        "writable"
+      ],
+      "properties": {
+        "adapter": {
+          "enum": [
+            "local",
+            "nfs",
+            "legacy_wan_ledger"
+          ]
+        },
+        "writable": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "master": {
+      "$ref": "#/$defs/media"
+    },
+    "proxy": {
+      "$comment": "null or a media file; if/then rather than anyOf, so an error inside the file is reported at its own field",
+      "type": [
+        "object",
+        "null"
+      ],
+      "if": {
+        "type": "object"
+      },
+      "then": {
+        "$ref": "#/$defs/media"
+      }
+    },
+    "verification": {
+      "type": "object",
+      "required": [
+        "decoded_frames",
+        "expected_frames",
+        "sha256_verified"
+      ],
+      "properties": {
+        "decoded_frames": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+        },
+        "expected_frames": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+        },
+        "sha256_verified": {
+          "const": true,
+          "x-studio": {
+            "const": {
+              "message": "a delivery is written only after its hashes were re-read"
+            }
+          }
+        },
+        "proxy_under_bytes": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+        },
+        "source": {
+          "$ref": "#/$defs/repo_path"
+        }
+      },
+      "additionalProperties": false
+    },
+    "legacy": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "if": {
+        "type": "object"
+      },
+      "then": {
+        "$ref": "#/$defs/legacy"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "store": {
+            "properties": {
+              "adapter": {
+                "const": "legacy_wan_ledger"
+              }
+            },
+            "required": [
+              "adapter"
+            ]
+          }
+        },
+        "required": [
+          "store"
+        ]
+      },
+      "then": {
+        "$comment": "A legacy delivery is read in place from the Wan volume: read-only, no proxy, a legacy path instead of a locator, its verification from recorded evidence.",
+        "properties": {
+          "store": {
+            "properties": {
+              "writable": {
+                "const": false,
+                "x-studio": {
+                  "const": {
+                    "message": "the legacy ledger adapter is read-only (contract section 8)"
+                  }
+                }
+              }
+            }
+          },
+          "master": {
+            "properties": {
+              "locator": {
+                "type": "null",
+                "x-studio": {
+                  "type": {
+                    "message": "a legacy master is not in the store; it has a legacy_path"
+                  }
+                }
+              },
+              "legacy_path": {
+                "type": "string",
+                "x-studio": {
+                  "type": {
+                    "message": "a legacy master names its path on the Wan volume"
+                  }
+                }
+              }
+            }
+          },
+          "proxy": {
+            "type": "null",
+            "x-studio": {
+              "type": {
+                "message": "a legacy delivery has no proxy; the ledger never made one"
+              }
+            }
+          },
+          "verification": {
+            "required": [
+              "source"
+            ],
+            "not": {
+              "required": [
+                "proxy_under_bytes"
+              ]
+            },
+            "x-studio": {
+              "required": {
+                "field": "source",
+                "message": "a legacy verification names the evidence file it comes from"
+              },
+              "not": {
+                "message": "a legacy delivery has no proxy, so no proxy limit"
+              }
+            }
+          },
+          "legacy": {
+            "type": "object",
+            "x-studio": {
+              "type": {
+                "message": "a legacy delivery names its ledger"
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "$comment": "A delivery of the studio store: writable, a verified proxy, locators only.",
+        "properties": {
+          "store": {
+            "properties": {
+              "writable": {
+                "const": true,
+                "x-studio": {
+                  "const": {
+                    "message": "a studio store adapter is writable"
+                  }
+                }
+              }
+            }
+          },
+          "master": {
+            "$ref": "#/$defs/stored"
+          },
+          "proxy": {
+            "type": "object",
+            "x-studio": {
+              "type": {
+                "message": "a delivery of the studio store has a phone proxy (P-10)"
+              }
+            },
+            "$ref": "#/$defs/stored"
+          },
+          "verification": {
+            "required": [
+              "proxy_under_bytes"
+            ],
+            "not": {
+              "required": [
+                "source"
+              ]
+            },
+            "x-studio": {
+              "required": {
+                "field": "proxy_under_bytes",
+                "message": "a delivery records the byte limit its proxy was checked against"
+              },
+              "not": {
+                "message": "only a legacy verification comes from an evidence file"
+              }
+            }
+          },
+          "legacy": {
+            "type": "null",
+            "x-studio": {
+              "type": {
+                "message": "only the legacy ledger adapter has a legacy block"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "media": {
+      "type": "object",
+      "required": [
+        "sha256",
+        "bytes",
+        "media_type",
+        "width",
+        "height",
+        "fps",
+        "frames",
+        "video_codec",
+        "audio_codec",
+        "locator",
+        "legacy_path"
+      ],
+      "properties": {
+        "sha256": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/sha256"
+        },
+        "bytes": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+        },
+        "media_type": {
+          "const": "video/mp4"
+        },
+        "width": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+        },
+        "height": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+        },
+        "fps": {
+          "const": 24,
+          "x-studio": {
+            "const": {
+              "message": "delivery picture is 24 fps (contract section 3)"
+            }
+          }
+        },
+        "frames": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+        },
+        "video_codec": {
+          "const": "h264"
+        },
+        "audio_codec": {
+          "const": "aac"
+        },
+        "locator": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "if": {
+            "type": "string"
+          },
+          "then": {
+            "$ref": "studio.asset-version.v1.schema.json#/$defs/content/properties/locator"
+          }
+        },
+        "legacy_path": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "if": {
+            "type": "string"
+          },
+          "then": {
+            "$ref": "#/$defs/legacy_path"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "stored": {
+      "$comment": "A media file of the studio store: a locator, no legacy path.",
+      "properties": {
+        "locator": {
+          "type": "string",
+          "x-studio": {
+            "type": {
+              "message": "a delivered file has a store locator"
+            }
+          }
+        },
+        "legacy_path": {
+          "type": "null",
+          "x-studio": {
+            "type": {
+              "message": "only a legacy master has a legacy_path"
+            }
+          }
+        }
+      }
+    },
+    "legacy_path": {
+      "$comment": "The ledger's output path, relative to the Wan API's /workspace/output: no absolute path, no empty, '.' or '..' segment.",
+      "type": "string",
+      "pattern": "^productions/([A-Za-z0-9_-][A-Za-z0-9._-]*/)*[A-Za-z0-9_-][A-Za-z0-9._-]*\\.mp4$",
+      "maxLength": 400,
+      "x-studio": {
+        "pattern": {
+          "message": "must be a relative productions/... .mp4 path with no '.' or '..' segment"
+        }
+      }
+    },
+    "repo_path": {
+      "$comment": "A JSON evidence file in this repository, as a relative path.",
+      "type": "string",
+      "pattern": "^([A-Za-z0-9_-][A-Za-z0-9._-]*/)*[A-Za-z0-9_-][A-Za-z0-9._-]*\\.json$",
+      "maxLength": 400,
+      "x-studio": {
+        "pattern": {
+          "message": "must be a relative path to a .json file in the repository, with no '.' or '..' segment"
+        }
+      }
+    },
+    "legacy": {
+      "type": "object",
+      "required": [
+        "ledger_id",
+        "kind",
+        "preset",
+        "provenance",
+        "assets_ref",
+        "url"
+      ],
+      "properties": {
+        "ledger_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$",
+          "maxLength": 32,
+          "x-studio": {
+            "pattern": {
+              "message": "must be the ledger's 32 lower-case hex digits"
+            }
+          }
+        },
+        "kind": {
+          "const": "edited_production"
+        },
+        "preset": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          }
+        },
+        "provenance": {
+          "$comment": "The ledger's provenance, verbatim and read-only.",
+          "type": "object"
+        },
+        "assets_ref": {
+          "$ref": "#/$defs/repo_path"
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https://video\\.haynesops\\.com/videos/[0-9a-f]{32}/file$",
+          "maxLength": 100,
+          "x-studio": {
+            "pattern": {
+              "message": "must be https://video.haynesops.com/videos/<ledger_id>/file"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
