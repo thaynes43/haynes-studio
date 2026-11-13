@@ -48,6 +48,10 @@ Contexts `read`, `write` and `queue_run` check the same rules; neither type has 
 | any kind with bytes | `content.sha256` |
 | `voice` | `definition_signature`: `sha256:` of canonical JSON `{engine, stock, voice_id}`, `engine` being the TTS model |
 | `board_voice` | `sha256:` of canonical JSON `{input_signature, takes: [take sha256]}`; a snapshot entry lists `input_signature` and `take_sha256` |
+| `motion` | with a motion block, its recorded identity (`motion.keys.identity`, `sha256:<hex>`), which covers the bytes and how they are keyed and played, so the same clip keyed another way is the next version (story 457, proposal); without one, `content.sha256` |
+
+A motion version's block, its identity and how a board resolves its clips are in
+[motion-clips.md](motion-clips.md).
 
 A take's `signature` is `sha256:` of `{engine, voice_id, text (NFC), speed}` and a board
 voice's `input_signature` of `{takes: [take signature], lead_ms, gaps_ms}` (VOICE-3).
