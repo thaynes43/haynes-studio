@@ -20,7 +20,7 @@ from haynes_studio.cache.plan import diff
 from haynes_studio.delivery import read_delivery
 from haynes_studio.store import blob_locator
 from haynes_studio.voice import Engine
-from tests.build import fixtures as f
+from tests.build_story import fixtures as f
 
 
 PICTURE_OUTPUTS = {"film/picture", "film/master", "film/proxy", "check/master.transcript"}

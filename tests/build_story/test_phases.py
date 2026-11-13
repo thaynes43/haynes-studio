@@ -12,7 +12,7 @@ import numpy as np
 from haynes_studio.build import offline_sources
 from haynes_studio.render.encode import decode_frames
 from haynes_studio.store import blob_locator
-from tests.build import fixtures as f
+from tests.build_story import fixtures as f
 
 
 def film_frames(world, run):

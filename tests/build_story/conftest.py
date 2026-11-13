@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.build import fixtures as f
+from tests.build_story import fixtures as f
 
 
 @pytest.fixture(scope="session")

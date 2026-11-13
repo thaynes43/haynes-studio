@@ -15,7 +15,7 @@ from haynes_studio.delivery.errors import PROXY_INVALID, DeliveryError
 from haynes_studio.layered import FakeS2VSource
 from haynes_studio.voice import Engine
 from haynes_studio.wholeframe.fake import FakeClipSource
-from tests.build import fixtures as f
+from tests.build_story import fixtures as f
 
 
 def assert_failed(world, result, code, board=None, stage=None):

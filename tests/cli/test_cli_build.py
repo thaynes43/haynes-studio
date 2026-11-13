@@ -12,7 +12,7 @@ import pytest
 
 import haynes_studio.build as studio_build
 from haynes_studio.cli import Clients, main
-from tests.build import fixtures as f
+from tests.build_story import fixtures as f
 
 OPERATOR = ["--operator-iss", "https://authentik.example.invalid/application/o/haynes-studio/",
             "--operator-sub", "example-subject-build"]

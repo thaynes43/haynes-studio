@@ -254,7 +254,9 @@ A reused segment has no report in this run (the run that rendered it has it).
 
 ## Failure table
 
-No row ends in success, and none delivers anything. Tests are in `tests/build/`.
+No row ends in success, and none delivers anything. Tests are in `tests/build_story/`
+(not `tests/build/`: pytest's default `norecursedirs` skips every folder named `build`, so
+tests there would never run in `uv run pytest` or CI).
 
 | Code | Stage | When | Test |
 |---|---|---|---|
