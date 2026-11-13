@@ -71,7 +71,13 @@ output: values (8 characters or more) of environment variables whose names conta
 `scheme://user:password@` password and any conninfo `password=` value become
 `<redacted>`. A value is also redacted in the forms a report prints it: escaped as
 `repr()` shows it, and line by line when it spans several lines (lines of 8 characters
-or more). Values under 8 characters are left alone, so short words in paths survive;
+or more). The password inside a URL or conninfo value counts as a value of its own. For
+a key or token (a value with no space and no `://`), a head or tail of 8 characters or
+more is redacted too, which covers the shortened `'head...tail'` form pytest prints
+for a long value and a line cut in the middle of one. In a URL, digits and a slash
+after the host (`:8080/`) are read as a port, not a password. Every match is found on
+the original text and the matches are merged, so one rule cannot hide text from
+another. Values under 8 characters are left alone, so short words in paths survive;
 do not rely on redaction for a short secret. Redaction works on the finished report, so
 text that pytest streams live is not redacted: output under `-s` or
 `--capture=tee-sys`, and live log lines under `--log-cli-level`. Never print

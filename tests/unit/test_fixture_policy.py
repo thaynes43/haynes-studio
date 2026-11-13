@@ -91,6 +91,16 @@ def test_redaction_hides_secret_values_and_passwords():
         "host=db password='it''s quotedtail' dbname=x": "host=db password=<redacted> dbname=x",
         "host=db password='it\\'s tail' dbname=x": "host=db password=<redacted> dbname=x",
         'host=db password="my tail-secret" dbname=x': "host=db password=<redacted> dbname=x",
+        # compact JSON: a port is not a password, and the match never crosses a quote
+        '{"url":"http://h:8080/p","mail":"x@y"}': '{"url":"http://h:8080/p","mail":"x@y"}',
+        # a port, a path and a later @ are not a password
+        "see https://example.invalid:8080/hook?mail=dev@example.invalid now":
+            "see https://example.invalid:8080/hook?mail=dev@example.invalid now",
+        "https://[::1]:8080/health": "https://[::1]:8080/health",
+        # double quotes with an escaped or doubled quote inside
+        'host=db password="say \\"tail-secret9\\"" dbname=x':
+            "host=db password=<redacted> dbname=x",
+        'host=db password="say ""tail-secret9" dbname=x': "host=db password=<redacted> dbname=x",
     }
     for text, expected in cases.items():
         assert policy.redact(text, environ) == expected
@@ -129,3 +139,55 @@ def test_checkout_guard_ignores_git_environment(tmp_path, monkeypatch):
     for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
         monkeypatch.setenv(name, str(tmp_path / "elsewhere"))
     assert policy.checkout_snapshot(root) == frozenset({"?? render.out"})
+
+
+def test_checkout_guard_keeps_the_git_it_started_with(tmp_path, monkeypatch):
+    root = tmp_path / "checkout"
+    root.mkdir()
+    _git(root, "init", "--quiet")
+    assert policy.checkout_snapshot(root) == frozenset()
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    (fake / "git").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    (fake / "git").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{fake}{os.pathsep}{os.environ['PATH']}")
+    (root / "render.out").write_text("oops\n", encoding="utf-8")
+    assert policy.checkout_snapshot(root) == frozenset({"?? render.out"})
+
+
+def test_url_password_match_is_bounded():
+    # The scan after "scheme://user:" stops at 256 characters, so it stays linear on a
+    # long token (compact JSON with many URLs took quadratic time before the bound).
+    covered = f"http://u:{'x' * 256}@host/db"
+    assert policy.redact(covered, {}) == "http://u:<redacted>@host/db"
+    beyond = f"http://u:{'x' * 257}@host/db"
+    assert policy.redact(beyond, {}) == beyond
+
+
+@pytest.mark.parametrize(("environ", "text"), [
+    ({"DB_PASSWORD": "my tail-secret"}, "host=db password=my tail-secret dbname=x"),
+    ({"DB_PASSWORD": "my\ttail-secret"}, "host=db password=my\ttail-secret dbname=x"),
+    ({"STUDIO_TEST_DATABASE_URL": "postgresql://u:my tail-secret@db.internal/studio_test"},
+     "host=db password=my tail-secret dbname=x"),
+    ({"STUDIO_TEST_DATABASE_URL": "postgresql://u:sec/retextra9@db.internal/studio_test"},
+     "connect failed for user u with sec/retextra9 on 127.0.0.1"),
+])
+def test_a_spaced_or_embedded_password_is_not_split(environ, text):
+    clean = policy.redact(text, environ)
+    assert "tail-secret" not in clean and "retextra9" not in clean
+    assert "dbname=x" in clean or "127.0.0.1" in clean
+
+
+def test_redaction_covers_a_value_that_a_report_shortened():
+    token = "PREFIXLEAK" + "B" * 500
+    environ = {"STUDIO_FAKE_TOKEN": token}
+    shortened = "assert 'PREFIXLEAKBB...BBBBBBBBBBBBB' == 'nope'"
+    assert policy.redact(shortened, environ) == "assert '<redacted>...<redacted>' == 'nope'"
+    cut = "E     + " + token[:40]
+    assert policy.redact(cut, environ) == "E     + <redacted>"
+
+
+def test_a_database_url_does_not_strip_ordinary_words():
+    environ = {"STUDIO_TEST_DATABASE_URL": "postgresql://postgres@localhost:5432/studio_test"}
+    text = "tests/db/test_round_trip.py::test_server_is_postgres_16 in studio_test"
+    assert policy.redact(text, environ) == text

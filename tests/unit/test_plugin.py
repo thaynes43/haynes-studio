@@ -197,3 +197,18 @@ def test_session_fails_when_the_final_scan_cannot_run(pytester, monkeypatch):
         "*checkout guard: the checkout could not be checked*",
         "*could not run git*",
     ])
+
+
+def test_shortened_long_value_is_redacted_in_a_real_failure(pytester, monkeypatch):
+    monkeypatch.setenv("STUDIO_FAKE_TOKEN", "PREFIXLEAK" + "B" * 500)
+    pytester.makepyfile(test_long="""
+        import os
+
+        def test_long():
+            assert os.environ["STUDIO_FAKE_TOKEN"] == "nope"
+    """)
+    result = pytester.runpytest(*PLUGIN, "--tb=short")
+    result.assert_outcomes(failed=1)
+    output = result.stdout.str()
+    assert "PREFIXLEAK" not in output and "BBBBBBBB" not in output
+    assert "<redacted>" in output
