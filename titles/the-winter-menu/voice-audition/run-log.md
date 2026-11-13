@@ -19,7 +19,8 @@ and the desk review for the second half ([desk-review.md](desk-review.md)).
 
 One reel per cast slot. Each opens on a card naming the doll and the six candidates; then,
 for each candidate, an announcer (`am_michael`, a male voice no doll uses) says its number
-and name, and the candidate speaks that doll's r4 lines. Candidate 1 is always the r4 voice.
+and name, and the candidate speaks two or three of that doll's r4 lines (listed below).
+Candidate 1 is always the r4 voice.
 The card on screen names the voice ID. Answer per slot with a voice ID, for example
 "B: af_sarah". Links open on the home network only.
 
@@ -32,7 +33,8 @@ The card on screen names the voice ID. Answer per slot with a voice ID, for exam
 
 Lines per slot (r4 script, [`manifest-r4.json`](../manifest-r4.json), verbatim): A lines 1
 and 4; B line 2, "Motion carried." (8) and "Needs salt." (9); C lines 3 and 6; D line 5 and
-"Nay!" (8). Records: [`takes.json`](takes.json) (every take), [`reels.json`](reels.json)
+"Nay!" (8). Not auditioned: "All in favor?" and "Bibs on, ladies." (B) and the one-word
+"Aye." (A and C). Records: [`takes.json`](takes.json) (every take), [`reels.json`](reels.json)
 (every reel, its order, checks and delivery), [`voices.json`](voices.json) (the service's
 voice list). Scripts: [`tools/`](tools/).
 
@@ -73,7 +75,8 @@ setting needs a haynes-ops change (held question Q-840-02 in the PR).
 
 19:19:10, `KokoroClient(SubprocessRunner())` and `WhisperClient(SubprocessRunner())`, their
 first run against the live services. One take, `af_heart` with "Winter's coming. We need to
-discuss the menu.": 0.44 s TTS, 0.33 s transcript, and **byte-identical to the r4 take**
+discuss the menu." (planned take `b01-af_heart-s2`, counted in the totals and used in reel
+B): 0.44 s TTS, 0.33 s transcript, and **byte-identical to the r4 take**
 (SHA-256 `7d5d2d89...` in [`evidence-r4/speech.json`](../evidence-r4/speech.json)). Kokoro
 is deterministic: the same voice and text give the same bytes. Neither client needed a
 change.
@@ -101,9 +104,9 @@ to 0.49 s and the transcript 0.23 to 0.37 s per take; about 0.85 s per take with
 | 8 line takes failed the transcript check: `af_nova` line 2 ("Winter is coming") and "Needs salt." ("Nades Salt"); `af_alloy` "Needs salt." ("Nades salt."); `af_river` "Motion carried." ("Motion carried a") and "Needs salt." ("Nade Salter."); `af_jessica` line 5 ("limited editions") and "Nay!" ("Nairo."); `bf_lily` "Nay!" ("Yeah."). | Left out of the reels, named on the candidate's card, listed in `takes.json`. One retry (`af_nova` "Needs salt.") gave the same bytes, so retrying a deterministic take is pointless; no other line was retried. |
 | The label "Six." was heard as "Zix" or "Zexo" four times out of four. | Each six-label got its one retry, re-worded "Number six. <name>."; all four then read as "Number 6". |
 | Two takes stopped at a clip rule the worker added (peak at full scale): `bf_isabella` line 1 (2 samples) and `af_jessica` line 3 (1 sample). | The story's checks are decode, duration and transcript; a 1 to 2 sample peak is a level fact. Each was transcribed once (passed) and is kept with a `full_scale_samples_warning`. The reel mix lowers both takes to -22 dBFS RMS. |
-| "Needs salt." heard as "Need salt." for `af_heart`, `af_sarah`, `af_kore`. | Declared as a recognizer spelling: the same `af_heart` bytes were heard that way in r2, r3 and r4. |
-| Label names heard as other words: Isabella "Is Abella", Kore "Core"/"Corn", Aoede "AULED"/"Ayuled"/"Ayulid", Doll "Dahl"/"Dal". | Declared as recognizer spellings for labels only; each is listed with its reason in `takes.json`. |
-| The worker's first duration bound (words per second) counted "can't" as two words and failed three good takes. | Replaced before any reel: a line must last 0.5 to 2 times the r4 take of the same line. No take fails it. |
+| "Needs salt." heard as "Need salt." for `af_heart`, `af_sarah`, `af_kore`. | Declared after the run as an exact-phrase recognizer spelling ("need salt" only, so "We need to discuss" is untouched; r4 dropped a word-level "need" allowance for that reason, `manifest-r4.json` `asr_tolerances_note`). Evidence: the same `af_heart` bytes were heard "Need salt." on the isolated line in r2 to r4 while the r4 mix heard "Needs salt."; and reel B's whole-reel transcript heard "Needs salt." for all three voices (`reels.json`). |
+| Label names heard as other words: Isabella "Is Abella", Kore "Core"/"Corn", Aoede "AULED"/"Ayuled"/"Ayulid", Doll "Dahl"/"Dal". | For single takes, declared as recognizer spellings for labels only, each with its reason in `takes.json` ("Ayulid" and "Dal" were heard only in whole-reel transcripts, so they are not there). For whole reels, the name-position rule of step 7 covers them. |
+| The worker's first duration bound (a line 0.4 to 10 s at 1.0 to 5.0 words per second, words split at apostrophes, so "can't" counted as two) failed four takes: `c03-af_jessica-s6`, `c04-af_aoede-s6`, `c06-af_river-s6` (5.09, 5.21, 5.01 words per s; all three passed their transcript) and `d05-bf_lily-s8-3` (0.98; it also failed its transcript). | Replaced after seeing that, before any reel: a line must last 0.5 to 2 times the r4 take of the same line (the ratio rounded to 2 decimals). No take fails it; `d05-bf_lily-s8-3` sits exactly at 2.00 and fails its transcript anyway. The first `takes-v1.json` was rewritten under the new rule, so the old rule's results exist only here. |
 
 Final: **74 of 82 takes passed**, 8 failed (all transcript, all voices graded C or lower).
 Requests: **87 TTS and 96 transcript** (87 for takes, 9 for reels) of 150 each.
@@ -130,6 +133,14 @@ Nine builds for four reels; only the last build of each was delivered:
 Reel D: `af_jessica` has no passing take, so her card shows silently for 3.5 s and her label
 is not played.
 
+Limit of the name-position rule: a differing stretch whose expected words are all names is
+excused whatever was heard there, so an extra word heard beside a label name would pass. In
+the delivered reels each excused stretch is one expected name heard as one or two words, and
+nothing differs outside names (`reels.json`).
+
+Records: the committed [`takes.json`](takes.json) is the job directory's `takes-2.json` (with
+the "corn" spelling); the job directory's own `takes.json` is the earlier version without it.
+
 ### 8. Delivery: **Proven**
 
 `cd poc && ../.venv/bin/python deliver.py ../titles/the-winter-menu/voice-audition/reel-<slot>.manifest.json --out reel`,
@@ -140,6 +151,11 @@ and a GET of `127.0.0.1:8080/videos/<id>/file` inside the API container answered
 `video/mp4` with the ledger's bytes and SHA-256. `LedgerReader.list` then found no unreadable
 ledger among the 78 files in `/workspace/jobs`. New production folders:
 `productions/the-winter-menu-voices-1-{a,b,c,d}/`; nothing existing was touched.
+
+Hand edit before delivery: `reel-d.manifest.json` as `tools/reel.py` wrote it listed all six
+candidates in `cast`, which `deliver.py` turns into the ledger's voice list. `af_jessica` was
+removed by hand (with a `cast_note`), because none of her takes is in reel D. The script's
+version is kept as `reel-d/superseded-manifest.json` in the job directory.
 
 Two things the route writes that do not fit a reel: the ledger's `preset` is
 `rigid-doll-dialogue-manifest`, and its `provenance.records` reads `haynes-studio
@@ -162,6 +178,7 @@ primary pages for both picks and the ranking.
 - Choosing the shortlists from the model card's grades and the brief; no listening.
 - Five decisions on failed checks (table in step 6), each recorded with its reason.
 - Two rebuilds of the reels to fix the picture timing and the whole-reel transcript rule.
+- The reel D manifest edit above.
 
 ## Shortlist (worker's notes, not Tom's verdict)
 
@@ -175,8 +192,10 @@ of the same line.
   times as long as the r4 voice on the same lines, which the server's single speed cannot
   correct. So Kokoro can change casting, not raise
   quality; a better engine is the second half of this work ([desk-review.md](desk-review.md)).
-  The voices that passed every take at about r4 pace are `af_kore` (7 of 7), `af_sarah` (5
-  of 5) and `af_aoede` (4 of 4).
+  The voices that passed every take are `af_kore` (7 of 7), `af_sarah` (5 of 5) and
+  `af_aoede` (4 of 4); Kore's and Sarah's "Needs salt." pass through the "need salt"
+  allowance above. They keep about the r4 voice's pace in A, B and D; in C they are much
+  quicker than Nicole.
 - **A, the captain:** `bf_emma` (B-, British, 185 Hz) is the reference. `bf_isabella` (C)
   keeps the British accent at a higher pitch (216 Hz). `bf_lily` and `bf_alice` (D) are the
   other British voices, higher (210, 235 Hz) and 10 to 19% slower. `af_kore` (C+) is the
@@ -186,8 +205,8 @@ of the same line.
   keep Heart's pace, Kore about 30 to 40 Hz lower, and passed all three lines. `af_alloy` (C) is
   the lowest female voice heard (152 Hz) and slow, the flattest option; its "Needs salt."
   failed. `af_nova` and `af_river` (C, D) each failed two lines and play one.
-- **C, the grudge holder:** `af_nicole` (B-) is the slowest and lowest here (154 to 162 Hz).
-  `af_alloy` (C) is as low (148 to 150 Hz) with Nicole's pace on line 3, a cool option.
+- **C, the grudge holder:** `af_nicole` (B-, 154 to 162 Hz) is slow and low. `af_alloy` (C)
+  is lower still (148 to 150 Hz) and as slow on line 3 (1.04 times Nicole), a cool option.
   `af_sarah` and `af_aoede` (C+) take 28 to 38% less time than Nicole, a sharper accusation.
   `af_jessica` and `af_river` (D) are quicker, low-grade options.
 - **D, the cheerful one:** `af_bella` (A-) is the reference. `af_heart` (flagship) is the
@@ -216,6 +235,15 @@ this audition must be added before the library or a voice job accepts it
 - `poc/deliver.py` assumes a doll short (its `preset`, its `records` path and its fixed
   asset names); a delivery for other media needs its own fields.
 - ffmpeg's concat demuxer drops frames on still cards; piping exact frames is reliable.
+
+### Defects in `tools/` found in review
+
+The scripts are kept as they ran. Known defects, none of which changes a pass or fail here:
+`take.py`'s usage text offers `--only`, which its parser does not take, and omits `recheck`;
+`take.py` was extended (recheck and label re-wording) at 19:21, after the main run; a recheck
+record copies the original take's `tts_s` although it made no TTS request (the two rechecks
+in `takes.json`); `records.py` flags full-scale samples at -0.01 dBFS where `take.py` used a
+0.999 peak.
 
 ## Budget
 
