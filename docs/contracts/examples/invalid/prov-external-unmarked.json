@@ -2,6 +2,7 @@
   "schema": "studio.invalid-case/v1",
   "rule": "prov.external_incomplete",
   "expect": "invalid",
+  "context": "write",
   "path": "/provenance/external/externally_generated",
   "why": "An agent upload must carry the externally generated marker (D42).",
   "document": {

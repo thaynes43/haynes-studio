@@ -2,6 +2,7 @@
   "schema": "studio.invalid-case/v1",
   "rule": "run.snapshot_missing",
   "expect": "invalid",
+  "context": "write",
   "path": "/snapshot/sha256",
   "why": "A run is an immutable snapshot (D30); it cannot exist without one.",
   "document": {
@@ -15,7 +16,7 @@
       "sha256": null,
       "story_revision": null,
       "board_count": 9,
-      "locator": "productions/prd_01M79V9FC00000000000000001/sha256/cc/cce17f7dfa2537b9f34f157c478af281f380197e9b770aa608bc426c3ea4c072.json"
+      "locator": "productions/prd_01M79V9FC00000000000000001/sha256/d9/d90c2dcf834137defa9e4023fbcc0b9fbc4822f2b84e0eabf05ae6bca2c5661e.json"
     },
     "queued_by": {
       "kind": "human",

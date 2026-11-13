@@ -9,22 +9,22 @@
   "cast": [
     {
       "slot": "a",
-      "name": "Captain",
+      "name": "captain",
       "voice_version_id": "asv_01M79V9FC0000000000000000D"
     },
     {
       "slot": "b",
-      "name": "Chair",
+      "name": "chair",
       "voice_version_id": "asv_01M79V9FC0000000000000000E"
     },
     {
       "slot": "c",
-      "name": "Grudge-holder",
+      "name": "grudge",
       "voice_version_id": "asv_01M79V9FC0000000000000000F"
     },
     {
       "slot": "d",
-      "name": "The cheerful one",
+      "name": "cheerful",
       "voice_version_id": "asv_01M79V9FC0000000000000000G"
     }
   ],
@@ -78,7 +78,8 @@
       "strength": 0.85,
       "doll_glow": 0.045,
       "seed": 7
-    }
+    },
+    "note": "top edge of the mossy log in set-left-s221 after fitting to 1080x1920, read off a ruler overlay (poc scratch set-ruler.jpg); the log curves down to the right"
   },
   "layouts": {
     "single": {
@@ -164,7 +165,7 @@
       "id": "cue_01M79V9FC0000000000000000J",
       "type": "bed",
       "asset_version_id": "asv_01M79V9FC0000000000000000C",
-      "gain_db": -40,
+      "level_rms_dbfs": -40,
       "clock": "film"
     }
   ],
@@ -172,7 +173,8 @@
     "asr_tolerances": {
       "340": "three hundred forty",
       "mos": "moss"
-    }
+    },
+    "asr_tolerances_note": "Recognizer writes numbers as digits; \"MOS\" for \"moss\" seen on the isolated line only. A \"need -> needs\" tolerance for \"Needs salt.\" was tried and removed: it rewrote the real \"need\" in \"We need to discuss\" (word-level tolerances apply to every occurrence), and the full mix heard \"Needs salt.\" correctly anyway."
   },
   "board_order": [
     "brd_01M79V9FC00000000000000001",
@@ -700,7 +702,7 @@
             550,
             2600
           ],
-          "gain_db": -22
+          "level_rms_dbfs": -22
         },
         {
           "id": "cue_01M79V9FC00000000000000002",
@@ -859,7 +861,7 @@
             450,
             1600
           ],
-          "gain_db": -26
+          "level_rms_dbfs": -26
         },
         {
           "id": "cue_01M79V9FC00000000000000004",
@@ -873,7 +875,7 @@
             1300,
             1950
           ],
-          "gain_db": -20
+          "level_rms_dbfs": -20
         },
         {
           "id": "cue_01M79V9FC00000000000000005",
@@ -1143,7 +1145,7 @@
             350,
             3100
           ],
-          "gain_db": -24
+          "level_rms_dbfs": -24
         }
       ],
       "notes": [

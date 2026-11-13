@@ -1,9 +1,10 @@
 {
   "schema": "studio.invalid-case/v1",
-  "rule": "time.hold_not_positive",
+  "rule": "time.hold_out_of_range",
   "expect": "invalid",
+  "context": "write",
   "path": "/timing/hold_ms",
-  "why": "A silent board needs a positive hold (story 404): 100 to 120000 ms.",
+  "why": "A silent board needs a positive hold (story 404); P-04 bounds it to 100 to 120000 ms.",
   "document": {
     "schema": "studio.board/v1",
     "id": "brd_01M79V9FC00000000000000007",
@@ -56,7 +57,7 @@
           550,
           2600
         ],
-        "gain_db": -22
+        "level_rms_dbfs": -22
       },
       {
         "id": "cue_01M79V9FC00000000000000002",

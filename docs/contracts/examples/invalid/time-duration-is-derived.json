@@ -2,6 +2,7 @@
   "schema": "studio.invalid-case/v1",
   "rule": "time.duration_is_derived",
   "expect": "invalid",
+  "context": "write",
   "path": "/timing/duration_ms",
   "why": "Board length is derived from voice and timing (D33); a typed duration is not accepted.",
   "document": {

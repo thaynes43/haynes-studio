@@ -2,6 +2,7 @@
   "schema": "studio.invalid-case/v1",
   "rule": "method.s2v_needs_onscreen_speaker",
   "expect": "invalid",
+  "context": "write",
   "path": "/method/motion",
   "why": "Speech-to-video animates an on-screen speaker; narrator lines have none.",
   "document": {

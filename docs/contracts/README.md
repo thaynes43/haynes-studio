@@ -31,6 +31,7 @@ Text only: IDs, hashes and numbers. No media.
   "schema": "studio.invalid-case/v1",
   "rule": "time.hold_on_spoken_board",
   "expect": "invalid",
+  "context": "write",
   "path": "/timing/hold_ms",
   "why": "One sentence naming the rule and its source.",
   "document": {}
@@ -38,9 +39,11 @@ Text only: IDs, hashes and numbers. No media.
 ```
 
 `document` is the offending instance; `path` is a JSON Pointer into it. `expect` is
-`invalid` (rejected on write), `unavailable` (a valid design the studio cannot build
-yet) or `forbidden` where the rule index says so. A validator must fail the document
-with exactly `rule`. The rule index is
+`invalid`, `unavailable` (a valid design the studio cannot build yet) or `forbidden`.
+`context` says where the rule fires: `write` (schema and write validation) or
+`queue_run` (the document saves, and queueing a run fails). In that context a validator
+must fail the document with exactly `rule`; specific rules take precedence over
+`schema.unknown_field`. The rule index is
 [section 15](studio-contracts-v1.md#15-rule-index).
 
 `run-snapshot.json` is pretty-printed; the snapshot's `sha256` in the run examples is

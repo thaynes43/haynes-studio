@@ -2,6 +2,7 @@
   "schema": "studio.invalid-case/v1",
   "rule": "prov.licence_missing",
   "expect": "invalid",
+  "context": "write",
   "path": "/licence",
   "why": "Every asset version records a licence object, even when its terms are still unknown.",
   "document": {

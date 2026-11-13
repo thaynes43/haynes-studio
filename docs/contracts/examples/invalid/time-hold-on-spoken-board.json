@@ -2,6 +2,7 @@
   "schema": "studio.invalid-case/v1",
   "rule": "time.hold_on_spoken_board",
   "expect": "invalid",
+  "context": "write",
   "path": "/timing/hold_ms",
   "why": "A spoken board takes its length from measured voice plus lead and tail (D33); it has no hold.",
   "document": {

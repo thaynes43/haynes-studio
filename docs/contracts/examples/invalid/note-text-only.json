@@ -2,6 +2,7 @@
   "schema": "studio.invalid-case/v1",
   "rule": "note.text_only",
   "expect": "invalid",
+  "context": "write",
   "path": "/notes/0",
   "why": "Direction notes are free text only; a cue needs the typed cues list.",
   "document": {
@@ -56,7 +57,7 @@
           550,
           2600
         ],
-        "gain_db": -22
+        "level_rms_dbfs": -22
       },
       {
         "id": "cue_01M79V9FC00000000000000002",

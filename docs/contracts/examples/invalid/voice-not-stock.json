@@ -2,37 +2,43 @@
   "schema": "studio.invalid-case/v1",
   "rule": "voice.not_stock",
   "expect": "invalid",
-  "path": "/voice/takes/0/voice_id",
-  "why": "Only stock TTS voices; no cloning and no real person’s voice (AGENTS.md, D33 policy).",
+  "context": "write",
+  "path": "/attributes/stock",
+  "why": "Voices are stock TTS voices only (P-22); AGENTS.md forbids a real person’s voice, and cloning is excluded (story 405).",
   "document": {
     "schema": "studio.asset-version/v1",
-    "id": "asv_01M79V9FC0000000000000000Y",
-    "asset_id": "ast_01M79V9FC0000000000000000Y",
+    "id": "asv_01M79V9FC00000000000000013",
+    "asset_id": "ast_01M79V9FC00000000000000012",
     "number": 1,
-    "kind": "board_voice",
-    "name": "The vote voice",
+    "kind": "voice",
+    "name": "Voice cloned from a recording",
     "scope": {
-      "production_id": "prd_01M79V9FC00000000000000001",
-      "story_id": "sty_01M79V9FC00000000000000001",
-      "board_id": "brd_01M79V9FC00000000000000008"
+      "production_id": null
     },
-    "state": "board",
-    "labels": [],
-    "attributes": {},
+    "state": "promoted",
+    "labels": [
+      "stock-voice"
+    ],
+    "attributes": {
+      "voice_id": "cloned-from-sample",
+      "stock": false
+    },
     "capabilities": [
-      "board_voice"
+      "tts_voice"
     ],
     "content": null,
     "provenance": {
-      "origin": "imported",
+      "origin": "generated",
       "generator": {
         "role": "voice",
-        "engine": "ai/deploy/kokoro (Wyoming)",
-        "model": "Kokoro-82M v1.0",
-        "hardware": "ai/deploy/kokoro pod"
+        "engine": "example voice-cloning tool",
+        "model": null,
+        "voice_id": "cloned-from-sample",
+        "stock": false,
+        "source_sample_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
       },
       "external": null,
-      "source_key": "legacy:the-winter-menu-r4:speech:shot:8",
+      "source_key": null,
       "created_by": {
         "kind": "cli",
         "command": "studio legacy import",
@@ -53,129 +59,6 @@
       "checked_by": null,
       "note": "Terms not yet checked (proposal 0003, Requirements: licences)."
     },
-    "legacy": {
-      "source_key": "legacy:the-winter-menu-r4:speech:shot:8",
-      "path": "evidence-r4/speech.json",
-      "job": "the-winter-menu-r4"
-    },
-    "voice": {
-      "input_signature": "sha256:cedb526436a1faf1fdd7c8536003eeeb68f5f5fc58daed07fe5495ff0f2c80c2",
-      "lead_ms": 1900,
-      "gaps_ms": [
-        300,
-        200,
-        250,
-        700,
-        900
-      ],
-      "speech_end_ms": 9627,
-      "track": null,
-      "track_note": "Legacy r4 kept one WAV per line; no assembled board track exists.",
-      "takes": [
-        {
-          "line_id": "lin_01M79V9FC00000000000000007",
-          "speaker": "b",
-          "text": "All in favor?",
-          "voice_version_id": "asv_01M79V9FC0000000000000000E",
-          "engine": "Kokoro-82M v1.0",
-          "voice_id": "clone:real-person",
-          "sha256": "37e81c9db699303d9fbdef03479d9500d5514ae3f38fa103c4f481d6513350e6",
-          "sample_rate": 24000,
-          "samples": null,
-          "duration_ms": 1003,
-          "duration_source": "legacy_duration_s",
-          "offset_ms": 1900,
-          "heard": "All in favor?",
-          "heard_matches": true,
-          "signature": "sha256:a450fb775beecdbf838c655c8b876917225318876c34bd6668c15c26397ac4af",
-          "stock": false
-        },
-        {
-          "line_id": "lin_01M79V9FC00000000000000008",
-          "speaker": "a",
-          "text": "Aye.",
-          "voice_version_id": "asv_01M79V9FC0000000000000000D",
-          "engine": "Kokoro-82M v1.0",
-          "voice_id": "bf_emma",
-          "sha256": "1dadd22ef158db129f37ece9de63e0db871f4f72cd912fdc7a260126021aa6b2",
-          "sample_rate": 24000,
-          "samples": null,
-          "duration_ms": 811,
-          "duration_source": "legacy_duration_s",
-          "offset_ms": 3203,
-          "heard": "Lie",
-          "heard_matches": false,
-          "signature": "sha256:95f285f02833fe20be0869fd6976ed525abf071fdf1f983adb1ccdd5055431f1"
-        },
-        {
-          "line_id": "lin_01M79V9FC00000000000000009",
-          "speaker": "c",
-          "text": "Aye.",
-          "voice_version_id": "asv_01M79V9FC0000000000000000F",
-          "engine": "Kokoro-82M v1.0",
-          "voice_id": "af_nicole",
-          "sha256": "1e5206395dc510de18f1f2050485cd63b9bcba90411ea34bbee7a44a3298d00d",
-          "sample_rate": 24000,
-          "samples": null,
-          "duration_ms": 875,
-          "duration_source": "legacy_duration_s",
-          "offset_ms": 4214,
-          "heard": "I",
-          "heard_matches": false,
-          "signature": "sha256:e040814d77d907772d546419c3903ffc2c8ecf5b3bc9d910942f913198ae7b6b"
-        },
-        {
-          "line_id": "lin_01M79V9FC0000000000000000A",
-          "speaker": "d",
-          "text": "Nay!",
-          "voice_version_id": "asv_01M79V9FC0000000000000000G",
-          "engine": "Kokoro-82M v1.0",
-          "voice_id": "af_bella",
-          "sha256": "5fc1718e8659568b2234544470bce9c23404b855b9c563ea90f4f75596773b35",
-          "sample_rate": 24000,
-          "samples": null,
-          "duration_ms": 512,
-          "duration_source": "legacy_duration_s",
-          "offset_ms": 5339,
-          "heard": "Nay.",
-          "heard_matches": true,
-          "signature": "sha256:8932df67a0a85b938e80e87d7faa117225e1d30862c7a572b47e69ac99780b61"
-        },
-        {
-          "line_id": "lin_01M79V9FC0000000000000000B",
-          "speaker": "b",
-          "text": "Motion carried.",
-          "voice_version_id": "asv_01M79V9FC0000000000000000E",
-          "engine": "Kokoro-82M v1.0",
-          "voice_id": "af_heart",
-          "sha256": "9b3ba267baecf4407cb1ec7dfa66598566e83e615b009f307a47c4b3be4aaad9",
-          "sample_rate": 24000,
-          "samples": null,
-          "duration_ms": 1024,
-          "duration_source": "legacy_duration_s",
-          "offset_ms": 6551,
-          "heard": "Motion carried.",
-          "heard_matches": true,
-          "signature": "sha256:6a9f70a149975df0a83ff316ffea2a4b13a199ff788a68d2e1f5066c7f8f44b2"
-        },
-        {
-          "line_id": "lin_01M79V9FC0000000000000000C",
-          "speaker": "b",
-          "text": "Bibs on, ladies.",
-          "voice_version_id": "asv_01M79V9FC0000000000000000E",
-          "engine": "Kokoro-82M v1.0",
-          "voice_id": "af_heart",
-          "sha256": "1be02e6d7b243b572d6b6d61e0a629f35803b22b741fe13a97e907ff0d17ddab",
-          "sample_rate": 24000,
-          "samples": null,
-          "duration_ms": 1152,
-          "duration_source": "legacy_duration_s",
-          "offset_ms": 8475,
-          "heard": "Bibs on ladies.",
-          "heard_matches": true,
-          "signature": "sha256:b5c691bc2757f255a44076bd89ca1e0fc618aacac9a1dd81c5b65c18c7a24c4f"
-        }
-      ]
-    }
+    "legacy": null
   }
 }

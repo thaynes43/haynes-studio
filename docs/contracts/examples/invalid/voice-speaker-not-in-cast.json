@@ -2,6 +2,7 @@
   "schema": "studio.invalid-case/v1",
   "rule": "voice.speaker_not_in_cast",
   "expect": "invalid",
+  "context": "write",
   "path": "/lines/1/speaker",
   "why": "Every speaker is a story cast slot (or narrator when the board style is narrator).",
   "document": {
@@ -113,7 +114,7 @@
           450,
           1600
         ],
-        "gain_db": -26
+        "level_rms_dbfs": -26
       },
       {
         "id": "cue_01M79V9FC00000000000000004",
@@ -127,7 +128,7 @@
           1300,
           1950
         ],
-        "gain_db": -20
+        "level_rms_dbfs": -20
       },
       {
         "id": "cue_01M79V9FC00000000000000005",

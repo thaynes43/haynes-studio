@@ -2,6 +2,7 @@
   "schema": "studio.invalid-case/v1",
   "rule": "method.unknown",
   "expect": "invalid",
+  "context": "write",
   "path": "/method/layer",
   "why": "Canonical layers are layered and whole_frame (D38); rigid_cutout exists only on imported legacy runs.",
   "document": {

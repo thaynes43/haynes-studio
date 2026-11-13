@@ -2,6 +2,7 @@
   "schema": "studio.invalid-case/v1",
   "rule": "id.malformed",
   "expect": "invalid",
+  "context": "write",
   "path": "/id",
   "why": "ULIDs are 26 upper-case Crockford base32 characters (no I, L, O or U).",
   "document": {

@@ -2,13 +2,14 @@
   "schema": "studio.invalid-case/v1",
   "rule": "approval.approver_not_permitted",
   "expect": "forbidden",
+  "context": "write",
   "path": "/approver",
   "why": "Only Tom, as a verified human OIDC subject, approves go-live (D29); agent keys never can.",
   "document": {
     "schema": "studio.go-live-approval/v1",
     "id": "apr_01M79V9FC00000000000000001",
-    "run_id": "run_01M79V9FC00000000000000002",
-    "run_snapshot_sha256": "cce17f7dfa2537b9f34f157c478af281f380197e9b770aa608bc426c3ea4c072",
+    "run_id": "run_01M79V9FC00000000000000001",
+    "run_snapshot_sha256": "d90c2dcf834137defa9e4023fbcc0b9fbc4822f2b84e0eabf05ae6bca2c5661e",
     "delivery_id": "dlv_01M79V9FC00000000000000001",
     "master_sha256": "f10b4e92c5345cf96678a93e67c18cb0751207d3b9d5fca8a90f5820469516de",
     "approver": {
@@ -28,13 +29,28 @@
         "basis": "fixture result; R27 supplies real evidence"
       },
       "public_credits": [
-        "Video: Wan2.2 S2V-14B and Wan2.2 TI2V-5B on RTX 3090s",
-        "Voices: Kokoro-82M",
-        "Sound effects: Stable Audio 3 Small"
+        {
+          "engine_key": "wan-s2v",
+          "text": "Video: Wan2.2 S2V-14B on an RTX 3090"
+        },
+        {
+          "engine_key": "wan-ti2v",
+          "text": "Video: Wan2.2 TI2V-5B on two RTX 3090s"
+        },
+        {
+          "engine_key": "kokoro",
+          "text": "Voices: Kokoro-82M"
+        },
+        {
+          "engine_key": "stable-audio",
+          "text": "Sound effects: Stable Audio 3 Small"
+        }
       ]
     },
-    "state": "active",
-    "withdrawn_at": null,
-    "publication_ids": []
+    "derived": {
+      "state": "active",
+      "withdrawal": null,
+      "publication_ids": []
+    }
   }
 }

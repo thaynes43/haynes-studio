@@ -1,6 +1,5 @@
 {
   "schema": "studio.run-snapshot/v1",
-  "run_id": "run_01M79V9FC00000000000000001",
   "story": {
     "schema": "studio.story/v1",
     "id": "sty_01M79V9FC00000000000000001",
@@ -12,22 +11,22 @@
     "cast": [
       {
         "slot": "a",
-        "name": "Captain",
+        "name": "captain",
         "voice_version_id": "asv_01M79V9FC0000000000000000D"
       },
       {
         "slot": "b",
-        "name": "Chair",
+        "name": "chair",
         "voice_version_id": "asv_01M79V9FC0000000000000000E"
       },
       {
         "slot": "c",
-        "name": "Grudge-holder",
+        "name": "grudge",
         "voice_version_id": "asv_01M79V9FC0000000000000000F"
       },
       {
         "slot": "d",
-        "name": "The cheerful one",
+        "name": "cheerful",
         "voice_version_id": "asv_01M79V9FC0000000000000000G"
       }
     ],
@@ -81,7 +80,8 @@
         "strength": 0.85,
         "doll_glow": 0.045,
         "seed": 7
-      }
+      },
+      "note": "top edge of the mossy log in set-left-s221 after fitting to 1080x1920, read off a ruler overlay (poc scratch set-ruler.jpg); the log curves down to the right"
     },
     "layouts": {
       "single": {
@@ -167,7 +167,7 @@
         "id": "cue_01M79V9FC0000000000000000J",
         "type": "bed",
         "asset_version_id": "asv_01M79V9FC0000000000000000C",
-        "gain_db": -40,
+        "level_rms_dbfs": -40,
         "clock": "film"
       }
     ],
@@ -175,7 +175,8 @@
       "asr_tolerances": {
         "340": "three hundred forty",
         "mos": "moss"
-      }
+      },
+      "asr_tolerances_note": "Recognizer writes numbers as digits; \"MOS\" for \"moss\" seen on the isolated line only. A \"need -> needs\" tolerance for \"Needs salt.\" was tried and removed: it rewrote the real \"need\" in \"We need to discuss\" (word-level tolerances apply to every occurrence), and the full mix heard \"Needs salt.\" correctly anyway."
     },
     "board_order": [
       "brd_01M79V9FC00000000000000001",
@@ -655,7 +656,7 @@
               550,
               2600
             ],
-            "gain_db": -22
+            "level_rms_dbfs": -22
           },
           {
             "id": "cue_01M79V9FC00000000000000002",
@@ -806,7 +807,7 @@
               450,
               1600
             ],
-            "gain_db": -26
+            "level_rms_dbfs": -26
           },
           {
             "id": "cue_01M79V9FC00000000000000004",
@@ -820,7 +821,7 @@
               1300,
               1950
             ],
-            "gain_db": -20
+            "level_rms_dbfs": -20
           },
           {
             "id": "cue_01M79V9FC00000000000000005",
@@ -1082,7 +1083,7 @@
               350,
               3100
             ],
-            "gain_db": -24
+            "level_rms_dbfs": -24
           }
         ],
         "notes": [
@@ -1131,172 +1132,212 @@
   "resolved_asset_versions": [
     {
       "id": "asv_01M79V9FC00000000000000001",
-      "sha256": "4ea3005f4effebda7f4ce9b083da55e8529db4269c96104364e5dc74b25969de",
-      "kind": "cast"
+      "kind": "cast",
+      "sha256": "4ea3005f4effebda7f4ce9b083da55e8529db4269c96104364e5dc74b25969de"
     },
     {
       "id": "asv_01M79V9FC00000000000000002",
-      "sha256": "022ac97a623c88bf96405d92df0dcad0aed459641d5e78dfed17fae7931267b7",
-      "kind": "cast"
+      "kind": "cast",
+      "sha256": "022ac97a623c88bf96405d92df0dcad0aed459641d5e78dfed17fae7931267b7"
     },
     {
       "id": "asv_01M79V9FC00000000000000003",
-      "sha256": "d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a",
-      "kind": "cast"
+      "kind": "cast",
+      "sha256": "d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a"
     },
     {
       "id": "asv_01M79V9FC00000000000000004",
-      "sha256": "b816a4f225e160a6c6a8b26244434c96d2ea09a51ce9f7c5d7a2485a1de552af",
-      "kind": "cast"
+      "kind": "cast",
+      "sha256": "b816a4f225e160a6c6a8b26244434c96d2ea09a51ce9f7c5d7a2485a1de552af"
     },
     {
       "id": "asv_01M79V9FC00000000000000005",
-      "sha256": "a49b2c3046f385d4bb05fa369b3d21d218a4c63cf66d157d204a28b9be357f42",
-      "kind": "cast"
+      "kind": "cast",
+      "sha256": "a49b2c3046f385d4bb05fa369b3d21d218a4c63cf66d157d204a28b9be357f42"
     },
     {
       "id": "asv_01M79V9FC00000000000000006",
-      "sha256": "3d9c9d223ebc0137f0311a015dff08080acb4e8e413afe9087d7b452da54ef58",
-      "kind": "cast"
+      "kind": "cast",
+      "sha256": "3d9c9d223ebc0137f0311a015dff08080acb4e8e413afe9087d7b452da54ef58"
     },
     {
       "id": "asv_01M79V9FC00000000000000007",
-      "sha256": "29ab6f47227cee7aa482e83f79cb4aad9949407b4a543f5a33f846119f3c5b58",
-      "kind": "set"
+      "kind": "set",
+      "sha256": "29ab6f47227cee7aa482e83f79cb4aad9949407b4a543f5a33f846119f3c5b58"
     },
     {
       "id": "asv_01M79V9FC00000000000000008",
-      "sha256": "78c5f69ff31758d2d78b0c5b249633039c7ce51ae850a64971591b5da79bd4b8",
-      "kind": "sound"
+      "kind": "sound",
+      "sha256": "78c5f69ff31758d2d78b0c5b249633039c7ce51ae850a64971591b5da79bd4b8"
     },
     {
       "id": "asv_01M79V9FC00000000000000009",
-      "sha256": "5515c7006ce09a1c5d0c21019ca11db7a445f9ce296b94f5c371aba8b7d6925f",
-      "kind": "sound"
+      "kind": "sound",
+      "sha256": "5515c7006ce09a1c5d0c21019ca11db7a445f9ce296b94f5c371aba8b7d6925f"
     },
     {
       "id": "asv_01M79V9FC0000000000000000A",
-      "sha256": "a9c01ef381a0f0d0dd5df5e552e2cf8556a2a8f30caff04225017540669b7b5e",
-      "kind": "sound"
+      "kind": "sound",
+      "sha256": "a9c01ef381a0f0d0dd5df5e552e2cf8556a2a8f30caff04225017540669b7b5e"
     },
     {
       "id": "asv_01M79V9FC0000000000000000B",
-      "sha256": "aadcc283d15fb7a067bc7517533dfccafb0d28ba5fe1c0ad8ddbae3d6ca1abe3",
-      "kind": "sound"
+      "kind": "sound",
+      "sha256": "aadcc283d15fb7a067bc7517533dfccafb0d28ba5fe1c0ad8ddbae3d6ca1abe3"
     },
     {
       "id": "asv_01M79V9FC0000000000000000C",
-      "sha256": null,
-      "kind": "sound"
+      "kind": "sound",
+      "sha256": "0b33af45929b8cfb3859bf1511a2738eef22944d431ee44257c33a1de42da72a"
     },
     {
       "id": "asv_01M79V9FC0000000000000000D",
+      "kind": "voice",
       "sha256": null,
-      "kind": "voice"
+      "definition_signature": "sha256:705c21e77f8ea8a5aa8da22c84fbfada05440495437c59111ec38f7bb8e75897"
     },
     {
       "id": "asv_01M79V9FC0000000000000000E",
+      "kind": "voice",
       "sha256": null,
-      "kind": "voice"
+      "definition_signature": "sha256:7c6ae225745250cf419b8dd3124763364f888555f56c2175e375ab856c07cbb6"
     },
     {
       "id": "asv_01M79V9FC0000000000000000F",
+      "kind": "voice",
       "sha256": null,
-      "kind": "voice"
+      "definition_signature": "sha256:14f5ddb3afd671be6181b0d7afabd9f4893d578845687d649a5eb5a494304126"
     },
     {
       "id": "asv_01M79V9FC0000000000000000G",
+      "kind": "voice",
       "sha256": null,
-      "kind": "voice"
+      "definition_signature": "sha256:c5505e877bc3791395c3816fff463a76bf91177035f7664abd019883b643615f"
     },
     {
       "id": "asv_01M79V9FC0000000000000000H",
+      "kind": "board_voice",
       "sha256": null,
-      "kind": "board_voice"
+      "input_signature": "sha256:454a2066256363f970d1f942222a9da96f4727cb0d2e615a0cbde0b7fef6b86f",
+      "take_sha256": [
+        "b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78"
+      ]
     },
     {
       "id": "asv_01M79V9FC0000000000000000J",
-      "sha256": "e4772edc3fe3f0f9012e089151a1f94a503ea145f08a5921e22d54ab7e0b898f",
-      "kind": "photo"
+      "kind": "photo",
+      "sha256": "e4772edc3fe3f0f9012e089151a1f94a503ea145f08a5921e22d54ab7e0b898f"
     },
     {
       "id": "asv_01M79V9FC0000000000000000K",
+      "kind": "board_voice",
       "sha256": null,
-      "kind": "board_voice"
+      "input_signature": "sha256:89de0eb5f67df6737dda3d7502714685d74473ec744077a5ff2180cb4b5f6034",
+      "take_sha256": [
+        "7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50"
+      ]
     },
     {
       "id": "asv_01M79V9FC0000000000000000M",
-      "sha256": "c146760e9f500194a0b5909a0b1ac4ff28ea042130af9f9d3da1362174d8075b",
-      "kind": "photo"
+      "kind": "photo",
+      "sha256": "c146760e9f500194a0b5909a0b1ac4ff28ea042130af9f9d3da1362174d8075b"
     },
     {
       "id": "asv_01M79V9FC0000000000000000N",
+      "kind": "board_voice",
       "sha256": null,
-      "kind": "board_voice"
+      "input_signature": "sha256:27de35fc6bab98b130ef43faa6f5d464d8a3936760531816ab38f57fec31a88b",
+      "take_sha256": [
+        "6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36"
+      ]
     },
     {
       "id": "asv_01M79V9FC0000000000000000P",
-      "sha256": "ba88a2f9ecf4a543fa3dfefa1885bfe6274bbf3fad5ae0276530b23affd6e021",
-      "kind": "photo"
+      "kind": "photo",
+      "sha256": "ba88a2f9ecf4a543fa3dfefa1885bfe6274bbf3fad5ae0276530b23affd6e021"
     },
     {
       "id": "asv_01M79V9FC0000000000000000Q",
+      "kind": "board_voice",
       "sha256": null,
-      "kind": "board_voice"
+      "input_signature": "sha256:80862cb31ce0b3638e31cea6be0d12daaae4e1d1ee6e043b69f63644bf452b0a",
+      "take_sha256": [
+        "0063d7e0e0d8a551fece4373ba1252d94339c00e10155bd08804b44c388773fd"
+      ]
     },
     {
       "id": "asv_01M79V9FC0000000000000000R",
-      "sha256": "e4772edc3fe3f0f9012e089151a1f94a503ea145f08a5921e22d54ab7e0b898f",
-      "kind": "photo"
+      "kind": "photo",
+      "sha256": "e4772edc3fe3f0f9012e089151a1f94a503ea145f08a5921e22d54ab7e0b898f"
     },
     {
       "id": "asv_01M79V9FC0000000000000000S",
+      "kind": "board_voice",
       "sha256": null,
-      "kind": "board_voice"
+      "input_signature": "sha256:664fd78beb73bd03eb4b06bc8d13646c51d942d3281dfb0d8f99813ef035ed7d",
+      "take_sha256": [
+        "f89e05a2c53e9be7edd35f3b31862da311ce2730cb330421cb93e25b20a3ab59"
+      ]
     },
     {
       "id": "asv_01M79V9FC0000000000000000T",
-      "sha256": "47146e2c14a2738798434fa35ffe0be432b2af967ca30ea18020dff471453e80",
-      "kind": "photo"
+      "kind": "photo",
+      "sha256": "47146e2c14a2738798434fa35ffe0be432b2af967ca30ea18020dff471453e80"
     },
     {
       "id": "asv_01M79V9FC0000000000000000V",
+      "kind": "board_voice",
       "sha256": null,
-      "kind": "board_voice"
+      "input_signature": "sha256:d9c5867370362bfed3924451951670ea4cc5da833e4d0a637137f030ff278cbd",
+      "take_sha256": [
+        "46bf17ecaa3a9729b16fd45ba67c2f123b32756cf36eef133abf029c681a7395"
+      ]
     },
     {
       "id": "asv_01M79V9FC0000000000000000W",
-      "sha256": "ba88a2f9ecf4a543fa3dfefa1885bfe6274bbf3fad5ae0276530b23affd6e021",
-      "kind": "photo"
+      "kind": "photo",
+      "sha256": "ba88a2f9ecf4a543fa3dfefa1885bfe6274bbf3fad5ae0276530b23affd6e021"
     },
     {
       "id": "asv_01M79V9FC0000000000000000X",
-      "sha256": "6c270139b4beb523d45e9eb3262745874316193fb96ceb420252661f5ca72464",
-      "kind": "photo"
+      "kind": "photo",
+      "sha256": "6c270139b4beb523d45e9eb3262745874316193fb96ceb420252661f5ca72464"
     },
     {
       "id": "asv_01M79V9FC0000000000000000Y",
+      "kind": "board_voice",
       "sha256": null,
-      "kind": "board_voice"
+      "input_signature": "sha256:cedb526436a1faf1fdd7c8536003eeeb68f5f5fc58daed07fe5495ff0f2c80c2",
+      "take_sha256": [
+        "37e81c9db699303d9fbdef03479d9500d5514ae3f38fa103c4f481d6513350e6",
+        "1dadd22ef158db129f37ece9de63e0db871f4f72cd912fdc7a260126021aa6b2",
+        "1e5206395dc510de18f1f2050485cd63b9bcba90411ea34bbee7a44a3298d00d",
+        "5fc1718e8659568b2234544470bce9c23404b855b9c563ea90f4f75596773b35",
+        "9b3ba267baecf4407cb1ec7dfa66598566e83e615b009f307a47c4b3be4aaad9",
+        "1be02e6d7b243b572d6b6d61e0a629f35803b22b741fe13a97e907ff0d17ddab"
+      ]
     },
     {
       "id": "asv_01M79V9FC0000000000000000Z",
-      "sha256": "e66494d67f4cc0fd42c3d76f5900132f590b425321a5eba0f0769b9faf85dcdf",
-      "kind": "photo"
+      "kind": "photo",
+      "sha256": "e66494d67f4cc0fd42c3d76f5900132f590b425321a5eba0f0769b9faf85dcdf"
     },
     {
       "id": "asv_01M79V9FC00000000000000010",
+      "kind": "board_voice",
       "sha256": null,
-      "kind": "board_voice"
+      "input_signature": "sha256:bdf53a169dce0b7dad724054fb57e9bf1cb551ef4aa36d547c7fc158d7e994a2",
+      "take_sha256": [
+        "4e12138ee373ac45b6fce8f9049680d5494892fcc13a511bc77dbf37afbb5d31"
+      ]
     },
     {
       "id": "asv_01M79V9FC00000000000000011",
-      "sha256": "f10f0460ba764d093e679d4fc2ffcc6092be883d7c686255dcccc02b26b4e1c5",
-      "kind": "photo"
+      "kind": "photo",
+      "sha256": "f10f0460ba764d093e679d4fc2ffcc6092be883d7c686255dcccc02b26b4e1c5"
     }
   ],
   "toolchain_request": {
     "studio": "git:<commit at queue time>"
-  },
-  "captured_at": "2026-11-13T07:30:00Z"
+  }
 }

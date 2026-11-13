@@ -6,10 +6,10 @@
   "status": "queued",
   "wait_reason": "lease_busy",
   "snapshot": {
-    "sha256": "cce17f7dfa2537b9f34f157c478af281f380197e9b770aa608bc426c3ea4c072",
+    "sha256": "d90c2dcf834137defa9e4023fbcc0b9fbc4822f2b84e0eabf05ae6bca2c5661e",
     "story_revision": 1,
     "board_count": 9,
-    "locator": "productions/prd_01M79V9FC00000000000000001/sha256/cc/cce17f7dfa2537b9f34f157c478af281f380197e9b770aa608bc426c3ea4c072.json"
+    "locator": "productions/prd_01M79V9FC00000000000000001/sha256/d9/d90c2dcf834137defa9e4023fbcc0b9fbc4822f2b84e0eabf05ae6bca2c5661e.json"
   },
   "queued_by": {
     "kind": "human",

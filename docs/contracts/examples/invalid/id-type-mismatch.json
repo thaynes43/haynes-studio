@@ -2,6 +2,7 @@
   "schema": "studio.invalid-case/v1",
   "rule": "id.type_mismatch",
   "expect": "invalid",
+  "context": "write",
   "path": "/id",
   "why": "A board ID must carry the brd_ prefix.",
   "document": {

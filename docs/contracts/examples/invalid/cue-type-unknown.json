@@ -2,6 +2,7 @@
   "schema": "studio.invalid-case/v1",
   "rule": "cue.type_unknown",
   "expect": "invalid",
+  "context": "write",
   "path": "/cues/14/type",
   "why": "Only sound, move, camera and bed cues execute; anything else is rejected, never ignored.",
   "document": {
@@ -113,7 +114,7 @@
           450,
           1600
         ],
-        "gain_db": -26
+        "level_rms_dbfs": -26
       },
       {
         "id": "cue_01M79V9FC00000000000000004",
@@ -127,7 +128,7 @@
           1300,
           1950
         ],
-        "gain_db": -20
+        "level_rms_dbfs": -20
       },
       {
         "id": "cue_01M79V9FC00000000000000005",

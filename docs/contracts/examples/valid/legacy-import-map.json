@@ -14,7 +14,7 @@
       "manifest_sha256": "e8174b5f1884234dc398087df393ee59003d2d4f64b2e83af47c35c0f5b8fbee",
       "job": "the-winter-menu-r1",
       "tracker": "https://work.haynesnetwork.com/work_packages/369",
-      "imported_run_id": "run_01M79V9FC00000000000000004",
+      "imported_run_id": "run_01M79V9FC00000000000000003",
       "run_status": "imported",
       "method": {
         "legacy": "rigid_cutout"
@@ -32,7 +32,7 @@
       "manifest_sha256": "ed154d1c2fb1c3f45b3f5f7d1e03a7470520f4dd9aaa96011d663955565461ea",
       "job": "the-winter-menu-r2",
       "tracker": "https://work.haynesnetwork.com/work_packages/369",
-      "imported_run_id": "run_01M79V9FC00000000000000005",
+      "imported_run_id": "run_01M79V9FC00000000000000004",
       "run_status": "imported",
       "method": {
         "legacy": "rigid_cutout"
@@ -50,7 +50,7 @@
       "manifest_sha256": "42308d514092859517fc55a51ea923d5ecc1dc46f13e336d41d290c1218398fd",
       "job": "the-winter-menu-r3",
       "tracker": "https://work.haynesnetwork.com/work_packages/371",
-      "imported_run_id": "run_01M79V9FC00000000000000006",
+      "imported_run_id": "run_01M79V9FC00000000000000005",
       "run_status": "imported",
       "method": {
         "legacy": "rigid_cutout"
@@ -68,7 +68,7 @@
       "manifest_sha256": "98a9cfb747dd088edb65d3b7565344f3eab8c40c51bf56d6aa4948f04d47702d",
       "job": "the-winter-menu-r4",
       "tracker": "https://work.haynesnetwork.com/work_packages/371",
-      "imported_run_id": "run_01M79V9FC00000000000000003",
+      "imported_run_id": "run_01M79V9FC00000000000000002",
       "run_status": "imported",
       "method": {
         "legacy": "rigid_cutout"
@@ -213,8 +213,17 @@
       }
     }
   ],
+  "imported_run_notes": [
+    "provenance (free text, verbatim)",
+    "revision_note (verbatim; E9.3 may turn it into feedback)"
+  ],
+  "hidden_candidates": [
+    {
+      "from": "manifest sfx.<name>.rejected[]",
+      "becomes": "sound candidate records with provenance and no bytes"
+    }
+  ],
   "not_imported": [
-    "job_dir (private, non-portable locator; R03 recovery map)",
-    "revision_note text (becomes feedback in E9.3)"
+    "job_dir (private, non-portable locator; story 425 recovery map)"
   ]
 }

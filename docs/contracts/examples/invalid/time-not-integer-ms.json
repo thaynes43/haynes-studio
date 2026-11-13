@@ -2,6 +2,7 @@
   "schema": "studio.invalid-case/v1",
   "rule": "time.not_integer_ms",
   "expect": "invalid",
+  "context": "write",
   "path": "/timing/lead_ms",
   "why": "Authored times are integer milliseconds; 0.5 here looks like seconds.",
   "document": {

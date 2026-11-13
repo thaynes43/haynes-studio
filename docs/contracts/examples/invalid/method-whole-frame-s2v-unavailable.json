@@ -2,8 +2,9 @@
   "schema": "studio.invalid-case/v1",
   "rule": "method.unavailable",
   "expect": "unavailable",
+  "context": "queue_run",
   "path": "/method",
-  "why": "Whole-frame speech-to-video is a known combination with no buildable adapter (section 5); refused as unavailable, not invalid.",
+  "why": "Whole-frame speech-to-video is a known combination with no buildable adapter (section 5). The board saves with a warning; queue_run refuses it as unavailable, not invalid.",
   "document": {
     "schema": "studio.board/v1",
     "id": "brd_01M79V9FC00000000000000001",

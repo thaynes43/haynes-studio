@@ -69,18 +69,21 @@ a canonical ID. Worked map: [`legacy-import-map.json`](examples/valid/legacy-imp
 | `dolls {slot: cutouts/x.png}` | Which still each slot uses, in draw order | `cast[]` of `{slot, asset_version_id}` in the same order. |
 | `layout`, manifest `layouts` | Placement presets in delivery pixels | `layout.preset`; presets copied to story `layouts`. |
 | `foreground: false` | Hide the foreground log | `layout.foreground` |
-| `sfx[] {cue, at \| after_line + offset}`, manifest `sfx` | Placed sound effects | `sound` cues; the line index becomes a line ID. Trim and gain move onto the cue. |
+| shot `sfx[] {cue, at \| after_line + offset}` | Placed sound effects | `sound` cues; the line index becomes a line ID. |
+| manifest `sfx.<name> {file, trim, gain_db, source, rejected[]}`, `beds.<name> {file, gain_db, source}` | A generated sound, its trim and its level. `gain_db` is a **target RMS level** in dBFS, not a gain: `edit.audio` scales the clip to it after trimming | `sound` asset version (file hash from `timeline.json`, provenance from `source`: service, job, seed, seconds, steps, prompt). `trim` and the level move onto each cue as `trim_ms` and `level_rms_dbfs`. `rejected[]` entries become hidden sound candidates with provenance and no bytes. |
 | `moves[]` | Scripted whole-doll moves | `move` cues |
 | `camera {zoom, over, center}` | Push-in, ease-out over `over` seconds | `camera` cue |
 | `beds` | Looped ambience under the film | Story `beds[]`, film clock |
 | `note` | Free text | `notes[]` |
 | `cast {slot: {name, voice}}` | Character name and Kokoro stock voice | Story `cast[]`; voice becomes a `voice` asset version. |
-| `set` (`image`, `foreground_edge`, `fire`) | Set still, log edge, procedural fire | Story `set`; `fire` kept as `legacy_fire` (the rigid renderer only; Wan animates fire). |
+| `set` (`image`, `foreground_edge`, `foreground_feather`, `fire`, `note`) | Set still, log edge, procedural fire | Story `set`; `fire` kept as `legacy_fire` (the rigid renderer only; Wan animates fire); `note` kept as text. |
 | `motion` (idle, hop, tilt, shuffle) | Talk bounce and wobble style | Story `motion_style` |
 | `frame {width, height, fps}` | Delivery size | The media kind's profile; 1080x1920 at 24 fps is `short`. |
 | `master`, `asr_tolerances`, `asr_tolerances_note` | Loudness target, transcript tolerances | Story `mix`, story `checks` |
-| `timeline.json` (`total_s`, `shots[] {shot, start_s, end_s, frames}`, `audio[] {kind line, sfx or bed, start_s, end_s, ...}`, `master_gain_db`) | Recorded timing (`start_s` 4 decimals, audio 3) | The imported run's timing record, read-only; the fixture story 378 compares against (TIME-12). |
-| `shots.json`, `validation.json`, `dialogue-transcript.json` | Render and check records | Imported run stage and check records, read-only. |
+| `timeline.json` (`total_s`, `shots[] {shot, start_s, end_s, frames}`, `audio[] {kind line, sfx or bed, start_s, end_s, sha256, ...}`, `premaster_headroom_db`, `master_gain_db`) | Recorded timing (`start_s` 4 decimals, audio 3) | The imported run's timing record, read-only; the fixture story 378 compares against (TIME-12). |
+| `shots.json`, `validation.json` (including `human_review`), `dialogue-transcript.json` | Render and check records | Imported run stage and check records, verbatim and read-only. `human_review` is a historical gate note, not a go-live approval. |
+| ledger `preset`, `provenance {..., human_approval}`, `assets[]`, `created_at` | How the delivery was made, and every delivered file | Delivery `legacy` block: `preset` and `provenance` verbatim, `assets_ref` to the evidence file; `created_at` as ISO time ([example](examples/valid/delivery-legacy-r4.json)). |
+| `speech.json` `service` | The TTS service | `board_voice` provenance `engine` |
 | `provenance` (free text), `revision_note` | Notes | Imported run notes; `revision_note` becomes feedback in E9.3. |
 | `speech.json` lines `{shot, k, file, duration_s, sha256}` | One WAV per line | Takes inside a `board_voice` asset version, with offsets ([example](examples/valid/asset-version-board-voice.json)). The legacy track was never assembled: `track: null`. |
 | `prompts.json`, `cutouts/` | Image provenance, keyed RGBA stills | `cast` asset versions with provenance ([example](examples/valid/asset-version-cast.json)) |
@@ -106,7 +109,8 @@ wrapper `invalid-case`. Error responses use the envelope in
   meaning of a field bumps it. A reader rejects an unknown major
   (`schema.unsupported`).
 - Write requests reject unknown fields (`schema.unknown_field`), so a typo from an agent
-  fails instead of vanishing (P-02).
+  fails instead of vanishing (P-02). When a specific rule covers a field (a typed
+  `timing.duration_ms`, cue fields inside a note), the validator reports that rule instead.
 - Fields under `derived` are computed by the server, returned on reads and rejected on
   writes.
 - The legacy manifest has no `schema` field. Story 378 documents it as
@@ -138,8 +142,9 @@ Crockford base32 (first character `0` to `7`; no `I`, `L`, `O` or `U`).
   Errors: `id.malformed`, `id.type_mismatch`.
 - Display codes are not IDs: board `S01-B03` (mockup), run `Run 02` (per-story `number`
   from 1), asset version `v3` (per-asset `number` from 1).
-- People are `(iss, sub)` from a verified OIDC token, never an email or display name.
-  Agents are their `key_id`.
+- A principal is one of `{kind: human, iss, sub}` (from a verified OIDC token, never an
+  email or display name), `{kind: agent, key_id}`, `{kind: worker, worker_id}` or
+  `{kind: cli, command, operator}`, where `operator` is a human principal.
 - Hashes: a field named `sha256` is the lower-case hex SHA-256 of stored bytes. A field
   named `*signature` is `sha256:` plus the hex SHA-256 of canonical JSON
   ([section 4](#4-cache-clocks-and-invalidation)).
@@ -157,7 +162,7 @@ Full instances: [`story-winter-menu-r4.json`](examples/valid/story-winter-menu-r
 | Story field | Type | Rule |
 |---|---|---|
 | `id`, `production_id`, `media_kind` | IDs, `short` or `video` | the media kind must be enabled on the production |
-| `title`, `revision` | text, integer | |
+| `title`, `revision` | text (1 to 80 characters, mockup), integer | `revision` goes up on every write to the story or to any of its boards, lines, cues, notes or order, so `queue_run` sees one draft version |
 | `format_version_id` | `fmv_` or null | null: no format, so no length warning |
 | `cast[]` | `{slot, name, voice_version_id}` | slot `a` to `z`, unique; voice is a `voice` asset version |
 | `narrator_voice_version_id` | `asv_` or null | needed by any narrator board |
@@ -173,7 +178,7 @@ Full instances: [`story-winter-menu-r4.json`](examples/valid/story-winter-menu-r
 |---|---|---|
 | `id`, `story_id`, `number`, `revision` | IDs, integers | `number` is a per-story creation sequence (display `B03`), never reused or renumbered on reorder |
 | `title` | text, 1 to 100 characters | mockup limit |
-| `lines[]` | `{id, speaker, text, gap_before_ms}` | ordered; TIME-2; speaker per VOICE-1 |
+| `lines[]` | `{id, speaker, text, gap_before_ms}` | ordered; text 1 to 1200 characters (mockup); TIME-2; speaker per VOICE-1 |
 | `timing` | `{lead_ms, tail_ms, hold_ms}` | spoken: lead and tail, hold null; silent: hold only (TIME-3 to TIME-5) |
 | `voice` | `{style, current_version_id}` | style `cast` or `narrator`, null on a silent board |
 | `photo` | `{current_version_id, prompt, input_asset_version_ids}` | prompt up to 1800 characters; inputs are the composer's assets |
@@ -214,7 +219,8 @@ Every field of the [v6 mockup](../design/studio-ui-mockup/index.html) and where 
 | `gen {name, kind, prompt, busy, result {promoted}}` | `generate_asset_candidate` job; candidate version; `promote_asset_version` |
 | run `{number, story, status, boards, duration, estimate, progress, created, approved}` | run `number`, `story_id`, `status` (`done` is `succeeded`), `snapshot`, `outputs.frames`, `estimate`, `progress`, `queued_at`; `approved` comes from go-live approvals |
 | `mediaFilters {publication, approved}` | `list_stories` query `publication` (`published` or `unpublished`) and `approved=true`, alone or combined (D31) |
-| `assetScope`, `assetBoard`, `assetKind`, `search`, `panels`, `scroll`, `last` | user selections (D32, D34); theme stays local |
+| `assetScope`, `assetStory`, `assetBoard`, `assetKind`, `search`, `panels`, `scroll`, `last`, `reviewContext` | user selections (D32, D34); theme stays local |
+| create form `name` (production, story) | `name` and `title`, 1 to 80 characters |
 | `compare {left, right}` | `compare_runs` |
 | `userName` | display name from the OIDC claims, display only |
 | timecode at 25 fps | 24 fps (section 3) |
@@ -226,7 +232,7 @@ Every field of the [v6 mockup](../design/studio-ui-mockup/index.html) and where 
 | Quantity | Unit | Source |
 |---|---|---|
 | Authored offsets and durations (`*_ms`) | integer milliseconds | P-03 |
-| Delivery picture | integer frames at **24 fps**, every media kind | Legacy (`frame.fps` in all four manifests), [validation.json](../../titles/the-winter-menu/evidence-r4/validation.json); mockup's 25 fps is a prototype default (review M2) |
+| Delivery picture | integer frames at **24 fps** | `short`: Legacy (`frame.fps` in all four manifests, [validation.json](../../titles/the-winter-menu/evidence-r4/validation.json)); `video`: P-20. The mockup's 25 fps is a prototype default (review M2). |
 | Mix audio | integer samples at **48 000 Hz** (2000 per delivery frame, 48 per ms) | Legacy (`RATE` in `poc/studio.py`) |
 | Speech-to-video source | integer frames at **16 fps**, chunks of 77 frames | Evidence ([findings.md](../../titles/the-winter-menu/video-e0/findings.md), `poc/s2v.py`) |
 | Image-to-video source (TI2V-5B) | 121 frames at 24 fps (5.04 s) | Evidence ([findings.md](../../titles/the-winter-menu/video-e0/findings.md)) |
@@ -248,11 +254,12 @@ display only.
   integers as `(content_ms * 24 + 999) div 1000`. The rounding remainder (under one frame)
   lands in the tail. Legacy (`edit.timeline`, `math.ceil(d * fps)`).
 - **TIME-4 Silent board length.** `frames = ceil(hold_ms * 24 / 1000)`, with
-  `100 <= hold_ms <= 120000` (`time.hold_not_positive`; bounds from the mockup's hold
-  field, P-04). A spoken board has no hold (`time.hold_on_spoken_board`), and nobody types
+  `100 <= hold_ms <= 120000` (`time.hold_out_of_range`; a positive hold is story 404's
+  acceptance, the bounds are the mockup's hold field, P-04). A spoken board has no hold (`time.hold_on_spoken_board`), and nobody types
   a board duration (`time.duration_is_derived`, D33).
 - **TIME-5 Pads.** `tail_ms >= 250` (`time.tail_too_short`; Legacy assertion "lines must
-  end at least 0.25 s before the cut"); `lead_ms >= 0`; `gap_before_ms >= 0`. New boards
+  end at least 0.25 s before the cut"); `lead_ms >= 0` and `gap_before_ms >= 0`
+  (`time.negative`). New boards
   default to lead 500, gap 300, tail 700 (P-04: r4's single-shot values and the legacy gap
   default). The mockup's 0.25 s pad is not adopted (review M2). Authored values must be
   integers (`time.not_integer_ms`).
@@ -262,20 +269,27 @@ display only.
 - **TIME-7 Film placement.** Board *k* starts at film frame `F[k] = sum(frames[j], j < k)`.
   Line *i* on board *k* starts at mix sample `F[k] * 2000 + start[i] * 48`. Exact
   integers; no rounded seconds in between.
-- **TIME-8 Source to delivery.** Delivery frame *n* of a board (board clock, from 0) shows
-  source frame `floor(n * fs / 24)`; for 16 fps that is `floor(2n / 3)`. A board of *F*
-  frames needs `floor((F - 1) * fs / 24) + 1` source frames. Extra source frames are
-  trimmed and recorded. A shorter source fails the stage (`time.source_short`); the
-  legacy compositor silently held the last frame, which this contract does not allow
-  (P-05). Legacy (`DollClip.frame_at` in `poc/layered_film.py`).
+- **TIME-8 Board-specific clips.** For a clip made for one board (an S2V layer, a
+  whole-frame I2V clip), delivery frame *n* of the board (board clock, from 0) shows source
+  frame `floor(n * fs / 24)`; for 16 fps that is `floor(2n / 3)`. A board of *F* frames
+  needs `floor((F - 1) * fs / 24) + 1` source frames. Extra source frames are trimmed and
+  recorded. A shorter clip fails the stage (`time.source_short`); the legacy compositor
+  silently held the last frame, which this contract does not allow (P-05). Legacy
+  (`DollClip.frame_at` in `poc/layered_film.py`).
+- **TIME-8a Loops.** Reusable `motion` assets (doll clips, set loops: 121 frames at 24 fps)
+  play ping-pong under boards of any length: board frame *n* shows source frame
+  `pingpong(n + phase, N)`, with period `2N - 2` and the phase from
+  [section 4](#4-cache-clocks-and-invalidation). They are never "short". Legacy
+  (`pingpong()` in `poc/layered_film.py`, which indexed by film frame).
 - **TIME-9 Speech-to-video request.** Each on-screen speaker gets a drive track of exactly
   `F / 24` seconds: her lines at their offsets, silence elsewhere. Requested length
-  `L = 4 * ceil(F / 6) + 1` (that is, `F / 24 * 16` source frames rounded up to `4k + 1`);
-  if `L > 77`, `L = 77 * ceil(L / 77)`.
+  `L = 4 * ceil(F / 6) + 1` (that is, the `F / 24 * 16` source frames rounded up to a
+  multiple of 4, plus 1; the formula is normative); if `L > 77`, `L = 77 * ceil(L / 77)`.
   `L` must be at least the frames TIME-8 needs. Legacy (`poc/s2v.py` with pad 0, as the
   layered S2V film used it).
-- **TIME-10 Sound cues.** A cue's resolved start lies in `[0, board length)`; its sound may
-  run past the cut and is cut at film end, and both are recorded. Legacy (`edit.audio`).
+- **TIME-10 Cues.** A cue's resolved start lies in `[0, board length)`
+  (`cue.out_of_range`); on an untimed board the check runs at `queue_run`. A sound may run
+  past the cut and is cut at film end; both are recorded. Legacy (`edit.audio`).
 - **TIME-11 Conservation.** Sum of board frames = film frames = decoded master frames;
   master duration = frames / 24; mix length = frames x 2000 samples; every line ends at
   or before `content_ms - tail_ms` of its own board. Any mismatch fails the run.
@@ -371,7 +385,7 @@ toolchain digest (P-07).
 | Keyed and decal frames | source | clip, key thresholds, protect boxes, still, decal box, decal version (Legacy `DollClip.cache_dir`) |
 | Board picture segment | board | method, layout preset values, cast stills, clip and keyed hashes, phases, motion style, voice envelope when any line is spoken, move and camera cues, frames, frame size, fps, foreground edge, compositor digest, encoder settings |
 | Film picture | film | ordered segment hashes |
-| Mix | film | ordered voice tracks with `F[k]`, sound cues resolved to samples (sound hash, trim, gain), beds, line RMS, loudness target, mixer digest |
+| Mix | film | ordered voice tracks with `F[k]`, sound cues resolved to samples (sound hash, trim, level), beds, line RMS, loudness target, mixer digest (including its fades) |
 | Master / proxy | film | picture + mix + mux settings / master + proxy profile |
 | Check result | none | artifact hash, check version, thresholds |
 
@@ -382,9 +396,9 @@ expected result of the keys; tests in story [380](https://work.haynesnetwork.com
 
 | Edit | Pre-build assets | Board *k* picture | Other boards' pictures | Film picture, mix, master, proxy |
 |---|---|---|---|---|
-| Line text, line added or removed | new voice version; TTS only for changed takes | S2V clip of that speaker; all S2V clips if frames change; segment | reused | rebuilt |
-| Line speaker | takes of that line | S2V clips of old and new speaker; segment | reused | rebuilt |
-| Lead or gap | new voice version, no TTS | all S2V clips on *k* (offsets move); segment | reused | rebuilt |
+| Line text, line added or removed | new voice version; TTS only for changed takes | every S2V clip whose drive track changes: the edited line's speaker, plus every speaker with a later line when a take's duration changes; all S2V clips if frames change; segment | reused | rebuilt |
+| Line speaker | takes of that line | S2V clips of old and new speaker, plus every speaker with a later line when the new take's duration differs; all if frames change; segment | reused | rebuilt |
+| Lead or gap | new voice version, no TTS | S2V clips of every speaker with a line after the edited point (a lead edit moves all); segment | reused | rebuilt |
 | Tail | none | only if frames change: S2V clips and segment | reused | rebuilt if frames change, else mix only |
 | Hold (silent board) | none | segment; I2V clips reused while they cover the frames | reused | rebuilt |
 | Reorder boards | none | reused | reused | rebuilt (film offsets move) |
@@ -395,7 +409,7 @@ expected result of the keys; tests in story [380](https://work.haynesnetwork.com
 | Board photo version | none | whole-frame: I2V clip and segment; layered: reused (see Q-03) | reused | rebuilt |
 | Layout preset values | none | segments of boards using it | same | rebuilt |
 | Move or camera cue | none | segment | reused | rebuilt |
-| Sound cue, bed, gain, loudness target | none | reused | reused | mix, master, proxy only |
+| Sound cue, bed, level, loudness target | none | reused | reused | mix, master, proxy only |
 | Note or title | none | reused | reused | reused (the snapshot differs; artifacts do not) |
 | Story motion style | none | every segment with bounce | every segment with bounce | rebuilt |
 | A cast slot's voice | every take of that speaker | per board as "line text" | same | rebuilt |
@@ -468,13 +482,18 @@ Cue types (P-09):
 
 | Type | Where | Fields |
 |---|---|---|
-| `sound` | board | `asset_version_id` (kind `sound`), `anchor`, `trim_ms [from, to]`, `gain_db` |
+| `sound` | board | `asset_version_id` (kind `sound`), `anchor`, `trim_ms [from, to]`, `level_rms_dbfs` (target RMS after trim, Legacy `edit.audio`) |
 | `move` | board | `slot`, `anchor`, `duration_ms` (0 = instant), `dx_px`, `dy_px`, `angle_deg`, `steps` (legacy 3 held steps) |
 | `camera` | board | `anchor`, `duration_ms`, `zoom_from`, `zoom_to`, `center_px [x, y]`, `easing` (`ease_out_cubic`) |
-| `bed` | story | `asset_version_id`, `gain_db`, `clock: film`; looped with 1 s crossfades (Legacy) |
+| `bed` | story | `asset_version_id`, `level_rms_dbfs`, `clock: film` |
 
+- Mixer behaviour is part of the mixer's version (a cache input), Legacy `edit.audio`:
+  sound cues fade in over 10 ms and out over 50 ms; a bed loops with 1 s crossfades and
+  fades in over 0.5 s; lines fade 5 ms at each edge.
 - An anchor is `{at_ms}` from board start, or `{after_line_id, offset_ms}`; the line must
-  be on the same board (`cue.anchor_line_missing`). Legacy line indexes become line IDs
+  be on the same board (`cue.anchor_line_missing`), and the resolved start must lie inside
+  the board (`cue.out_of_range`, TIME-10). A `move` names a slot placed on the board
+  (`cue.slot_not_on_board`). Legacy line indexes become line IDs
   on import. Moves add up in order, as in Legacy `edit.motion`.
 - An unknown type is rejected, never ignored (`cue.type_unknown`). A note carrying cue
   fields is rejected (`note.text_only`).
@@ -507,7 +526,7 @@ An upload without the external marker, agent, model or prompt fails
 
 ### Licences
 
-Every asset version and every run engine has a `licence` object, even when unchecked
+Every asset version, every run engine and every engine file has a `licence` object, even when unchecked
 (`prov.licence_missing`): `name` (SPDX or vendor), `url`, `commercial_use` (`allowed`,
 `noncommercial` or `unknown`), `attribution_required`, `checked_at`, `checked_by`, `note`.
 A licence moves from `unknown` to a checked value by an appended record; content and
@@ -522,13 +541,15 @@ The S2V model files from haynes-ops PR 4625 are Apache-2.0; the lightning LoRA's
 
 - `toolchain`: studio commit, image digests, Python version, ffmpeg version and build,
   adapter versions.
-- `engines[]`: `role`, `name`, `files_sha256`, `profile`, `hardware`, `licence_ref`.
+- `engines[]`: `key`, `role`, `name`, `files[]` (each `name`, `sha256`, `licence`),
+  `licence` (the most restrictive of its files), `profile`, `hardware`.
 - `inputs_externally_generated`: asset versions with the D42 marker, for the E9
   disclosure check.
 - `usage`: frontier tokens recorded per production (D8, D40); `null` means unknown,
   never zero.
-- `public`: `ai_generated: true` always (D43) and `credits`, derived only from engines with
-  role `video`, `voice` or `sound` plus the hardware they ran on (D44: "the local video and
+- `public`: `ai_generated: true` always (D43) and `credits[]` of `{engine_key, text}`,
+  where each `engine_key` names an engine with role `video`, `voice` or `sound` and the
+  text names it and the hardware it ran on (D44: "the local video and
   voice models and the 3090s"). Image, writer and composite engines, and people, never
   appear (`credit.outside_video_sound`); they stay in private provenance (review C3).
 
@@ -541,13 +562,17 @@ nothing silently repoints a lost hash.
 
 ### Runs (D30)
 
-- `queue_run` takes the story's `revision` and an `Idempotency-Key`. Preconditions:
+- `queue_run` takes the story's `revision` (stale: `conflict.revision`) and an
+  `Idempotency-Key`. Preconditions:
   every spoken board has a current voice (`voice.absent`, `voice.stale`); every
   whole-frame board has a current photo (`photo.absent`); no board method is invalid or
   unavailable; no voice or photo job is in flight for an included board
   (`asset.generating`).
-- The snapshot is the story and its boards by value plus every resolved asset version's
-  hash, stored as a canonical-JSON blob ([run-snapshot.json](examples/valid/run-snapshot.json);
+- The snapshot is the story and its boards by value plus every resolved asset version,
+  pinned by content hash, or by `definition_signature` for definition-only versions
+  (`voice`), or by `input_signature` and take hashes for `board_voice` versions. It holds
+  no run ID or time, so the same draft always gives the same hash. It is stored as a
+  canonical-JSON blob ([run-snapshot.json](examples/valid/run-snapshot.json);
   the file is pretty-printed, its hash is over the canonical form). The run row stores the
   blob's `sha256`. Draft edits never change a queued, running or finished run.
 - States: `queued` (with `wait_reason`: `lease_busy`, `gpu_unavailable` when talosw01 is
@@ -558,7 +583,8 @@ nothing silently repoints a lost hash.
   Terminal states are immutable. Every transition records time, actor and reason.
 - An estimate comes back on queue, with a range, its basis and `uncertain: true` (D27).
 - Check overrides (for example a decal min-ECC below 0.8 that looks right by eye, as in
-  E0) are recorded per artifact with actor and reason, never silently
+  E0) go through `record_check_override` and are recorded per artifact with actor and
+  reason, never silently; release checks cannot be overridden
   ([findings-layered.md](../../titles/the-winter-menu/video-e0/findings-layered.md)).
 
 ### Deliveries
@@ -585,7 +611,7 @@ library folder (P-11):
 <root>/.probe/
 ```
 
-`ext` is one of `mp4`, `wav`, `png`, `jpg`, `json`, chosen from the validated media type.
+`ext` is one of `mp4`, `wav`, `png`, `jpg`, `webp`, `json`, chosen from the validated media type.
 A locator is the relative path; anything else, including `..` or an absolute path, fails
 (`store.locator_invalid`). Duplicate bytes in two production folders are allowed.
 
@@ -628,7 +654,8 @@ out of scope for E1 to E3 (P-11). The Wan PVC (`ai/wan-video`) ledger and
 
 - **Asset** (`ast_`): `kind`, `name`, `labels`, `attributes` (for example
   `character_slot`, `expression`), `scope` (`production_id`, or null for the global
-  library). Labels are mutable metadata on the asset (D16).
+  library). The library is scoped by labels (D16); labels are mutable metadata on the
+  asset, outside version content (P-21).
 - **Asset version** (`asv_`): `asset_id`, `number` (1, 2, ... per asset), `content`
   (`sha256`, `bytes`, `media_type`, size, `locator`, or null for definition-only kinds),
   `provenance`, `licence`, `capabilities`, `state`. Content, provenance and capabilities
@@ -652,8 +679,9 @@ out of scope for E1 to E3 (P-11). The Wan PVC (`ai/wan-video`) ledger and
 
 ## 10. Pre-build voice policy (D33)
 
-- **VOICE-1** Voices are stock TTS voices only: Kokoro-82M v1.0 stock IDs today. No
-  cloning and no real person's voice (AGENTS.md; `voice.not_stock`). Each cast slot names
+- **VOICE-1** Voices are stock TTS voices only, Kokoro-82M v1.0 stock IDs today (P-22;
+  `voice.not_stock`). AGENTS.md forbids a real person's voice, and story 405 excludes
+  cloning; stock-only is this contract's way to guarantee both. Each cast slot names
   a `voice` asset version; narrator lines use the story's narrator voice. Speakers are
   cast slots, or `narrator` on a board whose style is narrator
   (`voice.speaker_not_in_cast`).
@@ -688,15 +716,18 @@ does. Example: [`go-live-approval.json`](examples/valid/go-live-approval.json).
   `run_snapshot_sha256`, `delivery_id`, `master_sha256`. It never moves to another run
   (`approval.not_exact_run`), and an older finished run stays approvable after the draft
   changes (review M4).
-- The approver is a human OIDC principal `(iss, sub)` on the go-live allowlist: Tom (D29,
-  D20). Agent keys never approve (`approval.approver_not_permitted`). The allowlist lives
+- The approver is a human OIDC principal `(iss, sub)` on the go-live allowlist: Tom
+  (D29). Agent keys never approve (`approval.approver_not_permitted`). The allowlist lives
   in deployment configuration in haynes-ops (P-13). Approving needs a sign-in no older
   than 15 minutes (`auth_time`), otherwise the user signs in again (P-13).
-- Preconditions: run `succeeded`, delivery verified, release checks recorded with the
+- Preconditions: run `succeeded` (whether an `imported` legacy run qualifies is Held
+  **Q-04**), delivery verified, release checks recorded with the
   approval (AI label on the platform setting and the description line, D43; rights;
   licences per Q-01; D44 credits).
-- An approval is never edited. Withdrawal is a new state with a time. Approval publishes
-  nothing; a publication is recorded separately after Tom's manual upload (D43).
+- An approval is never edited. A withdrawal and each publication are appended records that
+  point at it; the approval's `derived.state` (`active`, `withdrawn`) is computed from
+  them. Approval publishes nothing; a publication is recorded after Tom's manual upload
+  (D43).
 
 ## 12. API, UI and MCP boundaries
 
@@ -711,7 +742,8 @@ does. Example: [`go-live-approval.json`](examples/valid/go-live-approval.json).
   selections persist through the API (D32).
 - **MCP server** is a separate process that calls studio-api with the agent's key. It
   returns compact JSON and no media bytes by default. It has no approval, publication,
-  deletion, shell or raw-graph tool.
+  shell or raw-graph tool, and nothing that deletes media, asset versions or runs.
+  Tombstoning a draft board is an ordinary draft edit (`studio_remove_board`).
 - **Workers** (render, voice, photo) claim, heartbeat and complete work through internal
   studio-api endpoints with a worker credential (P-14). Rejected: direct Postgres access
   for workers, which puts a second authorization point next to the API.
@@ -733,8 +765,11 @@ does. Example: [`go-live-approval.json`](examples/valid/go-live-approval.json).
   `unauthenticated` (401), `not_found` (404) or `too_large` (413)
   ([example](examples/valid/error-method-unavailable.json)).
 - D42 upload: raw `image/png`, `image/jpeg` or `image/webp` bytes up to 20 MiB and
-  4096x4096 px, decoded by the server (undecodable fails), hashed by the server, with
-  provenance JSON; never a URL to fetch (P-16).
+  4096x4096 px, with provenance JSON; never a URL to fetch. The server reads the
+  dimensions from the header before decoding (oversize fails without a full decode),
+  decodes the image (undecodable fails), strips metadata (EXIF, GPS, XMP) and stores the
+  stripped bytes; `sha256` is over the stored bytes and the upload's own hash goes into
+  provenance (P-16).
 - Lists page by cursor.
 
 ### Scopes (P-17)
@@ -791,6 +826,7 @@ Paths are under `/v1`. MCP tool names replace the old `patch_shot` and
 | `get_run` (status, progress, stages, checks) | `GET /runs/{id}` | `studio_get_run` | read | 410, 430 |
 | `cancel_run` | `POST /runs/{id}/cancel` | `studio_cancel_run` | runs:queue | 410 |
 | `compare_runs` (boards matched by stable ID) | `GET /runs/compare?left=&right=` | | read | 419 |
+| `record_check_override` (with a reason; never a release check) | `POST /runs/{id}/checks/{check}/overrides` | `studio_override_check` | runs:queue | 410, [450](https://work.haynesnetwork.com/work_packages/450) |
 | `get_delivery` | `GET /runs/{id}/delivery` | `studio_get_delivery` | read | 381, 409 |
 | `approve_go_live` | `POST /runs/{id}/go-live-approvals` | | go_live:approve | 412 |
 | `withdraw_go_live` | `POST /go-live-approvals/{id}/withdraw` | | go_live:approve | 412 |
@@ -858,11 +894,12 @@ What story 424 implements. Proposal P-19 for the names and commands.
 | Code | Status | Section | Invalid example |
 |---|---|---|---|
 | `schema.unsupported` | invalid | 2 | [schema-unsupported](examples/invalid/schema-unsupported.json) |
-| `schema.unknown_field` | invalid | 2 | |
+| `schema.unknown_field` | invalid | 2 | [schema-unknown-field](examples/invalid/schema-unknown-field.json) |
 | `id.malformed` | invalid | 2 | [id-malformed](examples/invalid/id-malformed.json) |
 | `id.type_mismatch` | invalid | 2 | [id-type-mismatch](examples/invalid/id-type-mismatch.json) |
 | `time.hold_on_spoken_board` | invalid | 3 | [time-hold-on-spoken-board](examples/invalid/time-hold-on-spoken-board.json) |
-| `time.hold_not_positive` | invalid | 3 | [time-hold-not-positive](examples/invalid/time-hold-not-positive.json) |
+| `time.hold_out_of_range` | invalid | 3 | [time-hold-out-of-range](examples/invalid/time-hold-out-of-range.json) |
+| `time.negative` | invalid | 3 | [time-negative](examples/invalid/time-negative.json) |
 | `time.tail_too_short` | invalid | 3 | [time-tail-too-short](examples/invalid/time-tail-too-short.json) |
 | `time.not_integer_ms` | invalid | 3 | [time-not-integer-ms](examples/invalid/time-not-integer-ms.json) |
 | `time.duration_is_derived` | invalid | 3 | [time-duration-is-derived](examples/invalid/time-duration-is-derived.json) |
@@ -873,10 +910,12 @@ What story 424 implements. Proposal P-19 for the names and commands.
 | `method.s2v_needs_line` | invalid | 5 | [method-s2v-needs-line](examples/invalid/method-s2v-needs-line.json) |
 | `method.s2v_needs_onscreen_speaker` | invalid | 5 | [method-s2v-needs-onscreen-speaker](examples/invalid/method-s2v-needs-onscreen-speaker.json) |
 | `method.layered_needs_cast` | invalid | 5 | [method-layered-needs-cast](examples/invalid/method-layered-needs-cast.json) |
-| `method.unavailable` | unavailable | 5 | [method-whole-frame-s2v-unavailable](examples/invalid/method-whole-frame-s2v-unavailable.json) |
+| `method.unavailable` | unavailable (at `queue_run`) | 5 | [method-whole-frame-s2v-unavailable](examples/invalid/method-whole-frame-s2v-unavailable.json) |
 | `asset.capability_mismatch` | invalid | 5, 9 | |
 | `cue.type_unknown` | invalid | 6 | [cue-type-unknown](examples/invalid/cue-type-unknown.json) |
 | `cue.anchor_line_missing` | invalid | 6 | [cue-anchor-line-missing](examples/invalid/cue-anchor-line-missing.json) |
+| `cue.out_of_range` | invalid | 3, 6 | [cue-out-of-range](examples/invalid/cue-out-of-range.json) |
+| `cue.slot_not_on_board` | invalid | 6 | [cue-slot-not-on-board](examples/invalid/cue-slot-not-on-board.json) |
 | `note.text_only` | invalid | 6 | [note-text-only](examples/invalid/note-text-only.json) |
 | `prov.external_incomplete` | invalid | 7 | [prov-external-unmarked](examples/invalid/prov-external-unmarked.json) |
 | `prov.licence_missing` | invalid | 7 | [prov-licence-missing](examples/invalid/prov-licence-missing.json) |
@@ -903,7 +942,9 @@ None blocks this document, story 378 or story 404. Each names the fields it affe
 `unknown` or `noncommercial`. (b) Block `unknown`; warn on `noncommercial`. (c) Record
 only. **Recommendation: (a).** Build is never blocked either way (D29); the channel's
 monetization is undecided, and a wrong publication is costly to undo. Tom can relax it
-per licence once terms are checked.
+per licence once terms are checked. Under (a) today, the S2V engine stays blocked until
+the lightning LoRA's terms are recorded, and Kokoro, Stable Audio and TI2V until theirs
+are.
 
 **Q-02 May agent keys queue builds?** Affects the `runs:queue` scope and
 `studio_queue_run` (stories 429, 430,
@@ -925,6 +966,16 @@ own layers (as `poc/keyframes.py` made E0 keyframes); prompt photos only for who
 **Recommendation: (a) now, with (c) as a cheap follow-up**, so what Tom judges on the
 storyboard (D26) matches what is built.
 
+**Q-04 Can an imported legacy run go live?** Affects the go-live preconditions
+([section 11](#11-go-live-approval-identity-boundary-only)) and story 412. Candidates
+are the r4 cut, which D1 signed off before go-live was defined (D29), and the E0 layered
+S2V delivery Tom praised (D24). Their provenance is partly free text. (a) Only canonical
+`succeeded` runs; rebuild through E1 first. (b) Imported runs with a verified master hash,
+once the importer has turned their provenance into structured engines with licences;
+the same release checks apply, and D1 is not itself a go-live approval. (c) The r4 cut
+only. **Recommendation: (b).** It lets a finished, already-reviewed cut be the first
+release without a rebuild, while keeping the D43 label, D44 credits and Q-01 checks.
+
 ## 17. Proposals
 
 | ID | Choice | Rejected alternative |
@@ -944,11 +995,13 @@ storyboard (D26) matches what is built.
 | P-13 | Go-live allowlist of `(iss, sub)` in haynes-ops config; 15-minute sign-in freshness | Authentik group claim |
 | P-14 | Workers use internal API endpoints | workers on Postgres directly |
 | P-15 | OIDC confidential client in studio-api; Postgres session; `__Host-` cookie; CSRF header | tokens in the browser |
-| P-16 | Upload limits 20 MiB, 4096x4096 px, PNG, JPEG or WebP, decoded server-side | URL fetch |
+| P-16 | Upload limits 20 MiB, 4096x4096 px, PNG, JPEG or WebP; header check before decode; metadata stripped | URL fetch; storing uploads as received |
 | P-17 | Scopes `read`, `draft:write`, `assets:generate`, `assets:upload`, `runs:queue` per production | one all-powerful key |
 | P-18 | The stack in section 13 | as listed there |
 | P-19 | Test suites, markers and commands in section 14 | per-story ad hoc suites |
 | P-20 | `video` media kind 1920x1080 at 24 fps | 25 or 30 fps |
+| P-21 | Labels are mutable asset metadata, outside version content | labels inside immutable versions |
+| P-22 | Stock TTS voices only | any voice without a real-person check |
 
 ## 18. Decisions and dissent
 

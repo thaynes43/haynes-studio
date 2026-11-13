@@ -2,6 +2,7 @@
   "schema": "studio.invalid-case/v1",
   "rule": "method.layered_needs_cast",
   "expect": "invalid",
+  "context": "write",
   "path": "/cast",
   "why": "A layered board composites cast layers over the set; with no cast use whole_frame + i2v.",
   "document": {
@@ -51,7 +52,7 @@
           550,
           2600
         ],
-        "gain_db": -22
+        "level_rms_dbfs": -22
       },
       {
         "id": "cue_01M79V9FC00000000000000002",

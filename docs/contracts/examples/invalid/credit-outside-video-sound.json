@@ -2,20 +2,21 @@
   "schema": "studio.invalid-case/v1",
   "rule": "credit.outside_video_sound",
   "expect": "invalid",
-  "path": "/provenance/public/credits/3",
+  "context": "write",
+  "path": "/provenance/public/credits/4",
   "why": "Public credits name only what generated the video and sound (D44).",
   "document": {
     "schema": "studio.run/v1",
-    "id": "run_01M79V9FC00000000000000002",
+    "id": "run_01M79V9FC00000000000000001",
     "story_id": "sty_01M79V9FC00000000000000001",
-    "number": 2,
+    "number": 1,
     "status": "succeeded",
     "wait_reason": null,
     "snapshot": {
-      "sha256": "cce17f7dfa2537b9f34f157c478af281f380197e9b770aa608bc426c3ea4c072",
+      "sha256": "d90c2dcf834137defa9e4023fbcc0b9fbc4822f2b84e0eabf05ae6bca2c5661e",
       "story_revision": 1,
       "board_count": 9,
-      "locator": "productions/prd_01M79V9FC00000000000000001/sha256/cc/cce17f7dfa2537b9f34f157c478af281f380197e9b770aa608bc426c3ea4c072.json"
+      "locator": "productions/prd_01M79V9FC00000000000000001/sha256/d9/d90c2dcf834137defa9e4023fbcc0b9fbc4822f2b84e0eabf05ae6bca2c5661e.json"
     },
     "queued_by": {
       "kind": "human",
@@ -335,9 +336,8 @@
         "threshold": 0.8,
         "override": {
           "by": {
-            "kind": "human",
-            "iss": "https://authentik.example.invalid/application/o/haynes-studio/",
-            "sub": "example-subject-tom"
+            "kind": "agent",
+            "key_id": "key_01M79V9FC00000000000000002"
           },
           "reason": "Lettering stays on the jacket by eye; low score from creasing (findings-s2v.md)."
         }
@@ -360,13 +360,72 @@
       },
       "engines": [
         {
+          "key": "wan-s2v",
           "role": "video",
           "name": "Wan2.2 S2V-14B fp8 with wav2vec2 and the lightx2v 4-step LoRA",
-          "files_sha256": [
-            "<wan2.2_s2v_14B_fp8_scaled>",
-            "<wav2vec2_large_english_fp16>",
-            "<lightx2v LoRA>"
+          "files": [
+            {
+              "name": "wan2.2_s2v_14B_fp8_scaled",
+              "sha256": "<pinned in haynes-ops>",
+              "licence": {
+                "name": "Apache-2.0",
+                "url": "https://www.apache.org/licenses/LICENSE-2.0",
+                "commercial_use": "allowed",
+                "attribution_required": false,
+                "checked_at": "2026-11-03T00:00:00Z",
+                "checked_by": "haynes-ops PR 4625 model manifest",
+                "note": null
+              }
+            },
+            {
+              "name": "wav2vec2_large_english_fp16",
+              "sha256": "<pinned in haynes-ops>",
+              "licence": {
+                "name": "Apache-2.0",
+                "url": "https://www.apache.org/licenses/LICENSE-2.0",
+                "commercial_use": "allowed",
+                "attribution_required": false,
+                "checked_at": "2026-11-03T00:00:00Z",
+                "checked_by": "haynes-ops PR 4625 model manifest",
+                "note": null
+              }
+            },
+            {
+              "name": "wan_2.1_vae",
+              "sha256": "<pinned in haynes-ops>",
+              "licence": {
+                "name": "Apache-2.0",
+                "url": "https://www.apache.org/licenses/LICENSE-2.0",
+                "commercial_use": "allowed",
+                "attribution_required": false,
+                "checked_at": "2026-11-03T00:00:00Z",
+                "checked_by": "haynes-ops PR 4625 model manifest",
+                "note": null
+              }
+            },
+            {
+              "name": "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise",
+              "sha256": "<pinned in haynes-ops>",
+              "licence": {
+                "name": null,
+                "url": null,
+                "commercial_use": "unknown",
+                "attribution_required": null,
+                "checked_at": null,
+                "checked_by": null,
+                "note": "Added by haynes-ops PR 4634; terms not recorded here."
+              }
+            }
           ],
+          "licence": {
+            "name": null,
+            "url": null,
+            "commercial_use": "unknown",
+            "attribution_required": null,
+            "checked_at": null,
+            "checked_by": null,
+            "note": "Effective licence: the most restrictive of its files (the LoRA is unknown)."
+          },
           "profile": {
             "steps": 4,
             "cfg": 1.0,
@@ -375,15 +434,36 @@
             "height": 1024,
             "chunk_frames": 77
           },
-          "hardware": "RTX 3090 on talosw01",
-          "licence_ref": "Apache-2.0 (haynes-ops PR 4625)"
+          "hardware": "RTX 3090 on talosw01"
         },
         {
+          "key": "wan-ti2v",
           "role": "video",
           "name": "Wan2.2 TI2V-5B",
-          "files_sha256": [
-            "<wan2.2_ti2v_5B>"
+          "files": [
+            {
+              "name": "wan2.2_ti2v_5B",
+              "sha256": "<pinned in haynes-ops>",
+              "licence": {
+                "name": null,
+                "url": null,
+                "commercial_use": "unknown",
+                "attribution_required": null,
+                "checked_at": null,
+                "checked_by": null,
+                "note": "Terms not yet checked (proposal 0003, Requirements: licences)."
+              }
+            }
           ],
+          "licence": {
+            "name": null,
+            "url": null,
+            "commercial_use": "unknown",
+            "attribution_required": null,
+            "checked_at": null,
+            "checked_by": null,
+            "note": "Terms not yet checked (proposal 0003, Requirements: licences)."
+          },
           "profile": {
             "steps": 20,
             "cfg": 5,
@@ -393,41 +473,92 @@
           "hardware": "2x RTX 3090 on talosw01"
         },
         {
+          "key": "kokoro",
           "role": "voice",
           "name": "Kokoro-82M v1.0 stock voices",
+          "licence": {
+            "name": null,
+            "url": null,
+            "commercial_use": "unknown",
+            "attribution_required": null,
+            "checked_at": null,
+            "checked_by": null,
+            "note": "Terms not yet checked (proposal 0003, Requirements: licences)."
+          },
           "hardware": "ai/deploy/kokoro"
         },
         {
+          "key": "stable-audio",
           "role": "sound",
           "name": "Stable Audio 3 Small SFX",
+          "licence": {
+            "name": null,
+            "url": null,
+            "commercial_use": "unknown",
+            "attribution_required": null,
+            "checked_at": null,
+            "checked_by": null,
+            "note": "Terms not yet checked (proposal 0003, Requirements: licences)."
+          },
           "hardware": "CPU"
         },
         {
+          "key": "qwen-image",
           "role": "image",
           "name": "Qwen-Image 2.1 int8 (qwen_image_2.1_int8_convrot), text encoder qwen3vl_8b_int8_convrot, VAE qwen_image_2.1_vae_bf16",
-          "hardware": "RTX 2000 Ada (talosm03)",
-          "public": false
+          "licence": {
+            "name": null,
+            "url": null,
+            "commercial_use": "unknown",
+            "attribution_required": null,
+            "checked_at": null,
+            "checked_by": null,
+            "note": "Terms not yet checked (proposal 0003, Requirements: licences)."
+          },
+          "hardware": "RTX 2000 Ada (talosm03)"
         },
         {
+          "key": "writer",
           "role": "writer",
           "name": "frontier agent via dev-env v2",
-          "public": false
+          "licence": null,
+          "hardware": null
         }
       ],
       "inputs_externally_generated": [],
       "public": {
         "ai_generated": true,
         "credits": [
-          "Video: Wan2.2 S2V-14B and Wan2.2 TI2V-5B on RTX 3090s",
-          "Voices: Kokoro-82M",
-          "Sound effects: Stable Audio 3 Small",
-          "Reference photos: Qwen-Image 2.1"
+          {
+            "engine_key": "wan-s2v",
+            "text": "Video: Wan2.2 S2V-14B on an RTX 3090"
+          },
+          {
+            "engine_key": "wan-ti2v",
+            "text": "Video: Wan2.2 TI2V-5B on two RTX 3090s"
+          },
+          {
+            "engine_key": "kokoro",
+            "text": "Voices: Kokoro-82M"
+          },
+          {
+            "engine_key": "stable-audio",
+            "text": "Sound effects: Stable Audio 3 Small"
+          },
+          {
+            "engine_key": "qwen-image",
+            "text": "Reference photos: Qwen-Image 2.1"
+          }
         ],
         "derived_from_roles": [
           "video",
           "voice",
           "sound"
         ]
+      },
+      "usage": {
+        "frontier_tokens": null,
+        "basis": "not metered"
       }
     },
     "delivery_id": "dlv_01M79V9FC00000000000000001",

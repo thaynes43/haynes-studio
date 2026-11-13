@@ -1,7 +1,7 @@
 {
   "schema": "studio.delivery/v1",
   "id": "dlv_01M79V9FC00000000000000001",
-  "run_id": "run_01M79V9FC00000000000000002",
+  "run_id": "run_01M79V9FC00000000000000001",
   "created_at": "2026-11-13T09:20:00Z",
   "store": {
     "adapter": "nfs",
