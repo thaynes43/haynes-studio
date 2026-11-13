@@ -91,3 +91,14 @@ def test_the_check_key_carries_the_targets_and_the_films_length():
     assert sc.check_key("mix.loudness", "a" * 64, other.document) != loud
     length = sc.check_key("mix.length", "a" * 64, key(frames=FRAMES + 1).document)
     assert length.document["thresholds"]["samples"] == (FRAMES + 1) * 2000
+
+
+def test_a_peak_in_the_last_50_ms_fails_the_true_peak_check():
+    """The meter reports every 100 ms; the true peak must still see the film's end."""
+    k, _ = fixture_mix()
+    quiet = np.stack([noise(FRAMES * 2000, 0.05, 7), noise(FRAMES * 2000, 0.05, 8)], 1)
+    spiked = quiet.copy()
+    spiked[-100:] = 0.9  # the last 2 ms
+    for samples, passes in ((quiet, True), (spiked, False)):
+        found = results(k, "a" * 64, write_wav24(samples), "mix")
+        assert found["mix.true_peak"]["passed"] is passes, found["mix.true_peak"]

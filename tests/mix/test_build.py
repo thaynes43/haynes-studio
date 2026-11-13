@@ -158,7 +158,7 @@ def test_a_missing_sound_fails_without_a_master(store):
     with pytest.raises(StoreError) as error:
         build.plan(content=build.sound)
     assert error.value.code == BLOB_MISSING
-    assert stages(store, MIX) == stages(store, MASTER) == []
+    assert stages(store, MIX) == stages(store, MASTER) == stages(store, "mix_placement") == []
 
 
 def test_a_builder_refuses_a_key_for_another_mixer_or_mux(store):

@@ -76,7 +76,7 @@ any number is a new mix (section 4: "mixer digest, including its fades").
 | 11 | Bed fade in, linear | 0.5 s = 24 000 | section 6 |
 | 12 | Headroom: if the peak is over 0.5, the whole mix is scaled to a peak of 0.5 | | legacy premaster step |
 | 13 | Loudness: integrated loudness measured (libavfilter `ebur128`, BS.1770 gated), then `volume` by `master_lufs - measured` dB | -20 LUFS on every r4 story; a silent programme gets 0 dB | VOICE-7, legacy `levels` |
-| 14 | Limiter: `alimiter`, limit `10^((true_peak_dbtp - 1) / 20)` to 4 decimals, attack 2 ms, release 60 ms, no auto-level, delay compensated (`latency=1`) | r4: limit 0.5957 for -3.5 dBTP | VOICE-7, legacy `audio` (latency: proposal) |
+| 14 | Limiter: `alimiter`, limit `10^((true_peak_dbtp - 1) / 20)` to 4 decimals, attack 2 ms, release 60 ms, no auto-level, delay compensated (`latency=1`) | r4: limit 0.5957 for -3.5 dBTP; a limit outside 0.0625 to 1 is refused before any filter runs | VOICE-7, legacy `audio` (latency: proposal) |
 | 15 | Output: 48 000 Hz stereo 24-bit PCM WAV of exactly `frames * 2000` samples | | TIME-11, legacy `soundtrack.wav` |
 
 The filters run in one libavfilter graph each, held to two threads. Accumulation is
@@ -156,7 +156,10 @@ Each check is a cached artifact keyed by `check_result_key(artifact, check, vers
 thresholds)`. The thresholds carry the story's targets and the film's length, so a
 result is a pure function of its key. The version is `1/<filter build>`, because
 another meter build can read a programme slightly differently; the tolerances are far
-wider than that. Results are `studio.check-result/v1` JSON (a proposal) with
+wider than that. The meter reports every 100 ms: the integrated loudness is its last
+reading (the whole gated blocks BS.1770 counts), and the true peak is read from a
+second pass with 200 ms of silence after the programme, so a peak in the film's last
+samples is seen. Results are `studio.check-result/v1` JSON (a proposal) with
 `measured` and `passed`; a failing check is data, and `FilmSound.ensure_passed()`
 raises `mix.check_failed` naming each one.
 
@@ -197,8 +200,8 @@ synthetic voice tracks, a sound cue and a bed:
 | Code | Status | When |
 |---|---|---|
 | `cue.out_of_range` | invalid | contract TIME-10: a sound starts outside its board (with the story) or the film |
-| `time.conservation` | failed | contract TIME-11: a line runs past its board or the film, the story's boards and the mix key disagree, the mix is not the picture's frames x 2000, the master does not hold them |
-| `mix.input_invalid` | failed | **proposal**: a track that is not 16-bit mono PCM, a span outside its track, a trim past a sound's end, a sound shorter than its fade out, a bed too short to loop, an undecodable input, a key for another mixer |
+| `time.conservation` | failed | contract TIME-11: a line runs past the next spoken board's start or the film's end, the story's boards and the mix key disagree, the mix is not the picture's frames x 2000, the master does not hold them. A line's end inside its own board's tail is met by construction (TIME-2, TIME-3) and not checked again here |
+| `mix.input_invalid` | failed | **proposal**: a track that is not 16-bit mono PCM, a truncated WAV, a span outside its track, a trim past a sound's end, a sound shorter than its fade out, a bed too short to loop, an undecodable input, a true-peak target whose limit is outside `alimiter`'s 0.0625 to 1 (below about -23.1 dBTP), a filter that refuses its input, a key for another mixer |
 | `mix.master_invalid` | failed | **proposal**: the master fails another of story 381's checks, or the mix is not 48 kHz stereo |
 | `mix.check_failed` | failed | **proposal**: `ensure_passed` on a failed sound check |
 
@@ -214,9 +217,15 @@ The store's and the cache's own codes pass through: `store.blob_missing`,
 - Fades shorter than a line are clipped to the line; a sound shorter than its 50 ms
   fade out and a bed of 2 s or less are refused (legacy crashed or asserted).
 - A silent programme gets no loudness gain (legacy would divide by nothing).
+- Every fade is at least 1 ms (`MixerSettings` refuses 0).
 - The mix is 24-bit PCM with no intermediate 16-bit premaster file.
-- Line levels are measured on the line's span, so up to one ms of silence after the
-  take counts (under 0.002 dB on a one-second line).
+- Line levels and fades work on the line's span. A take whose length is not a whole
+  ms is followed inside its span by up to 23 samples of the track's silence at 24 kHz
+  (46 at 48 kHz), so the level counts that silence (under 0.002 dB on a one-second
+  line) and the 5 ms fade out ends at the span's end, not the take's last sample:
+  the take's last sample is faded to at most about 0.19 rather than 0. Legacy faded each take
+  file to 0 at its own end. The mix key has the track and its spans, not the takes'
+  sample counts; adding them is story 380's key.
 - The placement record, its cache kind and its schema; the check result schema; the
   true-peak margin as `+1 dB` of the target; the movie timescale; the mux settings as
   a key input; `mix.input_invalid`, `mix.master_invalid`, `mix.check_failed`.

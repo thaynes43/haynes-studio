@@ -68,23 +68,25 @@ def test_r4_placements_match_the_recorded_timeline_within_time12():
     planned = planned_starts(document)
     lines = [a for a in recorded["audio"] if a["kind"] == "line"]
     assert len(planned["lines"]) == len(lines) == 13
-    worst = Fraction(0)
+    worst = {"start": Fraction(0), "end": Fraction(0)}
     for ours, theirs in zip(planned["lines"], lines):
         for side in ("start", "end"):
             gap = abs(seconds(ours[f"{side}_sample"]) - Fraction(str(theirs[f"{side}_s"])))
             assert gap <= TOLERANCE, (ours, theirs)
-            worst = max(worst, gap)
-    assert worst <= Fraction(667, 1_000_000)  # TIME-12: up to 0.667 ms on the Winter Menu
+            worst[side] = max(worst[side], gap)
+    # The record rounds to 3 decimals (starts within 1/3 ms) and takes line ends from
+    # the resampled audio (TIME-12: up to 0.667 ms on the Winter Menu).
+    assert worst == {"start": Fraction(1, 3000), "end": Fraction(2, 3000)}
 
     sfx = [a for a in recorded["audio"] if a["kind"] == "sfx"]
     sounds = list(document["sounds"])
     assert [s["sound"] for s in sounds] == [a["sha256"] for a in sfx]
     for ours, cue, theirs in zip(planned["sounds"], sounds, sfx):
         start = seconds(ours["start_sample"])
-        assert abs(start - Fraction(str(theirs["start_s"]))) <= TOLERANCE, theirs
+        assert abs(start - Fraction(str(theirs["start_s"]))) <= Fraction(1, 3000), theirs
         trim = cue["trim_ms"]  # every r4 sound is trimmed and ends inside the film
         end = start + Fraction(trim[1] - trim[0], 1000)
-        assert abs(end - Fraction(str(theirs["end_s"]))) <= TOLERANCE, theirs
+        assert abs(end - Fraction(str(theirs["end_s"]))) <= Fraction(1, 3000), theirs
         assert ours["start_sample"] + (trim[1] - trim[0]) * 48 <= 1087 * 2000
 
     (bed,) = [a for a in recorded["audio"] if a["kind"] == "bed"]

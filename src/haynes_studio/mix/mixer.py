@@ -53,6 +53,7 @@ Reader = Callable[[str, str], bytes]
 or raises (the store's ``store.blob_missing`` or ``store.hash_mismatch``)."""
 
 PLACEMENT_SCHEMA = "studio.mix-placement/v1"  # proposal
+LIMIT_RANGE = (0.0625, 1.0)  # alimiter's limit option: -24.1 to 0 dBFS
 
 
 @dataclass(frozen=True)
@@ -77,6 +78,13 @@ class MixerSettings:
     pcm_bits: int = 24  # legacy soundtrack.wav pcm_s24le
     resampler: str = "swr"  # libswresample defaults, as legacy read_audio
     build: str = field(default_factory=filter_build)
+
+    def __post_init__(self) -> None:
+        for name in ("line_fade_ms", "sound_fade_in_ms", "sound_fade_out_ms",
+                     "bed_crossfade_ms", "bed_fade_in_ms"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                raise ValueError(f"{name} is a whole number of ms, at least 1, got {value!r}")
 
     def samples(self, ms: int) -> int:
         return ms * self.rate // 1000
@@ -257,6 +265,10 @@ class _Mix:
         else:
             gain_db = doc["master_lufs"] - before.integrated_lufs
         limit = 10 ** ((doc["true_peak_dbtp"] - s.limiter_margin_db) / 20)
+        if not LIMIT_RANGE[0] <= float(f"{limit:.4f}") <= LIMIT_RANGE[1]:
+            raise MixError(INPUT_INVALID, f"a true-peak target of {doc['true_peak_dbtp']} dBTP "
+                           f"needs a limit of {limit:.4f}, outside the limiter's "
+                           f"{LIMIT_RANGE[0]} to {LIMIT_RANGE[1]}", where="true_peak_dbtp")
         limiter = (f"limit={limit:.4f}:attack={s.limiter_attack_ms}:release={s.limiter_release_ms}"
                    f":level=0:latency={int(s.limiter_latency)}")
         out, _ = run_filters(self.mix, s.rate, (("volume", f"{gain_db}dB"), ("alimiter", limiter)),

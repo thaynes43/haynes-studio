@@ -251,6 +251,29 @@ def test_a_missing_or_wrong_input_fails_with_the_stores_code():
     assert error.value.code == HASH_MISMATCH
 
 
+def test_a_true_peak_target_the_limiter_cannot_take_fails_before_any_filter_error():
+    blobs = Blobs()
+    k = key(tracks=[loud_line(blobs, frame=0)], frames=48, true_peak=-30)
+    with pytest.raises(MixError) as error:
+        mix(k.document, blobs.read)
+    assert (error.value.code, error.value.where) == ("mix.input_invalid", "true_peak_dbtp")
+
+
+def test_a_truncated_wav_is_an_input_error():
+    data = wav16(dc(1000, 0.1), 24_000)
+    for cut in (1, 3):
+        with pytest.raises(MixError) as error:
+            read_pcm(data[:-cut], where="track")
+        assert error.value.code == "mix.input_invalid"
+
+
+def test_fades_are_at_least_one_ms():
+    import dataclasses
+    for name in ("line_fade_ms", "sound_fade_out_ms", "bed_crossfade_ms"):
+        with pytest.raises(ValueError):
+            dataclasses.replace(MIXER, **{name: 0})
+
+
 def test_the_mixer_version_names_every_setting():
     assert MIXER.version().startswith("studio.mixer/1:")
     import dataclasses

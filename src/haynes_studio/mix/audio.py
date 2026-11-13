@@ -27,6 +27,7 @@ from haynes_studio.timebase import MIX_RATE
 THREADS = 2  # contract section 14: filters and coders at two threads
 CHUNK = 4096  # samples pushed into a graph per frame
 FULL_SCALE_24 = 8_388_607  # largest positive 24-bit PCM code
+METER_FLUSH = 9_600  # two 100 ms meter steps of silence, so the true peak sees the end
 STEREO = "stereo"
 _LAYOUTS = {1: "mono", 2: STEREO}
 
@@ -72,29 +73,35 @@ def _drain(graph: Graph, out: list[np.ndarray], last: list[Any]) -> None:
 def run_filters(samples: np.ndarray, rate: int, chain: Sequence[tuple[str, str]], *,
                 where: str) -> tuple[np.ndarray, av.AudioFrame | None]:
     """Run ``samples`` at ``rate`` through the filter ``chain`` (name, arguments), and
-    return the output as packed ``flt`` (n, channels), with the last frame pulled (for
-    a meter's metadata). The graph is held to :data:`THREADS` threads."""
+    return the output as packed ``flt`` (n, channels), with the last frame pulled
+    that carried metadata (a meter's latest reading). The graph is held to
+    :data:`THREADS` threads. A filter that refuses its arguments or its input is
+    ``mix.input_invalid``."""
     if samples.ndim != 2 or samples.shape[1] not in _LAYOUTS:
         raise MixError(INPUT_INVALID, f"audio is mono or stereo, got shape {samples.shape}",
                        where=where)
-    graph = Graph()
-    graph.threads = THREADS
-    node = graph.add_abuffer(format="flt", sample_rate=rate, layout=_LAYOUTS[samples.shape[1]],
-                             time_base=Fraction(1, rate))
-    for name, args in (*chain, ("aformat", "sample_fmts=flt")):
-        step = graph.add(name, args)
-        node.link_to(step)
-        node = step
-    sink = graph.add("abuffersink")
-    node.link_to(sink)
-    graph.configure()
     out: list[np.ndarray] = []
     last: list[Any] = []
-    for frame in _frames(samples, rate):
-        graph.push(frame)
+    try:
+        graph = Graph()
+        graph.threads = THREADS
+        node = graph.add_abuffer(format="flt", sample_rate=rate,
+                                 layout=_LAYOUTS[samples.shape[1]], time_base=Fraction(1, rate))
+        for name, args in (*chain, ("aformat", "sample_fmts=flt")):
+            step = graph.add(name, args)
+            node.link_to(step)
+            node = step
+        sink = graph.add("abuffersink")
+        node.link_to(sink)
+        graph.configure()
+        for frame in _frames(samples, rate):
+            graph.push(frame)
+            _drain(graph, out, last)
+        graph.push(None)
         _drain(graph, out, last)
-    graph.push(None)
-    _drain(graph, out, last)
+    except (av.FFmpegError, ValueError) as error:
+        raise MixError(INPUT_INVALID, f"the filters {[name for name, _ in chain]} refused: "
+                       f"{type(error).__name__}", where=where) from None
     channels = samples.shape[1] if not out else out[0].shape[1]
     result = np.concatenate(out) if out else np.zeros((0, channels), np.float32)
     return result, (last[0] if last else None)
@@ -163,6 +170,9 @@ def read_pcm(data: bytes, *, where: str) -> Pcm:
             raw = w.readframes(count)
     except (wave.Error, EOFError) as error:
         raise MixError(INPUT_INVALID, f"not a PCM WAV: {error}", where=where) from None
+    if len(raw) != count * width * channels:
+        raise MixError(INPUT_INVALID, f"the WAV holds {len(raw)} bytes of samples, its header "
+                       f"says {count * width * channels}", where=where)
     if width == 2:
         ints = np.frombuffer(raw, dtype="<i2").astype(np.int32)
         scale = 32768.0
@@ -173,9 +183,6 @@ def read_pcm(data: bytes, *, where: str) -> Pcm:
         scale = 8388608.0
     else:
         raise MixError(INPUT_INVALID, f"PCM is 16 or 24 bits, got {8 * width}", where=where)
-    if ints.size != count * channels:
-        raise MixError(INPUT_INVALID, "the WAV holds fewer samples than its header says",
-                       where=where)
     samples = (ints.astype(np.float32) / np.float32(scale)).reshape(-1, channels)
     return Pcm(rate=rate, channels=channels, width=width, samples=samples)
 
@@ -209,27 +216,32 @@ class Loudness:
     true_peak_dbtp: float | None
 
 
+def _reading(samples: np.ndarray, name: str, where: str) -> float:
+    _, last = run_filters(samples, MIX_RATE, (("ebur128", "metadata=1:peak=true"),),
+                          where=where)
+    try:
+        return float(dict(last.metadata)[name]) if last is not None else float("nan")
+    except (KeyError, ValueError):
+        raise MixError(INPUT_INVALID, "the loudness meter gave no reading", where=where) from None
+
+
 def measure(samples: np.ndarray, *, where: str) -> Loudness:
     """Integrated loudness and true peak of 48 000 Hz stereo ``samples``, by
     libavfilter's ``ebur128`` meter (ITU-R BS.1770, gated; true peak by 4x
     oversampling). Legacy read the same quantities from ``loudnorm``'s first pass
-    (``input_i``, ``input_tp``)."""
+    (``input_i``, ``input_tp``).
+
+    The meter reports on the frame that crosses each 100 ms step, so its last reading
+    covers the programme up to its last whole step: exactly the gated blocks BS.1770
+    counts, which is the integrated loudness read here. The true peak is read from a
+    second pass with :data:`METER_FLUSH` samples of silence after the programme, so it
+    covers every sample to the end (silence adds no peak)."""
     if samples.shape[0] == 0:
         return Loudness(None, None)
-    _, last = run_filters(samples, MIX_RATE, (("ebur128", "metadata=1:peak=true"),),
-                          where=where)
-    meta = {} if last is None else dict(last.metadata)
-    try:
-        integrated = float(meta["lavfi.r128.I"])
-        peak = float(meta["lavfi.r128.true_peak"])
-    except (KeyError, ValueError):
-        raise MixError(INPUT_INVALID, "the loudness meter gave no reading", where=where) from None
+    integrated = _reading(samples, "lavfi.r128.I", where)
+    flushed = np.concatenate([samples, np.zeros((METER_FLUSH, samples.shape[1]), np.float32)])
+    peak = _reading(flushed, "lavfi.r128.true_peak", where)
     lufs = integrated if math.isfinite(integrated) and integrated > -70.0 else None
     dbtp = 20 * math.log10(peak) if peak > 0 and math.isfinite(peak) else None
     return Loudness(lufs, dbtp)
 
-
-def clipped(samples: np.ndarray) -> int:
-    """Samples (per channel) at or beyond full scale, as legacy counted them on the
-    decoded master (``abs(a) >= 1``)."""
-    return int(np.count_nonzero(np.abs(samples) >= 1.0))
