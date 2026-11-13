@@ -45,6 +45,7 @@ from haynes_studio.library.model import (
     stock_voice_id,
     take_offsets,
 )
+from haynes_studio.motion.check import block_problems as motion_block_problems
 from haynes_studio.schemas import schema_violations
 
 ASSET_FILE = "studio.asset.v1.schema.json"
@@ -110,6 +111,8 @@ def _version_rules(doc: Mapping[str, Any]) -> list[Violation]:
     voice = doc.get("voice")
     if voice is not None:
         found += _board_voice(voice, scope["production_id"])
+    if doc.get("motion") is not None:
+        found += motion_block_problems(doc)  # story 457: haynes_studio.motion.check
     legacy = doc["legacy"]
     if legacy is not None and legacy["source_key"] != doc["provenance"].get("source_key"):
         found.append(_v(SCHEMA_INVALID, "/legacy/source_key",

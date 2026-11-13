@@ -12,8 +12,9 @@ Problems (codes beyond the rule index are proposals of story 382):
 - ``ref.unknown``: the library has no version with that ID (story 404's proposal).
 - ``asset.kind_mismatch``: the field needs another kind: a cast voice is a ``voice``,
   a board's voice a ``board_voice``, a sound cue or bed a ``sound``, a board cast entry
-  a ``cast``, the set a ``set``, its motion a ``motion``, a board photo a ``photo``
-  (proposal).
+  a ``cast`` and its optional motion pin a ``motion`` (story 457), the set a ``set``,
+  its motion a ``motion``, a board photo a ``photo`` (proposal). Whether a motion pin
+  is a loop of the right still is :mod:`haynes_studio.motion.resolve`'s question.
 - ``asset.capability_mismatch``: a layered board's cast entry has neither
   ``rgba_cutout`` nor ``keyed_layer`` (section 5, review M6).
 - ``asset.scope_mismatch``: a board's voice or photo version belongs to another board,
@@ -131,6 +132,9 @@ def board_references(board: Mapping[str, Any], prefix: str = "") -> list[Referen
     for i, entry in enumerate(_list(_get(board, "cast"))):
         add(pointer("cast", i, "asset_version_id"), _get(entry, "asset_version_id"), {"cast"},
             layered)
+        # Story 457: the optional pin of the still's motion loop.
+        add(pointer("cast", i, "motion_asset_version_id"), _get(entry, "motion_asset_version_id"),
+            {"motion"})
     for i, cue in enumerate(_list(_get(board, "cues"))):
         if _get(cue, "type") == "sound":
             add(pointer("cues", i, "asset_version_id"), _get(cue, "asset_version_id"), {"sound"})

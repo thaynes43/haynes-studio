@@ -169,6 +169,9 @@
         }
       },
       "additionalProperties": false
+    },
+    "motion": {
+      "$ref": "#/$defs/motion"
     }
   },
   "additionalProperties": false,
@@ -411,6 +414,32 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "motion"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {},
+      "else": {
+        "not": {
+          "required": [
+            "motion"
+          ]
+        },
+        "x-studio": {
+          "not": {
+            "message": "only a motion version has a motion block",
+            "field": "motion"
           }
         }
       }
@@ -1166,6 +1195,474 @@
           }
         }
       }
+    },
+    "motion": {
+      "type": "object",
+      "required": [
+        "use",
+        "subject",
+        "frames",
+        "fps",
+        "width",
+        "height",
+        "trim",
+        "playback",
+        "source",
+        "keys"
+      ],
+      "properties": {
+        "use": {
+          "enum": [
+            "loop",
+            "timed"
+          ]
+        },
+        "subject": {
+          "enum": [
+            "doll",
+            "set"
+          ]
+        },
+        "still_sha256": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/sha256"
+        },
+        "frames": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+        },
+        "fps": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+        },
+        "width": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+        },
+        "height": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+        },
+        "trim": {
+          "type": "object",
+          "required": [
+            "start",
+            "frames"
+          ],
+          "properties": {
+            "start": {
+              "$ref": "studio.defs.v1.schema.json#/$defs/count"
+            },
+            "frames": {
+              "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+            }
+          },
+          "additionalProperties": false
+        },
+        "playback": {
+          "type": "object",
+          "required": [
+            "loop",
+            "period",
+            "board_longer",
+            "board_shorter"
+          ],
+          "properties": {
+            "loop": {
+              "enum": [
+                "pingpong",
+                "none"
+              ]
+            },
+            "period": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+                }
+              ]
+            },
+            "board_longer": {
+              "enum": [
+                "pingpong",
+                "fail"
+              ]
+            },
+            "board_shorter": {
+              "enum": [
+                "pingpong",
+                "trim"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "source": {
+          "type": "object",
+          "required": [
+            "image_sha256",
+            "prompt",
+            "negative_prompt",
+            "seed",
+            "profile",
+            "engine_job_id"
+          ],
+          "properties": {
+            "image_sha256": {
+              "$ref": "studio.defs.v1.schema.json#/$defs/sha256"
+            },
+            "prompt": {
+              "type": "string",
+              "minLength": 1
+            },
+            "negative_prompt": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "minLength": 1
+                }
+              ]
+            },
+            "seed": {
+              "type": "integer"
+            },
+            "profile": {
+              "type": "object"
+            },
+            "adapter": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "not": {
+                "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+              },
+              "x-studio": {
+                "not": {
+                  "message": "must not contain control characters"
+                }
+              }
+            },
+            "engine_job_id": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "not": {
+                    "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+                  },
+                  "x-studio": {
+                    "not": {
+                      "message": "must not contain control characters"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "drive_track": {
+          "type": "object",
+          "required": [
+            "sha256",
+            "board_frames"
+          ],
+          "properties": {
+            "sha256": {
+              "$ref": "studio.defs.v1.schema.json#/$defs/sha256"
+            },
+            "board_frames": {
+              "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+            }
+          },
+          "additionalProperties": false
+        },
+        "keying": {
+          "type": "object",
+          "required": [
+            "keyer",
+            "key_thresholds",
+            "protect_boxes",
+            "decal_box",
+            "decal_version"
+          ],
+          "properties": {
+            "keyer": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "not": {
+                "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+              },
+              "x-studio": {
+                "not": {
+                  "message": "must not contain control characters"
+                }
+              }
+            },
+            "key_thresholds": {
+              "type": "object",
+              "minProperties": 1
+            },
+            "protect_boxes": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "minItems": 4,
+                "maxItems": 4,
+                "items": {
+                  "$ref": "studio.defs.v1.schema.json#/$defs/count"
+                }
+              }
+            },
+            "decal_box": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "array",
+                  "minItems": 4,
+                  "maxItems": 4,
+                  "items": {
+                    "$ref": "studio.defs.v1.schema.json#/$defs/count"
+                  }
+                }
+              ]
+            },
+            "decal_version": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "not": {
+                    "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+                  },
+                  "x-studio": {
+                    "not": {
+                      "message": "must not contain control characters"
+                    }
+                  }
+                }
+              ]
+            },
+            "decal_min_ecc": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "keys": {
+          "type": "object",
+          "required": [
+            "clip",
+            "identity"
+          ],
+          "properties": {
+            "clip": {
+              "$ref": "#/$defs/signature"
+            },
+            "keyed": {
+              "$ref": "#/$defs/signature"
+            },
+            "identity": {
+              "$ref": "#/$defs/signature"
+            }
+          },
+          "additionalProperties": false
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "use": {
+                "const": "loop"
+              }
+            },
+            "required": [
+              "use"
+            ]
+          },
+          "then": {
+            "properties": {
+              "fps": {
+                "const": 24,
+                "x-studio": {
+                  "const": {
+                    "message": "a loop plays one source frame per delivery frame at 24 fps (TIME-8a)"
+                  }
+                }
+              },
+              "playback": {
+                "properties": {
+                  "loop": {
+                    "const": "pingpong"
+                  },
+                  "period": {
+                    "type": "integer"
+                  },
+                  "board_longer": {
+                    "const": "pingpong"
+                  },
+                  "board_shorter": {
+                    "const": "pingpong"
+                  }
+                }
+              },
+              "trim": {
+                "properties": {
+                  "frames": {
+                    "minimum": 2
+                  }
+                }
+              }
+            },
+            "not": {
+              "required": [
+                "drive_track"
+              ]
+            },
+            "x-studio": {
+              "not": {
+                "message": "a loop belongs to no drive track (TIME-8a)",
+                "field": "drive_track"
+              }
+            }
+          },
+          "else": {
+            "required": [
+              "drive_track"
+            ],
+            "x-studio": {
+              "required": {
+                "message": "a timed clip records the drive track it was made from (TIME-8, TIME-9)",
+                "field": "drive_track"
+              }
+            },
+            "properties": {
+              "playback": {
+                "properties": {
+                  "loop": {
+                    "const": "none"
+                  },
+                  "period": {
+                    "type": "null"
+                  },
+                  "board_longer": {
+                    "const": "fail"
+                  },
+                  "board_shorter": {
+                    "const": "trim"
+                  }
+                }
+              },
+              "trim": {
+                "properties": {
+                  "start": {
+                    "const": 0,
+                    "x-studio": {
+                      "const": {
+                        "message": "board frame 0 shows source frame 0 (TIME-8)"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "subject": {
+                "const": "set"
+              }
+            },
+            "required": [
+              "subject"
+            ]
+          },
+          "then": {
+            "properties": {
+              "use": {
+                "const": "loop",
+                "x-studio": {
+                  "const": {
+                    "message": "a set clip is a set loop (TIME-8a)"
+                  }
+                }
+              }
+            },
+            "not": {
+              "required": [
+                "keying"
+              ]
+            },
+            "x-studio": {
+              "not": {
+                "message": "a set loop is an opaque plate: nothing is keyed",
+                "field": "keying"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "keying"
+            ]
+          },
+          "then": {
+            "properties": {
+              "keys": {
+                "required": [
+                  "keyed"
+                ]
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "keys": {
+                "not": {
+                  "required": [
+                    "keyed"
+                  ]
+                },
+                "x-studio": {
+                  "not": {
+                    "message": "keys.keyed needs the keying inputs",
+                    "field": "keyed"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }
