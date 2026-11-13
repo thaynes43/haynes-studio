@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://haynes-studio.invalid/schemas/studio.production.v1.schema.json",
+  "title": "studio.production/v1: a themed collection (contract section 1, D28)",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "name",
+    "revision",
+    "media_types",
+    "labels"
+  ],
+  "properties": {
+    "schema": {
+      "const": "studio.production/v1",
+      "x-studio": {
+        "const": {
+          "rule": "schema.unsupported",
+          "message": "must be studio.production/v1"
+        }
+      }
+    },
+    "id": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/prd_id"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "revision": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+    },
+    "media_types": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "kind",
+          "aspect",
+          "width",
+          "height",
+          "fps",
+          "enabled_at"
+        ],
+        "properties": {
+          "kind": {
+            "$ref": "studio.defs.v1.schema.json#/$defs/media_kind"
+          },
+          "aspect": {
+            "enum": [
+              "9:16",
+              "16:9"
+            ]
+          },
+          "width": {
+            "type": "integer"
+          },
+          "height": {
+            "type": "integer"
+          },
+          "fps": {
+            "const": 24
+          },
+          "enabled_at": {
+            "$ref": "studio.defs.v1.schema.json#/$defs/timestamp"
+          }
+        },
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "short"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "aspect": {
+                  "const": "9:16"
+                },
+                "width": {
+                  "const": 1080
+                },
+                "height": {
+                  "const": 1920
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "video"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "aspect": {
+                  "const": "16:9"
+                },
+                "width": {
+                  "const": 1920
+                },
+                "height": {
+                  "const": 1080
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "labels": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "created_at": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/timestamp"
+    },
+    "updated_at": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/timestamp"
+    },
+    "created_by": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/principal"
+    }
+  },
+  "additionalProperties": false
+}

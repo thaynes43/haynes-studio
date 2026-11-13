@@ -1,0 +1,299 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://haynes-studio.invalid/schemas/studio.story.v1.schema.json",
+  "title": "studio.story/v1: one video, its boards in order (contract section 2)",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "production_id",
+    "media_kind",
+    "title",
+    "revision",
+    "format_version_id",
+    "cast",
+    "narrator_voice_version_id",
+    "set",
+    "layouts",
+    "motion_style",
+    "mix",
+    "checks",
+    "beds",
+    "board_order",
+    "origin"
+  ],
+  "properties": {
+    "schema": {
+      "const": "studio.story/v1",
+      "x-studio": {
+        "const": {
+          "rule": "schema.unsupported",
+          "message": "must be studio.story/v1"
+        }
+      }
+    },
+    "id": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/sty_id"
+    },
+    "production_id": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/prd_id"
+    },
+    "media_kind": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/media_kind"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "revision": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+    },
+    "format_version_id": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/fmv_id_or_null"
+    },
+    "cast": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "slot",
+          "name",
+          "voice_version_id"
+        ],
+        "properties": {
+          "slot": {
+            "$ref": "studio.defs.v1.schema.json#/$defs/slot"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "voice_version_id": {
+            "$ref": "studio.defs.v1.schema.json#/$defs/asv_id"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "narrator_voice_version_id": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/asv_id_or_null"
+    },
+    "set": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "asset_version_id",
+        "motion_asset_version_id",
+        "foreground_edge_px",
+        "foreground_feather_px",
+        "legacy_fire"
+      ],
+      "properties": {
+        "asset_version_id": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/asv_id_or_null"
+        },
+        "motion_asset_version_id": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/asv_id_or_null"
+        },
+        "foreground_edge_px": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "minItems": 2,
+            "items": false
+          }
+        },
+        "foreground_feather_px": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "legacy_fire": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "layouts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object"
+      }
+    },
+    "motion_style": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "mix": {
+      "type": "object",
+      "required": [
+        "line_rms_dbfs",
+        "master_lufs",
+        "true_peak_dbtp"
+      ],
+      "properties": {
+        "line_rms_dbfs": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/level"
+        },
+        "master_lufs": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/level"
+        },
+        "true_peak_dbtp": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/level"
+        }
+      },
+      "additionalProperties": false
+    },
+    "checks": {
+      "type": "object",
+      "properties": {
+        "asr_tolerances": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "asr_tolerances_note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "beds": {
+      "type": "array",
+      "items": {
+        "$ref": "studio.defs.v1.schema.json#/$defs/bed_cue"
+      }
+    },
+    "board_order": {
+      "type": "array",
+      "items": {
+        "$ref": "studio.defs.v1.schema.json#/$defs/brd_id"
+      }
+    },
+    "boards": {
+      "type": "array",
+      "items": {
+        "$ref": "studio.board.v1.schema.json"
+      }
+    },
+    "origin": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "source_key",
+        "legacy_revision",
+        "tracker",
+        "manifest"
+      ],
+      "properties": {
+        "source_key": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/source_key"
+        },
+        "legacy_revision": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+        },
+        "tracker": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "manifest": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "derived": {
+      "type": "object",
+      "required": [
+        "board_count",
+        "next_board_number",
+        "timed_boards",
+        "untimed_boards",
+        "frames",
+        "fps",
+        "duration_ms",
+        "warnings"
+      ],
+      "properties": {
+        "board_count": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/count"
+        },
+        "next_board_number": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+        },
+        "timed_boards": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/count"
+        },
+        "untimed_boards": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/count"
+        },
+        "frames": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/count"
+        },
+        "fps": {
+          "const": 24
+        },
+        "duration_ms": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/count"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "$ref": "studio.defs.v1.schema.json#/$defs/warning"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "created_at": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/timestamp"
+    },
+    "updated_at": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/timestamp"
+    },
+    "created_by": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/principal"
+    }
+  },
+  "additionalProperties": false
+}

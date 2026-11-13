@@ -3,8 +3,11 @@
 The `studio` command and the `haynes_studio` package (story
 [378](https://work.haynesnetwork.com/work_packages/378), epic
 [372](https://work.haynesnetwork.com/work_packages/372)). Built against
-[contract](../contracts/studio-contracts-v1.md) sections 1 to 3 and 13. Today it reads
-the PoC's legacy files; it writes nothing and calls no service.
+[contract](../contracts/studio-contracts-v1.md) sections 1 to 3 and 13. It reads the
+PoC's legacy files and never writes them; `legacy import --out` creates new files only.
+It calls no service. The canonical model behind `legacy import` is in
+[studio-model.md](studio-model.md) (story
+[404](https://work.haynesnetwork.com/work_packages/404)).
 
 ## Install and run
 
@@ -22,9 +25,13 @@ uv run studio --version                                    # studio 0.1.0.dev0
 |---|---|
 | `studio legacy validate <manifest> [--json]` | Validates a title manifest as `legacy.manifest/v1` and summarizes it: revision, shots (spoken and silent), lines, sound cues, beds. |
 | `studio legacy timeline <manifest> --speech <speech.json> [--compare <timeline.json>] [--json]` | Computes frames per shot, film start frames, and the placement of every line, sound cue and bed in mix samples (rules TIME-1 to TIME-4, TIME-7, TIME-10). With `--compare`, checks a recorded `timeline.json` under rule TIME-12. |
+| `studio legacy import <manifest> --speech <speech.json> --operator-iss <iss> --operator-sub <sub> [--map <legacy-import.json>] [--production <prd_id>] [--out <dir>] [--json]` | Maps the manifest to one canonical story (`studio.story/v1` with its boards, lines, cues, notes and layout references, and `derived` from the takes) and an import map (`studio.legacy-import/v1`). IDs come from `--map` when given, so a second import returns the same IDs; otherwise they are minted. The operator is the person running it: `--operator-iss` an http or https issuer URL with a host, `--operator-sub` its subject (1 to 255 characters, no spaces or control characters, never an email); anything else is a usage error. Prints a summary, or `{story, legacy_import}` with `--json`; `--out` writes `story.json` and `legacy-import.json` and refuses to overwrite either. |
 
-Exit status: `0` valid, or the timelines match; `1` a rule failed, or the timelines
-differ; `2` a usage error or an unreadable file. Each problem prints on stderr as one
+Exit status: `0` valid, the timelines match, or the import succeeded; `1` a rule failed
+(a file that is not strict JSON is `legacy.invalid`; an import map that is not a JSON
+object is `schema.invalid`), or the timelines differ; `2` a usage error, an unreadable
+file, a file nested deeper than 64 levels, or an `--out` file that already exists or
+cannot be written. Each problem prints on stderr as one
 line: `<file>: rule <code> at <path>: <message>`, where `<path>` is a JSON Pointer into
 that file and `(root)` is the whole document. Results print on stdout; `--json` prints
 integers only (ms, frames, samples) plus display text.
@@ -34,7 +41,27 @@ uv run studio legacy validate titles/the-winter-menu/manifest-r4.json
 uv run studio legacy timeline titles/the-winter-menu/manifest-r4.json \
   --speech titles/the-winter-menu/evidence-r4/speech.json \
   --compare titles/the-winter-menu/evidence-r4/timeline.json
+uv run studio legacy import titles/the-winter-menu/manifest-r4.json \
+  --speech titles/the-winter-menu/evidence-r4/speech.json \
+  --map docs/contracts/examples/valid/legacy-import-map.json \
+  --operator-iss https://authentik.example.invalid/application/o/haynes-studio/ \
+  --operator-sub example-subject-tom --out /tmp/winter-menu-import
 ```
+
+The story records the manifest path relative to the root of the repository that holds
+it (the nearest folder with a `.git` entry), from any working folder; a manifest outside
+a repository is recorded by its file name only, never by an absolute path. With the
+contract's map, r4 reuses its 24 IDs (production, story, nine boards, 13 lines) and
+mints the 45 the contract map does not record (cues, notes, the bed and asset versions);
+the map it writes records all 69, so importing again with it mints none. A `--production`
+given without a map counts as "given", not "from the map". A map made for another title,
+media kind, draft revision or production, or recorded from other manifest or
+`speech.json` bytes, fails with `legacy.import_map_mismatch`.
+
+`--out` checks both targets first (a dangling link counts as existing) and writes
+nothing if either exists. If a write still fails, the command says which file it could
+not write and which it had already written, exits 2, and deletes nothing: outputs are
+create-only, so choose a new folder.
 
 ## Schema and version map
 
@@ -100,8 +127,9 @@ the legacy import on these two modules.
 | `legacy.speech_mismatch` | proposal | a line has no take in `speech.json`, a take has no line, or a take's doll or text differs; a take without `k` on a shot with several lines |
 | `legacy.timeline_mismatch` | proposal | `--compare` found a value outside its allowance, a missing or repeated record, or an unknown audio `kind`; the path points into `timeline.json` |
 
-Not checked here: render and voice references (layout preset names, cast slots, still
-paths). Story 404's import checks them against the canonical rules when it maps them.
+Not checked by `validate` or `timeline`: render and voice references (layout preset
+names, cast slots, still paths). `legacy import` checks them against the canonical rules
+when it maps them ([studio-model.md](studio-model.md)).
 
 ## Timeline comparison
 

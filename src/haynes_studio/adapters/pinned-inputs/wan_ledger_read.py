@@ -1,0 +1,1 @@
+import sys,urllib.request;print(urllib.request.urlopen('http://127.0.0.1:8080/videos/'+sys.argv[1]).read().decode())

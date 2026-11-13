@@ -6,6 +6,10 @@ A schema may annotate a subschema with ``"x-studio": {"<keyword>": {"rule": ...,
 that rule code (else the caller's default), that message, and a path extended by
 ``field``. ``additionalProperties: false`` always reports ``schema.unknown_field``, one
 violation per unknown field (contract section 2).
+
+Schema files that declare an ``$id`` (the canonical ``studio.*.v1`` files of story
+404) are registered together, so a ``$ref`` to another shipped file (for example
+``studio.defs.v1.schema.json#/$defs/brd_id``) resolves offline; nothing is fetched.
 """
 
 from __future__ import annotations
@@ -18,6 +22,8 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
+from referencing import Registry, Resource
+from referencing.jsonschema import DRAFT202012
 
 from haynes_studio.errors import Violation, pointer
 
@@ -36,12 +42,30 @@ def load_schema(filename: str) -> dict[str, Any]:
     return json.loads(schema_text(filename))
 
 
+def shipped_schemas() -> list[str]:
+    """The file names of every shipped schema, sorted."""
+    return sorted(item.name for item in files(__name__).iterdir()
+                  if item.name.endswith(".schema.json"))
+
+
+@cache
+def _registry() -> Registry:
+    """Every shipped schema with an ``$id``, so cross-file references resolve offline."""
+    resources = []
+    for filename in shipped_schemas():
+        schema = load_schema(filename)
+        if "$id" in schema:
+            resources.append((schema["$id"], Resource.from_contents(
+                schema, default_specification=DRAFT202012)))
+    return Registry().with_resources(resources)
+
+
 @cache
 def validator_for(filename: str) -> Draft202012Validator:
     """A checked draft 2020-12 validator for a shipped schema, built once."""
     schema = load_schema(filename)
     Draft202012Validator.check_schema(schema)
-    return Draft202012Validator(schema)
+    return Draft202012Validator(schema, registry=_registry())
 
 
 def schema_violations(filename: str, document: Any, *, default_rule: str) -> list[Violation]:
