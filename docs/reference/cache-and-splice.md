@@ -236,7 +236,7 @@ that `ROWS` and the contract's table list the same rows in the same order.
 | Method (layer or motion) | the board's clips and segment; film picture, master, proxy, checks (mix stays) |
 | Seed | that clip and its keyed frames (the drive track stays); the segment; picture outputs |
 | Cast still version | clips and keyed frames made from that still, on every board using it; those segments; picture outputs |
-| Board photo version | whole-frame: clip and segment; layered: nothing (Q-03) |
+| Board photo version | whole-frame: clip and segment; layered: nothing (its photo is derived from its layers, D51) |
 | Layout preset values | segments of boards using the preset; picture outputs |
 | Move or camera cue | the segment; picture outputs |
 | Sound cue, bed, level, loudness target | mix, master, proxy and checks only |

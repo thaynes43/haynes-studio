@@ -113,7 +113,7 @@ its run snapshot entry (`snapshot_entry()`: `sha256`, or `definition_signature`,
 
 ## The Winter Menu library
 
-`winter_menu.build_winter_menu_library(story, import_map, sources, by=, now=)` builds a
+`winter_menu.build_winter_menu_library(story, import_map, sources, licences=, by=, now=)` builds a
 version for every `asset_version` in the import map's `story_records`, under the same
 source keys and version IDs, from `load_public_sources(title_dir, manifest, evidence)`:
 the manifest, `speech.json`, `timeline.json`, `production.json` and `prompts.json`. No
@@ -122,14 +122,17 @@ the set an `opaque_plate`, sounds `sound_effect` or `sound_bed`, voices global s
 `voice` definitions, and each spoken board a `board_voice` with its takes. Hashes and
 byte counts come from the ledger and the timeline, cross-checked with `prompts.json`
 (`legacy.evidence_mismatch`, proposal, if they disagree). Locators are in the
-production's folder. Every licence is `unknown` with a note. All four revisions
-resolve completely; r4 is timed at 1087 frames with the library's facts.
+production's folder. Each licence comes from the
+[model licence register](model-licences.md); a model it does not name stays `unknown`
+with the reason. All four revisions resolve completely; r4 is timed at 1087 frames with
+the library's facts.
 
 Gaps (`WinterMenuLibrary.gaps`): the bed's byte count (its hash is in `timeline.json`
 only), the sound model (named only inside the service text), the Kokoro model digest,
-take sample counts and rates (`speech.json` records `duration_s`), and every version's
-licence terms. Legacy takes are signed with speed 1.0: `poc/studio.py` sent no speed, so
-the server default applied, as the contract's example records.
+take sample counts and rates (`speech.json` records `duration_s`), and the sounds'
+licence terms (Stable Audio's are conditional, so `unknown`). Legacy takes are signed
+with speed 1.0: `poc/studio.py` sent no speed, so the server default applied, as the
+contract's example records.
 
 Proposals in the builder: names and labels, a stock voice's `legacy.path` (the
 manifest), the media type from the file extension, and the capabilities (chroma-keyed

@@ -4,13 +4,21 @@ Story [423](https://work.haynesnetwork.com/work_packages/423) (E1.9, review R01)
 [372](https://work.haynesnetwork.com/work_packages/372). Base: `main` at `aa73c4e`.
 **Status: ratified by the E1 coordinator on 2026-11-13, at the review of PR 37, as the
 contract E1 is built against.** That is the coordinator's technical agreement, not Tom's
-acceptance: every `P-nn` stays a proposal Tom may overrule, and every `Q-nn` stays held
-for him. Nothing here is implemented. Stories
-[378](https://work.haynesnetwork.com/work_packages/378),
+acceptance: every `P-nn` stays a proposal Tom may overrule. Tom answered `Q-01` to `Q-04`
+on 2026-11-13 (D49 to D52); [section 16](#16-held-owner-questions) records each answer.
+Stories [378](https://work.haynesnetwork.com/work_packages/378),
 [404](https://work.haynesnetwork.com/work_packages/404),
 [424](https://work.haynesnetwork.com/work_packages/424) and later E1 to E9 stories build
 against the commit that ratifies it. Examples are in [`examples/`](examples/); the
 [README](README.md) explains their format.
+
+**Amended 2026-11-13 by the contract owner (the E1 coordinator)** with Tom's rulings D49
+to D57 and with what the merged E1 stories built: 378, 379, 380, 381, 382, 404, 405, 425
+and [809](https://work.haynesnetwork.com/work_packages/809). Each story's reference page
+under [`docs/reference/`](../reference/) has the detail; where a story chose beyond this
+text and the coordinator accepted it at review, the choice is a proposal here
+([section 17](#17-proposals)). Where this text and the merged code still differ, the
+difference is named in place.
 
 Every rule carries its source:
 
@@ -20,7 +28,8 @@ Every rule carries its source:
 | **Evidence** | An E0 measurement, with its file under [`titles/the-winter-menu/video-e0/`](../../titles/the-winter-menu/video-e0/). |
 | **Legacy** | What the PoC code or a Winter Menu manifest does today (file named). |
 | **Proposal P-*nn*** | This contract's choice, with the alternative it rejects. Not Tom's decision. The coordinator ratified each at review as the working choice; Tom may overrule any. |
-| **Held Q-*nn*** | An owner choice only Tom can make. Options and a recommendation are in [section 16](#16-held-owner-questions). |
+| **Q-*nn*** | An owner choice only Tom can make. The question, its options, Tom's answer and the D-number that records it are in [section 16](#16-held-owner-questions). |
+| **Coordinator's reading** | How the contract owner applies a ruling of Tom's where his words leave the detail open. Not Tom's words; he may correct it. |
 
 E0's three deferrals (NFS write contention, AI upscaler quality, Foley listening verdict)
 are unmeasured. Nothing below depends on a value for them.
@@ -73,12 +82,12 @@ a canonical ID. Worked map: [`legacy-import-map.json`](examples/valid/legacy-imp
 | `layout`, manifest `layouts` | Placement presets in delivery pixels | `layout.preset`; presets copied to story `layouts`. |
 | `foreground: false` | Hide the foreground log | `layout.foreground` |
 | shot `sfx[] {cue, at \| after_line + offset}` | Placed sound effects | `sound` cues; the line index becomes a line ID. |
-| manifest `sfx.<name> {file, trim, gain_db, source, rejected[]}`, `beds.<name> {file, gain_db, source}` | A generated sound, its trim and its level. `gain_db` is a **target RMS level** in dBFS, not a gain: `edit.audio` scales the clip to it after trimming | `sound` asset version (file hash from `timeline.json`, provenance from `source`: service, job, seed, seconds, steps, prompt). `trim` and the level move onto each cue as `trim_ms` and `level_rms_dbfs`. `rejected[]` entries become hidden sound candidates with provenance and no bytes. |
+| manifest `sfx.<name> {file, trim, gain_db, source, rejected[]}`, `beds.<name> {file, gain_db, source}` | A generated sound, its trim and its level. `gain_db` is a **target RMS level** in dBFS, not a gain: `edit.audio` scales the clip to it after trimming | `sound` asset version (file hash from `timeline.json`, provenance from `source`: service, job, seed, seconds, steps, prompt). `trim` and the level move onto each cue as `trim_ms` and `level_rms_dbfs`. `rejected[]` entries are not imported in v1: the import map only describes them (`hidden_candidates`), the importer makes no record of them, and a `sound` version needs bytes (story 382), so how a byte-less candidate is kept is open. |
 | `moves[]` | Scripted whole-doll moves | `move` cues |
 | `camera {zoom, over, center}` | Push-in, ease-out over `over` seconds | `camera` cue |
 | `beds` | Looped ambience under the film | Story `beds[]`, film clock |
 | `note` | Free text | `notes[]` |
-| `cast {slot: {name, voice}}` | Character name and Kokoro stock voice | Story `cast[]`; voice becomes a `voice` asset version. |
+| `cast {slot: {name, voice}}` | Character name and Kokoro stock voice | Story `cast[]`; voice becomes a global `voice` asset version, keyed `legacy:<job>:voice:<voice_id>` (story 404), so each imported title adds its own voice assets. The legacy voices are not the target: new voices are auditioned (D53). |
 | `set` (`image`, `foreground_edge`, `foreground_feather`, `fire`, `note`) | Set still, log edge, procedural fire | Story `set`; `fire` kept as `legacy_fire` (the rigid renderer only; Wan animates fire); `note` kept as text. |
 | `motion` (idle, hop, tilt, shuffle) | Talk bounce and wobble style | Story `motion_style` |
 | `frame {width, height, fps}` | Delivery size | The media kind's profile; 1080x1920 at 24 fps is `short`. |
@@ -111,7 +120,16 @@ production, media kind, manifest file or `speech.json`; the importer also report
 a manifest whose frame size matches no media kind. An import map may also carry, as optional
 fields, a `source_key` per board and line, the `cues` and `notes` of each board, and
 `story_records` (beds and asset versions), so that a second import returns every
-identifier of the first.
+identifier of the first. [`legacy-import-map-r4-full.json`](examples/valid/legacy-import-map-r4-full.json)
+is such a map: r4 imported with it mints nothing and reproduces every identifier of
+[`story-winter-menu-r4.json`](examples/valid/story-winter-menu-r4.json); only the fields
+a manifest cannot give differ (board titles, photos, seeds). Source keys name the record
+type, after `legacy:<job>:`: `shot:<id>`, `shot:<id>:line:<k>`, `shot:<id>:sfx:<i>`,
+`shot:<id>:move:<i>`, `shot:<id>:camera`, `shot:<id>:note`, `still:<path>`,
+`set:<path>`, `sfx:<name>`, `bed:<name>`, `voice:<voice_id>` and `speech:shot:<id>`; the
+story itself is `legacy:<title>`. The asset library (story 382) adds `legacy.evidence_mismatch`: two
+public records (ledger, `timeline.json`, `prompts.json`) disagree on a hash or byte
+count.
 
 ## 2. Schema versions and identifiers
 
@@ -171,7 +189,12 @@ Crockford base32 (first character `0` to `7`; no `I`, `L`, `O` or `U`).
   from 1), asset version `v3` (per-asset `number` from 1).
 - A principal is one of `{kind: human, iss, sub}` (from a verified OIDC token, never an
   email or display name), `{kind: agent, key_id}`, `{kind: worker, worker_id}` or
-  `{kind: cli, command, operator}`, where `operator` is a human principal.
+  `{kind: cli, command, operator}`, where `operator` is a human principal. v1 adds
+  `{kind: agent_session, session, harness, model}` for work an agent did in its own
+  dev-env session without a studio key, such as checking a licence (P-24). It records
+  who did the work and grants nothing. The merged schema does not have it yet; until it
+  does, licence objects name such a session as `{kind: worker, worker_id: "dev-env agent
+  session <name>"}`, as the licence register does (story 809).
 - Hashes: a field named `sha256` is the lower-case hex SHA-256 of stored bytes. A field
   named `*signature` is `sha256:` plus the hex SHA-256 of canonical JSON
   ([section 4](#4-cache-clocks-and-invalidation)).
@@ -205,8 +228,8 @@ Full instances: [`story-winter-menu-r4.json`](examples/valid/story-winter-menu-r
 |---|---|---|
 | `id`, `story_id`, `number`, `revision` | IDs, integers | `number` is a per-story creation sequence (display `B03`), never reused or renumbered on reorder |
 | `title` | text, 1 to 100 characters | mockup limit |
-| `lines[]` | `{id, speaker, text, gap_before_ms}` | ordered; text 1 to 1200 characters (mockup); TIME-2; speaker per VOICE-1 |
-| `timing` | `{lead_ms, tail_ms, hold_ms}` | spoken: lead and tail, hold null; silent: hold only (TIME-3 to TIME-5) |
+| `lines[]` | `{id, speaker, text, gap_before_ms}` | ordered; at most 256 (story 405's bound, `schema.invalid`); text 1 to 1200 characters (mockup); TIME-2; speaker per VOICE-1 |
+| `timing` | `{lead_ms, tail_ms, hold_ms}` | spoken: lead and tail, hold null; silent: hold only (TIME-3 to TIME-5); lead and each gap at most 120 000 (TIME-5) |
 | `voice` | `{style, current_version_id}` | style `cast` or `narrator`, null on a silent board |
 | `photo` | `{current_version_id, prompt, input_asset_version_ids}` | prompt up to 1800 characters; inputs are the composer's assets |
 | `cast[]` | `{slot, asset_version_id}` | draw order; one still per slot (expression) |
@@ -218,10 +241,23 @@ Full instances: [`story-winter-menu-r4.json`](examples/valid/story-winter-menu-r
 | `origin` | `{source_key, legacy_revision, legacy_shot, manifest}` or null | |
 | `derived` | `timing_state` (`timed`, `untimed`), `content_ms`, `frames`, `film_start_frame`, `voice_state` (`not_needed`, `absent`, `generating`, `current`, `stale`), `photo_state` (`absent`, `generating`, `current`, `stale`) | read-only; absent and stale assets are explicit, never inferred from nulls |
 
-A job (`studio.job/v1`) is `{id, kind (voice, photo, asset_candidate), target_id,
-input_signature, status (queued, running, succeeded, failed, cancelled),
-result_version_id, result_is_current, error}`. A job that finishes after its inputs
-changed is `succeeded` with `result_is_current: false` (VOICE-4).
+A job (`studio.job/v1`, story [405](https://work.haynesnetwork.com/work_packages/405)) is
+`{id, kind (voice, photo, asset_candidate), target_id, input_signature, status (queued,
+running, succeeded, failed, cancelled), result_version_id, result_is_current, error,
+created_by, created_at, updated_at}`, plus a `voice` block on a voice job: the input it
+must make (`production_id`, `story_id`, `name`, `engine` (the signing name), `model`,
+`lead_ms`, `gaps_ms`, and
+`lines` of `{line_id, speaker, text, voice_version_id, voice_id, signature}`), so the
+worker never reads the draft as it was at queue time. A voice or photo job targets a
+`brd_` ID. `result_version_id` and `result_is_current` are set only when `succeeded`;
+`error` is `{code, message}`, only when `failed`. The validator recomputes every take
+signature and the `input_signature` from the `voice` block. States move `queued →
+running | cancelled` and `running → succeeded | failed | cancelled`; any other move is
+`job.transition` (status `conflict`), and an in-flight job is never cancelled because
+its board changed. A job that finishes after its inputs changed is `succeeded` with
+`result_is_current: false` (VOICE-4). Examples: [queued](examples/valid/job-voice-queued.json),
+[succeeded and stale](examples/valid/job-voice-succeeded-stale.json) (r4 board 8, its lead
+edited while the job ran).
 
 ### Mockup fields
 
@@ -286,7 +322,13 @@ display only.
   a board duration (`time.duration_is_derived`, D33).
 - **TIME-5 Pads.** `tail_ms >= 250` (`time.tail_too_short`; Legacy assertion "lines must
   end at least 0.25 s before the cut"); `lead_ms >= 0` and `gap_before_ms >= 0`
-  (`time.negative`). New boards
+  (`time.negative`). `lead_ms` and each `gap_before_ms` are at most 120 000, the longest
+  hold of TIME-4, and a board has at most 256 lines (`schema.invalid`, as story 405
+  reports them; no specific rule names these bounds). These are story 405's bounds, which
+  the contract owner moved here from the voice job: its voice request,
+  job and builder refuse more before any speech call. The board schema does not check
+  them yet, so until it does such a board saves as a draft and is refused when its voice
+  is requested. New boards
   default to lead 500, gap 300, tail 700 (P-04: r4's single-shot values and the legacy gap
   default). The mockup's 0.25 s pad is not adopted (review M2). Authored values must be
   integers (`time.not_integer_ms`).
@@ -321,7 +363,12 @@ display only.
   sound end may exceed the film's length; no Winter Menu sound does.
 - **TIME-11 Conservation.** Sum of board frames = film frames = decoded master frames;
   master duration = frames / 24; mix length = frames x 2000 samples; every line ends at
-  or before `content_ms - tail_ms` of its own board. Any mismatch fails the run.
+  or before `content_ms - tail_ms` of its own board. Any mismatch fails the run
+  (`time.conservation`, story 380, for segment, board and film frames). AAC in MP4
+  records its length at the encoder's granularity, so a master's audio passes within one
+  AAC frame (1024 samples, 21 ms) of `frames x 2000`, recorded and decoded, and must run
+  on from sample 0 with no hole; the phone proxy's audio is exact (story 381). The PoC's
+  own masters are a few samples short (32 for 1087 frames).
 - **TIME-12 Legacy adapter.** Imported runs keep their recorded values. Canonical
   arithmetic reproduces every r4 frame count (table below); story 378 checks r1 to r3.
   Legacy rounded shot starts to 0.1 ms before placing samples, so legacy and canonical
@@ -391,7 +438,10 @@ later board's pixels (review H3). The canonical renderer uses the board clock (P
 - Looping layers start at phase `int(sha256(board_id + ":" + slot)[:8], 16) mod period`,
   stable across edits and reorders.
 - Procedural randomness is a pure function of `(seed, board_id, index)`; no RNG state
-  carries from one board to the next.
+  carries from one board to the next. The seed is the toolchain's procedural seed
+  (story 380), and the segment key carries a 64-bit stream number derived from it and
+  the board ID, never the ID itself. A board's `seeds` has no entry for procedural
+  effects, so v1 has no per-board re-roll of them.
 - Generation seeds are explicit on the board (`seeds`: `s2v:<slot>`, `i2v:frame`). The
   server assigns a missing seed by writing it to the board (a new revision), so two runs
   of one draft use the same seeds. A re-roll is a seed edit.
@@ -405,22 +455,61 @@ later board's pixels (review H3). The canonical renderer uses the board clock (P
 sorted, no whitespace (`separators=(",", ":")`), no NaN or Infinity, all times integers;
 floats (gains, zoom, angles) in shortest round-trip form. Inputs are content hashes of
 input bytes, never IDs, plus the artifact kind, the adapter or profile version and the
-toolchain digest (P-07).
+toolchain digest (P-07). As built (story [380](https://work.haynesnetwork.com/work_packages/380),
+[reference](../reference/cache-and-splice.md)): every key document carries `kind` and
+`scheme: studio.cache-key/v1`; an integral float is the integer it equals and texts are
+NFC before hashing; a key document that holds a studio identifier anywhere, or a value
+that is not a hash, integer, text or finite JSON value, is refused
+(`cache.key_input_invalid`).
 
 | Artifact | Clock | Key inputs |
 |---|---|---|
 | Voice take | none | TTS model digest, voice ID, NFC text, speed, sample rate |
-| Board voice track | board | take hashes, lead, gaps, mix rate, assembler version |
-| S2V drive track | board | board voice track, speaker, board frames |
+| Board voice track | board | take hashes, lead, gaps, mix rate, assembler version (no tail) |
+| S2V drive track | board | speaker, **that speaker's takes on the board, each as its hash and start in ms (board clock)**, board frames, fps, rate, assembler version (P-25) |
 | S2V clip | source | drive track, start still, prompt, negative prompt, seed, profile (model files, LoRA, steps, cfg, size, chunk), adapter version |
 | Doll clip or set loop (library `motion`) | source | still, prompt, seed, profile |
 | Whole-frame I2V clip(s) | source | photo, prompt, seed, profile, requested clip lengths (set by the frames needed and the chain policy of story [427](https://work.haynesnetwork.com/work_packages/427)) |
-| Keyed and decal frames | source | clip, key thresholds, protect boxes, still, decal box, decal version (Legacy `DollClip.cache_dir`) |
-| Board picture segment | board | method, layout preset values, cast stills, clip and keyed hashes, phases, motion style, voice envelope when any line is spoken, move and camera cues, frames, frame size, fps, foreground edge, compositor digest, encoder settings |
-| Film picture | film | ordered segment hashes |
-| Mix | film | ordered voice tracks with `F[k]`, sound cues resolved to samples (sound hash, trim, level), beds, line RMS, loudness target, mixer digest (including its fades) |
-| Master / proxy | film | picture + mix + mux settings / master + proxy profile |
-| Check result | none | artifact hash, check version, thresholds |
+| Keyed and decal frames | source | clip, key thresholds, protect boxes, still, decal box, decal version, keyer (Legacy `DollClip.cache_dir`) |
+| Board picture segment | board | method, layout preset values, cast stills, clip and keyed hashes, phases, set plate and set loop with its phase, a whole-frame board's clip, motion style (every layered board), voice envelope when any line is spoken, who speaks when (each line's speaker and span), move and camera cues resolved to ms, frames, frame size, fps, foreground edge, procedural stream, compositor digest, encoder settings and build (P-26) |
+| Film picture | film | ordered segment hashes, each with its frame count, splicer |
+| Mix | film | ordered voice tracks with `F[k]` and line spans, sound cues resolved to samples (sound hash, trim, level), beds, line RMS, loudness and true-peak targets, frames, rate, mixer digest (including its fades) |
+| Master / proxy | film | picture + mix + mux settings / master + proxy profile; both name the encoder build |
+| Check result | none | artifact hash, check version, thresholds; a transcript check also the story's tolerances and the script's hash |
+
+**P-25 (H-1, the contract owner, 2026-11-13).** A drive track is keyed on its own
+speaker's takes at their starts, as `cache.keys.s2v_drive_track_key` does: a line edit
+then rebuilds the edited speaker and, when a take's length changes, every speaker with a
+later line, as the invalidation table says. Rejected: the whole board voice track as the
+input, which rebuilds every speaker's S2V clip on any line edit.
+
+**P-26 (H-2, the contract owner, 2026-11-13).** Segments are encoded so the same frames
+give the same bytes in one build: libx264 `fast`, CRF 18, `yuv420p`, 2 threads in
+**sliced-thread** mode, no B-frames, a keyframe every 48 frames (2 s), the first frame an
+IDR. These settings, the thread count and mode, and the encoder build (the PyAV and
+libavcodec versions; the PyAV wheel bundles FFmpeg and x264) are segment key inputs.
+x264's default frame threading, which legacy used through `ffmpeg -threads 2`, gave 3
+different byte streams in 25 encodes of one segment; sliced threads gave 1 (story 380).
+Encoded bytes are never compared across builds; tests compare decoded frames. The film
+picture is a stream-copy splice of the segments, each starting on a keyframe
+(`splice.incompatible` otherwise). Rejected: frame threads (a full render could not
+reproduce a cached segment); one thread (as reproducible in the same measurement, but it
+gives up the second thread). Story 428 measures the cost.
+
+**P-27 (H-3, the contract owner, 2026-11-13).** A cached artifact is a completed stage
+named `<kind>-<key hex>` with two outputs: the artifact, and `inputs`, the key document
+itself, whose hash is the key. Lookup searches the current run, then earlier runs,
+newest first; a hit is re-hashed and writes nothing in the current run; a damaged entry
+fails closed (`cache.entry_invalid`) and nothing repairs or skips it (D17). Cached
+artifacts are per production. The product's lookup is one Postgres query by stage name
+in story [434](https://work.haynesnetwork.com/work_packages/434). Rejected: one reserved
+cache run per production, which invents a run that is not a run.
+
+A renderer plugs in behind one interface (story 380's `SegmentRenderer`) and draws only
+from the segment key's inputs. A renderer that gives more or fewer frames than the board
+has fails `render.frame_count`; a frame that is not 8-bit RGB of the board's size fails
+`render.frame_invalid`; a segment that does not hold its board's frames fails
+`time.conservation`.
 
 ### Invalidation set per edit
 
@@ -433,21 +522,40 @@ expected result of the keys; tests in story [380](https://work.haynesnetwork.com
 | Line speaker | takes of that line | S2V clips of old and new speaker, plus every speaker with a later line when the new take's duration differs; all if frames change; segment | reused | rebuilt |
 | Lead or gap | new voice version, no TTS | S2V clips of every speaker with a line after the edited point (a lead edit moves all); all S2V clips if frames change; segment | reused | rebuilt |
 | Tail | none | only if frames change: S2V clips and segment | reused | rebuilt if frames change, else reused (no key changes) |
-| Hold (silent board) | none | segment; whole-frame I2V clips reused while the requested clip lengths are unchanged | reused | rebuilt |
+| Hold (silent board) | none | only if frames change: segment; whole-frame I2V clips reused while the requested clip lengths are unchanged | reused | rebuilt if frames change, else reused (no key changes) |
 | Reorder boards | none | reused | reused | rebuilt (film offsets move) |
 | Add or remove a board | that board's | that board's | reused | rebuilt |
-| Method (layer or motion) | none | clips and segment | reused | rebuilt |
-| Seed | none | that clip; segment | reused | rebuilt |
-| Cast still version | photo inputs marked changed where used | clips from that still; segments of every board using it | same rule on those boards | rebuilt |
-| Board photo version | none | whole-frame: I2V clip and segment; layered: reused (see Q-03) | reused | rebuilt |
-| Layout preset values | none | segments of boards using it | same | rebuilt |
-| Move or camera cue | none | segment | reused | rebuilt |
+| Method (layer or motion) | none | clips and segment | reused | picture only |
+| Seed | none | that clip and its keyed frames (the drive track is reused); segment | reused | picture only |
+| Cast still version | a layered board using it gets a recomposed photo (D51); a whole-frame board's photo inputs are marked changed where they name it | clips from that still; segments of every board using it | same rule on those boards | picture only |
+| Board photo version | none | whole-frame: I2V clip and segment; layered: reused, because its photo is derived from its layers and is no build input (D51) | reused | whole-frame: picture only; layered: reused |
+| Layout preset values | a layered board using it gets a recomposed photo (D51) | segments of boards using it | same | picture only |
+| Move or camera cue | none | segment | reused | picture only |
 | Sound cue, bed, level, loudness target | none | reused | reused | mix, master, proxy only |
 | Note or title | none | reused | reused | reused (the snapshot differs; artifacts do not) |
-| Story motion style | none | every segment with bounce | every segment with bounce | rebuilt |
+| Story motion style | none | every layered segment | every layered segment | picture only |
 | A cast slot's voice | every take of that speaker | per board as "line text" | same | rebuilt |
-| Toolchain or profile digest | as used | every artifact that tool made | same | rebuilt |
-| Media kind frame size or fps | none | everything | everything | rebuilt |
+| Toolchain or profile digest | as used | every artifact that tool made | same | rebuilt downstream of what that tool made |
+| Media kind frame size or fps | layered boards get recomposed photos (D51) | frame size: every clip, keyed frame and segment, or segments only at the same aspect; drive tracks reused. fps: both kinds deliver 24 fps (P-20), so another fps is refused | the same | picture only |
+
+"Picture only" means the film picture, the master, the proxy and the checks rebuild,
+and the mix keeps its key: it has no picture input. Story 380's tests assert the keys
+of every row.
+
+**A layered board's photo is derived (D51; coordinator's reading of Tom's answer to
+Q-03).** For a layered board the reference photo is the deterministic composite of the
+build's own layers, composed from the same inputs the build places: the set, the
+board's cast stills in its layout, and the framing (`poc/keyframes.py` composed the E0
+keyframes from the set still, the placed cutouts, the foreground and the camera
+framing). It is made by no image model, costs no GPU and is never a build input. So
+when a cast still version, the set or the layout changes, the photo of every layered
+board that uses it becomes `stale` and a new photo version is composed from the new
+inputs; the old version stays (D15). No picture key changes because of the photo
+itself: the edit already changed the segments of the boards it touches. The exact
+composite inputs are stories [426](https://work.haynesnetwork.com/work_packages/426) and
+[407](https://work.haynesnetwork.com/work_packages/407)'s, which build it as a
+requirement, with no preview-only phase. Prompt-generated photos are for whole-frame
+boards, where the photo is the I2V start image.
 
 The historical target "under two minutes on two threads" is not part of this contract.
 Layered v2 took 408 s on the 24-vCPU worker; story
@@ -475,6 +583,8 @@ How each buildable cell uses its inputs:
   board voice envelope (Legacy `edit.motion`).
 - **Whole-frame + I2V:** the start image is the board's current photo version
   (`photo.absent` without one). Seed `i2v:frame`.
+- **Layered, either motion:** the board's photo is the composite of these layers (D51,
+  [section 4](#4-cache-clocks-and-invalidation)); the build never reads it.
 
 **Whole-frame + S2V, reconciled.** `findings.md` records one whole-frame S2V clip
 (`s2-s2v-b`: the shot-2 keyframe with set, one doll, 20-step path on both GPUs, 49 frames,
@@ -561,17 +671,33 @@ An upload without the external marker, agent, model or prompt fails
 
 Every asset version, every run engine and every engine file has a `licence` object, even when unchecked
 (`prov.licence_missing`): `name` (SPDX or vendor), `url`, `commercial_use` (`allowed`,
-`noncommercial` or `unknown`), `attribution_required`, `checked_at`, `checked_by`, `note`.
-A licence moves from `unknown` to a checked value by an appended record; content and
-provenance never change. Unknown licences never block Build. What they block at release
-is Held **Q-01**. The terms of every engine and model file the studio uses are in the
-licence register, [`model-licences.json`](../reference/model-licences.json) with
+`conditional`, `noncommercial` or `unknown`), `attribution_required`, `checked_at`,
+`checked_by`, `note`. A licence moves from `unknown` to a checked value by an appended
+record; content and provenance never change. The terms of every engine and model file
+the studio uses are in the licence register,
+[`model-licences.json`](../reference/model-licences.json) with
 [its page](../reference/model-licences.md) (story 809, checked 2026-11-13, D48); a
 version, engine or file takes its licence object from there, and the examples do. A
 licence object records the model's terms for what it makes, not the studio's own rights,
-which are reserved ([RIGHTS.md](../../RIGHTS.md)). A conditional term (commercial use
-only after registration or under a revenue limit) has no `commercial_use` value of its
-own: it is `unknown`, with the conditions in `note` (proposal).
+which are reserved ([RIGHTS.md](../../RIGHTS.md)).
+
+- **What a licence blocks: nothing, while the use is research and personal (D49, Q-01
+  answered 2026-11-13).** Licence values are recorded as facts. No value blocks Build,
+  a run or a private delivery. *Coordinator's reading:* a go-live is not blocked by a
+  licence value either, but it still needs Tom's own approval
+  ([section 11](#11-go-live-approval-identity-boundary-only)), and the release checks
+  show him the recorded terms at that point. If commercial use is ever planned, the
+  question reopens before any such release, and the register says which engines it
+  touches.
+- **`conditional` (P-23).** A term that allows commercial use only under conditions
+  (registration, a revenue limit; Stable Audio 3) is `conditional`, with the conditions
+  in `note`. A research- or evaluation-only term (Qwen-Image 2.1, ControlFoley's CLIP
+  encoder) is `noncommercial`, with a note that it is narrower. The merged asset-version
+  schema (story 382) does not accept `conditional` yet; until it does, a conditional term
+  is written `unknown` with the conditions in `note`, as the register's lookup does
+  today (story 809).
+- **`checked_by`** is a principal. An agent that checked terms in its own session names
+  itself as an agent-session principal (P-24, section 2).
 
 ### Runs
 
@@ -580,6 +706,13 @@ own: it is `unknown`, with the conditions in `note` (proposal).
 - `toolchain`: studio commit, image digests, Python version, ffmpeg version and build,
   adapter versions. A service adapter's version is its pin set: the SHA-256 of each
   pinned snippet and graph it sends ([legacy adapters](../reference/legacy-adapters.md)).
+  A service call fails with a coded error whose message keeps only a redacted stderr
+  tail (story [425](https://work.haynesnetwork.com/work_packages/425)):
+  `adapter.request_invalid` (a field refused before anything runs),
+  `adapter.pin_mismatch` (a changed snippet or graph, never sent),
+  `adapter.command_failed`, `adapter.timeout`, `adapter.response_invalid`,
+  `adapter.not_found` and `adapter.busy` (a second call in one process, or a ComfyUI
+  prompt that may still be in flight: do not resubmit).
 - `engines[]`: `key`, `role`, `name`, `files[]` (each `name`, `sha256`, `licence`),
   `licence` (the most restrictive of its files), `profile`, `hardware`.
 - `inputs_externally_generated`: asset versions with the D42 marker, for the E9
@@ -595,7 +728,9 @@ own: it is `unknown`, with the conditions in `note` (proposal).
 Media on NFS is not backed up (D47). Provenance in Postgres must therefore be complete
 enough to regenerate: inputs by hash, prompts, seeds, model digests and profiles. A
 regenerated artifact is a new version with a new hash (GPU output is not bit-exact);
-nothing silently repoints a lost hash.
+nothing silently repoints a lost hash. The Winter Menu's fire bed, which the PoC never
+copied to the Wan volume, is made again by the in-cluster sound model as a new `sound`
+version; its old hash stays as recorded (D54).
 
 ## 8. Runs, deliveries and the store
 
@@ -607,6 +742,14 @@ nothing silently repoints a lost hash.
   whole-frame board has a current photo (`photo.absent`); no board method is invalid or
   unavailable; no voice or photo job is in flight for an included board
   (`asset.generating`).
+- Before its first renderer call a build runs the pre-build check (story
+  [379](https://work.haynesnetwork.com/work_packages/379),
+  [reference](../reference/store-and-stages.md)): the `queue_run` validation, then every
+  referenced asset version resolved by the library (`asset.unresolved`) and every blob
+  the build reads at a valid locator in the library or the story's own production
+  (`store.locator_invalid`), present (`store.blob_missing`) and re-hashed
+  (`store.hash_mismatch`). Only the story's cast and narrator voices resolve without
+  bytes. Each problem names the board, its display code, the legacy shot and the field.
 - The snapshot is the story and its boards by value plus every resolved asset version,
   pinned by content hash, or by `definition_signature` for definition-only versions
   (`voice`), or by `input_signature` and take hashes for `board_voice` versions. It holds
@@ -629,14 +772,36 @@ nothing silently repoints a lost hash.
 ### Deliveries
 
 `studio.delivery/v1` ([new](examples/valid/delivery.json),
-[legacy r4](examples/valid/delivery-legacy-r4.json)): master (H.264 and AAC in MP4, the
-media kind's frame size at 24 fps) and phone proxy (H.264, 720x1280, under 25 000 000 bytes
-for a 60 s fixture, per story [381](https://work.haynesnetwork.com/work_packages/381);
-P-10), each with `sha256`, `bytes`, `frames`, codecs and `locator`, plus `verification`
-(decoded frames equal expected, hashes re-read). Legacy deliveries use adapter
-`legacy_wan_ledger`, read-only: it may read a ledger through the Wan API and read ledger
-and asset files in place from the API container, after checking paths and hashes; it has
-no write, rename or delete path.
+[legacy r4](examples/valid/delivery-legacy-r4.json)): master (H.264 `yuv420p` and AAC
+48 kHz in MP4, one video and one audio stream, the media kind's frame size at 24 fps) and
+phone proxy (H.264, 720x1280 for `short`, 1280x720 for `video`), each with `sha256`,
+`bytes`, `frames`, codecs and `locator`, plus `verification` (decoded frames equal
+expected, hashes re-read). The proxy's decoded frames are its `frames`, which must equal
+the master's.
+
+- **Proxy size (P-10, amended by the contract owner on 2026-11-13, Q-381-01).** A proxy
+  is strictly under `25 000 000 × max(frames, 1440) div 1440` bytes: 25 000 000 bytes per
+  minute of film, and never less than 25 000 000. The proxy encoder (libx264 `veryfast`,
+  CRF 23 capped at 2 500 kbit/s, AAC-LC 128 kbit/s) keeps any picture inside it. Whether
+  the proxy's picture is good enough on a phone is story 381's Q-381-02, answered when
+  Tom watches the first real delivery at the demo (the coordinator's review of PR 51).
+- **As built (story [381](https://work.haynesnetwork.com/work_packages/381),
+  [reference](../reference/studio-delivery.md)).** `deliver` decodes every frame of the
+  master and the proxy and checks them before anything is written; it then publishes
+  master, proxy and the delivery document (a canonical-JSON blob) and completes one
+  stage `delivery` listing all three. One delivery per run: the same master again
+  returns the delivery unchanged, another master is `store.collision`. Codes:
+  `delivery.master_invalid` (the master failed a check; nothing written),
+  `delivery.proxy_invalid`, `delivery.master_changed`, `delivery.not_verified`,
+  `delivery.record_invalid` and `delivery.legacy_mismatch`. Where the product keeps the
+  delivery document (a Postgres row) is story 434's.
+- **Legacy deliveries** use adapter `legacy_wan_ledger`, read-only: `writable: false`, no
+  proxy, a `legacy_path` instead of a locator, and `verification.source`. The contract
+  allows reading a ledger through the Wan API and reading ledger and asset files in place
+  from the API container, after checking paths and hashes, with no write, rename or
+  delete path. Story 381 built only the mapping of a recorded ledger and its evidence
+  documents; it reads no file, and a legacy delivery's codecs come from the PoC's
+  encoder settings (`poc/edit.py`), not a decode.
 
 ### Store layout (D39)
 
@@ -681,6 +846,36 @@ The NFS adapter runs a probe in `.probe/` at startup (exclusive create, `link` w
 throughput and contention with nas01 are unmeasured, so nothing assumes a figure; story
 428 logs actual IO.
 
+### Stage records and store codes (as built, story 379)
+
+The local adapter's completion record is `studio.stage-record/v1`: canonical JSON of
+exactly `schema`, `production_id`, `run_id`, `stage` and `blobs` (`name` to `sha256`,
+`bytes`, `media_type`, `locator`), with no time and no writer, so a retried or
+concurrent commit of the same outputs is an idempotent `EEXIST` and one with other
+outputs is `store.collision` (P-28). It is a local-adapter file, not an API type; the
+product's record is a Postgres row (story 434).
+
+- Stage names are 1 to 128 of `A-Z a-z 0-9 _ -`; output names 1 to 128 of
+  `A-Z a-z 0-9 _ . : -`; a stage has 1 to 256 outputs. Published files are mode 0444.
+  The media type picks the extension (`video/mp4` mp4, `audio/wav` wav, `image/png`
+  png, `image/jpeg` jpg, `image/webp` webp, `application/json` json); the store does not
+  sniff bytes. A story reads blobs only from `library/` and its own production's folder.
+- Codes: `store.hash_mismatch` (bytes are not the expected hash and size, or what a
+  record names is not a regular file), `store.blob_missing` (no readable file where a
+  record or story needs one), `store.record_invalid` (a malformed stage name, output set
+  or record file) and `store.media_type_unsupported` (no extension for the media type).
+- A symbolic link, folder, FIFO or socket at a final path is `store.collision`, and
+  nothing is followed. Folders are made one at a time and the parent of each is
+  `fsync`ed, including a folder another writer made; story 434 confirms how NFS honours
+  a directory `fsync` before relying on that order.
+- The store is not a security boundary against a process that can already write inside
+  its root. It never publishes outside the root or over another file, and a reader that
+  verifies gets the bytes a record names or an error. Three gaps stay open, as the
+  [reference](../reference/store-and-stages.md) states under "What the store promises,
+  and what it does not": a blob replaced during the last check before a record's link,
+  the last `unlink` of a publication, and an existing final file whose outside names a
+  writer hides around the link-count samples.
+
 ### No purge (D17)
 
 Nothing deletes blobs, staging leftovers, runs or versions automatically. A
@@ -709,14 +904,38 @@ out of scope for E1 to E3 (P-11). The Wan PVC (`ai/wan-video`) ledger and
   opaque photo is not a render-ready layer (review M6).
 - **States:** `candidate` (generated, hidden from pickers), `promoted` (explicit and
   idempotent), `board` (board-scoped photo or voice). Promoting a board photo creates a
-  library version with `origin: derived` that points at the board version. Rejected
-  candidates stay, hidden (D17).
+  library version with `origin: derived` that points at the board version: kind
+  `photo`, production scope, state `promoted`, source key `promote:<board version ID>`,
+  so a second promotion returns it. A board voice stays on its board
+  (`asset.not_promotable`). Rejected candidates stay, hidden (D17).
 - **Pinning:** boards and snapshots name asset version IDs, never "latest"; only pickers
   resolve "latest".
-- **Import:** the same bytes with the same `source_key` return the existing version;
-  changed bytes make the next `number`.
+- **Import:** keyed by `provenance.source_key`, one asset per key
+  (`asset.source_key_required` without one). The same bytes with the same `source_key`
+  return the existing version; changed bytes make the next `number`; bytes seen before
+  return their old version. The same pin with other immutable fields is
+  `idempotency.mismatch`, except that a measurement the existing version does not record
+  (`bytes: null`, no `width` and `height`) matches any value. `content.bytes` may be null
+  only on an `imported` version whose public records hold no byte count (the r4 fire
+  bed).
 - **Filters:** kind, labels, production, board. The board filter is the set of versions
   that board references (D32, D34).
+- **As built (story [382](https://work.haynesnetwork.com/work_packages/382),
+  [reference](../reference/studio-library.md)).** Example:
+  [asset version](examples/valid/asset-version-cast.json). Capabilities fit the kind and
+  the media type, and an opaque photo or plate is never also a layer
+  (`asset.capability_mismatch`; the table per kind is P-29). The resolver names every version a story or board
+  references: `ref.unknown`, `asset.kind_mismatch` (a cast voice that is not a `voice`,
+  a board cast entry that is not a `cast`, and so on), `asset.scope_mismatch` (another
+  board's voice or photo, or another production's version), `asset.bytes_missing`. A
+  version's locator is in its own production's folder or, for a global version,
+  `library/`. Stock voices are the ones this repository records for their model, refused
+  otherwise (`voice.not_stock`), with origin `declared`; auditioning another stock voice
+  (D53) records it first.
+- **Board voice bytes:** a `board_voice` version has no `content`. Its assembled
+  `voice.track` has the content shape, locator included (null on a legacy import); its
+  takes carry `sha256` only and are found by hash at
+  `productions/<production_id>/sha256/<h[0:2]>/<h>.wav` (story 405).
 
 ## 10. Pre-build voice policy (D33)
 
@@ -725,14 +944,27 @@ out of scope for E1 to E3 (P-11). The Wan PVC (`ai/wan-video`) ledger and
   cloning; stock-only is this contract's way to guarantee both. Each cast slot names
   a `voice` asset version; narrator lines use the story's narrator voice. Speakers are
   cast slots, or `narrator` on a board whose style is narrator
-  (`voice.speaker_not_in_cast`).
+  (`voice.speaker_not_in_cast`). The Winter Menu's legacy voices are not the target
+  (D53): new voice work auditions other Kokoro stock voices and settings per character,
+  and other local text-to-speech models, and Tom picks from private samples. Any model
+  it adds keeps this rule: stock voices only, no cloning.
 - **VOICE-2** A board voice version holds one take per line (with `signature`, `sha256`,
   `samples`, `duration_ms`, `offset_ms`) and the assembled track. It is made while
-  editing, before any Build, and can be played and regenerated.
-- **VOICE-3** Take signature: `sha256` of canonical `{engine, model digest, voice_id,
-  text (NFC), speed}`; legacy imports had no recorded digest and use the model name.
-  Version signature: takes plus lead and gaps. Only takes whose signature changed go back
-  to TTS; a lead or gap edit only re-assembles.
+  editing, before any Build, and can be played and regenerated. The track stays at the
+  takes' own rate (24 000 Hz for Kokoro), 16-bit mono PCM, and ends at `speech_end_ms`
+  (the tail is not voice); the mix converts to 48 000 Hz (VOICE-7). Take *i* starts at
+  sample `offset_ms * rate div 1000`.
+- **VOICE-3** Take signature: `sha256:` plus the SHA-256 of canonical `{engine, voice_id,
+  text (NFC), speed}`, where `engine` is the TTS model's digest once one is recorded and
+  its name (`Kokoro-82M v1.0`) until then, and `speed` is the float `1.0` (the Kokoro
+  client sends no speed, so the server default applies; legacy takes recorded none).
+  Version `input_signature`: `{takes: [take signature], lead_ms, gaps_ms}`, one gap per
+  later line. What a snapshot pins for the version: `{input_signature, takes: [take
+  sha256]}`. A stock voice's `definition_signature`: `{engine, stock, voice_id}`, with
+  the model name as `engine`. These are the library's functions (stories 382 and 405)
+  and the examples' values. Only takes whose signature changed go back to TTS; a lead or
+  gap edit only re-assembles. Takes are reused from any version of the same board,
+  newest first, never across boards.
 - **VOICE-4** A voice job records the signature it started from. When it finishes, its
   result is always kept as a version, but becomes the board's current voice only if the
   board's signature still matches; otherwise it is kept as stale. Nothing is overwritten
@@ -747,6 +979,21 @@ out of scope for E1 to E3 (P-11). The Wan PVC (`ai/wan-video`) ledger and
   format may change them later.
 - **VOICE-8** The transcript check (ASR with the story's tolerances) is a technical check
   recorded on the run. It is not a gate (D29).
+- **VOICE-9 Engine currency (D53, story 405's Q-405-01, answered 2026-11-13).** Once a
+  TTS model digest is recorded, every board voice signed with another engine is stale
+  (`voice.stale`), so The Winter Menu's legacy voices must be voiced again before its
+  next build. No digest is recorded today, so nothing is stale for this reason yet. The
+  merged library's currency (`Library.facts`) compares lines, speakers, cast voices,
+  lead and gaps but not the engine; it must also compare the engine before a digest is
+  recorded.
+- **As built (story 405, [reference](../reference/studio-voice.md)).** A take is 16-bit
+  mono PCM at 8000 to 48 000 Hz (`voice.format_mismatch`) and at most 120 000 ms; lead and
+  gaps together, and the track, at most 600 000 ms; a board voice at most 256 lines; each
+  refused before any buffer is sized and, where it can be known, before any speech call
+  (`schema.invalid`). A silent board has no voice (`voice.not_needed`); a line the speech
+  client would refuse (blank, over 1000 characters) is `voice.request_invalid` at request
+  time; a job signed for another engine is `voice.engine_mismatch`. A failed job makes
+  no version, so a retry speaks its new takes again.
 
 ## 11. Go-live approval identity (boundary only)
 
@@ -761,10 +1008,12 @@ does. Example: [`go-live-approval.json`](examples/valid/go-live-approval.json).
   (D29). Agent keys never approve (`approval.approver_not_permitted`). The allowlist lives
   in deployment configuration in haynes-ops (P-13). Approving needs a sign-in no older
   than 15 minutes (`auth_time`), otherwise the user signs in again (P-13).
-- Preconditions: run `succeeded` (whether an `imported` legacy run qualifies is Held
-  **Q-04**), delivery verified, release checks recorded with the
-  approval (AI label on the platform setting and the description line, D43; rights;
-  licences per Q-01; D44 credits).
+- Preconditions: run `succeeded`, built by the studio's own engine; an `imported` legacy
+  run never goes live (D52, Q-04 answered 2026-11-13); delivery verified; release checks
+  recorded with the approval (AI label on the platform setting and the description line,
+  D43; rights; licences as recorded, which block nothing while the use is research and
+  personal, D49; D44 credits). Which code refuses an approval of an imported run is
+  story 412's to name.
 - An approval is never edited. A withdrawal and each publication are appended records that
   point at it; the approval's `derived.state` (`active`, `withdrawn`) is computed from
   them. Approval publishes nothing; a publication is recorded after Tom's manual upload
@@ -821,7 +1070,7 @@ does. Example: [`go-live-approval.json`](examples/valid/go-live-approval.json).
 | `draft:write` | stories, boards, lines, cues, notes |
 | `assets:generate` | voice, photo and asset-candidate jobs |
 | `assets:upload` | D42 board photo uploads |
-| `runs:queue` | queue and cancel runs, record check overrides (Held **Q-02**: until Tom answers, no agent key holds this scope and these operations are for people only) |
+| `runs:queue` | queue and cancel runs; for a signed-in person, also record check overrides. An agent key may hold it to queue and cancel (D50, Q-02 answered 2026-11-13; coordinator's reading: the per-key scope is the mechanism and is no longer people-only). Tom's ruling is about using the GPUs, so it does not reach check overrides: a judgement by eye stays with people, and no agent key may record one until Tom says otherwise. A key holds the scope only when issued with it, for its productions. A build takes the Wan compute lease, one job at a time, with its unknown-work checks; a lease or queue across agents is dev-env work in haynes-engineering |
 | `go_live:approve` | humans on the allowlist only; never on a key |
 
 A key lists its productions; anything else is `forbidden` (story
@@ -867,7 +1116,7 @@ Paths are under `/v1`. MCP tool names replace the old `patch_shot` and
 | `get_run` (status, progress, stages, checks) | `GET /runs/{id}` | `studio_get_run` | read | 410, 430 |
 | `cancel_run` | `POST /runs/{id}/cancel` | `studio_cancel_run` | runs:queue | 410 |
 | `compare_runs` (boards matched by stable ID) | `GET /runs/compare?left=&right=` | | read | 419 |
-| `record_check_override` (with a reason; never a release check) | `POST /runs/{id}/checks/{check}/overrides` | `studio_override_check` | runs:queue | 410, [450](https://work.haynesnetwork.com/work_packages/450) |
+| `record_check_override` (with a reason; never a release check) | `POST /runs/{id}/checks/{check}/overrides` | `studio_override_check` (refused for agent keys) | runs:queue, people only | 410, [450](https://work.haynesnetwork.com/work_packages/450) |
 | `get_delivery` | `GET /runs/{id}/delivery` | `studio_get_delivery` | read | 381, 409 |
 | `approve_go_live` | `POST /runs/{id}/go-live-approvals` | | go_live:approve | 412 |
 | `withdraw_go_live` | `POST /go-live-approvals/{id}/withdraw` | | go_live:approve | 412 |
@@ -877,7 +1126,8 @@ Paths are under `/v1`. MCP tool names replace the old `patch_shot` and
 | `healthz`, `readyz` | `GET /healthz`, `/readyz` | | none | [434](https://work.haynesnetwork.com/work_packages/434) |
 
 The legacy import is a CLI command (`studio legacy import <manifest>`), not an endpoint
-in v1.
+in v1. E1 ends with a private command-line build of The Winter Menu on the 3090s
+(story 428, D55); the API and its deployment stay in E3.
 
 ## 13. Stack pin
 
@@ -924,10 +1174,11 @@ What story 424 implements. Proposal P-19 for the names and commands.
 - **Contract examples:** every file in `examples/valid/` must validate against the schema
   of its type, and every file in `examples/invalid/` must fail with its `rule` code and
   `expect` status, once the story that owns that type has landed its schema and validator
-  (378: the legacy manifest; 404: production, story, board, timing and methods; later
-  stories for assets, runs, deliveries and approvals, as their tracker items say). Until
-  then story 424's harness reports the example as pending by type and never skips one
-  silently. `check_syntax.py` parses the JSON under `titles/`, `poc/graphs/` and, since
+  (378: the legacy manifest; 404: production, story, board, timing, methods and the
+  import map; 382: asset and asset version; 405: job; 381: delivery; later stories for
+  runs, run snapshots, approvals and the error envelope, as their tracker items say).
+  Until then story 424's harness reports the example as pending by type and never skips
+  one silently. `check_syntax.py` parses the JSON under `titles/`, `poc/graphs/` and, since
   story 424, `docs/contracts/examples/`.
 - **CI jobs:** `source (3.11)`, `source (3.12)`, `db`, and `browser` once the web app
   exists, plus the existing links, syntax and no-media checks. The coordinator sets
@@ -941,7 +1192,7 @@ What story 424 implements. Proposal P-19 for the names and commands.
 |---|---|---|---|
 | `schema.unsupported` | invalid | 2 | [schema-unsupported](examples/invalid/schema-unsupported.json) |
 | `schema.unknown_field` | invalid | 2 | [schema-unknown-field](examples/invalid/schema-unknown-field.json) |
-| `schema.invalid` | invalid | 2 | |
+| `schema.invalid` | invalid | 2 | [job-succeeded-without-result](examples/invalid/job-succeeded-without-result.json) |
 | `ref.unknown`, `ref.duplicate`, `story.board_order` | invalid | 2 | |
 | `id.malformed` | invalid | 2 | [id-malformed](examples/invalid/id-malformed.json) |
 | `id.type_mismatch` | invalid | 2 | [id-type-mismatch](examples/invalid/id-type-mismatch.json) |
@@ -953,6 +1204,7 @@ What story 424 implements. Proposal P-19 for the names and commands.
 | `time.duration_is_derived` | invalid | 3 | [time-duration-is-derived](examples/invalid/time-duration-is-derived.json) |
 | `time.first_line_gap` | invalid | 3 | [time-first-line-gap](examples/invalid/time-first-line-gap.json) |
 | `time.source_short` | failed stage | 3 | |
+| `time.conservation` | failed stage | 3, 4 | |
 | `format.length_exceeded` | warning | 3 | [story-timing-summary](examples/valid/story-timing-summary.json) (valid) |
 | `method.unknown` | invalid | 5 | [method-unknown-layer](examples/invalid/method-unknown-layer.json) |
 | `method.s2v_needs_line` | invalid | 5 | [method-s2v-needs-line](examples/invalid/method-s2v-needs-line.json) |
@@ -960,6 +1212,8 @@ What story 424 implements. Proposal P-19 for the names and commands.
 | `method.layered_needs_cast` | invalid | 5 | [method-layered-needs-cast](examples/invalid/method-layered-needs-cast.json) |
 | `method.unavailable` | unavailable (at `queue_run`) | 5 | [method-whole-frame-s2v-unavailable](examples/invalid/method-whole-frame-s2v-unavailable.json) |
 | `asset.capability_mismatch` | invalid | 5, 9 | |
+| `asset.kind_mismatch`, `asset.scope_mismatch`, `asset.bytes_missing`, `asset.unresolved` | invalid | 8, 9 | |
+| `asset.not_promotable`, `asset.source_key_required` | invalid | 9 | |
 | `cue.type_unknown` | invalid | 6 | [cue-type-unknown](examples/invalid/cue-type-unknown.json) |
 | `cue.anchor_line_missing` | invalid | 6 | [cue-anchor-line-missing](examples/invalid/cue-anchor-line-missing.json) |
 | `cue.out_of_range` | invalid | 3, 6 | [cue-out-of-range](examples/invalid/cue-out-of-range.json) |
@@ -972,8 +1226,16 @@ What story 424 implements. Proposal P-19 for the names and commands.
 | `voice.absent`, `voice.stale`, `photo.absent`, `asset.generating` | invalid at queue | 8, 10 | |
 | `store.locator_invalid` | invalid | 8 | [store-locator-invalid](examples/invalid/store-locator-invalid.json) |
 | `store.collision` | failed stage | 8 | |
+| `store.hash_mismatch`, `store.blob_missing` | failed stage | 8 | |
+| `store.record_invalid`, `store.media_type_unsupported` | invalid | 8 | |
+| `delivery.master_invalid`, `delivery.record_invalid`, `delivery.legacy_mismatch` | invalid | 8 | |
+| `delivery.proxy_invalid`, `delivery.master_changed`, `delivery.not_verified` | failed stage | 8 | |
+| `cache.key_input_invalid` | invalid | 4 | |
+| `cache.entry_invalid`, `render.frame_count`, `render.frame_invalid`, `splice.incompatible` | failed stage | 4 | |
 | `voice.speaker_not_in_cast` | invalid | 10 | [voice-speaker-not-in-cast](examples/invalid/voice-speaker-not-in-cast.json) |
-| `voice.not_stock` | invalid | 10 | [voice-not-stock](examples/invalid/voice-not-stock.json) |
+| `voice.not_stock` | invalid | 10 | [voice-not-stock](examples/invalid/voice-not-stock.json), [job-voice-not-stock](examples/invalid/job-voice-not-stock.json) |
+| `voice.not_needed`, `voice.request_invalid`, `voice.format_mismatch`, `voice.engine_mismatch` | invalid | 10 | |
+| `job.transition` | conflict | 2 | |
 | `approval.approver_not_permitted` | forbidden | 11 | [approval-not-human](examples/invalid/approval-not-human.json) |
 | `approval.not_exact_run` | invalid | 11 | [approval-not-exact](examples/invalid/approval-not-exact.json) |
 | `conflict.revision`, `idempotency.mismatch` | conflict, invalid | 12 | |
@@ -982,53 +1244,74 @@ What story 424 implements. Proposal P-19 for the names and commands.
 | `legacy.reference` | invalid | 1 | |
 | `legacy.speech_mismatch`, `legacy.timeline_mismatch` | invalid | 1, 3 | |
 | `legacy.import_map_mismatch` | invalid | 1 | |
+| `legacy.evidence_mismatch` | invalid | 1, 9 | |
+| `adapter.request_invalid`, `adapter.pin_mismatch` | invalid | 7 | |
+| `adapter.command_failed`, `adapter.timeout`, `adapter.response_invalid`, `adapter.not_found`, `adapter.busy` | failed job or stage | 7 | |
 
 ## 16. Held owner questions
 
-None blocks this document, story 378 or story 404. Each names the fields it affects.
+**None is held now.** Tom answered all four on 2026-11-13; the section keeps its name so
+links to it hold. Each entry keeps the question and its options in short, then the
+answer, its date and the decision that records it in
+[proposal 0003](../proposals/0003-studio-plan.md).
 
-**Q-01 What do unknown or non-commercial licences block at release?** Affects
+**Q-01 What do unknown or non-commercial licences block at release?** Affected
 `licence.commercial_use` and the release checks of stories 412 and
-[449](https://work.haynesnetwork.com/work_packages/449).
-(a) Release preparation blocks when any engine or asset in the video and sound chain is
-`unknown` or `noncommercial`. (b) Block `unknown`; warn on `noncommercial`. (c) Record
-only. **Recommendation: (a).** Build is never blocked either way (D29); the channel's
-monetization is undecided, and a wrong publication is costly to undo. Tom can relax it
-per licence once terms are checked. Under (a) today, the S2V engine stays blocked until
-the lightning LoRA's terms are recorded, and Kokoro, Stable Audio and TI2V until theirs
-are.
+[449](https://work.haynesnetwork.com/work_packages/449). Options: (a) block release on
+any `unknown` or `noncommercial` engine or asset in the video and sound chain; (b) block
+`unknown`, warn on `noncommercial`; (c) record only. Recommended: (a).
+**Answered 2026-11-13, D49:** "Switch it only if we do commercial things for now stop
+harping on this licenses this is a homelab so it's just for research and personal
+development". Licences are recorded as facts and block nothing while the use is research
+and personal (section 7); the question reopens only if commercial use is planned.
+*Coordinator's reading:* the same ruling settles story 809's Q-809-1 to Q-809-4.
 
-**Q-02 May agent keys queue builds?** Affects the `runs:queue` scope and
-`studio_queue_run` (stories 429, 430,
-[454](https://work.haynesnetwork.com/work_packages/454)). The layered S2V Winter Menu
-took about 37 min plus 92 min of GPU wall time
-([findings-s2v.md](../../titles/the-winter-menu/video-e0/findings-s2v.md)). (a) People only in v1. (b) A per-key `runs:queue` scope, off by
-default, granted by Tom per production. (c) Any key with `draft:write`.
-**Recommendation: (b).** It keeps D40's frontier loop and E5's shepherd possible without
-giving every drafting key GPU spend. The same answer covers `studio_cancel_run` and
-`studio_override_check`, which the operations table puts under the same scope. Until Tom
-answers, (a) applies: nothing is granted to a key by default.
+**Q-02 May agent keys queue builds?** Affected the `runs:queue` scope and
+`studio_queue_run`, `studio_cancel_run` and `studio_override_check` (stories 429, 430,
+[454](https://work.haynesnetwork.com/work_packages/454)). Options: (a) people only in
+v1; (b) a per-key `runs:queue` scope; (c) any key with `draft:write`. Recommended: (b).
+**Answered 2026-11-13, D50:** "These two GPUs are dedicated to this project you are free
+to use them. The think we wouldn't want later is multiple agents trying to use them at
+the same time so there'd need to be some lease / queue in place but that isn't work for
+you that is work for the dev-env haynes engineering project which you can simply
+backlog". *Coordinator's reading:* agents may queue builds on the two 3090s, one job at
+a time through the Wan compute lease; the per-key `runs:queue` scope stays the
+mechanism and is no longer people-only for queueing and cancelling (section 12); check
+overrides, a judgement by eye his words do not cover, stay with people; a lease or queue
+across agents is
+dev-env work in haynes-engineering; the shared ComfyUI image GPU keeps its household
+rule.
 
-**Q-03 For a layered board, what is the reference photo?** Affects `board.photo`, the
-invalidation row "Board photo version", and stories [417](https://work.haynesnetwork.com/work_packages/417), [418](https://work.haynesnetwork.com/work_packages/418) and 426. Layered builds use
-cast stills, the set and the layout (E0-proven); a prompt-generated photo cannot be split
-into those layers without matting (story [451](https://work.haynesnetwork.com/work_packages/451),
-unbuilt). (a) The photo is a preview for layered boards; the UI labels it so and shows
-the cast stills the build uses. (b) The photo is the source, matted into layers (waits
-for 451). (c) For layered boards the "photo" is a deterministic composite of the build's
-own layers (as `poc/keyframes.py` made E0 keyframes); prompt photos only for whole-frame.
-**Recommendation: (a) now, with (c) as a cheap follow-up**, so what Tom judges on the
-storyboard (D26) matches what is built.
+**Q-03 For a layered board, what is the reference photo?** Affected `board.photo`, the
+invalidation row "Board photo version", and stories
+[417](https://work.haynesnetwork.com/work_packages/417),
+[418](https://work.haynesnetwork.com/work_packages/418), 426 and 407. Options: (a) a
+preview, labelled so; (b) the source, matted into layers (story
+[451](https://work.haynesnetwork.com/work_packages/451)); (c) a deterministic composite
+of the build's own layers, with prompt photos only for whole-frame boards. Recommended:
+(a) now, (c) as a follow-up. **Answered 2026-11-13, D51:** "Why do we need a follow up
+just do it as part of the requirements IF it is a requirement". *Coordinator's
+reading:* it is a requirement (D26), so (c) from the start, in stories 426 and 407, with
+no preview-only phase ([section 4](#4-cache-clocks-and-invalidation)).
 
-**Q-04 Can an imported legacy run go live?** Affects the go-live preconditions
-([section 11](#11-go-live-approval-identity-boundary-only)) and story 412. Candidates
-are the r4 cut, which D1 signed off before go-live was defined (D29), and the E0 layered
-S2V delivery Tom praised (D24). Their provenance is partly free text. (a) Only canonical
-`succeeded` runs; rebuild through E1 first. (b) Imported runs with a verified master hash,
-once the importer has turned their provenance into structured engines with licences;
-the same release checks apply, and D1 is not itself a go-live approval. (c) The r4 cut
-only. **Recommendation: (b).** It lets a finished, already-reviewed cut be the first
-release without a rebuild, while keeping the D43 label, D44 credits and Q-01 checks.
+**Q-04 Can an imported legacy run go live?** Affected the go-live preconditions
+([section 11](#11-go-live-approval-identity-boundary-only)) and story 412. Options:
+(a) only canonical `succeeded` runs; (b) imported runs with a verified master and
+structured provenance; (c) the r4 cut only. Recommended: (b). **Answered 2026-11-13,
+D52: no**, that is (a): "Nothing was built from the first pipeline that can be approved
+that was a PoC to build out the stories". Only runs the studio's own engine builds can
+go live.
+
+**Questions raised by merged E1 stories**, answered or decided the same day:
+
+| Question | Answer | By |
+|---|---|---|
+| Q-405-01 Are the legacy board voices stale once a TTS model digest is recorded? | Yes: VOICE-9 | Tom, D53 |
+| Q-428-1 The Winter Menu's fire bed, which is not on the Wan volume | A new version from the in-cluster sound model | Tom, D54 |
+| Q-809-1 to Q-809-4 Qwen-Image lane, Stable Audio registration, ControlFoley, the `LICENSE` pointer | Unchanged for now | Tom, D49 (coordinator's reading) |
+| Q-381-01 Proxy size past 60 s | 25 000 000 bytes per minute, at least 25 000 000 (section 8) | the contract owner |
+| Q-381-02 Is the proxy's picture good enough on a phone? | Open: answered when Tom watches the first real delivery at the demo | Tom, later |
+| H-1, H-2, H-3 of story 380 (drive track key, encoder threads, cache lookup) | P-25, P-26, P-27 | the contract owner |
 
 ## 17. Proposals
 
@@ -1043,7 +1326,7 @@ release without a rebuild, while keeping the D43 label, D44 credits and Q-01 che
 | P-07 | Cache key = SHA-256 of canonical JSON of input hashes and parameters | keys from IDs or paths |
 | P-08 | Whole-frame + S2V `unavailable` (save with warning, Build refused); S2V needs an on-screen speaker; layered needs cast; `layered` default without a format | allowing unproved combinations; rejecting the design outright |
 | P-09 | Four cue types; anchors by line ID; notes never executed | parsing notes into cues |
-| P-10 | Phone proxy 720x1280 H.264 under 25 000 000 bytes | delivery-size proxy |
+| P-10 | Phone proxy H.264, 720x1280 (`short`) or 1280x720 (`video`), strictly under 25 000 000 bytes per minute of film and never under 25 000 000 (amended by the contract owner, 2026-11-13, Q-381-01) | delivery-size proxy; a fixed 25 000 000 at any length (lower quality on long videos); no limit past 60 s |
 | P-11 | D39 layout by hash; `link()` publication; NFS startup probe; tombstones only, no byte deletion in E1 to E3 | rename-based publication; deletion now |
 | P-12 | Voices generated before queue, never inside a run | generating missing voices in the run |
 | P-13 | Go-live allowlist of `(iss, sub)` in haynes-ops config; 15-minute sign-in freshness | Authentik group claim |
@@ -1056,6 +1339,19 @@ release without a rebuild, while keeping the D43 label, D44 credits and Q-01 che
 | P-20 | `video` media kind 1920x1080 at 24 fps | 25 or 30 fps |
 | P-21 | Labels are mutable asset metadata, outside version content | labels inside immutable versions |
 | P-22 | Stock TTS voices only | any voice without a real-person check |
+| P-23 | `commercial_use` value `conditional`, with the conditions in `note`; a research- or evaluation-only term is `noncommercial` with a note that it is narrower (the contract owner, after story 809) | `unknown` for a known conditional term (it hides what the register knows); a value of its own for research-only terms |
+| P-24 | Principal `{kind: agent_session, session, harness, model}` for work an agent did in its own session without a studio key; it grants nothing (the contract owner, after story 809) | `{kind: worker, worker_id}` naming the session (a worker is a studio process with a service token, P-14); `{kind: agent}` without a key (an agent principal is a studio key) |
+| P-25 | S2V drive track keyed on its speaker's takes and their starts (H-1, the contract owner) | the whole board voice track, which rebuilds every speaker on any line edit |
+| P-26 | Reproducible segment encode: x264 sliced threads, no B-frames, 48-frame GOP, encoder build in the key; stream-copy splice (H-2, the contract owner) | frame threads (not reproducible); one thread |
+| P-27 | Cache entries are stages `<kind>-<key hex>` with their key document; lookup in the current run, then earlier runs; Postgres query in story 434 (H-3, the contract owner) | one reserved cache run per production |
+| P-28 | Store as built (story 379): `studio.stage-record/v1` local record with no time or writer; stage and output name grammar; at most 256 outputs; files 0444; extension from the media type, bytes not sniffed; a story reads only `library/` and its own production; the step-2 hash re-read from the synced file; `store.hash_mismatch`, `store.blob_missing`, `store.record_invalid`, `store.media_type_unsupported`, `asset.unresolved` | a record with time or writer (retries would not be idempotent); trusting the hash computed while streaming |
+| P-29 | Library as built (story 382): capabilities per kind and media types per capability; a promoted board photo is a production-scope `photo`; `bytes: null` only on imported versions; a locator in the version's own production or `library/`; stock voices are the recorded ones, origin `declared`; `asset.kind_mismatch`, `asset.scope_mismatch`, `asset.bytes_missing`, `asset.not_promotable`, `asset.source_key_required`, `legacy.evidence_mismatch` | any capability on any kind; a guessed byte count, hash or licence |
+| P-30 | Voice and jobs as built (story 405): the track at the takes' rate, ending at `speech_end_ms`; speed 1.0; the bounds of section 10; the job fields and state machine of section 2; generated versions on one asset per board (`board-voice:<board_id>`, a lines-keyed asset when pins collide); take reuse within a board only; `voice.not_needed`, `voice.request_invalid`, `voice.format_mismatch`, `voice.engine_mismatch`, `job.transition` | resampling the track to the mix rate; reusing takes across boards; cancelling an in-flight job when its board changes |
+| P-31 | Deliveries as built (story 381): the delivery document a canonical-JSON blob in one `delivery` stage with master and proxy; one delivery per run; a shape per adapter; the proxy encoder of section 8; master audio within one AAC frame; the `delivery.*` codes | exact audio length on AAC masters (the PoC's own masters fail it); a delivery-size proxy (P-10) |
+| P-32 | Cache keys as built (story 380): segments also keyed on who speaks when, the set plate and loop, a whole-frame clip and the procedural stream; motion style in every layered segment; film frame counts, mix line spans and the transcript check's script hash in their keys; clip profiles carry the media kind's aspect; `studio.cache-key/v1`; 24 fps only; `cache.*`, `render.*`, `splice.incompatible`, `time.conservation` | a segment keyed on the voice envelope alone (a line moved between two slots of one voice would reuse a stale bounce) |
+| P-33 | Legacy import as built (story 404): board titles `Shot <id>`; an absent move `dur`, `dx`, `dy` or `angle` written as 0 with 3 steps, an absent camera `over` as 400 ms, an absent `foreground` as true; method `layered` + `s2v` with lines and `layered` + `i2v` without; empty `seeds`; `mix.line_rms_dbfs` -22; `method.unavailable` a warning on write and `unavailable` at `queue_run`; integral floats read as integers | leaving the renderer's assumed values implicit on canonical boards |
+| P-34 | Service adapters as built (story 425): request limits (Kokoro text up to 1000 characters; image sizes multiples of 8 from 64 to 4096, prompts up to 10 000 characters; transcript WAV up to 64 MiB); a read-only ComfyUI queue check; upload names from the PNG's hash; read-only ledger `list`, `find` and `fetch_asset`; a 300-character redacted stderr tail; one render per process | the PoC's random upload names (ComfyUI overwrites by name); reading a haynes-ops checkout at run time |
+| P-35 | Legacy loader as built (story 378): stricter than the PoC (`line` with `lines`, `after_line` without `offset`, `at` with `after_line`, a later line's `start`, a silent shot's `tail` and an fps other than 24 are refused); absent values stay absent in the legacy model, with only the gap and revision defaults applied and flagged; shot times compared at the record's 4 decimals | the PoC's silent defaults and precedence |
 
 ## 18. Decisions and dissent
 
@@ -1077,3 +1373,7 @@ Where sources disagree, which this contract follows and why.
 | Python version | studio-render 3.12, session pods 3.11 | floor 3.11, runtime 3.12 | both must run the tests and the worker |
 | Package name | `poc/studio.py` | `haynes_studio` | avoids shadowing |
 | Credits | review C3 ("video/sound provenance") | video, voice and sound roles | D44 names the voice models explicitly |
+| Licences at release | Q-01's recommendation (a): block on `unknown` or `noncommercial` | recorded, block nothing | D49: research and personal use |
+| Layered board photo | Q-03's recommendation: a preview now, the composite later | the composite from the start | D51 (coordinator's reading) |
+| Legacy cuts and go-live | Q-04's recommendation (b); D1's sign-off of r4 | canonical runs only | D52 |
+| Agent builds | Q-02's interim: people only | agent keys may hold `runs:queue` | D50 (coordinator's reading) |
