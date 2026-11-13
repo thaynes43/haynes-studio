@@ -1,0 +1,465 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://haynes-studio.invalid/schemas/studio.job.v1.schema.json",
+  "title": "studio.job/v1: one asynchronous job (voice, photo, asset candidate), contract section 2 and VOICE-4",
+  "description": "The contract's fields are id, kind, target_id, input_signature, status, result_version_id, result_is_current and error. created_by, created_at, updated_at, the error object's shape and the voice block are proposals of story 405.",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "kind",
+    "target_id",
+    "input_signature",
+    "status",
+    "result_version_id",
+    "result_is_current",
+    "error",
+    "created_by",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "schema": {
+      "const": "studio.job/v1",
+      "x-studio": {
+        "const": {
+          "rule": "schema.unsupported",
+          "message": "must be studio.job/v1"
+        }
+      }
+    },
+    "id": {
+      "$ref": "#/$defs/job_id"
+    },
+    "kind": {
+      "enum": [
+        "voice",
+        "photo",
+        "asset_candidate"
+      ]
+    },
+    "target_id": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/id"
+    },
+    "input_signature": {
+      "$ref": "studio.asset-version.v1.schema.json#/$defs/signature"
+    },
+    "status": {
+      "enum": [
+        "queued",
+        "running",
+        "succeeded",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "result_version_id": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/asv_id_or_null"
+    },
+    "result_is_current": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "error": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/error"
+        }
+      ]
+    },
+    "created_by": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/principal"
+    },
+    "created_at": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/timestamp"
+    },
+    "updated_at": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/timestamp"
+    },
+    "voice": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/voice_input"
+        }
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "voice",
+              "photo"
+            ]
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "target_id": {
+            "$ref": "studio.defs.v1.schema.json#/$defs/brd_id"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "voice"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "required": [
+          "voice"
+        ],
+        "x-studio": {
+          "required": {
+            "field": "voice",
+            "message": "a voice job records the input it was asked to make (proposal)"
+          }
+        },
+        "properties": {
+          "voice": {
+            "type": "object",
+            "x-studio": {
+              "type": {
+                "message": "a voice job records the input it was asked to make (proposal)"
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "voice": {
+            "type": "null",
+            "x-studio": {
+              "type": {
+                "message": "only a voice job has a voice block"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "succeeded"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "result_version_id": {
+            "type": "string",
+            "x-studio": {
+              "type": {
+                "message": "a succeeded job names the version it made (VOICE-4)"
+              }
+            }
+          },
+          "result_is_current": {
+            "type": "boolean",
+            "x-studio": {
+              "type": {
+                "message": "a succeeded job says whether its result is the board's current one (VOICE-4)"
+              }
+            }
+          },
+          "error": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "failed"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "error": {
+            "type": "object",
+            "x-studio": {
+              "type": {
+                "message": "a failed job names its error"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "failed",
+              "cancelled"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "result_version_id": {
+            "type": "null",
+            "x-studio": {
+              "type": {
+                "message": "only a succeeded job has a result"
+              }
+            }
+          },
+          "result_is_current": {
+            "type": "null",
+            "x-studio": {
+              "type": {
+                "message": "only a succeeded job has a result"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "cancelled"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "error": {
+            "type": "null",
+            "x-studio": {
+              "type": {
+                "message": "only a failed job has an error"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "job_id": {
+      "type": "string",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "maxLength": 30,
+      "x-studio": {
+        "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        },
+        "maxLength": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        }
+      },
+      "if": {
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+      },
+      "then": {
+        "pattern": "^job_",
+        "x-studio": {
+          "pattern": {
+            "rule": "id.type_mismatch",
+            "message": "must be a job_ ID"
+          }
+        }
+      }
+    },
+    "error": {
+      "type": "object",
+      "required": [
+        "code",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+          "maxLength": 80
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "not": {
+            "pattern": "[\\u0000-\\u0008\\u000b-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters other than tab and newline"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "voice_line": {
+      "type": "object",
+      "required": [
+        "line_id",
+        "speaker",
+        "text",
+        "voice_version_id",
+        "voice_id",
+        "signature"
+      ],
+      "properties": {
+        "line_id": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/lin_id"
+        },
+        "speaker": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/speaker"
+        },
+        "text": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/text_line"
+        },
+        "voice_version_id": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/asv_id"
+        },
+        "voice_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          }
+        },
+        "signature": {
+          "$ref": "studio.asset-version.v1.schema.json#/$defs/signature"
+        }
+      },
+      "additionalProperties": false
+    },
+    "voice_input": {
+      "type": "object",
+      "required": [
+        "production_id",
+        "story_id",
+        "name",
+        "engine",
+        "model",
+        "lead_ms",
+        "gaps_ms",
+        "lines"
+      ],
+      "properties": {
+        "production_id": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/prd_id"
+        },
+        "story_id": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/sty_id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          }
+        },
+        "engine": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          }
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          }
+        },
+        "lead_ms": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/ms"
+        },
+        "gaps_ms": {
+          "type": "array",
+          "items": {
+            "$ref": "studio.defs.v1.schema.json#/$defs/ms"
+          }
+        },
+        "lines": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/voice_line"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
