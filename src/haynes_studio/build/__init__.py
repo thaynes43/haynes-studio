@@ -19,7 +19,7 @@ Importing this package starts no process and reads no environment. Reference:
 
 from __future__ import annotations
 
-from haynes_studio.build.errors import BuildError, Failure, failure_of
+from haynes_studio.build.errors import BuildError, Failure, RunUnrecorded, failure_of
 from haynes_studio.build.pipeline import (
     ALL,
     OFFLINE,
@@ -45,7 +45,8 @@ from haynes_studio.build.voice import make_story_voices
 
 __all__ = [
     "ALL", "BuildError", "BuildInputs", "BuildResult", "ClipSources", "Failure", "OFFLINE",
-    "OfflineClipSource", "OfflineS2VSource", "PHASES", "RunRecords", "SERVICE", "Transcriber",
+    "OfflineClipSource", "OfflineS2VSource", "PHASES", "RunRecords", "RunUnrecorded", "SERVICE",
+    "Transcriber",
     "WhisperTranscriber", "build_story", "build_toolchain", "failure_of", "live_clip_sources",
     "local_run_ids", "make_story_voices", "media_format", "offline_sources", "validate_run",
     "validate_run_snapshot",

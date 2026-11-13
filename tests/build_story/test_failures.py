@@ -9,10 +9,12 @@ import copy
 import pytest
 
 import haynes_studio.build.pipeline as pipeline
-from haynes_studio.build import ClipSources, RunRecords
+from haynes_studio.build import BuildError, ClipSources, RunRecords, offline_sources
 from haynes_studio.delivery import read_delivery
-from haynes_studio.delivery.errors import PROXY_INVALID, DeliveryError
+from haynes_studio.delivery.errors import NOT_VERIFIED, PROXY_INVALID, DeliveryError
 from haynes_studio.layered import FakeS2VSource
+from haynes_studio.store import StoreError
+from haynes_studio.store.errors import COLLISION, HASH_MISMATCH
 from haynes_studio.voice import Engine
 from haynes_studio.wholeframe.fake import FakeClipSource
 from tests.build_story import fixtures as f
@@ -110,6 +112,96 @@ def test_a_delivery_that_does_not_read_back_fails_the_run(world, voiced, first, 
     result = f.build(world, document, library)
     assert result.run["status"] == "failed"
     assert result.run["error"]["code"] == "build.delivery_unverified"
+    # deliver returned, so its delivery is published: the failed run names it.
+    published = read_delivery(world.store, production_id=f.PRODUCTION, run_id=result.run["id"])
+    assert published is not None and result.run["delivery_id"] == published.id
+    assert published.id in result.run["error"]["message"]
+
+
+def test_a_delivery_whose_read_back_raises_is_named_on_the_failed_run(world, voiced, first,
+                                                                      monkeypatch):
+    # Review finding 2: the read-back raises (a blob that does not re-hash), and the
+    # delivery deliver returned is still named, found without that read.
+    document, library = voiced
+
+    def damaged(*args, **kwargs):
+        raise StoreError(HASH_MISMATCH, "output 'master' of the completed stage is mismatch")
+    monkeypatch.setattr(pipeline, "read_delivery", damaged)
+    run = f.build(world, document, library).run
+    assert run["status"] == "failed" and run["error"]["code"] == HASH_MISMATCH
+    assert run["error"]["stage"] == "delivery"
+    published = read_delivery(world.store, production_id=f.PRODUCTION, run_id=run["id"])
+    assert published is not None and run["delivery_id"] == published.id
+    assert published.id in run["error"]["message"]
+    stored = RunRecords(world.store, f.PRODUCTION).latest(run["id"])
+    assert stored["status"] == "failed" and stored["delivery_id"] == published.id
+
+
+def test_a_delivery_stage_left_by_a_failed_deliver_is_named_from_its_own_record(
+        world, voiced, first, monkeypatch):
+    # deliver raised after its stage completed, and the stage does not read back: the
+    # delivery is named from the stage's own document, not from the read that failed.
+    document, library = voiced
+    real = pipeline.deliver
+
+    def published_then_failed(*args, **kwargs):
+        real(*args, **kwargs)
+        raise DeliveryError(NOT_VERIFIED, "the published proxy did not re-hash")
+
+    def damaged(*args, **kwargs):
+        raise StoreError(HASH_MISMATCH, "output 'proxy' of the completed stage is mismatch")
+    monkeypatch.setattr(pipeline, "deliver", published_then_failed)
+    monkeypatch.setattr(pipeline, "read_delivery", damaged)
+    run = f.build(world, document, library).run
+    assert run["status"] == "failed" and run["error"]["code"] == NOT_VERIFIED
+    published = read_delivery(world.store, production_id=f.PRODUCTION, run_id=run["id"])
+    assert published is not None and run["delivery_id"] == published.id
+    assert published.id in run["error"]["message"]
+
+
+def refuse_failure_writes(monkeypatch, error: Exception) -> None:
+    """Every write of a ``failed`` run raises ``error`` (the store, or another writer)."""
+    real = RunRecords.write
+
+    def write(self, run):
+        if run["status"] == "failed":
+            raise error
+        return real(self, run)
+    monkeypatch.setattr(RunRecords, "write", write)
+
+
+def test_a_failure_the_store_cannot_record_names_the_run_and_its_delivery(world, voiced, first,
+                                                                        monkeypatch):
+    # Review finding 2: a store error writing the failure is neither a quiet return nor
+    # an unrelated exception: the build raises build.run_unrecorded naming both.
+    document, library = voiced
+    monkeypatch.setattr(pipeline, "read_delivery", lambda *args, **kwargs: None)
+    refuse_failure_writes(monkeypatch, StoreError(COLLISION, "another record holds that version"))
+    with pytest.raises(BuildError) as raised:
+        f.build(world, document, library)
+    error = raised.value
+    assert error.code == "build.run_unrecorded", error
+    published = read_delivery(world.store, production_id=f.PRODUCTION, run_id=error.run_id)
+    assert published is not None and error.delivery_id == published.id
+    for text in (error.run_id, published.id, "`running`", COLLISION, "build.delivery_unverified"):
+        assert text in error.message
+    assert RunRecords(world.store, f.PRODUCTION).latest(error.run_id)["status"] == "running"
+
+
+def test_a_transition_error_writing_a_failure_raises_naming_the_run(world, voiced, first,
+                                                                   monkeypatch):
+    document, library = voiced
+    edited = copy.deepcopy(document)
+    f.board_of(edited, f.B3)["seeds"]["i2v:frame"] = 40  # a clip no run made
+    refuse_failure_writes(monkeypatch, BuildError("run.transition", "moved by another writer"))
+    with pytest.raises(BuildError) as raised:
+        f.build(world, edited, library, phase="offline", source=offline_sources())
+    error = raised.value
+    assert error.code == "build.run_unrecorded", error
+    assert error.delivery_id is None and "no delivery of this run was published" in error.message
+    for text in (error.run_id, "`running`", "run.transition", "build.offline_missing"):
+        assert text in error.message
+    assert RunRecords(world.store, f.PRODUCTION).latest(error.run_id)["status"] == "running"
 
 
 def test_a_story_whose_assets_do_not_resolve_makes_no_run(world, voiced, first):

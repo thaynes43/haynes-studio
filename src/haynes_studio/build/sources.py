@@ -11,6 +11,11 @@ whose clips are not stops before anything is asked of a service.
 :func:`live_clip_sources` is the one place the live clients will be made. Story 842's
 Wan clients are not on ``main`` yet, so it raises ``build.clip_sources_unwired``; a
 later story fills it. Nothing below the command line constructs a live client.
+
+:class:`RecordingS2VSource` and :class:`RecordingClipSource` are the local pass's
+sources (the build's first pass, before any clip is asked of a phase's sources): each
+records the request the adapter built and raises :class:`ClipRequested` in place of a
+clip, so the adapter commits nothing and the pass answers that clip with a stand-in.
 """
 
 from __future__ import annotations
@@ -60,6 +65,46 @@ def offline_sources() -> ClipSources:
     return ClipSources(s2v=OfflineS2VSource(), i2v=OfflineClipSource())
 
 
+class ClipRequested(Exception):
+    """A recording source's answer: the request it would have sent, never a clip."""
+
+    def __init__(self, request: S2VRequest | ClipRequest):
+        super().__init__(request.key)
+        self.request = request
+
+
+class RecordingS2VSource(S2VSource):
+    """Records each speech-to-video request and raises :class:`ClipRequested`: the
+    local pass's source, which asks no service."""
+
+    name = "studio.build.local-pass"
+
+    def __init__(self) -> None:
+        self.requests: list[S2VRequest] = []
+
+    def generate(self, request: S2VRequest) -> S2VClip:
+        self.requests.append(request)
+        raise ClipRequested(request)
+
+
+class RecordingClipSource(ClipSource):
+    """Records each whole-frame request and raises :class:`ClipRequested`: the local
+    pass's source, which asks no service."""
+
+    name = "studio.build.local-pass"
+
+    def __init__(self) -> None:
+        self.requests: list[ClipRequest] = []
+
+    def generate(self, request: ClipRequest) -> Sequence[SourceClip]:
+        self.requests.append(request)
+        raise ClipRequested(request)
+
+
+def recording_sources() -> ClipSources:
+    return ClipSources(s2v=RecordingS2VSource(), i2v=RecordingClipSource())
+
+
 def live_clip_sources() -> ClipSources:
     """The live clip sources of the service phase: the Wan clients of story 842, each
     through the Wan API's compute lease. **Not wired yet**: story 842 is in review, and
@@ -70,5 +115,6 @@ def live_clip_sources() -> ClipSources:
                      "`studio build --offline`", stage="service")
 
 
-__all__ = ["ClipSources", "OfflineClipSource", "OfflineS2VSource", "live_clip_sources",
-           "offline_sources"]
+__all__ = ["ClipRequested", "ClipSources", "OfflineClipSource", "OfflineS2VSource",
+           "RecordingClipSource", "RecordingS2VSource", "live_clip_sources", "offline_sources",
+           "recording_sources"]

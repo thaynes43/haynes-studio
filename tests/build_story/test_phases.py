@@ -87,6 +87,28 @@ def test_the_service_phase_fills_the_cache_and_the_offline_phase_never_asks_the_
     assert {f"{f.B3}/segment", "film/picture", "film/master"} <= made_names(offline_made, done.plan)
 
 
+def test_a_failed_transcript_in_the_service_phase_fails_the_run(world, voiced, first):
+    # Review finding 3. New tolerances key a new transcript check of the master the
+    # cache already holds (the master's own key is unchanged), so the service phase
+    # checks it: a fail ends the run failed, never "service phase complete".
+    document, library = voiced
+    edited = copy.deepcopy(document)
+    edited["checks"]["asr_tolerances"] = {"2": "two", "3": "three"}
+    recognizer, whisper = f.transcriber("stop team two")
+    made = f.build(world, edited, library, phase="service", source=f.sources(), recognizer=recognizer)
+    run = made.run
+    assert run["status"] == "failed" and len(whisper.heard) == 1
+    assert run["error"]["code"] == "build.check_failed" and run["error"]["stage"] == "checks"
+    assert "master.transcript" in run["error"]["message"] and run["delivery_id"] is None
+    assert [(c["check"], c["result"]) for c in run["checks"]] == [("master.transcript", "fail")]
+    assert made_names(made) == {"check/master.transcript"}
+    # A later service phase reads that cached failure: failed again, nothing asked.
+    recognizer, whisper = f.transcriber()
+    again = f.build(world, edited, library, phase="service", source=f.sources(), recognizer=recognizer)
+    assert again.run["status"] == "failed" and again.run["error"]["code"] == "build.check_failed"
+    assert whisper.heard == [] and again.made == ()
+
+
 def test_two_workers_give_the_same_frames_as_one(tmp_path, first, world):
     other = f.make_world(tmp_path / "workers")
     document, library = f.voiced(other)

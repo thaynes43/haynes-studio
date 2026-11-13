@@ -12,6 +12,8 @@ import pytest
 
 import haynes_studio.build as studio_build
 from haynes_studio.cli import Clients, main
+from haynes_studio.store import StoreError
+from haynes_studio.store.errors import COLLISION
 from tests.build_story import fixtures as f
 
 OPERATOR = ["--operator-iss", "https://authentik.example.invalid/application/o/haynes-studio/",
@@ -122,6 +124,44 @@ def test_service_then_offline_builds_and_run_show_reads_the_run(setup, monkeypat
     code, history, _ = run_cli("run", "show", run["id"], "--store", str(world.root),
                                "--production", f.PRODUCTION, "--history")
     assert code == 0 and history.splitlines()[-1].startswith("3: succeeded")
+
+
+def test_a_failed_transcript_in_the_service_phase_exits_1(setup, monkeypatch):
+    # After the test above, the voiced story's master is cached; new tolerances key a
+    # new transcript check of it, which the service phase makes (review finding 3).
+    world, files = setup
+    voiced = files / "voiced"
+    story = json.loads((voiced / "story.json").read_text())
+    story["checks"]["asr_tolerances"] = {"2": "two", "3": "three"}
+    (files / "retolerated.json").write_text(json.dumps(story))
+    monkeypatch.setattr(studio_build, "live_clip_sources", lambda: f.sources())
+    code, out, err = run_cli("build", *args(world, files / "retolerated.json", voiced / "library.json",
+                                            "--phase", "service", "--toolchain",
+                                            str(files / "toolchain.json"), "--register", str(f.REGISTER)),
+                             clients=Fakes(heard="stop team two").clients())
+    assert code == 1 and "(service phase): failed" in out
+    assert "rule build.check_failed" in err and "(stage checks)" in err and "master.transcript" in err
+
+
+def test_a_failure_the_store_cannot_record_exits_1_naming_the_run(setup, monkeypatch):
+    world, files = setup
+    voiced = files / "voiced"
+    story = json.loads((voiced / "story.json").read_text())
+    f.board_of(story, f.B3)["seeds"]["i2v:frame"] = 78  # a clip no run made
+    (files / "reseeded-78.json").write_text(json.dumps(story))
+    real = studio_build.RunRecords.write
+
+    def write(self, run):
+        if run["status"] == "failed":
+            raise StoreError(COLLISION, "another record holds that version")
+        return real(self, run)
+    monkeypatch.setattr(studio_build.RunRecords, "write", write)
+    code, _, err = run_cli("build", *args(world, files / "reseeded-78.json", voiced / "library.json",
+                                          "--offline", "--toolchain", str(files / "toolchain.json"),
+                                          "--register", str(f.REGISTER)), clients=Fakes().clients())
+    assert code == 1
+    assert "rule build.run_unrecorded" in err and "`running`" in err and "no delivery" in err
+    assert "build.offline_missing" in err and " run_" in err
 
 
 def test_a_failed_offline_build_exits_1_with_its_code_and_board(setup):

@@ -668,6 +668,9 @@ def _build(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
             print(f"{args.story}: rule {problem.rule} at {problem.where} field "
                   f"{problem.field or '(root)'}: {problem.message}", file=err)
         return FAILED
+    except studio_build.BuildError as error:  # build.run_unrecorded: the run and delivery named
+        print(f"{args.story}: rule {error.code}: {error.message}", file=err)
+        return FAILED
     run = result.run
     if args.json:
         print(json.dumps(run, indent=2, ensure_ascii=False), file=out)

@@ -22,10 +22,11 @@ DELIVERY_UNVERIFIED = "build.delivery_unverified"  # the delivery did not read b
 RUN_TRANSITION = "run.transition"  # a status change the run's state machine refuses
 RUN_UNKNOWN = "run.unknown"  # no such run in the production
 VOICE_TRACK_MISSING = "build.voice_track_missing"  # a current board voice with no track
+RUN_UNRECORDED = "build.run_unrecorded"  # a run's failure could not be written to its record
 INTERNAL = "build.internal"  # an exception that carries no code (a bug, or the system)
 
 CODES = (CLIP_SOURCES_UNWIRED, OFFLINE_MISSING, CHECK_FAILED, DELIVERY_UNVERIFIED,
-         RUN_TRANSITION, RUN_UNKNOWN, VOICE_TRACK_MISSING, INTERNAL)
+         RUN_TRANSITION, RUN_UNKNOWN, VOICE_TRACK_MISSING, RUN_UNRECORDED, INTERNAL)
 
 
 class BuildError(Exception):
@@ -103,6 +104,33 @@ def failure_of(error: BaseException, *, board_id: str | None = None,
     return Failure(INTERNAL, _short(f"{type(error).__name__}: {error}"), board_id, None, stage)
 
 
+class RunUnrecorded(BuildError):
+    """A run failed and its failure could not be written (a store or transition error):
+    the build raises this instead of returning, so nothing reports the run as done.
+    ``run_id`` names the run, whose stored state may still read ``running``;
+    ``delivery_id`` the delivery the run published, if any; ``failure`` why it failed;
+    ``unread_delivery`` that a delivery stage may exist whose ID could not be read."""
+
+    def __init__(self, *, run_id: str, failure: Failure, error: BaseException,
+                 delivery_id: str | None = None, unread_delivery: bool = False):
+        self.run_id = run_id
+        self.failure = failure
+        self.delivery_id = delivery_id
+        write = failure_of(error)
+        if delivery_id is not None:
+            delivery = f"delivery {delivery_id} of this run was published"
+        elif unread_delivery:
+            delivery = "a delivery stage of this run may exist but could not be read"
+        else:
+            delivery = "no delivery of this run was published"
+        super().__init__(
+            RUN_UNRECORDED, f"run {run_id} failed and its failure could not be recorded "
+            f"({write.code}: {write.message}), so its stored state may still read `running`; "
+            f"{delivery}. The failure: {failure.code}: {failure.message}",
+            board_id=failure.board_id, stage=failure.stage)
+
+
 __all__ = ["BuildError", "CODES", "CHECK_FAILED", "CLIP_SOURCES_UNWIRED",
            "DELIVERY_UNVERIFIED", "Failure", "INTERNAL", "OFFLINE_MISSING", "RUN_TRANSITION",
-           "RUN_UNKNOWN", "VOICE_TRACK_MISSING", "failure_of"]
+           "RUN_UNKNOWN", "RUN_UNRECORDED", "RunUnrecorded", "VOICE_TRACK_MISSING",
+           "failure_of"]

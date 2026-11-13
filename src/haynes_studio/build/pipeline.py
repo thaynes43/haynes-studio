@@ -13,41 +13,54 @@ In order:
    come back as ``PreflightError``. Otherwise the run is recorded ``queued`` with its
    snapshot, moved to ``running``, and a blocking problem fails it with the problem's
    code and board before any clip is asked for.
-2. **The plan** (story 380's :func:`~haynes_studio.cache.plan.plan_story`) with one
+2. **The local pass** (:func:`_local_pass`): the whole story planned once with clip
+   sources that only record the request they would send, so every drive track is
+   made, every library timed clip resolved, every seed checked and every clip's inputs
+   read before the first clip of any board is asked for. Any error fails the run here
+   and no clip source has been asked.
+3. **The plan** (story 380's :func:`~haynes_studio.cache.plan.plan_story`) with one
    content chain: the layered stages (drive tracks, speech-to-video clips, keyed
    frames, story 426), the whole-frame clip sets (story 427), one picture builder per
    method with its own renderer and compositor, the sound builder (story 841), and the
    transcript check (:mod:`.transcript`). The chain records, per artifact, its key, its
    hash, whether this run made it and how long it took.
-3. **Checks, then delivery.** :func:`~haynes_studio.mix.film_sound` gives the mix's
+4. **Checks, then delivery.** :func:`~haynes_studio.mix.film_sound` gives the mix's
    placement and the sound checks; every check on the master (sound and transcript)
    must pass before :func:`~haynes_studio.delivery.deliver` makes the phone proxy and
    publishes the delivery (``build.check_failed`` otherwise; nothing delivered). The
    plan's proxy key is answered after the plan, by the delivery: ``deliver`` makes the
    proxy itself (proposal).
-4. **Verified success.** The delivery is read back (:func:`read_delivery`, which
+5. **Verified success.** The delivery is read back (:func:`read_delivery`, which
    re-hashes the master, the proxy and the document) and must hold the plan's master;
    only then is the run ``succeeded``.
 
 Any error stops the run as ``failed`` with its code, the board it was on and the
-stage; every stage already completed stays in the store for the next run to reuse.
+stage; every stage already completed stays in the store for the next run to reuse. A
+failure after ``deliver`` returned names that delivery, whatever its read-back says. A
+failure that cannot be written to the run's record raises
+:class:`~.errors.RunUnrecorded` (``build.run_unrecorded``), naming the run and the
+delivery; it is never returned as a result.
 
 **Phases.** ``service`` fills the cache through the clip sources and nothing else:
 drive tracks (the clip requests' input) and clips are made; keyed frames, segments,
 the film, the sound, the checks and the delivery are left to the offline phase, and
 the run ends ``cancelled`` at that boundary (proposal: a run is not ``succeeded``
-without a delivery). ``offline`` is the same build with sources that refuse every call
+without a delivery), unless a transcript check it made or read of a cached master
+failed: then it ends ``failed`` with ``build.check_failed``. ``offline`` is the same
+build with sources that refuse every call
 (:func:`.sources.offline_sources`). ``all`` is both with the given sources.
 
-**Workers.** With ``workers`` over 1 the plan runs twice: once to make every clip and
-keyed frame and collect the segments the cache lacks, which up to ``workers`` processes
-render and commit (each at the two-thread rule), and once more, when every segment is
-a hit. The cache's create-only stages make two writers of one artifact safe.
+**Workers.** With ``workers`` over 1 the plan runs twice after the local pass: once to
+make every clip and keyed frame and collect the segments the cache lacks, which up to
+``workers`` processes render and commit (each at the two-thread rule), and once more,
+when every segment is a hit. The cache's create-only stages make two writers of one
+artifact safe.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
 import tempfile
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -61,6 +74,7 @@ from haynes_studio.build.errors import (
     DELIVERY_UNVERIFIED,
     VOICE_TRACK_MISSING,
     BuildError,
+    RunUnrecorded,
     failure_of,
 )
 from haynes_studio.build.prebuild import Prepared, make_snapshot, prepare, snapshot_bytes
@@ -74,7 +88,7 @@ from haynes_studio.build.run import (
     advance,
     new_run,
 )
-from haynes_studio.build.sources import ClipSources
+from haynes_studio.build.sources import ClipRequested, ClipSources, recording_sources
 from haynes_studio.build.transcript import CHECK as TRANSCRIPT, Transcriber, TranscriptChecks, check_spec
 from haynes_studio.cache import ArtifactCache, BoardVoice, MediaFormat, StoryPlan, TakeFacts, plan_story
 from haynes_studio.cache.build import PictureBuilder
@@ -91,10 +105,11 @@ from haynes_studio.cache.keys import (
     WHOLE_FRAME_CLIP,
     CacheKey,
 )
-from haynes_studio.cache.plan import Toolchain
-from haynes_studio.canonical.ids import Minter
-from haynes_studio.delivery import deliver, read_delivery
+from haynes_studio.cache.plan import LayeredMotion, Toolchain
+from haynes_studio.canonical.ids import Minter, is_id
+from haynes_studio.delivery import Delivery, deliver, read_delivery
 from haynes_studio.delivery.model import MASTER_SIZES
+from haynes_studio.delivery.publish import RECORD as DELIVERY_DOCUMENT, STAGE as DELIVERY_STAGE
 from haynes_studio.jsonio import thaw
 from haynes_studio.layered import COMPOSITOR as LAYERED_COMPOSITOR
 from haynes_studio.layered import LayeredRenderer, LayeredStages, reader
@@ -102,6 +117,7 @@ from haynes_studio.layered.keyed import keyer_build
 from haynes_studio.layered.s2v import read_provenance, record_stage
 from haynes_studio.library import Library
 from haynes_studio.mix import SoundBuilder, film_sound, sound_toolchain
+from haynes_studio.stages import completed_stage
 from haynes_studio.stages.preflight import PreflightError
 from haynes_studio.store import LocalStore, Store, blob_locator
 from haynes_studio.voice import Engine
@@ -118,6 +134,7 @@ SERVICE_KINDS = frozenset({S2V_DRIVE_TRACK, S2V_CLIP, WHOLE_FRAME_CLIP})
 CACHED_MEDIA = {KEYED_FRAMES: "image/png", SEGMENT: "video/mp4", FILM_PICTURE: "video/mp4",
                 MIX: "audio/wav", MASTER: "video/mp4"}
 FILM_KINDS = frozenset({FILM_PICTURE, MIX, MASTER, PROXY, CHECK_RESULT})
+PLAN = "plan"  # the stage of a refusal the plan makes itself (a missing seed, ...)
 
 
 def utc_now() -> str:
@@ -188,18 +205,36 @@ class _Chain:
     ``service`` set, only the service phase's kinds are made (clips, and the transcript
     of a master the cache already holds); every other artifact is looked up in the cache
     and, when it is not there, answered with a stand-in, so nothing is rendered, mixed
-    or delivered and no stand-in reaches a service."""
+    or delivered and no stand-in reaches a service. With ``local`` set, it is the local
+    pass (:func:`_local_pass`): drive tracks are made, each clip is a checked cache hit
+    or a request the recording sources keep (a stand-in), and every other artifact is
+    looked up, never made."""
 
     def __init__(self, build: _Build, *, defer: frozenset[str] = frozenset(),
-                 service: bool = False):
+                 service: bool = False, local: bool = False):
         self.build = build
         self.defer = defer
         self.service = service
+        self.local = local
         self.segments_seen = 0
         self.records: dict[str, Made] = {}
         self.segment_board: dict[str, str] = {}
         self.segment_keys: dict[str, CacheKey] = {}
         self.stand_ins: set[str] = set()
+
+    def _local_answer(self, key: CacheKey) -> str | None:
+        """The local pass's answer, or ``None`` for a stand-in."""
+        build, kind = self.build, key.kind
+        if kind == S2V_DRIVE_TRACK:  # made here: a local stage, the clip request's input
+            return build.route(key)
+        if kind in (S2V_CLIP, WHOLE_FRAME_CLIP):
+            try:  # the adapter checks the profile, a hit, and reads the request's inputs
+                return build.local_clip(key)
+            except ClipRequested:  # recorded by the recording source; nothing was asked
+                return None
+        media = CACHED_MEDIA.get(kind)
+        found = None if media is None else build.cache.lookup(key, media)
+        return None if found is None else found.sha256
 
     def _service_answer(self, key: CacheKey) -> str | None:
         """The service phase's answer, or ``None`` for a stand-in."""
@@ -228,6 +263,8 @@ class _Chain:
         start = build.timer()
         if kind in self.defer:
             sha = None
+        elif self.local:
+            sha = self._local_answer(key)
         elif self.service:
             sha = self._service_answer(key)
         else:
@@ -243,6 +280,8 @@ class _Chain:
             self.segment_board[key.value] = board_id or ""
             self.segment_keys[key.value] = key
             self.segments_seen += 1
+        if self.local:  # what the plan refuses before its next answer (a seed) is the plan's
+            build.where = (self.board_id(PLAN), PLAN)
         return sha
 
 
@@ -264,9 +303,15 @@ class _Build:
         read = reader(store, [self.production_id, "library"])
         self.read = read
         self.sources = sources
+        read_photo = reader(store, [self.production_id, "library"], IMAGE_TYPES)
         self.layered = LayeredStages(self.cache, sources.s2v, read=read)
-        self.wholeframe = WholeFrameClips(self.cache, sources.i2v, read_photo=reader(
-            store, [self.production_id, "library"], IMAGE_TYPES))
+        self.wholeframe = WholeFrameClips(self.cache, sources.i2v, read_photo=read_photo)
+        # The local pass's clip stages: the same adapters on the same cache, with sources
+        # that record each request and make nothing (see _local_pass).
+        self.recording = recording_sources()
+        self.local_layered = LayeredStages(self.cache, self.recording.s2v, read=read)
+        self.local_wholeframe = WholeFrameClips(self.cache, self.recording.i2v,
+                                                read_photo=read_photo)
         self.renderers = {LAYERED_COMPOSITOR: LayeredRenderer(),
                           WHOLE_FRAME_COMPOSITOR: WholeFrameRenderer()}
         self.pictures = {name: PictureBuilder(self.cache, renderer, open_input=read)
@@ -299,12 +344,31 @@ class _Build:
         raise BuildError("cache.key_input_invalid", f"this build makes no {kind} artifact",
                          stage=kind)
 
+    def local_clip(self, key: CacheKey) -> str:
+        """A clip key through the local pass's stages: a checked hit, else the stage
+        builds its request and the recording source raises ``ClipRequested``."""
+        if key.kind == S2V_CLIP:
+            return self.local_layered(key)
+        return self.local_wholeframe(key)
+
     def plan(self, chain: _Chain) -> StoryPlan:
         prepared = self.prepared
         return plan_story(self.story, voices=_voices(self.story, prepared.document, prepared),
                           blobs=_blobs(prepared), voice_ids=_voice_ids(prepared),
                           toolchain=self.toolchain, media=self.media, content=chain,
-                          motion=prepared.motion)
+                          motion=self._located(prepared.motion))
+
+    def _located(self, motion: LayeredMotion | None) -> LayeredMotion | None:
+        """``motion`` whose library timed-clip lookup marks where the build is: a timed
+        clip answers the speaker's ``s2v_clip``, so a damaged one fails at that stage."""
+        if motion is None or motion.timed is None:
+            return motion
+        timed = motion.timed
+
+        def located(slot: str, still: str, drive: str, frames: int) -> Any:
+            self.where = (self.where[0], S2V_CLIP)
+            return timed(slot, still, drive, frames)
+        return replace(motion, timed=located)
 
     def source_calls(self) -> int:
         return len(getattr(self.sources.s2v, "calls", ())) + len(getattr(self.sources.i2v, "calls", ()))
@@ -598,6 +662,8 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
     plan: StoryPlan | None = None
     checks: list[dict[str, Any]] | None = None
     stages: list[dict[str, Any]] = []
+    checked_locally = False
+    delivered: Delivery | None = None
     try:
         prepared.ensure_buildable()
         scratch = tempfile.TemporaryDirectory(prefix="studio-build-", dir=workdir)
@@ -606,11 +672,20 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
                            earlier_runs=earlier_runs, sources=sources, transcriber=transcriber,
                            toolchain=toolchain, media=media, timer=timer, workdir=scratch_dir)
             register = Register(inputs.register)
+            local = _local_pass(build)  # no clip is asked for before this passes
+            checked_locally = True
             if phase == SERVICE:
                 chain = _Chain(build, service=True)
                 plan = build.plan(chain)
+                _keep_made(chain.records, local)
                 recorder = _Recorder(build, plan, chain.records, register)
                 stages = recorder.stages()
+                checks = _service_checks(build, plan, chain.records) or None
+                failed = [c["check"] for c in checks or () if c["result"] == "fail"]
+                if failed:  # a cached master's transcript did not pass: never "complete"
+                    build.where = (None, "checks")
+                    raise BuildError(CHECK_FAILED, "checks of the cached master did not pass, so "
+                                     "it will not be delivered: " + ", ".join(failed), stage="checks")
                 made = sum(1 for m in chain.records.values() if m.made and m.kind in (S2V_CLIP, WHOLE_FRAME_CLIP))
                 checked = sum(1 for m in chain.records.values() if m.made and m.kind == CHECK_RESULT)
                 run = records.write(advance(
@@ -626,9 +701,7 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
                 first_pass = _render_in_workers(build, workers)
             chain = _Chain(build)
             plan = build.plan(chain)
-            for value, made_first in first_pass.items():  # what pass 1 made, and its time
-                if made_first.made and not made_first.deferred:
-                    chain.records[value] = made_first
+            _keep_made(chain.records, local, first_pass)
             build.where = (None, "checks")
             sound = film_sound(story, plan, build.sound)
             checks = _sound_checks(sound)
@@ -672,6 +745,7 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
             records.check(succeeded(PLACEHOLDER_DELIVERY, "0" * 64, plan.frames))
             build.where = (None, "delivery")
             master_path, cleanup = _master_file(store, production, plan.master.content, scratch_dir)
+            # Once deliver returns, its stage exists: a failure after this names it.
             delivered = deliver(master_path, store=store, production_id=production, run_id=run_id,
                                 expected_frames=plan.frames, media_kind=story.media_kind,
                                 delivery_id=delivery_id, now=_parse(now()), threads=2,
@@ -696,21 +770,32 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
         if failure.board_id is not None:
             number = next((b.number for b in story.boards or () if b.id == failure.board_id), None)
         failure = replace(failure, board_number=failure.board_number or number)
-        published = _published_delivery(store, production, run_id) if build is not None else None
+        if build is not None and not checked_locally:  # the local pass: nothing was asked
+            failure = replace(failure, message=f"{failure.message} (found before any clip was "
+                              "requested)")
+        published, unread = ((None, False) if build is None else
+                             _published_delivery(store, production, run_id, delivered))
         if published is not None:  # never hidden: a failed run says what was delivered
             failure = replace(failure, message=f"{failure.message} (delivery {published} of this "
                               "run was published before the failure)")
+        elif unread:
+            failure = replace(failure, message=f"{failure.message} (a delivery stage of this run "
+                              "may exist but could not be read)")
         reason = f"{failure.code}: {failure.message}"[:500]
         progress = {"percent": 100, "stage": failure.stage}
         try:
-            run = records.write(advance(run, FAILED, at=now(), by=actor, reason=reason,
-                                        error=failure.to_document(), stages=stages,
-                                        checks=checks, progress=progress,
-                                        delivery_id=published))
-        except AssertionError:  # detail that does not validate never hides the failure
-            run = records.write(advance(run, FAILED, at=now(), by=actor, reason=reason,
-                                        error=failure.to_document(), progress=progress,
-                                        delivery_id=published))
+            try:
+                run = records.write(advance(run, FAILED, at=now(), by=actor, reason=reason,
+                                            error=failure.to_document(), stages=stages,
+                                            checks=checks, progress=progress,
+                                            delivery_id=published))
+            except AssertionError:  # detail that does not validate never hides the failure
+                run = records.write(advance(run, FAILED, at=now(), by=actor, reason=reason,
+                                            error=failure.to_document(), progress=progress,
+                                            delivery_id=published))
+        except Exception as unrecorded:  # a store or transition error: never a quiet return
+            raise RunUnrecorded(run_id=run_id, failure=failure, error=unrecorded,
+                                delivery_id=published, unread_delivery=unread) from unrecorded
         return BuildResult(run, plan, () if build is None else
                            (*build.cache.stats.made, *build.worker_made),
                            0 if build is None else build.source_calls())
@@ -719,13 +804,80 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
 PLACEHOLDER_DELIVERY = "dlv_00000000000000000000000000"  # checks the record's shape only
 
 
-def _published_delivery(store: Store, production_id: str, run_id: str) -> str | None:
-    """The ID of a delivery this run already published, if any (read-only)."""
+def _local_pass(build: _Build) -> dict[str, Made]:
+    """The build's first pass, before any clip is asked of the phase's sources (review
+    finding 1 of story 406): the whole story is planned with the recording sources, so
+    every drive track is made (a local stage), every speaker's library timed clip is
+    resolved (a damaged one stops here), every seed and every other input the plan reads
+    is checked, each clip is a checked cache hit or a request whose inputs the adapter
+    read and re-hashed, and every other artifact is looked up in the cache. Nothing else
+    is made and no service is asked. Any error stops the run here with its own code,
+    board and stage. Returns the pass's records (the drive tracks it made)."""
+    chain = _Chain(build, local=True)
+    build.plan(chain)
+    return chain.records
+
+
+def _keep_made(records: dict[str, Made], *passes: Mapping[str, Made]) -> None:
+    """What an earlier pass of this run made (a drive track in the local pass, a clip in
+    the workers' pass 1), with its time, kept on the final pass's records."""
+    for earlier in passes:
+        for value, made in earlier.items():
+            if made.made and not made.deferred:
+                records[value] = made
+
+
+def _service_checks(build: _Build, plan: StoryPlan, records: Mapping[str, Made]
+                    ) -> list[dict[str, Any]]:
+    """The check results the service phase made or read (the transcript of a master the
+    cache holds), as run checks; a check it left to a later phase is not listed."""
+    out = []
+    for planned in plan.artifacts.values():
+        found = records.get(planned.key.value)
+        if planned.key.kind == CHECK_RESULT and found is not None and not found.deferred:
+            out.append(_transcript_entry(build.transcript.result(planned.content),
+                                         planned.key.value, planned.content))
+    return out
+
+
+def _published_delivery(store: Store, production_id: str, run_id: str,
+                        delivered: Delivery | None) -> tuple[str | None, bool]:
+    """The ID of the delivery this run published, if any, and whether a delivery stage
+    may exist whose ID could not be read (read-only). Once ``deliver`` has returned
+    (``delivered``), the run's delivery stage exists whatever a later read says, so its
+    ID is taken from there. Otherwise the stage is read back; one that does not read
+    back (a blob that does not re-hash, a record that does not validate) is still named
+    from its own document when that can be read."""
+    if delivered is not None:
+        return delivered.id, False
     try:
         found = read_delivery(store, production_id=production_id, run_id=run_id)
-    except Exception:  # noqa: BLE001 - a damaged delivery is not this failure's subject
-        return None
-    return None if found is None else found.id
+    except Exception:  # noqa: BLE001 - its read is not this failure; name it another way
+        return _delivery_stage_id(store, production_id, run_id)
+    return (None, False) if found is None else (found.id, False)
+
+
+def _delivery_stage_id(store: Store, production_id: str, run_id: str) -> tuple[str | None, bool]:
+    """The delivery ID a run's delivery stage names, read from the stage's document
+    without re-hashing the master and the proxy (the read that failed), and whether a
+    stage may exist whose ID could not be read: ``(None, False)`` when there is none."""
+    try:
+        if isinstance(store, LocalStore):  # sizes only: the full re-hash is what failed
+            record = store.stage_record(production_id, run_id, DELIVERY_STAGE, verify=False)
+        else:
+            record = completed_stage(store, production_id=production_id, run_id=run_id,
+                                     stage=DELIVERY_STAGE)
+    except Exception:  # noqa: BLE001 - a record whose blobs are not all there
+        return None, True
+    if record is None:
+        return None, False
+    try:
+        with store.open(record.blobs[DELIVERY_DOCUMENT].locator) as handle:
+            document = json.loads(handle.read(1 << 20))
+        found = document.get("id") if isinstance(document, dict) else None
+    except Exception:  # noqa: BLE001 - nothing more can be read; the caller says so
+        return None, True
+    return (found, False) if is_id(found, "dlv") else (None, True)
 
 
 def _parse(stamp: str) -> datetime:
