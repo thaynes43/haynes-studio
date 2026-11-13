@@ -548,3 +548,71 @@ def test_a_document_nested_too_deeply_is_refused(depth):
     import_map = example("valid/legacy-import-map.json")
     import_map["hidden_candidates"] = [deep]
     assert blocking(validate_legacy_import(import_map)) == [("schema.invalid", "invalid", "")]
+
+
+# Board bounds (TIME-5, story 849) ------------------------------------------------------
+
+
+def _schema_rules(document) -> set[str]:
+    return annotated_rules(validator_for(SCHEMA_FILES["studio.board/v1"]).iter_errors(document))
+
+
+def test_lead_and_each_gap_are_at_most_120000_ms():
+    """TIME-5: lead and gaps at most the longest hold, refused at write as
+    ``schema.invalid`` by the board schema, not only when a voice is requested."""
+    spoken = board(8)
+    spoken["timing"]["lead_ms"] = 120_000
+    spoken["lines"][2]["gap_before_ms"] = 120_000
+    assert check(spoken) == [] and _schema_rules(spoken) == set()
+    spoken["timing"]["lead_ms"] = 120_001
+    assert check(spoken) == [("schema.invalid", "invalid", "/timing/lead_ms")]
+    assert _schema_rules(spoken) == {"schema.invalid"}
+    spoken["timing"]["lead_ms"] = 500
+    spoken["lines"][2]["gap_before_ms"] = 120_001
+    assert check(spoken) == [("schema.invalid", "invalid", "/lines/2/gap_before_ms")]
+    assert _schema_rules(spoken) == {"schema.invalid"}
+
+
+def _lines(document, count: int) -> None:
+    """``count`` lines: the board's own, then copies of its last line with new IDs and
+    a 300 ms gap."""
+    last = document["lines"][-1]
+    extra = [{**last, "id": f"lin_01M79V9FD{n:017d}", "gap_before_ms": 300}
+             for n in range(count - len(document["lines"]))]
+    document["lines"] = document["lines"] + extra
+
+
+def test_a_board_has_at_most_256_lines():
+    spoken = board(8)
+    _lines(spoken, 256)
+    assert check(spoken) == [] and _schema_rules(spoken) == set()
+    spoken = board(8)
+    _lines(spoken, 257)
+    assert len({line["id"] for line in spoken["lines"]}) == 257
+    assert check(spoken) == [("schema.invalid", "invalid", "/lines")]
+    assert _schema_rules(spoken) == {"schema.invalid"}
+
+
+def test_a_story_refuses_an_embedded_board_over_its_bounds():
+    story = story_write()
+    story["boards"][0]["timing"]["lead_ms"] = 120_001
+    story["boards"][7]["lines"][1]["gap_before_ms"] = 1_000_000_000
+    _lines(story["boards"][8], 257)
+    assert check_story(story) == [("schema.invalid", "invalid", "/boards/0/timing/lead_ms"),
+                                  ("schema.invalid", "invalid", "/boards/7/lines/1/gap_before_ms"),
+                                  ("schema.invalid", "invalid", "/boards/8/lines")]
+
+
+def test_the_bound_is_a_range_beside_the_time_rules():
+    """A negative or fractional lead keeps its own rule; a fractional lead over the
+    bound breaks both, as a fractional hold over 120000 ms does."""
+    spoken = board(8)
+    spoken["timing"]["lead_ms"] = -1
+    assert check(spoken) == [("time.negative", "invalid", "/timing/lead_ms")]
+    spoken["timing"]["lead_ms"] = 1900.5
+    assert check(spoken) == [("time.not_integer_ms", "invalid", "/timing/lead_ms")]
+    spoken["timing"]["lead_ms"] = 120_000.0  # integral: the integer 120000
+    assert check(spoken) == []
+    spoken["timing"]["lead_ms"] = 120_000.5
+    assert check(spoken) == [("schema.invalid", "invalid", "/timing/lead_ms"),
+                             ("time.not_integer_ms", "invalid", "/timing/lead_ms")]

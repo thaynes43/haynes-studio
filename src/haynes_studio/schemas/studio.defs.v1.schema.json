@@ -539,10 +539,12 @@
             "human",
             "agent",
             "worker",
-            "cli"
+            "cli",
+            "agent_session"
           ]
         }
       },
+      "$comment": "agent_session (P-24): an agent working in its own dev-env session without a studio key. It records who did the work and grants nothing.",
       "allOf": [
         {
           "if": {
@@ -637,6 +639,42 @@
               },
               "operator": {
                 "$ref": "#/$defs/human"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "agent_session"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "kind",
+              "session",
+              "harness",
+              "model"
+            ],
+            "properties": {
+              "kind": true,
+              "session": {
+                "type": "string",
+                "minLength": 1
+              },
+              "harness": {
+                "type": "string",
+                "minLength": 1
+              },
+              "model": {
+                "type": "string",
+                "minLength": 1
               }
             },
             "additionalProperties": false

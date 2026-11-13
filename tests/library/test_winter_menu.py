@@ -6,15 +6,20 @@ named problems, and the records hold exactly what the public evidence says."""
 from __future__ import annotations
 
 import dataclasses
+from types import MappingProxyType
 
 import pytest
 
 from haynes_studio.canonical import timing_summary, validate_story, with_derived
 from haynes_studio.errors import ContractError
-from haynes_studio.library import import_version, resolve, validate_asset_version
-from haynes_studio.library.model import Scope
+from haynes_studio.library import Library, import_version, resolve, validate_asset_version
+from haynes_studio.library.model import KOKORO, Licence, Scope
 from haynes_studio.library.resolve import references
-from haynes_studio.library.winter_menu import LicenceRegister, winter_menu_requests
+from haynes_studio.library.winter_menu import (
+    LicenceRegister,
+    build_winter_menu_library,
+    winter_menu_requests,
+)
 from tests.canonical.fixtures import NOW, REVISIONS, example
 from tests.library.fixtures import (
     BY,
@@ -206,13 +211,10 @@ def test_the_gaps_list_what_the_public_files_do_not_hold():
         f"speech:shot:{shot}" for shot in (1, 2, 3, 4, 5, 6, 8, 9)}
     assert by_field["provenance.generator.model"] == {
         "sfx:crow", "sfx:crunch", "sfx:gavel", "sfx:sting", "bed:fire"}
-    # Only Stable Audio's conditional terms stay unknown; the images' and voices' are recorded.
-    assert by_field["licence"] == {"sfx:crow", "sfx:crunch", "sfx:gavel", "sfx:sting", "bed:fire"}
-    assert all(gap.reason.startswith("Register entry stable-audio;")
-               for gap in gaps if gap.field == "licence")
+    # Every licence is recorded: Stable Audio's terms are conditional (P-23, story 849),
+    # no longer unknown, so no licence is a gap.
     assert set(by_field) == {"content.bytes", "provenance.generator.files_sha256",
-                             "provenance.generator.model", "voice.takes[].samples, sample_rate",
-                             "licence"}
+                             "provenance.generator.model", "voice.takes[].samples, sample_rate"}
 
 
 def test_signatures_and_pins_agree_with_the_contract_examples():
@@ -260,6 +262,53 @@ def test_facts_with_the_story_mark_changed_boards_stale():
     assert stale(lambda s, b: b["lines"][0].update(speaker="b"))
     assert stale(lambda s, b: s["cast"][0].update(voice_version_id=s["cast"][1]["voice_version_id"]))
     assert not stale(lambda s, b: b.update(title="Day 340"))
+
+
+def _queue_stale(document, facts) -> set[str]:
+    draft = {**{k: v for k, v in document.items() if k != "derived"},
+             "boards": [{k: v for k, v in b.items() if k != "derived"} for b in document["boards"]]}
+    return {v.path for v in validate_story(draft, context="queue_run", facts=facts)
+            if v.rule == "voice.stale"}
+
+
+def test_engine_currency_needs_a_current_engine_named():
+    """VOICE-9 (story 849). No current engine named: nothing changes. Named as the
+    model name the legacy takes carry (no digest is recorded): r4 stays buildable.
+    Named as a digest: every board voice is stale, with or without the story."""
+    library = winter_menu().library
+    document = story()
+    plain = library.facts(document)
+    assert library.facts(document, current_engine=None) == plain
+    assert library.facts(document, current_engine=KOKORO) == plain
+    assert library.facts(current_engine=KOKORO) == library.facts()
+    assert timing_summary(document, facts=plain).build_allowed
+
+    digest = "sha256:" + "0" * 64
+    voices = {v.id for v in library.versions.values() if v.voice is not None}
+    for facts in (library.facts(document, current_engine=digest),
+                  library.facts(current_engine=digest)):
+        assert {i for i, f in facts.voice_versions.items() if not f.matches_board} == voices
+    stale = library.facts(document, current_engine=digest)
+    assert _queue_stale(document, stale) == {
+        f"/boards/{i}/voice/current_version_id" for i, b in enumerate(document["boards"])
+        if b["lines"]}
+    assert {b["derived"]["voice_state"] for b in with_derived(document, facts=stale)["boards"]
+            if b["lines"]} == {"stale"}
+    assert not timing_summary(document, facts=stale).build_allowed
+
+
+def test_one_take_signed_with_another_engine_makes_its_voice_stale():
+    library = winter_menu().library
+    document = story()
+    version = library.version(document["boards"][7]["voice"]["current_version_id"])
+    takes = version.voice.takes
+    mixed = dataclasses.replace(version, voice=dataclasses.replace(
+        version.voice, takes=(*takes[:-1], dataclasses.replace(takes[-1], engine="other"))))
+    library = Library(assets=library.assets,
+                      versions=MappingProxyType({**library.versions, version.id: mixed}))
+    assert _queue_stale(document, library.facts(document)) == set()
+    assert _queue_stale(document, library.facts(document, current_engine=KOKORO)) == {
+        "/boards/7/voice/current_version_id"}
 
 
 def test_a_story_must_embed_its_boards_and_board_versions_stay_on_their_board():
@@ -365,6 +414,17 @@ def test_every_register_licence_is_a_valid_licence_object():
         assert list(validate_asset_version(version, context="write")) == [], item["key"]
 
 
+def _looked_up(key):
+    """The licence object the register lookup gives for an engine: its own, except that
+    a conditional term (recorded ``unknown``) is ``conditional`` (P-23, story 849)."""
+    engine = _engine(key)
+    licence = dict(engine["licence"])
+    if engine["outputs_commercial_use"] == "conditional":
+        assert licence["commercial_use"] == "unknown"  # the register is left as it is
+        licence["commercial_use"] = "conditional"
+    return licence
+
+
 def test_each_version_takes_its_licence_from_the_register():
     library = winter_menu().library
     expected = {"cast": "qwen-image", "set": "qwen-image", "sound": "stable-audio",
@@ -372,9 +432,40 @@ def test_each_version_takes_its_licence_from_the_register():
     seen = set()
     for version in library.versions.values():
         key = expected[version.kind]
-        assert library.document(version.id)["licence"] == _engine(key)["licence"], version.id
+        assert library.document(version.id)["licence"] == _looked_up(key), version.id
         seen.add(key)
     assert len(library.versions) == 24 and seen == {"qwen-image", "stable-audio", "kokoro"}
+    uses = {v.kind: v.licence.commercial_use for v in library.versions.values()}
+    assert uses == {"cast": "noncommercial", "set": "noncommercial", "sound": "conditional",
+                    "voice": "allowed", "board_voice": "allowed"}
+
+
+def test_the_conditional_lookup_changes_no_version_id_pin_or_content():
+    """A licence value is not part of a pin (section 9): the library built with the
+    conditional lookup has the version IDs, pins and documents of one built with the
+    register's own ``unknown``, apart from that one value (asset IDs are minted per
+    build, so they are left out)."""
+    library = winter_menu().library
+    literal = LicenceRegister(tuple(
+        dataclasses.replace(engine, licence=Licence.from_document(_engine(engine.key)["licence"]))
+        for engine in register().engines))
+    result = imported(4)
+    before = build_winter_menu_library(result.story, result.import_map, sources(4),
+                                       licences=literal, by=BY, now=NOW).library
+    assert set(before.versions) == set(library.versions)
+    changed = set()
+    for version_id in library.versions:
+        assert library.pin(version_id) == before.pin(version_id), version_id
+        now, then = (dict(lib.document(version_id), asset_id=None) for lib in (library, before))
+        if now != then:
+            changed.add(library.version(version_id).kind)
+            assert (then["licence"]["commercial_use"], now["licence"]["commercial_use"]) == (
+                "unknown", "conditional")
+            assert {**now, "licence": {**now["licence"], "commercial_use": "unknown"}} == then
+    assert changed == {"sound"}
+    sounds = [v for v in library.versions.values() if v.kind == "sound"]
+    assert len(sounds) == 5 and all(validate_asset_version(library.document(v.id)) == []
+                                    for v in sounds)
 
 
 def test_a_model_the_register_does_not_name_stays_unknown_with_its_reason():
@@ -394,8 +485,9 @@ def test_a_model_the_register_does_not_name_stays_unknown_with_its_reason():
     kokoro = register().licence_for("voice", "Kokoro-82M v1.0 stock voices")
     assert (kokoro.name, kokoro.commercial_use) == ("Apache-2.0", "allowed")
     for text in ("audio-authoring (Stable Audio 3 Small SFX, CPU)", "Stable Audio 3 Small-SFX"):
-        assert register().licence_for("sound", text).name == \
-            "Stability AI Community License Agreement"
+        found = register().licence_for("sound", text)
+        assert (found.name, found.commercial_use) == (
+            "Stability AI Community License Agreement", "conditional")
     assert register().licence_for("image", None).commercial_use == "unknown"
     # Two engines claiming the same name is ambiguous, never a guess.
     twice = LicenceRegister(register().engines + register().engines[:1])
