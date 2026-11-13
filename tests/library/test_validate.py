@@ -47,6 +47,14 @@ def check(document, context="write"):
             if v.status != WARNING]
 
 
+def check_example(item, context):
+    """An example by its own type: ``studio.asset/v1`` or ``studio.asset-version/v1``."""
+    if item.type == "asset":
+        return [(v.rule, v.status, v.path) for v in validate_asset(item.document, context=context)
+                if v.status != WARNING]
+    return check(item.document, context)
+
+
 def plain_rules(document, filename=ASSET_VERSION_FILE) -> set[str]:
     """The rules a plain draft 2020-12 validator's errors carry, read from the schema
     file's own annotations (as tests/canonical/test_validate.py does)."""
@@ -87,16 +95,28 @@ def voice():
 
 
 def test_the_examples_cover_both_rule_families():
-    assert {item.type for item in VALID} == {"asset-version"}
+    assert sorted(_id(item) for item in VALID) == [
+        "asset-cast.json", "asset-version-board-voice.json", "asset-version-cast.json",
+        "asset-version-photo-external.json"]
+    assert {item.type for item in VALID} == {"asset", "asset-version"}
     assert sorted(item.rule for item in INVALID) == [
-        "prov.external_incomplete", "prov.licence_missing", "store.locator_invalid",
-        "voice.not_stock"]
+        "asset.capability_mismatch", "prov.external_incomplete", "prov.licence_missing",
+        "store.locator_invalid", "voice.not_stock"]
 
 
 @pytest.mark.parametrize("item", VALID, ids=_id)
 @pytest.mark.parametrize("context", ["read", "write", "queue_run"])
 def test_valid_examples_validate_in_every_context(item, context):
-    assert check(item.document, context) == []
+    assert check_example(item, context) == []
+
+
+def test_the_asset_example_is_the_cast_versions_asset():
+    """The asset example and the cast version example describe one asset."""
+    asset = next(item.document for item in VALID if item.type == "asset")
+    version = cast()
+    assert asset["id"] == version["asset_id"]
+    assert {k: asset[k] for k in ("kind", "name", "scope", "labels", "attributes")} == {
+        k: version[k] for k in ("kind", "name", "scope", "labels", "attributes")}
 
 
 @pytest.mark.parametrize("item", INVALID, ids=_id)
@@ -108,13 +128,16 @@ def test_invalid_case_fails_with_exactly_its_rule_status_and_path(item):
 
 @pytest.mark.parametrize("item", VALID + INVALID, ids=_id)
 def test_json_schema_and_python_agree_on_the_examples(item):
-    shipped = validator_for(ASSET_VERSION_FILE)
+    filename = ASSET_FILE if item.type == "asset" else ASSET_VERSION_FILE
+    shipped = validator_for(filename)
     assert isinstance(shipped, Draft202012Validator)
     if item.kind == "valid":
         assert list(shipped.iter_errors(item.document)) == []
-    else:
-        assert item.rule in SCHEMA_RULES
+    elif item.rule in SCHEMA_RULES:
         assert plain_rules(item.document) == {item.rule}
+    else:  # a rule the code owns: the schema accepts the document
+        assert item.rule == "asset.capability_mismatch"
+        assert plain_rules(item.document) == set()
 
 
 def test_every_valid_example_is_a_valid_voice_too():
@@ -160,6 +183,12 @@ SCHEMA_CASES = [
     (cast, lambda d: d["licence"].update(commercial_use="allowed", name="Apache-2.0",
                                          checked_at="2026-11-13T08:00:00Z", checked_by=None),
      "schema.invalid", "/licence/checked_by"),
+    (cast, lambda d: d["licence"].update(commercial_use="conditional", checked_by=None),
+     "schema.invalid", "/licence/checked_by"),
+    (cast, lambda d: d["licence"].update(commercial_use="conditional", note=None),
+     "schema.invalid", "/licence/note"),
+    (cast, _set(["licence", "commercial_use"], "research_only"),
+     "schema.invalid", "/licence/commercial_use"),
     (photo, _set(["provenance", "external"], None), "prov.external_incomplete", "/provenance/external"),
     (photo, _set(["provenance", "external"], _DELETE),
      "prov.external_incomplete", "/provenance/external"),
@@ -281,6 +310,23 @@ def test_a_checked_licence_names_who_checked_it():
                                checked_at="2026-11-13T08:00:00Z",
                                checked_by=document["provenance"]["created_by"]["operator"])
     assert check(document) == []
+
+
+def test_a_conditional_term_is_a_checked_value_with_its_conditions():
+    """Section 7, P-23 (story 849): ``conditional`` validates, named and checked like the
+    other checked values, its conditions in ``note``."""
+    document = cast()
+    document["licence"].update(commercial_use="conditional",
+                               note="Commercial use needs registration with the licensor.")
+    assert check(document) == [] and plain_rules(document) == set()
+    document["licence"].update(checked_at=None, name=None)
+    assert check(document) == [("schema.invalid", "invalid", "/licence/checked_at"),
+                               ("schema.invalid", "invalid", "/licence/name")]
+    unchecked = cast()
+    unchecked["licence"].update(commercial_use="unknown", name=None, url=None,
+                                attribution_required=None, checked_at=None, checked_by=None,
+                                note=None)
+    assert check(unchecked) == []  # unknown needs nothing, as before
 
 
 def test_global_versions_live_in_the_library_folder():

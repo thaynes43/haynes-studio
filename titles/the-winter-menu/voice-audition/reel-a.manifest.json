@@ -1,0 +1,90 @@
+{
+  "title": "The Winter Menu voice audition 1, doll A (the captain)",
+  "story": "https://work.haynesnetwork.com/work_packages/840",
+  "job": "the-winter-menu-voices-1-a",
+  "job_dir": "~/studio-jobs/the-winter-menu-voice-audition-1/reel-a3",
+  "revision_note": "Voice audition reel: a spoken label, then each candidate's r4 lines; still title cards.",
+  "cast": {
+    "1": {
+      "name": "candidate 1",
+      "voice": "bf_emma"
+    },
+    "2": {
+      "name": "candidate 2",
+      "voice": "bf_isabella"
+    },
+    "3": {
+      "name": "candidate 3",
+      "voice": "bf_lily"
+    },
+    "4": {
+      "name": "candidate 4",
+      "voice": "bf_alice"
+    },
+    "5": {
+      "name": "candidate 5",
+      "voice": "af_kore"
+    },
+    "6": {
+      "name": "candidate 6",
+      "voice": "af_aoede"
+    },
+    "label": {
+      "name": "announcer (labels only)",
+      "voice": "am_michael"
+    }
+  },
+  "shots": [
+    {
+      "id": 0,
+      "dolls": {
+        "card": "cards/00-intro.png"
+      }
+    },
+    {
+      "id": 1,
+      "dolls": {
+        "card": "cards/01-bf_emma.png"
+      }
+    },
+    {
+      "id": 2,
+      "dolls": {
+        "card": "cards/02-bf_isabella.png"
+      }
+    },
+    {
+      "id": 3,
+      "dolls": {
+        "card": "cards/03-bf_lily.png"
+      }
+    },
+    {
+      "id": 4,
+      "dolls": {
+        "card": "cards/04-bf_alice.png"
+      }
+    },
+    {
+      "id": 5,
+      "dolls": {
+        "card": "cards/05-af_kore.png"
+      }
+    },
+    {
+      "id": 6,
+      "dolls": {
+        "card": "cards/06-af_aoede.png"
+      }
+    }
+  ],
+  "set": {
+    "image": "cards/00-intro.png"
+  },
+  "sfx": {},
+  "provenance": {
+    "images": "Title cards drawn with Pillow (text only), no generated images.",
+    "motion": "None: one still card per candidate.",
+    "takes": "titles/the-winter-menu/voice-audition/takes.json"
+  }
+}

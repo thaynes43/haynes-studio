@@ -12,9 +12,12 @@ resolver's injected question.
 Every version takes its licence object from the model licence register (story 809,
 ``docs/reference/model-licences.json``): the entry of its role whose recorded name the
 version's model or service text contains. A version no entry matches, or more than one,
-gets ``commercial_use: unknown`` with the reason. Values the public files do not hold
-stay ``null`` and are listed as :class:`Gap` records, as is every licence still
-``unknown`` (the register records a conditional term as ``unknown``); nothing is guessed.
+gets ``commercial_use: unknown`` with the reason. The register records a conditional
+term as ``unknown`` in its licence object and ``conditional`` in the entry's
+``outputs_commercial_use``; the lookup gives ``conditional`` for it (section 7, P-23),
+with the register's note. Values the public files do not hold stay ``null`` and are
+listed as :class:`Gap` records, as is every licence still ``unknown``; nothing is
+guessed.
 
 Take, input and definition signatures follow the formulas of the contract's examples
 (``asset-version-board-voice.json``, ``run-snapshot.json``), with the model name in
@@ -29,7 +32,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -61,6 +64,7 @@ CUTOUT_TOOL = "poc/cutout.py"
 MEDIA_TYPES = {".png": "image/png", ".wav": "audio/wav", ".jpg": "image/jpeg",
                ".webp": "image/webp", ".mp4": "video/mp4"}
 REGISTER_PATH = "docs/reference/model-licences.json"  # from the repository root (story 809)
+CONDITIONAL, UNKNOWN = "conditional", "unknown"  # commercial_use values (section 7)
 TRACK_NOTE = "Legacy kept one WAV per line; no assembled board track exists."
 # poc/studio.py synthesize() sent only a voice and text, so the Kokoro server's default
 # speed applied; the contract's board voice example signs legacy takes with 1.0.
@@ -116,7 +120,7 @@ class LicenceRegister:
         return cls(tuple(
             RegisteredEngine(key=engine["key"], role=engine["role"],
                              recorded_as=tuple(engine["recorded_as"]),
-                             licence=Licence.from_document(engine["licence"]))
+                             licence=_registered_licence(engine))
             for engine in doc["engines"]))
 
     def licence_for(self, role: str, model: Any) -> Licence:
@@ -132,6 +136,16 @@ class LicenceRegister:
                   "several entries (" + ", ".join(engine.key for engine in found) + ")")
         return Licence.unknown(f"The licence register has {reason} for the {role} model "
                                f"{text!r}; terms not recorded.")
+
+
+def _registered_licence(engine: Mapping[str, Any]) -> Licence:
+    """An entry's licence object. A conditional term (``outputs_commercial_use:
+    conditional``), which the register writes ``unknown`` in its licence object, is
+    ``conditional`` (P-23); every other value is the licence object's own."""
+    licence = Licence.from_document(engine["licence"])
+    if engine.get("outputs_commercial_use") == CONDITIONAL and licence.commercial_use == UNKNOWN:
+        return replace(licence, commercial_use=CONDITIONAL)
+    return licence
 
 
 def _names(name: str, text: str) -> bool:
@@ -363,7 +377,7 @@ def winter_menu_requests(story: Mapping[str, Any], import_map: Mapping[str, Any]
                             "speech.json records duration_s, not samples or rate; durations are "
                             "legacy_duration_s (TIME-1)"))
     for request in requests:
-        if request.licence.commercial_use == "unknown":
+        if request.licence.commercial_use == UNKNOWN:
             gaps.append(Gap(request.provenance["source_key"], "licence",
                             request.licence.note or "terms not recorded"))
     return requests, gaps

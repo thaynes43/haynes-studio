@@ -7,6 +7,11 @@ story 404's validator. Voices, clips, the mix and the master are never made: a t
 hash and length, and any artifact's content hash, are deterministic functions of its
 key (:func:`stand_in`), so a changed key means changed content and an unchanged key
 the same content, exactly as a cache hit would.
+
+The layered boards plan from **pinned motion records** (story 426): :func:`library`
+holds the cast stills, one promoted doll loop per still and the pinned set loop, all
+as JSON records with stand-in hashes (no media), and :func:`plan` passes
+:func:`motion` of the document unless told not to.
 """
 
 from __future__ import annotations
@@ -28,6 +33,10 @@ from haynes_studio.cache.plan import (
     track_key,
 )
 from haynes_studio.canonical import Story, load_story
+from haynes_studio.library import Library
+from haynes_studio.library.model import locator_for
+from haynes_studio.motion.winter_menu import complete_block
+from tests.motion import fixtures as mf
 
 MEDIA = MediaFormat(width=360, height=640)  # contract section 14: small synthetic picture
 OPERATOR = {"kind": "human", "iss": "https://authentik.example.invalid/application/o/haynes-studio/",
@@ -182,15 +191,91 @@ def voices(story: Story, *, voice_ids: dict[str, str] = VOICE_IDS,
     return out
 
 
+# Pinned motion records (story 426) ------------------------------------------------------
+
+KEYING = {"keyer": "legacy:poc/cutout.py key", "key_thresholds": {"lo": 20, "hi": 70},
+          "protect_boxes": [[40, 60, 80, 90]], "decal_box": [30, 120, 90, 150],
+          "decal_version": "erase-v2"}
+# New versions of a's and b's stills that no board uses until a test swaps them in.
+STILL_A2, STILL_B2 = ident("asv", 5), ident("asv", 6)
+STILL_ASSET = {STILL_A: 1, STILL_B: 2, STILL_C: 3, STILL_A2: 1, STILL_B2: 2}
+LOOPS = {STILL_A: ident("asv", 51), STILL_B: ident("asv", 52), STILL_C: ident("asv", 53),
+         STILL_A2: ident("asv", 55), STILL_B2: ident("asv", 56)}  # one promoted loop per still
+BLOBS.update({still: sha(f"blob:{still}") for still in (STILL_A2, STILL_B2)})
+
+
+def scoped(doc: dict[str, Any], version_id: str, asset: int) -> dict[str, Any]:
+    doc["id"], doc["asset_id"] = version_id, ident("ast", asset)
+    doc["scope"] = {"production_id": PRODUCTION}
+    content = doc["content"]
+    content["locator"] = locator_for(content["sha256"], content["media_type"], PRODUCTION)
+    doc["provenance"]["source_key"] = f"fixture:cache:{version_id}"
+    if doc.get("legacy"):
+        doc["legacy"]["source_key"] = doc["provenance"]["source_key"]
+    return doc
+
+
+def still_doc(version_id: str, asset: int, *, kind: str = "cast", number: int = 1) -> dict[str, Any]:
+    doc = scoped(mf.still_version(1, BLOBS[version_id], kind=kind), version_id, asset)
+    doc["number"] = number
+    return doc
+
+
+def loop_doc(still_id: str, version_id: str, asset: int, *, frames: int = 121,
+             **changes: Any) -> dict[str, Any]:
+    """A promoted doll loop of ``still_id`` (its clip and start image are stand-ins,
+    one per still: a re-keyed loop is the same clip)."""
+    clip = sha(f"loop clip:{still_id}")
+    block = mf.loop_block(still_sha256=BLOBS[still_id], frames=frames,
+                          trim={"start": 0, "frames": frames}, keying=dict(KEYING))
+    block["source"] = {**block["source"], "image_sha256": sha(f"green:{still_id}")}
+    block.update(changes)
+    doc = mf.version(None, n=1, clip=clip)
+    doc["motion"] = complete_block(block, clip)
+    return scoped(doc, version_id, asset)
+
+
+def set_loop_doc(frames: int = 121) -> dict[str, Any]:
+    """The story's pinned set loop (``SET_LOOP``, content ``BLOBS[SET_LOOP]``)."""
+    block = mf.set_block(still_sha256=BLOBS[SET_PLATE], frames=frames,
+                         trim={"start": 0, "frames": frames})
+    doc = mf.version(None, n=1, clip=BLOBS[SET_LOOP])
+    doc["motion"] = complete_block(block, BLOBS[SET_LOOP])
+    doc["capabilities"] = ["set_loop"]
+    return scoped(doc, SET_LOOP, 22)
+
+
+def library(*extra: dict[str, Any], without: frozenset[str] = frozenset()) -> Library:
+    """The fixture's library: the cast stills (a and b in two versions), the set plate,
+    a loop per still and the set loop, less the versions ``without`` names, plus
+    ``extra`` version documents."""
+    docs = [still_doc(still, asset, number=1 + (still in (STILL_A2, STILL_B2)))
+            for still, asset in STILL_ASSET.items()]
+    docs.append(still_doc(SET_PLATE, 21, kind="set"))
+    docs += [loop_doc(still, version, 50 + i) for i, (still, version) in enumerate(LOOPS.items(), 1)]
+    docs.append(set_loop_doc())
+    return Library.from_version_documents([*(d for d in docs if d["id"] not in without), *extra])
+
+
+def motion(document: dict[str, Any], lib: Library | None = None):
+    """The plan's pinned motion records for ``document`` (story 426)."""
+    from haynes_studio.layered.pin import pin_story
+    return pin_story(document, lib or library(), mf.Verify(), production_id=PRODUCTION)
+
+
 def plan(document: dict[str, Any], *, toolchain: Toolchain = Toolchain(),
          media: MediaFormat = MEDIA, blobs: dict[str, str] | None = None,
          voice_ids: dict[str, str] = VOICE_IDS,
-         content: Callable[[CacheKey], str] = stand_in) -> StoryPlan:
-    """The key plan of a fixture document, with stand-in voices and content."""
+         content: Callable[[CacheKey], str] = stand_in, pinned: bool = True,
+         lib: Library | None = None) -> StoryPlan:
+    """The key plan of a fixture document, with stand-in voices and content, its layered
+    boards from pinned motion records unless ``pinned`` is false (story 380's
+    toolchain placeholders)."""
     story = load(document)
     return plan_story(story, voices=voices(story, voice_ids=voice_ids, toolchain=toolchain),
                       blobs=BLOBS if blobs is None else blobs, voice_ids=voice_ids,
-                      toolchain=toolchain, media=media, content=content)
+                      toolchain=toolchain, media=media, content=content,
+                      motion=motion(document, lib) if pinned else None)
 
 
 def board_of(document: dict[str, Any], board_id: str) -> dict[str, Any]:
