@@ -1,0 +1,4099 @@
+{
+  "kind": "legacy-recovery-map",
+  "version": 1,
+  "title": "The Winter Menu",
+  "story": "https://work.haynesnetwork.com/work_packages/425",
+  "status_meaning": "unverified: no one has checked that a file exists at any locator or that its bytes have the expected sha256. This map claims no file exists.",
+  "built_by": "python -m haynes_studio.adapters.recovery",
+  "sources": [
+    {
+      "path": "titles/the-winter-menu/evidence-r2/production.json",
+      "sha256": "abf3cd1d0500b9e8b8186ed218f246c5e1323a79c99f6136f99e4c6a6ae7676d"
+    },
+    {
+      "path": "titles/the-winter-menu/evidence-r2/speech.json",
+      "sha256": "843f035d810184adba9b5eaa59436b5c7957760aa16b5ab1ade779bad5bf5c66"
+    },
+    {
+      "path": "titles/the-winter-menu/evidence-r2/timeline.json",
+      "sha256": "1b9344e9bd9b8da72e945035afdfcfc796276f4f61bda9de68cbed1d8cc70cea"
+    },
+    {
+      "path": "titles/the-winter-menu/evidence-r3/production.json",
+      "sha256": "b5922e8d29f9b3ab91ab04749afb9bf392f7187e865be50bcf2b55f2392364c8"
+    },
+    {
+      "path": "titles/the-winter-menu/evidence-r3/speech.json",
+      "sha256": "88220326e941a21c787011da1a0c0d71fdba36ee3695a23714a3f680a2540a86"
+    },
+    {
+      "path": "titles/the-winter-menu/evidence-r3/timeline.json",
+      "sha256": "99f9d6d1dfebb17bd34fd572ab0624f71a1da6c8186b45fd7e35e96e53656fef"
+    },
+    {
+      "path": "titles/the-winter-menu/evidence-r4/production.json",
+      "sha256": "d35bb488db36a971520d24b632f9df20e6ae1dc59a933e4b8a6e7cbe05659dc9"
+    },
+    {
+      "path": "titles/the-winter-menu/evidence-r4/speech.json",
+      "sha256": "a2bdcc53292fcbbd7cc5411348613b551be4928d742d2e33d9cf39c37aa7085a"
+    },
+    {
+      "path": "titles/the-winter-menu/evidence-r4/timeline.json",
+      "sha256": "33f6d5b38075114f30d3cb54ea968490467252c33b047913d66494a1b01609c4"
+    },
+    {
+      "path": "titles/the-winter-menu/evidence/production.json",
+      "sha256": "3e65ff68fa4223580caa57c7263c7149e70bfa5dee9924f8d9cd521dd833330b"
+    },
+    {
+      "path": "titles/the-winter-menu/evidence/speech.json",
+      "sha256": "65628e2274236a7c31387759f11109ae1722e855dffc1b633e03071e5004d024"
+    },
+    {
+      "path": "titles/the-winter-menu/evidence/timeline.json",
+      "sha256": "63be1ce9775381ce411119db814cfa4f5d0ad23d371734850c57e1a8c4ba40bb"
+    },
+    {
+      "path": "titles/the-winter-menu/manifest-r2.json",
+      "sha256": "ed154d1c2fb1c3f45b3f5f7d1e03a7470520f4dd9aaa96011d663955565461ea"
+    },
+    {
+      "path": "titles/the-winter-menu/manifest-r3.json",
+      "sha256": "42308d514092859517fc55a51ea923d5ecc1dc46f13e336d41d290c1218398fd"
+    },
+    {
+      "path": "titles/the-winter-menu/manifest-r4.json",
+      "sha256": "98a9cfb747dd088edb65d3b7565344f3eab8c40c51bf56d6aa4948f04d47702d"
+    },
+    {
+      "path": "titles/the-winter-menu/manifest.json",
+      "sha256": "e8174b5f1884234dc398087df393ee59003d2d4f64b2e83af47c35c0f5b8fbee"
+    },
+    {
+      "path": "titles/the-winter-menu/prompts.json",
+      "sha256": "0c91e13758140ffddbb6a58d4657f5111ed65af8bdfeb4299bd7b34fc8d66a27"
+    },
+    {
+      "path": "titles/the-winter-menu/video-e0/clip-records.jsonl",
+      "sha256": "a4b3fa668ce0061b914d556a3d9de15947a1d1e2f806fb5cdf8b8ac860caf229"
+    },
+    {
+      "path": "titles/the-winter-menu/video-e0/keyframes.json",
+      "sha256": "d399ace74d1123087aa5bc411031de9bbab678fcea517377c87a4276fea15bef"
+    }
+  ],
+  "summary": {
+    "rows": 98,
+    "missing_sha256": 0,
+    "by_role": {
+      "render": 8,
+      "still": 25,
+      "set": 4,
+      "sfx": 11,
+      "bed": 3,
+      "take": 38,
+      "keyframe": 9
+    },
+    "by_revision": {
+      "r1": 22,
+      "r2": 17,
+      "r3": 25,
+      "r4": 34
+    }
+  },
+  "rows": [
+    {
+      "key": "r1:render:a-base-s101.png",
+      "revision": 1,
+      "job": "the-winter-menu-r1",
+      "role": "render",
+      "file": "a-base-s101.png",
+      "sha256": "c71ba33b3e037a13fe4167722a1035fc401e24f187b051f37b5f0f81d5c9384f",
+      "bytes": null,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/prompts.json"
+      ],
+      "provenance": {
+        "mode": "t2i",
+        "graph": "qwen_image_2_1_t2i_API.json",
+        "graph_sha256": "33673300cfde09ea39e9b9083b5954b3c5c2063f5af2b42a7e5ab5c605571747",
+        "seed": 101,
+        "width": 1104,
+        "height": 1472,
+        "source": null,
+        "prompt_file": "prompts/a-base.txt",
+        "prompt_id": "54b94a44-1ea6-4a01-8c30-57287a434db9",
+        "used_by": [
+          "a-proud.png",
+          "a-staring-s301"
+        ]
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r1",
+          "path": "a-base-s101.png",
+          "derivation": "poc/comfy.py writes <job dir>/<name>.png; prompts.json job is the-winter-menu-r1",
+          "recorded_in": [
+            "titles/the-winter-menu/prompts.json",
+            "titles/the-winter-menu/manifest.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "comfyui_output",
+          "pod": "ai/comfyui-0",
+          "filename_prefix": "studio/the-winter-menu-r1/a-base-s101",
+          "derivation": "graph_sha256 rebuilds with this filename_prefix (tests/adapters/test_compat.py); the saved file name is not recorded. A CronJob deletes top-level outputs after 30 days; whether it reaches studio/ subfolders is not recorded",
+          "recorded_in": [
+            "titles/the-winter-menu/prompts.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r1:render:b-base-s101.png",
+      "revision": 1,
+      "job": "the-winter-menu-r1",
+      "role": "render",
+      "file": "b-base-s101.png",
+      "sha256": "e8c238814ca74924306e59544de6194035fed5795c062fdc522d059979aa0988",
+      "bytes": null,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/prompts.json"
+      ],
+      "provenance": {
+        "mode": "t2i",
+        "graph": "qwen_image_2_1_t2i_API.json",
+        "graph_sha256": "2a88754d4c261dbbab1631e801075fad6aa848c31b13c2bd802e86971f7d1f49",
+        "seed": 101,
+        "width": 1104,
+        "height": 1472,
+        "source": null,
+        "prompt_file": "prompts/b-base.txt",
+        "prompt_id": "efd7b493-239d-43f1-b1b4-16df4ddbca80",
+        "used_by": [
+          "b-deadpan.png"
+        ]
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r1",
+          "path": "b-base-s101.png",
+          "derivation": "poc/comfy.py writes <job dir>/<name>.png; prompts.json job is the-winter-menu-r1",
+          "recorded_in": [
+            "titles/the-winter-menu/prompts.json",
+            "titles/the-winter-menu/manifest.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "comfyui_output",
+          "pod": "ai/comfyui-0",
+          "filename_prefix": "studio/the-winter-menu-r1/b-base-s101",
+          "derivation": "graph_sha256 rebuilds with this filename_prefix (tests/adapters/test_compat.py); the saved file name is not recorded. A CronJob deletes top-level outputs after 30 days; whether it reaches studio/ subfolders is not recorded",
+          "recorded_in": [
+            "titles/the-winter-menu/prompts.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r1:render:c-base-s101.png",
+      "revision": 1,
+      "job": "the-winter-menu-r1",
+      "role": "render",
+      "file": "c-base-s101.png",
+      "sha256": "ff4713d78698b1d2e27c119e417de11e03048a0791f4240313afb782a21f8a6a",
+      "bytes": null,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/prompts.json"
+      ],
+      "provenance": {
+        "mode": "t2i",
+        "graph": "qwen_image_2_1_t2i_API.json",
+        "graph_sha256": "30a8ca406016ba829cce303b60d531276787ba7022ffca91db3c0d6013d32f33",
+        "seed": 101,
+        "width": 1104,
+        "height": 1472,
+        "source": null,
+        "prompt_file": "prompts/c-base.txt",
+        "prompt_id": "173d46cf-79d3-436c-ac7b-163e806ad334",
+        "used_by": [
+          "c-staring-s301",
+          "c-suspicious.png"
+        ]
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r1",
+          "path": "c-base-s101.png",
+          "derivation": "poc/comfy.py writes <job dir>/<name>.png; prompts.json job is the-winter-menu-r1",
+          "recorded_in": [
+            "titles/the-winter-menu/prompts.json",
+            "titles/the-winter-menu/manifest.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "comfyui_output",
+          "pod": "ai/comfyui-0",
+          "filename_prefix": "studio/the-winter-menu-r1/c-base-s101",
+          "derivation": "graph_sha256 rebuilds with this filename_prefix (tests/adapters/test_compat.py); the saved file name is not recorded. A CronJob deletes top-level outputs after 30 days; whether it reaches studio/ subfolders is not recorded",
+          "recorded_in": [
+            "titles/the-winter-menu/prompts.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r1:render:d-base-s101.png",
+      "revision": 1,
+      "job": "the-winter-menu-r1",
+      "role": "render",
+      "file": "d-base-s101.png",
+      "sha256": "ca15cbee044fdf4684a6330f48cfea1862fdaa15428bba1e22db02cff1abe584",
+      "bytes": null,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/prompts.json"
+      ],
+      "provenance": {
+        "mode": "t2i",
+        "graph": "qwen_image_2_1_t2i_API.json",
+        "graph_sha256": "009612c0af7d14a420b079040d6fbfde4616bdceede15c7182c3f3e4f74a6424",
+        "seed": 101,
+        "width": 1104,
+        "height": 1472,
+        "source": null,
+        "prompt_file": "prompts/d-base.txt",
+        "prompt_id": "7191a3e1-c9dc-418a-8a5a-e61143254cb7",
+        "used_by": [
+          "d-cheerful.png",
+          "d-shocked-s301"
+        ]
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r1",
+          "path": "d-base-s101.png",
+          "derivation": "poc/comfy.py writes <job dir>/<name>.png; prompts.json job is the-winter-menu-r1",
+          "recorded_in": [
+            "titles/the-winter-menu/prompts.json",
+            "titles/the-winter-menu/manifest.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "comfyui_output",
+          "pod": "ai/comfyui-0",
+          "filename_prefix": "studio/the-winter-menu-r1/d-base-s101",
+          "derivation": "graph_sha256 rebuilds with this filename_prefix (tests/adapters/test_compat.py); the saved file name is not recorded. A CronJob deletes top-level outputs after 30 days; whether it reaches studio/ subfolders is not recorded",
+          "recorded_in": [
+            "titles/the-winter-menu/prompts.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r1:render:a-staring-s301.png",
+      "revision": 1,
+      "job": "the-winter-menu-r1",
+      "role": "render",
+      "file": "a-staring-s301.png",
+      "sha256": "4fb4f4572fb090bee12ab25baabfebdb2d73f11db65024d3229e17f49d030944",
+      "bytes": null,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/prompts.json"
+      ],
+      "provenance": {
+        "mode": "edit",
+        "graph": "qwen_image_2_1_edit_API.json",
+        "graph_sha256": "e03fa7245fe205126f1c6a22ee7dba07af8244ffcafef56b43b8f8a187673d57",
+        "seed": 301,
+        "width": null,
+        "height": null,
+        "source": "a-base-s101.png",
+        "prompt_file": "prompts/a-staring.txt",
+        "prompt_id": "a4c63012-0d2e-4f3f-91b4-39dfd042bcca",
+        "used_by": [
+          "a-staring.png"
+        ]
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r1",
+          "path": "a-staring-s301.png",
+          "derivation": "poc/comfy.py writes <job dir>/<name>.png; prompts.json job is the-winter-menu-r1",
+          "recorded_in": [
+            "titles/the-winter-menu/prompts.json",
+            "titles/the-winter-menu/manifest.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "comfyui_output",
+          "pod": "ai/comfyui-0",
+          "filename_prefix": "studio/the-winter-menu-r1/a-staring-s301",
+          "derivation": "graph_sha256 rebuilds with this filename_prefix (tests/adapters/test_compat.py); the saved file name is not recorded. A CronJob deletes top-level outputs after 30 days; whether it reaches studio/ subfolders is not recorded",
+          "recorded_in": [
+            "titles/the-winter-menu/prompts.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r1:render:c-staring-s301.png",
+      "revision": 1,
+      "job": "the-winter-menu-r1",
+      "role": "render",
+      "file": "c-staring-s301.png",
+      "sha256": "8e13cbdc905ff6d08233a3bafad04439d62d11cd1e508892eac114eafc3b71d6",
+      "bytes": null,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/prompts.json"
+      ],
+      "provenance": {
+        "mode": "edit",
+        "graph": "qwen_image_2_1_edit_API.json",
+        "graph_sha256": "eae00d9ee006266d246afa3358d350bcb11ee8bb6f1b716583b11446d9daad31",
+        "seed": 301,
+        "width": null,
+        "height": null,
+        "source": "c-base-s101.png",
+        "prompt_file": "prompts/c-staring.txt",
+        "prompt_id": "3ad4dfa8-4b24-4751-82c4-7b65492bb736",
+        "used_by": [
+          "c-staring.png"
+        ]
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r1",
+          "path": "c-staring-s301.png",
+          "derivation": "poc/comfy.py writes <job dir>/<name>.png; prompts.json job is the-winter-menu-r1",
+          "recorded_in": [
+            "titles/the-winter-menu/prompts.json",
+            "titles/the-winter-menu/manifest.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "comfyui_output",
+          "pod": "ai/comfyui-0",
+          "filename_prefix": "studio/the-winter-menu-r1/c-staring-s301",
+          "derivation": "graph_sha256 rebuilds with this filename_prefix (tests/adapters/test_compat.py); the saved file name is not recorded. A CronJob deletes top-level outputs after 30 days; whether it reaches studio/ subfolders is not recorded",
+          "recorded_in": [
+            "titles/the-winter-menu/prompts.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r1:render:d-shocked-s301.png",
+      "revision": 1,
+      "job": "the-winter-menu-r1",
+      "role": "render",
+      "file": "d-shocked-s301.png",
+      "sha256": "677b7a17adc90188f6a2f993e7657e7f244d8b67e4c9d864a2e14cd8334a61d3",
+      "bytes": null,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/prompts.json"
+      ],
+      "provenance": {
+        "mode": "edit",
+        "graph": "qwen_image_2_1_edit_API.json",
+        "graph_sha256": "82b8f132dde60056434967083557dd46ccc9a55ae4bba0fed96e29f5254dcf13",
+        "seed": 301,
+        "width": null,
+        "height": null,
+        "source": "d-base-s101.png",
+        "prompt_file": "prompts/d-shocked.txt",
+        "prompt_id": "aed2a6c8-ca82-4d60-8955-d7a9df35ee31",
+        "used_by": [
+          "d-shocked.png"
+        ]
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r1",
+          "path": "d-shocked-s301.png",
+          "derivation": "poc/comfy.py writes <job dir>/<name>.png; prompts.json job is the-winter-menu-r1",
+          "recorded_in": [
+            "titles/the-winter-menu/prompts.json",
+            "titles/the-winter-menu/manifest.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "comfyui_output",
+          "pod": "ai/comfyui-0",
+          "filename_prefix": "studio/the-winter-menu-r1/d-shocked-s301",
+          "derivation": "graph_sha256 rebuilds with this filename_prefix (tests/adapters/test_compat.py); the saved file name is not recorded. A CronJob deletes top-level outputs after 30 days; whether it reaches studio/ subfolders is not recorded",
+          "recorded_in": [
+            "titles/the-winter-menu/prompts.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r1:render:set-left-s221.png",
+      "revision": 1,
+      "job": "the-winter-menu-r1",
+      "role": "render",
+      "file": "set-left-s221.png",
+      "sha256": "29ab6f47227cee7aa482e83f79cb4aad9949407b4a543f5a33f846119f3c5b58",
+      "bytes": null,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/prompts.json"
+      ],
+      "provenance": {
+        "mode": "t2i",
+        "graph": "qwen_image_2_1_t2i_API.json",
+        "graph_sha256": "3f1ef26406b88ec20502a3ad920b2c6aef6cecb0498f173ed97c891e994a6cf7",
+        "seed": 221,
+        "width": 928,
+        "height": 1664,
+        "source": null,
+        "prompt_file": "prompts/set-fire-left.txt",
+        "prompt_id": "786415ca-c098-40d6-9ad1-aa75c0f82ad3",
+        "used_by": [
+          "set.png"
+        ]
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r1",
+          "path": "set-left-s221.png",
+          "derivation": "poc/comfy.py writes <job dir>/<name>.png; prompts.json job is the-winter-menu-r1",
+          "recorded_in": [
+            "titles/the-winter-menu/prompts.json",
+            "titles/the-winter-menu/manifest.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "comfyui_output",
+          "pod": "ai/comfyui-0",
+          "filename_prefix": "studio/the-winter-menu-r1/set-left-s221",
+          "derivation": "graph_sha256 rebuilds with this filename_prefix (tests/adapters/test_compat.py); the saved file name is not recorded. A CronJob deletes top-level outputs after 30 days; whether it reaches studio/ subfolders is not recorded",
+          "recorded_in": [
+            "titles/the-winter-menu/prompts.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r1:still:cutouts/a-proud.png",
+      "revision": 1,
+      "job": "the-winter-menu-r1",
+      "role": "still",
+      "file": "cutouts/a-proud.png",
+      "sha256": "4ea3005f4effebda7f4ce9b083da55e8529db4269c96104364e5dc74b25969de",
+      "bytes": 1850605,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r1",
+          "path": "cutouts/a-proud.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+          "path": "/workspace/output/productions/the-winter-menu-r1/cutouts/a-proud.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r1:still:cutouts/b-deadpan.png",
+      "revision": 1,
+      "job": "the-winter-menu-r1",
+      "role": "still",
+      "file": "cutouts/b-deadpan.png",
+      "sha256": "d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a",
+      "bytes": 1615055,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r1",
+          "path": "cutouts/b-deadpan.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+          "path": "/workspace/output/productions/the-winter-menu-r1/cutouts/b-deadpan.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r1:still:cutouts/c-suspicious.png",
+      "revision": 1,
+      "job": "the-winter-menu-r1",
+      "role": "still",
+      "file": "cutouts/c-suspicious.png",
+      "sha256": "a49b2c3046f385d4bb05fa369b3d21d218a4c63cf66d157d204a28b9be357f42",
+      "bytes": 1775253,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r1",
+          "path": "cutouts/c-suspicious.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+          "path": "/workspace/output/productions/the-winter-menu-r1/cutouts/c-suspicious.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r1:still:cutouts/d-cheerful.png",
+      "revision": 1,
+      "job": "the-winter-menu-r1",
+      "role": "still",
+      "file": "cutouts/d-cheerful.png",
+      "sha256": "83bcdb10da26bb273d524848054297709c7dec22eadafa812fd23158a1b13e68",
+      "bytes": 1846045,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r1",
+          "path": "cutouts/d-cheerful.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+          "path": "/workspace/output/productions/the-winter-menu-r1/cutouts/d-cheerful.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r1:still:cutouts/a-staring.png",
+      "revision": 1,
+      "job": "the-winter-menu-r1",
+      "role": "still",
+      "file": "cutouts/a-staring.png",
+      "sha256": "022ac97a623c88bf96405d92df0dcad0aed459641d5e78dfed17fae7931267b7",
+      "bytes": 1616411,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r1",
+          "path": "cutouts/a-staring.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+          "path": "/workspace/output/productions/the-winter-menu-r1/cutouts/a-staring.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r1:still:cutouts/c-staring.png",
+      "revision": 1,
+      "job": "the-winter-menu-r1",
+      "role": "still",
+      "file": "cutouts/c-staring.png",
+      "sha256": "b816a4f225e160a6c6a8b26244434c96d2ea09a51ce9f7c5d7a2485a1de552af",
+      "bytes": 1547710,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r1",
+          "path": "cutouts/c-staring.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+          "path": "/workspace/output/productions/the-winter-menu-r1/cutouts/c-staring.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r1:still:cutouts/d-shocked.png",
+      "revision": 1,
+      "job": "the-winter-menu-r1",
+      "role": "still",
+      "file": "cutouts/d-shocked.png",
+      "sha256": "3d9c9d223ebc0137f0311a015dff08080acb4e8e413afe9087d7b452da54ef58",
+      "bytes": 1649760,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r1",
+          "path": "cutouts/d-shocked.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+          "path": "/workspace/output/productions/the-winter-menu-r1/cutouts/d-shocked.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r1:set:cutouts/set.png",
+      "revision": 1,
+      "job": "the-winter-menu-r1",
+      "role": "set",
+      "file": "cutouts/set.png",
+      "sha256": "29ab6f47227cee7aa482e83f79cb4aad9949407b4a543f5a33f846119f3c5b58",
+      "bytes": 2390590,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r1",
+          "path": "cutouts/set.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+          "path": "/workspace/output/productions/the-winter-menu-r1/cutouts/set.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r1:sfx:sfx/crow-s501.wav",
+      "revision": 1,
+      "job": "the-winter-menu-r1",
+      "role": "sfx",
+      "file": "sfx/crow-s501.wav",
+      "sha256": "78c5f69ff31758d2d78b0c5b249633039c7ce51ae850a64971591b5da79bd4b8",
+      "bytes": 882044,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence/production.json",
+        "titles/the-winter-menu/evidence/timeline.json"
+      ],
+      "provenance": {
+        "cue": "crow",
+        "service": "audio-authoring (Stable Audio 3 Small SFX, CPU)",
+        "job": "3cab72ad66894693bd414e82c07a23a2",
+        "seed": 501
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r1",
+          "path": "sfx/crow-s501.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+          "path": "/workspace/output/productions/the-winter-menu-r1/sfx/crow-s501.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r1:take:voices/line-1.wav",
+      "revision": 1,
+      "job": "the-winter-menu-r1",
+      "role": "take",
+      "file": "voices/line-1.wav",
+      "sha256": "b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78",
+      "bytes": 247852,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence/production.json",
+        "titles/the-winter-menu/evidence/speech.json",
+        "titles/the-winter-menu/evidence/timeline.json"
+      ],
+      "provenance": {
+        "shot": 1,
+        "k": 0,
+        "voice": "bf_emma"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r1",
+          "path": "voices/line-1.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest.json",
+            "titles/the-winter-menu/evidence/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+          "path": "/workspace/output/productions/the-winter-menu-r1/voices/line-1.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r1:take:voices/line-2.wav",
+      "revision": 1,
+      "job": "the-winter-menu-r1",
+      "role": "take",
+      "file": "voices/line-2.wav",
+      "sha256": "7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50",
+      "bytes": 129068,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence/production.json",
+        "titles/the-winter-menu/evidence/speech.json",
+        "titles/the-winter-menu/evidence/timeline.json"
+      ],
+      "provenance": {
+        "shot": 2,
+        "k": 0,
+        "voice": "af_heart"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r1",
+          "path": "voices/line-2.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest.json",
+            "titles/the-winter-menu/evidence/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+          "path": "/workspace/output/productions/the-winter-menu-r1/voices/line-2.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r1:take:voices/line-3.wav",
+      "revision": 1,
+      "job": "the-winter-menu-r1",
+      "role": "take",
+      "file": "voices/line-3.wav",
+      "sha256": "6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36",
+      "bytes": 233516,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence/production.json",
+        "titles/the-winter-menu/evidence/speech.json",
+        "titles/the-winter-menu/evidence/timeline.json"
+      ],
+      "provenance": {
+        "shot": 3,
+        "k": 0,
+        "voice": "af_nicole"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r1",
+          "path": "voices/line-3.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest.json",
+            "titles/the-winter-menu/evidence/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+          "path": "/workspace/output/productions/the-winter-menu-r1/voices/line-3.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r1:take:voices/line-4.wav",
+      "revision": 1,
+      "job": "the-winter-menu-r1",
+      "role": "take",
+      "file": "voices/line-4.wav",
+      "sha256": "24eb53ba095394e01fb83a5057e96ab456af07e5aaa0fe263765fcea8c614273",
+      "bytes": 122924,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence/production.json",
+        "titles/the-winter-menu/evidence/speech.json",
+        "titles/the-winter-menu/evidence/timeline.json"
+      ],
+      "provenance": {
+        "shot": 4,
+        "k": 0,
+        "voice": "af_bella"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r1",
+          "path": "voices/line-4.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest.json",
+            "titles/the-winter-menu/evidence/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+          "path": "/workspace/output/productions/the-winter-menu-r1/voices/line-4.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r1:take:voices/line-6.wav",
+      "revision": 1,
+      "job": "the-winter-menu-r1",
+      "role": "take",
+      "file": "voices/line-6.wav",
+      "sha256": "58f6812299d32034503825686e4aa476fbbee3881f82ceed3dc1680449b1ec9e",
+      "bytes": 119852,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence/production.json",
+        "titles/the-winter-menu/evidence/speech.json",
+        "titles/the-winter-menu/evidence/timeline.json"
+      ],
+      "provenance": {
+        "shot": 6,
+        "k": 0,
+        "voice": "af_heart"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r1",
+          "path": "voices/line-6.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest.json",
+            "titles/the-winter-menu/evidence/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+          "path": "/workspace/output/productions/the-winter-menu-r1/voices/line-6.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r2:still:cutouts/a-proud.png",
+      "revision": 2,
+      "job": "the-winter-menu-r2",
+      "role": "still",
+      "file": "cutouts/a-proud.png",
+      "sha256": "4ea3005f4effebda7f4ce9b083da55e8529db4269c96104364e5dc74b25969de",
+      "bytes": 1850605,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r2/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r2",
+          "path": "cutouts/a-proud.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r2.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+          "path": "/workspace/output/productions/the-winter-menu-r2/cutouts/a-proud.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r2/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r2:still:cutouts/b-deadpan.png",
+      "revision": 2,
+      "job": "the-winter-menu-r2",
+      "role": "still",
+      "file": "cutouts/b-deadpan.png",
+      "sha256": "d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a",
+      "bytes": 1615055,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r2/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r2",
+          "path": "cutouts/b-deadpan.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r2.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+          "path": "/workspace/output/productions/the-winter-menu-r2/cutouts/b-deadpan.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r2/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r2:still:cutouts/c-suspicious.png",
+      "revision": 2,
+      "job": "the-winter-menu-r2",
+      "role": "still",
+      "file": "cutouts/c-suspicious.png",
+      "sha256": "a49b2c3046f385d4bb05fa369b3d21d218a4c63cf66d157d204a28b9be357f42",
+      "bytes": 1775253,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r2/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r2",
+          "path": "cutouts/c-suspicious.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r2.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+          "path": "/workspace/output/productions/the-winter-menu-r2/cutouts/c-suspicious.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r2/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r2:still:cutouts/d-shocked.png",
+      "revision": 2,
+      "job": "the-winter-menu-r2",
+      "role": "still",
+      "file": "cutouts/d-shocked.png",
+      "sha256": "3d9c9d223ebc0137f0311a015dff08080acb4e8e413afe9087d7b452da54ef58",
+      "bytes": 1649760,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r2/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r2",
+          "path": "cutouts/d-shocked.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r2.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+          "path": "/workspace/output/productions/the-winter-menu-r2/cutouts/d-shocked.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r2/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r2:still:cutouts/a-staring.png",
+      "revision": 2,
+      "job": "the-winter-menu-r2",
+      "role": "still",
+      "file": "cutouts/a-staring.png",
+      "sha256": "022ac97a623c88bf96405d92df0dcad0aed459641d5e78dfed17fae7931267b7",
+      "bytes": 1616411,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r2/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r2",
+          "path": "cutouts/a-staring.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r2.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+          "path": "/workspace/output/productions/the-winter-menu-r2/cutouts/a-staring.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r2/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r2:still:cutouts/c-staring.png",
+      "revision": 2,
+      "job": "the-winter-menu-r2",
+      "role": "still",
+      "file": "cutouts/c-staring.png",
+      "sha256": "b816a4f225e160a6c6a8b26244434c96d2ea09a51ce9f7c5d7a2485a1de552af",
+      "bytes": 1547710,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r2/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r2",
+          "path": "cutouts/c-staring.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r2.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+          "path": "/workspace/output/productions/the-winter-menu-r2/cutouts/c-staring.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r2/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r2:set:cutouts/set.png",
+      "revision": 2,
+      "job": "the-winter-menu-r2",
+      "role": "set",
+      "file": "cutouts/set.png",
+      "sha256": "29ab6f47227cee7aa482e83f79cb4aad9949407b4a543f5a33f846119f3c5b58",
+      "bytes": 2390590,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r2/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r2",
+          "path": "cutouts/set.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r2.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+          "path": "/workspace/output/productions/the-winter-menu-r2/cutouts/set.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r2/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r2:sfx:sfx/crow-s501.wav",
+      "revision": 2,
+      "job": "the-winter-menu-r2",
+      "role": "sfx",
+      "file": "sfx/crow-s501.wav",
+      "sha256": "78c5f69ff31758d2d78b0c5b249633039c7ce51ae850a64971591b5da79bd4b8",
+      "bytes": 882044,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r2/production.json",
+        "titles/the-winter-menu/evidence-r2/timeline.json"
+      ],
+      "provenance": {
+        "cue": "crow",
+        "service": "audio-authoring (Stable Audio 3 Small SFX, CPU)",
+        "job": "3cab72ad66894693bd414e82c07a23a2",
+        "seed": 501
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r2",
+          "path": "sfx/crow-s501.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r2.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+          "path": "/workspace/output/productions/the-winter-menu-r2/sfx/crow-s501.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r2/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r2:sfx:sfx/crunch-s601.wav",
+      "revision": 2,
+      "job": "the-winter-menu-r2",
+      "role": "sfx",
+      "file": "sfx/crunch-s601.wav",
+      "sha256": "5515c7006ce09a1c5d0c21019ca11db7a445f9ce296b94f5c371aba8b7d6925f",
+      "bytes": 882044,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r2/production.json",
+        "titles/the-winter-menu/evidence-r2/timeline.json"
+      ],
+      "provenance": {
+        "cue": "crunch",
+        "service": "audio-authoring (Stable Audio 3 Small SFX, CPU)",
+        "job": "2545b734a9b445ef8a95737521e6a870",
+        "seed": 601
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r2",
+          "path": "sfx/crunch-s601.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r2.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+          "path": "/workspace/output/productions/the-winter-menu-r2/sfx/crunch-s601.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r2/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r2:bed:sfx/fire-s701.wav",
+      "revision": 2,
+      "job": "the-winter-menu-r2",
+      "role": "bed",
+      "file": "sfx/fire-s701.wav",
+      "sha256": "0b33af45929b8cfb3859bf1511a2738eef22944d431ee44257c33a1de42da72a",
+      "bytes": null,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r2/timeline.json"
+      ],
+      "provenance": {
+        "cue": "fire",
+        "service": "audio-authoring (Stable Audio 3 Small SFX, CPU)",
+        "job": "c81dc201bdb043c1ba19b719dc19d40a",
+        "seed": 701
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r2",
+          "path": "sfx/fire-s701.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r2.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [
+        "not in the r2 delivery ledger, so poc/deliver.py did not copy it to the Wan PVC"
+      ],
+      "status": "unverified"
+    },
+    {
+      "key": "r2:take:voices/line-1.wav",
+      "revision": 2,
+      "job": "the-winter-menu-r2",
+      "role": "take",
+      "file": "voices/line-1.wav",
+      "sha256": "b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78",
+      "bytes": 247852,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r2/production.json",
+        "titles/the-winter-menu/evidence-r2/speech.json",
+        "titles/the-winter-menu/evidence-r2/timeline.json"
+      ],
+      "provenance": {
+        "shot": 1,
+        "k": 0,
+        "voice": "bf_emma"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r2",
+          "path": "voices/line-1.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r2.json",
+            "titles/the-winter-menu/evidence-r2/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+          "path": "/workspace/output/productions/the-winter-menu-r2/voices/line-1.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r2/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r2:take:voices/line-2.wav",
+      "revision": 2,
+      "job": "the-winter-menu-r2",
+      "role": "take",
+      "file": "voices/line-2.wav",
+      "sha256": "7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50",
+      "bytes": 129068,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r2/production.json",
+        "titles/the-winter-menu/evidence-r2/speech.json",
+        "titles/the-winter-menu/evidence-r2/timeline.json"
+      ],
+      "provenance": {
+        "shot": 2,
+        "k": 0,
+        "voice": "af_heart"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r2",
+          "path": "voices/line-2.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r2.json",
+            "titles/the-winter-menu/evidence-r2/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+          "path": "/workspace/output/productions/the-winter-menu-r2/voices/line-2.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r2/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r2:take:voices/line-3.wav",
+      "revision": 2,
+      "job": "the-winter-menu-r2",
+      "role": "take",
+      "file": "voices/line-3.wav",
+      "sha256": "6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36",
+      "bytes": 233516,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r2/production.json",
+        "titles/the-winter-menu/evidence-r2/speech.json",
+        "titles/the-winter-menu/evidence-r2/timeline.json"
+      ],
+      "provenance": {
+        "shot": 3,
+        "k": 0,
+        "voice": "af_nicole"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r2",
+          "path": "voices/line-3.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r2.json",
+            "titles/the-winter-menu/evidence-r2/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+          "path": "/workspace/output/productions/the-winter-menu-r2/voices/line-3.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r2/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r2:take:voices/line-4.wav",
+      "revision": 2,
+      "job": "the-winter-menu-r2",
+      "role": "take",
+      "file": "voices/line-4.wav",
+      "sha256": "0063d7e0e0d8a551fece4373ba1252d94339c00e10155bd08804b44c388773fd",
+      "bytes": 118828,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r2/production.json",
+        "titles/the-winter-menu/evidence-r2/speech.json",
+        "titles/the-winter-menu/evidence-r2/timeline.json"
+      ],
+      "provenance": {
+        "shot": 4,
+        "k": 0,
+        "voice": "bf_emma"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r2",
+          "path": "voices/line-4.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r2.json",
+            "titles/the-winter-menu/evidence-r2/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+          "path": "/workspace/output/productions/the-winter-menu-r2/voices/line-4.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r2/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r2:take:voices/line-5.wav",
+      "revision": 2,
+      "job": "the-winter-menu-r2",
+      "role": "take",
+      "file": "voices/line-5.wav",
+      "sha256": "f89e05a2c53e9be7edd35f3b31862da311ce2730cb330421cb93e25b20a3ab59",
+      "bytes": 116780,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r2/production.json",
+        "titles/the-winter-menu/evidence-r2/speech.json",
+        "titles/the-winter-menu/evidence-r2/timeline.json"
+      ],
+      "provenance": {
+        "shot": 5,
+        "k": 0,
+        "voice": "af_bella"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r2",
+          "path": "voices/line-5.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r2.json",
+            "titles/the-winter-menu/evidence-r2/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+          "path": "/workspace/output/productions/the-winter-menu-r2/voices/line-5.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r2/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r2:take:voices/line-7.wav",
+      "revision": 2,
+      "job": "the-winter-menu-r2",
+      "role": "take",
+      "file": "voices/line-7.wav",
+      "sha256": "58f6812299d32034503825686e4aa476fbbee3881f82ceed3dc1680449b1ec9e",
+      "bytes": 119852,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r2/production.json",
+        "titles/the-winter-menu/evidence-r2/speech.json",
+        "titles/the-winter-menu/evidence-r2/timeline.json"
+      ],
+      "provenance": {
+        "shot": 7,
+        "k": 0,
+        "voice": "af_heart"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r2",
+          "path": "voices/line-7.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r2.json",
+            "titles/the-winter-menu/evidence-r2/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+          "path": "/workspace/output/productions/the-winter-menu-r2/voices/line-7.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r2/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r2:take:voices/line-8.wav",
+      "revision": 2,
+      "job": "the-winter-menu-r2",
+      "role": "take",
+      "file": "voices/line-8.wav",
+      "sha256": "4e12138ee373ac45b6fce8f9049680d5494892fcc13a511bc77dbf37afbb5d31",
+      "bytes": 47148,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r2/production.json",
+        "titles/the-winter-menu/evidence-r2/speech.json",
+        "titles/the-winter-menu/evidence-r2/timeline.json"
+      ],
+      "provenance": {
+        "shot": 8,
+        "k": 0,
+        "voice": "af_heart"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r2",
+          "path": "voices/line-8.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r2.json",
+            "titles/the-winter-menu/evidence-r2/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+          "path": "/workspace/output/productions/the-winter-menu-r2/voices/line-8.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r2/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:still:cutouts/a-proud.png",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "still",
+      "file": "cutouts/a-proud.png",
+      "sha256": "4ea3005f4effebda7f4ce9b083da55e8529db4269c96104364e5dc74b25969de",
+      "bytes": 1850605,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "cutouts/a-proud.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "11d41839ef134a76abe46370105a99fe",
+          "path": "/workspace/output/productions/the-winter-menu-r3/cutouts/a-proud.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r3/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:still:cutouts/b-deadpan.png",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "still",
+      "file": "cutouts/b-deadpan.png",
+      "sha256": "d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a",
+      "bytes": 1615055,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "cutouts/b-deadpan.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "11d41839ef134a76abe46370105a99fe",
+          "path": "/workspace/output/productions/the-winter-menu-r3/cutouts/b-deadpan.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r3/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:still:cutouts/c-suspicious.png",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "still",
+      "file": "cutouts/c-suspicious.png",
+      "sha256": "a49b2c3046f385d4bb05fa369b3d21d218a4c63cf66d157d204a28b9be357f42",
+      "bytes": 1775253,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "cutouts/c-suspicious.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "11d41839ef134a76abe46370105a99fe",
+          "path": "/workspace/output/productions/the-winter-menu-r3/cutouts/c-suspicious.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r3/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:still:cutouts/d-shocked.png",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "still",
+      "file": "cutouts/d-shocked.png",
+      "sha256": "3d9c9d223ebc0137f0311a015dff08080acb4e8e413afe9087d7b452da54ef58",
+      "bytes": 1649760,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "cutouts/d-shocked.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "11d41839ef134a76abe46370105a99fe",
+          "path": "/workspace/output/productions/the-winter-menu-r3/cutouts/d-shocked.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r3/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:still:cutouts/a-staring.png",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "still",
+      "file": "cutouts/a-staring.png",
+      "sha256": "022ac97a623c88bf96405d92df0dcad0aed459641d5e78dfed17fae7931267b7",
+      "bytes": 1616411,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "cutouts/a-staring.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "11d41839ef134a76abe46370105a99fe",
+          "path": "/workspace/output/productions/the-winter-menu-r3/cutouts/a-staring.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r3/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:still:cutouts/c-staring.png",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "still",
+      "file": "cutouts/c-staring.png",
+      "sha256": "b816a4f225e160a6c6a8b26244434c96d2ea09a51ce9f7c5d7a2485a1de552af",
+      "bytes": 1547710,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "cutouts/c-staring.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "11d41839ef134a76abe46370105a99fe",
+          "path": "/workspace/output/productions/the-winter-menu-r3/cutouts/c-staring.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r3/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:set:cutouts/set.png",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "set",
+      "file": "cutouts/set.png",
+      "sha256": "29ab6f47227cee7aa482e83f79cb4aad9949407b4a543f5a33f846119f3c5b58",
+      "bytes": 2390590,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "cutouts/set.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "11d41839ef134a76abe46370105a99fe",
+          "path": "/workspace/output/productions/the-winter-menu-r3/cutouts/set.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r3/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:sfx:sfx/crow-s501.wav",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "sfx",
+      "file": "sfx/crow-s501.wav",
+      "sha256": "78c5f69ff31758d2d78b0c5b249633039c7ce51ae850a64971591b5da79bd4b8",
+      "bytes": 882044,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/production.json",
+        "titles/the-winter-menu/evidence-r3/timeline.json"
+      ],
+      "provenance": {
+        "cue": "crow",
+        "service": "audio-authoring (Stable Audio 3 Small SFX, CPU)",
+        "job": "3cab72ad66894693bd414e82c07a23a2",
+        "seed": 501
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "sfx/crow-s501.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "11d41839ef134a76abe46370105a99fe",
+          "path": "/workspace/output/productions/the-winter-menu-r3/sfx/crow-s501.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r3/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:sfx:sfx/crunch-s601.wav",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "sfx",
+      "file": "sfx/crunch-s601.wav",
+      "sha256": "5515c7006ce09a1c5d0c21019ca11db7a445f9ce296b94f5c371aba8b7d6925f",
+      "bytes": 882044,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/production.json",
+        "titles/the-winter-menu/evidence-r3/timeline.json"
+      ],
+      "provenance": {
+        "cue": "crunch",
+        "service": "audio-authoring (Stable Audio 3 Small SFX, CPU)",
+        "job": "2545b734a9b445ef8a95737521e6a870",
+        "seed": 601
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "sfx/crunch-s601.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "11d41839ef134a76abe46370105a99fe",
+          "path": "/workspace/output/productions/the-winter-menu-r3/sfx/crunch-s601.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r3/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:sfx:sfx/gavel-s801.wav",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "sfx",
+      "file": "sfx/gavel-s801.wav",
+      "sha256": "a9c01ef381a0f0d0dd5df5e552e2cf8556a2a8f30caff04225017540669b7b5e",
+      "bytes": 882044,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/production.json",
+        "titles/the-winter-menu/evidence-r3/timeline.json"
+      ],
+      "provenance": {
+        "cue": "gavel",
+        "service": "audio-authoring (Stable Audio 3 Small SFX, CPU)",
+        "job": "78f6a7c49ba84ea1b24ba1f6633b9388",
+        "seed": 801
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "sfx/gavel-s801.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "11d41839ef134a76abe46370105a99fe",
+          "path": "/workspace/output/productions/the-winter-menu-r3/sfx/gavel-s801.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r3/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:sfx:sfx/sting-s901.wav",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "sfx",
+      "file": "sfx/sting-s901.wav",
+      "sha256": "aadcc283d15fb7a067bc7517533dfccafb0d28ba5fe1c0ad8ddbae3d6ca1abe3",
+      "bytes": 882044,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/production.json",
+        "titles/the-winter-menu/evidence-r3/timeline.json"
+      ],
+      "provenance": {
+        "cue": "sting",
+        "service": "audio-authoring (Stable Audio 3 Small SFX, CPU)",
+        "job": "065de06515274cb185710a5a2c918022",
+        "seed": 901
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "sfx/sting-s901.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "11d41839ef134a76abe46370105a99fe",
+          "path": "/workspace/output/productions/the-winter-menu-r3/sfx/sting-s901.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r3/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:bed:sfx/fire-s701.wav",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "bed",
+      "file": "sfx/fire-s701.wav",
+      "sha256": "0b33af45929b8cfb3859bf1511a2738eef22944d431ee44257c33a1de42da72a",
+      "bytes": null,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/timeline.json"
+      ],
+      "provenance": {
+        "cue": "fire",
+        "service": "audio-authoring (Stable Audio 3 Small SFX, CPU)",
+        "job": "c81dc201bdb043c1ba19b719dc19d40a",
+        "seed": 701
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "sfx/fire-s701.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [
+        "not in the r3 delivery ledger, so poc/deliver.py did not copy it to the Wan PVC"
+      ],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:take:voices/line-1.wav",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "take",
+      "file": "voices/line-1.wav",
+      "sha256": "b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78",
+      "bytes": 247852,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/production.json",
+        "titles/the-winter-menu/evidence-r3/speech.json",
+        "titles/the-winter-menu/evidence-r3/timeline.json"
+      ],
+      "provenance": {
+        "shot": 1,
+        "k": 0,
+        "voice": "bf_emma"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "voices/line-1.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json",
+            "titles/the-winter-menu/evidence-r3/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "11d41839ef134a76abe46370105a99fe",
+          "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-1.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r3/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:take:voices/line-2.wav",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "take",
+      "file": "voices/line-2.wav",
+      "sha256": "7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50",
+      "bytes": 129068,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/production.json",
+        "titles/the-winter-menu/evidence-r3/speech.json",
+        "titles/the-winter-menu/evidence-r3/timeline.json"
+      ],
+      "provenance": {
+        "shot": 2,
+        "k": 0,
+        "voice": "af_heart"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "voices/line-2.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json",
+            "titles/the-winter-menu/evidence-r3/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "11d41839ef134a76abe46370105a99fe",
+          "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-2.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r3/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:take:voices/line-3.wav",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "take",
+      "file": "voices/line-3.wav",
+      "sha256": "6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36",
+      "bytes": 233516,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/production.json",
+        "titles/the-winter-menu/evidence-r3/speech.json",
+        "titles/the-winter-menu/evidence-r3/timeline.json"
+      ],
+      "provenance": {
+        "shot": 3,
+        "k": 0,
+        "voice": "af_nicole"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "voices/line-3.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json",
+            "titles/the-winter-menu/evidence-r3/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "11d41839ef134a76abe46370105a99fe",
+          "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-3.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r3/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:take:voices/line-4.wav",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "take",
+      "file": "voices/line-4.wav",
+      "sha256": "0063d7e0e0d8a551fece4373ba1252d94339c00e10155bd08804b44c388773fd",
+      "bytes": 118828,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/production.json",
+        "titles/the-winter-menu/evidence-r3/speech.json",
+        "titles/the-winter-menu/evidence-r3/timeline.json"
+      ],
+      "provenance": {
+        "shot": 4,
+        "k": 0,
+        "voice": "bf_emma"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "voices/line-4.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json",
+            "titles/the-winter-menu/evidence-r3/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "11d41839ef134a76abe46370105a99fe",
+          "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-4.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r3/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:take:voices/line-5.wav",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "take",
+      "file": "voices/line-5.wav",
+      "sha256": "f89e05a2c53e9be7edd35f3b31862da311ce2730cb330421cb93e25b20a3ab59",
+      "bytes": 116780,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/production.json",
+        "titles/the-winter-menu/evidence-r3/speech.json",
+        "titles/the-winter-menu/evidence-r3/timeline.json"
+      ],
+      "provenance": {
+        "shot": 5,
+        "k": 0,
+        "voice": "af_bella"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "voices/line-5.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json",
+            "titles/the-winter-menu/evidence-r3/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "11d41839ef134a76abe46370105a99fe",
+          "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-5.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r3/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:take:voices/line-6.wav",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "take",
+      "file": "voices/line-6.wav",
+      "sha256": "46bf17ecaa3a9729b16fd45ba67c2f123b32756cf36eef133abf029c681a7395",
+      "bytes": 206892,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/production.json",
+        "titles/the-winter-menu/evidence-r3/speech.json",
+        "titles/the-winter-menu/evidence-r3/timeline.json"
+      ],
+      "provenance": {
+        "shot": 6,
+        "k": 0,
+        "voice": "af_nicole"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "voices/line-6.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json",
+            "titles/the-winter-menu/evidence-r3/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "11d41839ef134a76abe46370105a99fe",
+          "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-6.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r3/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:take:voices/line-8.wav",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "take",
+      "file": "voices/line-8.wav",
+      "sha256": "37e81c9db699303d9fbdef03479d9500d5514ae3f38fa103c4f481d6513350e6",
+      "bytes": 48172,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/production.json",
+        "titles/the-winter-menu/evidence-r3/speech.json",
+        "titles/the-winter-menu/evidence-r3/timeline.json"
+      ],
+      "provenance": {
+        "shot": 8,
+        "k": 0,
+        "voice": "af_heart"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "voices/line-8.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json",
+            "titles/the-winter-menu/evidence-r3/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "11d41839ef134a76abe46370105a99fe",
+          "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-8.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r3/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:take:voices/line-8-1.wav",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "take",
+      "file": "voices/line-8-1.wav",
+      "sha256": "1dadd22ef158db129f37ece9de63e0db871f4f72cd912fdc7a260126021aa6b2",
+      "bytes": 38956,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/production.json",
+        "titles/the-winter-menu/evidence-r3/speech.json",
+        "titles/the-winter-menu/evidence-r3/timeline.json"
+      ],
+      "provenance": {
+        "shot": 8,
+        "k": 1,
+        "voice": "bf_emma"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "voices/line-8-1.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json",
+            "titles/the-winter-menu/evidence-r3/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "11d41839ef134a76abe46370105a99fe",
+          "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-8-1.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r3/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:take:voices/line-8-2.wav",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "take",
+      "file": "voices/line-8-2.wav",
+      "sha256": "1e5206395dc510de18f1f2050485cd63b9bcba90411ea34bbee7a44a3298d00d",
+      "bytes": 42028,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/production.json",
+        "titles/the-winter-menu/evidence-r3/speech.json",
+        "titles/the-winter-menu/evidence-r3/timeline.json"
+      ],
+      "provenance": {
+        "shot": 8,
+        "k": 2,
+        "voice": "af_nicole"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "voices/line-8-2.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json",
+            "titles/the-winter-menu/evidence-r3/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "11d41839ef134a76abe46370105a99fe",
+          "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-8-2.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r3/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:take:voices/line-8-3.wav",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "take",
+      "file": "voices/line-8-3.wav",
+      "sha256": "5fc1718e8659568b2234544470bce9c23404b855b9c563ea90f4f75596773b35",
+      "bytes": 24620,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/production.json",
+        "titles/the-winter-menu/evidence-r3/speech.json",
+        "titles/the-winter-menu/evidence-r3/timeline.json"
+      ],
+      "provenance": {
+        "shot": 8,
+        "k": 3,
+        "voice": "af_bella"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "voices/line-8-3.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json",
+            "titles/the-winter-menu/evidence-r3/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "11d41839ef134a76abe46370105a99fe",
+          "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-8-3.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r3/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:take:voices/line-8-4.wav",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "take",
+      "file": "voices/line-8-4.wav",
+      "sha256": "9b3ba267baecf4407cb1ec7dfa66598566e83e615b009f307a47c4b3be4aaad9",
+      "bytes": 49196,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/production.json",
+        "titles/the-winter-menu/evidence-r3/speech.json",
+        "titles/the-winter-menu/evidence-r3/timeline.json"
+      ],
+      "provenance": {
+        "shot": 8,
+        "k": 4,
+        "voice": "af_heart"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "voices/line-8-4.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json",
+            "titles/the-winter-menu/evidence-r3/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "11d41839ef134a76abe46370105a99fe",
+          "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-8-4.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r3/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:take:voices/line-8-5.wav",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "take",
+      "file": "voices/line-8-5.wav",
+      "sha256": "3cd7c24827ff5c87cbd3f49959f23ab6afbf8974c621aae4b5cda8f4f04628ae",
+      "bytes": 70700,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/production.json",
+        "titles/the-winter-menu/evidence-r3/speech.json",
+        "titles/the-winter-menu/evidence-r3/timeline.json"
+      ],
+      "provenance": {
+        "shot": 8,
+        "k": 5,
+        "voice": "af_heart"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "voices/line-8-5.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json",
+            "titles/the-winter-menu/evidence-r3/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "11d41839ef134a76abe46370105a99fe",
+          "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-8-5.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r3/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r3:take:voices/line-9.wav",
+      "revision": 3,
+      "job": "the-winter-menu-r3",
+      "role": "take",
+      "file": "voices/line-9.wav",
+      "sha256": "4e12138ee373ac45b6fce8f9049680d5494892fcc13a511bc77dbf37afbb5d31",
+      "bytes": 47148,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r3/production.json",
+        "titles/the-winter-menu/evidence-r3/speech.json",
+        "titles/the-winter-menu/evidence-r3/timeline.json"
+      ],
+      "provenance": {
+        "shot": 9,
+        "k": 0,
+        "voice": "af_heart"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r3",
+          "path": "voices/line-9.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r3.json",
+            "titles/the-winter-menu/evidence-r3/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "11d41839ef134a76abe46370105a99fe",
+          "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-9.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r3/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:still:cutouts/a-proud.png",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "still",
+      "file": "cutouts/a-proud.png",
+      "sha256": "4ea3005f4effebda7f4ce9b083da55e8529db4269c96104364e5dc74b25969de",
+      "bytes": 1850605,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "cutouts/a-proud.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+          "path": "/workspace/output/productions/the-winter-menu-r4/cutouts/a-proud.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r4/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:still:cutouts/b-deadpan.png",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "still",
+      "file": "cutouts/b-deadpan.png",
+      "sha256": "d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a",
+      "bytes": 1615055,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "cutouts/b-deadpan.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+          "path": "/workspace/output/productions/the-winter-menu-r4/cutouts/b-deadpan.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r4/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:still:cutouts/c-suspicious.png",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "still",
+      "file": "cutouts/c-suspicious.png",
+      "sha256": "a49b2c3046f385d4bb05fa369b3d21d218a4c63cf66d157d204a28b9be357f42",
+      "bytes": 1775253,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "cutouts/c-suspicious.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+          "path": "/workspace/output/productions/the-winter-menu-r4/cutouts/c-suspicious.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r4/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:still:cutouts/d-shocked.png",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "still",
+      "file": "cutouts/d-shocked.png",
+      "sha256": "3d9c9d223ebc0137f0311a015dff08080acb4e8e413afe9087d7b452da54ef58",
+      "bytes": 1649760,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "cutouts/d-shocked.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+          "path": "/workspace/output/productions/the-winter-menu-r4/cutouts/d-shocked.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r4/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:still:cutouts/a-staring.png",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "still",
+      "file": "cutouts/a-staring.png",
+      "sha256": "022ac97a623c88bf96405d92df0dcad0aed459641d5e78dfed17fae7931267b7",
+      "bytes": 1616411,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "cutouts/a-staring.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+          "path": "/workspace/output/productions/the-winter-menu-r4/cutouts/a-staring.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r4/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:still:cutouts/c-staring.png",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "still",
+      "file": "cutouts/c-staring.png",
+      "sha256": "b816a4f225e160a6c6a8b26244434c96d2ea09a51ce9f7c5d7a2485a1de552af",
+      "bytes": 1547710,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "cutouts/c-staring.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+          "path": "/workspace/output/productions/the-winter-menu-r4/cutouts/c-staring.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r4/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:set:cutouts/set.png",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "set",
+      "file": "cutouts/set.png",
+      "sha256": "29ab6f47227cee7aa482e83f79cb4aad9949407b4a543f5a33f846119f3c5b58",
+      "bytes": 2390590,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/production.json"
+      ],
+      "provenance": null,
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "cutouts/set.png",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+          "path": "/workspace/output/productions/the-winter-menu-r4/cutouts/set.png",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r4/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:sfx:sfx/crow-s501.wav",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "sfx",
+      "file": "sfx/crow-s501.wav",
+      "sha256": "78c5f69ff31758d2d78b0c5b249633039c7ce51ae850a64971591b5da79bd4b8",
+      "bytes": 882044,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/production.json",
+        "titles/the-winter-menu/evidence-r4/timeline.json"
+      ],
+      "provenance": {
+        "cue": "crow",
+        "service": "audio-authoring (Stable Audio 3 Small SFX, CPU)",
+        "job": "3cab72ad66894693bd414e82c07a23a2",
+        "seed": 501
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "sfx/crow-s501.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+          "path": "/workspace/output/productions/the-winter-menu-r4/sfx/crow-s501.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r4/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:sfx:sfx/crunch-s601.wav",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "sfx",
+      "file": "sfx/crunch-s601.wav",
+      "sha256": "5515c7006ce09a1c5d0c21019ca11db7a445f9ce296b94f5c371aba8b7d6925f",
+      "bytes": 882044,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/production.json",
+        "titles/the-winter-menu/evidence-r4/timeline.json"
+      ],
+      "provenance": {
+        "cue": "crunch",
+        "service": "audio-authoring (Stable Audio 3 Small SFX, CPU)",
+        "job": "2545b734a9b445ef8a95737521e6a870",
+        "seed": 601
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "sfx/crunch-s601.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+          "path": "/workspace/output/productions/the-winter-menu-r4/sfx/crunch-s601.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r4/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:sfx:sfx/gavel-s801.wav",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "sfx",
+      "file": "sfx/gavel-s801.wav",
+      "sha256": "a9c01ef381a0f0d0dd5df5e552e2cf8556a2a8f30caff04225017540669b7b5e",
+      "bytes": 882044,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/production.json",
+        "titles/the-winter-menu/evidence-r4/timeline.json"
+      ],
+      "provenance": {
+        "cue": "gavel",
+        "service": "audio-authoring (Stable Audio 3 Small SFX, CPU)",
+        "job": "78f6a7c49ba84ea1b24ba1f6633b9388",
+        "seed": 801
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "sfx/gavel-s801.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+          "path": "/workspace/output/productions/the-winter-menu-r4/sfx/gavel-s801.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r4/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:sfx:sfx/sting-s901.wav",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "sfx",
+      "file": "sfx/sting-s901.wav",
+      "sha256": "aadcc283d15fb7a067bc7517533dfccafb0d28ba5fe1c0ad8ddbae3d6ca1abe3",
+      "bytes": 882044,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/production.json",
+        "titles/the-winter-menu/evidence-r4/timeline.json"
+      ],
+      "provenance": {
+        "cue": "sting",
+        "service": "audio-authoring (Stable Audio 3 Small SFX, CPU)",
+        "job": "065de06515274cb185710a5a2c918022",
+        "seed": 901
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "sfx/sting-s901.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+          "path": "/workspace/output/productions/the-winter-menu-r4/sfx/sting-s901.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r4/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:bed:sfx/fire-s701.wav",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "bed",
+      "file": "sfx/fire-s701.wav",
+      "sha256": "0b33af45929b8cfb3859bf1511a2738eef22944d431ee44257c33a1de42da72a",
+      "bytes": null,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/timeline.json"
+      ],
+      "provenance": {
+        "cue": "fire",
+        "service": "audio-authoring (Stable Audio 3 Small SFX, CPU)",
+        "job": "c81dc201bdb043c1ba19b719dc19d40a",
+        "seed": 701
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "sfx/fire-s701.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [
+        "not in the r4 delivery ledger, so poc/deliver.py did not copy it to the Wan PVC"
+      ],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:take:voices/line-1.wav",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "take",
+      "file": "voices/line-1.wav",
+      "sha256": "b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78",
+      "bytes": 247852,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/production.json",
+        "titles/the-winter-menu/evidence-r4/speech.json",
+        "titles/the-winter-menu/evidence-r4/timeline.json"
+      ],
+      "provenance": {
+        "shot": 1,
+        "k": 0,
+        "voice": "bf_emma"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "voices/line-1.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json",
+            "titles/the-winter-menu/evidence-r4/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+          "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-1.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r4/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:take:voices/line-2.wav",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "take",
+      "file": "voices/line-2.wav",
+      "sha256": "7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50",
+      "bytes": 129068,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/production.json",
+        "titles/the-winter-menu/evidence-r4/speech.json",
+        "titles/the-winter-menu/evidence-r4/timeline.json"
+      ],
+      "provenance": {
+        "shot": 2,
+        "k": 0,
+        "voice": "af_heart"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "voices/line-2.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json",
+            "titles/the-winter-menu/evidence-r4/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+          "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-2.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r4/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:take:voices/line-3.wav",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "take",
+      "file": "voices/line-3.wav",
+      "sha256": "6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36",
+      "bytes": 233516,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/production.json",
+        "titles/the-winter-menu/evidence-r4/speech.json",
+        "titles/the-winter-menu/evidence-r4/timeline.json"
+      ],
+      "provenance": {
+        "shot": 3,
+        "k": 0,
+        "voice": "af_nicole"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "voices/line-3.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json",
+            "titles/the-winter-menu/evidence-r4/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+          "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-3.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r4/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:take:voices/line-4.wav",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "take",
+      "file": "voices/line-4.wav",
+      "sha256": "0063d7e0e0d8a551fece4373ba1252d94339c00e10155bd08804b44c388773fd",
+      "bytes": 118828,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/production.json",
+        "titles/the-winter-menu/evidence-r4/speech.json",
+        "titles/the-winter-menu/evidence-r4/timeline.json"
+      ],
+      "provenance": {
+        "shot": 4,
+        "k": 0,
+        "voice": "bf_emma"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "voices/line-4.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json",
+            "titles/the-winter-menu/evidence-r4/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+          "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-4.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r4/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:take:voices/line-5.wav",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "take",
+      "file": "voices/line-5.wav",
+      "sha256": "f89e05a2c53e9be7edd35f3b31862da311ce2730cb330421cb93e25b20a3ab59",
+      "bytes": 116780,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/production.json",
+        "titles/the-winter-menu/evidence-r4/speech.json",
+        "titles/the-winter-menu/evidence-r4/timeline.json"
+      ],
+      "provenance": {
+        "shot": 5,
+        "k": 0,
+        "voice": "af_bella"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "voices/line-5.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json",
+            "titles/the-winter-menu/evidence-r4/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+          "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-5.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r4/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:take:voices/line-6.wav",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "take",
+      "file": "voices/line-6.wav",
+      "sha256": "46bf17ecaa3a9729b16fd45ba67c2f123b32756cf36eef133abf029c681a7395",
+      "bytes": 206892,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/production.json",
+        "titles/the-winter-menu/evidence-r4/speech.json",
+        "titles/the-winter-menu/evidence-r4/timeline.json"
+      ],
+      "provenance": {
+        "shot": 6,
+        "k": 0,
+        "voice": "af_nicole"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "voices/line-6.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json",
+            "titles/the-winter-menu/evidence-r4/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+          "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-6.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r4/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:take:voices/line-8.wav",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "take",
+      "file": "voices/line-8.wav",
+      "sha256": "37e81c9db699303d9fbdef03479d9500d5514ae3f38fa103c4f481d6513350e6",
+      "bytes": 48172,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/production.json",
+        "titles/the-winter-menu/evidence-r4/speech.json",
+        "titles/the-winter-menu/evidence-r4/timeline.json"
+      ],
+      "provenance": {
+        "shot": 8,
+        "k": 0,
+        "voice": "af_heart"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "voices/line-8.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json",
+            "titles/the-winter-menu/evidence-r4/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+          "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-8.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r4/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:take:voices/line-8-1.wav",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "take",
+      "file": "voices/line-8-1.wav",
+      "sha256": "1dadd22ef158db129f37ece9de63e0db871f4f72cd912fdc7a260126021aa6b2",
+      "bytes": 38956,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/production.json",
+        "titles/the-winter-menu/evidence-r4/speech.json",
+        "titles/the-winter-menu/evidence-r4/timeline.json"
+      ],
+      "provenance": {
+        "shot": 8,
+        "k": 1,
+        "voice": "bf_emma"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "voices/line-8-1.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json",
+            "titles/the-winter-menu/evidence-r4/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+          "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-8-1.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r4/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:take:voices/line-8-2.wav",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "take",
+      "file": "voices/line-8-2.wav",
+      "sha256": "1e5206395dc510de18f1f2050485cd63b9bcba90411ea34bbee7a44a3298d00d",
+      "bytes": 42028,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/production.json",
+        "titles/the-winter-menu/evidence-r4/speech.json",
+        "titles/the-winter-menu/evidence-r4/timeline.json"
+      ],
+      "provenance": {
+        "shot": 8,
+        "k": 2,
+        "voice": "af_nicole"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "voices/line-8-2.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json",
+            "titles/the-winter-menu/evidence-r4/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+          "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-8-2.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r4/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:take:voices/line-8-3.wav",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "take",
+      "file": "voices/line-8-3.wav",
+      "sha256": "5fc1718e8659568b2234544470bce9c23404b855b9c563ea90f4f75596773b35",
+      "bytes": 24620,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/production.json",
+        "titles/the-winter-menu/evidence-r4/speech.json",
+        "titles/the-winter-menu/evidence-r4/timeline.json"
+      ],
+      "provenance": {
+        "shot": 8,
+        "k": 3,
+        "voice": "af_bella"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "voices/line-8-3.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json",
+            "titles/the-winter-menu/evidence-r4/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+          "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-8-3.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r4/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:take:voices/line-8-4.wav",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "take",
+      "file": "voices/line-8-4.wav",
+      "sha256": "9b3ba267baecf4407cb1ec7dfa66598566e83e615b009f307a47c4b3be4aaad9",
+      "bytes": 49196,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/production.json",
+        "titles/the-winter-menu/evidence-r4/speech.json",
+        "titles/the-winter-menu/evidence-r4/timeline.json"
+      ],
+      "provenance": {
+        "shot": 8,
+        "k": 4,
+        "voice": "af_heart"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "voices/line-8-4.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json",
+            "titles/the-winter-menu/evidence-r4/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+          "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-8-4.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r4/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:take:voices/line-8-5.wav",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "take",
+      "file": "voices/line-8-5.wav",
+      "sha256": "1be02e6d7b243b572d6b6d61e0a629f35803b22b741fe13a97e907ff0d17ddab",
+      "bytes": 55340,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/production.json",
+        "titles/the-winter-menu/evidence-r4/speech.json",
+        "titles/the-winter-menu/evidence-r4/timeline.json"
+      ],
+      "provenance": {
+        "shot": 8,
+        "k": 5,
+        "voice": "af_heart"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "voices/line-8-5.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json",
+            "titles/the-winter-menu/evidence-r4/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+          "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-8-5.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r4/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:take:voices/line-9.wav",
+      "revision": 4,
+      "job": "the-winter-menu-r4",
+      "role": "take",
+      "file": "voices/line-9.wav",
+      "sha256": "4e12138ee373ac45b6fce8f9049680d5494892fcc13a511bc77dbf37afbb5d31",
+      "bytes": 47148,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/evidence-r4/production.json",
+        "titles/the-winter-menu/evidence-r4/speech.json",
+        "titles/the-winter-menu/evidence-r4/timeline.json"
+      ],
+      "provenance": {
+        "shot": 9,
+        "k": 0,
+        "voice": "af_heart"
+      },
+      "locators": [
+        {
+          "kind": "job_dir",
+          "job_dir": "~/studio-jobs/the-winter-menu-r4",
+          "path": "voices/line-9.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/manifest-r4.json",
+            "titles/the-winter-menu/evidence-r4/speech.json"
+          ],
+          "status": "unverified"
+        },
+        {
+          "kind": "wan_pvc",
+          "pvc": "ai/wan-video",
+          "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+          "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-9.wav",
+          "recorded_in": [
+            "titles/the-winter-menu/evidence-r4/production.json"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:keyframe:s1.png",
+      "revision": 4,
+      "job": null,
+      "role": "keyframe",
+      "file": "s1.png",
+      "sha256": "e4772edc3fe3f0f9012e089151a1f94a503ea145f08a5921e22d54ab7e0b898f",
+      "bytes": null,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/video-e0/keyframes.json"
+      ],
+      "provenance": {
+        "composed_by": "poc/keyframes.py",
+        "manifest": "titles/the-winter-menu/manifest-r4.json",
+        "shot": 1,
+        "layout": "single"
+      },
+      "locators": [
+        {
+          "kind": "wan_upload",
+          "pvc": "ai/wan-video",
+          "path": "/workspace/input/studio-e0/e4772edc3fe3f0f9.png",
+          "engine_jobs": [
+            "509e77985dee4045904905a49c1af09e"
+          ],
+          "derivation": "poc/wan.py uploads an image as studio-e0/<first 16 hex digits of its sha256>.png under /workspace/input/",
+          "recorded_in": [
+            "titles/the-winter-menu/video-e0/keyframes.json",
+            "titles/the-winter-menu/video-e0/clip-records.jsonl"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [
+        "the OUT_DIR poc/keyframes.py wrote to was not recorded"
+      ],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:keyframe:s2.png",
+      "revision": 4,
+      "job": null,
+      "role": "keyframe",
+      "file": "s2.png",
+      "sha256": "c146760e9f500194a0b5909a0b1ac4ff28ea042130af9f9d3da1362174d8075b",
+      "bytes": null,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/video-e0/keyframes.json"
+      ],
+      "provenance": {
+        "composed_by": "poc/keyframes.py",
+        "manifest": "titles/the-winter-menu/manifest-r4.json",
+        "shot": 2,
+        "layout": "single"
+      },
+      "locators": [
+        {
+          "kind": "wan_upload",
+          "pvc": "ai/wan-video",
+          "path": "/workspace/input/studio-e0/c146760e9f500194.png",
+          "engine_jobs": [
+            "261752a1a32743779745aacfebfd33e3"
+          ],
+          "derivation": "poc/wan.py uploads an image as studio-e0/<first 16 hex digits of its sha256>.png under /workspace/input/",
+          "recorded_in": [
+            "titles/the-winter-menu/video-e0/keyframes.json",
+            "titles/the-winter-menu/video-e0/clip-records.jsonl"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [
+        "the OUT_DIR poc/keyframes.py wrote to was not recorded"
+      ],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:keyframe:s3.png",
+      "revision": 4,
+      "job": null,
+      "role": "keyframe",
+      "file": "s3.png",
+      "sha256": "ba88a2f9ecf4a543fa3dfefa1885bfe6274bbf3fad5ae0276530b23affd6e021",
+      "bytes": null,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/video-e0/keyframes.json"
+      ],
+      "provenance": {
+        "composed_by": "poc/keyframes.py",
+        "manifest": "titles/the-winter-menu/manifest-r4.json",
+        "shot": 3,
+        "layout": "single"
+      },
+      "locators": [
+        {
+          "kind": "wan_upload",
+          "pvc": "ai/wan-video",
+          "path": "/workspace/input/studio-e0/ba88a2f9ecf4a543.png",
+          "engine_jobs": [
+            "1987108856d742f6943d95d5888d3080"
+          ],
+          "derivation": "poc/wan.py uploads an image as studio-e0/<first 16 hex digits of its sha256>.png under /workspace/input/",
+          "recorded_in": [
+            "titles/the-winter-menu/video-e0/keyframes.json",
+            "titles/the-winter-menu/video-e0/clip-records.jsonl"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [
+        "the OUT_DIR poc/keyframes.py wrote to was not recorded"
+      ],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:keyframe:s4.png",
+      "revision": 4,
+      "job": null,
+      "role": "keyframe",
+      "file": "s4.png",
+      "sha256": "e4772edc3fe3f0f9012e089151a1f94a503ea145f08a5921e22d54ab7e0b898f",
+      "bytes": null,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/video-e0/keyframes.json"
+      ],
+      "provenance": {
+        "composed_by": "poc/keyframes.py",
+        "manifest": "titles/the-winter-menu/manifest-r4.json",
+        "shot": 4,
+        "layout": "single"
+      },
+      "locators": [
+        {
+          "kind": "wan_upload",
+          "pvc": "ai/wan-video",
+          "path": "/workspace/input/studio-e0/e4772edc3fe3f0f9.png",
+          "engine_jobs": [
+            "8cddddd6fbb94253877d31ebc4f2988b"
+          ],
+          "derivation": "poc/wan.py uploads an image as studio-e0/<first 16 hex digits of its sha256>.png under /workspace/input/",
+          "recorded_in": [
+            "titles/the-winter-menu/video-e0/keyframes.json",
+            "titles/the-winter-menu/video-e0/clip-records.jsonl"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [
+        "the OUT_DIR poc/keyframes.py wrote to was not recorded"
+      ],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:keyframe:s5.png",
+      "revision": 4,
+      "job": null,
+      "role": "keyframe",
+      "file": "s5.png",
+      "sha256": "47146e2c14a2738798434fa35ffe0be432b2af967ca30ea18020dff471453e80",
+      "bytes": null,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/video-e0/keyframes.json"
+      ],
+      "provenance": {
+        "composed_by": "poc/keyframes.py",
+        "manifest": "titles/the-winter-menu/manifest-r4.json",
+        "shot": 5,
+        "layout": "single"
+      },
+      "locators": [
+        {
+          "kind": "wan_upload",
+          "pvc": "ai/wan-video",
+          "path": "/workspace/input/studio-e0/47146e2c14a27387.png",
+          "engine_jobs": [
+            "8306d5ade5d84b348a48ac3a356bc0ff"
+          ],
+          "derivation": "poc/wan.py uploads an image as studio-e0/<first 16 hex digits of its sha256>.png under /workspace/input/",
+          "recorded_in": [
+            "titles/the-winter-menu/video-e0/keyframes.json",
+            "titles/the-winter-menu/video-e0/clip-records.jsonl"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [
+        "the OUT_DIR poc/keyframes.py wrote to was not recorded"
+      ],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:keyframe:s6.png",
+      "revision": 4,
+      "job": null,
+      "role": "keyframe",
+      "file": "s6.png",
+      "sha256": "ba88a2f9ecf4a543fa3dfefa1885bfe6274bbf3fad5ae0276530b23affd6e021",
+      "bytes": null,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/video-e0/keyframes.json"
+      ],
+      "provenance": {
+        "composed_by": "poc/keyframes.py",
+        "manifest": "titles/the-winter-menu/manifest-r4.json",
+        "shot": 6,
+        "layout": "single"
+      },
+      "locators": [
+        {
+          "kind": "wan_upload",
+          "pvc": "ai/wan-video",
+          "path": "/workspace/input/studio-e0/ba88a2f9ecf4a543.png",
+          "engine_jobs": [
+            "00b252f586ca4cfd9cbc86832bcd9da2"
+          ],
+          "derivation": "poc/wan.py uploads an image as studio-e0/<first 16 hex digits of its sha256>.png under /workspace/input/",
+          "recorded_in": [
+            "titles/the-winter-menu/video-e0/keyframes.json",
+            "titles/the-winter-menu/video-e0/clip-records.jsonl"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [
+        "the OUT_DIR poc/keyframes.py wrote to was not recorded"
+      ],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:keyframe:s7.png",
+      "revision": 4,
+      "job": null,
+      "role": "keyframe",
+      "file": "s7.png",
+      "sha256": "6c270139b4beb523d45e9eb3262745874316193fb96ceb420252661f5ca72464",
+      "bytes": null,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/video-e0/keyframes.json"
+      ],
+      "provenance": {
+        "composed_by": "poc/keyframes.py",
+        "manifest": "titles/the-winter-menu/manifest-r4.json",
+        "shot": 7,
+        "layout": "closeup"
+      },
+      "locators": [
+        {
+          "kind": "wan_upload",
+          "pvc": "ai/wan-video",
+          "path": "/workspace/input/studio-e0/6c270139b4beb523.png",
+          "engine_jobs": [
+            "4817fd2a3dd945b9a3f87d1977d44b17"
+          ],
+          "derivation": "poc/wan.py uploads an image as studio-e0/<first 16 hex digits of its sha256>.png under /workspace/input/",
+          "recorded_in": [
+            "titles/the-winter-menu/video-e0/keyframes.json",
+            "titles/the-winter-menu/video-e0/clip-records.jsonl"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [
+        "the OUT_DIR poc/keyframes.py wrote to was not recorded"
+      ],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:keyframe:s8.png",
+      "revision": 4,
+      "job": null,
+      "role": "keyframe",
+      "file": "s8.png",
+      "sha256": "e66494d67f4cc0fd42c3d76f5900132f590b425321a5eba0f0769b9faf85dcdf",
+      "bytes": null,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/video-e0/keyframes.json"
+      ],
+      "provenance": {
+        "composed_by": "poc/keyframes.py",
+        "manifest": "titles/the-winter-menu/manifest-r4.json",
+        "shot": 8,
+        "layout": "group"
+      },
+      "locators": [
+        {
+          "kind": "wan_upload",
+          "pvc": "ai/wan-video",
+          "path": "/workspace/input/studio-e0/e66494d67f4cc0fd.png",
+          "engine_jobs": [
+            "9747a9cba4eb4282984718b54a7bd6a0"
+          ],
+          "derivation": "poc/wan.py uploads an image as studio-e0/<first 16 hex digits of its sha256>.png under /workspace/input/",
+          "recorded_in": [
+            "titles/the-winter-menu/video-e0/keyframes.json",
+            "titles/the-winter-menu/video-e0/clip-records.jsonl"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [
+        "the OUT_DIR poc/keyframes.py wrote to was not recorded"
+      ],
+      "status": "unverified"
+    },
+    {
+      "key": "r4:keyframe:s9.png",
+      "revision": 4,
+      "job": null,
+      "role": "keyframe",
+      "file": "s9.png",
+      "sha256": "f10f0460ba764d093e679d4fc2ffcc6092be883d7c686255dcccc02b26b4e1c5",
+      "bytes": null,
+      "hash_recorded_in": [
+        "titles/the-winter-menu/video-e0/keyframes.json"
+      ],
+      "provenance": {
+        "composed_by": "poc/keyframes.py",
+        "manifest": "titles/the-winter-menu/manifest-r4.json",
+        "shot": 9,
+        "layout": "trio"
+      },
+      "locators": [
+        {
+          "kind": "wan_upload",
+          "pvc": "ai/wan-video",
+          "path": "/workspace/input/studio-e0/f10f0460ba764d09.png",
+          "engine_jobs": [
+            "0009e2e124e04dba9d74753826d22ccd"
+          ],
+          "derivation": "poc/wan.py uploads an image as studio-e0/<first 16 hex digits of its sha256>.png under /workspace/input/",
+          "recorded_in": [
+            "titles/the-winter-menu/video-e0/keyframes.json",
+            "titles/the-winter-menu/video-e0/clip-records.jsonl"
+          ],
+          "status": "unverified"
+        }
+      ],
+      "locator_gaps": [
+        "the OUT_DIR poc/keyframes.py wrote to was not recorded"
+      ],
+      "status": "unverified"
+    }
+  ]
+}
