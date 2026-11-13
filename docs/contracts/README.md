@@ -16,7 +16,7 @@ D52). A story that depends on it pins the merged commit on `main`.
 | [Sections 6 to 11](studio-contracts-v1.md#6-direction-and-executable-cues) | cues, provenance, runs, store, library, voices, go-live |
 | [Section 12](studio-contracts-v1.md#12-api-ui-and-mcp-boundaries) | API endpoints, MCP tools, scopes |
 | [Sections 13 and 14](studio-contracts-v1.md#13-stack-pin) | packaging, frameworks, tests and CI |
-| [Sections 16 to 18](studio-contracts-v1.md#16-held-owner-questions) | owner questions and Tom's answers, proposals, where sources disagree |
+| [Sections 16 to 18](studio-contracts-v1.md#16-held-owner-questions) | owner questions, answered and open, proposals, where sources disagree |
 
 ## Examples
 
