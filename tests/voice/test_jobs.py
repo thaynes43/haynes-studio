@@ -10,6 +10,7 @@ import pytest
 
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.errors import ContractError
+from haynes_studio.library.model import input_signature
 from haynes_studio.voice import Job, cancel, fail, generating, new_job, start, succeed, validate_job
 from haynes_studio.voice.jobs import ALLOWED, TRANSITION
 from haynes_studio.voice.model import STATUSES
@@ -112,6 +113,37 @@ def test_the_voice_block_names_stock_voices_one_gap_per_later_line_and_each_line
     document = copy.deepcopy(voice_job.to_document())
     document["voice"]["lines"][1]["line_id"] = document["voice"]["lines"][0]["line_id"]
     assert ("ref.duplicate", "/voice/lines/1/line_id") in rules(document)
+
+
+def _resigned(document):
+    """The document with its ``input_signature`` recomputed from its voice block."""
+    voice = document["voice"]
+    document["input_signature"] = input_signature([line["signature"] for line in voice["lines"]],
+                                                  voice["lead_ms"], voice["gaps_ms"])
+    return document
+
+
+@pytest.mark.parametrize("lead, gaps, expected", [
+    (1_000_000_000, None, ("schema.invalid", "/voice/lead_ms")),  # input B
+    (120_001, None, ("schema.invalid", "/voice/lead_ms")),
+    (1900, [300, 120_001, 250, 700, 900], ("schema.invalid", "/voice/gaps_ms/1")),
+    (120_000, [120_000] * 5, ("schema.invalid", "/voice")),  # 720000 ms before any take
+], ids=["input-b", "lead", "gap", "lead-and-gaps"])
+def test_the_voice_block_bounds_its_lead_and_gaps(voice_job, lead, gaps, expected):
+    """Second review, finding 2: a lead and each gap are at most 120000 ms, and together
+    at most a track's 600000 ms. The signatures are recomputed, so only the bound breaks."""
+    document = copy.deepcopy(voice_job.to_document())
+    document["voice"]["lead_ms"] = lead
+    if gaps is not None:
+        document["voice"]["gaps_ms"] = gaps
+    assert rules(_resigned(document)) == {expected}
+
+
+def test_the_largest_lead_and_gaps_are_valid(voice_job):
+    document = copy.deepcopy(voice_job.to_document())
+    document["voice"]["lead_ms"] = 120_000
+    document["voice"]["gaps_ms"] = [120_000, 120_000, 120_000, 120_000, 0]
+    assert rules(_resigned(document)) == set()
 
 
 def test_a_malformed_document_never_raises():

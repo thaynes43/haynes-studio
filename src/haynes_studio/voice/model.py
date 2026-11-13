@@ -26,6 +26,7 @@ from typing import Any
 from haynes_studio.canonical.jsonvalues import normalize
 from haynes_studio.canonical.model import Principal, to_document
 from haynes_studio.library.model import KOKORO, input_signature, take_signature
+from haynes_studio.timebase import HOLD_MAX_MS
 
 JOB_SCHEMA = "studio.job/v1"
 JOB_FILE = "studio.job.v1.schema.json"
@@ -48,6 +49,12 @@ SPEED = 1.0
 # their TIME-2 offsets, silence between them, at the takes' own sample rate). The
 # contract's cache table lists an assembler version among the track's key inputs.
 ASSEMBLER = "studio.voice.track/1"
+
+# Proposal (story 405): time bounds of a board voice, checked before any speech call and
+# before the track buffer is sized. A lead, a gap and one take are each at most the
+# contract's longest silent hold (TIME-4, 120000 ms); a track is at most 600000 ms.
+LEAD_MAX_MS = GAP_MAX_MS = TAKE_MAX_MS = HOLD_MAX_MS
+TRACK_MAX_MS = 600_000
 
 # Proposal: the service text a generated version names as its engine, as the legacy
 # import names "ai/deploy/kokoro (Wyoming)" from speech.json.
@@ -176,8 +183,8 @@ class Job:
 
 
 __all__ = [
-    "ASSEMBLER", "ASSET_CANDIDATE", "CANCELLED", "FAILED", "IN_FLIGHT", "JOB_FILE", "JOB_KINDS",
-    "JOB_SCHEMA", "KOKORO_SERVICE", "PHOTO", "QUEUED", "RUNNING", "SPEED", "STATUSES",
-    "SUCCEEDED", "TERMINAL", "VOICE", "Engine", "Job", "JobError", "VoiceInput", "VoiceLine",
-    "line_signature",
+    "ASSEMBLER", "ASSET_CANDIDATE", "CANCELLED", "FAILED", "GAP_MAX_MS", "IN_FLIGHT", "JOB_FILE",
+    "JOB_KINDS", "JOB_SCHEMA", "KOKORO_SERVICE", "LEAD_MAX_MS", "PHOTO", "QUEUED", "RUNNING",
+    "SPEED", "STATUSES", "SUCCEEDED", "TAKE_MAX_MS", "TERMINAL", "TRACK_MAX_MS", "VOICE", "Engine",
+    "Job", "JobError", "VoiceInput", "VoiceLine", "line_signature",
 ]

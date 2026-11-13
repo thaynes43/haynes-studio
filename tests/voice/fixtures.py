@@ -16,7 +16,8 @@ from haynes_studio.canonical.ids import Minter
 from haynes_studio.jsonio import read_json
 from haynes_studio.library import Library
 from haynes_studio.library.model import locator_for
-from haynes_studio.voice import Engine, request_voice, run_voice_job, with_current_voice
+from haynes_studio.voice import Engine, request_voice, run_voice_job, start, with_current_voice
+from haynes_studio.voice.model import QUEUED, RUNNING
 from tests.canonical.fixtures import NOW, TITLE
 from tests.library.fixtures import BY, imported, winter_menu
 
@@ -86,14 +87,38 @@ class Studio:
             self.story = with_current_voice(self.story, board_id, outcome.make_current)
         return outcome
 
+    def stored(self, job_id: str):
+        """The job as the store holds it now, or None."""
+        return next((j for j in self.jobs if j.id == job_id), None)
+
+    def _put(self, job) -> None:
+        self.jobs = [job if j.id == job.id else j for j in self.jobs]
+
+    def claim(self, job, now: str = NOW):
+        """The worker's claim, as the API makes it: the stored queued job is now running."""
+        running = start(self.stored(job.id), now=now)
+        self._put(running)
+        return running
+
     def run(self, job, *, draft=None, reload=None, now: str = NOW):
+        """The worker's step as the API takes it: claim a stored queued job, run it
+        (``reload`` reads the store unless a test gives its own), keep the library, write
+        the finished job only over a stored ``running`` one (compare-and-set), and point
+        the board at the result only if that write happened and the result is current."""
+        if job.status == QUEUED and self.stored(job.id) == job:
+            job = self.claim(job, now)
+        if reload is None and self.stored(job.id) is not None:
+            reload = lambda: self.stored(job.id)
         run = run_voice_job(job, self.library, draft=draft or (lambda: self.story),
                             speech=self.client, publish=self.store.publish, fetch=self.store.fetch,
                             by=BY, now=now, minter=self.minter, engine=self.engine,
                             reload=reload)
-        self.jobs = [run.job if j.id == run.job.id else j for j in self.jobs]
-        self.library = run.library
-        if run.make_current:
+        self.library = run.library  # a version made is kept either way
+        stored = self.stored(job.id)
+        written = run.moved and stored is not None and stored.status == RUNNING
+        if written:
+            self._put(run.job)
+        if written and run.make_current:
             self.story = with_current_voice(self.story, job.target_id, run.version.id)
         return run
 

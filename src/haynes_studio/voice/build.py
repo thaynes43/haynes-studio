@@ -12,9 +12,12 @@ knows the store.
 :func:`run_voice_job` is the worker's whole step: start the job, make the version,
 then succeed it with ``result_is_current`` from the board as drafted when it finishes
 (VOICE-4). A result is always kept as a version; it becomes the board's current voice
-only if the board's signature still matches, and otherwise stays, stale. Nothing is
-overwritten or deleted. A failure fails the job and creates no version (blobs already
-published stay; they are harmless orphans, section 8).
+only if the board's signature still matches, and otherwise stays, stale. Only the move
+this step makes from ``running`` counts: if the stored job is no longer running
+(cancelled, or finished by an earlier run), the step changes nothing and moves no
+board, and the caller writes a finished job only over a stored running one
+(compare-and-set). Nothing is overwritten or deleted. A failure fails the job and
+creates no version (blobs already published stay; they are harmless orphans, section 8).
 """
 
 from __future__ import annotations
@@ -30,6 +33,7 @@ from haynes_studio.adapters.kokoro import SpeechRequest, SpeechTake
 from haynes_studio.canonical.facts import Facts
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.canonical.model import Principal
+from haynes_studio.canonical.validate import SCHEMA_INVALID
 from haynes_studio.errors import ContractError, Violation, blocking
 from haynes_studio.library import Library, import_version
 from haynes_studio.library.library import VersionRequest
@@ -54,6 +58,7 @@ from haynes_studio.voice.model import (
     ASSEMBLER,
     RUNNING,
     SPEED,
+    TRACK_MAX_MS,
     VOICE,
     Engine,
     Job,
@@ -69,7 +74,7 @@ from haynes_studio.voice.plan import (
     take_sources,
 )
 from haynes_studio.voice.track import FORMAT_MISMATCH, Pcm, assemble, read_wav
-from haynes_studio.voice.validate import validate_job
+from haynes_studio.voice.validate import validate_job, voice_input_violations
 
 WAV = "audio/wav"
 ENGINE_MISMATCH = "voice.engine_mismatch"  # proposal: a job planned for another engine
@@ -133,13 +138,20 @@ def _fetch(fetch: Fetch, take: Take, production_id: str, path: str) -> Pcm:
 def make_voice(voice: VoiceInput, board_id: str, library: Library, *, speech: Speech,
                publish: Publish, fetch: Fetch, by: Principal, now: str,
                minter: Minter | None = None, engine: Engine = Engine()) -> Made:
-    """One board voice version for ``voice`` (VOICE-2). Takes come from
+    """One board voice version for ``voice`` (VOICE-2). The input is checked first with
+    the job's voice rules (:func:`~haynes_studio.voice.validate.voice_input_violations`):
+    a voice that is not a recorded stock voice of its model is ``voice.not_stock``
+    before any request is built, any call is made or any byte is published (VOICE-1), and
+    so are a bad signature, gap count or time bound. Takes come from
     :func:`~haynes_studio.voice.plan.take_sources`, the rule the plan shows: a take a
     version of this board holds is read back (``fetch``), checked by hash and
     re-measured; each new signature goes to ``speech`` once. Every reused take and every
-    request is checked before the first call, and each answer's format before the next
-    call. If a version of this board already is the input, it is returned and nothing
-    is called or published."""
+    request is checked before the first call, and each answer's format and the track's
+    length so far before it is published and before the next call. If a version of this
+    board already is the input, it is returned and nothing is called or published."""
+    problems = voice_input_violations(voice)  # stock voices first: nothing is sent unchecked
+    if problems:
+        raise ContractError("<voice>", problems)
     if (engine.model, engine.signing_name) != (voice.model, voice.engine):
         raise _error(ENGINE_MISMATCH, "/voice/engine",
                      f"the input was signed for {voice.engine!r} ({voice.model}); this worker "
@@ -153,23 +165,27 @@ def make_voice(voice: VoiceInput, board_id: str, library: Library, *, speech: Sp
     pcms: dict[int, Pcm] = {}
     hashes: dict[int, str] = {}
     requests: dict[int, SpeechRequest] = {}
+    index = {line.line_id: i for i, line in enumerate(voice.lines)}
+    owners = [i if source.same_as is None else index[source.same_as]
+              for i, source in enumerate(sources)]  # the line whose take each line plays
     for i, (line, source) in enumerate(zip(voice.lines, sources)):  # all checks first
         if source.reuse is not None:
             pcms[i] = _fetch(fetch, source.reuse, production, f"/voice/lines/{i}")
             hashes[i] = source.reuse.sha256
         elif source.synthesize:
             requests[i] = SpeechRequest(voice=line.voice_id, text=line.text)
+    _check_room(voice, pcms, owners, "/voice")
     shape = next((pcm.shape for pcm in pcms.values()), None)
     for i, request in requests.items():
         answer = speech.synthesize(request)
-        pcms[i] = read_wav(answer.wav, f"/voice/lines/{i}")
+        pcms[i] = read_wav(answer.wav, f"/voice/lines/{i}")  # 16-bit mono, at most 120000 ms
         shape = shape or pcms[i].shape
         if pcms[i].shape != shape:  # stop before the next paid call
             raise _error(FORMAT_MISMATCH, f"/voice/lines/{i}",
                          f"the take is {pcms[i].shape}, the board's others {shape}; the track "
                          "is assembled without resampling")
+        _check_room(voice, pcms, owners, f"/voice/lines/{i}")  # and before publishing it
         hashes[i] = _publish(publish, answer.wav, production, f"/voice/lines/{i}").sha256
-    index = {line.line_id: i for i, line in enumerate(voice.lines)}
     for i, source in enumerate(sources):
         if source.same_as is not None:
             pcms[i], hashes[i] = pcms[index[source.same_as]], hashes[index[source.same_as]]
@@ -210,6 +226,16 @@ def make_voice(voice: VoiceInput, board_id: str, library: Library, *, speech: Sp
                       if not source.synthesize))
 
 
+def _check_room(voice: VoiceInput, pcms: Mapping[int, Pcm], owners: list[int], path: str) -> None:
+    """The track so far (lead, gaps and every take known now) must be within
+    ``TRACK_MAX_MS``, so a track that can only be refused stops before the next call."""
+    known = voice.lead_ms + sum(voice.gaps_ms) + sum(
+        take_duration_ms(pcms[owner].frames, pcms[owner].rate) for owner in owners if owner in pcms)
+    if known > TRACK_MAX_MS:
+        raise _error(SCHEMA_INVALID, path, f"the track would be over {TRACK_MAX_MS} ms "
+                                           f"({known} ms with the takes so far)")
+
+
 def _source_key(library: Library, board_id: str, voice: VoiceInput,
                 board_voice: BoardVoice) -> str:
     """``board-voice:<board_id>``, the board's one generated voice asset, unless that
@@ -244,19 +270,25 @@ def is_current(job: Job, story: Mapping[str, Any], library: Library) -> bool:
 
 @dataclass(frozen=True)
 class JobRun:
-    """One worker step: the terminal job, the library with its result, and whether the
-    board now points at the result (``make_current``, the job's
-    ``result_is_current``)."""
+    """One worker step.
+
+    ``moved`` is True when this step moved the job from ``running`` to a terminal
+    status (``job``). The caller persists ``library`` first, then writes ``job`` only
+    over a stored job that is still ``running`` (compare-and-set). ``make_current`` is
+    True only for a move to ``succeeded`` whose result is the board's input as drafted
+    now; the caller points the board at ``version`` only if that write succeeded.
+
+    When the stored job was no longer ``running`` (cancelled, or already finished by an
+    earlier run), ``moved`` and ``make_current`` are False and ``job`` is the stored job
+    unchanged: nothing is written and the board is not moved."""
 
     job: Job
     library: Library
     version: AssetVersion | None
     created: bool
     synthesized: tuple[str, ...]
-
-    @property
-    def make_current(self) -> bool:
-        return bool(self.job.result_is_current)
+    moved: bool = False
+    make_current: bool = False
 
 
 def run_voice_job(job: Job, library: Library, *, draft: Callable[[], Mapping[str, Any]],
@@ -265,19 +297,23 @@ def run_voice_job(job: Job, library: Library, *, draft: Callable[[], Mapping[str
                   reload: Callable[[], Job] | None = None) -> JobRun:
     """Start a queued voice job (a running one continues), make its version, and
     succeed it with ``result_is_current`` from ``draft()``, the story as it is when the
-    job finishes. A terminal job is refused (``job.transition``) before anything runs.
-    A rule or adapter error fails the job with its code; the library is then unchanged.
-    Any other exception propagates and leaves the job running, for the caller's worker
-    loop to fail.
+    job finishes. The job document is validated first (stock voices, signatures, time
+    bounds), and :func:`make_voice` checks its input again, so nothing reaches the
+    speech client unchecked. A terminal job is refused (``job.transition``) before
+    anything runs. A rule or adapter error fails the job with its code; the library is
+    then unchanged. Any other exception propagates and leaves the job running, for the
+    caller's worker loop to fail.
 
     ``reload()`` returns the job as stored now. It is read once the work is done: if the
-    job is no longer running (cancelled meanwhile), it is returned as it is, a version
-    already made stays in the returned library, and the board is not repointed. Without
-    ``reload`` the caller must persist the returned job only if the stored one is still
-    ``running`` (compare-and-set), or a cancel is lost."""
+    job is no longer ``running`` (cancelled meanwhile, or finished by an earlier run),
+    the result is the stored job unchanged with ``moved`` and ``make_current`` False; a
+    version already made stays in the returned library. ``is_current`` is computed only
+    for the move this call makes. Either way the caller writes the terminal job only
+    over a stored ``running`` one (compare-and-set, see :class:`JobRun`), or a cancel or
+    an earlier finish is lost."""
     if job.kind != VOICE or job.voice is None:
-        raise _error("schema.invalid", "/kind", "not a voice job")
-    problems = blocking(validate_job(job.to_document()))  # stock voices, signatures
+        raise _error(SCHEMA_INVALID, "/kind", "not a voice job")
+    problems = blocking(validate_job(job.to_document()))  # stock voices, signatures, bounds
     if problems:
         raise ContractError(job.id, problems)
     running = job if job.status == RUNNING else start(job, now=now)  # a terminal job: refused
@@ -287,20 +323,21 @@ def run_voice_job(job: Job, library: Library, *, draft: Callable[[], Mapping[str
                           engine=engine)
     except (ContractError, AdapterError) as error:
         stored = _stored(running, reload)
-        if stored.status != RUNNING:
+        if stored.status != RUNNING:  # cancelled or finished meanwhile: no change
             return JobRun(stored, library, None, False, ())
         if isinstance(error, ContractError):
             first = error.violations[0]
-            return JobRun(fail(running, first.rule, first.message, now=now), library, None,
-                          False, ())
-        return JobRun(fail(running, error.code, f"{error.label}: {error.message}", now=now),
-                      library, None, False, ())
+            failed = fail(running, first.rule, first.message, now=now)
+        else:
+            failed = fail(running, error.code, f"{error.label}: {error.message}", now=now)
+        return JobRun(failed, library, None, False, (), moved=True)
     stored = _stored(running, reload)
-    if stored.status != RUNNING:  # cancelled while it ran: the version stays, unused
+    if stored.status != RUNNING:  # cancelled or finished meanwhile: the version stays, unused
         return JobRun(stored, made.library, made.version, made.created, made.synthesized)
-    current = is_current(running, draft(), made.library)
+    current = is_current(running, draft(), made.library)  # only for this call's move
     done = succeed(running, made.version.id, is_current=current, now=now)
-    return JobRun(done, made.library, made.version, made.created, made.synthesized)
+    return JobRun(done, made.library, made.version, made.created, made.synthesized,
+                  moved=True, make_current=current)
 
 
 def _stored(job: Job, reload: Callable[[], Job] | None) -> Job:

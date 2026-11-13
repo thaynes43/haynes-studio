@@ -82,14 +82,17 @@
       "$ref": "studio.defs.v1.schema.json#/$defs/timestamp"
     },
     "voice": {
-      "anyOf": [
-        {
-          "type": "null"
-        },
-        {
-          "$ref": "#/$defs/voice_input"
-        }
-      ]
+      "$comment": "null or a voice input; if/then rather than anyOf, so an error inside the block is reported at its own field",
+      "type": [
+        "object",
+        "null"
+      ],
+      "if": {
+        "type": "object"
+      },
+      "then": {
+        "$ref": "#/$defs/voice_input"
+      }
     }
   },
   "additionalProperties": false,
@@ -342,6 +345,17 @@
       },
       "additionalProperties": false
     },
+    "voice_ms": {
+      "$comment": "A lead or a gap of a voice input: integer ms, at most the contract's longest silent hold (TIME-4). The lead and gaps together are at most 600000 ms, a track's maximum, which the validator checks (proposal, story 405).",
+      "$ref": "studio.defs.v1.schema.json#/$defs/ms",
+      "maximum": 120000,
+      "x-studio": {
+        "maximum": {
+          "rule": "schema.invalid",
+          "message": "must be integer milliseconds from 0 to 120000 (the longest silent hold, TIME-4)"
+        }
+      }
+    },
     "voice_line": {
       "type": "object",
       "required": [
@@ -443,12 +457,12 @@
           }
         },
         "lead_ms": {
-          "$ref": "studio.defs.v1.schema.json#/$defs/ms"
+          "$ref": "#/$defs/voice_ms"
         },
         "gaps_ms": {
           "type": "array",
           "items": {
-            "$ref": "studio.defs.v1.schema.json#/$defs/ms"
+            "$ref": "#/$defs/voice_ms"
           }
         },
         "lines": {

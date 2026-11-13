@@ -19,8 +19,9 @@ signature (VOICE-3), newest version first; :func:`take_sources` is that rule, an
 worker applies the same function. A version "is" an input when its input signature and
 its lines (ID, speaker, cast voice version) are the input's. Stock voices only
 (VOICE-1): a cast voice that is not a recorded stock voice of the engine's model is
-refused (``voice.not_stock``), and so is a line the speech client would refuse
-(``voice.request_invalid``), before any job is queued.
+refused (``voice.not_stock``), and so are a line the speech client would refuse
+(``voice.request_invalid``) and a lead or gap over its bound (``schema.invalid``),
+before any job is queued.
 """
 
 from __future__ import annotations
@@ -41,6 +42,7 @@ from haynes_studio.library.resolve import KIND_MISMATCH
 from haynes_studio.library.validate import NOT_STOCK, validate_asset_version
 from haynes_studio.voice.jobs import new_job
 from haynes_studio.voice.model import VOICE, Engine, Job, VoiceInput, VoiceLine, line_signature
+from haynes_studio.voice.validate import time_violations
 
 CURRENT, EXISTING, ASSEMBLE, SYNTHESIZE = "current", "existing", "assemble", "synthesize"
 ACTIONS = (CURRENT, EXISTING, ASSEMBLE, SYNTHESIZE)
@@ -94,10 +96,11 @@ def drafted_input(story: Mapping[str, Any], board_id: str, library: Library, *,
     story that breaks a rule (story 404's validator, so ``voice.speaker_not_in_cast``
     is its), a board it does not hold (``ref.unknown``), a silent board
     (``voice.not_needed``), a narrator line without a narrator voice
-    (``voice.absent``), a cast voice that is not a ``voice`` version
-    (``asset.kind_mismatch``) or not a stock voice of ``model`` (``voice.not_stock``),
-    and a line the speech client would refuse (``voice.request_invalid``: blank, or over
-    its 1000 characters)."""
+    (``voice.absent``), a lead or gap over 120000 ms or a lead and gaps over a track's
+    600000 ms (``schema.invalid``), a cast voice that is not a ``voice`` version
+    (``asset.kind_mismatch``) or not a stock voice of ``model`` (``voice.not_stock``,
+    checked before any ``SpeechRequest`` is built), and a line the speech client would
+    refuse (``voice.request_invalid``: blank, or over its 1000 characters)."""
     model_story = load_story(story, facts=library.facts(story), source="<story>")
     if model_story.boards is None:
         raise _error("schema.invalid", "/boards", "the story's boards must be embedded")
@@ -108,6 +111,12 @@ def drafted_input(story: Mapping[str, Any], board_id: str, library: Library, *,
     at = pointer("boards", index)
     if not board.spoken:
         raise _error(NOT_NEEDED, at + "/lines", "a silent board has no voice (TIME-4)")
+    bounds = time_violations(board.timing.lead_ms,
+                             ((pointer("boards", index, "lines", i, "gap_before_ms"),
+                               line.gap_before_ms) for i, line in enumerate(board.lines) if i),
+                             lead_at=at + "/timing/lead_ms", total_at=at + "/timing")
+    if bounds:
+        raise ContractError("<voice>", bounds)
     cast = {member.slot: member.voice_version_id for member in model_story.cast}
     cast[NARRATOR] = model_story.narrator_voice_version_id
     lines = []

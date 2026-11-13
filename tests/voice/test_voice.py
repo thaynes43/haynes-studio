@@ -16,11 +16,11 @@ import wave
 import pytest
 
 from haynes_studio.adapters.fakes import FailingRunner
-from haynes_studio.adapters.kokoro import KokoroClient
+from haynes_studio.adapters.kokoro import KokoroClient, SpeechRequest
 from haynes_studio.canonical import timing_summary, validate_story
 from haynes_studio.errors import ContractError, blocking
 from haynes_studio.library import Library, import_version
-from haynes_studio.library.model import measured_ms
+from haynes_studio.library.model import is_stock_voice, measured_ms
 from haynes_studio.voice import (
     ASSEMBLE,
     CURRENT,
@@ -33,9 +33,12 @@ from haynes_studio.voice import (
     start,
     plan_board_voice,
     run_voice_job,
+    validate_job,
     voice_facts,
     with_current_voice,
 )
+from haynes_studio.voice import track
+from haynes_studio.voice.model import line_signature
 from haynes_studio.voice.plan import board_voice_key
 from tests.canonical.fixtures import EXAMPLES, NOW
 from tests.library.fixtures import BY
@@ -326,9 +329,10 @@ def _replace_voice(studio, slot, **asset_changes):
                                    library.versions.values())
 
 
-def test_a_non_stock_voice_is_refused_before_any_call():
+@pytest.mark.parametrize("voice_id", ["af_someone_real", "af_sarah"])
+def test_a_non_stock_voice_is_refused_before_any_call(voice_id):
     studio = fresh_r4()
-    _replace_voice(studio, "a", attributes={"voice_id": "af_someone_real", "stock": True})
+    _replace_voice(studio, "a", attributes={"voice_id": voice_id, "stock": True})
     with pytest.raises(ContractError) as caught:
         studio.request(studio.board(8)["id"])
     assert "voice.not_stock" in {v.rule for v in caught.value.violations}
@@ -647,3 +651,166 @@ def test_a_failure_after_a_cancel_leaves_the_job_cancelled():
                         publish=studio.store.publish, fetch=studio.store.fetch, by=BY, now=LATER,
                         reload=lambda: cancelled)
     assert run.job == cancelled and run.version is None
+
+
+# Second review: stock voices at every entry, bounded times, one finish -------------------
+
+
+def _make(studio, voice, board_id):
+    return make_voice(voice, board_id, studio.library, speech=studio.client,
+                      publish=studio.store.publish, fetch=studio.store.fetch, by=BY, now=LATER)
+
+
+def _in_voice(voice, i, voice_id):
+    """``voice`` with line ``i`` in ``voice_id``, its take signature recomputed."""
+    line = voice.lines[i]
+    line = dataclasses.replace(line, voice_id=voice_id,
+                               signature=line_signature(voice.engine, voice_id, line.text))
+    return dataclasses.replace(voice, lines=voice.lines[:i] + (line,) + voice.lines[i + 1:])
+
+
+def _nothing_sent(studio, board_id):
+    return (studio.calls, studio.store.published, studio.store.fetched,
+            board_voice_versions(studio.library, board_id)) == (0, [], [], ())
+
+
+def test_make_voice_refuses_a_voice_that_is_not_stock_before_any_call_or_publish():
+    """Finding 1: af_sarah passes the speech client's own check but is not a recorded
+    stock voice. ``make_voice`` refuses it before any request, call or publication."""
+    studio = fresh_r4()
+    board_id = studio.board(1)["id"]
+    voice = _in_voice(plan_board_voice(studio.story, board_id, studio.library).input, 0, "af_sarah")
+    assert SpeechRequest(voice="af_sarah", text="Aye.") and not is_stock_voice(voice.model, "af_sarah")
+    with pytest.raises(ContractError) as caught:
+        _make(studio, voice, board_id)
+    assert {(v.rule, v.path) for v in caught.value.violations} == {
+        ("voice.not_stock", "/voice/lines/0/voice_id")}
+    assert _nothing_sent(studio, board_id)
+
+
+def test_a_job_in_a_voice_that_is_not_stock_is_refused_before_any_call():
+    """Finding 1 through the worker: the job document breaks only the stock rule."""
+    studio = fresh_r4()
+    board_id = studio.board(1)["id"]
+    job = studio.request(board_id).job
+    voice = _in_voice(job.voice, 0, "af_sarah")
+    forged = dataclasses.replace(job, voice=voice, input_signature=voice.input_signature)
+    assert {v.rule for v in validate_job(forged.to_document())} == {"voice.not_stock"}
+    with pytest.raises(ContractError) as caught:
+        studio.run(forged)
+    assert {v.rule for v in caught.value.violations} == {"voice.not_stock"}
+    assert _nothing_sent(studio, board_id)
+
+
+def test_input_b_a_lead_over_its_bound_is_refused_at_request():
+    """Finding 2, input B: r4 board 1 with a lead of 1000000000 ms queues no job."""
+    studio = fresh_r4()
+    board = studio.board(1)
+    board["timing"]["lead_ms"] = 1_000_000_000
+    for ask in (lambda: plan_board_voice(studio.story, board["id"], studio.library),
+                lambda: studio.request(board["id"])):
+        with pytest.raises(ContractError) as caught:
+            ask()
+        assert {(v.rule, v.path) for v in caught.value.violations} == {
+            ("schema.invalid", "/boards/0/timing/lead_ms")}
+    assert studio.jobs == [] and studio.calls == 0
+
+
+@pytest.mark.parametrize("lead, gaps, path", [
+    (1900, [120_001, 200, 250, 700, 900], "/boards/7/lines/1/gap_before_ms"),
+    (120_000, [120_000] * 5, "/boards/7/timing"),  # 720000 ms of silence alone
+], ids=["gap", "lead-and-gaps"])
+def test_a_gap_or_a_track_over_its_bound_is_refused_at_request(lead, gaps, path):
+    studio = fresh_r4()
+    board = studio.board(8)
+    board["timing"]["lead_ms"] = lead
+    for line, gap in zip(board["lines"][1:], gaps):
+        line["gap_before_ms"] = gap
+    with pytest.raises(ContractError) as caught:
+        studio.request(board["id"])
+    assert {(v.rule, v.path) for v in caught.value.violations} == {("schema.invalid", path)}
+    assert studio.jobs == [] and studio.calls == 0
+
+
+def test_make_voice_refuses_input_b_before_any_call_or_buffer(monkeypatch):
+    studio = fresh_r4()
+    board_id = studio.board(1)["id"]
+    sized = []
+    monkeypatch.setattr(track, "bytearray", lambda *args: sized.append(args), raising=False)
+    voice = plan_board_voice(studio.story, board_id, studio.library).input
+    with pytest.raises(ContractError) as caught:
+        _make(studio, dataclasses.replace(voice, lead_ms=1_000_000_000), board_id)
+    assert {(v.rule, v.path) for v in caught.value.violations} == {("schema.invalid", "/voice/lead_ms")}
+    assert _nothing_sent(studio, board_id) and sized == []
+
+
+def test_a_track_that_grows_over_its_bound_stops_before_the_next_call():
+    """Lead and gaps of 599000 ms pass the request; the first take (1003 ms) would put
+    the track over 600000 ms, so the job fails before that take is published and before
+    the next call."""
+    studio = fresh_r4()
+    board = studio.board(8)
+    board["timing"]["lead_ms"] = 120_000
+    for line, gap in zip(board["lines"][1:], [120_000, 120_000, 120_000, 119_000, 0]):
+        line["gap_before_ms"] = gap
+    _, run = studio.generate(board["id"])
+    assert (run.job.status, run.job.error.code) == ("failed", "schema.invalid")
+    assert (studio.calls, studio.store.published, run.version) == (1, [], None)
+
+
+@pytest.mark.parametrize("change, path", [
+    (lambda v: dataclasses.replace(v, gaps_ms=v.gaps_ms[:-1]), "/voice/gaps_ms"),
+    (lambda v: dataclasses.replace(v, lead_ms=-1), "/voice/lead_ms"),
+    (lambda v: dataclasses.replace(v, lines=(dataclasses.replace(v.lines[0], text="Nay."),
+                                             *v.lines[1:])), "/voice/lines/0/signature"),
+    (lambda v: dataclasses.replace(v, lines=(v.lines[0], dataclasses.replace(
+        v.lines[1], line_id=v.lines[0].line_id), *v.lines[2:])), "/voice/lines/1/line_id"),
+], ids=["gap-count", "negative-lead", "signature", "duplicate-line"])
+def test_make_voice_checks_a_hand_made_input_before_anything(change, path):
+    """Before the review these reached the speech client: a wrong gap count or a negative
+    lead raised ValueError after the calls, and a signature that does not follow from its
+    text could reuse another text's take."""
+    studio = fresh_r4()
+    board_id = studio.board(8)["id"]
+    voice = change(plan_board_voice(studio.story, board_id, studio.library).input)
+    with pytest.raises(ContractError) as caught:
+        _make(studio, voice, board_id)
+    assert path in {v.path for v in caught.value.violations}
+    assert _nothing_sent(studio, board_id)
+
+
+def test_a_second_finish_of_a_finished_job_changes_nothing():
+    """Finding 3, the reviewer's sequence. (1) A job finishes while its lines match and
+    the board points at V1. (2) A line is edited and generated: V2 is current. (3) The
+    original running job finishes again, and the store holds the job succeeded in (1).
+    Nothing is written and the board stays on V2."""
+    studio = fresh_r4()
+    board_id = studio.board(1)["id"]
+    running = studio.claim(studio.request(board_id).job)
+    first = studio.run(running)  # (1): the store still holds it running
+    assert (first.job.status, first.job.result_is_current, first.moved, first.make_current) == (
+        "succeeded", True, True, True)
+    assert studio.board(1)["voice"]["current_version_id"] == first.version.id
+    studio.board(1)["lines"][0]["text"] = "Order, order!"  # (2)
+    _, newer = studio.generate(board_id)
+    assert newer.make_current and studio.board(1)["voice"]["current_version_id"] == newer.version.id
+    calls, versions, jobs = studio.calls, len(studio.library.versions), list(studio.jobs)
+    again = studio.run(running, reload=lambda: first.job)  # (3)
+    assert again.job == first.job
+    assert (again.moved, again.make_current, again.version.id) == (False, False, first.version.id)
+    assert studio.board(1)["voice"]["current_version_id"] == newer.version.id
+    assert (studio.calls, len(studio.library.versions), studio.jobs) == (calls, versions, jobs)
+    assert plan_board_voice(studio.story, board_id, studio.library).action == CURRENT
+
+
+def test_only_a_move_from_running_is_written():
+    """The store's compare-and-set: a finished job is written only over a stored
+    ``running`` one. A run whose job the store already holds finished moves nothing."""
+    studio = fresh_r4()
+    board_id = studio.board(9)["id"]
+    running = studio.claim(studio.request(board_id).job)
+    first = studio.run(running)
+    assert first.moved and studio.stored(running.id) == first.job
+    again = studio.run(running)  # reload reads the store: succeeded
+    assert (again.moved, again.make_current, again.job) == (False, False, first.job)
+    assert studio.stored(running.id) == first.job
