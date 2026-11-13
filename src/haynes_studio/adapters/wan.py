@@ -13,18 +13,22 @@ PoC's order, and each one stops before anything is submitted:
 
 0. Every pinned snippet and the template are checked before any command runs
    (``adapter.pin_mismatch``), and the graph is built from them.
-1. The client's :class:`Journal` is loaded (``adapter.journal_failed`` when it cannot be
-   read exactly), so a job or halt an earlier process left blocks this one too. One job
-   per process (``adapter.busy``), none after foreign engine work was seen
+1. One job per process (``adapter.busy``), and the client's :class:`Journal` held for the
+   whole call (a second process on it is ``adapter.busy``, before anything runs) and read
+   once (``adapter.journal_failed`` when it cannot be read exactly), so a job or halt an
+   earlier process left blocks this one too. None after foreign engine work was seen
    (``adapter.competing_work``, until :meth:`WanClipClient.clear_halt`), none while an
    earlier job may still be running (``adapter.busy``, until that job's ledger reads
-   ``failed``, or :meth:`WanClipClient.clear_in_flight`), and none while an earlier
-   job succeeded but its clip has not been collected (``adapter.busy``, until
-   :meth:`WanClipClient.recover` fetches and checks it, or ``clear_in_flight``).
+   ``failed`` and, if its prompt was accepted, a probe shows the engine queue empty; or
+   :meth:`WanClipClient.clear_in_flight`), and none while an earlier job succeeded but
+   its clip has not been collected (``adapter.busy``, until :meth:`WanClipClient.recover`
+   fetches and checks it, or ``clear_in_flight``). The clears wait for no call: they
+   refuse while one runs. The new job is journalled as in flight here, before the first
+   probe.
 2. Cool idle (``poc/wan.py`` ``wait_cool``): the API accepting with no active job and
-   an empty engine queue, else a refusal at once; then exactly two GPUs, each under
-   62 C and at most 5 % busy, read every 10 s for up to 1800 s, else a refusal. It only
-   reads. An answer without both queue lists, ``accepting_jobs`` or the ``active_job``
+   an empty engine queue, else a refusal at once; then exactly the two approved GPUs
+   (``pinned.WAN_GPU_UUIDS``), each under 62 C and at most 5 % busy, read every 10 s for
+   up to 1800 s, else a refusal. It only reads. An answer without both queue lists, ``accepting_jobs`` or the ``active_job``
    key is an error, never idle.
 3. Inputs uploaded create-only under ``/workspace/input/studio-e0/``, named by hash; an
    existing name must hold the same bytes; the pod's read-back hash must match.
@@ -36,13 +40,15 @@ PoC's order, and each one stops before anything is submitted:
    once, and records foreign engine work seen during the job; engine reads that time
    out are retried read-only (writes never). The job sent is the PoC's plus one key,
    ``graph_sha256``, which :meth:`WanClipClient.recover` checks.
-6. A job that did not succeed is an error. The job is journalled as in flight before
-   the run starts and stays so until its finished ledger has been read; a lost,
-   timed-out or non-zero-exit run leaves it so. Only two failures are known to have
-   submitted nothing: the runner could not start the command, or the admission readback
-   refused. A job whose ledger reads ``succeeded`` stays (``uncollected``) until its clip
-   has been fetched and checked: a lost answer or a failed fetch or check is collected
-   with :meth:`WanClipClient.recover`, never rendered again.
+6. A job that did not succeed is an error. The job stays in flight until its finished
+   ledger has been read; a lost, timed-out or non-zero-exit run leaves it so. Only these
+   are known to have submitted nothing, and settle it: a refusal or failure before the
+   run (either cool check, an upload), the runner could not start the command, or the
+   admission readback refused. A failed job whose prompt was accepted stays until a
+   probe shows the engine queue empty. A job whose ledger reads ``succeeded`` stays
+   (``uncollected``) until its clip has been fetched and checked: a lost answer or a
+   failed fetch or check is collected with :meth:`WanClipClient.recover`, never rendered
+   again.
 7. The clip is fetched read-only from ``/videos/<id>/file``, hash-checked against the
    pod's own read and the ledger's size, and decoded: a clip that does not decode, or
    whose size, frame count or measured rate is not exactly what the request's graph
@@ -62,7 +68,9 @@ service or its volume, never changes GPU settings, and never retries a submissio
 
 from __future__ import annotations
 
+import contextlib
 import errno
+import fcntl
 import hashlib
 import io
 import json
@@ -536,7 +544,14 @@ class Halt:
 
 def _journal_error(message: str) -> WanError:
     return WanError(JOURNAL_FAILED, JOURNAL_LABEL, f"{message}; nothing is submitted until a "
-                    "person has inspected it (a new journal file starts empty)")
+                    "person has inspected the journal and the Wan service (its engine queue and "
+                    "the ledger of every job the journal names); replacing the file discards the "
+                    "only record of a job the engine queue may not show yet")
+
+
+def _journal_busy(name: Any) -> WanError:
+    return WanError(BUSY, JOURNAL_LABEL, f"journal {name} is held by another process (one process "
+                    "at a time on a journal); nothing was probed, uploaded or submitted")
 
 
 # Each event's keys besides "v", "event" and "at".
@@ -565,17 +580,30 @@ def _event_problem(event: Any) -> str | None:
     return None
 
 
+@dataclass(frozen=True)
+class JournalState:
+    """One read of a journal: the job that blocks (or None), the halt (or None), and every
+    job ID any line names (a job this process holds that the journal does not name means
+    the file was replaced or cut)."""
+
+    job: InFlightJob | None
+    halt: Halt | None
+    named: frozenset[str]
+
+
 class Journal:
     """Where a :class:`WanClipClient` keeps the job that blocks further renders and the
     halt, so both outlive the process. A :class:`WanClipClient` needs one.
 
     Each event is one JSON line, appended and never rewritten: ``remember`` (a job, before
-    its run starts, and again when its state changes to ``uncollected``), ``settle`` (it
+    its first probe, and again when its state changes to ``uncollected``), ``settle`` (it
     no longer blocks; ``outcome`` is ``collected``, ``failed``, ``no_submission`` or
-    ``cleared``), ``halt`` and ``clear_halt``. :meth:`load` replays the lines; anything
-    it cannot read exactly (a line that is not one of these events, an incomplete last
-    line, a second unsettled job, a settle or clear of something not set) is
-    ``adapter.journal_failed``, and nothing is submitted. Subclasses keep the lines:
+    ``cleared``), ``halt`` and ``clear_halt``. :meth:`read_state` replays the lines in one
+    read; anything it cannot read exactly (a line that is not one of these events, an
+    incomplete last line, a second unsettled job, a settle or clear of something not set)
+    is ``adapter.journal_failed``, and nothing is submitted. Every call that may submit,
+    collect or clear holds the journal for its whole length (:meth:`hold`,
+    :meth:`release`); a second holder is ``adapter.busy``. Subclasses keep the lines:
     :class:`FileJournal` for real runs, :class:`MemoryJournal` for tests."""
 
     def __init__(self, *, wall=time.time):
@@ -587,13 +615,24 @@ class Journal:
     def _append(self, line: bytes) -> None:
         raise NotImplementedError
 
+    def hold(self) -> None:
+        """Take the journal for one call, or ``adapter.busy`` when another holds it."""
+        raise NotImplementedError
+
+    def release(self) -> None:
+        raise NotImplementedError
+
+    def same(self, other: Journal | None) -> bool:
+        """Whether ``other`` keeps the same lines as this journal."""
+        return other is self
+
     def load(self) -> InFlightJob | None:
         """The job that blocks further renders (code ``journal``), or None."""
-        return self._replay()[0]
+        return self.read_state().job
 
     def load_halt(self) -> Halt | None:
         """The halt after foreign engine work, or None."""
-        return self._replay()[1]
+        return self.read_state().halt
 
     def remember(self, job_id: str, state: str, graph_sha256: str) -> None:
         self._write({"event": "remember", "job_id": job_id, "state": state, "graph_sha256": graph_sha256})
@@ -610,7 +649,7 @@ class Journal:
     def _write(self, event: dict) -> None:
         event = {"v": 1, **event, "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self.wall()))}
         problem = _event_problem(event)
-        if problem:  # never write a line load() would refuse
+        if problem:  # never write a line read_state() would refuse
             raise ValueError(f"not a journal event: {problem}")
         line = (json.dumps(event) + "\n").encode()
         try:
@@ -618,7 +657,8 @@ class Journal:
         except OSError as error:
             raise _journal_error(f"the journal could not be written ({type(error).__name__})") from None
 
-    def _replay(self) -> tuple[InFlightJob | None, Halt | None]:
+    def read_state(self) -> JournalState:
+        """One read of the journal, replayed."""
         try:
             data = self._read()
         except OSError as error:
@@ -631,6 +671,7 @@ class Journal:
             raise _journal_error("the journal is not UTF-8 text") from None
         job: InFlightJob | None = None
         halt: Halt | None = None
+        named: set[str] = set()
         for number, line in enumerate(lines, 1):
             try:
                 event = parse_strict(line)
@@ -655,16 +696,18 @@ class Journal:
                 if halt is None or halt.job_id != job_id:
                     raise _journal_error(f"journal line {number} clears a halt that is not set")
                 halt = None
-        return job, halt
+            named.add(job_id)
+        return JournalState(job, halt, frozenset(named))
 
 
 class MemoryJournal(Journal):
     """A journal in memory, lost with the process: for tests only. ``data`` holds the
-    lines exactly as :class:`FileJournal` writes them."""
+    lines exactly as :class:`FileJournal` writes them; ``held`` models the file's lock."""
 
     def __init__(self, data: bytes = b"", *, wall=time.time):
         super().__init__(wall=wall)
         self.data = data
+        self.held = False
 
     def _read(self) -> bytes:
         return self.data
@@ -672,17 +715,57 @@ class MemoryJournal(Journal):
     def _append(self, line: bytes) -> None:
         self.data += line
 
+    def hold(self) -> None:
+        if self.held:
+            raise _journal_busy("in memory")
+        self.held = True
+
+    def release(self) -> None:
+        self.held = False
+
+
+def _sync_directory(path: Path) -> None:
+    """``fsync`` a directory, so a file just created in it survives a crash."""
+    directory = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        os.fsync(directory)
+    except OSError as error:
+        if error.errno != errno.EINVAL:  # a file system that cannot sync a directory
+            raise
+    finally:
+        os.close(directory)
+
 
 class FileJournal(Journal):
-    """The journal for real runs: an append-only JSON-lines file. Each event is one
-    ``os.write`` to a descriptor opened with ``O_APPEND``, then ``fsync`` (and, when the
-    write created the file, its directory). The file is never rewritten, truncated or
-    deleted. A missing file is an empty journal. Keep it under the run's own directory,
-    used by one process at a time."""
+    """The journal for real runs: an append-only JSON-lines file on a local file system.
+    Each event is one ``os.write`` to a descriptor opened with ``O_APPEND``, then
+    ``fsync`` (and the directory's, when the file is created). The file is never
+    rewritten, truncated or deleted; a missing file is an empty journal. :meth:`hold`
+    takes an exclusive ``flock`` on the file without waiting, so a second process (or a
+    second ``FileJournal`` on the same file) is refused while one call holds it. Keep it
+    under the run's own directory; the same path for every run of the same store."""
 
     def __init__(self, path, *, wall=time.time):
         super().__init__(wall=wall)
         self.path = Path(path)
+        self._lock_fd: int | None = None
+
+    def same(self, other: Journal | None) -> bool:
+        return isinstance(other, FileJournal) and os.path.realpath(self.path) == os.path.realpath(other.path)
+
+    def _open(self, flags: int) -> int:
+        """A descriptor on the journal file, created (and its directory synced) if missing."""
+        flags |= os.O_CREAT | getattr(os, "O_CLOEXEC", 0)
+        try:
+            fd = os.open(self.path, flags | os.O_EXCL, 0o600)
+        except FileExistsError:
+            return os.open(self.path, flags, 0o600)
+        try:
+            _sync_directory(self.path.parent)
+        except BaseException:
+            os.close(fd)
+            raise
+        return fd
 
     def _read(self) -> bytes:
         try:
@@ -691,26 +774,39 @@ class FileJournal(Journal):
             return b""
 
     def _append(self, line: bytes) -> None:
-        flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT | getattr(os, "O_CLOEXEC", 0)
-        try:
-            fd, created = os.open(self.path, flags | os.O_EXCL, 0o600), True
-        except FileExistsError:
-            fd, created = os.open(self.path, flags, 0o600), False
+        fd = self._open(os.O_WRONLY | os.O_APPEND)
         try:
             if os.write(fd, line) != len(line):
                 raise OSError(errno.EIO, "short write to the journal")
             os.fsync(fd)
         finally:
             os.close(fd)
-        if created:  # the new file's name must survive a crash as well as its line
-            directory = os.open(self.path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+
+    def hold(self) -> None:
+        if self._lock_fd is not None:
+            raise _journal_busy(self.path)
+        try:
+            fd = self._open(os.O_RDONLY)
+        except OSError as error:
+            raise _journal_error(f"the journal could not be opened to hold it ({type(error).__name__})") from None
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            os.close(fd)
+            raise _journal_busy(self.path) from None
+        except OSError as error:
+            os.close(fd)
+            raise _journal_error(f"the journal could not be locked ({type(error).__name__}); it must be "
+                                 "on a local file system") from None
+        self._lock_fd = fd
+
+    def release(self) -> None:
+        fd, self._lock_fd = self._lock_fd, None
+        if fd is not None:
             try:
-                os.fsync(directory)
-            except OSError as error:
-                if error.errno != errno.EINVAL:  # a file system that cannot sync a directory
-                    raise
+                fcntl.flock(fd, fcntl.LOCK_UN)
             finally:
-                os.close(directory)
+                os.close(fd)
 
 
 @dataclass(frozen=True)
@@ -804,9 +900,9 @@ class WanClipClient:
     notes for the guards, in order. ``journal`` is required: a :class:`FileJournal`
     under the run's own directory (tests: :class:`MemoryJournal`); construction loads it,
     so a job or halt an earlier process left there blocks this process as if it had
-    made it. ``expected_gpus`` is how many GPUs a probe must show. ``clock`` (monotonic
-    seconds), ``wall`` (epoch seconds) and ``sleep`` are injectable for tests; nothing
-    here sleeps except the cool-idle wait between probes."""
+    made it, and every call that may submit, collect or clear holds it. ``clock``
+    (monotonic seconds), ``wall`` (epoch seconds) and ``sleep`` are injectable for
+    tests; nothing here sleeps except the cool-idle wait between probes."""
 
     # Per process, shared by every WanClipClient: one job at a time, the job that blocks
     # further renders and the halt after foreign engine work, each with the journal that
@@ -824,15 +920,12 @@ class WanClipClient:
                  fetch_snippet: pinned.PinnedInput | None = None,
                  read_snippet: pinned.PinnedInput | None = None,
                  i2v_template: pinned.PinnedInput | None = None,
-                 expected_gpus: int = EXPECTED_GPUS,
                  clock=time.monotonic, wall=time.time, sleep=time.sleep, new_job_id=_new_job_id):
         def take(item, name):
             return pinned.check(item, name) if item else pinned.load(name)
         if not isinstance(journal, Journal):
             raise TypeError("WanClipClient needs a journal: FileJournal(<the run's directory>/"
                             "wan-journal.jsonl), or MemoryJournal() in tests")
-        if not _int(expected_gpus) or expected_gpus < 1:
-            raise ValueError("expected_gpus must be a positive integer")
         self.runner = runner
         self.target = target
         self.probe_snippet = take(probe_snippet, PROBE_SNIPPET)
@@ -841,7 +934,6 @@ class WanClipClient:
         self.fetch_snippet = take(fetch_snippet, FETCH_SNIPPET)
         self.read_snippet = take(read_snippet, READ_SNIPPET)
         self.i2v_template = take(i2v_template, I2V_GRAPH)
-        self.expected_gpus = expected_gpus
         self.clock = clock
         self.wall = wall
         self.sleep = sleep
@@ -939,14 +1031,26 @@ class WanClipClient:
     def clear_in_flight(cls) -> InFlightJob | None:
         """Forget the blocking job, once a person has checked it: that it is not running
         (for example: its ledger is missing and no snippet process is left in the ``api``
-        container), or that its uncollected clip has been inspected. Appends a ``settle``
-        line with outcome ``cleared`` to its journal first; if that write fails, the job
-        stays. Returns what it forgot. Touches nothing on the Wan service."""
-        cleared, journal = WanClipClient._unsettled, WanClipClient._unsettled_journal
-        if cleared is not None and journal is not None:
-            journal.settle(cleared.job_id, "cleared")
-        WanClipClient._unsettled = WanClipClient._unsettled_journal = None
-        return cleared
+        container), or that its uncollected clip has been inspected. Refused
+        (``adapter.busy``, nothing changed) while a :meth:`render` or :meth:`recover` runs
+        in this process or another process holds its journal. Appends a ``settle`` line
+        with outcome ``cleared`` to its journal first (unless another process already
+        settled it there); if that write fails, the job stays. Returns what it forgot.
+        Touches nothing on the Wan service."""
+        with _process_lock("a Wan job is running in this process; clear after it returns"):
+            cleared, journal = WanClipClient._unsettled, WanClipClient._unsettled_journal
+            if cleared is not None and journal is not None:
+                journal.hold()
+                try:
+                    state = journal.read_state()
+                    if state.job is not None and state.job.job_id == cleared.job_id:
+                        journal.settle(cleared.job_id, "cleared")
+                    elif cleared.job_id not in state.named:
+                        raise _journal_error(_unnamed(cleared.job_id))
+                finally:
+                    journal.release()
+            WanClipClient._unsettled = WanClipClient._unsettled_journal = None
+            return cleared
 
     @classmethod
     def halted(cls) -> Halt | None:
@@ -955,22 +1059,34 @@ class WanClipClient:
 
     @classmethod
     def clear_halt(cls) -> Halt | None:
-        """Allow submissions again after a person has inspected the foreign work. Appends a
-        ``clear_halt`` line to the halt's journal first; if that write fails, the halt
-        stays."""
-        cleared, journal = WanClipClient._halt, WanClipClient._halt_journal
-        if cleared is not None and journal is not None:
-            journal.clear_halt(cleared.job_id)
-        WanClipClient._halt = WanClipClient._halt_journal = None
-        return cleared
+        """Allow submissions again after a person has inspected the foreign work. Refused
+        (``adapter.busy``, nothing changed) while a :meth:`render` or :meth:`recover` runs
+        in this process or another process holds its journal. Appends a ``clear_halt``
+        line to the halt's journal first (unless the journal no longer has that halt); if
+        that write fails, the halt stays."""
+        with _process_lock("a Wan job is running in this process; clear after it returns"):
+            cleared, journal = WanClipClient._halt, WanClipClient._halt_journal
+            if cleared is not None and journal is not None:
+                journal.hold()
+                try:
+                    state = journal.read_state()
+                    if state.halt is not None and state.halt.job_id == cleared.job_id:
+                        journal.clear_halt(cleared.job_id)
+                    elif cleared.job_id not in state.named:
+                        raise _journal_error(_unnamed(cleared.job_id))
+                finally:
+                    journal.release()
+            WanClipClient._halt = WanClipClient._halt_journal = None
+            return cleared
 
     # Reads --------------------------------------------------------------------------------
 
     def probe(self) -> Probe:
         """One read of the API's health, the GPUs and the engine queue. Submits nothing.
         An answer without ``accepting_jobs`` or the ``active_job`` key in its health,
-        without both queue lists, or with other than ``expected_gpus`` GPUs is
-        ``adapter.response_invalid``: missing evidence is never idle."""
+        without both queue lists, or whose GPUs are not exactly the two approved ones
+        (``pinned.WAN_GPU_UUIDS``) is ``adapter.response_invalid``: missing evidence is
+        never idle."""
         result = run_checked(self.runner, self.probe_command(), error=WanError)
         out = _json(result.stdout, PROBE_LABEL)
         health = out.get('health') if isinstance(out, dict) else None
@@ -980,13 +1096,16 @@ class WanClipClient:
         if not isinstance(health, dict) or not isinstance(queue, dict) or not isinstance(gpus, list) \
                 or not gpus:
             raise WanError(RESPONSE_INVALID, PROBE_LABEL, "answer lacks health, GPU sample or queue")
-        if len(gpus) != self.expected_gpus:
+        if len(gpus) != EXPECTED_GPUS:
             raise WanError(RESPONSE_INVALID, PROBE_LABEL, f"the GPU sample shows {len(gpus)} GPUs; "
-                                                          f"expected exactly {self.expected_gpus}")
+                                                          f"expected exactly {EXPECTED_GPUS}")
         for gpu in gpus:
             if not isinstance(gpu, dict) or _number(gpu.get('temperature_c')) is None \
                     or _number(gpu.get('utilization_percent')) is None:
                 raise WanError(RESPONSE_INVALID, PROBE_LABEL, "a GPU sample lacks temperature or utilization")
+        if {gpu.get('uuid') for gpu in gpus} != set(pinned.WAN_GPU_UUIDS):
+            raise WanError(RESPONSE_INVALID, PROBE_LABEL, "the GPU sample is not the two approved GPUs "
+                                                          "(pinned.WAN_GPU_UUIDS)")
         for key in ('accepting_jobs', 'active_job'):
             if key not in health:
                 raise WanError(RESPONSE_INVALID, PROBE_LABEL, f"health lacks {key}")
@@ -1059,12 +1178,15 @@ class WanClipClient:
         job_id = _job_id(self.new_job_id())
         g = self.graph(request, job_id)
         files = model_files(g)
-        if not WanClipClient._lock.acquire(blocking=False):
-            raise WanError(BUSY, LABEL, "another Wan job is in flight in this process; one job at a time")
+        with self._exclusive():
+            return self._render(request, job_id, g, files)
+
+    def _render(self, request: WanRequest, job_id: str, g: dict, files: dict) -> WanClip:
+        self._adopt()  # the journal, read exactly, before anything else
+        self._check_halt()
+        self._settle_in_flight()
+        self._remember(job_id, graph_sha256(g))  # on record before the first probe
         try:
-            self._adopt()  # the journal, read exactly, before anything else
-            self._check_halt()
-            self._settle_in_flight()
             t0 = self.clock()
             first_s, first_temps = self.wait_cool()
             uploads = {'image': self.upload(request.image_png, '.png')}
@@ -1074,36 +1196,41 @@ class WanClipClient:
             job = self.job(request, job_id, created_at)
             command = self._run_command(job, g, request.prompt)
             cooled_s, temps = self.wait_cool()  # again, right before the run: the uploads took time
-            t_submit = self.clock()
-            result = self._submit(command, job_id, job['graph_sha256'])  # journalled before it starts
-            t_done = self.clock()
-            foreign = _ids(result.get('unexpected_work_seen'))
-            if foreign:  # latched before anything else can fail, as the PoC stops here too
-                self._latch_halt(Halt(job_id, tuple(foreign)))
-            if result['state'] != 'succeeded':
-                self._settle(job_id, "failed")  # its finished ledger has been read
-                error = str(result.get('error') or '')[:200]
-                code = BUSY if LEASE_BUSY in error and not result.get('prompt_id') else JOB_FAILED
-                raise WanError(code, LABEL, f"Wan job {job_id} ended {result['state']}: {error}; "
-                                            "inspect before any further render", job_id=job_id)
-            self._mark_uncollected(job_id)  # blocks further renders until its clip passes
-            body, fetch_s = self._fetch(job_id, result.get('bytes'))
-            measured = self._check_clip(request, job_id, body)
-            timings = {'cooldown_s': cooled_s, 'start_temps': [list(t) for t in temps],
-                       'cool_before_upload': {'cooldown_s': first_s,
-                                              'start_temps': [list(t) for t in first_temps]},
-                       'render_s': round(t_done - t_submit, 1), 'fetch_s': fetch_s,
-                       'wall_s': round(self.clock() - t0, 1)}
-            clip = WanClip(body, self._record(request, job_id, g, files, uploads, result, body,
-                                              measured, timings))
-            self._settle(job_id, "collected")
-            if foreign:
-                raise WanError(COMPETING_WORK, LABEL, f"competing engine work seen during job {job_id} "
-                               f"({', '.join(foreign)}); output kept, no further submissions until "
-                               "WanClipClient.clear_halt()", job_id=job_id, clip=clip)
-            return clip
-        finally:
-            WanClipClient._lock.release()
+        except BaseException:
+            self._settle(job_id, "no_submission")  # the run command was never started
+            raise
+        t_submit = self.clock()
+        result = self._submit(command, job_id)
+        t_done = self.clock()
+        foreign = _ids(result.get('unexpected_work_seen'))
+        if foreign:  # latched before anything else can fail, as the PoC stops here too
+            self._latch_halt(Halt(job_id, tuple(foreign)))
+        if result['state'] != 'succeeded':
+            error = redact(str(result.get('error') or ''))[:200]
+            if result.get('prompt_id'):  # accepted by the engine: it may still be there
+                self._recode(job_id, JOB_FAILED)
+                raise WanError(JOB_FAILED, LABEL, f"Wan job {job_id} ended {result['state']}: {error}; "
+                               f"{_accepted(result.get('prompt_id'))}", job_id=job_id, in_flight=True)
+            self._settle(job_id, "failed")  # its finished ledger has been read
+            code = BUSY if LEASE_BUSY in error else JOB_FAILED
+            raise WanError(code, LABEL, f"Wan job {job_id} ended {result['state']}: {error}; "
+                                        "inspect before any further render", job_id=job_id)
+        self._mark_uncollected(job_id)  # blocks further renders until its clip passes
+        body, fetch_s = self._fetch(job_id, result.get('bytes'))
+        measured = self._check_clip(request, job_id, body)
+        timings = {'cooldown_s': cooled_s, 'start_temps': [list(t) for t in temps],
+                   'cool_before_upload': {'cooldown_s': first_s,
+                                          'start_temps': [list(t) for t in first_temps]},
+                   'render_s': round(t_done - t_submit, 1), 'fetch_s': fetch_s,
+                   'wall_s': round(self.clock() - t0, 1)}
+        clip = WanClip(body, self._record(request, job_id, g, files, uploads, result, body,
+                                          measured, timings))
+        self._settle(job_id, "collected")
+        if foreign:
+            raise WanError(COMPETING_WORK, LABEL, f"competing engine work seen during job {job_id} "
+                           f"({', '.join(foreign)}); output kept, no further submissions until "
+                           "WanClipClient.clear_halt()", job_id=job_id, clip=clip)
+        return clip
 
     def recover(self, request: WanRequest, job_id: str) -> WanClip:
         """The clip of an earlier job made for ``request``, without rendering again: for
@@ -1122,53 +1249,65 @@ class WanClipClient:
         self._check_pins()
         g = self.graph(request, _job_id(job_id))
         files = model_files(g)
-        if not WanClipClient._lock.acquire(blocking=False):
-            raise WanError(BUSY, LABEL, "another Wan job is in flight in this process; one job at a time")
-        try:
-            self._adopt()
-            ledger = self.read_job(job_id)
-            expected = self.job(request, job_id, 0.0)
-            if not isinstance(ledger.get('graph_sha256'), str):
-                raise WanError(RESPONSE_INVALID, READ_LABEL, f"job {job_id}'s ledger has no graph_sha256 "
-                               "(as every E0 job), so it cannot be shown to be this request's job; "
-                               "recover collects only jobs this client made, older jobs are imported "
-                               "another way", job_id=job_id)
-            keys = ('preset', 'seed', 'reference_image', 'reference_sha256', 'audio', 'audio_sha256',
-                    'story', 'graph_sha256')
-            if any(ledger.get(k) != expected.get(k) for k in keys):
-                raise WanError(RESPONSE_INVALID, READ_LABEL, f"job {job_id} was not made for this request",
-                               job_id=job_id)
-            state = ledger['state']
-            if state not in TERMINAL:
-                raise WanError(BUSY, LABEL, f"Wan job {job_id} is {state}", job_id=job_id, in_flight=True)
-            foreign = _ids(ledger.get('unexpected_work_seen'))
-            if foreign:
-                self._latch_halt(Halt(job_id, tuple(foreign)))
-            if state != 'succeeded':
-                self._settle(job_id, "failed")
-                raise WanError(JOB_FAILED, LABEL, f"Wan job {job_id} ended {state}: "
-                                                  f"{str(ledger.get('error') or '')[:200]}", job_id=job_id)
-            self._mark_uncollected(job_id)
-            t0 = self.clock()
-            body, fetch_s = self._fetch(job_id, ledger.get('bytes'))
-            measured = self._check_clip(request, job_id, body)
-            uploads = {'image': Upload(expected['reference_image'], request.image_sha256,
-                                       len(request.image_png))}
-            if isinstance(request, SpeechToVideo):
-                uploads['audio'] = Upload(expected['audio'], expected['audio_sha256'], len(request.drive_wav))
-            timings = {'cooldown_s': None, 'start_temps': None, 'cool_before_upload': None,
-                       'render_s': None, 'fetch_s': fetch_s,
-                       'wall_s': round(self.clock() - t0, 1), 'recovered': True}
-            clip = WanClip(body, self._record(request, job_id, g, files, uploads, ledger, body,
-                                              measured, timings))
-            self._settle(job_id, "collected")
-            if foreign:
-                raise WanError(COMPETING_WORK, LABEL, f"competing engine work was seen during job {job_id} "
-                               f"({', '.join(foreign)}); output kept, no further submissions until "
-                               "WanClipClient.clear_halt()", job_id=job_id, clip=clip)
-            return clip
-        finally:
-            WanClipClient._lock.release()
+        with self._exclusive():
+            return self._recover(request, job_id, g, files)
+
+    def _recover(self, request: WanRequest, job_id: str, g: dict, files: dict) -> WanClip:
+        self._adopt()
+        ledger = self.read_job(job_id)
+        expected = self.job(request, job_id, 0.0)
+        if not isinstance(ledger.get('graph_sha256'), str):
+            raise WanError(RESPONSE_INVALID, READ_LABEL, f"job {job_id}'s ledger has no graph_sha256 "
+                           "(as every E0 job), so it cannot be shown to be this request's job; "
+                           "recover collects only jobs this client made, older jobs are imported "
+                           "another way", job_id=job_id)
+        keys = ('preset', 'seed', 'reference_image', 'reference_sha256', 'audio', 'audio_sha256',
+                'story', 'graph_sha256')
+        if any(ledger.get(k) != expected.get(k) for k in keys):
+            raise WanError(RESPONSE_INVALID, READ_LABEL, f"job {job_id} was not made for this request",
+                           job_id=job_id)
+        state = ledger['state']
+        if state not in TERMINAL:
+            raise WanError(BUSY, LABEL, f"Wan job {job_id} is {state}", job_id=job_id, in_flight=True)
+        foreign = _ids(ledger.get('unexpected_work_seen'))
+        if foreign:
+            self._latch_halt(Halt(job_id, tuple(foreign)))
+        if state != 'succeeded':
+            error = redact(str(ledger.get('error') or ''))[:200]
+            if ledger.get('prompt_id'):  # accepted by the engine: it may still be there
+                raise WanError(JOB_FAILED, LABEL, f"Wan job {job_id} ended {state}: {error}; "
+                               f"{_accepted(ledger.get('prompt_id'))}", job_id=job_id, in_flight=True)
+            self._settle(job_id, "failed")
+            raise WanError(JOB_FAILED, LABEL, f"Wan job {job_id} ended {state}: {error}", job_id=job_id)
+        self._mark_uncollected(job_id)
+        t0 = self.clock()
+        body, fetch_s = self._fetch(job_id, ledger.get('bytes'))
+        measured = self._check_clip(request, job_id, body)
+        uploads = {'image': Upload(expected['reference_image'], request.image_sha256,
+                                   len(request.image_png))}
+        if isinstance(request, SpeechToVideo):
+            uploads['audio'] = Upload(expected['audio'], expected['audio_sha256'], len(request.drive_wav))
+        timings = {'cooldown_s': None, 'start_temps': None, 'cool_before_upload': None,
+                   'render_s': None, 'fetch_s': fetch_s,
+                   'wall_s': round(self.clock() - t0, 1), 'recovered': True}
+        clip = WanClip(body, self._record(request, job_id, g, files, uploads, ledger, body,
+                                          measured, timings))
+        self._settle(job_id, "collected")
+        if foreign:
+            raise WanError(COMPETING_WORK, LABEL, f"competing engine work was seen during job {job_id} "
+                           f"({', '.join(foreign)}); output kept, no further submissions until "
+                           "WanClipClient.clear_halt()", job_id=job_id, clip=clip)
+        return clip
+
+    @contextlib.contextmanager
+    def _exclusive(self):
+        """The process's one-job lock, then this client's journal held, for one call."""
+        with _process_lock("another Wan job is in flight in this process; one job at a time"):
+            self.journal.hold()
+            try:
+                yield
+            finally:
+                self.journal.release()
 
     def _check_pins(self) -> None:
         for item, name in ((self.probe_snippet, PROBE_SNIPPET), (self.upload_snippet, UPLOAD_SNIPPET),
@@ -1184,20 +1323,37 @@ class WanClipClient:
                            job_id=halt.job_id)
 
     def _adopt(self) -> None:
-        """Load this client's journal (``adapter.journal_failed`` unless it reads exactly)
-        into the process's memory, so a job or halt an earlier process left behaves as
-        this process's own. A journal job other than the one the process already holds
-        is ``adapter.busy``."""
-        entry, halt = self.journal.load(), self.journal.load_halt()
+        """One read of this client's journal (``adapter.journal_failed`` unless it reads
+        exactly) brought into the process's memory, so a job or halt an earlier process
+        left behaves as this process's own. What memory holds from the same journal
+        follows the journal (another process may have settled it since); a held job or
+        halt the journal does not name at all means the file was replaced or cut, and is
+        ``adapter.journal_failed``. A journal job other than the one the process holds is
+        ``adapter.busy``."""
+        journal, state = self.journal, self.journal.read_state()
         held = WanClipClient._unsettled
-        if entry is not None and held is None:
-            WanClipClient._unsettled, WanClipClient._unsettled_journal = entry, self.journal
-        elif entry is not None and held.job_id != entry.job_id:
+        if held is not None and journal.same(WanClipClient._unsettled_journal):
+            if state.job is not None and state.job.job_id == held.job_id:
+                WanClipClient._unsettled = replace(held, state=state.job.state)
+            elif held.job_id in state.named:  # settled in the journal since
+                WanClipClient._unsettled = WanClipClient._unsettled_journal = None
+            else:
+                raise _journal_error(_unnamed(held.job_id))
+        held = WanClipClient._unsettled
+        if state.job is not None and held is None:
+            WanClipClient._unsettled, WanClipClient._unsettled_journal = state.job, journal
+        elif state.job is not None and held.job_id != state.job.job_id:
             raise WanError(BUSY, LABEL, f"this process holds Wan job {held.job_id} and the journal "
-                                        f"holds Wan job {entry.job_id}; settle {held.job_id} first",
-                           job_id=entry.job_id)
-        if halt is not None and WanClipClient._halt is None:
-            WanClipClient._halt, WanClipClient._halt_journal = halt, self.journal
+                                        f"holds Wan job {state.job.job_id}; settle {held.job_id} first",
+                           job_id=state.job.job_id)
+        halt = WanClipClient._halt
+        if halt is not None and journal.same(WanClipClient._halt_journal) \
+                and (state.halt is None or state.halt.job_id != halt.job_id):
+            if halt.job_id not in state.named:
+                raise _journal_error(_unnamed(halt.job_id))
+            WanClipClient._halt = WanClipClient._halt_journal = None  # cleared or replaced since
+        if state.halt is not None and WanClipClient._halt is None:
+            WanClipClient._halt, WanClipClient._halt_journal = state.halt, journal
 
     def _settle_in_flight(self) -> None:
         """With a job that blocks, go ahead only once its ledger reads failed. An
@@ -1231,6 +1387,9 @@ class WanClipClient:
                                f"WanClipClient.clear_halt(); {_uncollected(unsettled.job_id)}",
                                job_id=unsettled.job_id)
             raise WanError(BUSY, LABEL, _uncollected(unsettled.job_id), job_id=unsettled.job_id)
+        if job.get('prompt_id') and not self._engine_idle():
+            raise WanError(BUSY, LABEL, f"the earlier Wan job {unsettled.job_id} failed; "
+                           f"{_accepted(job.get('prompt_id'))}", job_id=unsettled.job_id, in_flight=True)
         self._settle(unsettled.job_id, "failed")
         if foreign:
             raise WanError(COMPETING_WORK, LABEL, f"competing engine work was seen during the earlier "
@@ -1241,6 +1400,15 @@ class WanClipClient:
     # journalled. Remembering a job writes the journal first, so a job whose line could not
     # be written never runs; a change of state, a settle or a halt keeps the job (or sets
     # the halt) in memory if its journal write fails.
+
+    def _engine_idle(self) -> bool:
+        """One probe shows both engine queue lists present and empty. A probe that fails
+        is not idle."""
+        try:
+            queue = self.probe().queue
+        except AdapterError:
+            return False
+        return queue['queue_running'] == [] and queue['queue_pending'] == []
 
     def _remember(self, job_id: str, graph_sha: str) -> None:
         self.journal.remember(job_id, IN_FLIGHT, graph_sha)
@@ -1268,13 +1436,13 @@ class WanClipClient:
         WanClipClient._halt, WanClipClient._halt_journal = halt, self.journal
         self.journal.halt(halt.job_id, halt.unexpected_work_seen)
 
-    def _submit(self, command: Command, job_id: str, graph_sha: str) -> dict:
-        """Run ``wan_run.py`` once (lock held). The job is journalled as in flight before
-        the command starts, and stays so for every outcome but three: the runner could
-        not start the command, the admission readback refused (both certainly submitted
-        nothing), or the answer is this job's finished ledger, which :meth:`render`
-        settles (failed) or marks uncollected (succeeded) once it has latched any halt."""
-        self._remember(job_id, graph_sha)  # fail safe: an interruption anywhere below keeps it
+    def _submit(self, command: Command, job_id: str) -> dict:
+        """Run ``wan_run.py`` once (lock and journal held). The job was journalled as in
+        flight before the first probe, and stays so for every outcome but three: the
+        runner could not start the command, the admission readback refused (both certainly
+        submitted nothing), or the answer is this job's finished ledger, which
+        :meth:`render` settles (failed, no prompt accepted), keeps (failed after its prompt
+        was accepted) or marks uncollected (succeeded) once it has latched any halt."""
         try:
             result = self.runner.run(command)
         except AdapterError as error:
@@ -1426,6 +1594,28 @@ def _rate(text: str) -> Fraction | None:
         return Fraction(text)
     except (ValueError, ZeroDivisionError):
         return None
+
+
+@contextlib.contextmanager
+def _process_lock(refusal: str):
+    """``WanClipClient._lock`` without waiting: ``adapter.busy`` with ``refusal`` when it
+    is taken (a render or recover runs in this process)."""
+    if not WanClipClient._lock.acquire(blocking=False):
+        raise WanError(BUSY, LABEL, refusal)
+    try:
+        yield
+    finally:
+        WanClipClient._lock.release()
+
+
+def _unnamed(job_id: str) -> str:
+    return (f"the journal no longer names Wan job {job_id}, which this process holds: the file "
+            "was replaced or cut")
+
+
+def _accepted(prompt_id: Any) -> str:
+    return (f"its prompt {str(prompt_id)[:64]} was accepted and may still be on the engine: it "
+            "blocks further renders until a probe shows the engine queue empty")
 
 
 def _uncollected(job_id: str) -> str:

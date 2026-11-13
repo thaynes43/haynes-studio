@@ -26,7 +26,7 @@ import wave
 import zlib
 from collections.abc import Iterable, Mapping
 
-from haynes_studio.adapters.pinned import PINS
+from haynes_studio.adapters.pinned import PINS, WAN_GPU_UUIDS
 from haynes_studio.adapters.runner import Command, Completed
 from haynes_studio.adapters.wan import s2v_frames_delivered  # E0's S2V frame counts (test_wan_compat)
 
@@ -261,9 +261,6 @@ class FakeWanLedger:
 
 # The Wan pod (story 842) -------------------------------------------------------------------
 
-WAN_GPU_UUIDS = ("GPU-d8a856f1-f955-f683-bc24-654561496774", "GPU-6ff9702a-1b2c-6094-5a85-00aa1924c55a")
-
-
 class FakeHTTPError(Exception):
     """What ``urllib.request.urlopen`` raises for an HTTP error status, as the pod's
     traceback names it."""
@@ -272,6 +269,18 @@ class FakeHTTPError(Exception):
 
     def __init__(self, status: int, reason: str):
         super().__init__(f"HTTP Error {status}: {reason}")
+
+
+class _Response(io.BytesIO):
+    """What ``urllib.request.urlopen`` returns: the body, and the URL it was read from
+    (another one when the read was redirected)."""
+
+    def __init__(self, data: bytes, url: str):
+        super().__init__(data)
+        self._url = url
+
+    def geturl(self) -> str:
+        return self._url
 
 
 class _PodOut:
@@ -375,7 +384,9 @@ class FakeWan:
     engine history reads time out first); ``slow_prompt`` (the ``/prompt`` write times
     out); ``outcome`` (``"success"``, ``"error"``, ``"no_mp4"``); ``deliver_frames``; ``deliver_size``;
     ``deliver_fps`` (the clip is encoded at another rate than the graph's);
-    ``corrupt_clip``; ``lose`` (``"timeout"``, ``"empty"``, ``"exit"``: the run's answer is
+    ``null_queue_in_run`` (inside ``wan_run.py`` the engine's ``/queue`` answers null lists,
+    which ``api.generate()``'s truthiness check reads as idle); ``redirect_fetch`` (the
+    clip read is redirected, so ``geturl()`` names another URL); ``corrupt_clip``; ``lose`` (``"timeout"``, ``"empty"``, ``"exit"``: the run's answer is
     lost after the job ran, and ``lost_state`` is what its ledger then reads, ``None`` for
     no ledger; ``"no_start"``: the command fails before the snippet starts);
     ``mangle_fetch`` (the clip is cut in transfer).
@@ -398,6 +409,7 @@ class FakeWan:
                  slow_prompt: bool = False, history_polls: int = 2, outcome: str = "success",
                  deliver_frames: int | None = None, deliver_size: tuple[int, int] | None = None,
                  deliver_fps: int | None = None, corrupt_clip: bool = False,
+                 null_queue_in_run: bool = False, redirect_fetch: bool = False,
                  lose: str | None = None, lost_state: str | None = "running",
                  mangle_fetch: bool = False, files: Mapping[str, bytes] | None = None):
         self.health = {'api': 'ok', 'accepting_jobs': accepting, 'active_job': active_job}
@@ -415,6 +427,8 @@ class FakeWan:
         self.deliver_frames = deliver_frames
         self.deliver_size = deliver_size
         self.deliver_fps = deliver_fps
+        self.null_queue_in_run = null_queue_in_run
+        self.redirect_fetch = redirect_fetch
         self.corrupt_clip = corrupt_clip
         self.lose = lose
         self.lost_state = lost_state
@@ -512,16 +526,17 @@ class FakeWan:
             health = dict(self.health)
             if self.hold_at_admission and self._snippet == "wan_run.py":
                 health["accepting_jobs"] = False
-            return io.BytesIO(json.dumps(health).encode())
+            return _Response(json.dumps(health).encode(), url)
         parts = path.strip("/").split("/")
         if len(parts) in (2, 3) and parts[0] == "videos":
             job = self.jobs.get(parts[1])
             if job is None:
                 raise FakeHTTPError(404, "Not Found")
             if len(parts) == 2:
-                return io.BytesIO(json.dumps(job).encode())
+                return _Response(json.dumps(job).encode(), url)
             if parts[2] == "file" and job["state"] == "succeeded":
-                return io.BytesIO(self.files["/workspace/output/" + job["output"]])
+                return _Response(self.files["/workspace/output/" + job["output"]],
+                                 base + "/redirected/elsewhere" if self.redirect_fetch else url)
             raise FakeHTTPError(409, "Conflict")
         raise FakeHTTPError(404, "Not Found")
 
@@ -537,6 +552,8 @@ class FakeWan:
 
     def _engine(self, path, body=None):
         self.engine_calls.append((path, body is not None))
+        if path == "/queue" and body is None and self.null_queue_in_run and self._snippet == "wan_run.py":
+            return {'queue_running': None, 'queue_pending': None}
         if path == "/queue" and body is None:
             running = [[0, p, {}, {'client_id': 'other'}] for p in self.queue_running]
             if self._running_prompt is not None:

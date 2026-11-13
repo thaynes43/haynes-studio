@@ -15,6 +15,9 @@ import hashlib
 import inspect
 import json
 import os
+import subprocess
+import sys
+import threading
 
 import pytest
 
@@ -330,10 +333,26 @@ def test_g2_a_sample_with_other_than_two_gpus_is_an_error(count):
     nothing_submitted(pod)
 
 
-def test_g2_expected_gpus_is_a_positive_integer():
-    for bad in (0, -1, True, 2.0):
-        with pytest.raises(ValueError):
-            WanClipClient(FakeRunner(FakeWan()), journal=MemoryJournal(), expected_gpus=bad)
+def test_g2_the_gpu_count_is_not_configurable():
+    """Review 2 finding 5: two is the constant; no caller can lower it."""
+    assert wan.EXPECTED_GPUS == 2 and len(pinned.WAN_GPU_UUIDS) == 2
+    with pytest.raises(TypeError):
+        WanClipClient(FakeRunner(FakeWan()), journal=MemoryJournal(), expected_gpus=1)
+
+
+@pytest.mark.parametrize("edit", [
+    lambda gpus: [dict(g, uuid="not-a-3090") for g in gpus],
+    lambda gpus: [gpus[0], dict(gpus[1], uuid="not-a-3090")],
+    lambda gpus: [gpus[0], dict(gpus[0])],
+    lambda gpus: [{k: v for k, v in g.items() if k != "uuid"} for g in gpus],
+], ids=["both-other", "one-other", "same-twice", "no-uuid"])
+def test_g2_a_sample_whose_gpus_are_not_the_two_approved_ones_is_an_error(edit):
+    """Review 2 finding 6: the two GPUs api.gpu_sample() requires, and no others."""
+    pod = FakeWan()
+    runner = FakeRunner(pod)
+    probe_refused(runner, lambda answer: answer["sample"].update(gpus=edit(answer["sample"]["gpus"])),
+                  "not the two approved GPUs")
+    nothing_submitted(pod)
 
 
 @pytest.mark.parametrize("queue", [
@@ -801,10 +820,15 @@ def test_g8_the_upload_snippet_checks_the_hash_of_what_it_was_given():
 def test_g9_a_failed_job_is_an_error(outcome, text):
     pod = FakeWan(outcome=outcome)
     runner = FakeRunner(pod)
-    error = refused(pod, client_for(runner), i2v(), JOB_FAILED)
+    client = client_for(runner)
+    error = refused(pod, client, i2v(), JOB_FAILED)
     assert text in str(error) and error.clip is None
     assert "wan_clip_fetch.py" not in snippets(runner)
-    assert WanClipClient.in_flight() is None
+    # Its prompt was accepted: it blocks until a probe shows the engine queue empty (here
+    # at once: the engine finished it), and the next render then goes ahead.
+    assert WanClipClient.in_flight().state == IN_FLIGHT and error.in_flight is True
+    pod.outcome = "success"
+    assert client.render(i2v(seed=8)).frames == 9 and runs(runner) == 2
 
 
 def test_g9_a_short_clip_is_an_error():
@@ -1010,15 +1034,23 @@ def test_g11_recover_keeps_the_halt_rule():
     assert runs(runner) == 1
 
 
-def test_g11_recover_reports_a_failed_job_as_failed():
+@pytest.mark.parametrize("accepted", [True, False], ids=["prompt-accepted", "no-prompt"])
+def test_g11_recover_reports_a_failed_job_as_failed(accepted):
     pod = FakeWan(lose="empty", lost_state="failed")
     runner = FakeRunner(pod)
     client = client_for(runner)
     lost = refused(pod, client, i2v(), RESPONSE_INVALID)
+    if not accepted:
+        del pod.jobs[lost.job_id]["prompt_id"]
     with pytest.raises(WanError) as caught:
         client.recover(i2v(), lost.job_id)
     assert caught.value.code == JOB_FAILED and caught.value.clip is None
-    assert "wan_clip_fetch.py" not in snippets(runner) and WanClipClient.in_flight() is None
+    assert "wan_clip_fetch.py" not in snippets(runner)
+    if accepted:  # it may still be on the engine: it keeps blocking
+        assert "may still be on the engine" in str(caught.value)
+        assert WanClipClient.in_flight().job_id == lost.job_id
+    else:
+        assert WanClipClient.in_flight() is None
 
 
 def test_g11_a_recover_whose_fetch_fails_leaves_the_job_uncollected():
@@ -1104,13 +1136,20 @@ def test_g12_the_job_is_journalled_before_the_run_starts(journal):
     assert reopen(journal).load() is None
 
 
-def test_g12_a_journal_that_cannot_be_written_runs_nothing(tmp_path):
+class Unwritable(MemoryJournal):
+    def _append(self, line):
+        raise OSError(30, "Read-only file system")
+
+
+@pytest.mark.parametrize("make,text", [(lambda tmp: Unwritable(), "could not be written"),
+                                       (lambda tmp: FileJournal(tmp / "no-such-dir" / "j.jsonl"),
+                                        "could not be opened to hold it")], ids=["unwritable", "no-directory"])
+def test_g12_a_journal_that_cannot_be_written_runs_nothing(tmp_path, make, text):
     pod = FakeWan()
     runner = FakeRunner(pod)
-    error = refused(pod, client_for(runner, journal=FileJournal(tmp_path / "no-such-dir" / "j.jsonl")),
-                    i2v(), JOURNAL_FAILED)
-    assert "could not be written" in str(error)
-    assert runs(runner) == 0 and WanClipClient.in_flight() is None
+    error = refused(pod, client_for(runner, journal=make(tmp_path)), i2v(), JOURNAL_FAILED)
+    assert text in str(error)
+    assert runner.calls == [] and WanClipClient.in_flight() is None  # not even a probe
     nothing_submitted(pod)
 
 
@@ -1288,6 +1327,324 @@ def _code(cls):
                 and isinstance(node.body[0].value, ast.Constant):
             node.body = node.body[1:] or [ast.Pass()]
     return ast.unparse(tree)
+
+
+class Paused:
+    """A runner that stops inside the first command running ``snippet`` until released,
+    so a test can act while a call holds the process lock and the journal."""
+
+    def __init__(self, runner, snippet):
+        self.runner, self.snippet = runner, snippet
+        self.inside, self.go = threading.Event(), threading.Event()
+
+    def run(self, command):
+        if snippets_of(command) == self.snippet and not self.inside.is_set():
+            self.inside.set()
+            assert self.go.wait(30), "the test never released the paused command"
+        return self.runner.run(command)
+
+
+def in_thread(call):
+    """Run ``call`` in a thread; returns (thread, outcomes)."""
+    outcomes = []
+
+    def target():
+        try:
+            outcomes.append(call())
+        except BaseException as error:  # noqa: BLE001 - handed back to the test
+            outcomes.append(error)
+    thread = threading.Thread(target=target)
+    thread.start()
+    return thread, outcomes
+
+
+@pytest.mark.parametrize("clear", ["clear_in_flight", "clear_halt"])
+def test_g13_the_clears_refuse_while_a_render_runs_in_another_thread(clear):
+    """Review 2 finding 1: a clear during the run would drop the job (or halt) the run
+    still needs; it is refused and changes nothing."""
+    pod = FakeWan(lose="timeout", lost_state="running")
+    runner = FakeRunner(pod)
+    journal = MemoryJournal()
+    WanClipClient._halt, WanClipClient._halt_journal = None, None
+    paused = Paused(runner, "wan_run.py")
+    client = client_for(paused, journal=journal)
+    thread, outcomes = in_thread(lambda: client.render(i2v()))
+    assert paused.inside.wait(30)
+    before = journal.data
+    with pytest.raises(WanError) as caught:
+        getattr(WanClipClient, clear)()
+    assert caught.value.code == BUSY and "clear after it returns" in str(caught.value)
+    assert journal.data == before and WanClipClient.in_flight().state == IN_FLIGHT
+    paused.go.set()
+    thread.join(30)
+    assert isinstance(outcomes[0], WanError) and outcomes[0].code == TIMEOUT
+    assert WanClipClient.in_flight().job_id == outcomes[0].job_id  # still on record
+    pod.lose = None
+    assert "running" in str(refused(pod, client, i2v(seed=8), BUSY)) and runs(runner) == 1
+
+
+@pytest.mark.parametrize("clear", ["clear_in_flight", "clear_halt"])
+def test_g13_the_clears_refuse_when_called_from_inside_the_run(clear):
+    pod = FakeWan(lose="timeout", lost_state="running")
+    runner = FakeRunner(pod)
+    seen = []
+
+    class Inside:
+        def run(self, command):
+            if snippets_of(command) == "wan_run.py":
+                try:
+                    getattr(WanClipClient, clear)()
+                except WanError as error:
+                    seen.append(error.code)
+            return runner.run(command)
+    client = client_for(Inside())
+    refused(pod, client, i2v(), TIMEOUT)
+    assert seen == [BUSY] and WanClipClient.in_flight() is not None
+    pod.lose = None
+    refused(pod, client, i2v(seed=8), BUSY)
+    assert runs(runner) == 1
+
+
+def test_g13_a_journal_another_holder_has_is_refused_before_anything_runs(journal):
+    """Review 2 finding 2: one process at a time on a journal (another FileJournal on the
+    same file stands for another process; flock refuses it just the same)."""
+    pod = FakeWan()
+    runner = FakeRunner(pod)
+    client = client_for(runner, journal=journal)
+    other = reopen(journal) if isinstance(journal, MemoryJournal) else FileJournal(journal.path)
+    other.hold()
+    for call in (lambda: client.render(i2v()), lambda: client.recover(i2v(), "a" * 32)):
+        with pytest.raises(WanError) as caught:
+            call()
+        assert (caught.value.code, caught.value.label) == (BUSY, "wan.journal")
+        assert "held by another process" in str(caught.value)
+    assert runner.calls == [] and journal_bytes(journal) == b""
+    other.release()
+    assert client.render(i2v()).frames == 9
+
+
+def test_g13_a_second_process_on_the_file_journal_is_refused(tmp_path):
+    """The same, with a real second process holding the journal's flock."""
+    path = tmp_path / "wan-journal.jsonl"
+    pod = FakeWan()
+    runner = FakeRunner(pod)
+    with subprocess.Popen(
+            [sys.executable, "-I", "-c", "import fcntl,os,sys;fd=os.open(sys.argv[1],os.O_RDONLY|os.O_CREAT,0o600);"
+             "fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB);print('held',flush=True);sys.stdin.read()", str(path)],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True) as holder:
+        try:
+            assert holder.stdout.readline().strip() == "held"
+            error = refused(pod, client_for(runner, journal=FileJournal(path)), i2v(), BUSY)
+            assert str(path) in str(error) and runner.calls == []
+        finally:
+            holder.stdin.close()  # the holder exits, and its flock goes with it
+            holder.wait(30)
+    assert client_for(runner, journal=FileJournal(path)).render(i2v()).frames == 9
+
+
+def test_g13_the_journal_is_held_and_the_job_on_record_from_the_first_probe(tmp_path):
+    """Review 2 finding 2: the job is remembered before the first probe, and the journal
+    stays held through the whole call."""
+    path = tmp_path / "wan-journal.jsonl"
+    pod = FakeWan()
+    runner = FakeRunner(pod)
+    paused = Paused(runner, "wan_probe.py")
+    client = client_for(paused, journal=FileJournal(path))
+    thread, outcomes = in_thread(lambda: client.render(i2v()))
+    assert paused.inside.wait(30)
+    assert FileJournal(path).load() == InFlightJob("0" * 31 + "1", "journal", IN_FLIGHT,
+                                                   wan.graph_sha256(client.graph(i2v(), "0" * 31 + "1")))
+    with pytest.raises(WanError) as caught:
+        FileJournal(path).hold()
+    assert caught.value.code == BUSY
+    paused.go.set()
+    thread.join(30)
+    assert outcomes[0].frames == 9
+    other = FileJournal(path)
+    other.hold()  # released when the render returned
+    other.release()
+
+
+@pytest.mark.parametrize("where", ["first-probe", "second-probe", "upload"])
+def test_g13_a_failure_before_the_run_settles_the_job_as_no_submission(where, journal):
+    pod = FakeWan()
+    runner = FakeRunner(pod)
+    probes = []
+
+    class Fails:
+        def run(self, command):
+            name = snippets_of(command)
+            probes.append(name)
+            if where == "first-probe" and name == "wan_probe.py":
+                pod.health["accepting_jobs"] = False
+            if where == "second-probe" and name == "wan_upload.py":
+                pod.queue_pending.append("foreign-1")
+            if where == "upload" and name == "wan_upload.py":
+                return Completed(1, b"", b"OSError: [Errno 28] No space left on device\n")
+            return runner.run(command)
+    with pytest.raises(WanError):
+        client_for(Fails(), journal=journal).render(i2v())
+    assert events(journal) == ["remember in_flight", "settle no_submission"]
+    assert WanClipClient.in_flight() is None and runs(runner) == 0
+    nothing_submitted(pod)
+
+
+def test_g13_one_read_of_the_journal_per_call():
+    """Review 2 finding 2: the job and the halt come from the same read."""
+    remember = MemoryJournal()
+    remember.remember("a" * 32, IN_FLIGHT, "0" * 64)
+
+    class Counted(MemoryJournal):
+        reads = 0
+
+        def _read(self):
+            Counted.reads += 1
+            return b"" if Counted.reads == 1 else remember.data  # the job lands after construction
+    pod = FakeWan()
+    runner = FakeRunner(pod)
+    client = client_for(runner, journal=Counted())
+    assert Counted.reads == 1 and WanClipClient.in_flight() is None
+    assert "no ledger" in str(refused(pod, client, i2v(), BUSY))
+    assert Counted.reads == 2 and runs(runner) == 0
+
+
+def test_g13_a_job_another_process_settled_is_dropped_not_settled_twice(tmp_path):
+    path = tmp_path / "wan-journal.jsonl"
+    pod = FakeWan(lose="timeout", lost_state="running")
+    runner = FakeRunner(pod)
+    client = client_for(runner, journal=FileJournal(path))
+    first = refused(pod, client, i2v(), TIMEOUT)
+    FileJournal(path).settle(first.job_id, "cleared")  # another process, after checking it
+    pod.lose = None
+    pod.jobs[first.job_id]["state"] = "failed"
+    assert client.render(i2v(seed=8)).frames == 9
+    assert events(FileJournal(path)).count("settle cleared") == 1
+    assert [e for e in events(FileJournal(path)) if e == "settle failed"] == []
+    assert FileJournal(path).load() is None
+
+
+@pytest.mark.parametrize("what", ["job", "halt"])
+def test_g13_a_journal_that_no_longer_names_what_the_process_holds_is_refused(tmp_path, what):
+    path = tmp_path / "wan-journal.jsonl"
+    pod = FakeWan(lose="timeout") if what == "job" else FakeWan(foreign_during_job=["foreign-1"])
+    runner = FakeRunner(pod)
+    client = client_for(runner, journal=FileJournal(path))
+    refused(pod, client, i2v(), TIMEOUT if what == "job" else COMPETING_WORK)
+    path.unlink()  # replaced by a person: the only record is gone
+    path.write_bytes(b"")
+    pod.lose = None
+    error = refused(pod, client, i2v(seed=8), JOURNAL_FAILED)
+    assert "no longer names" in str(error) and runs(runner) == 1
+    with pytest.raises(WanError) as caught:
+        (WanClipClient.clear_in_flight if what == "job" else WanClipClient.clear_halt)()
+    assert caught.value.code == JOURNAL_FAILED
+
+
+def test_g13_a_clear_after_another_process_settled_the_job_writes_nothing(tmp_path):
+    path = tmp_path / "wan-journal.jsonl"
+    pod = FakeWan(lose="no_start")
+    runner = FakeRunner(pod)
+    held = refused(pod, client_for(runner, journal=FileJournal(path)), i2v(), COMMAND_FAILED)
+    FileJournal(path).settle(held.job_id, "cleared")  # another process
+    before = path.read_bytes()
+    assert WanClipClient.clear_in_flight().job_id == held.job_id
+    assert path.read_bytes() == before and FileJournal(path).load() is None
+
+
+def test_g13_a_clear_halt_after_another_process_cleared_it_writes_nothing(tmp_path):
+    path = tmp_path / "wan-journal.jsonl"
+    pod = FakeWan(foreign_during_job=["foreign-1"])
+    refused(pod, client_for(FakeRunner(pod), journal=FileJournal(path)), i2v(), COMPETING_WORK)
+    halt = WanClipClient.halted()
+    FileJournal(path).clear_halt(halt.job_id)  # another process, after inspecting it
+    before = path.read_bytes()
+    assert WanClipClient.clear_halt() == halt
+    assert path.read_bytes() == before and FileJournal(path).load_halt() is None
+
+
+def test_g14_a_failed_job_whose_prompt_was_accepted_blocks_until_the_queue_is_seen_empty():
+    """Review 2 finding 4: the API's own queue check reads null lists as idle, submits, and
+    its cleanup then fails on the same nulls, leaving the prompt on the engine."""
+    pod = FakeWan(null_queue_in_run=True)
+    runner = FakeRunner(pod)
+    client = client_for(runner)
+    error = refused(pod, client, i2v(), JOB_FAILED)
+    assert len(pod.submitted) == 1 and pod._running_prompt is not None  # left on the engine
+    assert "may still be on the engine" in str(error) and error.in_flight is True
+    assert WanClipClient.in_flight() == InFlightJob(error.job_id, JOB_FAILED, IN_FLIGHT,
+                                                    pod.payloads[0]["job"]["graph_sha256"])
+    pod.null_queue_in_run = False
+    again = refused(pod, client, i2v(seed=8), BUSY)
+    assert "may still be on the engine" in str(again) and runs(runner) == 1
+    pod._running_prompt = None  # the engine finished it
+    assert client.render(i2v(seed=8)).frames == 9 and runs(runner) == 2
+    assert pod.jobs[error.job_id]["state"] == "failed"
+
+
+def test_g14_a_probe_that_fails_does_not_settle_a_failed_job_whose_prompt_was_accepted():
+    pod = FakeWan(outcome="error")
+    runner = FakeRunner(pod)
+    first = refused(pod, client_for(runner), i2v(), JOB_FAILED)
+    pod.outcome = "success"
+    error = refused(pod, client_for(ProbeEdit(runner, lambda answer: answer["queue"].pop("queue_pending"))),
+                    i2v(seed=8), BUSY)
+    assert "may still be on the engine" in str(error)
+    assert WanClipClient.in_flight().job_id == first.job_id and runs(runner) == 1
+
+
+def test_g14_a_failed_job_with_no_accepted_prompt_settles_at_once():
+    pod = FakeWan(lease_held=True)
+    refused(pod, client_for(FakeRunner(pod)), i2v(), BUSY)
+    assert "prompt_id" not in next(iter(pod.jobs.values())) and WanClipClient.in_flight() is None
+
+
+SECRET = "Authorization: Bearer SUPERSECRET-0123456789"
+
+
+def test_g15_a_ledger_error_is_redacted_before_any_message():
+    """Review 2 finding 8."""
+    pod = FakeWan()
+    runner = FakeRunner(pod)
+
+    class Failed:
+        def run(self, command):
+            result = runner.run(command)
+            if snippets_of(command) == "wan_run.py":
+                answer = json.loads(result.stdout)
+                answer.update(state="failed", error=SECRET)
+                answer.pop("prompt_id")
+                return Completed(0, json.dumps(answer).encode(), result.stderr)
+            return result
+    error = refused(pod, client_for(Failed()), i2v(), JOB_FAILED)
+    assert "SUPERSECRET" not in str(error) and "<redacted>" in str(error)
+
+
+@pytest.mark.parametrize("accepted", [True, False], ids=["prompt-accepted", "no-prompt"])
+def test_g15_a_recovered_ledger_error_is_redacted(accepted):
+    pod = FakeWan(lose="empty", lost_state="failed")
+    runner = FakeRunner(pod)
+    client = client_for(runner)
+    lost = refused(pod, client, i2v(), RESPONSE_INVALID)
+    pod.jobs[lost.job_id]["error"] = SECRET
+    if not accepted:
+        del pod.jobs[lost.job_id]["prompt_id"]
+    with pytest.raises(WanError) as caught:
+        client.recover(i2v(), lost.job_id)
+    assert caught.value.code == JOB_FAILED
+    assert "SUPERSECRET" not in str(caught.value) and "<redacted>" in str(caught.value)
+
+
+def test_g16_a_redirected_clip_read_is_refused_and_writes_nothing():
+    """Review 2 finding 9: wan_clip_fetch.py requires the final URL to be the one asked."""
+    pod = FakeWan(redirect_fetch=True)
+    runner = FakeRunner(pod)
+    error = refused(pod, client_for(runner), i2v(), COMMAND_FAILED)
+    assert "redirected" in str(error) and WanClipClient.in_flight().state == UNCOLLECTED
+    job_id = error.job_id
+    result = pod.run_snippet("wan_clip_fetch.py", pinned.load("wan_clip_fetch.py").text, (job_id,))
+    assert result.returncode == 1 and result.stdout == b"" and b"CLIP_SHA256" not in result.stderr
+    pod.redirect_fetch = False
+    assert client_for(runner).recover(i2v(), job_id).frames == 9
 
 
 def test_g12_the_journal_code_never_rewrites_truncates_or_deletes():

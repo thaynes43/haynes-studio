@@ -86,7 +86,9 @@ def test_the_fetch_reads_the_same_route_with_the_same_timeouts():
     assert "'/file\",timeout=60).read())'" in render and "remote(fetch, timeout=90)" in render
     assert "'http://127.0.0.1:8080/videos/' + job['id'] + '/file" in render.replace('"', "'")
     text = pinned.load("wan_clip_fetch.py").text
-    assert "urllib.request.urlopen('http://127.0.0.1:8080/videos/'+sys.argv[1]+'/file',timeout=60).read()" in text
+    assert "u='http://127.0.0.1:8080/videos/'+sys.argv[1]+'/file'" in text
+    assert "r=urllib.request.urlopen(u,timeout=60);b=r.read()" in text
+    assert "if r.geturl()!=u:raise" in text  # new: a redirected read is refused (story 842)
     command = client().fetch_command("a" * 32)
     assert command.timeout_s == 90 and command.argv[-1] == "a" * 32
 

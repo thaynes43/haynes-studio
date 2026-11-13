@@ -22,6 +22,10 @@ HAYNES_OPS_COMMIT = "7c7b2cf6cceecc782cb149a958635852ae162966"
 # The commit that added the Wan worker's graph template (haynes-ops#4504); the file has
 # not changed since (story 842 read it at haynes-ops main bab21e14 on 2026-11-13).
 HAYNES_OPS_WAN_COMMIT = "3a3571c4016a57465b5e995077bb691037224705"
+# The two GPUs the Wan worker may use: haynes-ops kubernetes/main/apps/ai/wan-video/app/api.py
+# EXPECTED, which api.gpu_sample() requires (the same two IDs are in the public E0 clip
+# records). A Wan probe must show exactly these (story 842).
+WAN_GPU_UUIDS = ("GPU-d8a856f1-f955-f683-bc24-654561496774", "GPU-6ff9702a-1b2c-6094-5a85-00aa1924c55a")
 
 
 @dataclass(frozen=True)
@@ -87,9 +91,10 @@ PINS: dict[str, Pin] = {
         "installed api.generate() under its compute lease, with read-only engine retries "
         "and the unknown-work observer"),
     "wan_clip_fetch.py": Pin(
-        "9b1314b50a7dfd05e200792c47a5aaac9a5c9803c5b79d1d48cbd0e5952bc6e6", "snippet",
+        "3db29f979cb996dfe351f0e5c040f193670a65f292c926a49272110b4f1d5c56", "snippet",
         "poc/wan.py fetch with the job ID as an argument instead of inline, plus a "
-        "CLIP_SHA256 line on stderr: GET /videos/<id>/file on the Wan API, read-only"),
+        "CLIP_SHA256 line on stderr: GET /videos/<id>/file on the Wan API, read-only; a "
+        "read redirected to any other URL exits non-zero having written nothing"),
     "wan_ti2v_workflow.json": Pin(
         "88fe79ad543a93febd6f72e0dc86eecdb27b70c73e54d4553917f72cb95a136b", "graph",
         "haynes-ops kubernetes/main/apps/ai/wan-video/app/workflow.json at "
