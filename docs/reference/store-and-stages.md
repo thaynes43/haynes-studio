@@ -157,7 +157,7 @@ call. On the nine-board r4 fixture it takes about 20 ms; the store is only read.
 
 | Code | Status | Source |
 |---|---|---|
-| `store.locator_invalid` | invalid | contract section 8 |
+| `store.locator_invalid` | invalid | contract section 8; also a `sha256` or `expected_sha256` that is not 64 lower-case hex digits, since it cannot name a locator |
 | `store.collision` | failed | contract section 8 |
 | `id.malformed`, `id.type_mismatch` | invalid | contract section 2 (production and run IDs) |
 | `store.hash_mismatch` | failed | **proposal**: bytes are not the expected hash |
