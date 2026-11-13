@@ -81,12 +81,13 @@ B): 0.44 s TTS, 0.33 s transcript, and **byte-identical to the r4 take**
 is deterministic: the same voice and text give the same bytes. Neither client needed a
 change.
 
-### 4. Shortlist and plan
+### 4. Shortlist and plan: **Proven**
 
 `python tools/plan.py $JOB titles/the-winter-menu/manifest-r4.json` wrote 82 takes: 54 lines
 (6 voices per slot, the r4 voice first) and 28 labels (an intro per slot, one label per
 candidate). The shortlists use all 11 female English voices not cast in r4, plus one
-cross-cast (`af_heart` for D). Grades are from Kokoro's
+cross-cast (`af_heart` for D). The plan's takes are the ones the delivered reels play
+([`takes.json`](takes.json), [`reels.json`](reels.json)). Grades are from Kokoro's
 [VOICES.md](https://huggingface.co/hexgrad/Kokoro-82M/blob/main/VOICES.md), read 2026-11-13.
 
 ### 5. Takes: **Proven**
@@ -162,7 +163,7 @@ Two things the route writes that do not fit a reel: the ledger's `preset` is
 titles/voice-audition/` (the script takes the manifest's folder name). The reel manifests
 carry `provenance.takes` with the right path.
 
-### 9. Desk review: **done**
+### 9. Desk review: **Expected** (research only; neither model has been run here)
 
 [desk-review.md](desk-review.md): 21 local models that pass the stock-voice rule and 12 that do
 not, with needs, voices, licence facts and how each would be reached. It recommends **Phonon
