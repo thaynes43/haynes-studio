@@ -13,6 +13,7 @@
 | [reference/baseline-op345.md](reference/baseline-op345.md) | you want to see how the first doll short was made and which scripts it used |
 | [proposals/0003-studio-plan.md](proposals/0003-studio-plan.md) | you are planning or building the studio: decisions, product model, pipeline, epics |
 | [contracts/README.md](contracts/README.md) | you are building any E1 or later story: the canonical contract (vocabulary and legacy mapping, IDs, time, cache, methods, provenance, store, API and MCP operations, stack, tests) with JSON examples |
+| [reference/studio-library.md](reference/studio-library.md) | you are building on assets or asset versions: the library schemas and validators, version and pin rules, import, promotion, labels, the resolver, the facts it supplies, and the Winter Menu library from public files |
 | [reference/studio-model.md](reference/studio-model.md) | you are building on productions, stories or boards: the canonical schemas, validators and their contexts, derived timing, the facts the asset library supplies, and the legacy import |
 | [design/studio-ui-mockup/index.html](design/studio-ui-mockup/index.html) | you are building the studio UI (E6) or its API (E3, E9): the clickable storyboard mockup, with API notes per panel |
 | [design/studio-ui-mockup/implementation-backlog.md](design/studio-ui-mockup/implementation-backlog.md) | you are picking up UI or API work: each mockup surface mapped to its OpenProject story, with order and blockers |

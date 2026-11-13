@@ -25,6 +25,7 @@ from haynes_studio.canonical import (
     validate_story_timing,
 )
 from haynes_studio.legacy import validate_manifest
+from haynes_studio.library import validate_asset, validate_asset_version
 from tests.canonical.fixtures import board_context, example_context
 from tests.contracts.harness import Validator
 
@@ -48,4 +49,7 @@ VALIDATORS: dict[str, Validator] = {
     "story-timing": validate_story_timing,
     "method-capabilities": validate_method_capabilities,
     "legacy-import": validate_legacy_import,
+    # story 382
+    "asset": validate_asset,
+    "asset-version": validate_asset_version,
 }
