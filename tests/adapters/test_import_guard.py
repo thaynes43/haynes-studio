@@ -98,7 +98,7 @@ def test_every_package_module_imports_without_side_effects():
         "haynes_studio.adapters.kokoro", "haynes_studio.adapters.whisper",
         "haynes_studio.adapters.comfyui", "haynes_studio.adapters.wan_ledger",
         "haynes_studio.adapters.fakes", "haynes_studio.adapters.recovery",
-        "haynes_studio.adapters.errors"}
+        "haynes_studio.adapters.errors", "haynes_studio.adapters.wan"}
     assert "haynes_studio.cli" in outcome["imported"]
 
 

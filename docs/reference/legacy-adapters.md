@@ -8,9 +8,12 @@ for the in-cluster services the PoC used, ported from `poc/studio.py`, `poc/spee
 [services.md](services.md).
 
 **State: source and tested with fakes only.** No client has been run against a live
-service. Wan, Foley and speech-to-video clients are stories
+service. The Wan clip clients (image-to-video and speech-to-video, story
+[842](https://work.haynesnetwork.com/work_packages/842)) are described in
+[their own section](#wan-clip-clients-story-842); stories
 [426](https://work.haynesnetwork.com/work_packages/426) and
-[427](https://work.haynesnetwork.com/work_packages/427), with the compute-lease rules.
+[427](https://work.haynesnetwork.com/work_packages/427) own the clip-source interfaces
+they plug into. Foley has no client.
 
 ## How a call works
 
@@ -111,7 +114,8 @@ Every failure is an `AdapterError` with a `code`, the call's `label` and a short
 message: `adapter.request_invalid` (names the field, before anything runs),
 `adapter.pin_mismatch`, `adapter.command_failed` (non-zero exit), `adapter.not_found`
 (an HTTP 404 inside the pod), `adapter.timeout`, `adapter.response_invalid`,
-`adapter.busy`. The package never puts the request payload, the snippet, the full
+`adapter.busy`, and for the Wan clip clients `adapter.job_failed` (the Wan job ended
+other than `succeeded`) and `adapter.competing_work` (foreign engine work seen). The package never puts the request payload, the snippet, the full
 command line or an environment value into an error, and the real runner drops the raw
 `subprocess` exception (it is not kept as the error's cause or context). The only
 service text in a message is `detail`: the last 300 characters of stderr after
@@ -159,6 +163,11 @@ any other checkout at run time.
 | `wan_ledger_fetch.py` | new: one ledger asset's bytes; ledger checked as in `list`, asset path checked, then on its `O_NOFOLLOW` descriptor a regular file with one link and at most 64 MiB, hash checked | `8aaa1c0f555bb907127863968db7087cf08d47aa94be760a2bf1464e4d9c4300` |
 | `qwen_image_2_1_t2i_API.json` | `poc/graphs/qwen_image_2_1_t2i_API.json`, byte for byte | `f18a6e29a1f225467874d6c4d9fe16861982ad9ff6e274ca3d170245c43d226d` |
 | `qwen_image_2_1_edit_API.json` | haynes-ops `kubernetes/main/apps/ai/stable-diffusion/comfyui/resources/api-workflows/qwen_image_2_1_edit_API.json` at `7c7b2cf6cceecc782cb149a958635852ae162966` (the commit `prompts.json` records; git blob `f520dcd4937c`, last changed in `31b449445dc1`, unchanged at haynes-ops `main` on 2026-11-13), copied once | `946f46812559426297191419e8e4ca614ac948698f8a5ae9d09cda6b0e2fdcb6` |
+| `wan_probe.py` | `poc/wan.py` `PROBE`, byte for byte: `/health`, `api.gpu_sample()`, the engine's `/queue` | `cd73ebd733c48c1a40222fc7a1a39ad9788db09b2b145837c5db5839c0eb6716` |
+| `wan_upload.py` | `poc/wan.py` `UPLOAD`, byte for byte: create-only under `/workspace/input/studio-e0/`, hash checked | `636cb89c132f83ec40426e971df9ba48ddcb466fe16f78a3c896baa7052748a9` |
+| `wan_run.py` | `poc/wan.py` `RUN`, byte for byte (from OP342): admission readback, read-only engine retries, the unknown-work observer, then `api.generate()` | `b44fcef47d1b125c0f061fd6f4f6d69357969a34f298549e85d44645b90836ce` |
+| `wan_clip_fetch.py` | `poc/wan.py` `fetch`, with the job ID as an argument and a `CLIP_SHA256 <hash> <bytes>` line on stderr | `9b1314b50a7dfd05e200792c47a5aaac9a5c9803c5b79d1d48cbd0e5952bc6e6` |
+| `wan_ti2v_workflow.json` | haynes-ops `kubernetes/main/apps/ai/wan-video/app/workflow.json` at `3a3571c4016a57465b5e995077bb691037224705` (git blob `5f9e9f968176`, its only commit; unchanged at haynes-ops `main` `bab21e14` on 2026-11-13), copied once; the `template_sha256` of all nine E0 layer records | `88fe79ad543a93febd6f72e0dc86eecdb27b70c73e54d4553917f72cb95a136b` |
 
 ## Compatibility matrix
 
@@ -215,3 +224,162 @@ Choices beyond the contract, each open to change:
   (`adapter.busy`) on top of the snippet's queue wait, and none while a failed render
   may have left a prompt in flight, until ComfyUI's queue is empty or the caller clears
   it.
+
+## Wan clip clients (story 842)
+
+Story [842](https://work.haynesnetwork.com/work_packages/842) (E1.18). Module
+[`wan.py`](../../src/haynes_studio/adapters/wan.py): `WanClipClient` makes image-to-video
+clips (Wan2.2 TI2V-5B) and speech-to-video clips (Wan2.2 S2V-14B, lightning profile) on
+the studio's two RTX 3090s, through the sanctioned E0 route of `poc/wan.py` and
+`poc/s2v.py`. Inside the Wan API container the pinned `wan_run.py` imports the
+installed `api` module and runs its own `generate()` with the client's graph, so the
+job holds the API's compute lease (`/workspace/compute.lock`, shared with the HTTP API
+and the Foley sidecar), its watchdog, ledger and telemetry. Nothing is deployed or
+changed. **Source and tested with fakes only**: story
+[428](https://work.haynesnetwork.com/work_packages/428) makes the first live call.
+
+```python
+from haynes_studio.adapters.runner import SubprocessRunner
+from haynes_studio.adapters.wan import ImageToVideo, SpeechToVideo, WanClipClient
+
+client = WanClipClient(SubprocessRunner())  # tests: FakeRunner(FakeWan())
+clip = client.render(ImageToVideo(image_png=png, prompt=text, seed=101, story=STORY_URL))
+talk = client.render(SpeechToVideo(image_png=png, drive_wav=drive, board_frames=94,
+                                   prompt=text, seed=501, story=STORY_URL))
+clip.data, clip.record  # the MP4 bytes and its provenance record
+```
+
+| Request | Fields (defaults) | What is sent |
+|---|---|---|
+| `ImageToVideo` | `image_png`, `prompt`, `seed`, `story`, `width` 576, `height` 1024, `length` 121, `negative` (the PoC's) | the deployed template with `poc/wan.py`'s edits, 20 steps, 24 fps; preset `studio-e0-i2v-<w>x<h>-<length>f` |
+| `SpeechToVideo` | `image_png`, `drive_wav`, `board_frames`, `prompt`, `seed`, `story`, `width` 576, `height` 1024, `negative` | `poc/s2v.py graph(..., lightning=True)`: the 4-step LoRA at cfg 1 on one GPU, 16 fps; `length` from TIME-9, Extend chunks of 77 frames seeded `seed + k`; preset `studio-e0-s2v-lightning-<w>x<h>-<length>f` |
+
+`story` is a full `https://work.haynesnetwork.com/work_packages/<id>` URL; the Wan
+ledger records the job under it (the PoC hard-coded 387 and 394). A speech-to-video
+request needs a drive track of `board_frames / 24` seconds to one sample (TIME-9).
+
+### Guards, in order
+
+Each guard stops before anything is submitted unless the row says otherwise. Tests
+are in [`test_wan_clips.py`](../../tests/adapters/test_wan_clips.py) unless a file is
+named; a mutation run removed each client-side guard in turn and a named test failed
+every time (story 842's PR). The in-pod guards are the PoC's snippets byte for byte
+([`test_wan_compat.py`](../../tests/adapters/test_wan_compat.py)), and the fake pod runs
+them.
+
+| # | Guard | PoC line | Client | Test |
+|---|---|---|---|---|
+| 1 | One job per process (`adapter.busy`) | new (the `ImageClient` rule; the PoC ran one job per script) | `render`: `WanClipClient._lock` | `test_g1_one_job_per_process` |
+| 2 | Nothing after foreign engine work was seen, until `clear_halt()` (`adapter.competing_work`) | `poc/wan.py` 146-147, `poc/s2v.py` 137-138 (the script stops) | `render` latches `Halt`; `_check_halt` | `test_g5_foreign_work_keeps_the_output_and_stops_further_submissions` |
+| 3 | Nothing while an earlier job may be running: its ledger must read `succeeded` or `failed`; a missing ledger or failed read keeps it, until `clear_in_flight()` | new (scope c; services.md: read the job before resubmitting) | `_settle_in_flight` | `test_g7_*` (8 tests) |
+| 4 | API busy or holding: refuse at once | `poc/wan.py` 82-83 | `wait_cool` | `test_g2_a_busy_or_holding_api_is_refused_at_once` |
+| 5 | Any engine work queued or running: refuse, preserve it | 84-85 | `wait_cool` | `test_g2_queued_unknown_work_is_refused_and_preserved` |
+| 6 | Wait (reading only) until every GPU is under 62 C and at most 5 % busy, a probe every 10 s | 86-88, 91 | `wait_cool`, `Probe.cool` | `test_g2_hot_gpus_are_waited_for_reading_only` |
+| 7 | Not cool after 1800 s: refuse | 77, 89-90 | `wait_cool` | `test_g2_gpus_that_never_cool_stop_before_submission` |
+| 8 | Inputs created once under `studio-e0/<16 hex>`; another file of that name is refused, never overwritten; the read-back hash must match | 29-37, 102-106; `poc/s2v.py` 21-26 | `upload`, `wan_upload.py` | `test_g8_*` (4 tests) |
+| 9 | Template and snippets pinned; the template's edited nodes have their classes | 107-111 | `_check_pins`, `i2v_graph` | `test_g10_a_changed_template_or_snippet_is_refused_before_anything_runs` |
+| 10 | Admission readback of `/health` just before submission; its refusal submits nothing (`adapter.busy`, not in flight) | `RUN` 43-46 | `wan_run.py`; `_submit` | `test_g3_*` |
+| 11 | The API's compute lease: busy is a failed job, never a wait (`adapter.busy`) | haynes-ops `api.py` `generate` 154-157 | `wan_run.py`; `render` | `test_g4_a_busy_lease_is_a_refusal_never_a_wait` |
+| 12 | The API's own GPU and queue checks before it submits | `api.py` 158-163 | `wan_run.py` | `test_g4_gpus_busy_at_generate_*`, `test_g4_work_queued_after_the_probe_*` |
+| 13 | A slow engine read is retried (6 tries, 5 s apart) and counted; a write never | `RUN` 47-55 | `wan_run.py` | `test_g6_*` |
+| 14 | Foreign prompt IDs seen during the job are recorded | `RUN` 56-61 | `wan_run.py` | `test_g5_*` |
+| 15 | A lost answer, timeout or non-zero exit leaves the job in flight; never resubmitted | new (scope c) | `_submit` | `test_g7_a_lost_answer_is_never_followed_by_a_resubmission` |
+| 16 | A job that did not succeed is an error (`adapter.job_failed`) | 125-126; `poc/s2v.py` 115-116 | `render` | `test_g9_a_failed_job_is_an_error` |
+| 17 | The clip is read-only fetched, its bytes equal to the pod's own hash and size and to the ledger's size | 127-128 (the hash is new) | `_fetch`, `wan_clip_fetch.py` | `test_g9_a_clip_cut_in_transfer_is_an_error`, `test_g9_a_clip_of_another_size_than_the_ledger_is_an_error` |
+| 18 | The clip decodes; fewer frames than asked or another size is an error, never a clip | 131-136 (decode); short and size are new (TIME-8) | `measure_clip`, `render` | `test_g9_a_corrupt_clip_is_an_error`, `test_g9_a_short_*`, `test_g9_a_clip_of_another_size_is_an_error` |
+| 19 | Foreign work during a job: the clip is checked and kept on the error, then the halt | 146-147 | `render` | `test_g5_foreign_work_keeps_the_output_and_stops_further_submissions` |
+| 20 | No snippet deletes, moves, interrupts or overwrites; the only open is `'xb'` | snippet text | pins | `test_no_snippet_deletes_moves_interrupts_or_overwrites` |
+
+`api.generate()` is the installed code the PoC ran; when its own job fails after
+submission it removes or interrupts *its own* prompt (`api.py` 211-223). That is the
+API's behaviour, kept; the client itself never cancels or interrupts anything.
+
+### The provenance record
+
+`WanClip.record` is plain JSON: `kind`, `engine` (`wan-api/ti2v-5b` or
+`wan-api/s2v-14b-lightning`), `job_id`, `prompt_id`, `preset`, `story`,
+`graph_sha256` (SHA-256 of `json.dumps(graph, sort_keys=True)`), `template_sha256`
+(image-to-video), `run_snippet_sha256`, `model_files_sha256` (the graph's model files
+with the [licence register](model-licences.json)'s SHA-256; not re-hashed on the
+volume), `seed`, `width`, `height`, `fps`, `frames_requested`, `frames_delivered`,
+`measured` (decoded size and rate), `inputs` (each upload's name, SHA-256 and size),
+`prompt`, `negative`, `clip_sha256`, `clip_bytes`, `cooldown_s`, `start_temps` (each
+GPU's temperature and utilization at the passing probe), `render_s`, `fetch_s`,
+`wall_s`, the job's `created`, `started` and `finished` times, `admission_readback_at`,
+`engine_read_retries`, `poll_misses`, `unexpected_work_seen`, `telemetry_tail` (last
+three GPU samples), `peak_gpu_mib`, `at`; for speech-to-video also `method`, `chunks`,
+`board_frames`, `frames_needed` (TIME-8), `drive_samples` and `drive_rate`. For the
+clip-source interfaces of stories 426 and 427, `WanClip` exposes `engine`, `job_id`,
+`files_sha256` and `start_image_sha256`.
+
+### Differences from the PoC
+
+- The client returns bytes; writing the clip create-only, its first and last frame
+  PNGs and a records file is the caller's job (`render` in the PoC did it).
+- The graph and the pins are checked before anything runs; the PoC read the template
+  from a mutable haynes-ops checkout after uploading.
+- The fetch snippet takes the job ID as an argument (the PoC built the code around
+  it) and states the SHA-256 and size it read; the client checks both and the
+  ledger's `bytes`.
+- Short, wrong-size, undecodable and cut clips are errors (the PoC wrote whatever came).
+- A probe with no GPU sample is an error (the PoC's `all()` passed it).
+- Foreign work in a failed job latches the halt as well (the PoC stopped at the failure).
+- A job left in flight, the halt and the one-job lock are process state, as in
+  `ImageClient`; the PoC stopped its script instead.
+- Probe, fetch and job reads send empty stdin (the PoC's `remote()` inherited it).
+- `story` comes from the request; speech-to-video uses `board_frames` and TIME-9
+  (`poc/s2v.py` with pad 0) instead of `--pad-s`; only the lightning profile is built
+  (the one 20-step whole-frame clip, `s2-s2v-b`, is out of scope, contract section 5).
+
+### Fake Wan pod
+
+`FakeWan` (in `fakes`) runs the pinned snippets themselves in a namespace whose `sys`,
+`time`, `pathlib`, `urllib.request` and `api` belong to the fake pod, with a port of
+`api.generate()` and a small engine that makes synthetic MP4s (speech-to-video
+delivers as many frames as every E0 clip did, `s2v_frames_delivered`). It can be busy
+or holding, hold only at the admission readback, hold the lease, run hot or busy GPUs,
+queue foreign work before or during the job, time out reads or the `/prompt` write,
+fail, deliver short, odd-sized or corrupt clips, lose the run's answer (timeout, empty,
+non-zero exit, never started) and cut a fetch. It records every run payload, graph
+submitted, engine call and volume write.
+
+### Before the first live job (story 428)
+
+Run these read-only checks with the coordinator watching, then one job:
+
+1. `git -C ~/repos/haynes-ops fetch` and check that
+   `kubernetes/main/apps/ai/wan-video/app/workflow.json` still hashes to
+   `88fe79ad...136b` and that `api.py` still has `acquire_compute`, `gpu_sample`,
+   `engine`, `save` and `generate(job, prompt, lease=None)` with the checks in rows 11
+   and 12 (last changed in `429473c8`, 2026-11-04). A change there is a stop.
+2. `kubectl -n ai get deploy wan-video` is ready with containers `api`, `app`, `foley`,
+   and `/config/video/api.py` in the `api` container is the haynes-ops file.
+3. One `client.probe()`: `accepting_jobs` true, no active job, empty engine queue,
+   exactly the two approved GPU UUIDs, temperatures and utilization read sensibly.
+4. Free space on PVC `ai/wan-video` (80 Gi, no retention) for the inputs and clips.
+5. `WanClipClient.in_flight()` and `halted()` are `None` in the process that will run.
+6. Run one `ImageToVideo` at 576x1024 and 121 frames: check the record (121 frames
+   delivered, 576x1024, `engine_read_retries`, no `unexpected_work_seen`), then read
+   `/videos/<job_id>` and confirm the ledger shows `succeeded` with the same `bytes`.
+7. Only then one `SpeechToVideo`, on a board of at most one chunk first.
+
+If any call fails, stop and read `/videos/<job_id>` before anything else; never
+resubmit to recover.
+
+### Proposals (story 842)
+
+- **P-842-01** Request limits: sides multiples of 32 from 64 to 1280; image-to-video
+  `length` 4k + 1 up to 121 (what E0 ran); speech-to-video at most 3 chunks (boards up
+  to 342 frames; the longest E0 job took 716 s of the API's 1200 s); prompts up to 4096
+  characters and seeds up to 2^53 - 1 (the API's own limits on `POST /videos`); inputs
+  under 20 000 000 bytes (the upload snippet's assertion).
+- **P-842-02** A job left in flight is settled only by its ledger reading `succeeded`
+  or `failed`. A missing ledger (the run may never have started) is not taken as proof
+  and needs `clear_in_flight()` after a person checks the `api` container.
+- **P-842-03** Foreign work latches a per-process halt that only `clear_halt()` lifts.
+- **P-842-04** The fetch states the SHA-256 and size it read, and the client checks
+  them and the ledger's size.
+- **P-842-05** A clip with fewer frames than asked for, or of another size, is an
+  error; extra frames are kept and recorded (TIME-8 trims them).
+- **P-842-06** The upload folder and presets keep the PoC's `studio-e0` names, so the
+  jobs match E0's byte for byte; renaming them is a separate change.

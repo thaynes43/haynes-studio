@@ -19,6 +19,9 @@ from haynes_studio.adapters.errors import PinMismatch
 
 FOLDER = "pinned-inputs"
 HAYNES_OPS_COMMIT = "7c7b2cf6cceecc782cb149a958635852ae162966"
+# The commit that added the Wan worker's graph template (haynes-ops#4504); the file has
+# not changed since (story 842 read it at haynes-ops main bab21e14 on 2026-11-13).
+HAYNES_OPS_WAN_COMMIT = "3a3571c4016a57465b5e995077bb691037224705"
 
 
 @dataclass(frozen=True)
@@ -69,6 +72,30 @@ PINS: dict[str, Pin] = {
         "haynes-ops kubernetes/main/apps/ai/stable-diffusion/comfyui/resources/api-workflows/"
         f"qwen_image_2_1_edit_API.json at {HAYNES_OPS_COMMIT} (git blob f520dcd4937c, last "
         "changed in 31b449445dc1), the commit prompts.json records; copied once"),
+    # Story 842: the Wan clip clients (poc/wan.py and poc/s2v.py).
+    "wan_probe.py": Pin(
+        "cd73ebd733c48c1a40222fc7a1a39ad9788db09b2b145837c5db5839c0eb6716", "snippet",
+        "poc/wan.py PROBE, byte for byte: the Wan API's /health, api.gpu_sample() and the "
+        "engine's /queue, read-only"),
+    "wan_upload.py": Pin(
+        "636cb89c132f83ec40426e971df9ba48ddcb466fe16f78a3c896baa7052748a9", "snippet",
+        "poc/wan.py UPLOAD, byte for byte: one input written create-only under "
+        "/workspace/input/studio-e0/, hash checked; an existing name must hold the same bytes"),
+    "wan_run.py": Pin(
+        "b44fcef47d1b125c0f061fd6f4f6d69357969a34f298549e85d44645b90836ce", "snippet",
+        "poc/wan.py RUN, byte for byte (from OP342): the admission readback, then the "
+        "installed api.generate() under its compute lease, with read-only engine retries "
+        "and the unknown-work observer"),
+    "wan_clip_fetch.py": Pin(
+        "9b1314b50a7dfd05e200792c47a5aaac9a5c9803c5b79d1d48cbd0e5952bc6e6", "snippet",
+        "poc/wan.py fetch with the job ID as an argument instead of inline, plus a "
+        "CLIP_SHA256 line on stderr: GET /videos/<id>/file on the Wan API, read-only"),
+    "wan_ti2v_workflow.json": Pin(
+        "88fe79ad543a93febd6f72e0dc86eecdb27b70c73e54d4553917f72cb95a136b", "graph",
+        "haynes-ops kubernetes/main/apps/ai/wan-video/app/workflow.json at "
+        f"{HAYNES_OPS_WAN_COMMIT} (git blob 5f9e9f968176, its only commit; unchanged at "
+        "haynes-ops main bab21e14 on 2026-11-13), the template_sha256 of every E0 layer "
+        "record; copied once"),
 }
 
 
