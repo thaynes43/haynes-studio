@@ -58,7 +58,7 @@ a canonical ID. Worked map: [`legacy-import-map.json`](examples/valid/legacy-imp
 | manifest `story` ([manifest-r4.json](../../titles/the-winter-menu/manifest-r4.json)) | A tracker URL (work package [371](https://work.haynesnetwork.com/work_packages/371)) | `origin.tracker`. **Not** a domain story. |
 | manifest `revision` (absent in r1 = 1; 2, 3, 4) | A whole-script revision | One imported run per revision, `status: imported`, `legacy.revision`. |
 | manifest `job` (`the-winter-menu-r4`) | Job folder name, also `productions/<job>/` on the Wan PVC | `legacy.job` on the imported run. Never an ID. |
-| manifest `job_dir` (`~/studio-jobs/...`) | Private, non-portable input path | Not imported. Story [425](https://work.haynesnetwork.com/work_packages/425) owns the private-input recovery map. |
+| manifest `job_dir` (`~/studio-jobs/...`) | Private, non-portable input path | Not imported. Story [425](https://work.haynesnetwork.com/work_packages/425) built the private-input [recovery map](../reference/legacy-recovery-map.md), which lists every input with its expected hash and marks every private locator unverified. |
 | ledger `id`, `kind: edited_production` ([deliver.py](../../poc/deliver.py), `evidence*/production.json`) | One delivered video, 32 hex chars | Delivery `legacy.ledger_id`; the delivery gets a new `dlv_` ID. |
 | "production" in `productions/<job>/` | One delivered video | Delivery, not a production. |
 | `edit/`, `edit-2/` ... | One attempt inside a job | Not modelled; the delivered attempt is the ledger's `output` path. |
@@ -104,7 +104,13 @@ manifest that is not strict JSON, or fails its schema in a way no specific rule 
 `legacy.reference` (a repeated shot id, a sound that is not in the `sfx` table, an
 `after_line` beyond the shot's lines), `legacy.speech_mismatch` (a `speech.json` that
 does not pair with the manifest's lines) and `legacy.timeline_mismatch` (a computed
-timeline that differs from a recorded `timeline.json` by more than TIME-12 allows).
+timeline that differs from a recorded `timeline.json` by more than TIME-12 allows). The
+import (story [404](https://work.haynesnetwork.com/work_packages/404)) adds
+`legacy.import_map_mismatch`: an existing import map from another title, draft revision,
+production, manifest file or `speech.json`. An import map may also carry, as optional
+fields, a `source_key` per board and line, the `cues` and `notes` of each board, and
+`story_records` (beds and asset versions), so that a second import returns every
+identifier of the first.
 
 ## 2. Schema versions and identifiers
 
@@ -123,6 +129,14 @@ wrapper `invalid-case`. Error responses use the envelope in
   fails instead of vanishing (P-02). When a specific rule covers a field (a typed
   `timing.duration_ms`, cue fields inside a note), the validator reports that rule instead.
   A missing or mistyped field that no specific rule covers is `schema.invalid`.
+- References inside a document have three general codes, used where no specific rule
+  exists (`cue.anchor_line_missing`, `cue.slot_not_on_board`,
+  `voice.speaker_not_in_cast` and `id.type_mismatch` win): `ref.unknown` (a layout
+  preset, story, media kind or cast slot that does not exist), `ref.duplicate` (an
+  identifier, cast slot, board number or source key used twice) and `story.board_order`
+  (a story's boards and its `board_order` disagree).
+- A JSON number with an integral value (`1900.0`) is the integer 1900, as JSON Schema
+  and JavaScript read it. A document nested deeper than 64 levels is refused.
 - Fields under `derived` are computed by the server, returned on reads and rejected on
   writes.
 - The legacy manifest has no `schema` field. Story 378 documents it as
@@ -558,7 +572,8 @@ The S2V model files from haynes-ops PR 4625 are Apache-2.0; the lightning LoRA's
 `provenance` on every run ([example](examples/valid/run-succeeded.json)):
 
 - `toolchain`: studio commit, image digests, Python version, ffmpeg version and build,
-  adapter versions.
+  adapter versions. A service adapter's version is its pin set: the SHA-256 of each
+  pinned snippet and graph it sends ([legacy adapters](../reference/legacy-adapters.md)).
 - `engines[]`: `key`, `role`, `name`, `files[]` (each `name`, `sha256`, `licence`),
   `licence` (the most restrictive of its files), `profile`, `hardware`.
 - `inputs_externally_generated`: asset versions with the D42 marker, for the E9
@@ -613,7 +628,9 @@ media kind's frame size at 24 fps) and phone proxy (H.264, 720x1280, under 25 00
 for a 60 s fixture, per story [381](https://work.haynesnetwork.com/work_packages/381);
 P-10), each with `sha256`, `bytes`, `frames`, codecs and `locator`, plus `verification`
 (decoded frames equal expected, hashes re-read). Legacy deliveries use adapter
-`legacy_wan_ledger`, read-only.
+`legacy_wan_ledger`, read-only: it may read a ledger through the Wan API and read ledger
+and asset files in place from the API container, after checking paths and hashes; it has
+no write, rename or delete path.
 
 ### Store layout (D39)
 
@@ -894,7 +911,8 @@ What story 424 implements. Proposal P-19 for the names and commands.
   and these examples. Synthetic media is generated at test time under pytest's `tmp_path`,
   outside the checkout, small (10 s or less, 360x640 unless a test needs delivery size; a
   60 s proxy fixture is allowed for 381). Service fakes (TTS, ASR, image, Wan, store)
-  return deterministic synthetic bytes; frozen responses are JSON with hashes. No private
+  return deterministic synthetic bytes (TTS, ASR, image and the Wan ledger come from
+  story 425; Wan compute from stories 426 and 427; the store from stories 379 and 381); frozen responses are JSON with hashes. No private
   media, real voices or tokens in CI; `check_no_media.py` stays.
 - **Output:** no environment dumps, no tokens; failures print codes and paths.
 - **Contract examples:** every file in `examples/valid/` must validate against the schema
@@ -918,6 +936,7 @@ What story 424 implements. Proposal P-19 for the names and commands.
 | `schema.unsupported` | invalid | 2 | [schema-unsupported](examples/invalid/schema-unsupported.json) |
 | `schema.unknown_field` | invalid | 2 | [schema-unknown-field](examples/invalid/schema-unknown-field.json) |
 | `schema.invalid` | invalid | 2 | |
+| `ref.unknown`, `ref.duplicate`, `story.board_order` | invalid | 2 | |
 | `id.malformed` | invalid | 2 | [id-malformed](examples/invalid/id-malformed.json) |
 | `id.type_mismatch` | invalid | 2 | [id-type-mismatch](examples/invalid/id-type-mismatch.json) |
 | `time.hold_on_spoken_board` | invalid | 3 | [time-hold-on-spoken-board](examples/invalid/time-hold-on-spoken-board.json) |
@@ -956,6 +975,7 @@ What story 424 implements. Proposal P-19 for the names and commands.
 | `legacy.invalid` | invalid | 1 | |
 | `legacy.reference` | invalid | 1 | |
 | `legacy.speech_mismatch`, `legacy.timeline_mismatch` | invalid | 1, 3 | |
+| `legacy.import_map_mismatch` | invalid | 1 | |
 
 ## 16. Held owner questions
 
