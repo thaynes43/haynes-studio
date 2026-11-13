@@ -1,0 +1,1269 @@
+{
+ "story": "https://work.haynesnetwork.com/work_packages/840",
+ "route": "poc/deliver.py <reel manifest> --out reel (runbook stage 7), from poc/",
+ "job_dir": "~/studio-jobs/the-winter-menu-voice-audition-1",
+ "reels": [
+  {
+   "slot": "a",
+   "role": "the captain",
+   "build": "reel-a3",
+   "manifest": "titles/the-winter-menu/voice-audition/reel-a.manifest.json",
+   "ledger_id": "f44c2341ede047438a94064151c576d0",
+   "link": "https://video.haynesops.com/videos/f44c2341ede047438a94064151c576d0/file",
+   "pvc_output": "productions/the-winter-menu-voices-1-a/reel/final.mp4",
+   "final_mp4_sha256": "dab555dc1e2d81d276a5ac24fc10fd5b724445dddb6abfca3cdcd914b5fd256a",
+   "bytes": 1887115,
+   "assets": 36,
+   "delivered_at": 1794598160.8234532,
+   "duration_s": 77.388,
+   "video": {
+    "codec": "h264",
+    "width": 720,
+    "height": 1280,
+    "pix_fmt": "yuv420p",
+    "frames": 929,
+    "audio_codec": "aac",
+    "audio_rate": 48000,
+    "audio_channels": 2,
+    "duration_s": 77.417
+   },
+   "levels": {
+    "input_i": "-20.03",
+    "input_tp": "-4.46",
+    "input_lra": "3.60"
+   },
+   "checks": {
+    "h264_720x1280_yuv420p": true,
+    "aac_48k_stereo": true,
+    "frames_match_timeline": true,
+    "each_card_in_its_interval": true,
+    "duration_matches_timeline": true,
+    "loudness_within_1_5_lu": true,
+    "true_peak_at_most_-2_5_dbtp": true,
+    "no_clipping": true,
+    "every_take_passed_and_hash_matches": true
+   },
+   "card_placement": {
+    "cards/00-intro.png": {
+     "frame": 17,
+     "closest": "cards/00-intro.png",
+     "mean_abs_diff": 1.32
+    },
+    "cards/01-bf_emma.png": {
+     "frame": 109,
+     "closest": "cards/01-bf_emma.png",
+     "mean_abs_diff": 1.33
+    },
+    "cards/02-bf_isabella.png": {
+     "frame": 260,
+     "closest": "cards/02-bf_isabella.png",
+     "mean_abs_diff": 1.31
+    },
+    "cards/03-bf_lily.png": {
+     "frame": 411,
+     "closest": "cards/03-bf_lily.png",
+     "mean_abs_diff": 1.28
+    },
+    "cards/04-bf_alice.png": {
+     "frame": 564,
+     "closest": "cards/04-bf_alice.png",
+     "mean_abs_diff": 1.28
+    },
+    "cards/05-af_kore.png": {
+     "frame": 712,
+     "closest": "cards/05-af_kore.png",
+     "mean_abs_diff": 1.3
+    },
+    "cards/06-af_aoede.png": {
+     "frame": 856,
+     "closest": "cards/06-af_aoede.png",
+     "mean_abs_diff": 1.3
+    }
+   },
+   "transcript": {
+    "rule": "the whole-reel transcript must equal the script word for word after the digits and the r4 manifest's tolerances, except that a voice name or 'doll' inside a label may be heard as other words (word-level alignment, difflib)",
+    "heard": "Doll A the Captain 1. Emma the Current Voice. Day 340. I've mastered fire, shelter, and emotionally supportive moss. Or we could just eat the crunchy butter squishies. 2. Isabella. Day 340. I've mastered fire, shelter, and emotionally supportive moss. Or we could just eat the crunchy butter squishies. 3. Lily. Day 340. I've mastered fire, shelter, and emotionally supportive moss. Or we could just eat the crunchy butter squishies. 4. Alice. Day 340. I've mastered fire, shelter, and emotionally supportive moss. Or we could just eat the crunchy butter squishies. 5. Corn. Day 340. I've mastered fire, shelter, and emotionally supportive moss. Or we could just eat the crunchy butter squishies. Number 6. Ayuled. Day 340. I've mastered fire, shelter, and emotionally supportive moss. Or we could just eat the crunchy butter squishies.",
+    "exact_match": false,
+    "name_positions_heard_differently": [
+     {
+      "expected": "kore",
+      "heard": "corn"
+     },
+     {
+      "expected": "aoede",
+      "heard": "ayuled"
+     }
+    ],
+    "differences_outside_names": [],
+    "every_take_matched": true,
+    "match_with_tolerances": true
+   },
+   "candidates": [
+    {
+     "n": 0,
+     "voice": null,
+     "card_s": [
+      0.0,
+      2.893
+     ],
+     "played": [],
+     "not_played": []
+    },
+    {
+     "n": 1,
+     "voice": "bf_emma",
+     "card_s": [
+      2.893,
+      15.356
+     ],
+     "played": [
+      "a01-bf_emma-s1",
+      "a01-bf_emma-s4"
+     ],
+     "not_played": []
+    },
+    {
+     "n": 2,
+     "voice": "bf_isabella",
+     "card_s": [
+      15.356,
+      27.926
+     ],
+     "played": [
+      "a02-bf_isabella-s1",
+      "a02-bf_isabella-s4"
+     ],
+     "not_played": []
+    },
+    {
+     "n": 3,
+     "voice": "bf_lily",
+     "card_s": [
+      27.926,
+      40.602
+     ],
+     "played": [
+      "a03-bf_lily-s1",
+      "a03-bf_lily-s4"
+     ],
+     "not_played": []
+    },
+    {
+     "n": 4,
+     "voice": "bf_alice",
+     "card_s": [
+      40.602,
+      53.385
+     ],
+     "played": [
+      "a04-bf_alice-s1",
+      "a04-bf_alice-s4"
+     ],
+     "not_played": []
+    },
+    {
+     "n": 5,
+     "voice": "af_kore",
+     "card_s": [
+      53.385,
+      65.314
+     ],
+     "played": [
+      "a05-af_kore-s1",
+      "a05-af_kore-s4"
+     ],
+     "not_played": []
+    },
+    {
+     "n": 6,
+     "voice": "af_aoede",
+     "card_s": [
+      65.314,
+      77.388
+     ],
+     "played": [
+      "a06-af_aoede-s1",
+      "a06-af_aoede-s4"
+     ],
+     "not_played": []
+    }
+   ],
+   "order": [
+    {
+     "take": "a00-intro",
+     "start_s": 0.6,
+     "end_s": 2.093,
+     "sha256": "518a0083cee62a2eff111f0315c795b3fba4b90d93f7355d2de5c3746f5398d5"
+    },
+    {
+     "take": "a01-label",
+     "start_s": 3.293,
+     "end_s": 5.618,
+     "sha256": "bf09d869b082a36f8ceaf96df88574f4288125c64f3f65547ced92d49496bce0"
+    },
+    {
+     "take": "a01-bf_emma-s1",
+     "start_s": 6.118,
+     "end_s": 11.281,
+     "sha256": "b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78"
+    },
+    {
+     "take": "a01-bf_emma-s4",
+     "start_s": 12.081,
+     "end_s": 14.556,
+     "sha256": "0063d7e0e0d8a551fece4373ba1252d94339c00e10155bd08804b44c388773fd"
+    },
+    {
+     "take": "a02-label",
+     "start_s": 15.756,
+     "end_s": 17.591,
+     "sha256": "a8f7da348fe5c37b2eb06840cf70a061dbdbd356d34278ba98b0df02f2ddde32"
+    },
+    {
+     "take": "a02-bf_isabella-s1",
+     "start_s": 18.091,
+     "end_s": 23.638,
+     "sha256": "9630f6af76d0d01eb62ae1c52d38b56944de15fd3aa82740e8b4c8df20f945bc"
+    },
+    {
+     "take": "a02-bf_isabella-s4",
+     "start_s": 24.438,
+     "end_s": 27.126,
+     "sha256": "bed186d3921b3d0f34321cd72bfeae01b8b4dc9a463b396baa598dad9de7ad28"
+    },
+    {
+     "take": "a03-label",
+     "start_s": 28.326,
+     "end_s": 29.862,
+     "sha256": "e1494e80cbc55a2465a38933ef8cebc1973bc58fbc61d206b680c543896ddae0"
+    },
+    {
+     "take": "a03-bf_lily-s1",
+     "start_s": 30.362,
+     "end_s": 36.079,
+     "sha256": "cc01486141bd138d8d23a1d53af46c6748a0fd8a5fdf696b9ca2bc35a811f23f"
+    },
+    {
+     "take": "a03-bf_lily-s4",
+     "start_s": 36.879,
+     "end_s": 39.802,
+     "sha256": "bc6c385253652c11a89c23898e0a7d30a599b908228d13446d5cd12ed0f904e7"
+    },
+    {
+     "take": "a04-label",
+     "start_s": 41.002,
+     "end_s": 42.666,
+     "sha256": "6824aecd4623cacc321075a5c839439c700d15234f3809f8579839a752ab44ea"
+    },
+    {
+     "take": "a04-bf_alice-s1",
+     "start_s": 43.166,
+     "end_s": 48.841,
+     "sha256": "d0cb83acc26b161ece4453ee4fbb6462d124fc61bbf6c2d573073ad88a7fddc7"
+    },
+    {
+     "take": "a04-bf_alice-s4",
+     "start_s": 49.641,
+     "end_s": 52.585,
+     "sha256": "0bfb78d0c7596df70c7b6ac009bf2cbd4d4095897bf0e2e93ba183388fab5475"
+    },
+    {
+     "take": "a05-label",
+     "start_s": 53.785,
+     "end_s": 55.385,
+     "sha256": "3fcd796a09eb0dc285bd4138f8b15589477763eee2d74939e44b8c498b0bcc00"
+    },
+    {
+     "take": "a05-af_kore-s1",
+     "start_s": 55.885,
+     "end_s": 61.069,
+     "sha256": "ee3c19168a82ec19139250498f5de110b4b1ff847a797935ad126b3309d5d29b"
+    },
+    {
+     "take": "a05-af_kore-s4",
+     "start_s": 61.869,
+     "end_s": 64.514,
+     "sha256": "b7b9cb0e3b5ab05c6766d8b570f329160bd3c2373dde9f800b751342e323cf0d"
+    },
+    {
+     "take": "a06-label",
+     "start_s": 65.714,
+     "end_s": 67.762,
+     "sha256": "ddc1a6797be658aa9f2f4960a82cc726b487799e013ba9bba359d131ce96fab7"
+    },
+    {
+     "take": "a06-af_aoede-s1",
+     "start_s": 68.262,
+     "end_s": 73.041,
+     "sha256": "7b22021280d206bfc190520b7ae61f4e3d6dc122a33684ec11116c95315f9a64"
+    },
+    {
+     "take": "a06-af_aoede-s4",
+     "start_s": 73.841,
+     "end_s": 76.188,
+     "sha256": "6ab44a3f0e7550350bf520d53f6b8ff84f6c67f3519305a5374e2e1aa87365ce"
+    }
+   ],
+   "notes": [],
+   "served_check": "GET 127.0.0.1:8080/videos/<id>/file inside the api container: 200 video/mp4, bytes and SHA-256 equal the ledger's; LedgerReader.get (story 425) read the ledger back"
+  },
+  {
+   "slot": "b",
+   "role": "the chair",
+   "build": "reel-b2",
+   "manifest": "titles/the-winter-menu/voice-audition/reel-b.manifest.json",
+   "ledger_id": "a5cabedce555430bac13ee30a5265a81",
+   "link": "https://video.haynesops.com/videos/a5cabedce555430bac13ee30a5265a81/file",
+   "pvc_output": "productions/the-winter-menu-voices-1-b/reel/final.mp4",
+   "final_mp4_sha256": "c47e07713757d986454d947fffd8f806552bcb3f9758e90c45d94b38fa3caa91",
+   "bytes": 1261517,
+   "assets": 37,
+   "delivered_at": 1794598182.5423563,
+   "duration_s": 53.866,
+   "video": {
+    "codec": "h264",
+    "width": 720,
+    "height": 1280,
+    "pix_fmt": "yuv420p",
+    "frames": 646,
+    "audio_codec": "aac",
+    "audio_rate": 48000,
+    "audio_channels": 2,
+    "duration_s": 53.866
+   },
+   "levels": {
+    "input_i": "-20.06",
+    "input_tp": "-4.48",
+    "input_lra": "3.10"
+   },
+   "checks": {
+    "h264_720x1280_yuv420p": true,
+    "aac_48k_stereo": true,
+    "frames_match_timeline": true,
+    "each_card_in_its_interval": true,
+    "duration_matches_timeline": true,
+    "loudness_within_1_5_lu": true,
+    "true_peak_at_most_-2_5_dbtp": true,
+    "no_clipping": true,
+    "every_take_passed_and_hash_matches": true
+   },
+   "card_placement": {
+    "cards/00-intro.png": {
+     "frame": 17,
+     "closest": "cards/00-intro.png",
+     "mean_abs_diff": 1.32
+    },
+    "cards/01-af_heart.png": {
+     "frame": 96,
+     "closest": "cards/01-af_heart.png",
+     "mean_abs_diff": 1.3
+    },
+    "cards/02-af_nova.png": {
+     "frame": 186,
+     "closest": "cards/02-af_nova.png",
+     "mean_abs_diff": 1.3
+    },
+    "cards/03-af_alloy.png": {
+     "frame": 274,
+     "closest": "cards/03-af_alloy.png",
+     "mean_abs_diff": 1.27
+    },
+    "cards/04-af_sarah.png": {
+     "frame": 389,
+     "closest": "cards/04-af_sarah.png",
+     "mean_abs_diff": 1.27
+    },
+    "cards/05-af_river.png": {
+     "frame": 485,
+     "closest": "cards/05-af_river.png",
+     "mean_abs_diff": 1.29
+    },
+    "cards/06-af_kore.png": {
+     "frame": 585,
+     "closest": "cards/06-af_kore.png",
+     "mean_abs_diff": 1.26
+    }
+   },
+   "transcript": {
+    "rule": "the whole-reel transcript must equal the script word for word after the digits and the r4 manifest's tolerances, except that a voice name or 'doll' inside a label may be heard as other words (word-level alignment, difflib)",
+    "heard": "Dahl B the chair. 1. Heart the current voice. Winter's coming. We need to discuss the menu. Motion carried. Needs salt. 2. Nova. Motion carried. 3. Alloy. Winter's coming. We need to discuss the menu. Motion carried. 4. Sarah. Winter's coming. We need to discuss the menu. Motion carried. Needs salt. 5. River. Winter's coming. We need to discuss the menu. Number 6. Core. Winter's coming. We need to discuss the menu. Motion carried. Needs salt.",
+    "exact_match": false,
+    "name_positions_heard_differently": [
+     {
+      "expected": "doll",
+      "heard": "dahl"
+     },
+     {
+      "expected": "kore",
+      "heard": "core"
+     }
+    ],
+    "differences_outside_names": [],
+    "every_take_matched": true,
+    "match_with_tolerances": true
+   },
+   "candidates": [
+    {
+     "n": 0,
+     "voice": null,
+     "card_s": [
+      0.0,
+      2.829
+     ],
+     "played": [],
+     "not_played": []
+    },
+    {
+     "n": 1,
+     "voice": "af_heart",
+     "card_s": [
+      2.829,
+      13.126
+     ],
+     "played": [
+      "b01-af_heart-s2",
+      "b01-af_heart-s8-4",
+      "b01-af_heart-s9"
+     ],
+     "not_played": []
+    },
+    {
+     "n": 2,
+     "voice": "af_nova",
+     "card_s": [
+      13.126,
+      17.941
+     ],
+     "played": [
+      "b02-af_nova-s8-4"
+     ],
+     "not_played": [
+      {
+       "take": "b02-af_nova-s2",
+       "reason": "transcript check: heard 'Winter is coming. We need to discuss the menu.'"
+      },
+      {
+       "take": "b02-af_nova-s9",
+       "reason": "transcript check: heard 'Nades Salt'"
+      }
+     ]
+    },
+    {
+     "n": 3,
+     "voice": "af_alloy",
+     "card_s": [
+      17.941,
+      27.651
+     ],
+     "played": [
+      "b03-af_alloy-s2",
+      "b03-af_alloy-s8-4"
+     ],
+     "not_played": [
+      {
+       "take": "b03-af_alloy-s9",
+       "reason": "transcript check: heard 'Nades salt.'"
+      }
+     ]
+    },
+    {
+     "n": 4,
+     "voice": "af_sarah",
+     "card_s": [
+      27.651,
+      37.18
+     ],
+     "played": [
+      "b04-af_sarah-s2",
+      "b04-af_sarah-s8-4",
+      "b04-af_sarah-s9"
+     ],
+     "not_played": []
+    },
+    {
+     "n": 5,
+     "voice": "af_river",
+     "card_s": [
+      37.18,
+      43.68
+     ],
+     "played": [
+      "b05-af_river-s2"
+     ],
+     "not_played": [
+      {
+       "take": "b05-af_river-s8-4",
+       "reason": "transcript check: heard 'Motion carried a'"
+      },
+      {
+       "take": "b05-af_river-s9",
+       "reason": "transcript check: heard 'Nade Salter.'"
+      }
+     ]
+    },
+    {
+     "n": 6,
+     "voice": "af_kore",
+     "card_s": [
+      43.68,
+      53.866
+     ],
+     "played": [
+      "b06-af_kore-s2",
+      "b06-af_kore-s8-4",
+      "b06-af_kore-s9"
+     ],
+     "not_played": []
+    }
+   ],
+   "order": [
+    {
+     "take": "b00-intro",
+     "start_s": 0.6,
+     "end_s": 2.029,
+     "sha256": "d7d97abf8e39e409c74d1407233083d5a87e9481d848069f4fb0e907a8c61ec6"
+    },
+    {
+     "take": "b01-label",
+     "start_s": 3.229,
+     "end_s": 5.533,
+     "sha256": "2a4c4757754115abb9fd98f36c7c3885ff87419efa0f61b7dbab18b51431f165"
+    },
+    {
+     "take": "b01-af_heart-s2",
+     "start_s": 6.033,
+     "end_s": 8.721,
+     "sha256": "7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50"
+    },
+    {
+     "take": "b01-af_heart-s8-4",
+     "start_s": 9.521,
+     "end_s": 10.545,
+     "sha256": "9b3ba267baecf4407cb1ec7dfa66598566e83e615b009f307a47c4b3be4aaad9"
+    },
+    {
+     "take": "b01-af_heart-s9",
+     "start_s": 11.345,
+     "end_s": 12.326,
+     "sha256": "4e12138ee373ac45b6fce8f9049680d5494892fcc13a511bc77dbf37afbb5d31"
+    },
+    {
+     "take": "b02-label",
+     "start_s": 13.526,
+     "end_s": 15.041,
+     "sha256": "f57f3dca37a364ed0e9296232b274a812e128111091fce65fa30b416bb5f87fb"
+    },
+    {
+     "take": "b02-af_nova-s8-4",
+     "start_s": 15.541,
+     "end_s": 17.141,
+     "sha256": "0b1473d4f145ada4830754fd9782cd71917624380138bf7587078b91d5b55389"
+    },
+    {
+     "take": "b03-label",
+     "start_s": 18.341,
+     "end_s": 20.026,
+     "sha256": "8563296d556e994991737637b072c75b7fcaf48c73595adb3e4c4635cf69fc3c"
+    },
+    {
+     "take": "b03-af_alloy-s2",
+     "start_s": 20.526,
+     "end_s": 24.451,
+     "sha256": "3c83a852559cb7fb4896f8dcad3c70870f7370c6ea5ca31c64dbe6598a03399f"
+    },
+    {
+     "take": "b03-af_alloy-s8-4",
+     "start_s": 25.251,
+     "end_s": 26.851,
+     "sha256": "5536777fc739fff88f405dbd1b110c05fedb57dc70db3c5b74af1cceac641290"
+    },
+    {
+     "take": "b04-label",
+     "start_s": 28.051,
+     "end_s": 29.672,
+     "sha256": "f784ec907a55dca36d1b19f8fcaa10dd7aac22460a0081bb7cea0d4fea076d24"
+    },
+    {
+     "take": "b04-af_sarah-s2",
+     "start_s": 30.172,
+     "end_s": 32.817,
+     "sha256": "45e317b333a86d500249f7d879b3aa4f78f5c40ed07a1317c12292ce5205121b"
+    },
+    {
+     "take": "b04-af_sarah-s8-4",
+     "start_s": 33.617,
+     "end_s": 34.641,
+     "sha256": "be8165265348733797a97ea5cfb421586a01c350c75dc6a0c18fcc721bd9dd98"
+    },
+    {
+     "take": "b04-af_sarah-s9",
+     "start_s": 35.441,
+     "end_s": 36.38,
+     "sha256": "7fac9060e612caee8841828b0681eff575d3f9822ae9fd3da40926a2c523afa3"
+    },
+    {
+     "take": "b05-label",
+     "start_s": 37.58,
+     "end_s": 39.137,
+     "sha256": "ae44c7799096dd48276b3ab5974daeedf196736238f12fc024e98e2c24cc245a"
+    },
+    {
+     "take": "b05-af_river-s2",
+     "start_s": 39.637,
+     "end_s": 42.88,
+     "sha256": "c82447c55b2c4d44ce9dbf53cc1049709cb94dac41259dfdff79d59b9de1e3fc"
+    },
+    {
+     "take": "b06-label",
+     "start_s": 44.08,
+     "end_s": 45.936,
+     "sha256": "79235cef9514a9c445af4f82f17fa03048c8cbef26711e1541a59031c86d5593"
+    },
+    {
+     "take": "b06-af_kore-s2",
+     "start_s": 46.436,
+     "end_s": 49.103,
+     "sha256": "407720db8ddf4990d8c422ee27cb544377f99a9e854b1d7d6786af5bb1f55741"
+    },
+    {
+     "take": "b06-af_kore-s8-4",
+     "start_s": 49.903,
+     "end_s": 50.97,
+     "sha256": "e43c33585939fc12e8b2f99d88fbf8140fb564e6151030e79aad24935592f02c"
+    },
+    {
+     "take": "b06-af_kore-s9",
+     "start_s": 51.77,
+     "end_s": 52.666,
+     "sha256": "bc2d2fc5005b61770aa26f8faa892ddf0736ec5d2640f8bd94d30b10bc53d48d"
+    }
+   ],
+   "notes": [],
+   "served_check": "GET 127.0.0.1:8080/videos/<id>/file inside the api container: 200 video/mp4, bytes and SHA-256 equal the ledger's; LedgerReader.get (story 425) read the ledger back"
+  },
+  {
+   "slot": "c",
+   "role": "the grudge holder",
+   "build": "reel-c2",
+   "manifest": "titles/the-winter-menu/voice-audition/reel-c.manifest.json",
+   "ledger_id": "453e297a30754b10878afd97489e76a2",
+   "link": "https://video.haynesops.com/videos/453e297a30754b10878afd97489e76a2/file",
+   "pvc_output": "productions/the-winter-menu-voices-1-c/reel/final.mp4",
+   "final_mp4_sha256": "195308ee4025650d4cc0392757712e7d1a189c1e4e33e682418546021ac8d410",
+   "bytes": 1782736,
+   "assets": 36,
+   "delivered_at": 1794598189.810255,
+   "duration_s": 73.589,
+   "video": {
+    "codec": "h264",
+    "width": 720,
+    "height": 1280,
+    "pix_fmt": "yuv420p",
+    "frames": 883,
+    "audio_codec": "aac",
+    "audio_rate": 48000,
+    "audio_channels": 2,
+    "duration_s": 73.589
+   },
+   "levels": {
+    "input_i": "-20.07",
+    "input_tp": "-4.09",
+    "input_lra": "2.90"
+   },
+   "checks": {
+    "h264_720x1280_yuv420p": true,
+    "aac_48k_stereo": true,
+    "frames_match_timeline": true,
+    "each_card_in_its_interval": true,
+    "duration_matches_timeline": true,
+    "loudness_within_1_5_lu": true,
+    "true_peak_at_most_-2_5_dbtp": true,
+    "no_clipping": true,
+    "every_take_passed_and_hash_matches": true
+   },
+   "card_placement": {
+    "cards/00-intro.png": {
+     "frame": 20,
+     "closest": "cards/00-intro.png",
+     "mean_abs_diff": 1.32
+    },
+    "cards/01-af_nicole.png": {
+     "frame": 124,
+     "closest": "cards/01-af_nicole.png",
+     "mean_abs_diff": 1.32
+    },
+    "cards/02-af_sarah.png": {
+     "frame": 270,
+     "closest": "cards/02-af_sarah.png",
+     "mean_abs_diff": 1.3
+    },
+    "cards/03-af_jessica.png": {
+     "frame": 399,
+     "closest": "cards/03-af_jessica.png",
+     "mean_abs_diff": 1.31
+    },
+    "cards/04-af_aoede.png": {
+     "frame": 528,
+     "closest": "cards/04-af_aoede.png",
+     "mean_abs_diff": 1.29
+    },
+    "cards/05-af_alloy.png": {
+     "frame": 666,
+     "closest": "cards/05-af_alloy.png",
+     "mean_abs_diff": 1.3
+    },
+    "cards/06-af_river.png": {
+     "frame": 813,
+     "closest": "cards/06-af_river.png",
+     "mean_abs_diff": 1.28
+    }
+   },
+   "transcript": {
+    "rule": "the whole-reel transcript must equal the script word for word after the digits and the r4 manifest's tolerances, except that a voice name or 'doll' inside a label may be heard as other words (word-level alignment, difflib)",
+    "heard": "Dahl C, the grudge holder. 1. Nicole, the current voice. I nominate whoever brought orange slices. They know what they did. If we can't eat the squishies, why don't we just eat her? 2. Sarah. I nominate whoever brought orange slices. They know what they did. If we can't eat the squishies, why don't we just eat her? 3. Jessica. I nominate whoever brought orange slices. They know what they did. If we can't eat the squishies, why don't we just eat her? 4. Ayulid. I nominate whoever brought orange slices. They know what they did. If we can't eat the squishies, why don't we just eat her? 5. Alloy. I nominate whoever brought orange slices. They know what they did. If we can't eat the squishies, why don't we just eat her? Number 6. River. I nominate whoever brought orange slices. They know what they did. If we can't eat the squishies, why don't we just eat her?",
+    "exact_match": false,
+    "name_positions_heard_differently": [
+     {
+      "expected": "doll",
+      "heard": "dahl"
+     },
+     {
+      "expected": "aoede",
+      "heard": "ayulid"
+     }
+    ],
+    "differences_outside_names": [],
+    "every_take_matched": true,
+    "match_with_tolerances": true
+   },
+   "candidates": [
+    {
+     "n": 0,
+     "voice": null,
+     "card_s": [
+      0.0,
+      3.384
+     ],
+     "played": [],
+     "not_played": []
+    },
+    {
+     "n": 1,
+     "voice": "af_nicole",
+     "card_s": [
+      3.384,
+      17.34
+     ],
+     "played": [
+      "c01-af_nicole-s3",
+      "c01-af_nicole-s6"
+     ],
+     "not_played": []
+    },
+    {
+     "n": 2,
+     "voice": "af_sarah",
+     "card_s": [
+      17.34,
+      27.691
+     ],
+     "played": [
+      "c02-af_sarah-s3",
+      "c02-af_sarah-s6"
+     ],
+     "not_played": []
+    },
+    {
+     "n": 3,
+     "voice": "af_jessica",
+     "card_s": [
+      27.691,
+      38.852
+     ],
+     "played": [
+      "c03-af_jessica-s3",
+      "c03-af_jessica-s6"
+     ],
+     "not_played": []
+    },
+    {
+     "n": 4,
+     "voice": "af_aoede",
+     "card_s": [
+      38.852,
+      49.182
+     ],
+     "played": [
+      "c04-af_aoede-s3",
+      "c04-af_aoede-s6"
+     ],
+     "not_played": []
+    },
+    {
+     "n": 5,
+     "voice": "af_alloy",
+     "card_s": [
+      49.182,
+      61.836
+     ],
+     "played": [
+      "c05-af_alloy-s3",
+      "c05-af_alloy-s6"
+     ],
+     "not_played": []
+    },
+    {
+     "n": 6,
+     "voice": "af_river",
+     "card_s": [
+      61.836,
+      73.589
+     ],
+     "played": [
+      "c06-af_river-s3",
+      "c06-af_river-s6"
+     ],
+     "not_played": []
+    }
+   ],
+   "order": [
+    {
+     "take": "c00-intro",
+     "start_s": 0.6,
+     "end_s": 2.584,
+     "sha256": "f65c15989f799777df4feebe0712903e06fa7f017b427e567e1f6a227b499854"
+    },
+    {
+     "take": "c01-label",
+     "start_s": 3.784,
+     "end_s": 6.067,
+     "sha256": "9e01c4324c40ff5cb7044599371fd0f1a3ab389c1e4863cae0b2edb26097ea0d"
+    },
+    {
+     "take": "c01-af_nicole-s3",
+     "start_s": 6.567,
+     "end_s": 11.431,
+     "sha256": "6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36"
+    },
+    {
+     "take": "c01-af_nicole-s6",
+     "start_s": 12.231,
+     "end_s": 16.54,
+     "sha256": "46bf17ecaa3a9729b16fd45ba67c2f123b32756cf36eef133abf029c681a7395"
+    },
+    {
+     "take": "c02-label",
+     "start_s": 17.74,
+     "end_s": 19.255,
+     "sha256": "b01e76eaa611ecbac26cc96f4b660a70698a008abf8132529967f8d2b6eb90da"
+    },
+    {
+     "take": "c02-af_sarah-s3",
+     "start_s": 19.755,
+     "end_s": 23.275,
+     "sha256": "1af3e2977ba3579ebb41f63ce48923bbf31c2b60e9958b16ee38a2cdb7e0ec6a"
+    },
+    {
+     "take": "c02-af_sarah-s6",
+     "start_s": 24.075,
+     "end_s": 26.891,
+     "sha256": "ea306090183029c56c19cad1fce8c25028eba4a9d8ce613a4bb34d304a0753ce"
+    },
+    {
+     "take": "c03-label",
+     "start_s": 28.091,
+     "end_s": 29.84,
+     "sha256": "cdafdcc186a9260b49efb7c3818f60de882e9e8eb99afc4816b8434132901037"
+    },
+    {
+     "take": "c03-af_jessica-s3",
+     "start_s": 30.34,
+     "end_s": 34.5,
+     "sha256": "c25ea30e4081a3119da01f2025a50ca925d588c56b73888c94df3026c4cbe2cd"
+    },
+    {
+     "take": "c03-af_jessica-s6",
+     "start_s": 35.3,
+     "end_s": 38.052,
+     "sha256": "d8952dbddbdce49849c2410c471702a6dd217079873ce734ca5a323b0eb6bde8"
+    },
+    {
+     "take": "c04-label",
+     "start_s": 39.252,
+     "end_s": 41.023,
+     "sha256": "f0789713fa74143caa51a3f3fd5a5ff243d0708b46784dffe02bb16678f3c295"
+    },
+    {
+     "take": "c04-af_aoede-s3",
+     "start_s": 41.523,
+     "end_s": 44.894,
+     "sha256": "6a24106f93ee5176deda00238d82c2ccefb983688145ca2a45bec187491e9a0b"
+    },
+    {
+     "take": "c04-af_aoede-s6",
+     "start_s": 45.694,
+     "end_s": 48.382,
+     "sha256": "217f949cd10917635c1b4f23bf4ed8a674d6cea9677b464dc80a20d612be6f78"
+    },
+    {
+     "take": "c05-label",
+     "start_s": 49.582,
+     "end_s": 51.31,
+     "sha256": "9a3579326c84b91bf4aa2ccef1d2c6b3393b4af0a89e4a36159ff2247dc1d3e3"
+    },
+    {
+     "take": "c05-af_alloy-s3",
+     "start_s": 51.81,
+     "end_s": 56.887,
+     "sha256": "e9a86c9d4de43acabbdbfb71d7110271f5b5b73ccc2425574f051ae7d9d50348"
+    },
+    {
+     "take": "c05-af_alloy-s6",
+     "start_s": 57.687,
+     "end_s": 61.036,
+     "sha256": "62aab8cd50a114d42fce0a833b43edc22e77979102b786889a69a457d574eef1"
+    },
+    {
+     "take": "c06-label",
+     "start_s": 62.236,
+     "end_s": 64.049,
+     "sha256": "9e8f0f75baf452623457d277d24232b389035cfcfb12589750d3efc17920d749"
+    },
+    {
+     "take": "c06-af_river-s3",
+     "start_s": 64.549,
+     "end_s": 68.794,
+     "sha256": "2b4c57fb99112c50eb6b4bbd1c8ec5b2fa917a335b2baa90936856b86f6f467c"
+    },
+    {
+     "take": "c06-af_river-s6",
+     "start_s": 69.594,
+     "end_s": 72.389,
+     "sha256": "f69fba02252bc794ee49d5b41f4d5dca9d355e9ddc28b7b10f1e3050802559a7"
+    }
+   ],
+   "notes": [],
+   "served_check": "GET 127.0.0.1:8080/videos/<id>/file inside the api container: 200 video/mp4, bytes and SHA-256 equal the ledger's; LedgerReader.get (story 425) read the ledger back"
+  },
+  {
+   "slot": "d",
+   "role": "the cheerful one",
+   "build": "reel-d2",
+   "manifest": "titles/the-winter-menu/voice-audition/reel-d.manifest.json",
+   "ledger_id": "0937643ac4524b3a836ba56b91015b98",
+   "link": "https://video.haynesops.com/videos/0937643ac4524b3a836ba56b91015b98/file",
+   "pvc_output": "productions/the-winter-menu-voices-1-d/reel/final.mp4",
+   "final_mp4_sha256": "e40f29e0130578401cc7adb27be492b0a76f75cb0efe5a390d7b5b063d236092",
+   "bytes": 982577,
+   "assets": 32,
+   "delivered_at": 1794598196.4618883,
+   "duration_s": 44.648,
+   "video": {
+    "codec": "h264",
+    "width": 720,
+    "height": 1280,
+    "pix_fmt": "yuv420p",
+    "frames": 536,
+    "audio_codec": "aac",
+    "audio_rate": 48000,
+    "audio_channels": 2,
+    "duration_s": 44.667
+   },
+   "levels": {
+    "input_i": "-20.06",
+    "input_tp": "-4.48",
+    "input_lra": "5.70"
+   },
+   "checks": {
+    "h264_720x1280_yuv420p": true,
+    "aac_48k_stereo": true,
+    "frames_match_timeline": true,
+    "each_card_in_its_interval": true,
+    "duration_matches_timeline": true,
+    "loudness_within_1_5_lu": true,
+    "true_peak_at_most_-2_5_dbtp": true,
+    "no_clipping": true,
+    "every_take_passed_and_hash_matches": true
+   },
+   "card_placement": {
+    "cards/00-intro.png": {
+     "frame": 19,
+     "closest": "cards/00-intro.png",
+     "mean_abs_diff": 1.31
+    },
+    "cards/01-af_bella.png": {
+     "frame": 84,
+     "closest": "cards/01-af_bella.png",
+     "mean_abs_diff": 1.27
+    },
+    "cards/02-af_sky.png": {
+     "frame": 179,
+     "closest": "cards/02-af_sky.png",
+     "mean_abs_diff": 1.26
+    },
+    "cards/03-af_jessica.png": {
+     "frame": 249,
+     "closest": "cards/03-af_jessica.png",
+     "mean_abs_diff": 1.27
+    },
+    "cards/04-af_kore.png": {
+     "frame": 314,
+     "closest": "cards/04-af_kore.png",
+     "mean_abs_diff": 1.25
+    },
+    "cards/05-bf_lily.png": {
+     "frame": 398,
+     "closest": "cards/05-bf_lily.png",
+     "mean_abs_diff": 1.26
+    },
+    "cards/06-af_heart.png": {
+     "frame": 487,
+     "closest": "cards/06-af_heart.png",
+     "mean_abs_diff": 1.25
+    }
+   },
+   "transcript": {
+    "rule": "the whole-reel transcript must equal the script word for word after the digits and the r4 manifest's tolerances, except that a voice name or 'doll' inside a label may be heard as other words (word-level alignment, difflib)",
+    "heard": "Dal D the cheerful one. One, Bella, the current voice. Absolutely not. These are limited edition. Nay. Two, Sky. Absolutely not. These are limited edition. Nay. 4. Core. Absolutely not. These are limited edition. Nay. 5. Lily. Absolutely not. These are limited edition. Number 6. Heart. Absolutely not. These are limited edition. Nay.",
+    "exact_match": false,
+    "name_positions_heard_differently": [
+     {
+      "expected": "doll",
+      "heard": "dal"
+     },
+     {
+      "expected": "kore",
+      "heard": "core"
+     }
+    ],
+    "differences_outside_names": [],
+    "every_take_matched": true,
+    "match_with_tolerances": true
+   },
+   "candidates": [
+    {
+     "n": 0,
+     "voice": null,
+     "card_s": [
+      0.0,
+      3.192
+     ],
+     "played": [],
+     "not_played": []
+    },
+    {
+     "n": 1,
+     "voice": "af_bella",
+     "card_s": [
+      3.192,
+      10.833
+     ],
+     "played": [
+      "d01-af_bella-s5",
+      "d01-af_bella-s8-3"
+     ],
+     "not_played": []
+    },
+    {
+     "n": 2,
+     "voice": "af_sky",
+     "card_s": [
+      10.833,
+      19.029
+     ],
+     "played": [
+      "d02-af_sky-s5",
+      "d02-af_sky-s8-3"
+     ],
+     "not_played": []
+    },
+    {
+     "n": 3,
+     "voice": "af_jessica",
+     "card_s": [
+      19.029,
+      22.529
+     ],
+     "played": [],
+     "not_played": [
+      {
+       "take": "d03-af_jessica-s5",
+       "reason": "transcript check: heard 'Absolutely not. These are limited editions.'"
+      },
+      {
+       "take": "d03-af_jessica-s8-3",
+       "reason": "transcript check: heard 'Nairo.'"
+      }
+     ]
+    },
+    {
+     "n": 4,
+     "voice": "af_kore",
+     "card_s": [
+      22.529,
+      29.765
+     ],
+     "played": [
+      "d04-af_kore-s5",
+      "d04-af_kore-s8-3"
+     ],
+     "not_played": []
+    },
+    {
+     "n": 5,
+     "voice": "bf_lily",
+     "card_s": [
+      29.765,
+      36.564
+     ],
+     "played": [
+      "d05-bf_lily-s5"
+     ],
+     "not_played": [
+      {
+       "take": "d05-bf_lily-s8-3",
+       "reason": "transcript check: heard 'Yeah.'"
+      }
+     ]
+    },
+    {
+     "n": 6,
+     "voice": "af_heart",
+     "card_s": [
+      36.564,
+      44.648
+     ],
+     "played": [
+      "d06-af_heart-s5",
+      "d06-af_heart-s8-3"
+     ],
+     "not_played": []
+    }
+   ],
+   "order": [
+    {
+     "take": "d00-intro",
+     "start_s": 0.6,
+     "end_s": 2.392,
+     "sha256": "519a0394568ef96e66bacd70198a7f172e6d21496e976040f03d9300c691d736"
+    },
+    {
+     "take": "d01-label",
+     "start_s": 3.592,
+     "end_s": 5.789,
+     "sha256": "d004733964ab1b07c2f1733e0ca8b8761c5c7a0f3fe3188ae19de882f9e8bbb1"
+    },
+    {
+     "take": "d01-af_bella-s5",
+     "start_s": 6.289,
+     "end_s": 8.721,
+     "sha256": "f89e05a2c53e9be7edd35f3b31862da311ce2730cb330421cb93e25b20a3ab59"
+    },
+    {
+     "take": "d01-af_bella-s8-3",
+     "start_s": 9.521,
+     "end_s": 10.033,
+     "sha256": "5fc1718e8659568b2234544470bce9c23404b855b9c563ea90f4f75596773b35"
+    },
+    {
+     "take": "d02-label",
+     "start_s": 11.233,
+     "end_s": 12.769,
+     "sha256": "ef33b0b6e48039abcacaa2b8a99ccdb1b5bbddf31d04d7e09e090733216f36e1"
+    },
+    {
+     "take": "d02-af_sky-s5",
+     "start_s": 13.269,
+     "end_s": 16.597,
+     "sha256": "4fe2ee0c561a595c6dffc3ef31ce9fe91e9dd595cf7d8e51cf3ec2cf3bc7423b"
+    },
+    {
+     "take": "d02-af_sky-s8-3",
+     "start_s": 17.397,
+     "end_s": 18.229,
+     "sha256": "9253d50788f7962d8b8ecc9f5588110e52ec4bc9e36259607d732f3f634ec8f3"
+    },
+    {
+     "take": "d04-label",
+     "start_s": 22.929,
+     "end_s": 24.508,
+     "sha256": "f8ec5743ec34ecdf0622cd394df3188e5a3f1a1d7907b568c1b7df57b8a3d366"
+    },
+    {
+     "take": "d04-af_kore-s5",
+     "start_s": 25.008,
+     "end_s": 27.589,
+     "sha256": "f7017acadd577c5ea1648171ee0a82d8630f4d7fdb7ba441d117de148bff2879"
+    },
+    {
+     "take": "d04-af_kore-s8-3",
+     "start_s": 28.389,
+     "end_s": 28.965,
+     "sha256": "5fe04c60a5de281fd29fe70b6cf72b7ecee2a9daddd6260c792f5ae9acb50695"
+    },
+    {
+     "take": "d05-label",
+     "start_s": 30.165,
+     "end_s": 31.744,
+     "sha256": "11c8a317cdac2cbf2d1bc809f9faa4d3b7afd43b8b2bc4566d1e05b3d6a58f8f"
+    },
+    {
+     "take": "d05-bf_lily-s5",
+     "start_s": 32.244,
+     "end_s": 35.764,
+     "sha256": "0fe3e4d3bc81357930da255244e5a77cb27c55c69864b66d3f873f9bbb7ce3c0"
+    },
+    {
+     "take": "d06-label",
+     "start_s": 36.964,
+     "end_s": 38.799,
+     "sha256": "fa616e50283c502e980ea56bd5f02fb045b739a27d4bd3cdadbd1ffd46ccb089"
+    },
+    {
+     "take": "d06-af_heart-s5",
+     "start_s": 39.299,
+     "end_s": 41.987,
+     "sha256": "ca698de6b2392ff82d0ad8a3501c13adf59447db6985f7dadafe17a1269245bb"
+    },
+    {
+     "take": "d06-af_heart-s8-3",
+     "start_s": 42.787,
+     "end_s": 43.448,
+     "sha256": "a414ec3d0721de524604da001773df8890123d33b56b0e6058f3b637e6dd61f4"
+    }
+   ],
+   "notes": [
+    "candidate 3 (af_jessica): no line passed its checks, so the card shows silently for 3.5 s and its label is not played"
+   ],
+   "served_check": "GET 127.0.0.1:8080/videos/<id>/file inside the api container: 200 video/mp4, bytes and SHA-256 equal the ledger's; LedgerReader.get (story 425) read the ledger back"
+  }
+ ],
+ "superseded_builds": [
+  {
+   "build": "reel-a",
+   "why": "whole-reel transcript heard the label name Kore as 'Corn', so the transcript gate failed; never delivered"
+  },
+  {
+   "build": "reel-a2",
+   "why": "built with the concat-demuxer picture before that was found unreliable (B to D came out 7 to 17 frames short); rebuilt for one encoder and the card-placement check; never delivered"
+  },
+  {
+   "build": "reel-b",
+   "why": "picture 7 frames short of the timeline (concat demuxer); never delivered"
+  },
+  {
+   "build": "reel-c",
+   "why": "picture 8 frames short; whole-reel transcript heard Aoede as 'Ayulid'; never delivered"
+  },
+  {
+   "build": "reel-d",
+   "why": "picture 17 frames short; whole-reel transcript heard Doll as 'Dal'; never delivered"
+  }
+ ],
+ "requests": {
+  "tts": 87,
+  "asr_takes": 87,
+  "asr_reels": 9,
+  "cap_each": 150
+ }
+}
