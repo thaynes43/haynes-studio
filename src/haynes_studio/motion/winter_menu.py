@@ -189,11 +189,13 @@ def _stem(clip_path: str) -> str:
 
 
 def _keying(entry: Mapping[str, Any]) -> dict[str, Any]:
-    return {"keyer": KEYER, "key_thresholds": dict(KEY_THRESHOLDS),
-            "protect_boxes": [list(box) for box in entry.get("protect", [])],
-            "decal_box": list(entry["decal_box"]) if entry.get("decal_box") else None,
-            "decal_version": DECAL_VERSION if entry.get("decal_box") else None,
-            "decal_min_ecc": entry.get("decal_min_ecc", DECAL_MIN_ECC)}
+    out = {"keyer": KEYER, "key_thresholds": dict(KEY_THRESHOLDS),
+           "protect_boxes": [list(box) for box in entry.get("protect", [])],
+           "decal_box": None, "decal_version": None}
+    if entry.get("decal_box"):  # legacy gated the decal track only where it pasted one
+        out.update(decal_box=list(entry["decal_box"]), decal_version=DECAL_VERSION,
+                   decal_min_ecc=entry.get("decal_min_ecc", DECAL_MIN_ECC))
+    return out
 
 
 def complete_block(block: Mapping[str, Any], clip_sha256: str) -> dict[str, Any]:

@@ -49,7 +49,8 @@ the clip; a timed trim is TIME-8's and the clip is long enough (`time.source_sho
 failed); a timed clip names its adapter and a loop does not; boxes lie inside the frame;
 the content's size and the generator's seed, prompt and engine job agree with the block;
 a doll clip is a `motion_clip` and a set loop a `set_loop`, never both
-(`asset.capability_mismatch`); the keys are the computed ones (`motion.identity_mismatch`).
+(`asset.capability_mismatch`); the keys are the computed ones (`motion.identity_mismatch`). Text that cannot be written as canonical
+JSON (a lone surrogate) is `schema.invalid`; a malformed block never raises.
 
 ## Identity
 
@@ -62,8 +63,8 @@ built on story 380's keys, called and never copied:
 - **keyed key:** `keyed_frames_key(clip=content sha256, still=image, key_thresholds,
   protect_boxes, decal_box, decal_version, keyer)`, the decal's still being the clip's
   start image as legacy `DollClip.cache_dir` hashed it (proposal); none without keying;
-- **identity:** `sha256:` of section 4's canonical JSON of both keys plus what neither
-  covers: scheme `studio.motion-record/v1`, use, subject, still, the clip's bytes,
+- **identity:** `sha256:` of section 4's canonical JSON (integral floats read as
+  integers, as the validators read them) of both keys plus what neither covers: scheme `studio.motion-record/v1`, use, subject, still, the clip's bytes,
   frames, fps, size, trim, negative prompt, the drive track's board frames, the decal
   gate.
 
@@ -84,8 +85,9 @@ lists the version's `sha256` (its bytes); the version ID fixes the rest.
 (`record.keying`, `keyed_key`).
 
 - **Cast still:** the entry's new optional `motion_asset_version_id`, else the one
-  promoted doll loop whose `still_sha256` is the entry's still, in the story's
-  production or the global library. Layered I2V: every entry; layered S2V: every entry
+  promoted doll loop whose `still_sha256` is the entry's still, in the production (the
+  story's, or `production_id=`) or the global library; a pin of another production is
+  `asset.scope_mismatch`. Layered I2V: every entry; layered S2V: every entry
   with no line on the board (speakers get a timed clip); whole-frame: none. A pin is
   checked wherever it stands.
 - **Set** (a layered board, given the story): the story's `set.motion_asset_version_id`,
@@ -94,7 +96,9 @@ lists the version's `sha256` (its bytes); the version ID fixes the rest.
 - `resolve_timed(library, verify, still_sha256=, drive_track_sha256=, board_frames=,
   slot=)` gives a speaker the one promoted timed clip made from that drive track; a
   loop is never returned.
-- `verify(locator, sha256)` is the store's `Store.verify`, asked once per clip.
+- `verify(locator, sha256)` is the store's `Store.verify`, asked once per distinct clip
+  in one call. A `PinnedClip` is returned only when its entry has no blocking problem,
+  so a returned clip is always playable.
 - The same board and library give the same answer every time (a test resolves one board
   twice).
 
@@ -102,6 +106,7 @@ lists the version's `sha256` (its bytes); the version ID fixes the rest.
 |---|---|---|---|
 | `ref.unknown` | invalid | the pinned version, or the entry's still, is not in the library | story 404 (proposal) |
 | `asset.kind_mismatch` | invalid | the pin is not a `motion` version | story 382 (proposal) |
+| `asset.scope_mismatch` | invalid | the pin belongs to another production | story 382 (proposal) |
 | `asset.capability_mismatch` | invalid | a set loop pinned for a doll, a doll clip for the set; a board's motion pin without `motion_clip` (story 404's validator, with facts) | contract 5, 9 |
 | `motion.record_missing` | invalid | a motion version without a block | proposal, section 9 |
 | `motion.clip_absent` | invalid | no pin, and no promoted loop (or timed clip) of that still | proposal, section 9 |

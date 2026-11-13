@@ -6,8 +6,8 @@
 library:
 
 - **A cast still.** The entry's ``motion_asset_version_id`` when it has one; without
-  a pin, the one promoted doll loop whose ``still_sha256`` is the entry's still
-  (scoped to the story's production and the global library). A layered I2V board
+  a pin, the one promoted doll loop whose ``still_sha256`` is the entry's still, in the
+  production (the story's, or ``production_id``) and the global library. A layered I2V board
   needs a loop for every entry; a layered S2V board for every entry that speaks no
   line on it (speakers get their timed clip); a whole-frame board for none. A pin is
   checked wherever it stands.
@@ -23,6 +23,7 @@ Problems, each with its own code (codes beyond the contract are **proposals**):
 |---|---|---|
 | ``ref.unknown`` | invalid | the pinned version, or the entry's still, is not in the library |
 | ``asset.kind_mismatch`` | invalid | the pin is not a ``motion`` version |
+| ``asset.scope_mismatch`` | invalid | the pin belongs to another production |
 | ``motion.record_missing`` | invalid | a motion version without a motion block |
 | ``motion.clip_absent`` | invalid | no pin, and no promoted loop (or timed clip) of that still |
 | ``motion.clip_ambiguous`` | invalid | no pin, and several promoted loops of that still |
@@ -35,9 +36,10 @@ Problems, each with its own code (codes beyond the contract are **proposals**):
 | ``asset.bytes_missing`` | invalid | the store does not hold the clip |
 | ``store.hash_mismatch`` | failed | the store holds other bytes at the clip's locator (corrupt) |
 
-``verify(locator, sha256)`` is the store's ``Store.verify`` (``present``, ``missing``
-or ``mismatch``) or a synthetic one; it is asked once per clip. Nothing here touches a
-file.
+A clip is returned only without a blocking problem, so a ``PinnedClip`` is always
+playable. ``verify(locator, sha256)`` is the store's ``Store.verify`` (``present``,
+``missing`` or ``mismatch``) or a synthetic one; one call asks it once per distinct
+clip. Nothing here touches a file.
 """
 
 from __future__ import annotations
@@ -51,7 +53,7 @@ from haynes_studio.canonical.jsonvalues import normalize
 from haynes_studio.errors import Violation, blocking, pointer
 from haynes_studio.library.library import REF_UNKNOWN, Library
 from haynes_studio.library.model import PROMOTED, AssetVersion
-from haynes_studio.library.resolve import BYTES_MISSING, KIND_MISMATCH
+from haynes_studio.library.resolve import BYTES_MISSING, KIND_MISMATCH, SCOPE_MISMATCH
 from haynes_studio.motion.check import CAPABILITY_MISMATCH, IDENTITY_MISMATCH, identity_problems
 from haynes_studio.motion.identity import MotionIdentity, motion_identity
 from haynes_studio.motion.record import DOLL, LOOP, SET, SUBJECT_CAPABILITY, TIMED, MotionRecord
@@ -68,7 +70,7 @@ KEYING_MISSING = "motion.keying_missing"
 DRIVE_TRACK_MISMATCH = "motion.drive_track_mismatch"
 FAILED = "failed"
 
-CODES = (REF_UNKNOWN, KIND_MISMATCH, RECORD_MISSING, CLIP_ABSENT, CLIP_AMBIGUOUS, TIMED_NOT_LOOP,
+CODES = (REF_UNKNOWN, KIND_MISMATCH, SCOPE_MISMATCH, RECORD_MISSING, CLIP_ABSENT, CLIP_AMBIGUOUS, TIMED_NOT_LOOP,
          CAPABILITY_MISMATCH, STILL_MISMATCH, KEYING_MISSING, IDENTITY_MISMATCH,
          DRIVE_TRACK_MISMATCH, BYTES_MISSING, HASH_MISMATCH)
 
@@ -178,9 +180,21 @@ def candidates(library: Library, *, use: str, subject: str, still_sha256: str,
 
 def _check(library: Library, version: AssetVersion, *, path: str, slot: str, use: str,
            subject: str, still_sha256: str | None, pinned: bool, verify: Verify,
-           board_id: str | None, board_frames: int | None = None,
-           ) -> tuple[PinnedClip | None, list[Violation]]:
-    """Every problem of using ``version`` as ``use`` of ``subject`` for this still."""
+           board_id: str | None, production_id: str | None = None,
+           board_frames: int | None = None) -> tuple[PinnedClip | None, list[Violation]]:
+    """Every problem of using ``version`` as ``use`` of ``subject`` for this still, and
+    the clip when there is no blocking one."""
+    clip, found = _clip(library, version, path=path, slot=slot, use=use, subject=subject,
+                        still_sha256=still_sha256, pinned=pinned, verify=verify,
+                        board_id=board_id, production_id=production_id,
+                        board_frames=board_frames)
+    return (None if blocking(found) else clip), found
+
+
+def _clip(library: Library, version: AssetVersion, *, path: str, slot: str, use: str,
+          subject: str, still_sha256: str | None, pinned: bool, verify: Verify,
+          board_id: str | None, production_id: str | None,
+          board_frames: int | None) -> tuple[PinnedClip | None, list[Violation]]:
     if version.kind != "motion":
         return None, [_v(KIND_MISMATCH, path, f"{version.id} is a {version.kind}; this field "
                                                "needs a motion")]
@@ -189,6 +203,8 @@ def _check(library: Library, version: AssetVersion, *, path: str, slot: str, use
         return None, [_v(RECORD_MISSING, path, f"{version.id} has no motion block: nothing says "
                                                "how it plays or is keyed")]
     found: list[Violation] = []
+    if not _in_scope(library, version, production_id):
+        found.append(_v(SCOPE_MISMATCH, path, f"{version.id} belongs to another production"))
     if use == LOOP and record.use == TIMED:
         return None, [_v(TIMED_NOT_LOOP, path,
                          f"{version.id} is a timed clip made for one board's speech; it is never "
@@ -222,7 +238,7 @@ def _check(library: Library, version: AssetVersion, *, path: str, slot: str, use
                         FAILED))
     try:
         identity = motion_identity(record, content.sha256)
-    except CacheError:  # an input a cache key refuses: identity_problems reported it
+    except (CacheError, ValueError):  # identity_problems reported it
         return None, found
     phase = None
     if record.use == LOOP and board_id is not None and record.period is not None:
@@ -251,16 +267,16 @@ def _choose(library: Library, *, path: str, slot: str, use: str, subject: str,
                          f"({', '.join(v.id for v in found)}); pin one")]
     return _check(library, found[0], path=path, slot=slot, use=use, subject=subject,
                   still_sha256=still_sha256, pinned=False, verify=verify, board_id=board_id,
-                  board_frames=board_frames)
+                  production_id=production_id, board_frames=board_frames)
 
 
-def _pinned(library: Library, version_id: str, **kwargs: Any) -> tuple[PinnedClip | None,
-                                                                        list[Violation]]:
+def _pinned(library: Library, version_id: str, *, production_id: str | None,
+            **kwargs: Any) -> tuple[PinnedClip | None, list[Violation]]:
     version = library.get(version_id)
     if version is None:
         return None, [_v(REF_UNKNOWN, kwargs["path"], f"the library has no asset version "
                                                       f"{version_id}")]
-    return _check(library, version, pinned=True, **kwargs)
+    return _check(library, version, pinned=True, production_id=production_id, **kwargs)
 
 
 def _content_sha(library: Library, version_id: Any) -> str | None:
@@ -274,20 +290,38 @@ def needs_loop(board: Mapping[str, Any], slot: str) -> bool:
     if _get(board, "method", "layer") != "layered":
         return False
     if _get(board, "method", "motion") == "s2v":
-        return slot not in {_get(line, "speaker") for line in _list(_get(board, "lines"))}
+        return slot not in {_text(_get(line, "speaker")) for line in _list(_get(board, "lines"))}
     return True
 
 
+def remembered(verify: Verify) -> Verify:
+    """``verify`` asked once per distinct ``(locator, sha256)``."""
+    answers: dict[tuple[str, str], str] = {}
+
+    def ask(locator: str, sha256: str) -> str:
+        if (locator, sha256) not in answers:
+            answers[(locator, sha256)] = verify(locator, sha256)
+        return answers[(locator, sha256)]
+
+    ask.remembers = True  # type: ignore[attr-defined]
+    return ask
+
+
 def resolve_board(board: Mapping[str, Any], library: Library, verify: Verify, *,
-                  story: Mapping[str, Any] | None = None, prefix: str = "") -> BoardMotion:
+                  story: Mapping[str, Any] | None = None, production_id: str | None = None,
+                  prefix: str = "") -> BoardMotion:
     """Every loop a ``studio.board/v1`` document plays, and its set loop when ``story``
-    (a ``studio.story/v1`` document) is given. Paths are JSON Pointers into the board
-    (``prefix`` + ``/cast/<i>/motion_asset_version_id``) and, for the set, into the
-    story (``/set/motion_asset_version_id``). Never raises for a malformed document."""
+    (a ``studio.story/v1`` document) is given. ``production_id`` (else the story's)
+    scopes the search and the pins; without either, every production's loops count.
+    Paths are JSON Pointers into the board (``prefix`` +
+    ``/cast/<i>/motion_asset_version_id``) and, for the set, into the story
+    (``/set/motion_asset_version_id``). Never raises for a malformed document."""
     board = normalize(board)
     story = None if story is None else normalize(story)
     board_id = _text(_get(board, "id"))
-    production = _text(_get(story, "production_id"))
+    production = production_id or _text(_get(story, "production_id"))
+    if not getattr(verify, "remembers", False):
+        verify = remembered(verify)
     clips: list[PinnedClip] = []
     problems: list[Violation] = []
     for i, entry in enumerate(_list(_get(board, "cast"))):
@@ -305,7 +339,7 @@ def resolve_board(board: Mapping[str, Any], library: Library, verify: Verify, *,
         common = dict(path=path, slot=slot, use=LOOP, subject=DOLL, still_sha256=still,
                       verify=verify, board_id=board_id)
         if pin is not None:
-            clip, found = _pinned(library, pin, **common)
+            clip, found = _pinned(library, pin, production_id=production, **common)
         else:
             assert still is not None
             clip, found = _choose(library, production_id=production, **common)
@@ -319,7 +353,7 @@ def resolve_board(board: Mapping[str, Any], library: Library, verify: Verify, *,
         common = dict(path="/set/motion_asset_version_id", slot=SET_SLOT, use=LOOP, subject=SET,
                       still_sha256=still, verify=verify, board_id=board_id)
         if pin is not None:
-            set_clip, found = _pinned(library, pin, **common)
+            set_clip, found = _pinned(library, pin, production_id=production, **common)
             problems += found
         elif still is not None:
             set_clip, found = _choose(library, production_id=production, absent_ok=True,
@@ -331,8 +365,10 @@ def resolve_board(board: Mapping[str, Any], library: Library, verify: Verify, *,
 
 def resolve_story(story: Mapping[str, Any], library: Library,
                   verify: Verify) -> tuple[BoardMotion, ...]:
-    """:func:`resolve_board` for each embedded board of a story, in document order."""
+    """:func:`resolve_board` for each embedded board of a story, in document order. Each
+    layered board reports a problem of the story's set loop itself."""
     story = normalize(story)
+    verify = remembered(verify)
     return tuple(resolve_board(board, library, verify, story=story, prefix=pointer("boards", i))
                  for i, board in enumerate(_list(_get(story, "boards")))
                  if isinstance(board, Mapping))
@@ -345,7 +381,8 @@ def resolve_timed(library: Library, verify: Verify, *, still_sha256: str,
     """The one promoted timed clip of a cast still made from this drive track (TIME-8,
     TIME-9), checked against the board's frames; a loop is never returned."""
     clip, found = _choose(library, path=path, slot=slot, use=TIMED, subject=DOLL,
-                          still_sha256=still_sha256, production_id=production_id, verify=verify,
+                          still_sha256=still_sha256, production_id=production_id,
+                          verify=remembered(verify),
                           board_id=None, drive_track_sha256=drive_track_sha256,
                           board_frames=board_frames)
     return clip, tuple(sorted(found, key=lambda v: (v.path, v.rule)))
@@ -354,5 +391,5 @@ def resolve_timed(library: Library, verify: Verify, *, still_sha256: str,
 __all__ = [
     "CLIP_ABSENT", "CLIP_AMBIGUOUS", "CODES", "DRIVE_TRACK_MISMATCH", "KEYING_MISSING",
     "RECORD_MISSING", "STILL_MISMATCH", "TIMED_NOT_LOOP", "BoardMotion", "PinnedClip", "Verify",
-    "candidates", "needs_loop", "resolve_board", "resolve_story", "resolve_timed",
+    "candidates", "needs_loop", "remembered", "resolve_board", "resolve_story", "resolve_timed",
 ]

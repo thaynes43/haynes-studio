@@ -116,3 +116,10 @@ def test_the_block_is_immutable_content_and_round_trips():
     assert again.version(outcome.version.id) == outcome.version
     assert pin(again.version(outcome.version.id), again.asset(outcome.version.asset_id)) == \
         library.pin(outcome.version.id)
+
+
+@pytest.mark.parametrize("motion", [{}, {"keys": 3}, {"keys": {}}, {"keys": {"identity": 7}}])
+def test_a_malformed_block_is_refused_with_a_contract_error(motion):
+    item = request(loop_block())
+    with pytest.raises(ContractError):
+        imported(VersionRequest(**{**item.__dict__, "motion": motion}))

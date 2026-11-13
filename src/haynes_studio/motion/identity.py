@@ -33,6 +33,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from haynes_studio.cache.keys import CacheKey, keyed_frames_key, motion_clip_key, s2v_clip_key
+from haynes_studio.canonical.jsonvalues import normalize
 from haynes_studio.jsonio import freeze, thaw
 from haynes_studio.motion.record import IDENTITY_SCHEME, TIMED, MotionRecord
 from haynes_studio.store import canonical_json
@@ -100,13 +101,11 @@ def motion_identity(record: MotionRecord, clip_sha256: str) -> MotionIdentity:
         "keyed_key": None if keyed is None else keyed.value,
         "decal_min_ecc": None if record.keying is None else record.keying.decal_min_ecc,
     }
+    # Integral floats are the integers they equal (section 2), as the validators read a
+    # document, so a block read back from JSON has the identity it was written with.
+    document = normalize(document)
     value = "sha256:" + hashlib.sha256(canonical_json(document)).hexdigest()
     return MotionIdentity(clip=clip, keyed=keyed, value=value, document=freeze(document))
-
-
-def block_identity(block: Mapping[str, Any], clip_sha256: str) -> MotionIdentity:
-    """:func:`motion_identity` of a block the schema has accepted."""
-    return motion_identity(MotionRecord.from_block(block), clip_sha256)
 
 
 # What each input feeds: the reference's field table, and the test that changes each.
@@ -126,5 +125,5 @@ NOT_IDENTITY = ("source.engine_job_id", "note", "playback (fixed by use and trim
                 "keys (the result)", "labels", "name", "attributes", "state", "provenance",
                 "licence", "content.bytes", "content.locator")
 
-__all__ = ["IDENTITY_INPUTS", "NOT_IDENTITY", "MotionIdentity", "block_identity", "clip_key",
+__all__ = ["IDENTITY_INPUTS", "NOT_IDENTITY", "MotionIdentity", "clip_key",
            "keyed_key", "motion_identity"]

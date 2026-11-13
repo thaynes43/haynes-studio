@@ -204,3 +204,17 @@ def test_a_malformed_block_returns_violations_and_never_raises(bad):
     document = doc(loop_block())
     document["motion"].update(copy.deepcopy(bad))
     assert check(document)
+
+
+@pytest.mark.parametrize("ecc", [0.0, 1.0])
+def test_an_integral_float_keeps_the_identity_it_was_written_with(ecc):
+    """Validators read 0.0 as 0 (section 2); the identity is computed the same way."""
+    block = loop_block()
+    block["keying"]["decal_min_ecc"] = ecc
+    assert check(doc(block)) == set()
+
+
+def test_text_that_is_not_utf_8_is_refused_without_raising():
+    document = doc(loop_block())
+    document["motion"]["source"]["prompt"] = "doll \ud800 bobs"
+    assert ("schema.invalid", "/motion", S) in check(document)

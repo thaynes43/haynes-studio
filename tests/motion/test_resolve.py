@@ -65,6 +65,23 @@ def test_a_board_used_twice_resolves_the_same_pinned_clip():
     assert clip.path == "/cast/0/motion_asset_version_id"
 
 
+def test_a_pinned_board_used_twice_resolves_the_same_clip():
+    lib = standard()
+    first = resolve_board(board(entry("a", pin=LOOP_A)), lib, Verify())
+    second = resolve_board(board(entry("a", pin=LOOP_A)), lib, Verify())
+    assert first == second and first.cast[0].pinned
+
+
+def test_one_pin_on_two_boards_is_one_version_with_each_boards_phase():
+    lib = standard()
+    one = board(entry("a", pin=LOOP_A))
+    two = {**board(entry("a", pin=LOOP_A)), "id": ident("brd", 2)}
+    first, second = (resolve_board(b, lib, Verify()).cast[0] for b in (one, two))
+    assert first.version_id == second.version_id and first.identity == second.identity
+    assert (first.phase, second.phase) == (loop_phase(ident("brd", 1), "a", 240),
+                                           loop_phase(ident("brd", 2), "a", 240))
+
+
 def test_a_pin_is_used_and_gives_the_same_clip():
     lib = standard()
     pinned = resolve_board(board(entry("a", pin=LOOP_A)), lib, Verify())
@@ -191,7 +208,8 @@ def test_every_code_is_named_once():
     assert len(set(CODES)) == len(CODES)
     seen = {rule for case in CASES.values() for rule, _ in case[3]}
     assert seen <= set(CODES)
-    assert set(CODES) - seen == {"motion.drive_track_mismatch"}  # tested with resolve_timed
+    # Tested below: scope with a production, the drive track with resolve_timed.
+    assert set(CODES) - seen == {"asset.scope_mismatch", "motion.drive_track_mismatch"}
 
 
 def test_the_set_pin_is_checked():
@@ -232,13 +250,46 @@ def test_the_production_scope_is_respected():
 
 def test_verify_is_asked_once_per_clip():
     verify = Verify()
-    resolve_board(board(entry("a")), standard(), verify)
-    assert verify.asked == [(standard().version(ident("asv", LOOP_A)).content.locator, sha("a"))]
+    lib = standard()
+    resolve_story(story(board(entry("a"), entry("b", pin=LOOP_A)), board(entry("a")),
+                        set_pin=SET_LOOP), lib, verify)
+    assert sorted(verify.asked) == sorted({
+        (lib.version(ident("asv", n)).content.locator, lib.version(ident("asv", n)).content.sha256)
+        for n in (LOOP_A, SET_LOOP)})
+
+
+def test_a_clip_with_a_blocking_problem_is_not_returned():
+    result = resolve_board(board(entry("a")), standard(), Verify(mismatch=[sha("a")]))
+    assert result.cast == () and result.clip_for("a") is None
+    pinned_set = resolve_story(story(board(entry("a")), set_pin=LOOP_A), standard(), Verify())[0]
+    assert pinned_set.set is None and not pinned_set.complete
+
+
+OTHER = "prd_01M79V9FC00000000000000002"
+
+
+def other_production(document):
+    document["scope"] = {"production_id": OTHER}
+    document["content"]["locator"] = document["content"]["locator"].replace(
+        "prd_01M79V9FC00000000000000001", OTHER)
+    return document
+
+
+def test_a_pin_of_another_production_is_a_scope_mismatch():
+    lib = library(other_production(loop_a()))
+    result = resolve_board(board(entry("a", pin=LOOP_A)), lib, Verify(),
+                           production_id="prd_01M79V9FC00000000000000001")
+    assert problems(result) == {("asset.scope_mismatch", AT)}
+    assert resolve_board(board(entry("a", pin=LOOP_A)), lib, Verify()).complete  # unscoped
 
 
 def test_a_malformed_board_never_raises():
-    for bad in ({}, {"cast": 3}, {"cast": [7, {"slot": 3}]}, {"method": "x", "cast": [{}]}):
+    s2v = {"layer": "layered", "motion": "s2v"}
+    for bad in ({}, {"cast": 3}, {"cast": [7, {"slot": 3}]}, {"method": "x", "cast": [{}]},
+                {"method": s2v, "lines": [{"speaker": []}, 4], "cast": [entry("a")]},
+                {"method": s2v, "lines": {"speaker": "a"}, "cast": [entry("a")]}):
         resolve_board(bad, standard(), Verify())
+        resolve_story({"boards": [bad], "set": 3}, standard(), Verify())
 
 
 # Timed clips -------------------------------------------------------------------------------

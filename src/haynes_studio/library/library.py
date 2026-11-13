@@ -3,7 +3,9 @@ pure functions that return a new :class:`Library` (contract section 9).
 
 - **Import** (:func:`import_version`): the same bytes (the same :func:`~.model.pin`)
   under the same ``source_key`` return the existing version; changed bytes make the
-  next ``number`` on the same asset. Nothing is overwritten and no ID is reused.
+  next ``number`` on the same asset (and so does a motion record whose identity
+  changed, the same clip keyed another way: story 457). Nothing is overwritten and no
+  ID is reused.
 - **Promotion** (:func:`promote`) is explicit and idempotent: a candidate becomes
   ``promoted``; a board photo gets a library version with ``origin: derived`` that
   points at it.

@@ -164,6 +164,9 @@ def identity_problems(record: MotionRecord, clip_sha256: str) -> list[Violation]
     except CacheError as error:
         return [_v(SCHEMA_INVALID, "/motion/source",
                    f"a cache key refuses an input at {error.where}: {error.message}"[:160])]
+    except ValueError as error:  # text that is not valid UTF-8 (a lone surrogate)
+        return [_v(SCHEMA_INVALID, "/motion",
+                   f"the record cannot be written as canonical JSON: {error}"[:160])]
     found = []
     expected = identity.keys_block()
     recorded = {"clip": record.keys.clip, "identity": record.keys.identity}

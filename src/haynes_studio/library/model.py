@@ -379,10 +379,12 @@ def takes_signature(voice: BoardVoice) -> str:
                       "takes": [take.sha256 for take in voice.takes]})
 
 
-def motion_identity(version: AssetVersion) -> str | None:
+def recorded_identity(version: AssetVersion) -> str | None:
     """A motion version's recorded identity (story 457, ``motion.keys.identity``), or
-    None without a motion block."""
-    return None if version.motion is None else version.motion["keys"]["identity"]
+    None without a motion block (or with a malformed one, which validation refuses)."""
+    keys = version.motion.get("keys") if isinstance(version.motion, Mapping) else None
+    identity = keys.get("identity") if isinstance(keys, Mapping) else None
+    return identity if isinstance(identity, str) else None
 
 
 def pin(version: AssetVersion, asset: Asset) -> str:
@@ -394,7 +396,7 @@ def pin(version: AssetVersion, asset: Asset) -> str:
     A ``motion`` version with a motion block (story 457, proposal) pins its record's
     identity, which covers its bytes and how they are keyed and played: the same clip
     keyed another way is the next version, never the same one."""
-    identity = motion_identity(version)
+    identity = recorded_identity(version)
     if identity is not None:
         return identity
     if version.content is not None:
@@ -433,7 +435,7 @@ __all__ = [
     "STOCK_VOICES", "Asset", "AssetVersion", "BoardVoice", "Content", "Licence", "Scope", "Take",
     "content_fields", "definition_signature", "input_signature", "is_stock_voice",
     "locator_for",
-    "measured_ms", "motion_identity", "pin", "signature", "stock_voice_id", "take_offsets",
+    "measured_ms", "pin", "recorded_identity", "signature", "stock_voice_id", "take_offsets",
     "take_signature", "takes_signature",
     "version_document",
 ]

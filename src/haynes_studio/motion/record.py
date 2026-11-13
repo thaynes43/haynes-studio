@@ -151,28 +151,6 @@ class MotionRecord:
                              "board this clip was made for")
         return source_frame(n, self.fps)
 
-    def to_block(self) -> dict[str, Any]:
-        """The block as plain JSON (absent fields left out)."""
-        out: dict[str, Any] = {
-            "use": self.use, "subject": self.subject, "frames": self.frames, "fps": self.fps,
-            "width": self.width, "height": self.height,
-            "trim": {"start": self.trim_start, "frames": self.trim_frames},
-            "playback": playback(self.use, self.trim_frames),
-            "source": _source_document(self.source),
-            "keys": {"clip": self.keys.clip, "identity": self.keys.identity},
-        }
-        if self.still_sha256 is not None:
-            out["still_sha256"] = self.still_sha256
-        if self.drive_track is not None:
-            out["drive_track"] = {"sha256": self.drive_track.sha256,
-                                  "board_frames": self.drive_track.board_frames}
-        if self.keying is not None:
-            out["keying"] = keying_document(self.keying)
-            out["keys"]["keyed"] = self.keys.keyed
-        if self.note is not None:
-            out["note"] = self.note
-        return out
-
 
 def playback(use: str, trim_frames: int) -> dict[str, Any]:
     """What a board of another length does with the clip, fixed by its use: a loop
@@ -190,27 +168,8 @@ def timed_trim(board_frames: int, fps: int) -> int:
     return source_frames_needed(board_frames, fps, DELIVERY_FPS)
 
 
-def _source_document(source: Source) -> dict[str, Any]:
-    out = {"image_sha256": source.image_sha256, "prompt": source.prompt,
-           "negative_prompt": source.negative_prompt, "seed": source.seed,
-           "profile": thaw(source.profile), "engine_job_id": source.engine_job_id}
-    if source.adapter is not None:
-        out["adapter"] = source.adapter
-    return out
-
-
-def keying_document(keying: Keying) -> dict[str, Any]:
-    out = {"keyer": keying.keyer, "key_thresholds": thaw(keying.key_thresholds),
-           "protect_boxes": [list(box) for box in keying.protect_boxes],
-           "decal_box": None if keying.decal_box is None else list(keying.decal_box),
-           "decal_version": keying.decal_version}
-    if keying.decal_min_ecc is not None:
-        out["decal_min_ecc"] = keying.decal_min_ecc
-    return out
-
-
 __all__ = [
     "DOLL", "FAIL", "IDENTITY_SCHEME", "LOOP", "NONE", "PINGPONG", "SET", "SUBJECT_CAPABILITY",
-    "TIMED", "TRIM", "DriveTrack", "Keying", "Keys", "MotionRecord", "Source", "keying_document",
-    "playback", "timed_trim",
+    "TIMED", "TRIM", "DriveTrack", "Keying", "Keys", "MotionRecord", "Source", "playback",
+    "timed_trim",
 ]
