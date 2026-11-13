@@ -153,18 +153,26 @@ def check_segment_stream(container: Any, *, fps: int, where: str) -> tuple[Any, 
     return stream, int(tick)
 
 
+def check_packet(packet: Any, index: int, tick: int, where: str) -> None:
+    """Packet ``index`` of a segment is presented and decoded at frame ``index``
+    (constant frame rate, no reordering), and the first one is a keyframe, so the
+    segment decodes without any frame before it; else ``splice.incompatible``."""
+    if packet.pts != index * tick or packet.dts != packet.pts:
+        raise CacheError(SPLICE_INCOMPATIBLE, f"packet {index} is not at frame {index} "
+                         "(constant frame rate, no B-frames)", where=where)
+    if index == 0 and not packet.is_keyframe:
+        raise CacheError(SPLICE_INCOMPATIBLE, "the first packet is not a keyframe", where=where)
+
+
 def probe_segment(data: bytes | BinaryIO, *, fps: int, where: str = "segment") -> SegmentInfo:
-    """Count a segment's packets and check its timing: packet *i* is presented and
-    decoded at frame *i* (constant frame rate, no reordering)."""
+    """Count a segment's packets and check them (:func:`check_packet`)."""
     with av.open(as_source(data)) as container:
         stream, tick = check_segment_stream(container, fps=fps, where=where)
         count = 0
         for packet in container.demux(stream):
             if packet.size == 0:
                 continue
-            if packet.pts != count * tick or packet.dts != packet.pts:
-                raise CacheError(SPLICE_INCOMPATIBLE, f"packet {count} is not at frame {count} "
-                                 "(constant frame rate, no B-frames)", where=where)
+            check_packet(packet, count, tick, where)
             count += 1
         params: Mapping[str, Any] = stream_params(stream)
         return SegmentInfo(frames=count, time_base=stream.time_base, **params)

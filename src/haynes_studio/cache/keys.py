@@ -10,6 +10,8 @@ key document is checked and normalized here:
   section 2 reads JSON numbers, so a document read back from JSON keys the same;
 - a field that holds a content hash is 64 lower-case hex digits (the section 2
   ``sha256`` form); a text is NFC; a mapping's keys are texts;
+- no text anywhere in the document is a studio identifier (``<prefix>_<ULID>``,
+  section 2): a key never depends on which board, line or version it is for;
 - nothing else (bytes, paths, sets, objects) can reach a key.
 
 Inputs are content hashes of input bytes and parameters, never identifiers or paths.
@@ -24,6 +26,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import re
 import unicodedata
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -31,6 +34,7 @@ from types import MappingProxyType
 from typing import Any
 
 from haynes_studio.cache.errors import KEY_INPUT_INVALID, CacheError
+from haynes_studio.canonical.ids import ULID_PATTERN
 from haynes_studio.canonical.jsonvalues import too_deep
 from haynes_studio.jsonio import freeze, thaw
 from haynes_studio.store import canonical_json, is_sha256
@@ -54,6 +58,9 @@ PROXY = "proxy"
 CHECK_RESULT = "check_result"
 
 BOARD, FILM, SOURCE, NONE = "board", "film", "source", "none"
+
+# Section 2's identifiers, anywhere in a text: never a key input.
+_IDENTIFIER = re.compile(rf"\b[a-z]{{3}}_{ULID_PATTERN}\b")
 
 
 @dataclass(frozen=True)
@@ -97,6 +104,8 @@ def _canon(value: Any, path: str) -> Any:
             raise _bad(path, "no NaN or Infinity in a key")
         return int(value) if value.is_integer() else value
     if isinstance(value, str):
+        if _IDENTIFIER.search(value):
+            raise _bad(path, "an identifier is never a key input (P-07)")
         return unicodedata.normalize("NFC", value)
     if isinstance(value, Mapping):
         out = {}
@@ -150,6 +159,14 @@ def _int(value: Any, name: str, *, minimum: int | None = 0) -> int:
 def _text(value: Any, name: str) -> str:
     if not isinstance(value, str) or not value:
         raise _bad(f"/{name}", f"{name} is a non-empty text, got {value!r}")
+    return value
+
+
+def _opt_text(value: Any, name: str, *, empty: bool = False) -> str | None:
+    if value is None and not empty:
+        return None
+    if not isinstance(value, str) or (not value and not empty):
+        raise _bad(f"/{name}", f"{name} is a text, got {value!r}")
     return value
 
 
@@ -228,7 +245,8 @@ def s2v_clip_key(*, drive_track: str, start_still: str, prompt: str, negative_pr
     return make_key(S2V_CLIP, {
         "drive_track": _sha(drive_track, "drive_track"),
         "start_still": _sha(start_still, "start_still"),
-        "prompt": _text(prompt, "prompt"), "negative_prompt": negative_prompt,
+        "prompt": _text(prompt, "prompt"),
+        "negative_prompt": _opt_text(negative_prompt, "negative_prompt", empty=True),
         "seed": _int(seed, "seed", minimum=None), "profile": _mapping(profile, "profile"),
         "adapter": _text(adapter, "adapter")})
 
@@ -267,26 +285,29 @@ def keyed_frames_key(*, clip: str, still: str, key_thresholds: Mapping[str, Any]
         "key_thresholds": _mapping(key_thresholds, "key_thresholds"),
         "protect_boxes": list(_seq(protect_boxes, "protect_boxes")),
         "decal_box": None if decal_box is None else list(_seq(decal_box, "decal_box")),
-        "decal_version": decal_version, "keyer": _text(keyer, "keyer")})
+        "decal_version": _opt_text(decal_version, "decal_version"), "keyer": _text(keyer, "keyer")})
 
 
 def segment_key(*, method: Mapping[str, str], frames: int, width: int, height: int, fps: int,
                 layout: Mapping[str, Any] | None, layers: Sequence[Mapping[str, Any]],
                 set_layer: Mapping[str, Any] | None, whole_frame_clip: str | None,
                 motion_style: Mapping[str, Any] | None, voice_envelope: str | None,
-                cues: Sequence[Mapping[str, Any]], foreground: Mapping[str, Any] | None,
-                procedural_stream: int, compositor: str, encoder: Mapping[str, Any]) -> CacheKey:
+                talk: Sequence[Mapping[str, Any]], cues: Sequence[Mapping[str, Any]],
+                foreground: Mapping[str, Any] | None, procedural_stream: int, compositor: str,
+                encoder: Mapping[str, Any]) -> CacheKey:
     """Board picture segment (board clock): method, layout preset values, the cast
     stills with their clip and keyed hashes and loop phases (``layers``, draw order),
     motion style, the voice envelope when any line is spoken, move and camera cues
     resolved to ms from board start, frames, frame size, fps, foreground edge,
     compositor digest and encoder settings.
 
-    Beyond the table (**proposals**): ``set_layer`` (the set plate's hash, the set
-    loop's hash and its phase), ``whole_frame_clip`` (a whole-frame board's clip), and
-    ``procedural_stream`` (:func:`haynes_studio.render.clock.board_stream`, so
-    procedural randomness is keyed without the board ID). Nothing on the film clock
-    is an input."""
+    Beyond the table (**proposals**): ``talk`` (each line's speaker slot and span on
+    the board clock: the envelope says how loud, ``talk`` says which doll it moves, so
+    a line moved between two slots of one voice is a new segment), ``set_layer`` (the
+    set plate's hash, the set loop's hash and its phase), ``whole_frame_clip`` (a
+    whole-frame board's clip), and ``procedural_stream``
+    (:func:`haynes_studio.render.clock.board_stream`, so procedural randomness is keyed
+    without the board ID). Nothing on the film clock is an input."""
     method = _mapping(method, "method")
     checked_layers = []
     for i, layer in enumerate(_seq(layers, "layers")):
@@ -297,6 +318,12 @@ def segment_key(*, method: Mapping[str, str], frames: int, width: int, height: i
             "clip": _opt_sha(layer.get("clip"), f"layers/{i}/clip"),
             "keyed": _opt_sha(layer.get("keyed"), f"layers/{i}/keyed"),
             "phase": None if layer.get("phase") is None else _int(layer["phase"], f"layers/{i}/phase")})
+    checked_talk = []
+    for i, item in enumerate(_seq(talk, "talk")):
+        item = _mapping(item, f"talk/{i}")
+        checked_talk.append({"speaker": _text(item.get("speaker"), f"talk/{i}/speaker"),
+                             "start_ms": _int(item.get("start_ms"), f"talk/{i}/start_ms"),
+                             "end_ms": _int(item.get("end_ms"), f"talk/{i}/end_ms")})
     if set_layer is not None:
         set_layer = _mapping(set_layer, "set_layer")
         set_layer = {**set_layer, "plate": _opt_sha(set_layer.get("plate"), "set_layer/plate"),
@@ -310,7 +337,7 @@ def segment_key(*, method: Mapping[str, str], frames: int, width: int, height: i
         "layers": checked_layers, "set_layer": set_layer,
         "whole_frame_clip": _opt_sha(whole_frame_clip, "whole_frame_clip"),
         "motion_style": None if motion_style is None else _mapping(motion_style, "motion_style"),
-        "voice_envelope": _opt_sha(voice_envelope, "voice_envelope"),
+        "voice_envelope": _opt_sha(voice_envelope, "voice_envelope"), "talk": checked_talk,
         "cues": [_mapping(cue, f"cues/{i}") for i, cue in enumerate(_seq(cues, "cues"))],
         "foreground": None if foreground is None else _mapping(foreground, "foreground"),
         "procedural_stream": _int(procedural_stream, "procedural_stream"),
@@ -418,7 +445,7 @@ INVENTORY: tuple[ArtifactSpec, ...] = (
                   "decal_version", "keyer")),
     ArtifactSpec(SEGMENT, "Board picture segment", BOARD, segment_key,
                  ("method", "frames", "width", "height", "fps", "layout", "layers", "set_layer",
-                  "whole_frame_clip", "motion_style", "voice_envelope", "cues", "foreground",
+                  "whole_frame_clip", "motion_style", "voice_envelope", "talk", "cues", "foreground",
                   "procedural_stream", "compositor", "encoder"), rendered_here=True),
     ArtifactSpec(FILM_PICTURE, "Film picture", FILM, film_picture_key, ("segments", "splicer"),
                  rendered_here=True),

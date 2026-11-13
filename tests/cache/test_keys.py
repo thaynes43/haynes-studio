@@ -61,13 +61,15 @@ SAMPLES = {
          "height": 640, "fps": 24, "layout": {"x": 0.5},
          "layers": [{"slot": "a", "still": h(1), "clip": h(2), "keyed": h(3), "phase": None}],
          "set_layer": {"plate": h(4), "loop": None, "phase": None}, "whole_frame_clip": None,
-         "motion_style": {"talk_hop": 34}, "voice_envelope": h(5), "cues": [],
+         "motion_style": {"talk_hop": 34}, "voice_envelope": h(5),
+         "talk": [{"speaker": "a", "start_ms": 500, "end_ms": 900}], "cues": [],
          "foreground": None, "procedural_stream": 1, "compositor": "c/1", "encoder": {"crf": 18}},
         {"method": {"layer": "layered", "motion": "i2v"}, "frames": 79, "width": 720,
          "height": 1280, "fps": 25, "layout": {"x": 0.6},
          "layers": [{"slot": "a", "still": h(1), "clip": h(2), "keyed": h(3), "phase": 7}],
          "set_layer": {"plate": h(6), "loop": None, "phase": None}, "whole_frame_clip": h(7),
          "motion_style": {"talk_hop": 40}, "voice_envelope": None,
+         "talk": [{"speaker": "c", "start_ms": 500, "end_ms": 900}],
          "cues": [{"type": "camera", "start_ms": 0}], "foreground": {"edge_px": [[0, 1]]},
          "procedural_stream": 2, "compositor": "c/2", "encoder": {"crf": 20}}),
     keys.FILM_PICTURE: (
@@ -112,10 +114,10 @@ def test_keys_read_no_file(spec, monkeypatch):
     def refuse(*args, **kwargs):
         raise AssertionError("a key function opened a file")
 
-    monkeypatch.setattr(builtins, "open", refuse)
-    monkeypatch.setattr(os, "open", refuse)
-    monkeypatch.setattr(os, "stat", refuse)
-    spec.function(**SAMPLES[spec.kind][0])
+    with monkeypatch.context() as patched:
+        patched.setattr(builtins, "open", refuse)
+        patched.setattr(os, "open", refuse)
+        spec.function(**SAMPLES[spec.kind][0])
 
 
 def test_a_key_is_sha256_of_the_canonical_json_of_its_document():
@@ -147,11 +149,20 @@ def test_a_key_document_is_plain_finite_json(inputs):
 
 @pytest.mark.parametrize(("field", "value"), [
     ("still", "a" * 63), ("still", "A" * 64), ("still", "brd_01JCACHE000000000000000001"),
-    ("seed", True), ("seed", 1.5), ("prompt", ""), ("profile", [])])
+    ("seed", True), ("seed", 1.5), ("prompt", ""), ("profile", []),
+    ("prompt", "idle like brd_01JCACHE000000000000000001"),
+    ("profile", {"asset": "asv_01JCACHE000000000000000001"})])
 def test_typed_inputs_are_checked(field, value):
     with pytest.raises(CacheError) as caught:
         keys.motion_clip_key(**{**SAMPLES[keys.MOTION_CLIP][0], field: value})
     assert caught.value.code == KEY_INPUT_INVALID
+
+
+def test_optional_texts_are_texts():
+    with pytest.raises(CacheError):
+        keys.keyed_frames_key(**{**SAMPLES[keys.KEYED_FRAMES][0], "decal_version": 3})
+    with pytest.raises(CacheError):
+        keys.s2v_clip_key(**{**SAMPLES[keys.S2V_CLIP][0], "negative_prompt": None})
 
 
 def test_a_track_needs_one_gap_per_later_line():

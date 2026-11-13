@@ -15,7 +15,7 @@ names the encoder settings and build, so cached segments of one film agree.
 from __future__ import annotations
 
 import io
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, BinaryIO
 
@@ -23,9 +23,10 @@ import av
 
 from haynes_studio.render.encode import (
     as_source,
-    stream_params,
+    check_packet,
     check_segment_stream,
     probe_segment,
+    stream_params,
 )
 from haynes_studio.render.errors import CONSERVATION, SPLICE_INCOMPATIBLE, CacheError
 from haynes_studio.timebase import DELIVERY_FPS
@@ -33,11 +34,17 @@ from haynes_studio.timebase import DELIVERY_FPS
 
 @dataclass(frozen=True)
 class SpliceInput:
-    """One segment to splice: its bytes and the frames its board has."""
+    """One segment to splice: its bytes (or a call that returns them, made only when
+    the splice reaches it, so one segment is in memory at a time) and the frames its
+    board has."""
 
-    source: bytes | BinaryIO
+    source: bytes | BinaryIO | Callable[[], bytes]
     frames: int
     label: str = "segment"
+
+    def open(self) -> BinaryIO:
+        source = self.source() if callable(self.source) else self.source
+        return as_source(source)
 
 
 def splice(segments: Sequence[SpliceInput], *, fps: int = DELIVERY_FPS) -> bytes:
@@ -54,7 +61,7 @@ def splice(segments: Sequence[SpliceInput], *, fps: int = DELIVERY_FPS) -> bytes
         out_stream = None
         for index, segment in enumerate(segments):
             where = f"{segment.label} {index}"
-            with av.open(as_source(segment.source)) as container:
+            with av.open(segment.open()) as container:
                 stream, tick = check_segment_stream(container, fps=fps, where=where)
                 params = stream_params(stream)
                 if reference is None:
@@ -69,9 +76,7 @@ def splice(segments: Sequence[SpliceInput], *, fps: int = DELIVERY_FPS) -> bytes
                 for packet in container.demux(stream):
                     if packet.size == 0:
                         continue
-                    if packet.pts != count * tick or packet.dts != packet.pts:
-                        raise CacheError(SPLICE_INCOMPATIBLE, f"packet {count} is not at frame "
-                                         f"{count} (constant frame rate, no B-frames)", where=where)
+                    check_packet(packet, count, tick, where)
                     packet.pts = packet.dts = (offset + count) * tick
                     packet.stream = out_stream
                     film.mux(packet)

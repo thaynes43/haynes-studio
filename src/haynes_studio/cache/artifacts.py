@@ -100,13 +100,18 @@ class ArtifactCache:
         self.production_id = check_production_id(production_id)
         self.run_id = check_run_id(run_id)
         runs = (run_id, *(check_run_id(run) for run in earlier_runs if run != run_id))
-        self.finder = finder or RunSearch(ledger, production_id, runs)
+        # A ledger that cannot see the blobs (Postgres, story 434) gets every hit
+        # re-hashed through the store; the local store's own ledger already does it.
+        self.finder = finder or RunSearch(ledger, production_id, runs,
+                                          store=None if ledger is store else store)
         self.stats = CacheStats()
 
     def lookup(self, key: CacheKey, media_type: str) -> CachedArtifact | None:
         """The completed entry for ``key``, checked, or ``None``. A completed stage of
         that name that is not ``key``'s entry (other outputs, another media type, an
-        ``inputs`` blob that is not the key document) is ``cache.entry_invalid``."""
+        ``inputs`` blob that is not the key document) is ``cache.entry_invalid``, and a
+        blob that is not as recorded is the store's error. Both fail closed: the cache
+        neither skips nor repairs a damaged entry (D17), so a person looks at it."""
         stage = stage_name(key)
         record = self.finder.find(stage)
         if record is None:

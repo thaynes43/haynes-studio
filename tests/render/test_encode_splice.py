@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import io
 import itertools
 
+import av
 import numpy as np
 import pytest
 
@@ -83,3 +85,41 @@ def test_encoder_settings_name_their_build_and_threading():
     inputs = SETTINGS.key_inputs()
     assert inputs["threads"] == 2 and inputs["threading"] == "sliced" and inputs["bframes"] == 0
     assert inputs["build"].startswith("pyav-")
+
+
+def _without_first_packet(data: bytes) -> bytes:
+    """The segment's packets from the second on, retimed to start at frame 0: a segment
+    that starts mid-GOP."""
+    out = io.BytesIO()
+    with av.open(io.BytesIO(data)) as source, av.open(out, mode="w", format="mp4") as target:
+        stream = source.streams.video[0]
+        copy = target.add_stream_from_template(stream)
+        copy.time_base = stream.time_base
+        packets = [packet for packet in source.demux(stream) if packet.size]
+        tick = packets[1].pts - packets[0].pts
+        for packet in packets[1:]:
+            packet.pts = packet.dts = packet.pts - tick
+            packet.stream = copy
+            target.mux(packet)
+    return out.getvalue()
+
+
+def test_a_segment_that_does_not_start_on_a_keyframe_is_refused():
+    broken = _without_first_packet(segment("e", 6))
+    with pytest.raises(CacheError) as caught:
+        probe_segment(broken, fps=24)
+    assert caught.value.code == SPLICE_INCOMPATIBLE and "keyframe" in str(caught.value)
+    with pytest.raises(CacheError) as caught:
+        splice([SpliceInput(segment("1", 4), 4), SpliceInput(broken, 5)])
+    assert caught.value.code == SPLICE_INCOMPATIBLE
+
+
+def test_splice_reads_a_lazy_segment_only_when_it_reaches_it():
+    calls = []
+
+    def later() -> bytes:
+        calls.append("read")
+        return segment("2", 3)
+
+    film = splice([SpliceInput(segment("1", 4), 4), SpliceInput(later, 3)])
+    assert calls == ["read"] and probe_segment(film, fps=24).frames == 7

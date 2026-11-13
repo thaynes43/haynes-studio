@@ -124,12 +124,11 @@ def test_line_removed_drops_its_take_and_rebuilds_that_board_only():
         lines[:] = [item for item in lines if item["id"] != L3]
 
     d, before, after = edit(change)
+    assert frames(before, B1) != frames(after, B1)  # 780 ms shorter
     # c no longer speaks on B1: her speech-to-video layer becomes an idle doll layer.
     assert d.removed == {take(B1, L3), f"{B1}/drive/c", f"{B1}/s2v_clip/c"}
-    assert d.added == {f"{B1}/doll_clip/c"}
-    assert d.changed == track(B1) | {f"{B1}/keyed/c"} | seg(B1) | FILM | (
-        s2v(B1, "a") | s2v(B1, "b") if frames(before, B1) != frames(after, B1) else set())
-    assert not (d.rebuilt - FILM) - of_board(d.rebuilt, B1)
+    assert_only(d, track(B1) | {f"{B1}/keyed/c", f"{B1}/doll_clip/c"} | s2v(B1, "a")
+                | s2v(B1, "b") | seg(B1) | FILM, removed=d.removed)
 
 
 def test_line_speaker_rebuilds_its_take_and_the_old_and_new_speakers():
@@ -144,6 +143,23 @@ def test_line_speaker_rebuilds_its_take_and_the_old_and_new_speakers():
     assert_only(d, {take(B1, L2)} | track(B1) | {f"{B1}/keyed/b", f"{B1}/doll_clip/b"}
                 | s2v(B1, "c") | seg(B1) | FILM, removed=d.removed)
     assert s2v(B1, "a") <= d.kept and {take(B1, L1), take(B1, L3)} <= d.kept
+
+
+def test_line_speaker_between_two_slots_of_one_voice_still_rebuilds_the_segment():
+    """Same take, same track: only who speaks changes. The segment's ``talk`` input
+    (proposal) keys which doll the voice envelope moves, so the bounce is redrawn."""
+    document = fx.story_document()
+    document["cast"][2]["voice_version_id"] = fx.VOICE_A  # a and c share one voice
+    before = fx.plan(document)
+    edited = copy.deepcopy(document)
+    line(edited, B2, L4)["speaker"] = "a"  # the layered I2V board: talk bounce only
+    line(edited, B1, L3)["speaker"] = "a"  # the layered S2V board: drive tracks too
+    d = diff(before, fx.plan(edited))
+    assert {take(B2, L4), take(B1, L3)} <= d.kept and track(B1, B2) <= d.kept
+    assert d.removed == {f"{B1}/drive/c", f"{B1}/s2v_clip/c"}
+    assert_only(d, seg(B1, B2) | {f"{B1}/drive/a", f"{B1}/s2v_clip/a", f"{B1}/keyed/a",
+                                  f"{B1}/keyed/c", f"{B1}/doll_clip/c"} | PICTURE_FILM,
+                removed=d.removed)
 
 
 def test_gap_edit_reassembles_without_tts_and_rebuilds_only_later_speakers():
@@ -405,12 +421,72 @@ def test_toolchain_digest_rebuilds_every_artifact_that_tool_made(tool):
     assert_only(d, expected)
 
 
+def _changed_tool(tools: Toolchain, name: str):
+    value = getattr(tools, name)
+    if isinstance(value, bool):
+        return not value
+    if isinstance(value, int):
+        return value + 1
+    if isinstance(value, float):
+        return value + 0.5
+    if isinstance(value, str):
+        return value + "-2"
+    if isinstance(value, tuple):
+        return (*value, [0, 0, 8, 8])
+    if value is None:
+        return (1, 2, 3, 4) if name == "decal_box" else "v2"
+    if name == "checks":
+        return {**value, "master.decode": {**value["master.decode"], "version": "2"}}
+    return {**value, "variant": 2}
+
+
+# What each tool may make, by artifact name. A tool's change must change some key, and
+# only keys of what it makes or of what is made from that.
+PICTURE = r"/(segment|s2v_clip|doll_clip|whole_frame_clip|keyed)|^film/(picture|master|proxy)$|^check/"
+SPOKEN = r"/(take|voice_track|drive)/?|^film/mix$|" + PICTURE[1:]
+MADE_BY = {
+    "tts_model": SPOKEN, "take_rate": SPOKEN, "speed": SPOKEN, "track_assembler": SPOKEN,
+    "mix_rate": SPOKEN, "drive_assembler": SPOKEN, "drive_rate": SPOKEN,
+    "s2v_adapter": PICTURE, "s2v_profile": PICTURE, "s2v_prompt": PICTURE,
+    "s2v_negative_prompt": PICTURE, "motion_profile": PICTURE, "motion_prompt": PICTURE,
+    "motion_seed": PICTURE, "i2v_profile": PICTURE, "i2v_prompt": PICTURE,
+    "i2v_clip_frames": PICTURE, "keyer": PICTURE, "key_thresholds": PICTURE,
+    "protect_boxes": PICTURE, "decal_box": PICTURE, "decal_version": PICTURE,
+    "compositor": PICTURE, "encoder": PICTURE, "procedural_seed": PICTURE, "splicer": PICTURE,
+    "mixer": r"^film/(mix|master|proxy)$|^check/", "mux": r"^film/(master|proxy)$|^check/",
+    "proxy_profile": r"^film/proxy$", "checks": r"^check/master\.decode$",
+}
+
+
+@pytest.mark.parametrize("name", [f.name for f in __import__("dataclasses").fields(Toolchain)])
+def test_every_toolchain_field_changes_only_what_that_tool_makes(name):
+    tools = Toolchain()
+    if name == "i2v_clip_frames":
+        changed = replace(tools, i2v_clip_frames=40)  # 46 frames now need two clips
+    else:
+        changed = replace(tools, **{name: _changed_tool(tools, name)})
+    d, _, _ = edit(toolchain=changed)
+    assert d.rebuilt, f"{name} changes no key"
+    assert not d.removed and not d.added
+    pattern = re.compile(MADE_BY[name])
+    assert not [n for n in d.rebuilt if not pattern.search(n)], name
+
+
 def test_media_kind_frame_size_rebuilds_every_picture():
     d, _, after = edit(media=MediaFormat(width=640, height=360))  # short (9:16) to video (16:9)
     picture = {n for n in after.keys() if re.search(r"/(s2v_clip|doll_clip|whole_frame_clip|keyed|segment)", n)}
     # The mix has no picture input and keeps its key (see the PR's observations); the
     # drive tracks are audio and keep theirs.
     assert_only(d, picture | PICTURE_FILM)
+
+
+def test_another_fps_is_refused_rather_than_half_applied():
+    """The fps half of the row does not apply in contract v1: both media kinds deliver
+    at 24 fps and board frames are counted at 24 fps (TIME-3)."""
+    with pytest.raises(ValueError):
+        MediaFormat(width=360, height=640, fps=25)
+    with pytest.raises(ValueError):
+        MediaFormat(width=361, height=640)
 
 
 def test_frame_size_at_the_same_aspect_rebuilds_only_segments():
@@ -429,7 +505,8 @@ ROWS = {
         test_line_text_that_changes_the_frames_rebuilds_every_s2v_clip_of_the_board,
         test_line_added_makes_only_its_take_and_rebuilds_that_board,
         test_line_removed_drops_its_take_and_rebuilds_that_board_only],
-    "Line speaker": [test_line_speaker_rebuilds_its_take_and_the_old_and_new_speakers],
+    "Line speaker": [test_line_speaker_rebuilds_its_take_and_the_old_and_new_speakers,
+                     test_line_speaker_between_two_slots_of_one_voice_still_rebuilds_the_segment],
     "Lead or gap": [test_gap_edit_reassembles_without_tts_and_rebuilds_only_later_speakers,
                     test_lead_edit_moves_every_speaker],
     "Tail": [test_tail_edit_inside_the_frame_changes_no_key,
@@ -454,9 +531,11 @@ ROWS = {
     "Note or title": [test_notes_and_titles_invalidate_nothing],
     "Story motion style": [test_story_motion_style_rebuilds_every_segment_with_bounce],
     "A cast slot's voice": [test_a_cast_slots_voice_remakes_every_take_of_that_speaker],
-    "Toolchain or profile digest": [test_toolchain_digest_rebuilds_every_artifact_that_tool_made],
+    "Toolchain or profile digest": [test_toolchain_digest_rebuilds_every_artifact_that_tool_made,
+                                    test_every_toolchain_field_changes_only_what_that_tool_makes],
     "Media kind frame size or fps": [test_media_kind_frame_size_rebuilds_every_picture,
-                                     test_frame_size_at_the_same_aspect_rebuilds_only_segments],
+                                     test_frame_size_at_the_same_aspect_rebuilds_only_segments,
+                                     test_another_fps_is_refused_rather_than_half_applied],
 }
 
 

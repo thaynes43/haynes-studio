@@ -25,6 +25,7 @@ from typing import Any
 from haynes_studio.cache.errors import KEY_INPUT_INVALID, CacheError
 from haynes_studio.cache.keys import (
     CacheKey,
+    make_key,
     board_voice_track_key,
     check_result_key,
     film_picture_key,
@@ -52,7 +53,7 @@ from haynes_studio.render.clock import (
     loop_phase,
     source_frames_needed,
 )
-from haynes_studio.render.encode import EncoderSettings
+from haynes_studio.render.encode import EncoderSettings, encoder_build
 from haynes_studio.timebase import DELIVERY_FPS, MIX_RATE, mix_sample
 
 Content = Callable[[CacheKey], str]
@@ -70,11 +71,21 @@ def _frozen(value: Mapping[str, Any]) -> Mapping[str, Any]:
 class MediaFormat:
     """The media kind's delivery picture: frame size and fps (contract sections 3 and
     5). Generated clips are made for its aspect and fps (**proposal**): a media kind
-    change regenerates every clip, a size change at the same aspect does not."""
+    change regenerates every clip, a size change at the same aspect does not. Both
+    media kinds deliver at 24 fps (P-20) and board frames are counted at 24 fps
+    (TIME-3), so another fps is refused rather than half applied."""
 
     width: int
     height: int
     fps: int = DELIVERY_FPS
+
+    def __post_init__(self) -> None:
+        for name in ("width", "height"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 2 or value % 2:
+                raise ValueError(f"{name} is a positive even integer, got {value!r}")
+        if self.fps != DELIVERY_FPS:  # TIME-3 counts board frames at 24 fps (section 3)
+            raise ValueError(f"contract v1 delivers at {DELIVERY_FPS} fps, got {self.fps!r}")
 
     @property
     def aspect(self) -> str:
@@ -124,7 +135,6 @@ class Toolchain:
         "adapter": "studio.motion/1"}))
     motion_prompt: str = "a felt doll idling on green, stop-motion"
     motion_seed: int = 0
-    motion_frames: int = 121
     i2v_profile: Mapping[str, Any] = field(default_factory=lambda: _frozen({
         "model": "wan2.2-ti2v-5b", "source_fps": 24, "size": [576, 1024],
         "adapter": "studio.i2v/1"}))
@@ -140,13 +150,15 @@ class Toolchain:
     procedural_seed: int = 0
     splicer: str = "studio.splice/1"
     mixer: str = "studio.mixer/1"
-    mux: Mapping[str, Any] = field(default_factory=lambda: _frozen({"audio": "aac", "container": "mp4"}))
+    mux: Mapping[str, Any] = field(default_factory=lambda: _frozen({
+        "audio": "aac", "container": "mp4", "build": encoder_build()}))
     proxy_profile: Mapping[str, Any] = field(default_factory=lambda: _frozen({
-        "codec": "libx264", "size": [720, 1280], "max_bytes_per_60s": 25_000_000}))
+        "codec": "libx264", "size": [720, 1280], "max_bytes_per_60s": 25_000_000,
+        "build": encoder_build()}))
     checks: Mapping[str, Mapping[str, Any]] = field(default_factory=lambda: _frozen({
         "master.decode": {"on": "master", "version": "1", "thresholds": {}},
         "master.transcript": {"on": "master", "version": "1", "thresholds": {},
-                              "story_tolerances": True}}))
+                              "transcript": True}}))
 
 
 @dataclass(frozen=True)
@@ -293,6 +305,12 @@ class _Planner:
         self.artifacts[name] = Planned(name=name, key=key, content=sha, board_id=board_id)
         return sha
 
+    def loop_frames(self) -> int:
+        """N of a ping-pong loop (TIME-8a: 121): the motion profile's ``frames``, the
+        one source for doll clips and the set loop (**proposal**: a library loop of
+        another length needs its own N, which the library does not record yet)."""
+        return thaw(self.tools.motion_profile)["frames"]
+
     def profile(self, base: Mapping[str, Any]) -> dict[str, Any]:
         return {**thaw(base), "delivery": self.media.delivery()}
 
@@ -310,7 +328,7 @@ class _Planner:
             profile=self.profile(tools.motion_profile)), board.id)
         return {"slot": slot, "still": still, "clip": clip,
                 "keyed": self.keyed(board, slot, clip, still), "role": "doll",
-                "phase": loop_phase(board.id, slot, loop_period(tools.motion_frames))}
+                "phase": loop_phase(board.id, slot, loop_period(self.loop_frames()))}
 
     def s2v_layer(self, board: Board, slot: str, still: str, clock: BoardClock,
                   voice: BoardVoice) -> dict[str, Any]:
@@ -369,7 +387,7 @@ class _Planner:
                               _resolve(self.blobs, story_set.asset_version_id, "set")),
                     "loop": loop,
                     "phase": None if loop is None else loop_phase(board.id, SET_SLOT,
-                                                                  loop_period(tools.motion_frames))}
+                                                                  loop_period(self.loop_frames()))}
                 if board.layout.foreground and story_set.foreground_edge_px is not None:
                     foreground = {"edge_px": [list(p) for p in story_set.foreground_edge_px],
                                   "feather_px": story_set.foreground_feather_px}
@@ -388,6 +406,8 @@ class _Planner:
             method=method, frames=clock.frames, width=media.width, height=media.height,
             fps=media.fps, layout=layout, layers=layers, set_layer=set_layer,
             whole_frame_clip=whole_clip, motion_style=motion_style, voice_envelope=track,
+            talk=[{"speaker": line.speaker, "start_ms": clock.spans[line.id].start_ms,
+                   "end_ms": clock.spans[line.id].end_ms} for line in board.lines],
             cues=_picture_cues(board, clock), foreground=foreground,
             procedural_stream=board_stream(tools.procedural_seed, board.id),
             compositor=tools.compositor, encoder=tools.encoder)
@@ -427,10 +447,14 @@ class _Planner:
         proxy = self.add("film/proxy", proxy_key(master=master, profile=tools.proxy_profile))
         made = {"film_picture": picture, "mix": mix, "master": master, "proxy": proxy}
         tolerances = None if story.checks.asr_tolerances is None else thaw(story.checks.asr_tolerances)
+        script = [[line.speaker, line.text] for board in story.ordered_boards() for line in board.lines]
         for name, spec in sorted(tools.checks.items()):
             thresholds = dict(thaw(spec.get("thresholds", {})))
-            if spec.get("story_tolerances"):
+            if spec.get("transcript"):
+                # Proposal: a transcript check compares the master with the script, so
+                # the script (NFC, in film order) and the story's tolerances are inputs.
                 thresholds["asr_tolerances"] = tolerances
+                thresholds["script_sha256"] = make_key("script", {"lines": script}).hex
             self.add(f"check/{name}", check_result_key(artifact=made[spec["on"]], check=name,
                                                        version=spec["version"], thresholds=thresholds))
         return StoryPlan(artifacts=MappingProxyType(dict(self.artifacts)), boards=tuple(boards),

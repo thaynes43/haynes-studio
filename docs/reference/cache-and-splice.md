@@ -39,12 +39,15 @@ round-trip form. Before a document is encoded, `make_key` checks and normalizes 
 - Texts and mapping keys are NFC.
 - Times, frames, rates and seeds are integers, and `bool` does not count as one.
 - A hash field holds 64 lower-case hex digits.
+- No text anywhere in a key document may be a studio identifier (`<prefix>_<ULID>`);
+  `make_key` refuses one with `cache.key_input_invalid`.
 - Nothing else can enter a key: no bytes, paths, sets or objects.
 
 Every document carries `kind` and `scheme` (`studio.cache-key/v1`, a proposal; changing
 how any key is made bumps it). The key's 64 hex digits are also the SHA-256 of
 `CacheKey.canonical`. Inputs are content hashes and parameters, never identifiers or
-paths, and a test checks that no key document in the fixture plan holds an ID.
+paths. `make_key` enforces this, and a test also checks that no key document in the
+fixture plan holds an ID.
 
 ### Inventory
 
@@ -62,12 +65,12 @@ To add an artifact, add a function and an `ArtifactSpec` row to `INVENTORY`.
 | Doll clip or set loop | `motion_clip` | source | `motion_clip_key` | `still`, `prompt`, `seed`, `profile` (names the adapter) |
 | Whole-frame I2V clip(s) | `whole_frame_clip` | source | `whole_frame_clip_key` | `photo`, `prompt`, `seed`, `profile`, `clip_lengths` |
 | Keyed and decal frames | `keyed_frames` | source | `keyed_frames_key` | `clip`, `still`, `key_thresholds`, `protect_boxes`, `decal_box`, `decal_version`, `keyer` |
-| Board picture segment | `segment` | board | `segment_key` | `method`, `frames`, `width`, `height`, `fps`, `layout` (preset values), `layers` (per cast slot in draw order: still, clip, keyed, phase), `set_layer`, `whole_frame_clip`, `motion_style`, `voice_envelope`, `cues` (move and camera, resolved to ms), `foreground`, `procedural_stream`, `compositor`, `encoder` |
+| Board picture segment | `segment` | board | `segment_key` | `method`, `frames`, `width`, `height`, `fps`, `layout` (preset values), `layers` (per cast slot in draw order: still, clip, keyed, phase), `set_layer`, `whole_frame_clip`, `motion_style`, `voice_envelope`, `talk` (each line's speaker and span), `cues` (move and camera, resolved to ms), `foreground`, `procedural_stream`, `compositor`, `encoder` |
 | Film picture | `film_picture` | film | `film_picture_key` | `segments` (ordered hashes with frames), `splicer` |
 | Mix | `mix` | film | `mix_key` | `voice_tracks` (hash, `F[k]`, line spans), `sounds` (hash, start sample, trim, level), `beds`, `line_rms_dbfs`, `master_lufs`, `true_peak_dbtp`, `frames`, `rate`, `mixer` |
 | Master | `master` | film | `master_key` | `picture`, `mix`, `mux` |
 | Proxy | `proxy` | film | `proxy_key` | `master`, `profile` |
-| Check result | `check_result` | none | `check_result_key` | `artifact`, `check`, `version`, `thresholds` |
+| Check result | `check_result` | none | `check_result_key` | `artifact`, `check`, `version`, `thresholds` (a transcript check also gets the story's tolerances and the script's hash) |
 
 ### The key plan
 
@@ -87,8 +90,12 @@ The plan's inputs are resolved beforehand:
   track hash);
 - `blobs` (asset version to content hash);
 - `voice_ids` (voice version to stock voice name);
-- the `Toolchain`, which holds every adapter, profile, prompt and tool digest;
-- the `MediaFormat`.
+- the `Toolchain`, which holds every adapter, profile, prompt and tool digest; its
+  defaults are placeholders, and the default mux and proxy profile name the encoder
+  build, as segments do;
+- the `MediaFormat`: an even frame size, and 24 fps only (both media kinds deliver at
+  24 fps and TIME-3 counts board frames at 24, so another fps is refused rather than
+  half applied).
 
 Board timing comes from story 404's `board_clock`. An untimed board, an unresolved
 asset, a missing seed or an unavailable method is `cache.key_input_invalid`; the
@@ -113,7 +120,7 @@ signature for that.
 
 | Rule | Function | Detail |
 |---|---|---|
-| Loop phase | `loop_phase(board_id, slot, period)` | `int(sha256(board_id + ":" + slot)[:8], 16) mod period`; the set loop uses slot `set` (proposal) |
+| Loop phase | `loop_phase(board_id, slot, period)` | `int(sha256(board_id + ":" + slot)[:8], 16) mod period`; the set loop uses slot `set` (proposal); a loop's N is the motion profile's `frames` (121) |
 | Ping-pong loops (TIME-8a) | `pingpong`, `loop_frame`, `loop_period` | board frame *n* shows `pingpong(n + phase, N)`, period `2N - 2` |
 | Board-specific clips (TIME-8) | `source_frame`, `source_frames_needed` | `floor(n * fs / 24)`; checked against the r4 worked example |
 | S2V request (TIME-9) | `s2v_request_frames` | `L = 4 * ceil(F / 6) + 1`, then multiples of 77 |
@@ -140,7 +147,8 @@ A cached artifact is a completed stage named `<kind>-<key hex>`, for example
 | Case | What the cache does |
 |---|---|
 | Miss | `commit_stage` publishes both blobs, then the record, under the current run |
-| Hit | Reads the completed record (the local ledger re-hashes its blobs) and checks it: exactly the two outputs, `inputs` hashing to the key, the right media type; else `cache.entry_invalid` |
+| Hit | Reads the completed record and re-hashes its blobs (the local ledger does it itself; with a separate ledger, `RunSearch` re-hashes through the store), then checks it: exactly the two outputs, `inputs` hashing to the key, the right media type; else `cache.entry_invalid` |
+| Damaged entry | Fails closed: the error stops the build; the cache neither skips nor repairs it (D17), so a person looks at it |
 | Never | Deletes, evicts, overwrites, renames or truncates; a test scans the source for such calls |
 
 Lookup order (**proposal**): records live under a run, so `ArtifactCache` searches the
@@ -157,8 +165,10 @@ because a record names blobs in its production's folder.
   settings are the builder's, renders through `SegmentRenderer` from a
   `SegmentRequest` (key, key document, an input reader by hash), encodes, probes the
   frame count (TIME-11) and commits.
-- **Film picture:** opens each segment by hash in the production's folder, splices them
-  and commits the film.
+- **Film picture:** reads each segment by hash from the production's folder, one at a
+  time and only when the splice reaches it, re-hashes the bytes it read
+  (`store.hash_mismatch` otherwise), splices them and commits the film. The film
+  holds exactly the bytes its key names.
 
 A real renderer implements `SegmentRenderer` (a `compositor` digest and `render`) and
 plugs in without touching the cache.
@@ -174,8 +184,10 @@ x264 runs **sliced threads**. Its default frame threading, which legacy used thr
 `ffmpeg -threads 2`, gave three different outputs in 25 encodes of one synthetic
 segment in a session pod. Sliced threads gave one. The encoder settings, the thread
 count and mode, and the encoder build (the PyAV and libavcodec versions) are segment
-key inputs. Encoded bytes may still differ between builds and are never compared;
-tests compare decoded frames.
+key inputs. Encoded bytes may still differ between builds and are never compared
+across builds; tests compare decoded frames. One test checks that the same frames give
+the same bytes within one build. The build string covers the PyAV wheel, which bundles
+FFmpeg and x264; a PyAV built from source against another x264 is not supported.
 
 `splice` copies each segment's packets into one MP4, each shifted by the frames before
 it. Nothing is decoded or re-encoded, so the film decodes to exactly the segments'
@@ -185,7 +197,8 @@ enforces these rules:
 - A segment that does not hold its board's frames fails `time.conservation`.
 - The written film is probed again; it must hold the sum of the boards' frames.
 - Segments of another codec, size, pixel format or parameter set fail
-  `splice.incompatible`, as does a segment whose packets are not at frame *i*.
+  `splice.incompatible`, as does a segment whose packets are not at frame *i* or whose
+  first packet is not a keyframe.
 
 What the build tests show, on the four-board fixture (223 frames at 360x640, 9.3 s):
 
@@ -214,7 +227,7 @@ that `ROWS` and the contract's table list the same rows in the same order.
 | Row | Keys that change (all others stay) |
 |---|---|
 | Line text, line added or removed | the take, the track, the speaker's drive, S2V clip and keyed frames, the segment; plus every speaker with a later line when the length changes; every S2V layer when frames change; film, mix, master, proxy, checks. A removed line drops its take, and a speaker left with no line becomes an idle doll layer |
-| Line speaker | that take; old and new speakers' layers; the segment; film and mix |
+| Line speaker | that take; old and new speakers' layers; the segment; film and mix. Between two slots of one voice: no take or track, but the segment (`talk`), the S2V layers, and the picture outputs |
 | Lead or gap | no take (no TTS); the track; speakers after the edit point (all for a lead); the segment; film and mix |
 | Tail | inside the frame: nothing; frames change: every S2V layer of the board, the segment, film and mix |
 | Hold (silent board) | frames change: segment, film and mix, with the whole-frame clip kept while its requested lengths stay; past 121 frames: the clip too; inside the frame: nothing |
@@ -230,10 +243,24 @@ that `ROWS` and the contract's table list the same rows in the same order.
 | Note or title | nothing |
 | Story motion style | every layered segment (B1, B2, B4); not the whole-frame B3 |
 | A cast slot's voice | that speaker's takes on every board, tracks, her S2V layers, segments of those boards; film and mix |
-| Toolchain or profile digest | what that tool made (compositor or encoder: segments; S2V profile: S2V clips and keyed frames; keyer: keyed frames; TTS: everything spoken; splicer: film picture on; mixer: mix on) |
-| Media kind frame size or fps | short to video: every clip, keyed frame and segment, film picture, master, proxy; same aspect: segments only (proposal) |
+| Toolchain or profile digest | what that tool made (compositor or encoder: segments; S2V profile: S2V clips and keyed frames; keyer: keyed frames; TTS: everything spoken; splicer: film picture on; mixer: mix on); every `Toolchain` field is changed in turn and changes only what that tool makes |
+| Media kind frame size or fps | short to video: every clip, keyed frame and segment, film picture, master, proxy; same aspect: segments only (proposal); another fps is refused |
 
 "Picture outputs" means the film picture, master, proxy and checks; the mix stays.
+
+Where the keys give something other than the table's wording, the tests assert the
+keys and the difference is listed here:
+
+- **Picture-only edits** (method, seed, cast still, board photo, layout, cues, motion
+  style, picture tools, frame size): the last column says "rebuilt". The mix has no
+  picture input and keeps its key; the film picture, master, proxy and checks rebuild.
+- **Hold inside the frame:** a hold edit that keeps the frame count changes no key,
+  as the tail row says for tails.
+- **Media kind change:** the drive tracks and the mix are audio and keep their keys.
+- **Cast still version, pre-build column:** "photo inputs marked changed" is the board
+  photo's state (story 404's `photo_state`), not a cache key, so it is not tested
+  here. A whole-frame board does not draw cast stills; its clip changes only when its
+  photo version does (the "Board photo version" row).
 
 ## Codes
 
@@ -252,8 +279,11 @@ All are **proposals** of story 380; TIME-11 names no code.
 
 - **Drive track key:** the speaker's own take hashes and starts. Section 4's input,
   "board voice track", would rebuild every speaker on any line edit.
-- **Extra segment key inputs:** `set_layer` (set plate, set loop and its phase),
-  `whole_frame_clip` and `procedural_stream`.
+- **Extra segment key inputs:** `talk` (who speaks when, which the envelope alone does
+  not say), `set_layer` (set plate, set loop and its phase), `whole_frame_clip` and
+  `procedural_stream`.
+- **Transcript check key:** also carries the script's hash and the story's ASR
+  tolerances, so a script edit that leaves the audio unchanged is checked again.
 - **Film picture key:** carries each segment's frame count, for TIME-11 checks.
 - **Mix key:** carries each track's line spans, for per-take levels (VOICE-7).
 - **Motion style:** an input of every layered segment, because legacy applies idle
@@ -266,5 +296,7 @@ All are **proposals** of story 380; TIME-11 names no code.
   `inputs`; lookups search the current run, then earlier runs.
 - **The encoder:** sliced x264 threads, no B-frames, a 48-frame keyframe interval; the
   encoder build is in the key.
-- **The key scheme:** `studio.cache-key/v1`, and `make_key`'s normalization.
+- **The key scheme:** `studio.cache-key/v1`, `make_key`'s normalization and its
+  identifier refusal.
+- **24 fps only** in `MediaFormat`.
 - **The I2V chain policy:** a placeholder of whole 121-frame clips until story 427.

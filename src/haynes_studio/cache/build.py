@@ -15,6 +15,7 @@ is a miss.
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Callable
 from typing import BinaryIO
 
@@ -25,7 +26,7 @@ from haynes_studio.render.base import SegmentRenderer, SegmentRequest
 from haynes_studio.render.encode import EncoderSettings, encode_segment, probe_segment
 from haynes_studio.render.errors import CONSERVATION
 from haynes_studio.render.splice import SpliceInput, splice
-from haynes_studio.store import blob_locator
+from haynes_studio.store import HASH_MISMATCH, StoreError, blob_locator
 
 MP4 = "video/mp4"
 
@@ -79,19 +80,28 @@ class PictureBuilder:
 
     def film_picture(self, key: CacheKey, *, fps: int = 24) -> CachedArtifact:
         """The film picture: a hit, or the key's segments spliced in order and
-        committed. Each segment is read from the production's folder by its hash."""
+        committed. Each segment is read from the production's folder by its hash and
+        re-hashed as it is read, one at a time."""
         return self.cache.get_or_make(key, lambda: self._splice(key, fps), MP4)
 
+    def _segment_bytes(self, sha256: str) -> Callable[[], bytes]:
+        """A reader of one segment that hashes the bytes it returns: the splice copies
+        exactly the bytes the film key names, or nothing (``store.hash_mismatch``)."""
+        locator = blob_locator(self.cache.production_id, sha256, MP4)
+
+        def read() -> bytes:
+            with self.cache.store.open(locator) as handle:
+                data = handle.read()
+            if hashlib.sha256(data).hexdigest() != sha256:
+                raise StoreError(HASH_MISMATCH, "a segment is not the bytes the film key names",
+                                 locator=locator)
+            return data
+        return read
+
     def _splice(self, key: CacheKey, fps: int) -> bytes:
-        store, production = self.cache.store, self.cache.production_id
-        inputs = []
-        try:
-            for index, item in enumerate(key.document["segments"]):
-                handle = store.open(blob_locator(production, item["segment"], MP4))
-                inputs.append(SpliceInput(handle, item["frames"], label=f"segment {index}"))
-            data = splice(inputs, fps=fps)
-        finally:
-            for item in inputs:
-                item.source.close()  # type: ignore[union-attr]
+        inputs = [SpliceInput(self._segment_bytes(item["segment"]), item["frames"],
+                              label=f"segment {index}")
+                  for index, item in enumerate(key.document["segments"])]
+        data = splice(inputs, fps=fps)
         self.spliced.append(key.value)
         return data

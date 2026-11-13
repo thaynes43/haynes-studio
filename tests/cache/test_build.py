@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import ast
 import copy
+import io
 import itertools
 from pathlib import Path
 
@@ -24,7 +25,7 @@ from haynes_studio.render.base import SegmentRenderer
 from haynes_studio.render.encode import decode_frames
 from haynes_studio.render.synthetic import SyntheticRenderer, fingerprint, read_code
 from haynes_studio.stages import StageOutput, commit_stage, completed_stage
-from haynes_studio.store import LocalStore, blob_locator
+from haynes_studio.store import HASH_MISMATCH, LocalStore, StoreError, blob_locator
 from tests.cache import fixtures as fx
 from tests.cache.fixtures import B1, B2, B3, B4, PRODUCTION, ident
 
@@ -190,6 +191,37 @@ def test_a_renderer_with_another_compositor_is_refused(store):
     with pytest.raises(CacheError) as caught:
         builder.segment(key)
     assert caught.value.code == ENTRY_INVALID
+
+
+def test_the_splice_copies_only_the_segment_bytes_the_film_key_names(store):
+    """A segment rewritten in place after its hit is caught before it is copied."""
+    plan, _, _ = build(store, fx.story_document(), RUN1)
+
+    class Rewritten:
+        def __init__(self, inner):
+            self.inner = inner
+
+        def __getattr__(self, name):
+            return getattr(self.inner, name)
+
+        def open(self, locator):
+            if locator.endswith(plan.boards[1].segment.content + ".mp4"):
+                return io.BytesIO(b"other bytes")
+            return self.inner.open(locator)
+
+    cache = ArtifactCache(Rewritten(store), production_id=PRODUCTION, run_id=RUN2, ledger=store)
+    builder = PictureBuilder(cache, SyntheticRenderer())
+    with pytest.raises(StoreError) as caught:
+        builder._splice(plan.film_picture.key, 24)
+    assert caught.value.code == HASH_MISMATCH
+
+
+def test_a_separate_ledger_gets_every_hit_rehashed_through_the_store(store):
+    own = ArtifactCache(store, production_id=PRODUCTION, run_id=RUN1)
+    assert own.finder.store is None  # the local ledger re-hashes by itself
+    separate = ArtifactCache(store, production_id=PRODUCTION, run_id=RUN1,
+                             ledger=LocalStore(store.root))
+    assert separate.finder.store is store
 
 
 def test_the_cache_keeps_everything_it_made(store):
