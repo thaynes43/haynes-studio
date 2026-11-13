@@ -386,14 +386,20 @@ def import_version(library: Library, request: VersionRequest, *, by: Principal, 
                    created=True)
 
 
+MEASURED = ("bytes", "width", "height")  # what the store measures from the bytes
+
+
 def _same_content(existing: AssetVersion, candidate: AssetVersion) -> bool:
-    """The immutable fields agree. A byte count the existing version does not know
-    (``bytes: null``, a legacy import from public evidence) matches any count for the
-    same hash; the existing version is returned unchanged."""
+    """The immutable fields agree. A measurement the existing version does not record
+    (``bytes: null`` or no ``width`` and ``height``: a legacy import from public
+    evidence) matches any value for the same hash; the existing version is returned
+    unchanged."""
     ours, theirs = content_fields(existing), content_fields(candidate)
-    if ours["content"] is not None and ours["content"]["bytes"] is None \
-            and theirs["content"] is not None:
-        theirs["content"]["bytes"] = None
+    if ours["content"] is not None and theirs["content"] is not None:
+        for name in MEASURED:
+            if ours["content"].get(name) is None:
+                ours["content"].pop(name, None)
+                theirs["content"].pop(name, None)
     return ours == theirs
 
 

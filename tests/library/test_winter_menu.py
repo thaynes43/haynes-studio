@@ -10,6 +10,7 @@ import dataclasses
 import pytest
 
 from haynes_studio.canonical import timing_summary, validate_story, with_derived
+from haynes_studio.errors import ContractError
 from haynes_studio.library import import_version, resolve
 from haynes_studio.library.model import Scope
 from haynes_studio.library.resolve import references
@@ -285,8 +286,17 @@ def test_the_private_import_returns_the_public_versions():
         if request.content is None:
             continue
         size = request.content.bytes or 1_000_000
+        measured = {"width": 1104, "height": 1472} if request.content.media_type == "image/png" else {}
         again = import_version(library, dataclasses.replace(
-            request, content=dataclasses.replace(request.content, bytes=size)), by=BY, now=NOW)
+            request, content=dataclasses.replace(request.content, bytes=size, **measured)),
+            by=BY, now=NOW)
         assert (again.created, again.version) == (False, library.version(request.version_id))
+        assert again.version.content.width is None  # versions never change
     bed = library.version(record_id(4, "bed:fire"))
     assert bed.content.bytes is None
+    # A recorded measurement still has to agree.
+    still = next(r for r in requests if r.kind == "cast")
+    with pytest.raises(ContractError) as caught:
+        import_version(library, dataclasses.replace(still, content=dataclasses.replace(
+            still.content, bytes=still.content.bytes + 1)), by=BY, now=NOW)
+    assert caught.value.violations[0].rule == "idempotency.mismatch"

@@ -60,7 +60,7 @@ Pure functions; each returns a new `Library`. Nothing is deleted (D17).
 
 | Function | Rule |
 |---|---|
-| `import_version` | Keyed by `provenance.source_key`, which names one asset. The same pin returns the existing version (`created: false`); changed bytes make the next `number`; bytes seen before return their old version. The same pin with other immutable fields, or under another given ID, is `idempotency.mismatch` (an existing `bytes: null` matches any count); a given ID already in use is `ref.duplicate`; a library holding only some of the asset's versions is refused (`ref.unknown`), so no number is reused. Every new version is validated in `write`. |
+| `import_version` | Keyed by `provenance.source_key`, which names one asset. The same pin returns the existing version (`created: false`); changed bytes make the next `number`; bytes seen before return their old version. The same pin with other immutable fields, or under another given ID, is `idempotency.mismatch` (a measurement the existing version does not record, `bytes: null` or no `width` and `height`, matches any value); a given ID already in use is `ref.duplicate`; a library holding only some of the asset's versions is refused (`ref.unknown`), so no number is reused. Every new version is validated in `write`. |
 | `promote` | `candidate` to `promoted`, same ID and pin; a `promoted` version is returned unchanged. A board photo gets one library version, `origin: derived`, source key `promote:<board version ID>` (proposal), pointing at it. A board voice stays on its board (`asset.not_promotable`, proposal). |
 | `set_labels` | Replaces an asset's labels, optionally checking `revision` (`conflict.revision`, status `conflict`). No version changes. |
 | `Library.version`, `get`, `versions_of`, `by_source_key` | Pinning is by version ID. |
@@ -143,6 +143,7 @@ When the originals are recovered, import the same records with the real bytes:
 publish each file through the store (story 379), which hashes and measures it, then
 call `import_version` with the store's `sha256`, `bytes` and locator under the same
 source key. Bytes equal to the public hash return the existing version (`created:
-false`), the bed included: its `bytes: null` matches the real count and stays on
+false`), the bed included: a measurement the public files lack (the bed's `bytes`,
+every still's `width` and `height`) matches the store's and stays unrecorded on
 version 1 (versions never change). Different bytes become version 2 and leave version
 1 pinned. Run the resolver with the real store's `exists` before any build.
