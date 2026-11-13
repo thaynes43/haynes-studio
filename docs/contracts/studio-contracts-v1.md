@@ -20,6 +20,19 @@ text and the coordinator accepted it at review, the choice is a proposal here
 ([section 17](#17-proposals)). Where this text and the merged code still differ, the
 difference is named in place.
 
+**Amended again on 2026-11-13 by the contract owner** with what the next stories built or
+found: [427](https://work.haynesnetwork.com/work_packages/427) (whole-frame adapter, PR
+54), [457](https://work.haynesnetwork.com/work_packages/457) (motion clip records, PR 55),
+the lock of scipy and OpenCV (PR 56),
+[841](https://work.haynesnetwork.com/work_packages/841) (film sound and master, PR 57),
+[840](https://work.haynesnetwork.com/work_packages/840) (voice audition, PR 59),
+[426](https://work.haynesnetwork.com/work_packages/426) (layered adapter, PR 60) and
+[849](https://work.haynesnetwork.com/work_packages/849) (contract catch-up in code, PR 61).
+Their choices beyond this text are P-36 to P-40. The contract owner decided five of their
+held questions (Q-427-1, Q-427-2, Q-457-1, Q-426-1, Q-426-2) as proposals Tom may
+overrule. Tom decided nothing new in this batch; Q-840-01, Q-840-02 and Q-841-01 are open
+for him ([section 16](#16-held-owner-questions)).
+
 Every rule carries its source:
 
 | Label | Meaning |
@@ -162,6 +175,10 @@ wrapper `invalid-case`. Error responses use the envelope in
   `legacy.manifest/v1`, detected by shape (`shots`, `frame`, `job`), covering r1 to r4.
 - JSON Schema files (draft 2020-12) are the normative form, owned by 378 (legacy) and
   404 (canonical). This document and its examples are what those files must agree with.
+- Records a build keeps beside its media are artifacts, not API types, and are not in the
+  list above: `studio.stage-record/v1` (section 8), `studio.whole-frame-clips/v1`,
+  `studio.s2v-clip/v1`, `studio.keyed-frames/v1` (section 4), `studio.mix-placement/v1`
+  and `studio.check-result/v1` (section 8).
 
 ### Identifiers (P-01)
 
@@ -192,9 +209,11 @@ Crockford base32 (first character `0` to `7`; no `I`, `L`, `O` or `U`).
   `{kind: cli, command, operator}`, where `operator` is a human principal. v1 adds
   `{kind: agent_session, session, harness, model}` for work an agent did in its own
   dev-env session without a studio key, such as checking a licence (P-24). It records
-  who did the work and grants nothing. The merged schema does not have it yet; until it
-  does, licence objects name such a session as `{kind: worker, worker_id: "dev-env agent
-  session <name>"}`, as the licence register does (story 809).
+  who did the work and grants nothing. The principal schema accepts it wherever a
+  principal goes since story 849: its three fields are non-empty strings and it has no
+  other (P-40). The licence register's entries still name their checking session
+  `{kind: worker, worker_id: "dev-env agent session <name>"}`, as recorded at the check
+  (story 809).
 - Hashes: a field named `sha256` is the lower-case hex SHA-256 of stored bytes. A field
   named `*signature` is `sha256:` plus the hex SHA-256 of canonical JSON
   ([section 4](#4-cache-clocks-and-invalidation)).
@@ -229,15 +248,15 @@ Full instances: [`story-winter-menu-r4.json`](examples/valid/story-winter-menu-r
 | `id`, `story_id`, `number`, `revision` | IDs, integers | `number` is a per-story creation sequence (display `B03`), never reused or renumbered on reorder |
 | `title` | text, 1 to 100 characters | mockup limit |
 | `lines[]` | `{id, speaker, text, gap_before_ms}` | ordered; at most 256 (story 405's bound, `schema.invalid`); text 1 to 1200 characters (mockup); TIME-2; speaker per VOICE-1 |
-| `timing` | `{lead_ms, tail_ms, hold_ms}` | spoken: lead and tail, hold null; silent: hold only (TIME-3 to TIME-5); lead and each gap at most 120 000 (TIME-5) |
+| `timing` | `{lead_ms, tail_ms, hold_ms}` | spoken: lead and tail, hold null; silent: hold only (TIME-3 to TIME-5); lead and each gap at most 120 000 (TIME-5, in the board schema since story 849) |
 | `voice` | `{style, current_version_id}` | style `cast` or `narrator`, null on a silent board |
 | `photo` | `{current_version_id, prompt, input_asset_version_ids}` | prompt up to 1800 characters; inputs are the composer's assets |
-| `cast[]` | `{slot, asset_version_id}` | draw order; one still per slot (expression) |
+| `cast[]` | `{slot, asset_version_id, motion_asset_version_id}` | draw order; one still per slot (expression); the optional motion pin names the doll loop the slot plays (section 9, story 457) |
 | `layout` | `{preset, foreground}` | preset must exist in story `layouts` |
 | `method` | `{layer, motion}` | section 5 |
 | `seeds` | `{"s2v:<slot>": int, "i2v:frame": int}` | section 4 |
 | `cues[]`, `notes[]` | section 6 | |
-| `drafted_by` | principal | an agent principal shows the mockup's "Agent draft" badge |
+| `drafted_by` | principal | an agent principal shows the mockup's "Agent draft" badge; whether an `agent_session` drafter shows it is open (no code computes the badge yet) |
 | `origin` | `{source_key, legacy_revision, legacy_shot, manifest}` or null | |
 | `derived` | `timing_state` (`timed`, `untimed`), `content_ms`, `frames`, `film_start_frame`, `voice_state` (`not_needed`, `absent`, `generating`, `current`, `stale`), `photo_state` (`absent`, `generating`, `current`, `stale`) | read-only; absent and stale assets are explicit, never inferred from nulls |
 
@@ -326,9 +345,10 @@ display only.
   hold of TIME-4, and a board has at most 256 lines (`schema.invalid`, as story 405
   reports them; no specific rule names these bounds). These are story 405's bounds, which
   the contract owner moved here from the voice job: its voice request,
-  job and builder refuse more before any speech call. The board schema does not check
-  them yet, so until it does such a board saves as a draft and is refused when its voice
-  is requested. New boards
+  job and builder refuse more before any speech call. The board schema checks them too
+  since story [849](https://work.haynesnetwork.com/work_packages/849): `schema.invalid`
+  at `/timing/lead_ms`, `/lines/<i>/gap_before_ms` or `/lines`, on a board and on every
+  board a story embeds. New boards
   default to lead 500, gap 300, tail 700 (P-04: r4's single-shot values and the legacy gap
   default). The mockup's 0.25 s pad is not adopted (review M2). Authored values must be
   integers (`time.not_integer_ms`).
@@ -344,23 +364,42 @@ display only.
   needs `floor((F - 1) * fs / 24) + 1` source frames. Extra source frames are trimmed and
   recorded. A shorter clip fails the stage (`time.source_short`); the legacy compositor
   silently held the last frame, which this contract does not allow (P-05). Legacy
-  (`DollClip.frame_at` in `poc/layered_film.py`).
-- **TIME-8a Loops.** Reusable `motion` assets (doll clips, set loops: 121 frames at 24 fps)
-  play ping-pong under boards of any length: board frame *n* shows source frame
-  `pingpong(n + phase, N)`, with period `2N - 2` and the phase from
-  [section 4](#4-cache-clocks-and-invalidation). They are never "short". Legacy
+  (`DollClip.frame_at` in `poc/layered_film.py`). A library timed clip (section 9) plays
+  from its record's trim start: frame *n* shows `trim_start + floor(n * fs / 24)`.
+  **Chains (story 427, P-36).** A whole-frame board longer than one clip is a chain of
+  whole clips of *L* frames. Each clip after the first starts on the previous clip's last
+  frame, repeats it as its own frame 0, and that frame is dropped: *n* clips of *L* frames
+  give `n(L - 1) + 1` source frames. A board asks for one clip when it needs at most *L*
+  frames, else `1 + ceil((needed - L) / (L - 1))`. With E0's `L = 121` a chain is at most
+  3 clips, 361 frames, 15.04 s (Q-427-2, the contract owner): a longer board is refused
+  (`wholeframe.chain_limit`; `cache.key_input_invalid` in the plan) and is split or made
+  layered. Nothing is stretched. The requested lengths change only at 122 and 242 frames,
+  so a hold or tail edit inside a chain keeps its clips.
+- **TIME-8a Loops.** Reusable `motion` assets (doll loops, set loops) play ping-pong under
+  boards of any length: board frame *n* shows source frame
+  `trim_start + pingpong(n + phase, N)`, with period `2N - 2` and the phase from
+  [section 4](#4-cache-clocks-and-invalidation). They are never "short". Loops are 24 fps;
+  each pinned record gives its own `N` and trim start (E0's are 121 frames from 0), and
+  the build takes them from the record, not the toolchain (story 426). Legacy
   (`pingpong()` in `poc/layered_film.py`, which indexed by film frame).
 - **TIME-9 Speech-to-video request.** Each on-screen speaker gets a drive track of exactly
   `F / 24` seconds: her lines at their offsets, silence elsewhere. Requested length
   `L = 4 * ceil(F / 6) + 1` (that is, the `F / 24 * 16` source frames rounded up to a
   multiple of 4, plus 1; the formula is normative); if `L > 77`, `L = 77 * ceil(L / 77)`.
-  `L` must be at least the frames TIME-8 needs. Legacy (`poc/s2v.py` with pad 0, as the
-  layered S2V film used it).
+  `L` must be at least the frames TIME-8 needs; a profile whose source fps `L` cannot
+  cover (the formula is sized for 16 fps) is refused before the source is asked
+  (`layered.unsupported`). The drive track is assembled at the takes' own rate (24 000 Hz
+  for Kokoro), so it is exactly `F * 1000` samples there and nothing is resampled (story
+  426, P-39); takes that cannot make an exact track are `layered.drive_invalid`. Legacy
+  (`poc/s2v.py` with pad 0, as the layered S2V film used it).
 - **TIME-10 Cues.** A cue's resolved start lies in `[0, board length)`
   (`cue.out_of_range`); on an untimed board the check runs at `queue_run`. A sound may run
   past the cut and is cut at film end; both are recorded. Legacy (`edit.audio`) cut it
   100 ms after film end (its mix buffer's spare tenth of a second), so a recorded legacy
-  sound end may exceed the film's length; no Winter Menu sound does.
+  sound end may exceed the film's length; no Winter Menu sound does. The mixer (story
+  841) cuts it at the film's last sample, not faded, and records `cut_at_film_end` and
+  `cut_samples`; whether it should fade at the cut is Q-841-01, open for Tom. The mix key
+  has no board boundaries, so the mixer checks this rule with the story beside the key.
 - **TIME-11 Conservation.** Sum of board frames = film frames = decoded master frames;
   master duration = frames / 24; mix length = frames x 2000 samples; every line ends at
   or before `content_ms - tail_ms` of its own board. Any mismatch fails the run
@@ -368,7 +407,12 @@ display only.
   records its length at the encoder's granularity, so a master's audio passes within one
   AAC frame (1024 samples, 21 ms) of `frames x 2000`, recorded and decoded, and must run
   on from sample 0 with no hole; the phone proxy's audio is exact (story 381). The PoC's
-  own masters are a few samples short (32 for 1087 frames).
+  own masters are a few samples short (32 for 1087 frames): story 841 found the cause in
+  the MP4 movie timescale, whose default of 1000 rounds the recorded length down to a
+  whole ms (45 291.67 ms recorded as 45 291 ms). The mixer's masters use a timescale of
+  48 000 (P-38), so their recorded audio is exactly `frames x 2000`; only the decoded
+  count needs the one-AAC-frame allowance, for the encoder's padding. The delivery check
+  still allows one AAC frame on both.
 - **TIME-12 Legacy adapter.** Imported runs keep their recorded values. Canonical
   arithmetic reproduces every r4 frame count (table below); story 378 checks r1 to r3.
   Legacy rounded shot starts to 0.1 ms before placing samples, so legacy and canonical
@@ -466,16 +510,16 @@ that is not a hash, integer, text or finite JSON value, is refused
 |---|---|---|
 | Voice take | none | TTS model digest, voice ID, NFC text, speed, sample rate |
 | Board voice track | board | take hashes, lead, gaps, mix rate, assembler version (no tail) |
-| S2V drive track | board | speaker, **that speaker's takes on the board, each as its hash and start in ms (board clock)**, board frames, fps, rate, assembler version (P-25) |
-| S2V clip | source | drive track, start still, prompt, negative prompt, seed, profile (model files, LoRA, steps, cfg, size, chunk), adapter version |
-| Doll clip or set loop (library `motion`) | source | still, prompt, seed, profile |
-| Whole-frame I2V clip(s) | source | photo, prompt, seed, profile, requested clip lengths (set by the frames needed and the chain policy of story [427](https://work.haynesnetwork.com/work_packages/427)) |
-| Keyed and decal frames | source | clip, key thresholds, protect boxes, still, decal box, decal version, keyer (Legacy `DollClip.cache_dir`) |
-| Board picture segment | board | method, layout preset values, cast stills, clip and keyed hashes, phases, set plate and set loop with its phase, a whole-frame board's clip, motion style (every layered board), voice envelope when any line is spoken, who speaks when (each line's speaker and span), move and camera cues resolved to ms, frames, frame size, fps, foreground edge, procedural stream, compositor digest, encoder settings and build (P-26) |
+| S2V drive track | board | speaker, **that speaker's takes on the board, each as its hash and start in ms (board clock)**, board frames, fps, rate (the takes' own, 24 000 for Kokoro: story 426), assembler version (P-25) |
+| S2V clip | source | drive track, start still (the speaker's cast still's loop's start image: story 426), prompt, negative prompt, seed, profile (model files, LoRA, steps, cfg, size, chunk, source fps), adapter version. A library timed clip made from the same drive track with the board's seed takes its place (Q-426-2) |
+| Doll clip or set loop (library `motion`) | source | the image the engine animated (the record's `source.image_sha256`; for E0 the doll on green, not the cutout), prompt, seed, profile (which names the adapter). Made by an asset job, never by a build (Q-457-1); the build reads the key from the pinned record (`keys.clip`). It has no negative prompt; the record's identity carries it (P-37) |
+| Whole-frame I2V clip(s) | source | photo, prompt, seed, profile (which names the adapter, `studio.i2v/1`), requested clip lengths (set by the frames needed and the chain policy of TIME-8, story [427](https://work.haynesnetwork.com/work_packages/427)). A chain is one artifact |
+| Keyed and decal frames | source | clip, key thresholds, protect boxes, still (the clip's start image, as Legacy `DollClip.cache_dir` hashed it), decal box, decal version, keyer as `<record's keyer>@<build>` (the numpy, OpenCV, Pillow, scipy, PyAV and libavcodec versions). The keying inputs are the pinned loop record's; the decal floor is not an input (P-39) |
+| Board picture segment | board | method, layout preset values, cast stills, clip and keyed hashes, phases, how each layer plays (loop or timed, trim, source fps, decal floor), set plate and set loop with its phase, a whole-frame board's clip, motion style (every layered board), voice envelope when any line is spoken, who speaks when (each line's speaker and span), move and camera cues resolved to ms, frames, frame size, fps, foreground edge, procedural stream, compositor digest, encoder settings and build (P-26). A spoken whole-frame board's segment carries the voice envelope and who speaks when too, though its renderer draws nothing from them |
 | Film picture | film | ordered segment hashes, each with its frame count, splicer |
-| Mix | film | ordered voice tracks with `F[k]` and line spans, sound cues resolved to samples (sound hash, trim, level), beds, line RMS, loudness and true-peak targets, frames, rate, mixer digest (including its fades) |
-| Master / proxy | film | picture + mix + mux settings / master + proxy profile; both name the encoder build |
-| Check result | none | artifact hash, check version, thresholds; a transcript check also the story's tolerances and the script's hash |
+| Mix | film | ordered voice tracks with `F[k]` and line spans, sound cues resolved to samples (sound hash, trim, level), beds, line RMS, loudness and true-peak targets, frames, rate, mixer digest (every number of the mixer, its fades included, and the filter build: story 841). It has no board boundaries and no take sample counts |
+| Master / proxy | film | picture + mix + mux settings (container, video copy, codec, bit rate, layout, rate, faststart, movie timescale, threads, encoder build: story 841) / master + proxy profile; both name the encoder build |
+| Check result | none | artifact hash, check version, thresholds; a transcript check also the story's tolerances and the script's hash; a sound check's thresholds carry the story's targets and `frames x 2000`, its version the filter build (story 841) |
 
 **P-25 (H-1, the contract owner, 2026-11-13).** A drive track is keyed on its own
 speaker's takes at their starts, as `cache.keys.s2v_drive_track_key` does: a line edit
@@ -511,6 +555,40 @@ has fails `render.frame_count`; a frame that is not 8-bit RGB of the board's siz
 `render.frame_invalid`; a segment that does not hold its board's frames fails
 `time.conservation`.
 
+**Renderers and records as built (stories 427, 457, 426 and 841).**
+
+- Two renderers exist: `WholeFrameRenderer` (story 427,
+  [reference](../reference/whole-frame-adapter.md)), compositor
+  `studio.wholeframe/1+pillow-<version>`, and `LayeredRenderer` (story 426,
+  [reference](../reference/layered-adapter.md)), compositor
+  `studio.layered/1+pillow-<v>+numpy-<v>`. Each reads only the segment key document and
+  refuses an input it does not draw. Story 380's `Toolchain` names one compositor per
+  build, so a story with both methods needs one per method (story 406).
+- A layered board is planned from pinned library `motion` records (section 9): an idle
+  doll's clip is its loop's bytes, with the record's clip key, `N`, fps and trim and the
+  board's own phase, and no source is asked for it. A blocking motion problem stops the plan with the
+  resolver's own code (`motion.clip_absent` for a cast still without a loop), not
+  `cache.key_input_invalid`. The toolchain's doll motion and keying fields are story
+  380's placeholders: they key only a plan made without motion records, which the
+  layered renderer refuses (`layered.unsupported`).
+- A motion record's `keys` (`clip`, `keyed`, `identity`) come from one pure function,
+  `motion_identity` (story 457). The identity adds what neither key covers: use,
+  subject, the still the clip stands in for, the clip's bytes, frames, fps, size, trim,
+  negative prompt, the drive track's board frames and the decal floor. The plan's keyed
+  key is the record's `keys.keyed` with the build added to its keyer, and a stage refuses
+  a key made for another build. Stored keys were computed under `studio.cache-key/v1`, so
+  a scheme bump would make every stored record fail `motion.identity_mismatch`: a bump
+  needs a migration rule first, which is not written yet.
+- Besides the `<kind>-<key hex>` entries of P-27, two stages are named by content and
+  committed just before the entry that names them, in the same run, so every blob is
+  listed by a completed record: `whole_frame_media-<clip set SHA-256>` (a whole-frame
+  clip set's clips and chained start images) and `s2v_clip_record-<clip SHA-256>` (an
+  S2V clip's provenance record, `studio.s2v-clip/v1`). A hit reads them in the entry's
+  run. The whole-frame clip set (`studio.whole-frame-clips/v1`) is the artifact the
+  segment key's whole-frame clip names; the keyed frames are one APNG holding the
+  `studio.keyed-frames/v1` record (P-39). The mix's placement record is cache kind
+  `mix_placement` under the mix key's inputs (section 8).
+
 ### Invalidation set per edit
 
 "Reused" means the key is unchanged, so the cached artifact is used. The table is the
@@ -521,13 +599,13 @@ expected result of the keys; tests in story [380](https://work.haynesnetwork.com
 | Line text, line added or removed | new voice version; TTS only for changed takes | every S2V clip whose drive track changes: the edited line's speaker, plus every speaker with a later line when a take's duration changes; all S2V clips if frames change; segment | reused | rebuilt |
 | Line speaker | takes of that line | S2V clips of old and new speaker, plus every speaker with a later line when the new take's duration differs; all if frames change; segment | reused | rebuilt |
 | Lead or gap | new voice version, no TTS | S2V clips of every speaker with a line after the edited point (a lead edit moves all); all S2V clips if frames change; segment | reused | rebuilt |
-| Tail | none | only if frames change: S2V clips and segment | reused | rebuilt if frames change, else reused (no key changes) |
+| Tail | none | only if frames change: S2V clips and segment; a spoken whole-frame board's I2V clips reused while the requested clip lengths are unchanged | reused | rebuilt if frames change, else reused (no key changes) |
 | Hold (silent board) | none | only if frames change: segment; whole-frame I2V clips reused while the requested clip lengths are unchanged | reused | rebuilt if frames change, else reused (no key changes) |
 | Reorder boards | none | reused | reused | rebuilt (film offsets move) |
 | Add or remove a board | that board's | that board's | reused | rebuilt |
 | Method (layer or motion) | none | clips and segment | reused | picture only |
-| Seed | none | that clip and its keyed frames (the drive track is reused); segment | reused | picture only |
-| Cast still version | a layered board using it gets a recomposed photo (D51); a whole-frame board's photo inputs are marked changed where they name it | clips from that still; segments of every board using it | same rule on those boards | picture only |
+| Seed | none | that clip and its keyed frames (the drive track is reused; a library timed clip made with the old seed is no longer used, so the build makes one: Q-426-2); segment | reused | picture only |
+| Cast still version | a layered board using it gets a recomposed photo (D51); a whole-frame board's photo inputs are marked changed where they name it | the new version's own pinned loop (`motion.clip_absent` without one): an idle doll's clip and keyed frames, and a speaker's S2V clip from that loop's start image, with its keyed frames; segments of every board using it | same rule on those boards | picture only |
 | Board photo version | none | whole-frame: I2V clip and segment; layered: reused, because its photo is derived from its layers and is no build input (D51) | reused | whole-frame: picture only; layered: reused |
 | Layout preset values | a layered board using it gets a recomposed photo (D51) | segments of boards using it | same | picture only |
 | Move or camera cue | none | segment | reused | picture only |
@@ -535,12 +613,19 @@ expected result of the keys; tests in story [380](https://work.haynesnetwork.com
 | Note or title | none | reused | reused | reused (the snapshot differs; artifacts do not) |
 | Story motion style | none | every layered segment | every layered segment | picture only |
 | A cast slot's voice | every take of that speaker | per board as "line text" | same | rebuilt |
-| Toolchain or profile digest | as used | every artifact that tool made | same | rebuilt downstream of what that tool made |
-| Media kind frame size or fps | layered boards get recomposed photos (D51) | frame size: every clip, keyed frame and segment, or segments only at the same aspect; drive tracks reused. fps: both kinds deliver 24 fps (P-20), so another fps is refused | the same | picture only |
+| Toolchain or profile digest | as used | every artifact that tool made. Doll loops and keying come from pinned records, so the toolchain's doll motion and keying fields change no key of a layered plan; a record keyed by another keyer, or a new build of a keying library, re-keys every layer keyed with it (story 426) | same | rebuilt downstream of what that tool made |
+| Media kind frame size or fps | layered boards get recomposed photos (D51) | frame size at another aspect: every generated clip (S2V, whole-frame), an S2V clip's keyed frames and every segment; an idle doll's pinned loop and its keyed frames are reused (sprites the layout places, story 426); a set loop of the old aspect is refused (`layered.unsupported`). At the same aspect: segments only. Drive tracks reused. fps: both kinds deliver 24 fps (P-20), so another fps is refused | the same | picture only |
 
 "Picture only" means the film picture, the master, the proxy and the checks rebuild,
 and the mix keeps its key: it has no picture input. Story 380's tests assert the keys
 of every row.
+
+Two consequences of the merged keys are open for the contract owner: a voice edit that
+keeps a spoken whole-frame board's frames re-encodes its segment, whose picture cannot
+change (it costs no GPU), because that segment carries the voice inputs; and a frame size
+change at the same aspect keeps the layout preset's pixel values (each doll's height and
+bottom; only `x` is a fraction), which carry no frame size, so the layered renderer would
+draw the dolls at the old scale.
 
 **A layered board's photo is derived (D51; coordinator's reading of Tom's answer to
 Q-03).** For a layered board the reference photo is the deterministic composite of the
@@ -572,19 +657,40 @@ format, `layered` (P-08). Machine form:
 | Layer \ motion | `s2v` | `i2v` |
 |---|---|---|
 | `layered` | **Buildable.** Evidence: the full layered S2V film, 11 S2V clips over layered 5B clips ([findings-s2v.md](../../titles/the-winter-menu/video-e0/findings-s2v.md)); Tom's verdict, D24. Profile: Wan2.2 S2V-14B fp8 + wav2vec2, lightx2v 4-step LoRA, cfg 1, one 3090, 16 fps, 576x1024, 77-frame chunks. Adapter: [426](https://work.haynesnetwork.com/work_packages/426). | **Buildable.** Evidence: layered films v1 and v2 ([findings-layered.md](../../titles/the-winter-menu/video-e0/findings-layered.md)); Tom's verdict, D23. Profile: Wan2.2 TI2V-5B, 121 frames, 24 fps, 576x1024, doll on green, keyed, with decal. Adapter: 426. |
-| `whole_frame` | **Unavailable.** See below. | **Buildable.** Evidence: the 15-clip whole-frame film ([findings.md](../../titles/the-winter-menu/video-e0/findings.md)); D22: not rejected. Known drift in groups and three-quarter poses; chaining compounds it. Adapter: [427](https://work.haynesnetwork.com/work_packages/427), which owns the chain or stretch policy for boards over 121 frames. |
+| `whole_frame` | **Unavailable.** See below. | **Buildable.** Evidence: the 15-clip whole-frame film ([findings.md](../../titles/the-winter-menu/video-e0/findings.md)); D22: not rejected. Known drift in groups and three-quarter poses; chaining compounds it. Adapter: [427](https://work.haynesnetwork.com/work_packages/427): chains of at most 3 clips, no stretch (TIME-8). |
 
 How each buildable cell uses its inputs:
 
 - **Layered + S2V:** every on-screen speaker gets one S2V layer from her drive track
-  (TIME-9); every other cast member on the board gets an I2V doll layer (a library
-  `motion` asset); the set is a set loop. Seeds `s2v:<slot>`.
-- **Layered + I2V:** every cast member gets an I2V doll layer; talk bounce comes from the
-  board voice envelope (Legacy `edit.motion`).
+  (TIME-9). The build makes it from her cast still's loop: the loop's start image is the
+  clip's start image, and the clip is keyed with the loop's keying, protect boxes
+  included, and gated at the default floor 0.8 (Q-426-1, the contract owner); her loop
+  must be the S2V profile's size, since its boxes are in its pixels. A library timed clip
+  of her still is used instead only when it was made from this board's own drive track
+  with the board's `s2v:<slot>` seed (Q-426-2, the contract owner); otherwise the build
+  makes a new one. Every other cast member plays her pinned doll loop (a library `motion`
+  asset, TIME-8a). The set is the story's pinned set loop, else the one promoted loop of
+  the set still, else the static plate. Seeds `s2v:<slot>`.
+- **Layered + I2V:** every cast member plays her pinned doll loop; talk bounce comes from
+  the board voice envelope (Legacy `edit.motion`).
+- **Layered, either motion:** every cast entry needs a loop, a speaker's included, or the
+  board is refused (`motion.clip_absent`). A loop is made by an explicit asset job
+  before Build, as voices are (P-12); Build never generates one (Q-457-1, the contract
+  owner). Every doll, a speaker's S2V layer included, gets the idle wobble, the talk
+  bounce and its moves, as in the PoC's S2V film; the contract owner kept this, and Tom
+  sees it at the demo.
 - **Whole-frame + I2V:** the start image is the board's current photo version
-  (`photo.absent` without one). Seed `i2v:frame`.
+  (`photo.absent` without one). Seed `i2v:frame`; clip *k* of a chain uses seed
+  `i2v:frame + k` and starts on clip *k - 1*'s last frame (TIME-8, P-36). Move and camera
+  cues are refused (`wholeframe.unsupported`; for camera cues, Q-427-1).
 - **Layered, either motion:** the board's photo is the composite of these layers (D51,
-  [section 4](#4-cache-clocks-and-invalidation)); the build never reads it.
+  [section 4](#4-cache-clocks-and-invalidation)); the build never reads it. Story 426
+  composes it from named inputs: the set still, the board's cast stills in draw order,
+  the layout preset's values, the foreground edge when the board shows it, and the
+  framing at the last camera cue's end (`zoom_to`, `center_px`); a PNG at the frame size
+  with no metadata, from no image model, clip or motion record. A note or a seed changes
+  neither the photo nor its input signature, which story 407 compares for `photo_state:
+  stale` (P-39).
 
 **Whole-frame + S2V, reconciled.** `findings.md` records one whole-frame S2V clip
 (`s2-s2v-b`: the shot-2 keyframe with set, one doll, 20-step path on both GPUs, 49 frames,
@@ -606,10 +712,44 @@ Validation:
 | `method.s2v_needs_onscreen_speaker` | invalid | S2V where no line's speaker is a cast slot placed on the board (for example all narrator) | P-08 |
 | `method.layered_needs_cast` | invalid | layered with an empty `cast`; use whole-frame I2V for an empty set | P-08 |
 | `method.unavailable` | unavailable | whole-frame + S2V; saved with a warning, refused at Build | this section |
-| `asset.capability_mismatch` | invalid | a layered cast entry whose version lacks `rgba_cutout` or `keyed_layer` | review M6 |
+| `asset.capability_mismatch` | invalid | a layered cast entry whose version lacks `rgba_cutout` or `keyed_layer`; a cast entry's motion pin that is not a `motion_clip` (story 457) | review M6 |
 
 "Invalid" fails on write and needs the board changed. "Unavailable" is a valid design
 the studio cannot build yet.
+
+**Adapters as built.** Both are source and tested with fake clip sources only; no GPU or
+service was called, and no claim is made about picture quality.
+
+- **Whole-frame I2V** (story [427](https://work.haynesnetwork.com/work_packages/427),
+  [reference](../reference/whole-frame-adapter.md)): the chain policy of TIME-8 (P-36). A
+  clip of the board's size is used as is, one of the same aspect is scaled with
+  Pillow's Lanczos as E0's assembler did, and any other aspect is refused; nothing is
+  cropped or padded. The renderer accepts a spoken board's voice envelope and who speaks
+  when and draws nothing from them: whole-frame I2V has no talk bounce. Codes:
+  `wholeframe.unsupported` (an input, cue, profile or aspect it does not draw, a layered
+  board), `wholeframe.chain_limit` (more than 3 clips), `wholeframe.clip_invalid` (a
+  source's answer that is not what was asked: extra frames, an undecodable clip, another
+  size, seed, length or start image, incomplete provenance); a stored clip that is
+  missing, short or undecodable is `time.source_short`.
+- **Layered S2V and I2V** (story [426](https://work.haynesnetwork.com/work_packages/426),
+  [reference](../reference/layered-adapter.md)): a port of `poc/layered_film.py`,
+  `poc/cutout.py`, `poc/decal.py` and `poc/keyframes.py`, on the board clock (P-06); the
+  PoC's film-clock loops and its held last frame are not ported. Keyed frames come from
+  the pinned record's keying (key thresholds `{lo, hi}`, protect boxes, decal box and
+  version `erase-v2`), with OpenCV at 2 threads. The **decal gate is a check**, not part
+  of the key: the floor is the layer record's `decal_min_ecc`, else 0.8, applied on every
+  use over the source frames the board shows; a track below it fails the segment before
+  any frame (`layered.decal_weak`) with its check result `layered.decal_gate`, and the
+  weak artifact stays cached but is never drawn. A library clip's record may carry its
+  own lower floor (`decal_min_ecc`), as six E0 speech clips did. Codes:
+  `layered.unsupported`, `layered.layout_invalid` (a slot the preset does not place, a
+  crop outside 0..1, a doll more than 240 px off the frame), `layered.drive_invalid`,
+  `layered.clip_invalid` (a source's answer or a stored artifact that is not as asked),
+  `layered.decal_weak`.
+- Each adapter's `check_board` reports its refusals before any clip is made (the frame
+  and S2V sizes included for layered boards); story 406 runs it at `queue_run`. Until
+  then a whole-frame board with a camera cue fails at render, after its clips were made,
+  and they stay cached for the corrected board.
 
 ## 6. Direction and executable cues
 
@@ -632,12 +772,24 @@ Cue types (P-09):
 
 - Mixer behaviour is part of the mixer's version (a cache input), Legacy `edit.audio`:
   sound cues fade in over 10 ms and out over 50 ms; a bed loops with 1 s crossfades and
-  fades in over 0.5 s; lines fade 5 ms at each edge.
+  fades in over 0.5 s; lines fade 5 ms at each edge. As built (story 841, all linear
+  fades): the limiter's look-ahead delay is compensated, which legacy left in (its
+  masters' sound ran 95 samples, 1.98 ms, late); a sound past the film's end is cut at
+  the last sample (TIME-10); a line's level and fades apply to its span, so the fade out
+  ends at the span's end, up to 23 samples (24 kHz) after a take that is not a whole ms;
+  a sound shorter than its 50 ms fade out, a bed of 2 s or less and a fade under 1 ms are
+  refused (`mix.input_invalid`); a silent programme gets no loudness gain (P-38).
 - An anchor is `{at_ms}` from board start, or `{after_line_id, offset_ms}`; the line must
   be on the same board (`cue.anchor_line_missing`), and the resolved start must lie inside
   the board (`cue.out_of_range`, TIME-10). A `move` names a slot placed on the board
   (`cue.slot_not_on_board`). Legacy line indexes become line IDs
   on import. Moves add up in order, as in Legacy `edit.motion`.
+- Picture cues as the renderers draw them: the layered renderer draws moves and at most
+  one camera cue per board, each starting at its resolved anchor (the PoC's camera
+  started at the shot's first frame), with exact pose times; a second camera cue is
+  `layered.unsupported` (P-39). A whole-frame board's move or camera cue is refused
+  (`wholeframe.unsupported`): camera cues there are refused for now and drawn once the
+  layered camera code is shared (Q-427-1, the contract owner).
 - An unknown type is rejected, never ignored (`cue.type_unknown`). A note carrying cue
   fields is rejected (`note.text_only`).
 - An agent may read notes and propose cues as an ordinary board patch (D40); the cue is
@@ -692,10 +844,14 @@ which are reserved ([RIGHTS.md](../../RIGHTS.md)).
 - **`conditional` (P-23).** A term that allows commercial use only under conditions
   (registration, a revenue limit; Stable Audio 3) is `conditional`, with the conditions
   in `note`. A research- or evaluation-only term (Qwen-Image 2.1, ControlFoley's CLIP
-  encoder) is `noncommercial`, with a note that it is narrower. The merged asset-version
-  schema (story 382) does not accept `conditional` yet; until it does, a conditional term
-  is written `unknown` with the conditions in `note`, as the register's lookup does
-  today (story 809).
+  encoder) is `noncommercial`, with a note that it is narrower. The asset-version schema
+  accepts `conditional` since story 849: it is a checked value, like `allowed` and
+  `noncommercial` (`name`, `checked_at`, `checked_by`), and needs a non-null `note`
+  with its conditions (P-40). The register's licence object for such a term still says
+  `unknown`, as recorded at its check; the library's lookup gives `conditional` for an
+  entry whose `outputs_commercial_use` is `conditional` and whose object says
+  `unknown`, keeping the note word for word, so the Winter Menu's sound versions now read
+  `conditional` (story 849).
 - **`checked_by`** is a principal. An agent that checked terms in its own session names
   itself as an agent-session principal (P-24, section 2).
 
@@ -715,6 +871,11 @@ which are reserved ([RIGHTS.md](../../RIGHTS.md)).
   prompt that may still be in flight: do not resubmit).
 - `engines[]`: `key`, `role`, `name`, `files[]` (each `name`, `sha256`, `licence`),
   `licence` (the most restrictive of its files), `profile`, `hardware`.
+- Every generated clip records `engine`, `engine_job_id` and `files_sha256` (at least one
+  model file, each by SHA-256) from the engine's own record (the Wan ledger), never from
+  configuration; a clip without them is refused (`wholeframe.clip_invalid`,
+  `layered.clip_invalid`). The whole-frame clip set and the S2V provenance record carry
+  them per clip (stories 427 and 426, section 4).
 - `inputs_externally_generated`: asset versions with the D42 marker, for the E9
   disclosure check.
 - `usage`: frontier tokens recorded per production (D8, D40); `null` means unknown,
@@ -768,6 +929,49 @@ version; its old hash stays as recorded (D54).
   E0) go through `record_check_override` and are recorded per artifact with actor and
   reason, never silently; release checks cannot be overridden
   ([findings-layered.md](../../titles/the-winter-menu/video-e0/findings-layered.md)).
+  The decal gate is the check `layered.decal_gate` (section 5); the layered renderer
+  keeps its results in `renderer.checks` and does not commit them as stages, so story 406
+  records them, and each renderer's `reports`, with the run.
+
+### Mix, master and sound checks (as built, story 841)
+
+[Reference](../reference/studio-mix.md). Source and tested with synthetic audio and
+picture only.
+
+- The mix is a pure function of the mix key document and the bytes its hashes name:
+  48 000 Hz stereo 24-bit PCM of exactly `frames x 2000` samples, kept as float32 until
+  one 24-bit quantization (no 16-bit premaster). Each line is cut from its board voice
+  track at its span, resampled to exactly `(end_ms - start_ms) * 48` samples, leveled
+  and faded (section 6, VOICE-7) and placed by TIME-7; then the headroom step (a peak
+  over 0.5 scales the mix to 0.5), loudness by libavfilter `ebur128` (BS.1770 gated) and
+  `alimiter` at `10^((true_peak_dbtp - 1) / 20)`, delay compensated. A true-peak target
+  whose limit falls outside the limiter's 0.0625 to 1 (below about -23.1 dBTP) is
+  `mix.input_invalid`. Filters run at 2 threads.
+- The **placement record** (`studio.mix-placement/v1`, cache kind `mix_placement`) says
+  what went where, in samples and board-clock ms, with hashes, gains, cuts, the headroom
+  step, the measured loudness and the master gain. It holds no identifiers;
+  `label_placement` adds the run's board, line, cue and bed IDs.
+- The **master** stream-copies the film picture's H.264 packets and encodes the mix as
+  AAC-LC stereo, 48 kHz, 192 kbit/s, with `+faststart` and an MP4 movie timescale of
+  48 000, so its recorded audio is exactly `frames x 2000` (TIME-11). It is checked with
+  story 381's `inspect` at the picture's size before it is cached; a mix of the wrong
+  length is `time.conservation`, another failure `mix.master_invalid`.
+- Seven **sound checks**, each a check result (`studio.check-result/v1`) keyed by
+  `check_result_key`, version `1/<filter build>`. These are check names, not rule codes.
+  A failing check is data; `FilmSound.ensure_passed()` raises `mix.check_failed` naming
+  each one.
+
+| Check | On | Passes when |
+|---|---|---|
+| `mix.length` | mix | 48 000 Hz, 2 channels, 24-bit, exactly `frames x 2000` samples |
+| `mix.loudness`, `master.loudness` | mix, decoded master | integrated loudness within 1.5 LU of the story's `master_lufs` (legacy `validate`) |
+| `mix.true_peak`, `master.true_peak` | mix, decoded master | true peak at most `true_peak_dbtp + 1` dBTP, read with 200 ms of silence after the programme (legacy: an absolute -2.5 at r4's -3.5; relative here, P-38) |
+| `mix.clipping`, `master.clipping` | mix, decoded master | no sample at full scale (legacy `validate`) |
+
+- The sound checks' thresholds depend on the story, so they are not in the toolchain's
+  `checks`; `film_sound` keys them. A run takes `sound_toolchain(toolchain)`, which names
+  this mixer and mux: story 380's `Toolchain` defaults for both are placeholders the
+  builder refuses (`cache.entry_invalid`). Story 406 wires both calls.
 
 ### Deliveries
 
@@ -896,9 +1100,10 @@ out of scope for E1 to E3 (P-11). The Wan PVC (`ai/wan-video`) ledger and
   (`sha256`, `bytes`, `media_type`, size, `locator`, or null for definition-only kinds),
   `provenance`, `licence`, `capabilities`, `state`. Content, provenance and capabilities
   never change (D15).
-- **Kinds:** `cast`, `costume`, `set`, `prop`, `sound`, `motion` (set loops and doll
-  clips), `voice` (a stock TTS voice; no bytes), `character_card` (reserved for E2),
-  plus board-scoped `photo` and `board_voice`.
+- **Kinds:** `cast`, `costume`, `set`, `prop`, `sound`, `motion` (doll loops, set loops
+  and timed speech-to-video clips made for one board), `voice` (a stock TTS voice; no
+  bytes), `character_card` (reserved for E2), plus board-scoped `photo` and
+  `board_voice`.
 - **Capabilities:** `rgba_cutout`, `keyed_layer`, `mask`, `opaque_photo`, `opaque_plate`,
   `motion_clip`, `set_loop`, `tts_voice`, `sound_effect`, `sound_bed`, `board_voice`. An
   opaque photo is not a render-ready layer (review M6).
@@ -909,7 +1114,11 @@ out of scope for E1 to E3 (P-11). The Wan PVC (`ai/wan-video`) ledger and
   so a second promotion returns it. A board voice stays on its board
   (`asset.not_promotable`). Rejected candidates stay, hidden (D17).
 - **Pinning:** boards and snapshots name asset version IDs, never "latest"; only pickers
-  resolve "latest".
+  resolve "latest". The motion resolver (below) is where the merged code departs from
+  this: a cast entry without a motion pin resolves to the one promoted loop of its still
+  when the build plans, so promoting a second loop makes the board ambiguous
+  (`motion.clip_ambiguous`) until it pins one. Whether the server writes the resolved pin
+  onto the entry, as it writes missing seeds, is open for the contract owner.
 - **Import:** keyed by `provenance.source_key`, one asset per key
   (`asset.source_key_required` without one). The same bytes with the same `source_key`
   return the existing version; changed bytes make the next `number`; bytes seen before
@@ -921,9 +1130,11 @@ out of scope for E1 to E3 (P-11). The Wan PVC (`ai/wan-video`) ledger and
 - **Filters:** kind, labels, production, board. The board filter is the set of versions
   that board references (D32, D34).
 - **As built (story [382](https://work.haynesnetwork.com/work_packages/382),
-  [reference](../reference/studio-library.md)).** Example:
-  [asset version](examples/valid/asset-version-cast.json). Capabilities fit the kind and
-  the media type, and an opaque photo or plate is never also a layer
+  [reference](../reference/studio-library.md)).** Examples:
+  [asset](examples/valid/asset-cast.json),
+  [asset version](examples/valid/asset-version-cast.json),
+  [capability mismatch](examples/invalid/asset-capability-mismatch.json). Capabilities
+  fit the kind and the media type, and an opaque photo or plate is never also a layer
   (`asset.capability_mismatch`; the table per kind is P-29). The resolver names every version a story or board
   references: `ref.unknown`, `asset.kind_mismatch` (a cast voice that is not a `voice`,
   a board cast entry that is not a `cast`, and so on), `asset.scope_mismatch` (another
@@ -936,6 +1147,50 @@ out of scope for E1 to E3 (P-11). The Wan PVC (`ai/wan-video`) ledger and
   `voice.track` has the content shape, locator included (null on a legacy import); its
   takes carry `sha256` only and are found by hash at
   `productions/<production_id>/sha256/<h[0:2]>/<h>.wav` (story 405).
+- **Motion records (story [457](https://work.haynesnetwork.com/work_packages/457),
+  [reference](../reference/motion-clips.md)).** A `motion` version may carry a `motion`
+  block, immutable content like a board voice's `voice` block, allowed on no other kind
+  (`schema.invalid` at `/motion`). It is optional, so older motion versions stay valid,
+  but one without it cannot be played (`motion.record_missing`). Fields: `use` (`loop`,
+  TIME-8a, or `timed`, made for one board's speech, TIME-8); `subject` (`doll`, keyed,
+  capability `motion_clip`; or `set`, opaque, `set_loop`; never both); `still_sha256`
+  (the cast still or set the clip stands in for, absent when no record ties it to one);
+  `frames`, `fps`, `width`, `height`; `trim` (`{start, frames}`: a loop's `N`, or a timed
+  clip's TIME-8 frames from 0); `playback` (fixed by use and trim); `source` (the image
+  the engine animated, prompt, negative prompt, seed, profile, a timed clip's adapter,
+  the engine job); a timed clip's `drive_track` (`{sha256, board_frames}`); a doll
+  clip's `keying` (keyer, key thresholds, protect boxes, decal box and version, optional
+  `decal_min_ecc`); `keys` (`clip`, `keyed`, `identity`, section 4); `note`. A loop's
+  clip key is the doll clip row's; a timed clip's is the S2V clip key, since the loop key
+  has no drive track. A version with a block **pins its identity**, not its bytes: the
+  same record imported again is the same version, and the same clip keyed another way is
+  the next version of its asset (P-37).
+- **Board resolution.** A cast entry may pin its doll loop with the optional
+  `motion_asset_version_id`; without a pin, the one promoted doll loop whose
+  `still_sha256` is the entry's still, in the production or the global library. The set
+  uses the story's `set.motion_asset_version_id`, else the one promoted set loop of the
+  set still, else none: a static plate (P-37). Called on its own, the resolver skips a
+  speaker on an S2V board; the layered adapter resolves every board as layered I2V, so
+  every cast entry, a speaker's included, has its loop (P-39), and a speaker's timed clip
+  comes from her drive track (section 5). A resolved clip is returned only without a
+  blocking problem, so it is always playable. Codes, all
+  `invalid`: `motion.record_missing`, `motion.clip_absent` (no pin and no promoted clip of
+  that still), `motion.clip_ambiguous` (several), `motion.timed_not_loop` (a timed clip
+  pinned where a loop plays), `motion.still_mismatch` (the pin stands in for another
+  still), `motion.keying_missing` (a doll clip with no keying), `motion.identity_mismatch`
+  (a recorded key the inputs do not give: a corrupt record), `motion.drive_track_mismatch`
+  (a timed clip made for another board length); with `ref.unknown`,
+  `asset.kind_mismatch`, `asset.scope_mismatch` (a pin of another production),
+  `asset.capability_mismatch` (a set loop pinned for a doll or the reverse; story 404's
+  validator reports it at `/cast/<i>/motion_asset_version_id`), `asset.bytes_missing` and
+  `store.hash_mismatch`. The pre-build check's reference list does not include the cast
+  entry's motion pin yet (story 406); the resolver checks its bytes meanwhile.
+- **E0's clips** are imported from public text by source key
+  `legacy:winter-menu-video-e0:<loop|set-loop|s2v>:...`: 7 promoted and 3 candidate doll
+  loops, 1 set loop (pinned only: no record ties it to a set still), and 11 promoted
+  timed clips; the 13 whole-frame I2V clips and the whole-frame S2V test are not motion
+  assets. Values no public record holds are left out, never guessed (the reference
+  lists them); story 428 checks the private files.
 
 ## 10. Pre-build voice policy (D33)
 
@@ -947,7 +1202,18 @@ out of scope for E1 to E3 (P-11). The Wan PVC (`ai/wan-video`) ledger and
   (`voice.speaker_not_in_cast`). The Winter Menu's legacy voices are not the target
   (D53): new voice work auditions other Kokoro stock voices and settings per character,
   and other local text-to-speech models, and Tom picks from private samples. Any model
-  it adds keeps this rule: stock voices only, no cloning.
+  it adds keeps this rule: stock voices only, no cloning. The first audition (story
+  [840](https://work.haynesnetwork.com/work_packages/840),
+  [run log](../../titles/the-winter-menu/voice-audition/run-log.md)) delivered one
+  private reel per cast slot, six Kokoro stock voices each with the r4 voice first; Tom's
+  pick per slot is Q-840-01, open. The recorded stock list holds five Kokoro voices; a
+  voice Tom picks is recorded there before the library or a voice job accepts it, and
+  the voice plan refuses any other before a request (`voice.not_stock`). That matters
+  because the Kokoro service answers an unknown voice name with `af_heart` instead of
+  refusing it. The service takes no setting per request (one server-wide speed, 1.0), so
+  speed or delivery per line needs another service (Q-840-02, open). The
+  [desk review](../../titles/the-winter-menu/voice-audition/desk-review.md) recommends
+  two local models to try next; that is the worker's recommendation, not a decision.
 - **VOICE-2** A board voice version holds one take per line (with `signature`, `sha256`,
   `samples`, `duration_ms`, `offset_ms`) and the assembled track. It is made while
   editing, before any Build, and can be played and regenerated. The track stays at the
@@ -957,7 +1223,10 @@ out of scope for E1 to E3 (P-11). The Wan PVC (`ai/wan-video`) ledger and
 - **VOICE-3** Take signature: `sha256:` plus the SHA-256 of canonical `{engine, voice_id,
   text (NFC), speed}`, where `engine` is the TTS model's digest once one is recorded and
   its name (`Kokoro-82M v1.0`) until then, and `speed` is the float `1.0` (the Kokoro
-  client sends no speed, so the server default applies; legacy takes recorded none).
+  client sends no speed, so the server default applies; legacy takes recorded none; the
+  service's one speed is `KOKORO_SPEED=1.0`, story 840). Kokoro is deterministic: story
+  840's first take was byte-identical to the r4 take of the same voice and text, so a
+  retry after a transcript mismatch gives the same bytes.
   Version `input_signature`: `{takes: [take signature], lead_ms, gaps_ms}`, one gap per
   later line. What a snapshot pins for the version: `{input_signature, takes: [take
   sha256]}`. A stock voice's `definition_signature`: `{engine, stock, voice_id}`, with
@@ -976,16 +1245,21 @@ out of scope for E1 to E3 (P-11). The Wan PVC (`ai/wan-video`) ledger and
   UI may offer "generate missing voices, then queue".
 - **VOICE-7** Mix: each take normalized to the story's `line_rms_dbfs` (Legacy -22 dBFS)
   with 5 ms edge fades, then loudness -20 LUFS and true peak -3.5 dBTP (r4 values); a
-  format may change them later.
+  format may change them later. The limiter's look-ahead delay is compensated, so every
+  line sounds at its TIME-7 sample (story 841, section 8).
 - **VOICE-8** The transcript check (ASR with the story's tolerances) is a technical check
   recorded on the run. It is not a gate (D29).
 - **VOICE-9 Engine currency (D53, story 405's Q-405-01, answered 2026-11-13).** Once a
   TTS model digest is recorded, every board voice signed with another engine is stale
   (`voice.stale`), so The Winter Menu's legacy voices must be voiced again before its
   next build. No digest is recorded today, so nothing is stale for this reason yet. The
-  merged library's currency (`Library.facts`) compares lines, speakers, cast voices,
-  lead and gaps but not the engine; it must also compare the engine before a digest is
-  recorded.
+  library's currency (`Library.facts`) compares lines, speakers, cast voices, lead and
+  gaps, and since story 849 also the engine when its caller names the current one
+  (`current_engine`): a board voice any of whose takes is signed with another engine is
+  stale, with or without a story. With none named nothing changes (P-40). The caller
+  that names it is story [406](https://work.haynesnetwork.com/work_packages/406)'s
+  pre-build check, not yet merged; until it is, no build path compares the engine, which
+  changes nothing while no digest is recorded.
 - **As built (story 405, [reference](../reference/studio-voice.md)).** A take is 16-bit
   mono PCM at 8000 to 48 000 Hz (`voice.format_mismatch`) and at most 120 000 ms; lead and
   gaps together, and the track, at most 600 000 ms; a board voice at most 256 lines; each
@@ -1139,7 +1413,7 @@ installed or built to make it.
 | Python | CPython **3.12** in images; `requires-python = ">=3.11,<3.13"`; CI tests 3.11 and 3.12 | studio-render already runs 3.12 with pinned requirements ([services.md](../reference/services.md)); session pods have 3.11.2, and tests must run there without installing an interpreter. No 3.12-only syntax. | 3.13 (no runtime has it); 3.11 only (the worker runs 3.12) |
 | Package | distribution `haynes-studio`, import package **`haynes_studio`** under `src/`, CLI command `studio` | `poc/studio.py` is a module named `studio` that the PoC scripts import from their own folder; a package of the same name would shadow or be shadowed | package named `studio` |
 | Build and lock | `pyproject.toml` with the **hatchling** backend; **uv** with a committed `uv.lock`, `uv sync --locked` | uv is in every session pod (0.13); one cross-platform lock; hatchling builds with plain pip in image builds too | Poetry (not installed, separate lock); pip-tools (per-platform files) |
-| Runtime libraries | numpy, Pillow, PyAV, scipy (keying, BSD-3-Clause), opencv-python-headless (decal, Apache-2.0), **imageio-ffmpeg** for the ffmpeg binary, all in the lock (scipy and OpenCV since 2026-11-13, ahead of story 426). A story that ports PoC code adds what that code already uses (wyoming for the TTS and ASR adapters) to the lock | what `poc/` uses; session pods have no system ffmpeg | system ffmpeg |
+| Runtime libraries | numpy, Pillow, PyAV, scipy (keying, BSD-3-Clause), opencv-python-headless (decal, Apache-2.0), **imageio-ffmpeg** for the ffmpeg binary, all in the lock (scipy 1.16 and OpenCV 4.14 since 2026-11-13, PR 56, used by story 426's keying and decal). A story that ports PoC code adds what that code already uses (wyoming for the TTS and ASR adapters) to the lock | what `poc/` uses; session pods have no system ffmpeg | system ffmpeg |
 | Tests | **pytest**, serial; markers in [section 14](#14-test-contract) | standard; serial keeps the 2-thread rule | pytest-xdist by default |
 | JSON Schema | draft 2020-12 files; the `jsonschema` library checks them against the examples | language-neutral, shared with the web app and MCP | Python models as the only schema |
 | API | **FastAPI** + Pydantic v2 + Uvicorn | OpenAPI with auth and errors (story 409's acceptance); typed request models; streaming responses for media | Django (stateful sessions, ORM-first); Flask (no OpenAPI or validation) |
@@ -1160,7 +1434,7 @@ What story 424 implements. Proposal P-19 for the names and commands.
 | `live` | `uv run pytest -m live --live-story=<id>` | a story that authorizes it, and its named service | never in CI; opt-in only |
 
 - **Limits:** `STUDIO_THREADS=2`, `OMP_NUM_THREADS=2`, `OPENBLAS_NUM_THREADS=1`, ffmpeg
-  `-threads 2`, render `--workers 1`, no xdist, Playwright `workers: 1`, Vitest
+  `-threads 2`, OpenCV `cv2.setNumThreads(2)`, render `--workers 1`, no xdist, Playwright `workers: 1`, Vitest
   `--maxWorkers=2`; one suite at a time in a session pod. Timing tests use fake clocks,
   not sleeps.
 - **Fixtures:** committed fixtures are text only: the public manifests and evidence JSON,
@@ -1211,7 +1485,7 @@ What story 424 implements. Proposal P-19 for the names and commands.
 | `method.s2v_needs_onscreen_speaker` | invalid | 5 | [method-s2v-needs-onscreen-speaker](examples/invalid/method-s2v-needs-onscreen-speaker.json) |
 | `method.layered_needs_cast` | invalid | 5 | [method-layered-needs-cast](examples/invalid/method-layered-needs-cast.json) |
 | `method.unavailable` | unavailable (at `queue_run`) | 5 | [method-whole-frame-s2v-unavailable](examples/invalid/method-whole-frame-s2v-unavailable.json) |
-| `asset.capability_mismatch` | invalid | 5, 9 | |
+| `asset.capability_mismatch` | invalid | 5, 9 | [asset-capability-mismatch](examples/invalid/asset-capability-mismatch.json) |
 | `asset.kind_mismatch`, `asset.scope_mismatch`, `asset.bytes_missing`, `asset.unresolved` | invalid | 8, 9 | |
 | `asset.not_promotable`, `asset.source_key_required` | invalid | 9 | |
 | `cue.type_unknown` | invalid | 6 | [cue-type-unknown](examples/invalid/cue-type-unknown.json) |
@@ -1247,13 +1521,22 @@ What story 424 implements. Proposal P-19 for the names and commands.
 | `legacy.evidence_mismatch` | invalid | 1, 9 | |
 | `adapter.request_invalid`, `adapter.pin_mismatch` | invalid | 7 | |
 | `adapter.command_failed`, `adapter.timeout`, `adapter.response_invalid`, `adapter.not_found`, `adapter.busy` | failed job or stage | 7 | |
+| `wholeframe.unsupported`, `wholeframe.chain_limit` | invalid | 3, 5, 6 | |
+| `wholeframe.clip_invalid` | failed stage | 5, 7 | |
+| `motion.record_missing`, `motion.clip_absent`, `motion.clip_ambiguous`, `motion.still_mismatch`, `motion.keying_missing` | invalid | 5, 9 | |
+| `motion.timed_not_loop`, `motion.drive_track_mismatch` | invalid | 3, 9 | |
+| `motion.identity_mismatch` | invalid | 4, 9 | |
+| `layered.unsupported`, `layered.layout_invalid`, `layered.drive_invalid` | invalid | 3, 5, 6 | |
+| `layered.clip_invalid`, `layered.decal_weak` | failed stage | 5, 7, 8 | |
+| `mix.input_invalid`, `mix.master_invalid`, `mix.check_failed` | failed stage | 6, 8 | |
 
 ## 16. Held owner questions
 
-**None is held now.** Tom answered all four on 2026-11-13; the section keeps its name so
-links to it hold. Each entry keeps the question and its options in short, then the
-answer, its date and the decision that records it in
-[proposal 0003](../proposals/0003-studio-plan.md).
+**Q-01 to Q-04 are answered.** Tom answered all four on 2026-11-13; the section keeps its
+name so links to it hold. Each entry keeps the question and its options in short, then
+the answer, its date and the decision that records it in
+[proposal 0003](../proposals/0003-studio-plan.md). Questions the merged stories raised
+follow in a table; those still open for Tom are marked so.
 
 **Q-01 What do unknown or non-commercial licences block at release?** Affected
 `licence.commercial_use` and the release checks of stories 412 and
@@ -1302,7 +1585,8 @@ D52: no**, that is (a): "Nothing was built from the first pipeline that can be a
 that was a PoC to build out the stories". Only runs the studio's own engine builds can
 go live.
 
-**Questions raised by merged E1 stories**, answered or decided the same day:
+**Questions raised by merged E1 stories**, answered, decided or held the same day. An
+answer by the contract owner is a proposal Tom may overrule.
 
 | Question | Answer | By |
 |---|---|---|
@@ -1312,6 +1596,14 @@ go live.
 | Q-381-01 Proxy size past 60 s | 25 000 000 bytes per minute, at least 25 000 000 (section 8) | the contract owner |
 | Q-381-02 Is the proxy's picture good enough on a phone? | Open: answered when Tom watches the first real delivery at the demo | Tom, later |
 | H-1, H-2, H-3 of story 380 (drive track key, encoder threads, cache lookup) | P-25, P-26, P-27 | the contract owner |
+| Q-427-1 Camera cues on whole-frame boards: (a) refuse, (b) draw a crop-zoom with story 426's camera code, (c) reject at write | (a) for now (`wholeframe.unsupported`), then (b) once the layered camera code is shared; story 406 runs the check before any clip is made (sections 5, 6) | the contract owner |
+| Q-427-2 Whole-frame chain limit: (a) 3 clips, (b) more, (c) 2 | (a): at most 3 clips of 121 frames, 361 frames, E0's longest delivered chain; every r4 board fits (TIME-8) | the contract owner |
+| Q-457-1 A layered board's cast still has no motion loop: (a) an error, (b) Build makes a candidate, (c) Build makes and promotes one | (a): `motion.clip_absent`; a loop is made by an explicit asset job before Build, as voices are (P-12); Build never generates one (section 5) | the contract owner |
+| Q-426-1 Keying of a speech-to-video clip the build makes: (a) the loop's keying with its protect boxes, gate 0.8, (b) without protect boxes, (c) a separate speech keying on the record | (a) as built; the demo shows Tom the result (section 5) | the contract owner |
+| Q-426-2 Reuse of E0's speech-to-video clips: (a) make new clips, (b) pin a speaker's timed clip on the cast entry, (c) import E0's drive tracks | (a): the build makes new clips and reuses a library timed clip only when it was made from the board's own drive track with the board's seed; new voices change the drive tracks anyway; story 428 measures the GPU time (section 5) | the contract owner |
+| Q-840-01 The voice per cast slot, from story 840's Kokoro reels: (a) one candidate per slot, (b) keep the r4 voices, (c) wait for the next model trial | Open. The worker recommends (a) where a candidate is clearly better, else (c) | Tom, open |
+| Q-840-02 Per-line speed and delivery: (a) keep the service's one speed, 1.0, (b) a studio Kokoro with per-request speed (haynes-ops), (c) per-request speed and a delivery instruction as requirements of the next voice engine | Open. The worker recommends (c), adding (b) only if Tom keeps a Kokoro voice | Tom, open |
+| Q-841-01 A sound cut at the film's end: (a) hard cut at the last sample, (b) fade the last 50 ms before the cut (a new mixer version) | Open. Built as (a), the worker's recommendation; no Winter Menu sound is cut, and nothing waits on it | Tom, open |
 
 ## 17. Proposals
 
@@ -1352,6 +1644,11 @@ go live.
 | P-33 | Legacy import as built (story 404): board titles `Shot <id>`; an absent move `dur`, `dx`, `dy` or `angle` written as 0 with 3 steps, an absent camera `over` as 400 ms, an absent `foreground` as true; method `layered` + `s2v` with lines and `layered` + `i2v` without; empty `seeds`; `mix.line_rms_dbfs` -22; `method.unavailable` a warning on write and `unavailable` at `queue_run`; integral floats read as integers | leaving the renderer's assumed values implicit on canonical boards |
 | P-34 | Service adapters as built (story 425): request limits (Kokoro text up to 1000 characters; image sizes multiples of 8 from 64 to 4096, prompts up to 10 000 characters; transcript WAV up to 64 MiB); a read-only ComfyUI queue check; upload names from the PNG's hash; read-only ledger `list`, `find` and `fetch_asset`; a 300-character redacted stderr tail; one render per process | the PoC's random upload names (ComfyUI overwrites by name); reading a haynes-ops checkout at run time |
 | P-35 | Legacy loader as built (story 378): stricter than the PoC (`line` with `lines`, `after_line` without `offset`, `at` with `after_line`, a later line's `start`, a silent shot's `tail` and an fps other than 24 are refused); absent values stay absent in the legacy model, with only the gap and revision defaults applied and flagged; shot times compared at the record's 4 decimals | the PoC's silent defaults and precedence |
+| P-36 | Whole-frame adapter as built (story 427): whole 121-frame clips chained on a shared, dropped boundary frame, `1 + ceil((needed - 121) / 120)` clips, at most 3 (Q-427-2, the contract owner); chained seeds `i2v:frame + k`; no stretch; one clip-set artifact (`studio.whole-frame-clips/v1`) with its media stage `whole_frame_media-<hash>`; a clip of the same aspect scaled with Lanczos, another aspect refused; compositor `studio.wholeframe/1+pillow-<v>`; move and camera cues refused (camera: Q-427-1, the contract owner); `check_board`; `wholeframe.unsupported`, `wholeframe.chain_limit`, `wholeframe.clip_invalid` | `ceil(n / 121)` clips (one short at 242 and 362 frames); stretching a clip (breaks TIME-8's mapping); E0's unrelated seeds per chained clip; a longer chain (drift compounds); cropping or padding another aspect |
+| P-37 | Motion records as built (story 457): the `motion` block on motion versions and its code rules; the cast entry's optional `motion_asset_version_id`; a motion version pins its identity, not its bytes; a timed clip keyed with `s2v_clip_key`; the identity adds the negative prompt, the still and what neither key covers; the decal's still is the clip's start image; an unpinned set without a promoted loop is a static plate; a doll clip is `motion_clip`, a set loop `set_loop`, never both; E0 clips by source key `legacy:winter-menu-video-e0:...`; the `motion.*` codes | pinning a motion version by its bytes (the same clip keyed another way could not become a new version); the loop key for timed clips (it has no drive track); an unpinned set without a loop as an error |
+| P-38 | Sound and master as built (story 841): the limiter's delay compensated (`latency=1`); MP4 movie timescale 48 000; a sound cut exactly at the film's end, not faded (Q-841-01 open); short sounds, short beds, fades under 1 ms and a limit outside 0.0625 to 1 refused (`mix.input_invalid`); no loudness gain on a silent programme; float32 to one 24-bit quantization; levels and fades on line spans; the placement record (`studio.mix-placement/v1`, kind `mix_placement`); the check result (`studio.check-result/v1`); the seven sound checks, true peak at most the target + 1 dB; mux settings a full key input; TIME-10 checked from the story beside the key; `mix.input_invalid`, `mix.master_invalid`, `mix.check_failed` | legacy's uncompensated limiter (sound 1.98 ms late, its last 95 samples lost); the default timescale 1000 (recorded audio rounded down to a whole ms); legacy's absolute -2.5 dBTP; cutting 100 ms after the film's end; a 16-bit premaster; crashing on short inputs as legacy did |
+| P-39 | Layered adapter as built (story 426): keyed frames as one APNG with its `studio.keyed-frames/v1` record; the keyer keyed as `<keyer>@<build>`; the decal gate on every use, over the frames the board shows, with a check result, and a weak artifact cached but never drawn; drive tracks at the takes' rate; the S2V clip as the cached artifact with its provenance stage (`studio.s2v-clip/v1`); a speaker's start image and keying from her loop, protect boxes included, gate 0.8 (Q-426-1, the contract owner), her loop at the S2V size; a library timed clip only from the board's drive track with its seed (Q-426-2, the contract owner); every cast entry resolves a loop, speakers included; single framing read from the preset's values; one camera cue per board, starting at its anchor; exact pose times; compositor `studio.layered/1+pillow-<v>+numpy-<v>`; the D51 photo's named inputs and PNG; a plan without motion records keeps story 380's placeholders and cannot be built; speakers bounce too; the `layered.*` codes | the PoC's folder of uncropped PNGs (frames and scores can part); gating once when keying (a floor belongs to a record); 16 kHz drive tracks (cannot hold `F / 24` s exactly); keying without protect boxes, or a separate speech keying (Q-426-1 (b), (c)); pinning a speaker's timed clip, or importing E0's drive tracks (Q-426-2 (b), (c)); the PoC's camera from the shot's first frame and float pose times |
+| P-40 | Contract catch-up as built (story 849): `conditional` is a checked value with a non-null `note`; the register lookup gives `conditional` only for an entry with `outputs_commercial_use: conditional` and an `unknown` object, keeping its note word for word; `current_engine` is an opt-in keyword of `Library.facts` and `voice_facts`, comparing every take, with or without a story; `agent_session` fields are non-empty strings and nothing else; the board bounds reported as `schema.invalid` with TIME-5 in the message; a fractional lead over the bound reports both `time.not_integer_ms` and `schema.invalid` | a `conditional` without its conditions; rewriting the register's values in code; comparing the engine on every call before any caller can name the current one |
 
 ## 18. Decisions and dissent
 
@@ -1377,3 +1674,8 @@ Where sources disagree, which this contract follows and why.
 | Layered board photo | Q-03's recommendation: a preview now, the composite later | the composite from the start | D51 (coordinator's reading) |
 | Legacy cuts and go-live | Q-04's recommendation (b); D1's sign-off of r4 | canonical runs only | D52 |
 | Agent builds | Q-02's interim: people only | agent keys may hold `runs:queue` | D50 (coordinator's reading) |
+| Chained whole-frame clips | E0: unrelated seeds per chained clip; shot 6 held its last frame | seeds `i2v:frame + k`; a second clip, nothing held | P-36, P-05 |
+| Speech clip keying | E0 keyed A's three speech clips without her loop's eye-protect box, and six clips at floors other than their loop's | the loop's keying, protect boxes included, gate 0.8 | Q-426-1 (the contract owner): one rule for every clip the build makes; a floor is a judgement of one clip |
+| Limiter delay | legacy masters: sound 95 samples (1.98 ms) late, last 95 samples lost | delay compensated | TIME-7 placements hold only so (P-38) |
+| Sound past the film's end | legacy: cut 100 ms after the end | cut at the last sample | TIME-10; a fade at the cut is Q-841-01, open |
+| Media kind change and idle dolls | section 4's row before story 426: every clip and keyed frame rebuilds | an idle doll's pinned loop and keyed frames are reused | loops are library sprites the layout places (story 426) |
