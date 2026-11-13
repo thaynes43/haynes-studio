@@ -40,7 +40,9 @@ Text only: IDs, hashes and numbers. No media.
 }
 ```
 
-`document` is the offending instance; `path` is a JSON Pointer into it. `expect` is
+`document` is the offending instance; `path` is a JSON Pointer into it. A `write` case
+is a document as a client sends it, so it carries no `derived` block; the valid examples
+are documents as the server returns them, so they do. `expect` is
 `invalid`, `unavailable` (a valid design the studio cannot build yet) or `forbidden`.
 `context` says where the rule fires: `write` (schema and write validation) or
 `queue_run` (the document saves, and queueing a run fails). In that context a validator
