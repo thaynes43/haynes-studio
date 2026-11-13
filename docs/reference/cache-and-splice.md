@@ -105,9 +105,17 @@ pre-build check refuses these first. Artifact names in the plan (`<board>/segmen
 The plan decides which layers a board has:
 
 - **Layered + S2V:** every cast slot with a line on the board gets an S2V layer (drive
-  track, S2V clip, keyed frames). Every other slot gets a doll layer: a doll clip keyed
-  by its still, the toolchain's doll prompt and seed, then keyed frames.
+  track, S2V clip, keyed frames). Every other slot gets a doll layer: its pinned
+  library loop and the loop's keyed frames.
 - **Layered + I2V:** every slot gets a doll layer.
+- **Pinned records (story 426):** with `motion=pin_story(...)` (story 457's resolver,
+  [layered-adapter.md](layered-adapter.md#the-cache-plans-layered-path)), a doll layer's
+  clip, keyed frames, `N` and phase, the set loop, and a speaker's start image and
+  keying come from the records; a library timed clip made from a speaker's drive track
+  is used instead of a new S2V clip; a cast still without a loop stops the plan
+  (`motion.clip_absent`). Without `motion` the plan keeps story 380's placeholders (a
+  doll clip keyed by its still, the toolchain's doll prompt, seed and keying), which no
+  renderer draws. The cache tests plan with pinned records.
 - **Whole frame + I2V:** one whole-frame clip, from the board's current photo and its
   `i2v:frame` seed.
 - **Whole frame + S2V:** refused (`method.unavailable`).
@@ -235,7 +243,7 @@ that `ROWS` and the contract's table list the same rows in the same order.
 | Add or remove a board | that board's artifacts appear or go; film and mix |
 | Method (layer or motion) | the board's clips and segment; film picture, master, proxy, checks (mix stays) |
 | Seed | that clip and its keyed frames (the drive track stays); the segment; picture outputs |
-| Cast still version | clips and keyed frames made from that still, on every board using it; those segments; picture outputs |
+| Cast still version | clips and keyed frames made from that still, on every board using it (story 426: the new version's own pinned loop, so an idle doll's clip and keyed frames and a speaker's S2V clip, from the loop's start image, and keyed frames); those segments; picture outputs |
 | Board photo version | whole-frame: clip and segment; layered: nothing (its photo is derived from its layers, D51) |
 | Layout preset values | segments of boards using the preset; picture outputs |
 | Move or camera cue | the segment; picture outputs |
@@ -243,8 +251,8 @@ that `ROWS` and the contract's table list the same rows in the same order.
 | Note or title | nothing |
 | Story motion style | every layered segment (B1, B2, B4); not the whole-frame B3 |
 | A cast slot's voice | that speaker's takes on every board, tracks, her S2V layers, segments of those boards; film and mix |
-| Toolchain or profile digest | what that tool made (compositor or encoder: segments; S2V profile: S2V clips and keyed frames; keyer: keyed frames; TTS: everything spoken; splicer: film picture on; mixer: mix on); every `Toolchain` field is changed in turn and changes only what that tool makes |
-| Media kind frame size or fps | short to video: every clip, keyed frame and segment, film picture, master, proxy; same aspect: segments only (proposal); another fps is refused |
+| Toolchain or profile digest | what that tool made (compositor or encoder: segments; S2V profile: S2V clips and keyed frames; TTS: everything spoken; splicer: film picture on; mixer: mix on); every `Toolchain` field is changed in turn and changes only what that tool makes. Story 426: keying comes from the pinned records, so the toolchain's keyer, key thresholds, protect boxes, decal box and version and its doll motion profile, prompt and seed change no key of a pinned plan (they still key the placeholder path); a record keyed by another keyer re-keys every layer keyed with it |
+| Media kind frame size or fps | short to video: every generated clip (S2V, whole-frame), an S2V clip's keyed frames, every segment, film picture, master, proxy; an idle doll's pinned loop and its keyed frames are reused (story 426: they are sprites the layout places); same aspect: segments only (proposal); another fps is refused |
 
 "Picture outputs" means the film picture, master, proxy and checks; the mix stays.
 
