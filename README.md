@@ -32,6 +32,8 @@ comes from what the manual run teaches us, not from guesses made in advance.
 | [`docs/decisions/`](docs/decisions/) | Short decision records (ADRs). |
 | [`titles/`](titles/) | One folder per title: brief, manifest, prompts, run log, evidence. No media. |
 | [`poc/`](poc/README.md) | The manual PoC's helper scripts (images, voices, editor, delivery). Not the final tooling. |
+| [`src/haynes_studio/`](src/haynes_studio/__init__.py), [`pyproject.toml`](pyproject.toml) | The studio's Python package (empty until E1 stories land), locked with uv. |
+| [`tests/`](tests/), [`web/`](web/package.json) | The test suites and the browser workspace; how to run them: [testing](docs/process/testing.md). |
 | [`docs/proposals/`](docs/proposals/) | The studio design and backlog ([0003](docs/proposals/0003-studio-plan.md)). |
 
 ## Tracking

@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "haynes-studio"
+version = "0.1.0.dev0"
+description = "Haynes Studio: tooling for short-form comedy videos on in-cluster services."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11,<3.13"
+dependencies = []
+
+[dependency-groups]
+# Test and development tools only. A story that needs a runtime library adds it to
+# [project].dependencies and the lock (docs/process/testing.md).
+dev = [
+    "pytest>=9.2,<10",
+    "psycopg[binary]>=3.3,<4",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/haynes_studio"]
+
+[tool.uv]
+# Session pods have no interpreter downloads; CI provides its own Python.
+python-downloads = "never"
+
+[tool.pytest.ini_options]
+minversion = "9.2"
+testpaths = ["tests"]
+# Serial by contract (docs/contracts/studio-contracts-v1.md section 14): no xdist.
+# -ra lists every skip with its reason; --tb=short keeps failures to code and path.
+addopts = ["-ra", "--strict-markers", "--strict-config", "--tb=short", "-p", "no:xdist"]
+# The db and live markers are registered by tests/support/plugin.py.
+xfail_strict = true
+filterwarnings = ["error"]

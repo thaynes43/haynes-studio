@@ -97,6 +97,13 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 
+# Node and Playwright (docs/process/testing.md); Playwright writes results to the OS
+# temp directory, these catch a run that does not
+node_modules/
+/web/test-results/
+/web/playwright-report/
+/web/blob-report/
+
 # Editors and OS
 .DS_Store
 .idea/
