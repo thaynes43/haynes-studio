@@ -9,11 +9,12 @@ alone (no film frame, no neighbouring board, P-06) it:
    input, a layer that names no pinned record, a cue it cannot run, no set;
 2. reads every keyed artifact, the set loop or plate and the voice track by hash,
    re-hashed; a missing one is ``time.source_short``;
-3. applies the decal gate of every keyed layer with a decal: a track below the layer's
-   floor fails the segment before any frame is drawn (``layered.decal_weak``), and the
-   check result is kept in :attr:`LayeredRenderer.checks`;
-4. maps every board frame to a source frame of every layer (the table below) and fails
+3. maps every board frame to a source frame of every layer (the table below) and fails
    a short clip before the first frame (``time.source_short``, P-05: nothing is held);
+4. applies the decal gate of every keyed layer with a decal, over the source frames the
+   board shows: a track below the layer's floor fails the segment before any frame is
+   drawn (``layered.decal_weak``), and the check result is kept in
+   :attr:`LayeredRenderer.checks`;
 5. yields exactly the board's frames: set, then each doll in draw order (shadow, body,
    motion), then the foreground edge, then the camera.
 
@@ -114,6 +115,7 @@ def check_segment(inputs: Mapping[str, Any]) -> None:
         raise LayeredError(UNSUPPORTED, "a layered board draws on a set plate or set loop", where="/set_layer")
     if set_layer.get("loop") and not (_int(set_layer.get("phase")) and _int(set_layer.get("trim_frames"))):
         raise LayeredError(UNSUPPORTED, "the set loop names no phase or N", where="/set_layer")
+    check_style(inputs.get("motion_style"))
     slots = {item["slot"] for item in layers}
     cameras = 0
     for index, cue in enumerate(inputs.get("cues") or []):
@@ -133,13 +135,31 @@ def check_segment(inputs: Mapping[str, Any]) -> None:
         raise LayeredError(UNSUPPORTED, "one camera cue per board, as legacy (proposal)", where="/cues")
 
 
-def decal_check(keyed_sha256: str, record: Mapping[str, Any], floor: float | None) -> dict[str, Any] | None:
-    """The decal gate's check result for one keyed artifact (None without a decal)."""
+def check_style(style: Any) -> None:
+    """A motion style names only the PoC's four settings, each a finite number."""
+    if style is None:
+        return
+    if not isinstance(style, Mapping) or set(style) - set(compose.STYLE_DEFAULTS) or any(
+            isinstance(v, bool) or not isinstance(v, int | float) or v != v or v in (float("inf"), float("-inf"))
+            for v in style.values()):
+        raise LayeredError(UNSUPPORTED, f"motion style {style!r} is not numbers for "
+                           f"{', '.join(compose.STYLE_DEFAULTS)}", where="/motion_style")
+
+
+def decal_check(keyed_sha256: str, record: Mapping[str, Any], floor: float | None,
+                shown: set[int] | None = None) -> dict[str, Any] | None:
+    """The decal gate's check result for one keyed artifact (None without a decal),
+    over the source frames the board shows (``shown``; all when None). Frame 0 is the
+    track's template and has no score (**proposal**: the PoC gated every frame, also
+    the ones a board trims)."""
     decal = record.get("decal")
     if decal is None:
         return None
     floor = keying.MIN_ECC if floor is None else floor
-    summary = {name: decal[name] for name in ("frames_tracked", "failed_frames", "min_ecc", "mean_ecc")}
+    scores = decal["scores"]
+    if shown is not None:
+        scores = [scores[i - 1] for i in sorted(shown) if 1 <= i <= len(scores)]
+    summary = {**keying.summarize(scores), "frames_gated": len(scores)}
     thresholds = {"min_ecc": floor}
     return {"check": DECAL_CHECK, "version": DECAL_CHECK_VERSION, "artifact": keyed_sha256,
             "key": check_result_key(artifact=keyed_sha256, check=DECAL_CHECK,
@@ -204,15 +224,6 @@ class LayeredRenderer(SegmentRenderer):
         for k, item in enumerate(inputs["layers"]):
             data = _read(request, item["keyed"], f"layer {item['slot']}'s keyed frames")
             record = read_record(data)
-            check = decal_check(item["keyed"], record, item["decal_min_ecc"])
-            if check is not None:
-                checks.append({"slot": item["slot"], **check})
-                if not check["passed"]:
-                    raise LayeredError(DECAL_WEAK, f"slot {item['slot']}: the decal track is too weak "
-                                       f"(min {check['result']['min_ecc']}, "
-                                       f"{check['result']['failed_frames']} failed; floor "
-                                       f"{check['thresholds']['min_ecc']}); re-roll the clip or "
-                                       "record a lower decal_min_ecc", where=item["keyed"], check=check)
             if item["clip_frames"] is not None and record["frames"] != item["clip_frames"]:
                 raise LayeredError(SOURCE_SHORT if record["frames"] < item["clip_frames"] else CLIP_INVALID,
                                    f"slot {item['slot']}: keyed {record['frames']} frames of a "
@@ -228,6 +239,16 @@ class LayeredRenderer(SegmentRenderer):
                 raise LayeredError(SOURCE_SHORT, f"slot {item['slot']}: board frame {frames - 1} needs "
                                    f"source frame {last}; the clip has {len(layer.pngs)} (TIME-8, "
                                    "nothing is held)", where=item["keyed"])
+            shown = {layer.index(n) for n in range(frames)}
+            check = decal_check(item["keyed"], record, item["decal_min_ecc"], shown)
+            if check is not None:
+                checks.append({"slot": item["slot"], **check})
+                if not check["passed"]:
+                    raise LayeredError(DECAL_WEAK, f"slot {item['slot']}: the decal track is too weak "
+                                       f"(min {check['result']['min_ecc']}, "
+                                       f"{check['result']['failed_frames']} failed; floor "
+                                       f"{check['thresholds']['min_ecc']}); re-roll the clip or "
+                                       "record a lower decal_min_ecc", where=item["keyed"], check=check)
             layers.append(layer)
         background = _Set(request, inputs["set_layer"], frames, width, height)
         talks: tuple[compose.Talk, ...] = ()
@@ -368,4 +389,4 @@ class _Set:
 
 
 __all__ = ["COMPOSITOR", "DECAL_CHECK", "LayeredRenderer", "LayeredReport", "SEGMENT_INPUTS",
-           "check_segment", "decal_check"]
+           "check_segment", "check_style", "decal_check"]

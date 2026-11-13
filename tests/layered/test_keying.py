@@ -19,7 +19,8 @@ def key_of(clip: bytes, still: bytes, *, protect=(media.PROTECT,), decal=True, *
     inputs = dict(clip=hashlib.sha256(clip).hexdigest(), still=hashlib.sha256(still).hexdigest(),
                   key_thresholds={"lo": 20, "hi": 70}, protect_boxes=[list(b) for b in protect],
                   decal_box=list(media.DECAL_BOX) if decal else None,
-                  decal_version="erase-v2" if decal else None, keyer="legacy:poc/cutout.py key")
+                  decal_version="erase-v2" if decal else None,
+                  keyer=f"legacy:poc/cutout.py key@{keyed.keyer_build()}")
     inputs.update(changes)
     return keyed_frames_key(**inputs)
 
@@ -119,6 +120,8 @@ def test_unsupported_key_settings_are_refused_before_anything_is_read():
     clip = media.doll_clip(2)
     refused = [
         key_of(clip, still, keyer="studio.keyer/9"),
+        key_of(clip, still, keyer="legacy:poc/cutout.py key"),  # no build: not this one's key
+        key_of(clip, still, keyer="legacy:poc/cutout.py key@opencv-0.0"),  # another build
         key_of(clip, still, key_thresholds={"lo": 70, "hi": 20}),
         key_of(clip, still, key_thresholds={"green": 0.4}),
         key_of(clip, still, decal_box=None, decal_version="erase-v2"),

@@ -53,7 +53,7 @@ from haynes_studio.layered.errors import (
     UNSUPPORTED,
     LayeredError,
 )
-from haynes_studio.render.encode import decode_frames
+from haynes_studio.render.encode import decode_frames, encoder_build
 from haynes_studio.store import BLOB_MISSING, HASH_MISMATCH, StoreError
 
 SCHEMA = "studio.keyed-frames/v1"  # proposal: the record inside the keyed artifact
@@ -63,9 +63,15 @@ _SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
 def tool_builds() -> dict[str, str]:
-    """The library builds that draw keyed pixels (recorded, not key inputs)."""
+    """The library builds that draw keyed pixels, decoding included."""
     return {"numpy": np.__version__, "opencv": cv2.__version__, "pillow": PIL.__version__,
-            "scipy": scipy.__version__}
+            "scipy": scipy.__version__, "decoder": encoder_build()}
+
+
+def keyer_build() -> str:
+    """:func:`tool_builds` as one text, the build part of a key's ``keyer``
+    (``<keyer>@<build>``, **proposal**, P-07): another build is another key."""
+    return "+".join(f"{name}-{version}" for name, version in sorted(tool_builds().items()))
 
 
 # The APNG container ---------------------------------------------------------------------
@@ -217,11 +223,18 @@ def _box(value: Any, what: str) -> tuple[int, int, int, int]:
 
 
 def check_settings(document: Mapping[str, Any]) -> KeySettings:
-    """The key's settings, if this keyer serves them: a keyer and decal version of
-    :mod:`.keying`, thresholds ``{lo, hi}`` with ``lo < hi``, boxes in pixels."""
-    if document.get("keyer") not in keying.KEYERS:
-        raise LayeredError(UNSUPPORTED, f"keyer {document.get('keyer')!r} is not one of "
+    """The key's settings, if this keyer serves them: ``<keyer>@<build>`` with a keyer
+    of :mod:`.keying` and this process's :func:`keyer_build` (a key made for another
+    build cannot be served), a decal version of :mod:`.keying`, thresholds ``{lo, hi}``
+    with ``lo < hi``, boxes in pixels."""
+    named = document.get("keyer")
+    base, _, build = named.partition("@") if isinstance(named, str) else (None, "", "")
+    if base not in keying.KEYERS:
+        raise LayeredError(UNSUPPORTED, f"keyer {named!r} is not one of "
                            f"{', '.join(keying.KEYERS)}", where="/keyer")
+    if build != keyer_build():
+        raise LayeredError(UNSUPPORTED, f"keyer {named!r} names another build than this one "
+                           f"({keyer_build()})", where="/keyer")
     thresholds = thaw(document.get("key_thresholds"))
     lo, hi = (thresholds.get("lo"), thresholds.get("hi")) if isinstance(thresholds, dict) else (None, None)
     if (not isinstance(thresholds, dict) or set(thresholds) != {"lo", "hi"}
@@ -234,11 +247,11 @@ def check_settings(document: Mapping[str, Any]) -> KeySettings:
     if decal_box is None:
         if version is not None:
             raise LayeredError(UNSUPPORTED, "a decal version without a decal box", where="/decal_box")
-        return KeySettings(document["keyer"], lo, hi, protect, None, None)
+        return KeySettings(base, lo, hi, protect, None, None)
     if version not in keying.DECAL_VERSIONS:
         raise LayeredError(UNSUPPORTED, f"decal version {version!r} is not one of "
                            f"{', '.join(keying.DECAL_VERSIONS)}", where="/decal_version")
-    return KeySettings(document["keyer"], lo, hi, protect, _box(decal_box, "the decal box"), version)
+    return KeySettings(base, lo, hi, protect, _box(decal_box, "the decal box"), version)
 
 
 def read_verified(read: Callable[[str], BinaryIO], sha256: str, what: str) -> bytes:
@@ -367,5 +380,5 @@ class KeyedFrames:
         return self.cache.commit(key, data, PNG)
 
 
-__all__ = ["PNG", "SCHEMA", "KeySettings", "KeyedFrames", "check_settings", "decode_png",
+__all__ = ["PNG", "SCHEMA", "KeySettings", "KeyedFrames", "check_settings", "decode_png", "keyer_build",
            "frame_pngs", "make_keyed", "read_frames", "read_record", "read_verified", "still_rgb", "tool_builds", "write_apng"]

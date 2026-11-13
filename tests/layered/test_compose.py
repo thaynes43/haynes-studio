@@ -108,6 +108,10 @@ def test_the_pre_build_check_lists_every_refusal(world):
     found = {(v.rule, v.path) for v in check_board(story, board, motion=motion)}
     assert found == {("layered.layout_invalid", "/cast/2"), ("layered.unsupported", "/cues/1"),
                      ("motion.clip_absent", "/cast/1/motion_asset_version_id")}
+    sized = check_board(story, board, motion=motion, frame_size=(640, 360), s2v_size=(160, 256))
+    assert {(v.rule, v.path) for v in sized} - found == {
+        ("layered.unsupported", "/set/motion_asset_version_id"),  # a 9:16 loop on a 16:9 board
+        ("layered.unsupported", "/cast/0"), ("layered.unsupported", "/cast/2")}  # a, c speak; b has no loop
     clean = load_story(h.story_document(), context="write", source="check")
     assert check_board(clean, clean.boards[0], motion=pin_board(
         h.story_document()["boards"][0], world.library(), world.store.verify,

@@ -11,9 +11,10 @@ static plate). Build generates no loop (Q-457-1): a cast still without one is
 
 The result is the plan's :class:`~haynes_studio.cache.plan.LayeredMotion`. Its
 ``timed`` answers a speaker's library timed clip for the drive track the plan computed
-(``resolve_timed``), so an existing clip made from the board's own drive track is used
-and never made again. Nothing here reads media; ``verify`` is the store's
-``Store.verify``.
+(``resolve_timed``); the plan uses it when it was made with the board's seed, so an
+existing clip of the board's own drive track is never made again and a seed edit still
+re-rolls. Its ``keyer_build`` is :func:`~haynes_studio.layered.keyed.keyer_build`.
+Nothing here reads media; ``verify`` is the store's ``Store.verify``.
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from typing import Any
 from haynes_studio.cache.errors import CacheError
 from haynes_studio.cache.plan import LayeredMotion
 from haynes_studio.errors import blocking, pointer
+from haynes_studio.layered.keyed import keyer_build
 from haynes_studio.library.library import Library
 from haynes_studio.motion.resolve import (
     CLIP_ABSENT,
@@ -79,7 +81,8 @@ def pin_story(story: Mapping[str, Any], library: Library, verify: Verify, *,
             raise CacheError(stop[0].rule, stop[0].message, where=f"timed/{slot}")
         return clip
 
-    return LayeredMotion(boards=boards, timed=timed, decal_min_ecc=decal_min_ecc)
+    return LayeredMotion(boards=boards, timed=timed, decal_min_ecc=decal_min_ecc,
+                         keyer_build=keyer_build())
 
 
 __all__ = ["DECAL_MIN_ECC", "pin_board", "pin_story"]

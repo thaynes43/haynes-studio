@@ -39,10 +39,17 @@ def timed_rows():
 
 
 def r4_document():
+    """r4 as imported, with the seeds the server would write: E0's own seeds, from the
+    timed clips' records, so a stored clip counts as this board's (a seed edit would
+    re-roll it)."""
     document = copy.deepcopy(imported(4).story)
-    for board in document["boards"]:  # the server writes seeds; a test writes them here
+    library = e0().library
+    seeds = {(row.board, row.slot): library.version(row.version_id).motion["source"]["seed"]
+             for row in timed_rows()}
+    for board in document["boards"]:
         if board["method"]["motion"] == "s2v":
-            board["seeds"] = {f"s2v:{line['speaker']}": 500 + i for i, line in enumerate(board["lines"])}
+            board["seeds"] = {f"s2v:{line['speaker']}": seeds[(board["number"], line["speaker"])]
+                              for line in board["lines"]}
     return document
 
 

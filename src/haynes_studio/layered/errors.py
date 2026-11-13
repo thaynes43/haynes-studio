@@ -1,7 +1,8 @@
 """Layered adapter codes (story 426).
 
 Contract codes: ``time.source_short`` (TIME-8: a timed clip shorter than its board, or
-a stored clip that is missing, short or undecodable, fails the stage),
+a stored clip or keyed artifact that is missing or short, fails the stage; one that
+does not decode is ``layered.clip_invalid``),
 ``method.unavailable`` (whole-frame + speech-to-video) and ``motion.clip_absent`` (a
 cast still without a loop; story 457's code). The ``layered.*`` codes are **proposals**
 of story 426, not yet in the rule index.

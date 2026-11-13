@@ -10,6 +10,7 @@ import pytest
 
 from haynes_studio.jsonio import thaw
 from haynes_studio.layered import LayeredRenderer, reader
+from haynes_studio.layered.renderer import decal_check
 from haynes_studio.layered.errors import (
     CLIP_INVALID,
     DECAL_WEAK,
@@ -116,7 +117,8 @@ def test_unsupported_segments_are_refused_never_ignored(world, first):
             changed(method={"layer": "whole_frame", "motion": "i2v"}),
             changed(fps=25), changed(extra="input"), changed(layers=[]), changed(set_layer=None),
             changed(whole_frame_clip="9" * 64), changed(layout=None),
-            changed(cues=[{"type": "sound"}]),
+            changed(cues=[{"type": "sound"}]), changed(motion_style={"talk_hopp": 3}),
+            changed(motion_style={"talk_hop": "high"}),
             changed(cues=[{"type": "move", "slot": "d", "start_ms": 0, "duration_ms": 0,
                            "dx_px": 1, "dy_px": 0, "angle_deg": 0, "steps": 3}]),
             changed(cues=[{"type": "camera", "start_ms": 0, "duration_ms": 0, "zoom_from": 1,
@@ -169,6 +171,16 @@ def test_a_weak_decal_track_fails_the_board_unless_its_record_allows_it(tmp_path
     checks = built.renderer.checks[built.plan.artifacts[f"{h.B2}/segment"].key.value]
     assert {c["slot"]: c["passed"] for c in checks} == {"a": True, "c": True}
     assert built.stages.made["keyed"] == []  # the keyed frames were made once, then gated
+
+
+def test_the_decal_gate_reads_only_the_frames_the_board_shows():
+    record = {"decal": {"scores": [0.95, 0.9, 0.3]}}  # frames 1, 2, 3 (0 is the template)
+    shown = decal_check("a" * 64, record, None, {0, 1, 2})
+    assert shown["passed"] and shown["result"]["frames_gated"] == 2
+    everything = decal_check("a" * 64, record, None, {0, 1, 2, 3})
+    assert not everything["passed"] and everything["result"]["min_ecc"] == 0.3
+    assert decal_check("a" * 64, record, 0.25, {3})["passed"]  # a record's lower floor
+    assert decal_check("a" * 64, {"decal": None}, None) is None
 
 
 def test_motion_style_cues_and_foreground_draw_without_touching_the_clock(world, first, tmp_path):

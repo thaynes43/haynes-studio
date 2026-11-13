@@ -6,13 +6,15 @@ adapter) names one artifact: the clip itself, ``video/mp4``, committed through
 ``inputs``). Its content hash is what the keyed frames' key names as ``clip``, as a
 library clip's is. Its **provenance record** (``studio.s2v-clip/v1``, **proposal**) is
 committed just before it, in the same run, as the stage ``s2v_clip_record-<the clip's
-SHA-256>`` (output ``record``), named by the clip's bytes so a retry after a failure
-between the two commits never collides with the first.
+SHA-256>`` (output ``record``). A retry in the same run that gets other bytes records
+them under their own name; one that gets the same bytes keeps the first record (which
+names the same key and clip) and commits the clip.
 
 - **Miss:** refuse a profile this adapter cannot serve; read the drive track and the
   start image by hash (re-hashed); the board's ``F`` is the drive track's length (it is
-  exactly ``F / 24`` s, TIME-9); ask the source for ``L`` frames (TIME-9); check the
-  answer (below); commit the record, then the clip.
+  exactly ``F / 24`` s, TIME-9); refuse a profile whose fps TIME-9's ``L`` cannot cover
+  (``L`` is sized for 16 fps) or a source with no name; ask the source for ``L`` frames;
+  check the answer (below); commit the record, then the clip.
 - **Hit:** the completed clip, re-hashed by the ledger, and its record stage in the
   same run naming exactly this clip and key; else ``layered.clip_invalid``. Nothing is
   asked of the source, repaired or regenerated.
@@ -159,19 +161,23 @@ class S2VClips:
         drive = read_verified(self.read_drive, document["drive_track"], "the drive track")
         image = read_verified(self.read_image, document["start_still"], "the start image")
         board_frames, _ = track_frames(drive)
+        length = s2v_request_frames(board_frames)
+        needed = source_frames_needed(board_frames, profile["source_fps"])
+        if length < needed:  # TIME-9's L is sized for 16 fps; never spend a job that must fail
+            raise LayeredError(UNSUPPORTED, f"TIME-9 asks {length} frames at {profile['source_fps']} "
+                               f"fps; the {board_frames}-frame board needs {needed} (TIME-8)")
+        name = getattr(self.source, "name", None)
+        if not isinstance(name, str) or not name:
+            raise LayeredError(CLIP_INVALID, "the source has no name")
         request = S2VRequest(
             key=key.value, drive_track=drive, drive_track_sha256=document["drive_track"],
             start_image=image, start_image_sha256=document["start_still"],
             prompt=document["prompt"], negative_prompt=document["negative_prompt"] or "",
             seed=document["seed"], profile=profile, adapter=document["adapter"],
-            frames=s2v_request_frames(board_frames), board_frames=board_frames,
-            frames_needed=source_frames_needed(board_frames, profile["source_fps"]))
+            frames=length, board_frames=board_frames, frames_needed=needed)
         clip = self.source.generate(request)
         self.made.append(key.value)
         provenance = check_clip(request, clip)
-        name = getattr(self.source, "name", None)
-        if not isinstance(name, str) or not name:
-            raise LayeredError(CLIP_INVALID, "the source has no name")
         try:
             record = canonical_json({
                 "schema": SCHEMA, "key": key.value, "adapter": self.adapter, "source": name,
@@ -182,11 +188,16 @@ class S2VClips:
         except (TypeError, ValueError) as error:
             raise LayeredError(CLIP_INVALID, f"the provenance record is not plain JSON: {error}",
                                where=key.value) from error
-        commit_stage(self.cache.store, ledger=self.cache.ledger,
-                     production_id=self.cache.production_id, run_id=self.cache.run_id,
-                     stage=record_stage(provenance["sha256"]),
-                     outputs={RECORD: StageOutput(record, JSON)})
-        return self.cache.commit(key, clip.data, MP4)
+        cache, stage = self.cache, record_stage(provenance["sha256"])
+        earlier = completed_stage(cache.ledger, production_id=cache.production_id,
+                                  run_id=cache.run_id, stage=stage,
+                                  store=None if cache.ledger is cache.store else cache.store)
+        if earlier is None:
+            commit_stage(cache.store, ledger=cache.ledger, production_id=cache.production_id,
+                         run_id=cache.run_id, stage=stage, outputs={RECORD: StageOutput(record, JSON)})
+        else:  # an attempt in this run already recorded these bytes for this key: keep it
+            self._check_record(key, earlier, provenance["sha256"], stage)
+        return cache.commit(key, clip.data, MP4)
 
     def _check_hit(self, key: CacheKey, found: CachedArtifact) -> None:
         cache = self.cache
@@ -194,11 +205,16 @@ class S2VClips:
         record = completed_stage(cache.ledger, production_id=cache.production_id,
                                  run_id=found.record.run_id, stage=stage,
                                  store=None if cache.ledger is cache.store else cache.store)
-        if record is None or set(record.blobs) != {RECORD}:
+        if record is None:
             raise LayeredError(CLIP_INVALID, "the clip has no provenance record", where=stage)
-        with cache.store.open(record.blobs[RECORD].locator) as handle:
+        self._check_record(key, record, found.sha256, stage)
+
+    def _check_record(self, key: CacheKey, record: Any, clip_sha256: str, stage: str) -> None:
+        if set(record.blobs) != {RECORD}:
+            raise LayeredError(CLIP_INVALID, "the provenance stage is not one record", where=stage)
+        with self.cache.store.open(record.blobs[RECORD].locator) as handle:
             document = read_provenance(handle.read())
-        if document.get("key") != key.value or document.get("clip", {}).get("sha256") != found.sha256:
+        if document.get("key") != key.value or document.get("clip", {}).get("sha256") != clip_sha256:
             raise LayeredError(CLIP_INVALID, "the provenance record names another clip or key",
                                where=stage)
 

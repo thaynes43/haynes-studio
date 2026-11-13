@@ -179,11 +179,15 @@ class LayeredMotion:
     image and keying, **proposal**) and the set its loop or none. ``timed(slot,
     still_sha256, drive_track_sha256, board_frames)`` answers a library timed clip made
     from that drive track, or None (the build then makes one). ``decal_min_ecc`` is the
-    decal gate of a clip made in the build (``poc/decal.py MIN_ECC``)."""
+    decal gate of a clip made in the build (``poc/decal.py MIN_ECC``). ``keyer_build``
+    names the library builds the keyer runs on; it is appended to each record's keyer
+    in the keyed frames' cache key (``<keyer>@<build>``, **proposal**, P-07), so a new
+    OpenCV, scipy, numpy, Pillow or PyAV keys the frames again."""
 
     boards: Mapping[str, Any]
     timed: Callable[[str, str, str, int], Any] | None = None
     decal_min_ecc: float = 0.8
+    keyer_build: str | None = None
 
 
 @dataclass(frozen=True)
@@ -388,10 +392,19 @@ class _Planner:
             raise CacheError(first.rule, first.message, where=f"{board.id}{first.path}")
         return resolved
 
-    def pinned_keyed(self, board: Board, slot: str, key: CacheKey | None) -> str:
-        if key is None:  # the resolver refuses a doll clip without keying; kept explicit
+    def pinned_keyed(self, board: Board, slot: str, clip: str, start: str, keying: Any) -> str:
+        """The keyed frames of ``clip`` with a record's keying inputs; the decal's still
+        is the clip's start image (story 457's proposal), the keyer carries its build."""
+        if keying is None:  # the resolver refuses a doll clip without keying; kept explicit
             raise _bad(f"slot {slot}'s clip records no keying (motion.keying_missing)", board.id)
-        return self.add(f"{board.id}/keyed/{slot}", key, board.id)
+        assert self.motion is not None
+        build = self.motion.keyer_build
+        return self.add(f"{board.id}/keyed/{slot}", keyed_frames_key(
+            clip=clip, still=start, key_thresholds=thaw(keying.key_thresholds),
+            protect_boxes=[list(box) for box in keying.protect_boxes],
+            decal_box=None if keying.decal_box is None else list(keying.decal_box),
+            decal_version=keying.decal_version,
+            keyer=keying.keyer if build is None else f"{keying.keyer}@{build}"), board.id)
 
     def pinned_doll(self, board: Board, slot: str, still: str, clip: Any) -> dict[str, Any]:
         """An idle doll from its pinned loop (TIME-8a): the library clip (not made by
@@ -399,7 +412,8 @@ class _Planner:
         record = clip.record
         self.add(f"{board.id}/doll_clip/{slot}", clip.identity.clip, board.id, content=clip.sha256)
         return {"slot": slot, "still": still, "clip": clip.sha256,
-                "keyed": self.pinned_keyed(board, slot, clip.identity.keyed), "role": "doll",
+                "keyed": self.pinned_keyed(board, slot, clip.sha256, record.source.image_sha256,
+                                           record.keying), "role": "doll",
                 "phase": clip.phase, "play": "loop", "trim_start": record.trim_start,
                 "trim_frames": record.trim_frames, "source_fps": record.fps,
                 "clip_frames": record.frames, "decal_min_ecc": record.keying.decal_min_ecc}
@@ -407,37 +421,41 @@ class _Planner:
     def pinned_s2v(self, board: Board, slot: str, still: str, clock: BoardClock,
                    voice: BoardVoice, loop: Any) -> dict[str, Any]:
         """A speaker's speech-to-video layer (TIME-8, TIME-9): her drive track; then a
-        library timed clip made from it, or a clip the build makes from her loop's start
-        image, keyed with her loop's keying inputs (**proposals**)."""
+        library timed clip made from it with the board's seed, or a clip the build makes
+        from her loop's start image, keyed with her loop's keying inputs (**proposals**)."""
         tools = self.tools
         lines = [(voice.takes[line.id].sha256, clock.spans[line.id].start_ms)
                  for line in board.lines if line.speaker == slot]
         drive = self.add(f"{board.id}/drive/{slot}", s2v_drive_track_key(
             speaker=slot, lines=lines, frames=clock.frames, fps=self.media.fps,
             rate=tools.drive_rate, assembler=tools.drive_assembler), board.id)
-        timed = None if self.motion.timed is None else self.motion.timed(slot, still, drive, clock.frames)
-        if timed is not None:
-            record = timed.record
-            self.add(f"{board.id}/s2v_clip/{slot}", timed.identity.clip, board.id, content=timed.sha256)
-            return {"slot": slot, "still": still, "clip": timed.sha256,
-                    "keyed": self.pinned_keyed(board, slot, timed.identity.keyed), "role": "s2v",
-                    "phase": None, "play": "timed", "trim_start": record.trim_start,
-                    "trim_frames": record.trim_frames, "source_fps": record.fps,
-                    "clip_frames": record.frames, "decal_min_ecc": record.keying.decal_min_ecc}
         seed = board.seeds.get(f"s2v:{slot}")
         if seed is None:
             raise _bad(f"no seed s2v:{slot} on the board (the server writes one)", board.id)
+        timed = None if self.motion.timed is None else self.motion.timed(slot, still, drive, clock.frames)
+        if timed is not None and timed.record.source.seed == seed:
+            # A library clip made from this drive track with the board's seed; another
+            # seed is a re-roll, so the build makes a new clip (contract section 4).
+            record = timed.record
+            self.add(f"{board.id}/s2v_clip/{slot}", timed.identity.clip, board.id, content=timed.sha256)
+            return {"slot": slot, "still": still, "clip": timed.sha256,
+                    "keyed": self.pinned_keyed(board, slot, timed.sha256, record.source.image_sha256,
+                                               record.keying), "role": "s2v",
+                    "phase": None, "play": "timed", "trim_start": record.trim_start,
+                    "trim_frames": record.trim_frames, "source_fps": record.fps,
+                    "clip_frames": record.frames, "decal_min_ecc": record.keying.decal_min_ecc}
         start, keying = loop.record.source.image_sha256, loop.record.keying
         profile = self.profile(tools.s2v_profile)
+        if list(profile.get("size", [])) != [loop.record.width, loop.record.height]:
+            # The loop's keying boxes are in its own pixels; another clip size moves them.
+            raise _bad(f"slot {slot}'s loop is {loop.record.width}x{loop.record.height}; the S2V "
+                       f"profile makes {profile.get('size')}, where its keying boxes do not apply",
+                       board.id)
         clip = self.add(f"{board.id}/s2v_clip/{slot}", s2v_clip_key(
             drive_track=drive, start_still=start, prompt=tools.s2v_prompt,
             negative_prompt=tools.s2v_negative_prompt, seed=seed, profile=profile,
             adapter=tools.s2v_adapter), board.id)
-        keyed = self.pinned_keyed(board, slot, keyed_frames_key(
-            clip=clip, still=start, key_thresholds=thaw(keying.key_thresholds),
-            protect_boxes=[list(box) for box in keying.protect_boxes],
-            decal_box=None if keying.decal_box is None else list(keying.decal_box),
-            decal_version=keying.decal_version, keyer=keying.keyer))
+        keyed = self.pinned_keyed(board, slot, clip, start, keying)
         fs = profile["source_fps"]
         return {"slot": slot, "still": still, "clip": clip, "keyed": keyed, "role": "s2v",
                 "phase": None, "play": "timed", "trim_start": 0,

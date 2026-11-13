@@ -6,6 +6,7 @@ own drive track is used and never made again."""
 from __future__ import annotations
 
 import copy
+from dataclasses import replace
 import hashlib
 
 import numpy as np
@@ -78,7 +79,7 @@ def test_the_film_holds_every_boards_frames_in_order(world, first):
 
 
 def timed_doc(world, *, still: str, start: bytes, drive: str, board_frames: int, frames: int,
-              version: str, asset: int) -> dict:
+              version: str, asset: int, seed: int) -> dict:
     """A promoted timed clip of ``still`` made from ``drive`` (TIME-8: 16 fps)."""
     clip = media.doll_clip(frames, fps=16, moving=False)
     clip_sha = world.publish(clip, "video/mp4")
@@ -87,8 +88,10 @@ def timed_doc(world, *, still: str, start: bytes, drive: str, board_frames: int,
                            trim={"start": 0, "frames": needed},
                            drive_track={"sha256": drive, "board_frames": board_frames},
                            keying={**h.KEYING, "decal_min_ecc": 0.5})
-    block["source"] = {**block["source"], "image_sha256": world.publish(start, "image/png")}
+    block["source"] = {**block["source"], "image_sha256": world.publish(start, "image/png"),
+                       "seed": seed}
     doc = mf.version(None, n=1, clip=clip_sha)
+    doc["provenance"]["generator"]["seed"] = seed
     doc["motion"] = complete_block(block, clip_sha)
     doc["content"]["bytes"] = len(clip)
     return fx.scoped(doc, version, asset)
@@ -98,7 +101,7 @@ def test_a_library_timed_clip_made_from_the_boards_drive_track_is_used(world, fi
     drive = first.plan.artifacts[f"{h.B4}/drive/b"].content
     still = world.blobs[h.STILL["b"]]
     doc = timed_doc(world, still=still, start=media.start_image(tint=h.TINT["b"]), drive=drive,
-                    board_frames=38, frames=30, version=fx.ident("asv", 150), asset=250)
+                    board_frames=38, frames=30, version=fx.ident("asv", 150), asset=250, seed=41)
     built = h.build(world, h.story_document(), h.RUN[5], (h.RUN[1],), library=world.library(doc))
     assert built.plan.artifacts[f"{h.B4}/s2v_clip/b"].content == doc["content"]["sha256"]
     assert built.source.calls == []  # nothing is generated for b on B4
@@ -107,6 +110,21 @@ def test_a_library_timed_clip_made_from_the_boards_drive_track_is_used(world, fi
     report = built.renderer.reports[built.plan.artifacts[f"{h.B4}/segment"].key.value]
     b = next(layer for layer in report.layers if layer["slot"] == "b")
     assert (b["play"], b["first"], b["last"], b["trimmed"]) == ("timed", 0, 24, 5)  # 30 - 25
+    # A seed edit is a re-roll: the stored clip was made with seed 41, so b on B4 gets a
+    # new clip from the source (contract section 4, "Seed"), and nothing else changes.
+    rerolled = h.story_document()
+    fx.board_of(rerolled, h.B4)["seeds"]["s2v:b"] = 1041
+    again = h.build(world, rerolled, h.RUN[8], (h.RUN[1], h.RUN[5]), library=world.library(doc))
+    assert [r.seed for r in again.source.calls] == [1041]
+    assert again.plan.artifacts[f"{h.B4}/s2v_clip/b"].content != doc["content"]["sha256"]
+    assert again.builder.rendered == [again.plan.artifacts[f"{h.B4}/segment"].key.value]
+
+
+def test_a_speakers_loop_of_another_size_than_speech_to_video_stops_the_plan(world, first):
+    tools = replace(h.TOOLS, s2v_profile={**h.S2V_PROFILE, "size": [160, 256]})
+    with pytest.raises(CacheError) as error:
+        h.build(world, h.story_document(), h.RUN[9], (h.RUN[1],), tools=tools)
+    assert error.value.code == "cache.key_input_invalid" and "keying boxes" in error.value.message
 
 
 def test_a_cast_still_without_a_loop_stops_the_plan(world):

@@ -35,9 +35,9 @@ picture quality. Every choice beyond the contract is a **proposal** of story 426
 | | Profile |
 |---|---|
 | Boards | `layered` + `s2v`, `layered` + `i2v`; any length; 24 fps (P-20); the media kind's frame size |
-| Doll loops, set loop | pinned library `motion` versions (story 457), any `N`, any fps (loops play by frame index); a set loop of the board's aspect, scaled with Lanczos; a set plate fitted (Lanczos, cover, centred) |
+| Doll loops, set loop | pinned library `motion` versions (story 457) at 24 fps (the schema's loop rate), any `N`; a set loop of the board's aspect, scaled with Lanczos; a set plate fitted (Lanczos, cover, centred) |
 | Speech-to-video clips | a profile with whole `source_fps` (16 in E0), even `size` of the media kind's aspect, `chunk` 77 (TIME-9); MP4 the source returns; or a library timed clip made from the board's own drive track |
-| Keying | keyer `legacy:poc/cutout.py key` (E0's records) or `studio.layered.keyer/1` (the same code); thresholds `{lo, hi}`; protect boxes; decal version `erase-v2`; boxes in clip pixels |
+| Keying | keyer `legacy:poc/cutout.py key` (E0's records) or `studio.layered.keyer/1` (the same code), keyed under `<keyer>@<build>`; thresholds `{lo, hi}`; protect boxes; decal version `erase-v2`; boxes in clip pixels; a speaker's loop of the S2V profile's size |
 | Drive tracks | 16-bit mono PCM at the takes' rate (Kokoro: 24 kHz), exactly `F / 24` s |
 | Output | one segment of exactly the board's frames, 8-bit RGB, encoded by the cache (P-26); a photo as PNG at the frame size |
 
@@ -65,7 +65,11 @@ tests read every board frame's source frame off the decoded segment.
 ## Keyed frames (`keyed_frames_key`)
 
 One key (clip, still, key thresholds, protect boxes, decal box, decal version, keyer)
-names one artifact. On a miss the clip is decoded one frame at a time; when the key has
+names one artifact. The plan writes the keyer as `<record's keyer>@<build>`, the build
+being the numpy, OpenCV, Pillow, scipy and decoder (PyAV, libavcodec) versions
+(`keyed.keyer_build()`, **proposal**, P-07): a lock bump keys every clip again, and a
+stage refuses a key made for another build (it cannot reproduce it). So the cache key
+is the record's `keys.keyed` with the build added to its keyer. On a miss the clip is decoded one frame at a time; when the key has
 a decal box the lettering is tracked and pasted (below), then every frame is keyed and
 cropped to one box: the first keyed frame's doll (alpha over 8) plus 24 px, as
 `DollClip` did. The decal's still is the clip's start image (story 457's proposal).
@@ -95,7 +99,8 @@ the real sizes. Keying took 0.09 s a frame at 576x1024 on two threads (synthetic
 
 **The gate runs on every use, not when keying** (proposal, as `DollClip` did): the floor
 is a record's, not a key input, so the artifact keeps every score and the renderer
-applies the floor of each layer. A track below it fails the segment before any frame
+applies the floor of each layer, **over the source frames the board shows** (proposal:
+the PoC gated every frame, including the 56 of 158 an E0 speech clip's board trims). A track below it fails the segment before any frame
 (`layered.decal_weak`) and the check result is kept: `{check: layered.decal_gate,
 version: 1, artifact, key (check_result_key), thresholds: {min_ecc}, result, passed}`, in
 the error (`error.check`) and in `renderer.checks[segment key]`. A weak artifact is
@@ -157,10 +162,13 @@ facts are `layered.clip_invalid`. A failure publishes nothing.
 The cached artifact is the clip itself (`video/mp4`, outputs `s2v_clip` and `inputs`),
 so its hash is the keyed frames' `clip`, as a library clip's is. Its **provenance record**
 (`studio.s2v-clip/v1`, proposal) is committed first, in the same run, as the stage
-`s2v_clip_record-<clip SHA-256>` (output `record`), named by the bytes so a retry never
-collides. A hit reads the completed clip (re-hashed by the ledger) and its record stage in
+`s2v_clip_record-<clip SHA-256>` (output `record`). A retry in the same run that gets
+other bytes records them under their own name; one that gets the same bytes keeps the
+first record (it names the same key and clip) and commits the clip. A hit reads the completed clip (re-hashed by the ledger) and its record stage in
 the same run, which must name this clip and key (`layered.clip_invalid` otherwise); it
-asks the source nothing. On a miss, the board's `F` is read from the drive track's length.
+asks the source nothing. On a miss, the board's `F` is read from the drive track's length,
+and a profile whose `source_fps` TIME-9's `L` cannot cover (it is sized for 16 fps) or a
+source with no name is refused before the source is asked.
 
 | Provenance field | What |
 |---|---|
@@ -170,8 +178,11 @@ asks the source nothing. On a miss, the board's `F` is read from the drive track
 | `clip` | `sha256`, `bytes`, `media_type`, `frames_requested`, `frames_delivered`, `frames_needed`, `trimmed`, `width`, `height`, `engine`, `engine_job_id`, `files_sha256`, `extra` |
 
 A speaker whose drive track is the one a promoted library timed clip of her still was
-made from plays that clip (`motion.resolve_timed`): the plan names it, the source is not
-asked, and its own record's trim, fps and keying apply. A timed clip that cannot be
+made from, **with the board's `s2v:<slot>` seed**, plays that clip
+(`motion.resolve_timed`): the plan names it, the source is not asked, and its own
+record's trim, fps, keying and gate floor apply. Another seed is a re-roll: the build
+makes a new clip (section 4, "Seed"). The toolchain's S2V prompt and profile do not apply
+to a library clip; its record says what made it, as a loop's does. A timed clip that cannot be
 played (its bytes missing, its record corrupt, two candidates) stops the plan with its
 code; it is never silently made again.
 
@@ -192,7 +203,7 @@ the foreground edge over the current set frame; the camera.
 | `layout` | the preset's values: per slot `x` (fraction of the width), `height`, `bottom`, optional `crop` (fractions); a preset without `slots` is the single framing |
 | `layers` | per cast slot in draw order: `slot`, `still`, `clip`, `keyed`, `role`, `play` (`loop`, `timed`), `phase`, `trim_start`, `trim_frames`, `source_fps`, `clip_frames`, `decal_min_ecc` |
 | `set_layer` | `plate`, `loop`, `phase`, `trim_start`, `trim_frames`, `clip_frames` |
-| `motion_style` | idle scale, talk hop, tilt and shuffle (PoC defaults 0.3, 34, 3.2, 7) |
+| `motion_style` | idle scale, talk hop, tilt and shuffle (PoC defaults 0.3, 34, 3.2, 7); another key or a value that is not a number is refused |
 | `voice_envelope`, `talk` | the board voice track and each line's speaker and span: the bounce curve |
 | `cues` | `move` (a slot on the board) and at most one `camera` (`ease_out_cubic`); any other is refused |
 | `foreground` | the edge polyline and feather |
@@ -269,10 +280,11 @@ cannot be built. The invalidation rows the pinned path changed are listed in
 | Whole-frame + speech-to-video | refused | `method.unavailable` |
 | Whole-frame I2V board, or any other method | refused | `layered.unsupported` |
 | A cast still with no loop | refused (plan, pre-build check) | `motion.clip_absent` |
-| A plan without motion records; an unknown segment input; a sound or unknown cue in the segment; two camera cues; another easing; a move of a slot not on the board; no set; fps other than 24 | refused | `layered.unsupported` |
+| A plan without motion records; an unknown segment input; a sound or unknown cue in the segment; two camera cues; another easing; a move of a slot not on the board; no set; fps other than 24; a motion style with another key or a non-number | refused | `layered.unsupported` |
 | A set loop of another aspect than the board | refused | `layered.unsupported` |
 | An unknown keyer or decal version; thresholds not `{lo < hi}`; a box that is not four pixels; a decal box outside the clip | refused before keying | `layered.unsupported` |
-| An S2V profile without whole `source_fps`, even `size` of the media kind's aspect, or `chunk` 77; another adapter or drive assembler | refused before the source is asked | `layered.unsupported` |
+| An S2V profile without whole `source_fps`, even `size` of the media kind's aspect, or `chunk` 77, or whose fps `L` cannot cover; another adapter or drive assembler; a keyer made for another build | refused before the source is asked | `layered.unsupported` |
+| A speaker's loop of another size than the S2V profile (her keying boxes are in its pixels) | refused by the plan and `check_board` | `cache.key_input_invalid`, `layered.unsupported` |
 | A slot the preset does not place; a crop outside 0..1; a doll more than 240 px off the frame | refused | `layered.layout_invalid` |
 | Takes that cannot make an exact drive track | refused | `layered.drive_invalid` |
 | A missing clip, keyed artifact, set loop or drive track; a clip shorter than TIME-8 needs; keyed frames fewer than recorded | failed stage | `time.source_short` |
@@ -310,8 +322,8 @@ With the r4 story as imported (layered S2V, seeds written by the test, no media 
 the plan resolves every board: the idle dolls of boards 7 (D) and 9 (A, C) play
 `layer-d-shocked-v2-green`, `layer-a-green` and `layer-c-suspicious-green`; every one of
 the 11 speakers plays her E0 timed clip **when the build's drive track is the one E0's
-clip was made from** (the test answers the drive keys with E0's recorded hashes); no S2V
-clip is asked for; loops play with `N` 121 and their board phase, timed clips with
+clip was made from, with E0's seed** (the test writes E0's seeds on the boards and answers
+the drive keys with E0's recorded hashes); no S2V clip is asked for; loops play with `N` 121 and their board phase, timed clips with
 section 3's trims; the set is the plate (r4 pins no set loop).
 
 ## How a build runs it (stories 406 and 428)
@@ -340,9 +352,10 @@ plan = plan_story(story, ..., toolchain=tools, content=builder, motion=motion)
   `s2v_adapter` `studio.s2v/1`, its `drive_assembler` `studio.s2v.drive/1`. One build
   has one compositor (story 380's `Toolchain`), so story 406 registers this renderer for
   layered boards beside the whole-frame one and gives each method its compositor.
-- Story 406 runs `check_board(story, board, motion=pin_board(...))` at `queue_run`, and
-  records `renderer.reports`, `renderer.checks` and the S2V provenance records with the
-  run.
+- Story 406 runs `check_board(story, board, motion=pin_board(...), frame_size=(w, h),
+  s2v_size=tuple(profile["size"]))` at `queue_run`, so a set loop of another aspect or a
+  speaker's loop of another size is refused before any clip is made, and records
+  `renderer.reports`, `renderer.checks` and the S2V provenance records with the run.
 - Story 428 swaps the fake source for the live one; nothing else changes. A second build
   of an unchanged story renders nothing, keys nothing and asks the source nothing.
   Heavy work (keying, compositing) runs on the `ai/studio-render` worker (AGENTS.md);
@@ -355,10 +368,12 @@ plan = plan_story(story, ..., toolchain=tools, content=builder, motion=motion)
 ## Proposals and observations
 
 Proposals of story 426 (beyond the contract): the `layered.*` codes; the APNG keyed
-artifact and its record; the gate on every use; drive tracks at the takes' rate; the
-S2V clip as the cached artifact with its provenance stage; a speaker's start image and
-keying from her loop; the default floor for a clip the build makes; the single framing
-read from the preset's values; one camera cue per board; the compositor digest; the
-photo's inputs and its PNG form.
+artifact and its record; the keyer's build in the keyed key; the gate on every use, over
+the frames the board shows; drive tracks at the takes' rate; the S2V clip as the cached
+artifact with its provenance stage; a library timed clip only with the board's seed; a
+speaker's start image and keying from her loop, and her loop at the S2V size; the
+default floor for a clip the build makes; the single framing read from the preset's
+values; one camera cue per board; the compositor digest; the photo's inputs and its PNG
+form.
 
 Observations for the contract owner are in the PR of story 426.

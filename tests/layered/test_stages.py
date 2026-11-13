@@ -177,6 +177,35 @@ def test_a_profile_or_adapter_this_adapter_cannot_serve_is_refused_before_the_so
     assert source.calls == []
 
 
+def test_a_profile_whose_fps_time9_cannot_cover_is_refused_before_the_source(store):
+    drive, start = s2v_world(store)
+    source = FakeS2VSource()
+    with pytest.raises(LayeredError) as error:
+        clips(store, source)(clip_key(drive, start, profile={**PROFILE, "source_fps": 24}))
+    assert error.value.code == UNSUPPORTED and source.calls == []
+
+
+def test_a_retry_in_the_same_run_keeps_the_first_record_of_the_same_bytes(store):
+    drive, start = s2v_world(store)
+    key = clip_key(drive, start)
+    stage = clips(store, FakeS2VSource())
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("the clip's commit failed after its record's")
+    stage.cache.commit = broken
+    with pytest.raises(RuntimeError):
+        stage(key)
+
+    class Later(FakeS2VSource):  # the same bytes, other engine facts
+        def generate(self, request):
+            return replace(super().generate(request), extra={"render_s": 9})
+    retry = clips(store, Later())
+    sha = retry(key)
+    record = completed_stage(store, production_id=PRODUCTION, run_id=h.RUN[1], stage=record_stage(sha))
+    with store.open(record.blobs["record"].locator) as handle:
+        assert read_provenance(handle.read())["clip"]["extra"] == {"render_s": 0}  # the first
+
+
 def test_a_missing_input_or_a_hit_without_its_record_fails(store):
     drive, start = s2v_world(store)
     with pytest.raises(LayeredError) as missing:
