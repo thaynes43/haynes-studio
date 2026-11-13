@@ -398,10 +398,13 @@ class _Planner:
             if seed is None:
                 raise _bad("no seed i2v:frame on the board (the server writes one)", board.id)
             needed = source_frames_needed(clock.frames, thaw(tools.i2v_profile)["source_fps"], media.fps)
+            try:  # story 427's chain policy; a board past its chain limit cannot be built
+                lengths = i2v_clip_lengths(needed, tools.i2v_clip_frames)
+            except ValueError as error:
+                raise _bad(f"whole-frame chain limit: {error}", board.id) from error
             whole_clip = self.add(f"{board.id}/whole_frame_clip", whole_frame_clip_key(
                 photo=photo, prompt=tools.i2v_prompt, seed=seed,
-                profile=self.profile(tools.i2v_profile),
-                clip_lengths=i2v_clip_lengths(needed, tools.i2v_clip_frames)), board.id)
+                profile=self.profile(tools.i2v_profile), clip_lengths=lengths), board.id)
         segment = segment_key(
             method=method, frames=clock.frames, width=media.width, height=media.height,
             fps=media.fps, layout=layout, layers=layers, set_layer=set_layer,

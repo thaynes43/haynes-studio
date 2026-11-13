@@ -47,10 +47,16 @@ def test_s2v_request_and_source_frames_match_the_worked_example(frames, requeste
     assert requested >= needed
 
 
-def test_placeholder_chain_policy_requests_whole_121_frame_clips():
+def test_chain_policy_requests_whole_121_frame_clips_chained_with_one_shared_frame():
+    """Story 427: n chained clips cover 1 + 120 n frames (121, 241, 361), at most 3."""
     assert clock.i2v_clip_lengths(46) == (121,)
     assert clock.i2v_clip_lengths(121) == (121,)
     assert clock.i2v_clip_lengths(144) == (121, 121)
+    assert clock.i2v_clip_lengths(241) == (121, 121)
+    assert clock.i2v_clip_lengths(242) == (121, 121, 121)  # whole clips without the shared frame: two
+    assert clock.i2v_chain_frames((121, 121, 121)) == 361
+    with pytest.raises(ValueError):
+        clock.i2v_clip_lengths(362)
 
 
 def test_procedural_randomness_is_a_pure_function_of_seed_board_and_index():

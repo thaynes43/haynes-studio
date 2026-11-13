@@ -124,7 +124,7 @@ signature for that.
 | Ping-pong loops (TIME-8a) | `pingpong`, `loop_frame`, `loop_period` | board frame *n* shows `pingpong(n + phase, N)`, period `2N - 2` |
 | Board-specific clips (TIME-8) | `source_frame`, `source_frames_needed` | `floor(n * fs / 24)`; checked against the r4 worked example |
 | S2V request (TIME-9) | `s2v_request_frames` | `L = 4 * ceil(F / 6) + 1`, then multiples of 77 |
-| Whole-frame clip lengths | `i2v_clip_lengths` | **placeholder** for story 427's chain policy: whole 121-frame clips |
+| Whole-frame clip lengths | `i2v_clip_lengths` | story 427's chain policy: whole 121-frame clips chained on a shared frame, at most 3 ([whole-frame-adapter.md](whole-frame-adapter.md)) |
 | Procedural randomness | `procedural_random(seed, board_id, index)` | `stream_random(board_stream(seed, board_id), index)`, SHA-256 based with no generator state, so draw order does not matter |
 
 - The segment key carries the phases and `procedural_stream` (a 64-bit number derived
@@ -299,4 +299,4 @@ All are **proposals** of story 380; TIME-11 names no code.
 - **The key scheme:** `studio.cache-key/v1`, `make_key`'s normalization and its
   identifier refusal.
 - **24 fps only** in `MediaFormat`.
-- **The I2V chain policy:** a placeholder of whole 121-frame clips until story 427.
+- **The I2V chain policy:** story 427's, in [whole-frame-adapter.md](whole-frame-adapter.md).
