@@ -56,4 +56,10 @@ Whisper, the Foley sidecar) are deployed from
 
 ## License
 
-[MIT](LICENSE). The license covers the code and docs in this repo, not the videos, voices or images produced with them.
+The code is [MIT](LICENSE). The creative work is not: scripts and dialogue, story
+premises, character names and descriptions, the titles with their briefs and prompts,
+other prompts and text that describe characters, sets or scenes, and every image, sound
+and video made with the studio are all rights reserved by the copyright holder named in
+[`LICENSE`](LICENSE), wherever they appear here. See [RIGHTS.md](RIGHTS.md). The models
+have terms of their own, some non-commercial or research only; they are in the
+[model licence register](docs/reference/model-licences.md).

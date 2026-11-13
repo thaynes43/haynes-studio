@@ -366,9 +366,12 @@
               "url": "https://www.apache.org/licenses/LICENSE-2.0",
               "commercial_use": "allowed",
               "attribution_required": false,
-              "checked_at": "2026-11-03T00:00:00Z",
-              "checked_by": "haynes-ops PR 4625 model manifest",
-              "note": null
+              "checked_at": "2026-11-13T14:18:00Z",
+              "checked_by": {
+                "kind": "worker",
+                "worker_id": "dev-env agent session haynes-studio-1113-141004"
+              },
+              "note": "Apache-2.0; the Wan model card says 'We claim no rights over the your generated contents'. Wan model card: no shared content that violates applicable laws, causes harm, disseminates personal information intended for harm, spreads misinformation or targets vulnerable populations. The session's reading of the text, not legal advice."
             }
           },
           {
@@ -379,9 +382,12 @@
               "url": "https://www.apache.org/licenses/LICENSE-2.0",
               "commercial_use": "allowed",
               "attribution_required": false,
-              "checked_at": "2026-11-03T00:00:00Z",
-              "checked_by": "haynes-ops PR 4625 model manifest",
-              "note": null
+              "checked_at": "2026-11-13T14:18:00Z",
+              "checked_by": {
+                "kind": "worker",
+                "worker_id": "dev-env agent session haynes-studio-1113-141004"
+              },
+              "note": "Apache-2.0 audio encoder; it conditions the video and makes no output of its own. The session's reading of the text, not legal advice."
             }
           },
           {
@@ -392,33 +398,42 @@
               "url": "https://www.apache.org/licenses/LICENSE-2.0",
               "commercial_use": "allowed",
               "attribution_required": false,
-              "checked_at": "2026-11-03T00:00:00Z",
-              "checked_by": "haynes-ops PR 4625 model manifest",
-              "note": null
+              "checked_at": "2026-11-13T14:18:00Z",
+              "checked_by": {
+                "kind": "worker",
+                "worker_id": "dev-env agent session haynes-studio-1113-141004"
+              },
+              "note": "Apache-2.0, as the S2V model. The session's reading of the text, not legal advice."
             }
           },
           {
             "name": "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise",
             "sha256": "<pinned in haynes-ops>",
             "licence": {
-              "name": null,
-              "url": null,
-              "commercial_use": "unknown",
-              "attribution_required": null,
-              "checked_at": null,
-              "checked_by": null,
-              "note": "Added by haynes-ops PR 4634; terms not recorded here."
+              "name": "Apache-2.0",
+              "url": "https://www.apache.org/licenses/LICENSE-2.0",
+              "commercial_use": "allowed",
+              "attribution_required": false,
+              "checked_at": "2026-11-13T14:18:00Z",
+              "checked_by": {
+                "kind": "worker",
+                "worker_id": "dev-env agent session haynes-studio-1113-141004"
+              },
+              "note": "Apache-2.0, with the same 'We claim no rights over the your generated contents' sentence as Wan. The Wan2.2-Lightning card also says its evaluation prompts come from Movie Gen Bench (CC BY-NC 4.0); that concerns the prompts, not the weights. The session's reading of the text, not legal advice."
             }
           }
         ],
         "licence": {
-          "name": null,
-          "url": null,
-          "commercial_use": "unknown",
-          "attribution_required": null,
-          "checked_at": null,
-          "checked_by": null,
-          "note": "Effective licence: the most restrictive of its files (the LoRA is unknown)."
+          "name": "Apache-2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0",
+          "commercial_use": "allowed",
+          "attribution_required": false,
+          "checked_at": "2026-11-13T14:18:00Z",
+          "checked_by": {
+            "kind": "worker",
+            "worker_id": "dev-env agent session haynes-studio-1113-141004"
+          },
+          "note": "Register entry wan-s2v; the most restrictive of its files. Apache-2.0 for every file, the lightning LoRA included; the Wan card claims no rights over generated content, within its use restrictions. The session's reading of the text, not legal advice."
         },
         "profile": {
           "steps": 4,
@@ -439,24 +454,30 @@
             "name": "wan2.2_ti2v_5B",
             "sha256": "<pinned in haynes-ops>",
             "licence": {
-              "name": null,
-              "url": null,
-              "commercial_use": "unknown",
-              "attribution_required": null,
-              "checked_at": null,
-              "checked_by": null,
-              "note": "Terms not yet checked (proposal 0003, Requirements: licences)."
+              "name": "Apache-2.0",
+              "url": "https://www.apache.org/licenses/LICENSE-2.0",
+              "commercial_use": "allowed",
+              "attribution_required": false,
+              "checked_at": "2026-11-13T14:18:00Z",
+              "checked_by": {
+                "kind": "worker",
+                "worker_id": "dev-env agent session haynes-studio-1113-141004"
+              },
+              "note": "Apache-2.0; the Wan model card says 'We claim no rights over the your generated contents'. Wan model card: no shared content that violates applicable laws, causes harm, disseminates personal information intended for harm, spreads misinformation or targets vulnerable populations. The session's reading of the text, not legal advice."
             }
           }
         ],
         "licence": {
-          "name": null,
-          "url": null,
-          "commercial_use": "unknown",
-          "attribution_required": null,
-          "checked_at": null,
-          "checked_by": null,
-          "note": "Terms not yet checked (proposal 0003, Requirements: licences)."
+          "name": "Apache-2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0",
+          "commercial_use": "allowed",
+          "attribution_required": false,
+          "checked_at": "2026-11-13T14:18:00Z",
+          "checked_by": {
+            "kind": "worker",
+            "worker_id": "dev-env agent session haynes-studio-1113-141004"
+          },
+          "note": "Register entry wan-ti2v; the most restrictive of its files. Apache-2.0 for every file; the Wan card claims no rights over generated content, within its use restrictions. The session's reading of the text, not legal advice."
         },
         "profile": {
           "steps": 20,
@@ -471,13 +492,16 @@
         "role": "voice",
         "name": "Kokoro-82M v1.0 stock voices",
         "licence": {
-          "name": null,
-          "url": null,
-          "commercial_use": "unknown",
-          "attribution_required": null,
-          "checked_at": null,
-          "checked_by": null,
-          "note": "Terms not yet checked (proposal 0003, Requirements: licences)."
+          "name": "Apache-2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0",
+          "commercial_use": "allowed",
+          "attribution_required": false,
+          "checked_at": "2026-11-13T14:18:00Z",
+          "checked_by": {
+            "kind": "worker",
+            "worker_id": "dev-env agent session haynes-studio-1113-141004"
+          },
+          "note": "Register entry kokoro; the most restrictive of its files. Apache-2.0; no condition on outputs. The session's reading of the text, not legal advice."
         },
         "hardware": "ai/deploy/kokoro"
       },
@@ -486,13 +510,16 @@
         "role": "sound",
         "name": "Stable Audio 3 Small SFX",
         "licence": {
-          "name": null,
-          "url": null,
+          "name": "Stability AI Community License Agreement",
+          "url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/da6edc54ddba10bfd79a077102ded687f80e882b/LICENSE.md",
           "commercial_use": "unknown",
           "attribution_required": null,
-          "checked_at": null,
-          "checked_by": null,
-          "note": "Terms not yet checked (proposal 0003, Requirements: licences)."
+          "checked_at": "2026-11-13T14:18:00Z",
+          "checked_by": {
+            "kind": "worker",
+            "worker_id": "dev-env agent session haynes-studio-1113-141004"
+          },
+          "note": "Register entry stable-audio; the most restrictive of its files. Conditional (stays unknown in the contract's enum): hobby use is free; commercial use needs registration with Stability AI and ends above USD 1,000,000 annual revenue; outputs follow the Acceptable Use Policy and the Gemma Prohibited Use Policy. The session's reading of the text, not legal advice."
         },
         "hardware": "CPU"
       },
@@ -501,13 +528,16 @@
         "role": "image",
         "name": "Qwen-Image 2.1 int8 (qwen_image_2.1_int8_convrot), text encoder qwen3vl_8b_int8_convrot, VAE qwen_image_2.1_vae_bf16",
         "licence": {
-          "name": null,
-          "url": null,
-          "commercial_use": "unknown",
-          "attribution_required": null,
-          "checked_at": null,
-          "checked_by": null,
-          "note": "Terms not yet checked (proposal 0003, Requirements: licences)."
+          "name": "Qwen Research License Agreement",
+          "url": "https://huggingface.co/Qwen/Qwen-Image-2.1/blob/d26bb61231c349cf6b7896fa83353113880e1ba3/LICENSE",
+          "commercial_use": "noncommercial",
+          "attribution_required": false,
+          "checked_at": "2026-11-13T14:18:00Z",
+          "checked_by": {
+            "kind": "worker",
+            "worker_id": "dev-env agent session haynes-studio-1113-141004"
+          },
+          "note": "Register entry qwen-image; the most restrictive of its files. Research or evaluation only: Qwen-Image 2.1 is under the Qwen Research License Agreement, which allows use 'FOR NON-COMMERCIAL PURPOSES ONLY' and defines that as 'research or evaluation purposes only'; commercial use needs a separate licence from the licensor. The session's reading of the text, not legal advice."
         },
         "hardware": "RTX 2000 Ada (talosm03)"
       },

@@ -10,14 +10,19 @@ from functools import cache
 
 from haynes_studio.canonical.legacy_import import ImportResult, import_manifest
 from haynes_studio.canonical.model import Principal
+from haynes_studio.jsonio import read_json
 from haynes_studio.legacy import load, load_speech
 from haynes_studio.library import Library
 from haynes_studio.library.winter_menu import (
+    REGISTER_PATH,
+    LicenceRegister,
     WinterMenuLibrary,
     build_winter_menu_library,
+    load_licence_register,
     load_public_sources,
 )
 from tests.canonical.fixtures import NOW, OPERATOR, REVISIONS, TITLE, example, manifest_path, speech_path
+from tests.support.policy import REPO_ROOT
 
 BY = Principal.cli("studio legacy import", OPERATOR["iss"], OPERATOR["sub"])
 
@@ -38,9 +43,21 @@ def sources(revision: int = 4):
 
 
 @cache
+def register_document() -> dict:
+    """The model licence register as committed (story 809)."""
+    return read_json(REPO_ROOT / REGISTER_PATH).document
+
+
+@cache
+def register() -> LicenceRegister:
+    return load_licence_register(REPO_ROOT / REGISTER_PATH)
+
+
+@cache
 def winter_menu(revision: int = 4) -> WinterMenuLibrary:
     result = imported(revision)
-    return build_winter_menu_library(result.story, result.import_map, sources(revision), by=BY, now=NOW)
+    return build_winter_menu_library(result.story, result.import_map, sources(revision),
+                                     licences=register(), by=BY, now=NOW)
 
 
 def story(revision: int = 4) -> dict:
