@@ -39,13 +39,16 @@
     "created_at": "2026-11-13T07:00:00Z"
   },
   "licence": {
-    "name": null,
-    "url": null,
-    "commercial_use": "unknown",
-    "attribution_required": null,
-    "checked_at": null,
-    "checked_by": null,
-    "note": "Terms not yet checked (proposal 0003, Requirements: licences)."
+    "name": "Apache-2.0",
+    "url": "https://www.apache.org/licenses/LICENSE-2.0",
+    "commercial_use": "allowed",
+    "attribution_required": false,
+    "checked_at": "2026-11-13T14:18:00Z",
+    "checked_by": {
+      "kind": "worker",
+      "worker_id": "dev-env agent session haynes-studio-1113-141004"
+    },
+    "note": "Register entry kokoro; the most restrictive of its files. Apache-2.0; no condition on outputs. The session's reading of the text, not legal advice."
   },
   "legacy": {
     "source_key": "legacy:the-winter-menu-r4:speech:shot:8",

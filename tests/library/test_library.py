@@ -22,7 +22,7 @@ from haynes_studio.library.library import Outcome, VersionRequest
 from haynes_studio.library.model import Content, Licence, Scope, content_fields, version_document
 from haynes_studio.library.winter_menu import build_winter_menu_library, winter_menu_requests
 from tests.canonical.fixtures import NOW, example
-from tests.library.fixtures import BY, imported, record_id, sources, winter_menu
+from tests.library.fixtures import BY, imported, record_id, register, sources, winter_menu
 
 LATER = "2026-11-14T09:00:00Z"
 OTHER = "0" * 63 + "1"
@@ -34,7 +34,7 @@ def minter():
 
 def requests():
     result = imported(4)
-    return winter_menu_requests(result.story, result.import_map, sources(4))[0]
+    return winter_menu_requests(result.story, result.import_map, sources(4), register())[0]
 
 
 def still_request(**changes) -> VersionRequest:
@@ -53,8 +53,9 @@ def with_bytes(request: VersionRequest, sha256: str) -> VersionRequest:
 def test_importing_the_same_source_twice_is_idempotent():
     first = winter_menu()
     result = imported(4)
-    second = build_winter_menu_library(result.story, result.import_map, sources(4), by=BY,
-                                       now=LATER, library=first.library)
+    second = build_winter_menu_library(result.story, result.import_map, sources(4),
+                                       licences=register(), by=BY, now=LATER,
+                                       library=first.library)
     assert first.created == len(first.library.versions) == 24
     assert second.created == 0
     assert second.library == first.library

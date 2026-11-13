@@ -38,7 +38,8 @@ Start with:
 
 These block a merge if broken.
 
-- **No media or secrets in git.** The repo is public (MIT). Never commit video,
+- **No media or secrets in git.** The repo is public: its code is MIT, its creative work
+  all rights reserved ([RIGHTS.md](RIGHTS.md)). Never commit video,
   audio, images, reference photos, voice samples, subtitle files, model weights,
   tokens, API keys, cookies or login material. `.gitignore` blocks the common media types; do not
   force-add past it. Commit prompts, manifests, SHA256 hashes and run notes instead.
