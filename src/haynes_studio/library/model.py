@@ -293,6 +293,10 @@ class AssetVersion:
     licence: Licence
     legacy: Mapping[str, Any] | None = None
     voice: BoardVoice | None = None
+    # Story 457 (proposal): a motion version's clip record, verbatim read-only JSON
+    # (haynes_studio.motion.record.MotionRecord reads it). None for every other kind
+    # and for a motion version recorded before the block existed.
+    motion: Mapping[str, Any] | None = None
 
     @classmethod
     def from_document(cls, doc: Mapping[str, Any]) -> AssetVersion:
@@ -304,7 +308,8 @@ class AssetVersion:
                    provenance=freeze(doc["provenance"]),
                    licence=Licence.from_document(doc["licence"]),
                    legacy=None if doc.get("legacy") is None else freeze(doc["legacy"]),
-                   voice=BoardVoice.from_document(doc.get("voice")))
+                   voice=BoardVoice.from_document(doc.get("voice")),
+                   motion=None if doc.get("motion") is None else freeze(doc["motion"]))
 
     @property
     def source_key(self) -> str | None:
@@ -335,6 +340,8 @@ def version_document(version: AssetVersion, asset: Asset) -> dict[str, Any]:
     }
     if version.voice is not None:
         out["voice"] = to_document(version.voice)
+    if version.motion is not None:
+        out["motion"] = thaw(version.motion)
     return out
 
 
@@ -372,11 +379,26 @@ def takes_signature(voice: BoardVoice) -> str:
                       "takes": [take.sha256 for take in voice.takes]})
 
 
+def recorded_identity(version: AssetVersion) -> str | None:
+    """A motion version's recorded identity (story 457, ``motion.keys.identity``), or
+    None without a motion block (or with a malformed one, which validation refuses)."""
+    keys = version.motion.get("keys") if isinstance(version.motion, Mapping) else None
+    identity = keys.get("identity") if isinstance(keys, Mapping) else None
+    return identity if isinstance(identity, str) else None
+
+
 def pin(version: AssetVersion, asset: Asset) -> str:
     """What a version is, as a snapshot pins it (section 8): the content's ``sha256``
     (64 hex digits), or ``sha256:<hex>`` of the definition (``voice``) or of the input
     signature and take hashes (``board_voice``). Two versions of one asset never share
-    a pin; re-importing the same pin under the same source key returns that version."""
+    a pin; re-importing the same pin under the same source key returns that version.
+
+    A ``motion`` version with a motion block (story 457, proposal) pins its record's
+    identity, which covers its bytes and how they are keyed and played: the same clip
+    keyed another way is the next version, never the same one."""
+    identity = recorded_identity(version)
+    if identity is not None:
+        return identity
     if version.content is not None:
         return version.content.sha256
     if version.voice is not None:
@@ -393,7 +415,8 @@ def content_fields(version: AssetVersion) -> dict[str, Any]:
                   if key not in ("created_at", "created_by")}
     return {"kind": version.kind, "capabilities": sorted(version.capabilities),
             "content": to_document(version.content), "provenance": provenance,
-            "legacy": thaw(version.legacy), "voice": to_document(version.voice)}
+            "legacy": thaw(version.legacy), "voice": to_document(version.voice),
+            "motion": thaw(version.motion)}
 
 
 def take_offsets(lead_ms: int, gaps_ms: tuple[int, ...] | list[int],
@@ -412,7 +435,7 @@ __all__ = [
     "STOCK_VOICES", "Asset", "AssetVersion", "BoardVoice", "Content", "Licence", "Scope", "Take",
     "content_fields", "definition_signature", "input_signature", "is_stock_voice",
     "locator_for",
-    "measured_ms", "pin", "signature", "stock_voice_id", "take_offsets", "take_signature",
-    "takes_signature",
+    "measured_ms", "pin", "recorded_identity", "signature", "stock_voice_id", "take_offsets",
+    "take_signature", "takes_signature",
     "version_document",
 ]

@@ -123,6 +123,10 @@ class Photo:
 class CastEntry:
     slot: str
     asset_version_id: str
+    # Story 457 (proposal): an optional pin of the still's motion loop; absent when None.
+    motion_asset_version_id: str | None = None
+
+    _omit_none = ("motion_asset_version_id",)
 
 
 @dataclass(frozen=True, slots=True)
