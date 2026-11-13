@@ -8,8 +8,9 @@ D48 in the [studio plan](../proposals/0003-studio-plan.md).
 - **Checked** 2026-11-13 by the dev-env agent session `haynes-studio-1113-141004`
   (Claude Code, `claude-opus-5-5`), on Tom's direction. Tom did not check these terms.
 - **What it is:** what each publisher's licence text and model card say, with the URL
-  read and the words quoted. Quotes are verbatim, with Markdown link syntax removed;
-  card metadata lines are joined with semicolons. Every judgement is that session's
+  read (pinned to the revision read) and the words quoted. Quotes are verbatim, with
+  Markdown formatting (links, bold, bullets, list dashes) removed; card metadata lines
+  are joined with semicolons. Every judgement is that session's
   reading of the text. **It is not legal advice**, and it clears nothing beyond what
   the quoted text says.
 - **What it covers:** the studio running a model and using what it makes. The studio
@@ -25,17 +26,36 @@ most restrictive of its files.
 
 | Engine | Makes | Licence | Commercial use | Conditions | What Tom would do or decide |
 |---|---|---|---|---|---|
-| Qwen-Image 2.1 on ComfyUI (text-to-image and edit) | cast stills, sets | Qwen Research License Agreement | **non-commercial** | "FOR NON-COMMERCIAL PURPOSES ONLY", where Non-Commercial means "research or evaluation purposes only"; commercial use needs a separate licence from the licensor | Keep these images non-commercial, ask the licensor for a commercial licence, or move the image lane to an Apache-2.0 model in a later story |
+| Qwen-Image 2.1 on ComfyUI (text-to-image and edit) | cast stills, sets | Qwen Research License Agreement | **research or evaluation only** (narrower than non-commercial) | "FOR NON-COMMERCIAL PURPOSES ONLY", where Non-Commercial means "research or evaluation purposes only"; commercial use needs a separate licence from the licensor | Q-809-1 |
 | Kokoro-82M v1.0 (stock voices) | voice takes | Apache-2.0 | allowed | none on outputs | nothing |
-| Stable Audio 3 Small-SFX (audio-authoring, CPU) | sound effects, beds | Stability AI Community License Agreement; Gemma Terms of Use for its text encoder | **conditional** | hobby use is free; commercial use needs registration with Stability AI, and every licence ends above USD 1,000,000 annual revenue (Tom and his affiliates); Acceptable Use Policy; no training a foundational model on outputs; Gemma Prohibited Use Policy | Register with Stability AI before any commercial use, and get an enterprise licence above the revenue limit |
+| Stable Audio 3 Small-SFX (audio-authoring, CPU) | sound effects, beds | Stability AI Community License Agreement; Gemma Terms of Use for its text encoder | **conditional** | hobby use is free; commercial use needs registration with Stability AI, and every licence ends above USD 1,000,000 annual revenue (Tom and his affiliates); Acceptable Use Policy; no training a foundational model on outputs; Gemma Prohibited Use Policy | Q-809-2 |
 | Wan2.2 TI2V-5B | image-to-video clips | Apache-2.0 | allowed | the card's use restrictions (no content that breaks the law, harms people, spreads misinformation or targets vulnerable groups) | nothing |
 | Wan2.2 S2V-14B with its wav2vec2 audio encoder and the lightx2v 4-step LoRA | speech-to-video clips | Apache-2.0 (every file) | allowed | as TI2V | nothing |
 | Whisper service: Parakeet TDT 0.6B v2 (ONNX) | transcripts that check a video's words | CC-BY-4.0 | allowed | attribution when sharing the model; transcripts are never published | nothing |
-| ControlFoley (Foley sidecar) | Foley sound from a clip; in no delivered video | CC-BY-NC-4.0 weights; Apple research-only CLIP encoder; MIT vocoder | **non-commercial** | weights CC BY-NC 4.0; the CLIP encoder is licensed "exclusively for Research Purposes" | Keep ControlFoley out of anything released commercially, or replace it |
+| ControlFoley (Foley sidecar) | Foley sound from a clip; in no delivered video | CC-BY-NC-4.0 weights; Apple research-only CLIP encoder; MIT vocoder | **non-commercial**, and research only for the CLIP encoder | weights CC BY-NC 4.0; the CLIP encoder is licensed "exclusively for Research Purposes" (scientific research) | Q-809-3 |
 
 A video carries the terms of its inputs as well as its own engine's, so check the
 whole chain (session's reading). A Wan clip made from a Qwen-Image 2.1 still uses a
-non-commercial input even though Wan itself is Apache-2.0.
+research-only input even though Wan itself is Apache-2.0.
+
+## Held for Tom
+
+The session's reading, not legal advice. Nothing here is decided.
+
+- **Q-809-1 Qwen-Image 2.1 (every cast still and set so far).** The licence allows only
+  "research or evaluation purposes", and the text does not say whether shorts made for
+  fun count. (a) Keep using it as research and evaluation of the studio, and never use
+  its images commercially. (b) Ask the licensor for a commercial licence (only Tom can).
+  (c) Move the image lane to a Qwen-Image model whose card says Apache-2.0 (the 2512 and
+  Edit 2509 models already on `comfyui-0` say so on their cards; not checked further
+  here) in a later story, and re-make the cast. **Recommendation: (c)** before any
+  release, (a) meanwhile.
+- **Q-809-2 Stable Audio 3 (every sound so far).** Hobby use is free. (a) Do nothing until
+  a release would be commercial, then register with Stability AI (Tom's account, Tom's
+  action) and stay under the revenue limit. (b) Register now. **Recommendation: (a)**,
+  as a step of the release story.
+- **Q-809-3 ControlFoley (in no delivered video).** (a) Keep it to private experiments and
+  out of any released video. (b) Replace it. **Recommendation: (a).**
 
 ## Files
 
@@ -79,14 +99,19 @@ revision and hash.
 - **Parakeet:** onnx-asr maps the model name to its ONNX repository on onnx-asr's main
   branch; the version inside the service image was not checked.
 - **ControlFoley:** its three `ext_weights` files are third-party models redistributed in
-  its repository; their upstream terms were not checked.
+  its repository; their upstream terms were not checked. Its vocoder's card links a
+  licence in `nvidia/BigVGAN` that needs a login; the MIT `LICENSE` in the vocoder's own
+  repository was read instead.
+- **Inferred "allowed":** for the Gemma text encoder and the MIT vocoder, "allowed" rests on
+  the absence of any commercial restriction, not on a sentence that names commercial use.
 
 ## Using the register
 
 - The Winter Menu library builder
   ([`winter_menu.py`](../../src/haynes_studio/library/winter_menu.py)) gives each version
   the licence object of the engine whose `recorded_as` name its model or service text
-  contains. No match, or more than one, leaves `commercial_use: unknown` with the reason.
+  contains as a whole name. No match, or more than one, leaves `commercial_use: unknown`
+  with the reason.
 - Each `licence` in the JSON is a contract licence object
   ([section 7](../contracts/studio-contracts-v1.md#7-provenance-licences-and-public-credits)).
   The contract's `commercial_use` has no value for a conditional term, so the register

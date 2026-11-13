@@ -121,16 +121,26 @@ class LicenceRegister:
 
     def licence_for(self, role: str, model: Any) -> Licence:
         """The licence of the one engine of ``role`` whose recorded name ``model``
-        contains; ``unknown`` with the reason when none or several match."""
+        contains as a whole name (``Qwen-Image 2.1`` is not in ``Qwen-Image 2.10``);
+        ``unknown`` with the reason when none or several match."""
         text = model if isinstance(model, str) else ""
         found = [engine for engine in self.engines if engine.role == role
-                 and any(name and name in text for name in engine.recorded_as)]
+                 and any(_names(name, text) for name in engine.recorded_as)]
         if len(found) == 1:
             return found[0].licence
         reason = ("no entry" if not found else
                   "several entries (" + ", ".join(engine.key for engine in found) + ")")
         return Licence.unknown(f"The licence register has {reason} for the {role} model "
                                f"{text!r}; terms not recorded.")
+
+
+def _names(name: str, text: str) -> bool:
+    """``name`` occurs in ``text`` with no letter, digit or version continuation (a dot
+    and a digit) directly before or after it."""
+    if not name:
+        return False
+    pattern = r"(?<![\w.])" + re.escape(name) + r"(?![\w]|\.\d)"
+    return re.search(pattern, text) is not None
 
 
 def load_licence_register(path: str | Path) -> LicenceRegister:

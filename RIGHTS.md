@@ -25,9 +25,10 @@ repository, including in docs, contract examples, test fixtures and strings in c
 - every image, sound and video made with the studio, wherever it is stored (none is
   stored here).
 
-You may read them here, and the MIT code may process them as data. You may not copy,
-adapt, publish, train on or use them commercially without the copyright holder's
-written permission.
+You may read them here, and the MIT code may process them as data. Viewing and forking
+on GitHub, which GitHub's terms allow for a public repository, are fine. Beyond that, you
+may not copy, adapt, publish, train on or use them commercially without the copyright
+holder's written permission.
 
 ## From when
 
@@ -38,7 +39,7 @@ under which earlier copies were published.
 ## The models' terms
 
 The models that make the media have licences of their own, and some allow only
-non-commercial use. They are recorded in the
+non-commercial or research use. They are recorded in the
 [model licence register](docs/reference/model-licences.md). This notice does not
 override them.
 

@@ -388,6 +388,15 @@ def test_a_model_the_register_does_not_name_stays_unknown_with_its_reason():
     assert "no entry for the image model 'Some other image model'" in images[0].licence.note
     keys = {g.source_key for g in gaps if g.field == "licence"}
     assert {r.provenance["source_key"] for r in images} <= keys
+    # A name matches only as a whole: a later version is not the recorded one.
+    assert register().licence_for("image", "Qwen-Image 2.10 int8").commercial_use == "unknown"
+    assert register().licence_for("voice", "Kokoro-82M v1.0.1").commercial_use == "unknown"
+    kokoro = register().licence_for("voice", "Kokoro-82M v1.0 stock voices")
+    assert (kokoro.name, kokoro.commercial_use) == ("Apache-2.0", "allowed")
+    for text in ("audio-authoring (Stable Audio 3 Small SFX, CPU)", "Stable Audio 3 Small-SFX"):
+        assert register().licence_for("sound", text).name == \
+            "Stability AI Community License Agreement"
+    assert register().licence_for("image", None).commercial_use == "unknown"
     # Two engines claiming the same name is ambiguous, never a guess.
     twice = LicenceRegister(register().engines + register().engines[:1])
     licence = twice.licence_for("image", sources(4).prompts["models"])

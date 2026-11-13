@@ -20,7 +20,7 @@
   "outputs_commercial_use_values": {
     "allowed": "the text allows commercial use of outputs, with at most use restrictions",
     "conditional": "allowed only after a step or within a limit (registration, a revenue cap); recorded as unknown in the contract's licence object (proposal)",
-    "noncommercial": "the text allows only non-commercial, research or evaluation use",
+    "noncommercial": "the text allows only non-commercial use, or something narrower (research or evaluation only); the note says which",
     "unknown": "not confirmed from the source; the note says why"
   },
   "engines": [
@@ -33,7 +33,7 @@
       ],
       "where": "ai/comfyui-0 (ComfyUI 0.39.0, RTX 2000 Ada on talosm03); graphs qwen_image_2_1_t2i_API.json and qwen_image_2_1_edit_API.json in src/haynes_studio/adapters/pinned-inputs/",
       "makes": "cast stills and sets (the stills are cut out by poc/cutout.py, studio code)",
-      "decision_for_tom": "Q-809-1",
+      "for_tom": "Q-809-1: use these images only for research or evaluation as the licence defines it (the text does not say whether shorts made for fun count), ask the licensor for a commercial licence, or move the image lane to an Apache-2.0 Qwen-Image model in a later story.",
       "outputs_commercial_use": "noncommercial",
       "files": [
         "qwen-image-2.1-int8",
@@ -42,7 +42,7 @@
       ],
       "licence": {
         "name": "Qwen Research License Agreement",
-        "url": "https://huggingface.co/Qwen/Qwen-Image-2.1/blob/main/LICENSE",
+        "url": "https://huggingface.co/Qwen/Qwen-Image-2.1/blob/d26bb61231c349cf6b7896fa83353113880e1ba3/LICENSE",
         "commercial_use": "noncommercial",
         "attribution_required": false,
         "checked_at": "2026-11-13T14:18:00Z",
@@ -50,7 +50,7 @@
           "kind": "worker",
           "worker_id": "dev-env agent session haynes-studio-1113-141004"
         },
-        "note": "Register entry qwen-image; the most restrictive of its files. Non-commercial only: Qwen-Image 2.1 is under the Qwen Research License Agreement, which allows use 'FOR NON-COMMERCIAL PURPOSES ONLY' ('research or evaluation purposes only'); commercial use needs a separate licence from the licensor. The session's reading of the text, not legal advice."
+        "note": "Register entry qwen-image; the most restrictive of its files. Research or evaluation only: Qwen-Image 2.1 is under the Qwen Research License Agreement, which allows use 'FOR NON-COMMERCIAL PURPOSES ONLY' and defines that as 'research or evaluation purposes only'; commercial use needs a separate licence from the licensor. The session's reading of the text, not legal advice."
       }
     },
     {
@@ -62,7 +62,7 @@
       ],
       "where": "ai/deploy/kokoro",
       "makes": "voice takes",
-      "decision_for_tom": null,
+      "for_tom": null,
       "outputs_commercial_use": "allowed",
       "files": [
         "kokoro-82m-v1.0"
@@ -90,7 +90,7 @@
       ],
       "where": "audio-authoring in namespace dev",
       "makes": "sound effects and beds",
-      "decision_for_tom": "Q-809-2",
+      "for_tom": "Q-809-2: nothing for hobby use; before any commercial use, register with Stability AI, and above USD 1,000,000 annual revenue get an enterprise licence.",
       "outputs_commercial_use": "conditional",
       "files": [
         "stable-audio-3-small-sfx",
@@ -118,7 +118,7 @@
       ],
       "where": "ai/deploy/wan-video (ComfyUI, two RTX 3090s on talosw01)",
       "makes": "image-to-video clips",
-      "decision_for_tom": null,
+      "for_tom": null,
       "outputs_commercial_use": "allowed",
       "files": [
         "wan2.2-ti2v-5b",
@@ -147,7 +147,7 @@
       ],
       "where": "ai/deploy/wan-video (ComfyUI, RTX 3090 on talosw01)",
       "makes": "speech-to-video clips",
-      "decision_for_tom": null,
+      "for_tom": null,
       "outputs_commercial_use": "allowed",
       "files": [
         "wan2.2-s2v-14b-fp8",
@@ -177,7 +177,7 @@
       ],
       "where": "ai/deploy/whisper (Wyoming ASR)",
       "makes": "transcripts used only to check a finished video's words",
-      "decision_for_tom": null,
+      "for_tom": null,
       "outputs_commercial_use": "allowed",
       "files": [
         "parakeet-tdt-0.6b-v2-onnx"
@@ -204,7 +204,7 @@
       ],
       "where": "ai/deploy/wan-video, container foley",
       "makes": "Foley sound from a video clip (OP344, E0.5); in no delivered video",
-      "decision_for_tom": "Q-809-3",
+      "for_tom": "Q-809-3: keep ControlFoley to private research experiments and out of any released video, or replace it.",
       "outputs_commercial_use": "noncommercial",
       "files": [
         "controlfoley-weights",
@@ -216,13 +216,13 @@
         "name": "CC-BY-NC-4.0",
         "url": "https://creativecommons.org/licenses/by-nc/4.0/legalcode.en",
         "commercial_use": "noncommercial",
-        "attribution_required": false,
+        "attribution_required": null,
         "checked_at": "2026-11-13T14:18:00Z",
         "checked_by": {
           "kind": "worker",
           "worker_id": "dev-env agent session haynes-studio-1113-141004"
         },
-        "note": "Register entry controlfoley; the most restrictive of its files. Non-commercial: the ControlFoley weights are CC BY-NC 4.0 and its CLIP encoder is licensed for research only. The session's reading of the text, not legal advice."
+        "note": "Register entry controlfoley; the most restrictive of its files. Non-commercial, and research only for its CLIP encoder: the ControlFoley weights are CC BY-NC 4.0 and Apple licenses the DFN5B CLIP encoder 'exclusively for Research Purposes'. The session's reading of the text, not legal advice."
       }
     }
   ],
@@ -243,29 +243,29 @@
       "outputs_commercial_use": "noncommercial",
       "evidence": [
         {
-          "url": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1",
+          "url": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/blob/aacf31a6d48e707f352ecba714cee0680da3479b/README.md",
           "quote": "license: other; license_name: qwen-research; license_link: https://huggingface.co/Qwen/Qwen-Image-2.1/blob/main/LICENSE"
         },
         {
-          "url": "https://huggingface.co/Qwen/Qwen-Image-2.1",
+          "url": "https://huggingface.co/Qwen/Qwen-Image-2.1/blob/d26bb61231c349cf6b7896fa83353113880e1ba3/README.md",
           "quote": "This model is licensed under the Qwen Research License Agreement."
         },
         {
-          "url": "https://huggingface.co/Qwen/Qwen-Image-2.1/blob/main/LICENSE",
+          "url": "https://huggingface.co/Qwen/Qwen-Image-2.1/blob/d26bb61231c349cf6b7896fa83353113880e1ba3/LICENSE",
           "quote": "You are granted a non-exclusive, worldwide, non-transferable and royalty-free limited license under our intellectual property or other rights owned by us embodied in the Materials to use, reproduce, distribute, copy, create derivative works of, and make modifications to the Materials FOR NON-COMMERCIAL PURPOSES ONLY."
         },
         {
-          "url": "https://huggingface.co/Qwen/Qwen-Image-2.1/blob/main/LICENSE",
+          "url": "https://huggingface.co/Qwen/Qwen-Image-2.1/blob/d26bb61231c349cf6b7896fa83353113880e1ba3/LICENSE",
           "quote": "You shall not use the Materials for any commercial purpose without obtaining a separate commercial license from us."
         },
         {
-          "url": "https://huggingface.co/Qwen/Qwen-Image-2.1/blob/main/LICENSE",
+          "url": "https://huggingface.co/Qwen/Qwen-Image-2.1/blob/d26bb61231c349cf6b7896fa83353113880e1ba3/LICENSE",
           "quote": "\"Non-Commercial\" shall mean for research or evaluation purposes only."
         }
       ],
       "licence": {
         "name": "Qwen Research License Agreement",
-        "url": "https://huggingface.co/Qwen/Qwen-Image-2.1/blob/main/LICENSE",
+        "url": "https://huggingface.co/Qwen/Qwen-Image-2.1/blob/d26bb61231c349cf6b7896fa83353113880e1ba3/LICENSE",
         "commercial_use": "noncommercial",
         "attribution_required": false,
         "checked_at": "2026-11-13T14:18:00Z",
@@ -273,7 +273,7 @@
           "kind": "worker",
           "worker_id": "dev-env agent session haynes-studio-1113-141004"
         },
-        "note": "Non-commercial only: the licence allows use 'FOR NON-COMMERCIAL PURPOSES ONLY', defined as 'research or evaluation purposes only'; commercial use needs a separate licence from the licensor (section 2b). The session's reading of the text, not legal advice."
+        "note": "Research or evaluation only, narrower than non-commercial: the licence allows use 'FOR NON-COMMERCIAL PURPOSES ONLY' and defines Non-Commercial as 'research or evaluation purposes only'; commercial use needs a separate licence from the licensor (section 2b). Whether making shorts for fun counts as evaluation, the text does not say. The session's reading of the text, not legal advice."
       }
     },
     {
@@ -292,17 +292,17 @@
       "outputs_commercial_use": "noncommercial",
       "evidence": [
         {
-          "url": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1",
+          "url": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/blob/aacf31a6d48e707f352ecba714cee0680da3479b/README.md",
           "quote": "license: other; license_name: qwen-research"
         },
         {
-          "url": "https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct",
+          "url": "https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct/blob/0c351dd01ed87e9c1b53cbc748cba10e6187ff3b/README.md",
           "quote": "license: apache-2.0"
         }
       ],
       "licence": {
         "name": "Qwen Research License Agreement",
-        "url": "https://huggingface.co/Qwen/Qwen-Image-2.1/blob/main/LICENSE",
+        "url": "https://huggingface.co/Qwen/Qwen-Image-2.1/blob/d26bb61231c349cf6b7896fa83353113880e1ba3/LICENSE",
         "commercial_use": "noncommercial",
         "attribution_required": false,
         "checked_at": "2026-11-13T14:18:00Z",
@@ -329,13 +329,13 @@
       "outputs_commercial_use": "noncommercial",
       "evidence": [
         {
-          "url": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1",
+          "url": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/blob/aacf31a6d48e707f352ecba714cee0680da3479b/README.md",
           "quote": "license: other; license_name: qwen-research"
         }
       ],
       "licence": {
         "name": "Qwen Research License Agreement",
-        "url": "https://huggingface.co/Qwen/Qwen-Image-2.1/blob/main/LICENSE",
+        "url": "https://huggingface.co/Qwen/Qwen-Image-2.1/blob/d26bb61231c349cf6b7896fa83353113880e1ba3/LICENSE",
         "commercial_use": "noncommercial",
         "attribution_required": false,
         "checked_at": "2026-11-13T14:18:00Z",
@@ -343,7 +343,7 @@
           "kind": "worker",
           "worker_id": "dev-env agent session haynes-studio-1113-141004"
         },
-        "note": "Part of Qwen-Image 2.1; non-commercial only, as the diffusion model. The session's reading of the text, not legal advice."
+        "note": "Part of Qwen-Image 2.1; research or evaluation only, as the diffusion model. The session's reading of the text, not legal advice."
       }
     },
     {
@@ -362,15 +362,15 @@
       "outputs_commercial_use": "allowed",
       "evidence": [
         {
-          "url": "https://huggingface.co/hexgrad/Kokoro-82M",
+          "url": "https://huggingface.co/hexgrad/Kokoro-82M/blob/f3ff3571791e39611d31c381e3a41a3af07b4987/README.md",
           "quote": "license: apache-2.0"
         },
         {
-          "url": "https://huggingface.co/hexgrad/Kokoro-82M",
+          "url": "https://huggingface.co/hexgrad/Kokoro-82M/blob/f3ff3571791e39611d31c381e3a41a3af07b4987/README.md",
           "quote": "With Apache-licensed weights, Kokoro can be deployed anywhere from production environments to personal projects."
         },
         {
-          "url": "https://huggingface.co/hexgrad/Kokoro-82M",
+          "url": "https://huggingface.co/hexgrad/Kokoro-82M/blob/f3ff3571791e39611d31c381e3a41a3af07b4987/README.md",
           "quote": "This is an Apache-licensed model, and Kokoro has been deployed in numerous projects and commercial APIs."
         }
       ],
@@ -429,7 +429,7 @@
         },
         {
           "url": "https://huggingface.co/stabilityai/stable-audio-3-small-sfx",
-          "observed": "Gated: downloading needs a Hugging Face login and agreement to the licence, the Privacy Policy and the Gemma Terms of Use, with name, email, country, organization and intended use. Not opened and not accepted; its own LICENSE.md was not read. Its card metadata names license_name: stable-audio-community."
+          "observed": "Gated: downloading needs a Hugging Face login and agreement to the licence, the Privacy Policy and the Gemma Terms of Use, with name, email, country, organization and intended use. Not opened and not accepted; its own LICENSE.md and README were not read. Its public API metadata (https://huggingface.co/api/models/stabilityai/stable-audio-3-small-sfx) names license_name: stable-audio-community."
         }
       ],
       "licence": {
@@ -464,6 +464,10 @@
         },
         {
           "url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/da6edc54ddba10bfd79a077102ded687f80e882b/LICENSE_GEMMA.md",
+          "quote": "You may use, reproduce, modify, Distribute, perform or display any of the Gemma Services only in accordance with the terms of this Agreement, and must not violate (or encourage or permit anyone else to violate) any term of this Agreement."
+        },
+        {
+          "url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/da6edc54ddba10bfd79a077102ded687f80e882b/LICENSE_GEMMA.md",
           "quote": "Google claims no rights in Outputs you generate using Gemma. You and your users are solely responsible for Outputs and their subsequent uses."
         },
         {
@@ -481,7 +485,7 @@
           "kind": "worker",
           "worker_id": "dev-env agent session haynes-studio-1113-141004"
         },
-        "note": "Gemma Terms of Use (last modified 2026-04-01): Google claims no rights in outputs; use must follow the Gemma Prohibited Use Policy (section 3.2). The session's reading of the text, not legal advice."
+        "note": "Gemma Terms of Use (last modified 2026-04-01): no term restricts commercial use, and Google claims no rights in outputs; use must follow the Gemma Prohibited Use Policy (section 3.2). 'Allowed' is inferred from the absence of a commercial restriction. The session's reading of the text, not legal advice."
       }
     },
     {
@@ -500,11 +504,11 @@
       "outputs_commercial_use": "allowed",
       "evidence": [
         {
-          "url": "https://huggingface.co/Comfy-Org/Wan-2.2",
+          "url": "https://huggingface.co/Comfy-Org/Wan-2.2/blob/ee6f4a40737a995bf5818954cfce6d59443b0f04/README.md",
           "quote": "license: apache-2.0"
         },
         {
-          "url": "https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B",
+          "url": "https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B/blob/921dbaf3f1674a56f47e83fb80a34bac8a8f203e/README.md",
           "quote": "The models in this repository are licensed under the Apache 2.0 License. We claim no rights over the your generated contents, granting you the freedom to use them while ensuring that your usage complies with the provisions of this license. You are fully accountable for your use of the models, which must not involve sharing any content that violates applicable laws, causes harm to individuals or groups, disseminates personal information intended for harm, spreads misinformation, or targets vulnerable populations."
         }
       ],
@@ -537,11 +541,15 @@
       "outputs_commercial_use": "allowed",
       "evidence": [
         {
-          "url": "https://huggingface.co/Comfy-Org/Wan-2.1",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0",
+          "quote": "Subject to the terms and conditions of this License, each Contributor hereby grants to You a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable copyright license to reproduce, prepare Derivative Works of, publicly display, publicly perform, sublicense, and distribute the Work and such Derivative Works in Source or Object form."
+        },
+        {
+          "url": "https://huggingface.co/Comfy-Org/Wan-2.1/blob/123acf1cc74bccbb9bfff8ac1ee72edc08c2341d/README.md",
           "quote": "license: apache-2.0"
         },
         {
-          "url": "https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B",
+          "url": "https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B/blob/921dbaf3f1674a56f47e83fb80a34bac8a8f203e/README.md",
           "quote": "The models in this repository are licensed under the Apache 2.0 License. We claim no rights over the your generated contents, granting you the freedom to use them while ensuring that your usage complies with the provisions of this license. You are fully accountable for your use of the models, which must not involve sharing any content that violates applicable laws, causes harm to individuals or groups, disseminates personal information intended for harm, spreads misinformation, or targets vulnerable populations."
         }
       ],
@@ -574,11 +582,15 @@
       "outputs_commercial_use": "allowed",
       "evidence": [
         {
-          "url": "https://huggingface.co/Comfy-Org/Wan-2.2",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0",
+          "quote": "Subject to the terms and conditions of this License, each Contributor hereby grants to You a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable copyright license to reproduce, prepare Derivative Works of, publicly display, publicly perform, sublicense, and distribute the Work and such Derivative Works in Source or Object form."
+        },
+        {
+          "url": "https://huggingface.co/Comfy-Org/Wan-2.2/blob/ee6f4a40737a995bf5818954cfce6d59443b0f04/README.md",
           "quote": "license: apache-2.0"
         },
         {
-          "url": "https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B",
+          "url": "https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B/blob/921dbaf3f1674a56f47e83fb80a34bac8a8f203e/README.md",
           "quote": "The models in this repository are licensed under the Apache 2.0 License. We claim no rights over the your generated contents, granting you the freedom to use them while ensuring that your usage complies with the provisions of this license. You are fully accountable for your use of the models, which must not involve sharing any content that violates applicable laws, causes harm to individuals or groups, disseminates personal information intended for harm, spreads misinformation, or targets vulnerable populations."
         }
       ],
@@ -611,11 +623,11 @@
       "outputs_commercial_use": "allowed",
       "evidence": [
         {
-          "url": "https://huggingface.co/Comfy-Org/Wan-2.2",
+          "url": "https://huggingface.co/Comfy-Org/Wan-2.2/blob/ee6f4a40737a995bf5818954cfce6d59443b0f04/README.md",
           "quote": "license: apache-2.0"
         },
         {
-          "url": "https://huggingface.co/Wan-AI/Wan2.2-S2V-14B",
+          "url": "https://huggingface.co/Wan-AI/Wan2.2-S2V-14B/blob/dab4e9c55bbe4c8c4d03db1c2c98c7f0ac9c454b/README.md",
           "quote": "The models in this repository are licensed under the Apache 2.0 License. We claim no rights over the your generated contents, granting you the freedom to use them while ensuring that your usage complies with the provisions of this license. You are fully accountable for your use of the models, which must not involve sharing any content that violates applicable laws, causes harm to individuals or groups, disseminates personal information intended for harm, spreads misinformation, or targets vulnerable populations."
         }
       ],
@@ -648,11 +660,15 @@
       "outputs_commercial_use": "allowed",
       "evidence": [
         {
-          "url": "https://huggingface.co/Comfy-Org/Wan-2.2",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0",
+          "quote": "Subject to the terms and conditions of this License, each Contributor hereby grants to You a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable copyright license to reproduce, prepare Derivative Works of, publicly display, publicly perform, sublicense, and distribute the Work and such Derivative Works in Source or Object form."
+        },
+        {
+          "url": "https://huggingface.co/Comfy-Org/Wan-2.2/blob/ee6f4a40737a995bf5818954cfce6d59443b0f04/README.md",
           "quote": "license: apache-2.0"
         },
         {
-          "url": "https://huggingface.co/jonatasgrosman/wav2vec2-large-xlsr-53-english",
+          "url": "https://huggingface.co/jonatasgrosman/wav2vec2-large-xlsr-53-english/blob/569a6236e92bd5f7652a0420bfe9bb94c5664080/README.md",
           "quote": "license: apache-2.0"
         }
       ],
@@ -685,7 +701,11 @@
       "outputs_commercial_use": "allowed",
       "evidence": [
         {
-          "url": "https://huggingface.co/Comfy-Org/Wan-2.2",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0",
+          "quote": "Subject to the terms and conditions of this License, each Contributor hereby grants to You a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable copyright license to reproduce, prepare Derivative Works of, publicly display, publicly perform, sublicense, and distribute the Work and such Derivative Works in Source or Object form."
+        },
+        {
+          "url": "https://huggingface.co/Comfy-Org/Wan-2.2/blob/ee6f4a40737a995bf5818954cfce6d59443b0f04/README.md",
           "quote": "license: apache-2.0"
         }
       ],
@@ -718,15 +738,15 @@
       "outputs_commercial_use": "allowed",
       "evidence": [
         {
-          "url": "https://huggingface.co/Comfy-Org/Wan-2.2",
+          "url": "https://huggingface.co/Comfy-Org/Wan-2.2/blob/ee6f4a40737a995bf5818954cfce6d59443b0f04/README.md",
           "quote": "license: apache-2.0"
         },
         {
-          "url": "https://huggingface.co/lightx2v/Wan2.2-Distill-Loras",
+          "url": "https://huggingface.co/lightx2v/Wan2.2-Distill-Loras/blob/57adea585d1d21085e2dfc91ce3c7b646cdd9345/README.md",
           "quote": "license: apache-2.0"
         },
         {
-          "url": "https://huggingface.co/lightx2v/Wan2.2-Lightning",
+          "url": "https://huggingface.co/lightx2v/Wan2.2-Lightning/blob/18bccf8884ec0a078eed79785eb4ef13ea16ce1e/README.md",
           "quote": "The models in this repository are licensed under the Apache 2.0 License. We claim no rights over the your generated contents, granting you the freedom to use them while ensuring that your usage complies with the provisions of this license. You are fully accountable for your use of the models, which must not involve sharing any content that violates applicable laws, causes harm to individuals or groups, disseminates personal information intended for harm, spreads misinformation, or targets vulnerable populations."
         }
       ],
@@ -759,15 +779,15 @@
       "outputs_commercial_use": "allowed",
       "evidence": [
         {
-          "url": "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v2-onnx",
+          "url": "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v2-onnx/blob/0bbb45a3365852604aef28b538a8f066f4ccaa85/README.md",
           "quote": "license: cc-by-4.0; base_model: nvidia/parakeet-tdt-0.6b-v2"
         },
         {
-          "url": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2",
+          "url": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2/blob/ae9ad07059c7c739ffaf932226a8fe64ae2620b0/README.md",
           "quote": "This model is ready for commercial/non-commercial use."
         },
         {
-          "url": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2",
+          "url": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2/blob/ae9ad07059c7c739ffaf932226a8fe64ae2620b0/README.md",
           "quote": "GOVERNING TERMS: Use of this model is governed by the CC-BY-4.0 license."
         }
       ],
@@ -800,11 +820,11 @@
       "outputs_commercial_use": "noncommercial",
       "evidence": [
         {
-          "url": "https://huggingface.co/YJX-Xiaomi/ControlFoley",
+          "url": "https://huggingface.co/YJX-Xiaomi/ControlFoley/blob/cde633f5c3f5ccbedf07994ad6dc124b761df22f/README.md",
           "quote": "license: cc-by-nc-4.0"
         },
         {
-          "url": "https://huggingface.co/YJX-Xiaomi/ControlFoley",
+          "url": "https://huggingface.co/YJX-Xiaomi/ControlFoley/blob/cde633f5c3f5ccbedf07994ad6dc124b761df22f/README.md",
           "quote": "This repository is licensed under the Apache License 2.0 and the model weights are licensed under the CC BY-NC 4.0."
         }
       ],
@@ -812,13 +832,13 @@
         "name": "CC-BY-NC-4.0",
         "url": "https://creativecommons.org/licenses/by-nc/4.0/legalcode.en",
         "commercial_use": "noncommercial",
-        "attribution_required": false,
+        "attribution_required": null,
         "checked_at": "2026-11-13T14:18:00Z",
         "checked_by": {
           "kind": "worker",
           "worker_id": "dev-env agent session haynes-studio-1113-141004"
         },
-        "note": "Weights under CC BY-NC 4.0 (non-commercial); the code is Apache-2.0. The session's reading of the text, not legal advice."
+        "note": "Weights under CC BY-NC 4.0 (non-commercial); the code is Apache-2.0. CC BY-NC requires attribution when sharing the licensed or adapted material; whether generated audio is either, the text does not say (null). The session's reading of the text, not legal advice."
       }
     },
     {
@@ -839,7 +859,7 @@
       "outputs_commercial_use": "noncommercial",
       "evidence": [
         {
-          "url": "https://huggingface.co/YJX-Xiaomi/ControlFoley",
+          "url": "https://huggingface.co/YJX-Xiaomi/ControlFoley/blob/cde633f5c3f5ccbedf07994ad6dc124b761df22f/README.md",
           "quote": "license: cc-by-nc-4.0"
         }
       ],
@@ -847,7 +867,7 @@
         "name": "CC-BY-NC-4.0",
         "url": "https://creativecommons.org/licenses/by-nc/4.0/legalcode.en",
         "commercial_use": "noncommercial",
-        "attribution_required": false,
+        "attribution_required": null,
         "checked_at": "2026-11-13T14:18:00Z",
         "checked_by": {
           "kind": "worker",
@@ -872,7 +892,7 @@
       "outputs_commercial_use": "noncommercial",
       "evidence": [
         {
-          "url": "https://huggingface.co/apple/DFN5B-CLIP-ViT-H-14-378",
+          "url": "https://huggingface.co/apple/DFN5B-CLIP-ViT-H-14-378/blob/01b771ed0d1395ca5ffdd279897d665ebe00dfd2/README.md",
           "quote": "license: apple-amlr; license_name: apple-sample-code-license; license_link: LICENSE"
         },
         {
@@ -894,7 +914,7 @@
           "kind": "worker",
           "worker_id": "dev-env agent session haynes-studio-1113-141004"
         },
-        "note": "Research only: use is 'exclusively for Research Purposes', defined as non-commercial scientific research and academic development with the sole intent to advance scientific knowledge. The session's reading of the text, not legal advice."
+        "note": "Research only, narrower than non-commercial: use is 'exclusively for Research Purposes', defined as non-commercial scientific research and academic development with the sole intent to advance scientific knowledge. The session's reading of the text, not legal advice."
       }
     },
     {
@@ -913,13 +933,17 @@
       "outputs_commercial_use": "allowed",
       "evidence": [
         {
-          "url": "https://huggingface.co/nvidia/bigvgan_v2_44khz_128band_512x",
+          "url": "https://huggingface.co/nvidia/bigvgan_v2_44khz_128band_512x/blob/95a9d1dcb12906c03edd938d77b9333d6ded7dfb/README.md",
           "quote": "license: mit; license_link: https://huggingface.co/nvidia/BigVGAN/blob/main/LICENSE"
+        },
+        {
+          "url": "https://huggingface.co/nvidia/bigvgan_v2_44khz_128band_512x/blob/95a9d1dcb12906c03edd938d77b9333d6ded7dfb/LICENSE",
+          "quote": "Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software"
         }
       ],
       "licence": {
         "name": "MIT",
-        "url": "https://opensource.org/license/mit",
+        "url": "https://huggingface.co/nvidia/bigvgan_v2_44khz_128band_512x/blob/95a9d1dcb12906c03edd938d77b9333d6ded7dfb/LICENSE",
         "commercial_use": "allowed",
         "attribution_required": false,
         "checked_at": "2026-11-13T14:18:00Z",
@@ -927,7 +951,7 @@
           "kind": "worker",
           "worker_id": "dev-env agent session haynes-studio-1113-141004"
         },
-        "note": "MIT; no condition on outputs. The session's reading of the text, not legal advice."
+        "note": "MIT (the repository's LICENSE file); no condition on outputs. The card's licence link to nvidia/BigVGAN needs a login and was not read. The session's reading of the text, not legal advice."
       }
     }
   ]
