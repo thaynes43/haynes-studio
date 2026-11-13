@@ -286,9 +286,20 @@ def test_i2v_seed_edit_rebuilds_that_clip_and_segment():
     assert_only(d, {f"{B3}/whole_frame_clip"} | seg(B3) | PICTURE_FILM)
 
 
+def swap_still(old: str, new: str):
+    """Every board placing ``old`` places ``new`` (the next version of that still)."""
+    def change(doc):
+        for board in doc["boards"]:
+            for entry in board["cast"]:
+                if entry["asset_version_id"] == old:
+                    entry["asset_version_id"] = new
+    return change
+
+
 def test_cast_still_version_rebuilds_clips_from_it_on_every_board_using_it():
-    blobs = {**fx.BLOBS, fx.STILL_B: fx.sha("a new version of b's still")}
-    d, _, _ = edit(blobs=blobs)
+    """Story 426: the new still resolves its own pinned loop, whose start image and
+    keying a speaker's S2V clip and keyed frames take."""
+    d, _, _ = edit(swap_still(fx.STILL_B, fx.STILL_B2))
     # b is on B1 and B4 (S2V speaker on both); her drive tracks are audio and stay.
     assert {f"{B1}/drive/b", f"{B4}/drive/b"} <= d.kept
     assert_only(d, {f"{B1}/s2v_clip/b", f"{B1}/keyed/b", f"{B4}/s2v_clip/b", f"{B4}/keyed/b"}
@@ -296,8 +307,9 @@ def test_cast_still_version_rebuilds_clips_from_it_on_every_board_using_it():
 
 
 def test_cast_still_version_of_an_idle_doll_rebuilds_its_doll_clip():
-    blobs = {**fx.BLOBS, fx.STILL_A: fx.sha("a new version of a's still")}
-    d, _, _ = edit(blobs=blobs)
+    """Story 426: the idle doll's clip is the new still's pinned library loop (not made
+    by the build), and its keyed frames are keyed again."""
+    d, _, _ = edit(swap_still(fx.STILL_A, fx.STILL_A2))
     assert_only(d, {f"{B1}/s2v_clip/a", f"{B1}/keyed/a", f"{B2}/doll_clip/a", f"{B2}/keyed/a"}
                 | seg(B1, B2) | PICTURE_FILM)
 
@@ -407,18 +419,41 @@ def test_toolchain_digest_rebuilds_every_artifact_that_tool_made(tool):
     }[tool]
     d, _, after = edit(toolchain=changed)
     names = after.keys()
+    if tool == "keyer":  # story 380's placeholder path still keys with the toolchain's
+        unpinned = diff(fx.plan(fx.story_document(), pinned=False),
+                        fx.plan(fx.story_document(), toolchain=changed, pinned=False))
+        assert unpinned.rebuilt == {n for n in names if "/keyed/" in n} | seg(B1, B2, B4) | PICTURE_FILM
     s2v_all = s2v(B1, "a") | s2v(B1, "b") | s2v(B1, "c") | s2v(B4, "b") | s2v(B4, "c")
     expected = {
         "compositor": seg(B1, B2, B3, B4) | PICTURE_FILM,
         "encoder": seg(B1, B2, B3, B4) | PICTURE_FILM,
         "s2v_profile": {n for n in s2v_all if "/drive/" not in n} | seg(B1, B4) | PICTURE_FILM,
-        "keyer": {n for n in names if "/keyed/" in n} | seg(B1, B2, B4) | PICTURE_FILM,
+        # Story 426: keying comes from the pinned records, so the toolchain's keyer
+        # changes nothing; a record's keyer does (test_a_records_keyer_rekeys_its_layers).
+        "keyer": set(),
         "tts_model": {n for n in names if "/take/" in n} | track(B1, B2, B4) | s2v_all
         | seg(B1, B2, B4) | FILM,
         "splicer": PICTURE_FILM,
         "mixer": MIX_FILM,
     }[tool]
     assert_only(d, expected)
+
+
+def test_a_records_keyer_rekeys_its_layers():
+    """Story 426: c's loop keyed by another keyer is a new version of her loop (a
+    record never changes); every layer keyed with it is keyed again: her idle doll on
+    B2 and her S2V layers on B1 and B4, which take her loop's keying."""
+    before = fx.plan(fx.story_document())
+    old = fx.loop_doc(fx.STILL_C, fx.LOOPS[fx.STILL_C], 53)
+    new = fx.loop_doc(fx.STILL_C, fx.ident("asv", 57), 53,
+                      keying={**fx.KEYING, "keyer": "studio.layered.keyer/1"})
+    new["number"], old["state"] = 2, "candidate"
+    lib = fx.library(old, new, without=frozenset({fx.LOOPS[fx.STILL_C]}))
+    d = diff(before, fx.plan(fx.story_document(), lib=lib))
+    # The clip is the same bytes (its key and hash stay); only its keyed frames change.
+    assert {f"{B2}/doll_clip/c"} <= d.kept
+    assert_only(d, {f"{B1}/keyed/c", f"{B2}/keyed/c", f"{B4}/keyed/c"} | seg(B1, B2, B4)
+                | PICTURE_FILM)
 
 
 def _changed_tool(tools: Toolchain, name: str):
@@ -458,6 +493,13 @@ MADE_BY = {
 }
 
 
+# Story 426: the layered path plans doll clips and keying from pinned records, so these
+# toolchain placeholders change no key of a pinned plan (they still key the placeholder
+# path, story 380's, which the layered renderer refuses to draw).
+PLACEHOLDERS = {"motion_profile", "motion_prompt", "motion_seed", "keyer", "key_thresholds",
+                "protect_boxes", "decal_box", "decal_version"}
+
+
 @pytest.mark.parametrize("name", [f.name for f in __import__("dataclasses").fields(Toolchain)])
 def test_every_toolchain_field_changes_only_what_that_tool_makes(name):
     tools = Toolchain()
@@ -466,6 +508,10 @@ def test_every_toolchain_field_changes_only_what_that_tool_makes(name):
     else:
         changed = replace(tools, **{name: _changed_tool(tools, name)})
     d, _, _ = edit(toolchain=changed)
+    if name in PLACEHOLDERS:
+        assert not d.rebuilt and not d.removed, f"{name} is a placeholder of a pinned plan"
+        document = fx.story_document()
+        d = diff(fx.plan(document, pinned=False), fx.plan(document, toolchain=changed, pinned=False))
     assert d.rebuilt, f"{name} changes no key"
     assert not d.removed and not d.added
     pattern = re.compile(MADE_BY[name])
@@ -474,10 +520,16 @@ def test_every_toolchain_field_changes_only_what_that_tool_makes(name):
 
 def test_media_kind_frame_size_rebuilds_every_picture():
     d, _, after = edit(media=MediaFormat(width=640, height=360))  # short (9:16) to video (16:9)
-    picture = {n for n in after.keys() if re.search(r"/(s2v_clip|doll_clip|whole_frame_clip|keyed|segment)", n)}
+    # Story 426: an idle doll's pinned library loop and its keyed frames are sprites
+    # placed by the layout, so they are reused; every generated clip (S2V, whole-frame),
+    # an S2V clip's keyed frames and every segment rebuild.
+    dolls = {n for n in after.keys() if re.search(r"/doll_clip/", n)}
+    idle_keyed = {n.replace("/doll_clip/", "/keyed/") for n in dolls}
+    picture = {n for n in after.keys() if re.search(r"/(s2v_clip|whole_frame_clip|keyed|segment)", n)}
+    assert dolls | idle_keyed <= d.kept
     # The mix has no picture input and keeps its key (see the PR's observations); the
     # drive tracks are audio and keep theirs.
-    assert_only(d, picture | PICTURE_FILM)
+    assert_only(d, (picture - idle_keyed) | PICTURE_FILM)
 
 
 def test_another_fps_is_refused_rather_than_half_applied():
@@ -532,7 +584,8 @@ ROWS = {
     "Story motion style": [test_story_motion_style_rebuilds_every_segment_with_bounce],
     "A cast slot's voice": [test_a_cast_slots_voice_remakes_every_take_of_that_speaker],
     "Toolchain or profile digest": [test_toolchain_digest_rebuilds_every_artifact_that_tool_made,
-                                    test_every_toolchain_field_changes_only_what_that_tool_makes],
+                                    test_every_toolchain_field_changes_only_what_that_tool_makes,
+                                    test_a_records_keyer_rekeys_its_layers],
     "Media kind frame size or fps": [test_media_kind_frame_size_rebuilds_every_picture,
                                      test_frame_size_at_the_same_aspect_rebuilds_only_segments,
                                      test_another_fps_is_refused_rather_than_half_applied],

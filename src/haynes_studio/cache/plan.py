@@ -13,6 +13,14 @@ embedded, each spoken board's current voice (take hashes and durations, and its
 track's hash), every asset version's content hash, each voice version's stock voice,
 the toolchain and the media format. Identifiers name artifacts in the plan; they are
 never key inputs. Board timing is story 404's (:func:`~haynes_studio.canonical.derive.board_clock`).
+
+The layered path (story 426) plans from **pinned motion records** when ``motion`` is
+given (:class:`LayeredMotion`, made by :func:`haynes_studio.layered.pin.pin_story` with
+story 457's resolver): every doll clip, its keyed frames, the loop's length and phase,
+the set loop and a speaker's start image and keying come from the records, and the
+toolchain's motion and keying placeholders are not read. Without ``motion`` the plan
+keeps story 380's placeholders, for key-only callers; the layered renderer refuses a
+segment planned that way, so such a plan cannot be built.
 """
 
 from __future__ import annotations
@@ -123,7 +131,7 @@ class Toolchain:
     track_assembler: str = "studio.voice.track/1"
     mix_rate: int = MIX_RATE
     drive_assembler: str = "studio.s2v.drive/1"
-    drive_rate: int = 16_000
+    drive_rate: int = 24_000  # story 426: the takes' rate, so a drive track needs no resampling
     s2v_adapter: str = "studio.s2v/1"
     s2v_profile: Mapping[str, Any] = field(default_factory=lambda: _frozen({
         "model": "wan2.2-s2v-14b-fp8", "lora": "lightx2v-4step", "steps": 4, "cfg": 1,
@@ -159,6 +167,27 @@ class Toolchain:
         "master.decode": {"on": "master", "version": "1", "thresholds": {}},
         "master.transcript": {"on": "master", "version": "1", "thresholds": {},
                               "transcript": True}}))
+
+
+@dataclass(frozen=True)
+class LayeredMotion:
+    """The pinned motion records of a story's layered boards (story 426), resolved
+    before planning by story 457's resolver (:func:`haynes_studio.layered.pin.pin_story`).
+
+    ``boards`` maps a layered board's ID to its ``BoardMotion`` resolved as layered I2V,
+    so every cast entry has its loop (a speaker's loop gives her speech-to-video start
+    image and keying, **proposal**) and the set its loop or none. ``timed(slot,
+    still_sha256, drive_track_sha256, board_frames)`` answers a library timed clip made
+    from that drive track, or None (the build then makes one). ``decal_min_ecc`` is the
+    decal gate of a clip made in the build (``poc/decal.py MIN_ECC``). ``keyer_build``
+    names the library builds the keyer runs on; it is appended to each record's keyer
+    in the keyed frames' cache key (``<keyer>@<build>``, **proposal**, P-07), so a new
+    OpenCV, scipy, numpy, Pillow or PyAV keys the frames again."""
+
+    boards: Mapping[str, Any]
+    timed: Callable[[str, str, str, int], Any] | None = None
+    decal_min_ecc: float = 0.8
+    keyer_build: str | None = None
 
 
 @dataclass(frozen=True)
@@ -292,9 +321,10 @@ def _picture_cues(board: Board, clock: BoardClock) -> list[dict[str, Any]]:
 class _Planner:
     def __init__(self, story: Story, *, voices: Mapping[str, BoardVoice], blobs: Mapping[str, str],
                  voice_ids: Mapping[str, str], toolchain: Toolchain, media: MediaFormat,
-                 content: Content):
+                 content: Content, motion: LayeredMotion | None = None):
         self.story, self.voices, self.blobs = story, voices, blobs
         self.voice_ids, self.tools, self.media, self.content = voice_ids, toolchain, media, content
+        self.motion = motion
         self.artifacts: dict[str, Planned] = {}
 
     def add(self, name: str, key: CacheKey, board_id: str | None = None,
@@ -348,6 +378,101 @@ class _Planner:
         return {"slot": slot, "still": still, "clip": clip,
                 "keyed": self.keyed(board, slot, clip, still), "role": "s2v", "phase": None}
 
+    # The pinned path (story 426) -------------------------------------------------------
+
+    def board_motion(self, board: Board) -> Any:
+        """The board's resolved records; a blocking problem stops the plan with its own
+        code (``motion.clip_absent`` for a cast still without a loop)."""
+        assert self.motion is not None
+        resolved = self.motion.boards.get(board.id)
+        if resolved is None:
+            raise _bad("the layered board's motion records are not resolved", board.id)
+        if not resolved.complete:
+            first = next(v for v in resolved.problems if v.status != "warning")
+            raise CacheError(first.rule, first.message, where=f"{board.id}{first.path}")
+        return resolved
+
+    def pinned_keyed(self, board: Board, slot: str, clip: str, start: str, keying: Any) -> str:
+        """The keyed frames of ``clip`` with a record's keying inputs; the decal's still
+        is the clip's start image (story 457's proposal), the keyer carries its build."""
+        if keying is None:  # the resolver refuses a doll clip without keying; kept explicit
+            raise _bad(f"slot {slot}'s clip records no keying (motion.keying_missing)", board.id)
+        assert self.motion is not None
+        build = self.motion.keyer_build
+        return self.add(f"{board.id}/keyed/{slot}", keyed_frames_key(
+            clip=clip, still=start, key_thresholds=thaw(keying.key_thresholds),
+            protect_boxes=[list(box) for box in keying.protect_boxes],
+            decal_box=None if keying.decal_box is None else list(keying.decal_box),
+            decal_version=keying.decal_version,
+            keyer=keying.keyer if build is None else f"{keying.keyer}@{build}"), board.id)
+
+    def pinned_doll(self, board: Board, slot: str, still: str, clip: Any) -> dict[str, Any]:
+        """An idle doll from its pinned loop (TIME-8a): the library clip (not made by
+        the build), its keyed frames, its N and its phase on this board."""
+        record = clip.record
+        self.add(f"{board.id}/doll_clip/{slot}", clip.identity.clip, board.id, content=clip.sha256)
+        return {"slot": slot, "still": still, "clip": clip.sha256,
+                "keyed": self.pinned_keyed(board, slot, clip.sha256, record.source.image_sha256,
+                                           record.keying), "role": "doll",
+                "phase": clip.phase, "play": "loop", "trim_start": record.trim_start,
+                "trim_frames": record.trim_frames, "source_fps": record.fps,
+                "clip_frames": record.frames, "decal_min_ecc": record.keying.decal_min_ecc}
+
+    def pinned_s2v(self, board: Board, slot: str, still: str, clock: BoardClock,
+                   voice: BoardVoice, loop: Any) -> dict[str, Any]:
+        """A speaker's speech-to-video layer (TIME-8, TIME-9): her drive track; then a
+        library timed clip made from it with the board's seed, or a clip the build makes
+        from her loop's start image, keyed with her loop's keying inputs (**proposals**)."""
+        tools = self.tools
+        lines = [(voice.takes[line.id].sha256, clock.spans[line.id].start_ms)
+                 for line in board.lines if line.speaker == slot]
+        drive = self.add(f"{board.id}/drive/{slot}", s2v_drive_track_key(
+            speaker=slot, lines=lines, frames=clock.frames, fps=self.media.fps,
+            rate=tools.drive_rate, assembler=tools.drive_assembler), board.id)
+        seed = board.seeds.get(f"s2v:{slot}")
+        if seed is None:
+            raise _bad(f"no seed s2v:{slot} on the board (the server writes one)", board.id)
+        timed = None if self.motion.timed is None else self.motion.timed(slot, still, drive, clock.frames)
+        if timed is not None and timed.record.source.seed == seed:
+            # A library clip made from this drive track with the board's seed; another
+            # seed is a re-roll, so the build makes a new clip (contract section 4).
+            record = timed.record
+            self.add(f"{board.id}/s2v_clip/{slot}", timed.identity.clip, board.id, content=timed.sha256)
+            return {"slot": slot, "still": still, "clip": timed.sha256,
+                    "keyed": self.pinned_keyed(board, slot, timed.sha256, record.source.image_sha256,
+                                               record.keying), "role": "s2v",
+                    "phase": None, "play": "timed", "trim_start": record.trim_start,
+                    "trim_frames": record.trim_frames, "source_fps": record.fps,
+                    "clip_frames": record.frames, "decal_min_ecc": record.keying.decal_min_ecc}
+        start, keying = loop.record.source.image_sha256, loop.record.keying
+        profile = self.profile(tools.s2v_profile)
+        if list(profile.get("size", [])) != [loop.record.width, loop.record.height]:
+            # The loop's keying boxes are in its own pixels; another clip size moves them.
+            raise _bad(f"slot {slot}'s loop is {loop.record.width}x{loop.record.height}; the S2V "
+                       f"profile makes {profile.get('size')}, where its keying boxes do not apply",
+                       board.id)
+        clip = self.add(f"{board.id}/s2v_clip/{slot}", s2v_clip_key(
+            drive_track=drive, start_still=start, prompt=tools.s2v_prompt,
+            negative_prompt=tools.s2v_negative_prompt, seed=seed, profile=profile,
+            adapter=tools.s2v_adapter), board.id)
+        keyed = self.pinned_keyed(board, slot, clip, start, keying)
+        fs = profile["source_fps"]
+        return {"slot": slot, "still": still, "clip": clip, "keyed": keyed, "role": "s2v",
+                "phase": None, "play": "timed", "trim_start": 0,
+                "trim_frames": source_frames_needed(clock.frames, fs, self.media.fps),
+                "source_fps": fs, "clip_frames": None, "decal_min_ecc": self.motion.decal_min_ecc}
+
+    def pinned_set(self, plate: str | None, clip: Any) -> dict[str, Any]:
+        """The set layer: the plate and, when the story pins or the library promotes
+        one, the set loop with its N and its phase on this board (TIME-8a)."""
+        if clip is None:
+            return {"plate": plate, "loop": None, "phase": None, "trim_start": None,
+                    "trim_frames": None, "clip_frames": None}
+        record = clip.record
+        return {"plate": plate, "loop": clip.sha256, "phase": clip.phase,
+                "trim_start": record.trim_start, "trim_frames": record.trim_frames,
+                "clip_frames": record.frames}
+
     def board(self, board: Board, film_start: int) -> tuple[BoardPlan, dict[str, Any] | None,
                                                               list[dict[str, Any]]]:
         story, tools, media = self.story, self.tools, self.media
@@ -369,17 +494,27 @@ class _Planner:
         layout = set_layer = motion_style = foreground = whole_clip = None
         if board.method.layer == "layered":
             speakers = {line.speaker for line in board.lines}
+            pinned = None if self.motion is None else self.board_motion(board)
             for entry in board.cast:  # draw order
+                still = stills[entry.slot]
                 if board.method.motion == "s2v" and entry.slot in speakers:
                     assert voice is not None
-                    layers.append(self.s2v_layer(board, entry.slot, stills[entry.slot], clock, voice))
+                    layers.append(self.s2v_layer(board, entry.slot, still, clock, voice) if pinned is None
+                                  else self.pinned_s2v(board, entry.slot, still, clock, voice,
+                                                       pinned.clip_for(entry.slot)))
+                elif pinned is None:
+                    layers.append(self.doll_layer(board, entry.slot, still))
                 else:
-                    layers.append(self.doll_layer(board, entry.slot, stills[entry.slot]))
+                    layers.append(self.pinned_doll(board, entry.slot, still, pinned.clip_for(entry.slot)))
             if board.layout.preset not in story.layouts:
                 raise _bad(f"layout preset {board.layout.preset!r} is not in the story", board.id)
             layout = thaw(story.layouts[board.layout.preset])
             story_set = story.set
-            if story_set is not None:
+            if story_set is not None and pinned is not None:
+                set_layer = self.pinned_set(
+                    None if story_set.asset_version_id is None else
+                    _resolve(self.blobs, story_set.asset_version_id, "set"), pinned.set)
+            elif story_set is not None:
                 loop = (None if story_set.motion_asset_version_id is None else
                         _resolve(self.blobs, story_set.motion_asset_version_id, "set/motion"))
                 set_layer = {
@@ -388,6 +523,7 @@ class _Planner:
                     "loop": loop,
                     "phase": None if loop is None else loop_phase(board.id, SET_SLOT,
                                                                   loop_period(self.loop_frames()))}
+            if story_set is not None:
                 if board.layout.foreground and story_set.foreground_edge_px is not None:
                     foreground = {"edge_px": [list(p) for p in story_set.foreground_edge_px],
                                   "feather_px": story_set.foreground_feather_px}
@@ -468,13 +604,16 @@ class _Planner:
 
 def plan_story(story: Story, *, voices: Mapping[str, BoardVoice], blobs: Mapping[str, str],
                voice_ids: Mapping[str, str], toolchain: Toolchain, media: MediaFormat,
-               content: Content) -> StoryPlan:
+               content: Content, motion: LayeredMotion | None = None) -> StoryPlan:
     """The key plan of a story with embedded boards (see the module docstring).
     ``voices`` maps each spoken board's ID to its current voice; ``blobs`` maps asset
     version IDs to content hashes; ``voice_ids`` maps voice versions to stock voice
     names. An untimed board, an unresolved asset or an unavailable method is
-    ``cache.key_input_invalid``: the pre-build check refuses those first."""
+    ``cache.key_input_invalid``: the pre-build check refuses those first. ``motion``
+    (story 426) plans the layered boards from pinned motion records; a blocking motion
+    problem stops the plan with its own code (``motion.clip_absent`` and the others of
+    story 457's resolver)."""
     if story.boards is None:
         raise _bad("the story's boards must be embedded", story.id)
     return _Planner(story, voices=voices, blobs=blobs, voice_ids=voice_ids, toolchain=toolchain,
-                    media=media, content=content).film()
+                    media=media, content=content, motion=motion).film()
