@@ -102,7 +102,7 @@ def test_a_wrong_capability_fails():
     opaque = import_version(library, dataclasses.replace(
         next(r for r in winter_menu_requests(imported(4).story, imported(4).import_map, sources(4))[0]
              if r.kind == "cast"),
-        version_id=None, capabilities=("opaque_photo",),
+        version_id=None, capabilities=("opaque_photo",), legacy=None,
         provenance={"origin": "imported", "external": None, "source_key": "test:opaque-still",
                     "generator": {"role": "image"}}), by=BY, now=NOW).library
     opaque_id = next(v.id for v in opaque.versions.values() if v.source_key == "test:opaque-still")
@@ -202,6 +202,91 @@ def test_the_gaps_list_what_the_public_files_do_not_hold():
         "voice:af_bella", "voice:af_heart", "voice:af_nicole", "voice:bf_emma"}
     assert by_field["voice.takes[].samples, sample_rate"] == {
         f"speech:shot:{shot}" for shot in (1, 2, 3, 4, 5, 6, 8, 9)}
+    assert by_field["provenance.generator.model"] == {
+        "sfx:crow", "sfx:crunch", "sfx:gavel", "sfx:sting", "bed:fire"}
     assert len(by_field["licence"]) == 24
     assert set(by_field) == {"content.bytes", "provenance.generator.files_sha256",
-                             "voice.takes[].samples, sample_rate", "licence"}
+                             "provenance.generator.model", "voice.takes[].samples, sample_rate",
+                             "licence"}
+
+
+def test_signatures_and_pins_agree_with_the_contract_examples():
+    """The contract's run snapshot and board voice example fix the definition, take and
+    input signatures; the library computes the same values from public files."""
+    library = winter_menu().library
+    resolution = resolve(imported(4).story, library, SyntheticStore.holding(library))
+    ours = {}
+    for item in resolution.resolved:
+        entry = item.snapshot_entry()
+        key = (entry["kind"], entry.get("sha256") or entry.get("definition_signature")
+               or tuple(entry["take_sha256"]))
+        ours[key] = {k: v for k, v in entry.items() if k != "id"}
+    contract = example("valid/run-snapshot.json")["resolved_asset_versions"]
+    for entry in contract:
+        key = (entry["kind"], entry.get("sha256") or entry.get("definition_signature")
+               or tuple(entry["take_sha256"]))
+        if key[0] == "photo":
+            continue  # E0 keyframes: not in story 404's import
+        assert ours[key] == {k: v for k, v in entry.items() if k != "id"}, key
+    vote = library.document(record_id(4, "speech:shot:8"))["voice"]
+    expected = example("valid/asset-version-board-voice.json")["voice"]
+    assert vote["input_signature"] == expected["input_signature"]
+    assert [t["signature"] for t in vote["takes"]] == [t["signature"] for t in expected["takes"]]
+
+
+def test_facts_with_the_story_mark_changed_boards_stale():
+    library = winter_menu().library
+    document = story()
+    summary = timing_summary(document, facts=library.facts(document))
+    assert (summary.frames_known, summary.build_allowed) == (1087, True)
+
+    def stale(change):
+        edited = story()
+        board = edited["boards"][0]
+        change(edited, board)
+        found = {(v.rule, v.path) for v in validate_story(
+            {**{k: v for k, v in edited.items() if k != "derived"},
+             "boards": [{k: v for k, v in b.items() if k != "derived"} for b in edited["boards"]]},
+            context="queue_run", facts=library.facts(edited))}
+        return ("voice.stale", "/boards/0/voice/current_version_id") in found
+
+    assert stale(lambda s, b: b["lines"][0].update(text="Day three hundred forty-one."))
+    assert stale(lambda s, b: b["timing"].update(lead_ms=5000))
+    assert stale(lambda s, b: b["lines"][0].update(speaker="b"))
+    assert stale(lambda s, b: s["cast"][0].update(voice_version_id=s["cast"][1]["voice_version_id"]))
+    assert not stale(lambda s, b: b.update(title="Day 340"))
+
+
+def test_a_story_must_embed_its_boards_and_board_versions_stay_on_their_board():
+    library = winter_menu().library
+    store = SyntheticStore.holding(library)
+    document = story()
+    del document["boards"]
+    found = [(v.rule, v.path) for v in resolve(document, library, store).problems]
+    assert found == [("schema.invalid", "/boards")]
+    assert [v.rule for v in resolve({"schema": "studio.production/v1"}, library, store).problems] \
+        == ["schema.unsupported"]
+    document = story()
+    document["boards"][0]["voice"]["current_version_id"] = record_id(4, "speech:shot:8")
+    found = [(v.rule, v.path) for v in resolve(document, library, store).problems]
+    assert found == [("asset.scope_mismatch", "/boards/0/voice/current_version_id")]
+    document = story()
+    document["production_id"] = "prd_01M79V9FC00000000000000009"
+    found = {v.rule for v in resolve(document, library, store).problems}
+    assert found == {"asset.scope_mismatch"}  # every production version; stock voices are global
+
+
+def test_the_private_import_returns_the_public_versions():
+    """Story 425 and 428's import: the same hashes with the store's byte counts return
+    the versions built from public files; the bed keeps bytes: null."""
+    library = winter_menu().library
+    requests, _ = winter_menu_requests(imported(4).story, imported(4).import_map, sources(4))
+    for request in requests:
+        if request.content is None:
+            continue
+        size = request.content.bytes or 1_000_000
+        again = import_version(library, dataclasses.replace(
+            request, content=dataclasses.replace(request.content, bytes=size)), by=BY, now=NOW)
+        assert (again.created, again.version) == (False, library.version(request.version_id))
+    bed = library.version(record_id(4, "bed:fire"))
+    assert bed.content.bytes is None

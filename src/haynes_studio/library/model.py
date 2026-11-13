@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import unicodedata
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from types import MappingProxyType
@@ -102,9 +103,10 @@ def stock_voice_id(voice_id: str | None) -> bool:
 
 def signature(value: Any) -> str:
     """``sha256:`` plus the hex SHA-256 of canonical JSON (section 4: UTF-8, sorted keys,
-    no whitespace, no NaN or Infinity, integral floats as integers)."""
-    text = json.dumps(normalize(value), sort_keys=True, separators=(",", ":"),
-                      ensure_ascii=False, allow_nan=False)
+    no whitespace, no NaN or Infinity, floats in shortest round-trip form, so a speed of
+    ``1.0`` is ``1.0``). Times are integers already."""
+    text = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+                      allow_nan=False)
     return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
@@ -340,12 +342,27 @@ def version_document(version: AssetVersion, asset: Asset) -> dict[str, Any]:
 
 
 def definition_signature(version: AssetVersion, asset: Asset) -> str:
-    """A ``voice`` version's identity: its stock voice definition (engine, model and
-    voice ID; section 8 "definition_signature"). Proposal: these three fields."""
+    """A ``voice`` version's identity (section 8 "definition_signature"): canonical JSON
+    of ``{engine, stock, voice_id}``, where ``engine`` is the TTS model
+    (``Kokoro-82M v1.0``), as the contract's ``run-snapshot.json`` computes it."""
     generator = version.provenance.get("generator") or {}
-    return signature({"kind": version.kind, "engine": generator.get("engine"),
-                      "model": generator.get("model"),
+    return signature({"engine": generator.get("model"), "stock": asset.attributes.get("stock"),
                       "voice_id": asset.attributes.get("voice_id")})
+
+
+def take_signature(engine: str, voice_id: str, text: str, speed: float) -> str:
+    """VOICE-3: canonical JSON of ``{engine, voice_id, text (NFC), speed}``, where
+    ``engine`` is the TTS model or its digest, as the contract's board voice example
+    computes it."""
+    return signature({"engine": engine, "voice_id": voice_id,
+                      "text": unicodedata.normalize("NFC", text), "speed": speed})
+
+
+def input_signature(take_signatures: list[str], lead_ms: int, gaps_ms: list[int]) -> str:
+    """VOICE-3 version signature: the takes plus lead and gaps (the contract's board
+    voice example)."""
+    return signature({"takes": list(take_signatures), "lead_ms": lead_ms,
+                      "gaps_ms": list(gaps_ms)})
 
 
 def takes_signature(voice: BoardVoice) -> str:
@@ -393,7 +410,9 @@ __all__ = [
     "CAPABILITY_MEDIA", "DEFINITION_KINDS", "KINDS", "KIND_CAPABILITIES", "KOKORO",
     "LAYER_CAPABILITIES", "MEDIA_EXTENSIONS", "OPAQUE_CAPABILITIES", "PROMOTED", "STATES",
     "STOCK_VOICES", "Asset", "AssetVersion", "BoardVoice", "Content", "Licence", "Scope", "Take",
-    "content_fields", "definition_signature", "is_stock_voice", "locator_for",
-    "measured_ms", "pin", "signature", "stock_voice_id", "take_offsets", "takes_signature",
+    "content_fields", "definition_signature", "input_signature", "is_stock_voice",
+    "locator_for",
+    "measured_ms", "pin", "signature", "stock_voice_id", "take_offsets", "take_signature",
+    "takes_signature",
     "version_document",
 ]

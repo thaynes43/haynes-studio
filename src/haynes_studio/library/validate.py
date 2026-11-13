@@ -110,6 +110,10 @@ def _version_rules(doc: Mapping[str, Any]) -> list[Violation]:
     voice = doc.get("voice")
     if voice is not None:
         found += _board_voice(voice, scope["production_id"])
+    legacy = doc["legacy"]
+    if legacy is not None and legacy["source_key"] != doc["provenance"].get("source_key"):
+        found.append(_v(SCHEMA_INVALID, "/legacy/source_key",
+                        "must be the provenance's source_key (proposal)"))
     return found
 
 

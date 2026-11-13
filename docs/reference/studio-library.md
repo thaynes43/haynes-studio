@@ -46,8 +46,13 @@ Contexts `read`, `write` and `queue_run` check the same rules; neither type has 
 | Kind | Pin |
 |---|---|
 | any kind with bytes | `content.sha256` |
-| `voice` | `sha256:` of canonical JSON `{kind, engine, model, voice_id}` (proposal for "definition_signature") |
-| `board_voice` | `sha256:` of canonical JSON `{input_signature, takes: [take sha256]}` |
+| `voice` | `definition_signature`: `sha256:` of canonical JSON `{engine, stock, voice_id}`, `engine` being the TTS model |
+| `board_voice` | `sha256:` of canonical JSON `{input_signature, takes: [take sha256]}`; a snapshot entry lists `input_signature` and `take_sha256` |
+
+A take's `signature` is `sha256:` of `{engine, voice_id, text (NFC), speed}` and a board
+voice's `input_signature` of `{takes: [take signature], lead_ms, gaps_ms}` (VOICE-3).
+These formulas are the ones the contract's `run-snapshot.json` and board voice example
+were computed with; the tests check the library reproduces them.
 
 ## Operations
 
@@ -55,14 +60,14 @@ Pure functions; each returns a new `Library`. Nothing is deleted (D17).
 
 | Function | Rule |
 |---|---|
-| `import_version` | Keyed by `provenance.source_key`, which names one asset. The same pin returns the existing version (`created: false`); changed bytes make the next `number` (highest plus one); bytes seen before return their old version. The same pin with other immutable fields, or under another given ID, is `idempotency.mismatch`; a given ID already in use is `ref.duplicate`. Every new version is validated in `write`. |
+| `import_version` | Keyed by `provenance.source_key`, which names one asset. The same pin returns the existing version (`created: false`); changed bytes make the next `number`; bytes seen before return their old version. The same pin with other immutable fields, or under another given ID, is `idempotency.mismatch` (an existing `bytes: null` matches any count); a given ID already in use is `ref.duplicate`; a library holding only some of the asset's versions is refused (`ref.unknown`), so no number is reused. Every new version is validated in `write`. |
 | `promote` | `candidate` to `promoted`, same ID and pin; a `promoted` version is returned unchanged. A board photo gets one library version, `origin: derived`, source key `promote:<board version ID>` (proposal), pointing at it. A board voice stays on its board (`asset.not_promotable`, proposal). |
-| `set_labels` | Replaces an asset's labels, optionally checking `revision` (`conflict.revision`). No version changes. |
+| `set_labels` | Replaces an asset's labels, optionally checking `revision` (`conflict.revision`, status `conflict`). No version changes. |
 | `Library.version`, `get`, `versions_of`, `by_source_key` | Pinning is by version ID. |
 | `Library.latest` | Pickers only; candidates hidden unless asked. |
 | `Library.search` | Section 9 filters: kind, labels (all of them), production (its own versions and the global library's), board (exactly the versions it references). |
 | `Library.has_capability`, `capabilities`, `takes` | What stories 405, 426 and 427 ask, without knowing the storage. |
-| `Library.facts()` | Story 404's `Facts`: every version's capabilities, every board voice's measured takes, every photo. Whether a board's lines still match a voice's input signature is story 405's. |
+| `Library.facts(story=None)` | Story 404's `Facts`: every version's capabilities, every board voice's measured takes, every photo. Given the story, a board's voice is stale unless its takes are the board's lines (ID, speaker, NFC text) from the voices the story casts, with the board's lead and gaps; without it every voice counts as current. Photo currency is story 407's. |
 
 ## Validation
 
@@ -72,9 +77,10 @@ Pure functions; each returns a new `Library`. Nothing is deleted (D17).
 | `prov.external_incomplete` | schema: an `uploaded` version needs the full D42 `external` marker (`externally_generated: true`, agent key, session and harness, `paid_api: false`, `server_computed_sha256: true`), a `model` and a `prompt` or `prompt_ref` |
 | `prov.licence_missing` | schema: a `licence` object with all seven fields |
 | `store.locator_invalid` | schema: the section 8 grammar `library/sha256/<h[0:2]>/<h>.<ext>` or `productions/<prd_id>/sha256/<h[0:2]>/<h>.<ext>`, `ext` one of `mp4 wav png jpg webp json`, no control characters; code: the file name is the content's `sha256`, the folder its first two digits, the extension the media type's, the production folder the version's own (a global version uses `library/`; proposal) |
-| `voice.not_stock` | schema: a voice has `attributes.stock: true` and no bytes; code: its `voice_id` is a recorded stock voice of its model, the generator agrees, no `source_sample_sha256`, origin `declared`; every board voice take uses a stock voice |
+| `voice.not_stock` | schema: a voice has `attributes.stock: true` and no bytes; code: its `voice_id` is a recorded stock voice of its model, the generator agrees, no `source_sample_sha256`, every board voice take uses a stock voice, and (proposal) its origin is `declared` |
 | `asset.capability_mismatch` | code: capabilities fit the kind and the media type (tables below), and an opaque photo or plate is never also a layer (review M6) |
 | `ref.duplicate` | code: labels, a board voice's line IDs |
+| `schema.invalid` (code, proposal) | `legacy.source_key` differs from `provenance.source_key` |
 | `schema.invalid` | schema: each kind's and state's shape (a board-scoped kind has a board scope and state `board`; a voice and a board voice have no bytes; other kinds do; `character_card` is reserved for E2; a library `photo` is `derived`), a checked licence names `checked_at` and `checked_by`; code: a board voice's offsets follow TIME-2, `speech_end_ms` is the last take's end, a `samples` duration follows TIME-1 |
 
 Stock voices (VOICE-1, P-22) are the ones this repository records:
@@ -99,7 +105,11 @@ nothing. Problems: `ref.unknown`, `asset.kind_mismatch` (proposal: a cast voice 
 `voice`, a board voice a `board_voice`, sounds and beds `sound`, a board cast entry a
 `cast`, the set a `set`, a board photo a `photo`), `asset.capability_mismatch` (a
 layered board's cast entry without `rgba_cutout` or `keyed_layer`) and
-`asset.bytes_missing` (proposal).
+`asset.scope_mismatch` (proposal: a board's voice or photo from another board, or a
+version of another production than the story's) and `asset.bytes_missing` (proposal).
+A story without embedded boards is `schema.invalid` at `/boards`. Each `Resolved` gives
+its run snapshot entry (`snapshot_entry()`: `sha256`, or `definition_signature`, or
+`input_signature` and `take_sha256`).
 
 ## The Winter Menu library
 
@@ -116,13 +126,16 @@ production's folder. Every licence is `unknown` with a note. All four revisions
 resolve completely; r4 is timed at 1087 frames with the library's facts.
 
 Gaps (`WinterMenuLibrary.gaps`): the bed's byte count (its hash is in `timeline.json`
-only), the Kokoro model digest, take sample counts and rates (`speech.json` records
-`duration_s`), and every version's licence terms.
+only), the sound model (named only inside the service text), the Kokoro model digest,
+take sample counts and rates (`speech.json` records `duration_s`), and every version's
+licence terms. Legacy takes are signed with speed 1.0: `poc/studio.py` sent no speed, so
+the server default applied, as the contract's example records.
 
 Proposals in the builder: names and labels, a stock voice's `legacy.path` (the
-manifest), and legacy take signatures (VOICE-3 with the engine text, the model name
-for the missing digest, `speed: null`) and input signatures (`{takes, lead_ms,
-gaps_ms}`).
+manifest), the media type from the file extension, and the capabilities (chroma-keyed
+cutouts are `rgba_cutout`, the set an `opaque_plate`). Stock voices are keyed per
+legacy job, as story 404's import names them, so importing several revisions into one
+library gives one voice asset per job.
 
 ## The private import (stories 425 and 428)
 
@@ -130,6 +143,6 @@ When the originals are recovered, import the same records with the real bytes:
 publish each file through the store (story 379), which hashes and measures it, then
 call `import_version` with the store's `sha256`, `bytes` and locator under the same
 source key. Bytes equal to the public hash return the existing version (`created:
-false`); different bytes become version 2 and leave version 1 pinned. The bed's
-`bytes: null` stays on version 1 (versions never change); its real size is on the
-stored blob. Run the resolver with the real store's `exists` before any build.
+false`), the bed included: its `bytes: null` matches the real count and stays on
+version 1 (versions never change). Different bytes become version 2 and leave version
+1 pinned. Run the resolver with the real store's `exists` before any build.

@@ -19,6 +19,7 @@ caller owns persistence.
 
 from __future__ import annotations
 
+import unicodedata
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from types import MappingProxyType
@@ -57,8 +58,9 @@ SOURCE_KEY_REQUIRED = "asset.source_key_required"  # proposal
 PROMOTE_PREFIX = "promote:"  # source key of a board photo's library version (proposal)
 
 
-def _error(rule: str, path: str, message: str, source: str = "<library>") -> ContractError:
-    return ContractError(source, [Violation(rule, path, message)])
+def _error(rule: str, path: str, message: str, source: str = "<library>",
+           status: str = "invalid") -> ContractError:
+    return ContractError(source, [Violation(rule, path, message, status)])
 
 
 @dataclass(frozen=True)
@@ -214,16 +216,23 @@ class Library:
         return [self.document(v.id) for v in sorted(self.versions.values(),
                                                      key=lambda v: (v.asset_id, v.number))]
 
-    def facts(self) -> Facts:
+    def facts(self, story: Mapping[str, Any] | None = None) -> Facts:
         """What story 404's validators and derived values take from the library: each
-        version's capabilities, each board voice's measured takes and each photo. The
-        library cannot tell whether a board's lines still match a voice's input
-        signature (story 405 computes the board signature), so ``matches_board`` keeps
-        story 404's default."""
+        version's capabilities, each board voice's measured takes and each photo.
+
+        With ``story`` (boards embedded), a board's current voice version is stale
+        (``matches_board: false``, so the board is untimed and ``queue_run`` reports
+        ``voice.stale``) unless its takes are the board's lines in order (line ID,
+        speaker, NFC text), each from the voice the story casts for that speaker, with
+        the board's lead and gaps (VOICE-3, VOICE-4). Without a story every voice is
+        taken as current. Photos are always current here: a photo's inputs signature is
+        story 407's."""
+        current = {} if story is None else _voice_currency(self, story)
         voices, photos = [], []
         for version in self.versions.values():
             if version.voice is not None:
-                voices.append(VoiceVersionFacts(id=version.id, takes_ms=version.voice.takes_ms))
+                voices.append(VoiceVersionFacts(id=version.id, takes_ms=version.voice.takes_ms,
+                                                matches_board=current.get(version.id, True)))
             if version.kind == "photo":
                 photos.append(PhotoVersionFacts(id=version.id))
         return Facts.build(voices=voices, photos=photos,
@@ -242,6 +251,32 @@ class Library:
 
 
 EMPTY = Library()
+
+
+def _voice_currency(library: Library, story: Mapping[str, Any]) -> dict[str, bool]:
+    """Board voice version ID to whether it still matches every board naming it."""
+    cast = {member.get("slot"): member.get("voice_version_id")
+            for member in story.get("cast") or [] if isinstance(member, Mapping)}
+    cast["narrator"] = story.get("narrator_voice_version_id")
+    out: dict[str, bool] = {}
+    for board in story.get("boards") or []:
+        if not isinstance(board, Mapping):
+            continue
+        version_id = (board.get("voice") or {}).get("current_version_id")
+        version = library.get(version_id) if isinstance(version_id, str) else None
+        if version is None or version.voice is None:
+            continue
+        voice, lines = version.voice, board.get("lines") or []
+        same = (len(voice.takes) == len(lines)
+                and voice.lead_ms == (board.get("timing") or {}).get("lead_ms")
+                and list(voice.gaps_ms) == [line.get("gap_before_ms") for line in lines[1:]]
+                and all(take.line_id == line.get("id") and take.speaker == line.get("speaker")
+                        and unicodedata.normalize("NFC", take.text)
+                        == unicodedata.normalize("NFC", line.get("text") or "")
+                        and take.voice_version_id == cast.get(line.get("speaker"))
+                        for take, line in zip(voice.takes, lines)))
+        out[version_id] = out.get(version_id, True) and same
+    return out
 
 
 def _repeated(items: Iterable[tuple[str, str]], what: str) -> list[Violation]:
@@ -318,7 +353,12 @@ def import_version(library: Library, request: VersionRequest, *, by: Principal, 
         if request.asset_id is not None and request.asset_id != asset.id:
             raise _error(IDEMPOTENCY_MISMATCH, "/asset_id",
                          f"source key {source_key!r} names asset {asset.id}")
-        number = max(v.number for v in library.versions_of(asset.id)) + 1
+        numbers = sorted(v.number for v in library.versions_of(asset.id))
+        if numbers != list(range(1, len(numbers) + 1)):
+            raise _error(REF_UNKNOWN, "/asset_id",
+                         f"the library holds versions {numbers} of {asset.id}, a slice; import "
+                         "into the whole library so no number is reused")
+        number = len(numbers) + 1
     candidate = AssetVersion(
         id=request.version_id or "asv_00000000000000000000000000", asset_id=asset.id,
         number=number, kind=request.kind, state=request.state,
@@ -330,7 +370,7 @@ def import_version(library: Library, request: VersionRequest, *, by: Principal, 
     for existing in library.versions_of(asset.id):
         if pin(existing, asset) != wanted:
             continue
-        if content_fields(existing) != content_fields(candidate):
+        if not _same_content(existing, candidate):
             raise _error(IDEMPOTENCY_MISMATCH, pointer("versions", existing.id),
                          f"{existing.id} already holds these bytes under {source_key!r} with "
                          "other capabilities, provenance or takes; versions never change (D15)")
@@ -344,6 +384,17 @@ def import_version(library: Library, request: VersionRequest, *, by: Principal, 
     _check(version, asset)
     return Outcome(library=library._with(asset=asset, version=version), version=version,
                    created=True)
+
+
+def _same_content(existing: AssetVersion, candidate: AssetVersion) -> bool:
+    """The immutable fields agree. A byte count the existing version does not know
+    (``bytes: null``, a legacy import from public evidence) matches any count for the
+    same hash; the existing version is returned unchanged."""
+    ours, theirs = content_fields(existing), content_fields(candidate)
+    if ours["content"] is not None and ours["content"]["bytes"] is None \
+            and theirs["content"] is not None:
+        theirs["content"]["bytes"] = None
+    return ours == theirs
 
 
 def _fresh(library: Library, given: str | None, prefix: str, minter: Minter, path: str) -> str:
@@ -415,9 +466,12 @@ def set_labels(library: Library, asset_id: str, labels: Iterable[str], *, now: s
     asset = library.assets.get(asset_id)
     if asset is None:
         raise _error(REF_UNKNOWN, "/id", f"no asset {asset_id}")
+    if isinstance(labels, str):
+        raise _error("schema.invalid", "/labels", "labels are a list of strings, not one string")
     if revision is not None and revision != asset.revision:
         raise _error(CONFLICT_REVISION, "/revision",
-                     f"the asset is at revision {asset.revision}, not {revision}")
+                     f"the asset is at revision {asset.revision}, not {revision}",
+                     status="conflict")
     changed = replace(asset, labels=tuple(labels), revision=asset.revision + 1, updated_at=now)
     problems = blocking(validate_asset(changed.to_document(), context="write"))
     if problems:

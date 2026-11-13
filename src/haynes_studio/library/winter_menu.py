@@ -14,17 +14,18 @@ recorded in this repository (proposal 0003: "Stable Audio, Kokoro and Qwen terms
 need checking"). Values the public files do not hold stay ``null`` and are listed as
 :class:`Gap` records; nothing is guessed.
 
-Choices beyond the contract are proposals: names, labels, the legacy ``path`` of a
-stock voice (the manifest), the take and input signatures of legacy board voices
-(VOICE-3 with the engine text, the model name for the missing digest, and
-``speed: null`` because no speed is recorded), and the locator in the production's
-folder.
+Take, input and definition signatures follow the formulas of the contract's examples
+(``asset-version-board-voice.json``, ``run-snapshot.json``), with the model name in
+place of the unrecorded digest and the server's default speed 1.0. Choices beyond the
+contract are proposals: names, labels, the legacy ``path`` of a stock voice (the
+manifest), the media type from the file extension, the capabilities (chroma-keyed
+cutouts are ``rgba_cutout``, the set an ``opaque_plate``) and the locator in the
+production's folder.
 """
 
 from __future__ import annotations
 
 import re
-import unicodedata
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -46,9 +47,10 @@ from haynes_studio.library.model import (
     Licence,
     Scope,
     Take,
+    input_signature,
     locator_for,
-    signature,
     take_offsets,
+    take_signature,
 )
 
 EVIDENCE_MISMATCH = "legacy.evidence_mismatch"  # proposal: two public records disagree
@@ -65,6 +67,9 @@ LICENCE_NOTES = {
              "(proposal 0003, Requirements: licences).",
 }
 TRACK_NOTE = "Legacy kept one WAV per line; no assembled board track exists."
+# poc/studio.py synthesize() sent only a voice and text, so the Kokoro server's default
+# speed applied; the contract's board voice example signs legacy takes with 1.0.
+LEGACY_SPEED = 1.0
 _KEY = re.compile(r"^legacy:(?P<job>[^:]+):(?P<kind>still|set|sfx|bed|voice|speech):(?P<rest>.+)$")
 
 
@@ -170,13 +175,6 @@ def _sound_generator(source: Mapping[str, Any] | None) -> dict[str, Any]:
             "params": {"seconds": source.get("seconds"), "steps": source.get("steps")}}
 
 
-def take_signature(engine: str, voice_id: str, text: str) -> str:
-    """VOICE-3 for a legacy take: no model digest is recorded, so the model name stands
-    in for it; no speed is recorded, so it is null (proposal)."""
-    return signature({"engine": engine, "model": KOKORO, "voice_id": voice_id,
-                      "text": unicodedata.normalize("NFC", text), "speed": None})
-
-
 def winter_menu_requests(story: Mapping[str, Any], import_map: Mapping[str, Any],
                          sources: PublicSources) -> tuple[list[VersionRequest], list[Gap]]:
     """One import request per asset version the import map's ``story_records`` name,
@@ -262,6 +260,9 @@ def winter_menu_requests(story: Mapping[str, Any], import_map: Mapping[str, Any]
             if heard is None or heard.get("file") != sound.file:
                 raise _mismatch("/audio", f"timeline.json has no {kind} {rest} from {sound.file}")
             sha256, size = evidence.file(sound.file, heard["sha256"])
+            gaps.append(Gap(key, "provenance.generator.model",
+                            "the sound model is named only inside the service text "
+                            f"{(sound.source or {}).get('service')!r}"))
             if size is None:
                 gaps.append(Gap(key, "content.bytes",
                                 f"{sound.file} is in timeline.json with its hash but not in the "
@@ -336,10 +337,9 @@ def _board_voice(board: Mapping[str, Any], shot: int, sources: PublicSources,
             sha256=take.sha256, sample_rate=None, samples=None, duration_ms=take.duration_ms,
             duration_source="legacy_duration_s", offset_ms=offset, heard=record.get("heard"),
             heard_matches=record.get("heard_matches"),
-            signature=take_signature(service, voice_id, line["text"])))
-    input_signature = signature({"takes": [take.signature for take in out], "lead_ms": lead,
-                                 "gaps_ms": gaps_ms})
-    return BoardVoice(input_signature=input_signature, lead_ms=lead, gaps_ms=tuple(gaps_ms),
+            signature=take_signature(KOKORO, voice_id, line["text"], LEGACY_SPEED)))
+    signed = input_signature([take.signature for take in out], lead, gaps_ms)
+    return BoardVoice(input_signature=signed, lead_ms=lead, gaps_ms=tuple(gaps_ms),
                       speech_end_ms=offsets[-1] + durations[-1], track=None, takes=tuple(out),
                       track_note=TRACK_NOTE)
 
@@ -355,6 +355,5 @@ def build_winter_menu_library(story: Mapping[str, Any], import_map: Mapping[str,
     return WinterMenuLibrary(library=library, outcomes=tuple(outcomes), gaps=tuple(gaps))
 
 
-__all__ = ["EVIDENCE_MISMATCH", "Gap", "PublicSources", "WinterMenuLibrary",
-           "build_winter_menu_library", "load_public_sources", "take_signature",
-           "winter_menu_requests"]
+__all__ = ["EVIDENCE_MISMATCH", "LEGACY_SPEED", "Gap", "PublicSources", "WinterMenuLibrary",
+           "build_winter_menu_library", "load_public_sources", "winter_menu_requests"]

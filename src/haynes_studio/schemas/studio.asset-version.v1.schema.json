@@ -494,7 +494,6 @@
       "required": [
         "origin",
         "generator",
-        "external",
         "created_by",
         "created_at"
       ],
@@ -829,7 +828,22 @@
           "origin"
         ]
       },
+      "else": {
+        "required": [
+          "external"
+        ]
+      },
       "then": {
+        "required": [
+          "external"
+        ],
+        "x-studio": {
+          "required": {
+            "rule": "prov.external_incomplete",
+            "field": "external",
+            "message": "an upload carries the D42 external marker"
+          }
+        },
         "properties": {
           "external": {
             "type": "object",

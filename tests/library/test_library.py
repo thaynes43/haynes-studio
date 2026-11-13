@@ -157,7 +157,10 @@ def test_labels_are_mutable_metadata_outside_version_content():
     assert [v.id for v in relabelled.search(labels=["hero"])] == [version_id]
     with pytest.raises(ContractError) as caught:
         set_labels(relabelled, asset.id, ["x"], now=LATER, revision=asset.revision)
-    assert caught.value.violations[0].rule == "conflict.revision"
+    assert (caught.value.violations[0].rule, caught.value.violations[0].status) == (
+        "conflict.revision", "conflict")
+    with pytest.raises(ContractError):
+        set_labels(library, asset.id, "abc", now=LATER)
     with pytest.raises(ContractError) as caught:
         set_labels(library, asset.id, ["A", "A"], now=LATER)
     assert caught.value.violations[0].rule == "ref.duplicate"
@@ -165,7 +168,8 @@ def test_labels_are_mutable_metadata_outside_version_content():
 
 def test_candidates_are_hidden_until_promoted_explicitly_and_idempotently():
     request = with_bytes(still_request(state="candidate"), OTHER)
-    request = dataclasses.replace(request, provenance={**request.provenance, "source_key": "test:candidate"})
+    request = dataclasses.replace(request, legacy=None,
+                                  provenance={**request.provenance, "source_key": "test:candidate"})
     outcome = import_version(EMPTY, request, by=BY, now=NOW, minter=minter())
     library, candidate = outcome.library, outcome.version
     assert library.search() == () and library.latest(candidate.asset_id) is None
@@ -270,6 +274,18 @@ def test_a_library_refuses_records_that_do_not_fit():
         Library.build([a for a in assets if a.id != one.asset_id], versions)
     assert [v.rule for v in caught.value.violations] == ["ref.unknown"]
     assert Library.build(assets, versions) == library
+
+
+def test_an_import_into_a_slice_is_refused():
+    library = winter_menu().library
+    grown = import_version(library, with_bytes(still_request(), OTHER), by=BY, now=LATER,
+                           minter=minter()).library
+    old_id = record_id(4, "still:cutouts/a-proud.png")
+    sliced = Library.build(grown.assets.values(),
+                           [v for v in grown.versions.values() if v.id != old_id])
+    with pytest.raises(ContractError) as caught:
+        import_version(sliced, with_bytes(still_request(), "f" * 64), by=BY, now=LATER)
+    assert caught.value.violations[0].rule == "ref.unknown"
 
 
 def test_definition_only_pins():
