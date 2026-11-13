@@ -45,6 +45,7 @@ from haynes_studio.voice.model import (
     JOB_FILE,
     JOB_SCHEMA,
     LEAD_MAX_MS,
+    LINES_MAX,
     TRACK_MAX_MS,
     VoiceInput,
     line_signature,
@@ -95,6 +96,9 @@ def time_violations(lead_ms: Any, gaps: Iterable[tuple[str, Any]], *, lead_at: s
 
 def _voice_rules(voice: Mapping[str, Any], signed: str | None) -> list[Violation]:
     lines = voice["lines"]
+    if len(lines) > LINES_MAX:  # before any per-line work: each line costs a call or a read
+        return [Violation(SCHEMA_INVALID, "/voice/lines",
+                          f"a board voice has at most {LINES_MAX} lines, not {len(lines)}")]
     found = _duplicates(((pointer("voice", "lines", i, "line_id"), line["line_id"])
                          for i, line in enumerate(lines)), "line")
     if len(voice["gaps_ms"]) != len(lines) - 1:

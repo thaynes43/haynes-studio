@@ -115,6 +115,11 @@ order:
    `heard_matches` null (the transcript check is VOICE-8). The library validates it
    (TIME-1, TIME-2, stock voices, the track's locator).
 
+A board voice has at most 256 lines (proposal). Stored takes to reuse are checked
+against the track bound from their recorded durations before any of them is read, a
+stored take is read once however many lines play it, and the running length is
+checked after each read and after each speech answer.
+
 The library's pin for a board voice is its input signature and take hashes only. A new
 version can therefore carry another version's pin with other line IDs, speakers or
 cast voice versions. Examples: a line deleted and re-added with the same text, or a

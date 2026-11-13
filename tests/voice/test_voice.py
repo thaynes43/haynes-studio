@@ -835,3 +835,73 @@ def test_a_new_voice_takes_its_licence_from_the_register_or_says_unknown():
                          fetch=studio.store.fetch, by=BY, now=LATER)
     assert without.version.licence.commercial_use == "unknown"
     assert "No licence register" in without.version.licence.note
+
+
+# Second-pass review: nothing stored is read before the track is known to fit -----------
+
+
+def _repeated(voice, count, **changes):
+    """``voice`` with its first line played ``count`` times under distinct line ids."""
+    import dataclasses
+
+    from haynes_studio.canonical.ids import Minter
+
+    minter = Minter()
+    first = voice.lines[0]
+    lines = tuple(dataclasses.replace(first, line_id=minter.mint("lin")) for _ in range(count))
+    return dataclasses.replace(voice, lines=lines, lead_ms=0, gaps_ms=(0,) * (count - 1),
+                               **changes)
+
+
+def test_reused_takes_that_cannot_fit_the_track_are_refused_before_any_read():
+    studio = fresh_r4()
+    board_id = studio.board(1)["id"]
+    outcome = studio.request(board_id)
+    studio.run(outcome.job)  # one stored take of 5163 ms
+    fetches = []
+    fetch = studio.store.fetch
+
+    def counting(locator, sha256):
+        fetches.append(sha256)
+        return fetch(locator, sha256)
+
+    long_list = _repeated(outcome.job.voice, 118)  # 118 x 5163 ms is over 600000 ms
+    calls, published = studio.calls, len(studio.store.published)
+    with pytest.raises(ContractError) as refused:
+        make_voice(long_list, board_id, studio.library, speech=studio.client,
+                   publish=studio.store.publish, fetch=counting, by=BY, now=LATER)
+    assert [v.rule for v in refused.value.violations] == ["schema.invalid"]
+    assert fetches == [] and studio.calls == calls
+    assert len(studio.store.published) == published
+
+
+def test_a_take_played_by_many_lines_is_read_once():
+    studio = fresh_r4()
+    board_id = studio.board(1)["id"]
+    outcome = studio.request(board_id)
+    studio.run(outcome.job)
+    fetches = []
+    fetch = studio.store.fetch
+
+    def counting(locator, sha256):
+        fetches.append(sha256)
+        return fetch(locator, sha256)
+
+    made = make_voice(_repeated(outcome.job.voice, 5), board_id, studio.library,
+                      speech=studio.client, publish=studio.store.publish, fetch=counting,
+                      by=BY, now=LATER)
+    assert made.created and len(fetches) == 1  # five lines, one stored take, one read
+
+
+def test_a_board_voice_has_at_most_256_lines():
+    studio = fresh_r4()
+    board_id = studio.board(1)["id"]
+    outcome = studio.request(board_id)
+    calls = studio.calls
+    with pytest.raises(ContractError) as refused:
+        make_voice(_repeated(outcome.job.voice, 257), board_id, studio.library,
+                   speech=studio.client, publish=studio.store.publish,
+                   fetch=studio.store.fetch, by=BY, now=LATER)
+    assert [(v.rule, v.path) for v in refused.value.violations] == [
+        ("schema.invalid", "/voice/lines")]
+    assert studio.calls == calls

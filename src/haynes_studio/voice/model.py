@@ -55,6 +55,7 @@ ASSEMBLER = "studio.voice.track/1"
 # contract's longest silent hold (TIME-4, 120000 ms); a track is at most 600000 ms.
 LEAD_MAX_MS = GAP_MAX_MS = TAKE_MAX_MS = HOLD_MAX_MS
 TRACK_MAX_MS = 600_000
+LINES_MAX = 256  # lines in one board voice (proposal, story 405): each costs a call or a read
 
 # Proposal: the service text a generated version names as its engine, as the legacy
 # import names "ai/deploy/kokoro (Wyoming)" from speech.json.
@@ -184,7 +185,7 @@ class Job:
 
 __all__ = [
     "ASSEMBLER", "ASSET_CANDIDATE", "CANCELLED", "FAILED", "GAP_MAX_MS", "IN_FLIGHT", "JOB_FILE",
-    "JOB_KINDS", "JOB_SCHEMA", "KOKORO_SERVICE", "LEAD_MAX_MS", "PHOTO", "QUEUED", "RUNNING",
+    "JOB_KINDS", "JOB_SCHEMA", "KOKORO_SERVICE", "LEAD_MAX_MS", "LINES_MAX", "PHOTO", "QUEUED", "RUNNING",
     "SPEED", "STATUSES", "SUCCEEDED", "TAKE_MAX_MS", "TERMINAL", "TRACK_MAX_MS", "VOICE", "Engine",
     "Job", "JobError", "VoiceInput", "VoiceLine", "line_signature",
 ]

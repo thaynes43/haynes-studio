@@ -178,10 +178,22 @@ def make_voice(voice: VoiceInput, board_id: str, library: Library, *, speech: Sp
     index = {line.line_id: i for i, line in enumerate(voice.lines)}
     owners = [i if source.same_as is None else index[source.same_as]
               for i, source in enumerate(sources)]  # the line whose take each line plays
+    # Before any stored take is read: the recorded durations of the takes to reuse must
+    # already fit the track, so a list that can only be refused costs no read at all.
+    recorded = voice.lead_ms + sum(voice.gaps_ms) + sum(
+        source.reuse.duration_ms for source in sources if source.reuse is not None)
+    if recorded > TRACK_MAX_MS:
+        raise _error(SCHEMA_INVALID, "/voice", f"the track would be over {TRACK_MAX_MS} ms "
+                                               f"({recorded} ms with the takes to reuse)")
+    fetched: dict[str, Pcm] = {}  # one read per stored take, however many lines play it
     for i, (line, source) in enumerate(zip(voice.lines, sources)):  # all checks first
         if source.reuse is not None:
-            pcms[i] = _fetch(fetch, source.reuse, production, f"/voice/lines/{i}")
-            hashes[i] = source.reuse.sha256
+            digest = source.reuse.sha256
+            if digest not in fetched:
+                fetched[digest] = _fetch(fetch, source.reuse, production, f"/voice/lines/{i}")
+            pcms[i] = fetched[digest]
+            hashes[i] = digest
+            _check_room(voice, pcms, owners, f"/voice/lines/{i}")  # before the next read
         elif source.synthesize:
             requests[i] = SpeechRequest(voice=line.voice_id, text=line.text)
     _check_room(voice, pcms, owners, "/voice")
