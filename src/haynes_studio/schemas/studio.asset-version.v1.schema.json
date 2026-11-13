@@ -1,0 +1,1157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://haynes-studio.invalid/schemas/studio.asset-version.v1.schema.json",
+  "title": "studio.asset-version/v1: one immutable version of an asset, as a read returns it with its asset's kind, name, scope, labels and attributes (contract sections 7 and 9)",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "asset_id",
+    "number",
+    "kind",
+    "name",
+    "scope",
+    "state",
+    "labels",
+    "attributes",
+    "capabilities",
+    "content",
+    "provenance",
+    "legacy"
+  ],
+  "properties": {
+    "schema": {
+      "const": "studio.asset-version/v1",
+      "x-studio": {
+        "const": {
+          "rule": "schema.unsupported",
+          "message": "must be studio.asset-version/v1"
+        }
+      }
+    },
+    "id": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/asv_id"
+    },
+    "asset_id": {
+      "$ref": "studio.asset.v1.schema.json#/$defs/ast_id"
+    },
+    "number": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+    },
+    "kind": {
+      "$ref": "studio.asset.v1.schema.json#/$defs/kind"
+    },
+    "name": {
+      "$ref": "studio.asset.v1.schema.json#/$defs/name"
+    },
+    "scope": {
+      "$ref": "studio.asset.v1.schema.json#/$defs/scope"
+    },
+    "state": {
+      "enum": [
+        "candidate",
+        "promoted",
+        "board"
+      ]
+    },
+    "labels": {
+      "$ref": "studio.asset.v1.schema.json#/$defs/labels"
+    },
+    "attributes": {
+      "$ref": "studio.asset.v1.schema.json#/$defs/attributes"
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "studio.asset.v1.schema.json#/$defs/capability"
+      }
+    },
+    "content": {
+      "$ref": "#/$defs/content"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "licence": {
+      "$ref": "#/$defs/licence"
+    },
+    "legacy": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "source_key",
+        "path",
+        "job"
+      ],
+      "properties": {
+        "source_key": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/source_key"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          }
+        },
+        "job": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "voice": {
+      "type": "object",
+      "required": [
+        "input_signature",
+        "lead_ms",
+        "gaps_ms",
+        "speech_end_ms",
+        "track",
+        "takes"
+      ],
+      "properties": {
+        "input_signature": {
+          "$ref": "#/$defs/signature"
+        },
+        "lead_ms": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/ms"
+        },
+        "gaps_ms": {
+          "type": "array",
+          "items": {
+            "$ref": "studio.defs.v1.schema.json#/$defs/ms"
+          }
+        },
+        "speech_end_ms": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/ms"
+        },
+        "track": {
+          "$ref": "#/$defs/content"
+        },
+        "track_note": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ]
+        },
+        "takes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/take"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "required": [
+        "licence"
+      ],
+      "x-studio": {
+        "required": {
+          "rule": "prov.licence_missing",
+          "field": "licence",
+          "message": "every asset version records a licence object, even when unchecked (section 7)"
+        }
+      }
+    },
+    {
+      "$ref": "studio.asset.v1.schema.json#/$defs/kind_rules"
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "voice"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "content": {
+            "type": "null",
+            "x-studio": {
+              "type": {
+                "rule": "voice.not_stock",
+                "message": "a stock voice is a definition with no bytes (P-22)"
+              }
+            }
+          },
+          "state": {
+            "enum": [
+              "candidate",
+              "promoted"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "board_voice"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "required": [
+          "voice"
+        ],
+        "properties": {
+          "content": {
+            "type": "null",
+            "x-studio": {
+              "type": {
+                "rule": "schema.invalid",
+                "message": "a board voice holds takes, not one file"
+              }
+            }
+          },
+          "state": {
+            "const": "board"
+          }
+        }
+      },
+      "else": {
+        "not": {
+          "required": [
+            "voice"
+          ]
+        },
+        "x-studio": {
+          "not": {
+            "message": "only a board_voice version has a voice block"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "voice",
+              "board_voice"
+            ]
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {},
+      "else": {
+        "properties": {
+          "content": {
+            "type": "object",
+            "x-studio": {
+              "type": {
+                "rule": "schema.invalid",
+                "message": "this kind stores bytes: content is required"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "board"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "photo",
+              "board_voice"
+            ]
+          },
+          "scope": {
+            "required": [
+              "board_id"
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "scope": {
+            "not": {
+              "required": [
+                "board_id"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "photo"
+          },
+          "state": {
+            "const": "promoted"
+          }
+        },
+        "required": [
+          "kind",
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "provenance": {
+            "properties": {
+              "origin": {
+                "const": "derived"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "photo"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "state": {
+            "enum": [
+              "board",
+              "promoted"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "content": {
+            "type": "object",
+            "required": [
+              "bytes"
+            ],
+            "properties": {
+              "bytes": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        "required": [
+          "content"
+        ]
+      },
+      "then": {
+        "properties": {
+          "provenance": {
+            "properties": {
+              "origin": {
+                "const": "imported",
+                "x-studio": {
+                  "const": {
+                    "rule": "schema.invalid",
+                    "message": "only a legacy import may leave content.bytes unknown"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "signature": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "maxLength": 71
+    },
+    "content": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "sha256",
+        "bytes",
+        "media_type",
+        "locator"
+      ],
+      "properties": {
+        "sha256": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/sha256"
+        },
+        "bytes": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "integer",
+              "minimum": 1
+            }
+          ]
+        },
+        "media_type": {
+          "enum": [
+            "video/mp4",
+            "audio/wav",
+            "image/png",
+            "image/jpeg",
+            "image/webp",
+            "application/json"
+          ]
+        },
+        "width": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+        },
+        "height": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+        },
+        "locator": {
+          "type": "string",
+          "pattern": "^(library|productions/prd_[0-7][0-9A-HJKMNP-TV-Z]{25})/sha256/[0-9a-f]{2}/[0-9a-f]{64}\\.(mp4|wav|png|jpg|webp|json)$",
+          "maxLength": 122,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters",
+              "rule": "store.locator_invalid"
+            },
+            "pattern": {
+              "rule": "store.locator_invalid",
+              "message": "must be library/sha256/<h[0:2]>/<h>.<ext> or productions/<production_id>/sha256/<h[0:2]>/<h>.<ext> (contract section 8)"
+            },
+            "maxLength": {
+              "rule": "store.locator_invalid",
+              "message": "must be library/sha256/<h[0:2]>/<h>.<ext> or productions/<production_id>/sha256/<h[0:2]>/<h>.<ext> (contract section 8)"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "origin",
+        "generator",
+        "external",
+        "created_by",
+        "created_at"
+      ],
+      "properties": {
+        "origin": {
+          "enum": [
+            "generated",
+            "uploaded",
+            "imported",
+            "declared",
+            "derived"
+          ]
+        },
+        "generator": {
+          "type": "object",
+          "required": [
+            "role"
+          ],
+          "properties": {
+            "role": {
+              "enum": [
+                "image",
+                "video",
+                "voice",
+                "sound",
+                "writer",
+                "composite"
+              ]
+            },
+            "engine": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "not": {
+                    "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+                  },
+                  "x-studio": {
+                    "not": {
+                      "message": "must not contain control characters"
+                    }
+                  }
+                }
+              ]
+            },
+            "model": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "not": {
+                    "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+                  },
+                  "x-studio": {
+                    "not": {
+                      "message": "must not contain control characters"
+                    }
+                  }
+                }
+              ]
+            },
+            "files_sha256": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "studio.defs.v1.schema.json#/$defs/sha256"
+              }
+            },
+            "workflow_sha256": {
+              "$ref": "studio.defs.v1.schema.json#/$defs/sha256"
+            },
+            "seed": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "prompt": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "minLength": 1
+                }
+              ]
+            },
+            "prompt_ref": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "not": {
+                    "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+                  },
+                  "x-studio": {
+                    "not": {
+                      "message": "must not contain control characters"
+                    }
+                  }
+                }
+              ]
+            },
+            "params": {
+              "type": "object"
+            },
+            "source_asset_version_ids": {
+              "type": "array",
+              "items": {
+                "$ref": "studio.defs.v1.schema.json#/$defs/asv_id"
+              }
+            },
+            "engine_job_id": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "not": {
+                    "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+                  },
+                  "x-studio": {
+                    "not": {
+                      "message": "must not contain control characters"
+                    }
+                  }
+                }
+              ]
+            },
+            "hardware": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "not": {
+                    "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+                  },
+                  "x-studio": {
+                    "not": {
+                      "message": "must not contain control characters"
+                    }
+                  }
+                }
+              ]
+            },
+            "post": {
+              "type": "object"
+            },
+            "voice_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "not": {
+                "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+              },
+              "x-studio": {
+                "not": {
+                  "message": "must not contain control characters"
+                }
+              }
+            },
+            "stock": {
+              "type": "boolean"
+            },
+            "source_sample_sha256": {
+              "$ref": "studio.defs.v1.schema.json#/$defs/sha256"
+            }
+          },
+          "additionalProperties": false
+        },
+        "external": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "externally_generated",
+            "agent",
+            "paid_api",
+            "declared_by",
+            "server_computed_sha256"
+          ],
+          "x-studio": {
+            "required": {
+              "rule": "prov.external_incomplete",
+              "message": "an agent upload carries the full D42 marker"
+            }
+          },
+          "properties": {
+            "externally_generated": {
+              "const": true,
+              "x-studio": {
+                "const": {
+                  "rule": "prov.external_incomplete",
+                  "message": "an upload is marked externally_generated: true (D42)"
+                }
+              }
+            },
+            "agent": {
+              "type": "object",
+              "required": [
+                "kind",
+                "key_id",
+                "session",
+                "harness"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "agent"
+                },
+                "key_id": {
+                  "type": "string",
+                  "pattern": "^key_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+                  "maxLength": 30
+                },
+                "session": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "not": {
+                    "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+                  },
+                  "x-studio": {
+                    "not": {
+                      "message": "must not contain control characters"
+                    }
+                  }
+                },
+                "harness": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "not": {
+                    "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+                  },
+                  "x-studio": {
+                    "not": {
+                      "message": "must not contain control characters"
+                    }
+                  }
+                }
+              },
+              "additionalProperties": false,
+              "x-studio": {
+                "required": {
+                  "rule": "prov.external_incomplete",
+                  "message": "the uploading agent's key, session and harness (D42)"
+                },
+                "type": {
+                  "rule": "prov.external_incomplete",
+                  "message": "the uploading agent (D42)"
+                }
+              }
+            },
+            "paid_api": {
+              "const": false,
+              "x-studio": {
+                "const": {
+                  "rule": "prov.external_incomplete",
+                  "message": "the studio holds no paid API key (D42)"
+                }
+              }
+            },
+            "declared_by": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "not": {
+                "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+              },
+              "x-studio": {
+                "not": {
+                  "message": "must not contain control characters"
+                }
+              }
+            },
+            "server_computed_sha256": {
+              "const": true,
+              "x-studio": {
+                "const": {
+                  "rule": "prov.external_incomplete",
+                  "message": "the server computes the upload's sha256 (D42)"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "source_key": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "studio.defs.v1.schema.json#/$defs/source_key"
+            }
+          ]
+        },
+        "created_by": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/principal"
+        },
+        "created_at": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/timestamp"
+        }
+      },
+      "additionalProperties": false,
+      "if": {
+        "properties": {
+          "origin": {
+            "const": "uploaded"
+          }
+        },
+        "required": [
+          "origin"
+        ]
+      },
+      "then": {
+        "properties": {
+          "external": {
+            "type": "object",
+            "x-studio": {
+              "type": {
+                "rule": "prov.external_incomplete",
+                "message": "an upload carries the D42 external marker"
+              }
+            }
+          },
+          "generator": {
+            "required": [
+              "model"
+            ],
+            "properties": {
+              "model": {
+                "type": "string",
+                "x-studio": {
+                  "type": {
+                    "rule": "prov.external_incomplete",
+                    "message": "an upload names its model (D42)"
+                  }
+                }
+              }
+            },
+            "anyOf": [
+              {
+                "required": [
+                  "prompt"
+                ],
+                "properties": {
+                  "prompt": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "required": [
+                  "prompt_ref"
+                ],
+                "properties": {
+                  "prompt_ref": {
+                    "type": "string"
+                  }
+                }
+              }
+            ],
+            "x-studio": {
+              "required": {
+                "rule": "prov.external_incomplete",
+                "message": "an upload names its model (D42)"
+              },
+              "anyOf": {
+                "rule": "prov.external_incomplete",
+                "message": "an upload records its prompt or prompt_ref (D42)"
+              }
+            }
+          }
+        }
+      }
+    },
+    "licence": {
+      "type": "object",
+      "required": [
+        "name",
+        "url",
+        "commercial_use",
+        "attribution_required",
+        "checked_at",
+        "checked_by",
+        "note"
+      ],
+      "x-studio": {
+        "type": {
+          "rule": "prov.licence_missing",
+          "message": "every asset version has a licence object (section 7)"
+        },
+        "required": {
+          "rule": "prov.licence_missing",
+          "message": "a licence object has all seven fields, null when unchecked"
+        }
+      },
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "minLength": 1,
+              "not": {
+                "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+              },
+              "x-studio": {
+                "not": {
+                  "message": "must not contain control characters"
+                }
+              }
+            }
+          ]
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "minLength": 1,
+              "not": {
+                "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+              },
+              "x-studio": {
+                "not": {
+                  "message": "must not contain control characters"
+                }
+              }
+            }
+          ]
+        },
+        "commercial_use": {
+          "enum": [
+            "allowed",
+            "noncommercial",
+            "unknown"
+          ]
+        },
+        "attribution_required": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "checked_at": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "studio.defs.v1.schema.json#/$defs/timestamp"
+            }
+          ]
+        },
+        "checked_by": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "studio.defs.v1.schema.json#/$defs/principal"
+            }
+          ]
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "if": {
+        "properties": {
+          "commercial_use": {
+            "enum": [
+              "allowed",
+              "noncommercial"
+            ]
+          }
+        },
+        "required": [
+          "commercial_use"
+        ]
+      },
+      "then": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "checked_at": {
+            "type": "string"
+          },
+          "checked_by": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "take": {
+      "type": "object",
+      "required": [
+        "line_id",
+        "speaker",
+        "text",
+        "voice_version_id",
+        "engine",
+        "voice_id",
+        "sha256",
+        "sample_rate",
+        "samples",
+        "duration_ms",
+        "duration_source",
+        "offset_ms",
+        "signature"
+      ],
+      "properties": {
+        "line_id": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/lin_id"
+        },
+        "speaker": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/speaker"
+        },
+        "text": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/text_line"
+        },
+        "voice_version_id": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/asv_id"
+        },
+        "engine": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          }
+        },
+        "voice_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          }
+        },
+        "sha256": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/sha256"
+        },
+        "sample_rate": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+            }
+          ]
+        },
+        "samples": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+            }
+          ]
+        },
+        "duration_ms": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/ms"
+        },
+        "duration_source": {
+          "enum": [
+            "samples",
+            "legacy_duration_s"
+          ]
+        },
+        "offset_ms": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/ms"
+        },
+        "heard": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "heard_matches": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "signature": {
+          "$ref": "#/$defs/signature"
+        }
+      },
+      "additionalProperties": false,
+      "if": {
+        "properties": {
+          "duration_source": {
+            "const": "samples"
+          }
+        },
+        "required": [
+          "duration_source"
+        ]
+      },
+      "then": {
+        "properties": {
+          "samples": {
+            "type": "integer"
+          },
+          "sample_rate": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  }
+}

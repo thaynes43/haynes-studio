@@ -1,0 +1,425 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://haynes-studio.invalid/schemas/studio.asset.v1.schema.json",
+  "title": "studio.asset/v1: a library item; its versions are studio.asset-version/v1 (contract section 9)",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "kind",
+    "name",
+    "scope",
+    "labels",
+    "attributes",
+    "revision"
+  ],
+  "properties": {
+    "schema": {
+      "const": "studio.asset/v1",
+      "x-studio": {
+        "const": {
+          "rule": "schema.unsupported",
+          "message": "must be studio.asset/v1"
+        }
+      }
+    },
+    "id": {
+      "$ref": "#/$defs/ast_id"
+    },
+    "kind": {
+      "$ref": "#/$defs/kind"
+    },
+    "name": {
+      "$ref": "#/$defs/name"
+    },
+    "scope": {
+      "$ref": "#/$defs/scope"
+    },
+    "labels": {
+      "$ref": "#/$defs/labels"
+    },
+    "attributes": {
+      "$ref": "#/$defs/attributes"
+    },
+    "revision": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+    },
+    "created_at": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/timestamp"
+    },
+    "updated_at": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/timestamp"
+    },
+    "created_by": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/principal"
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "$ref": "#/$defs/kind_rules"
+    }
+  ],
+  "$defs": {
+    "ast_id": {
+      "type": "string",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "maxLength": 30,
+      "x-studio": {
+        "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        },
+        "maxLength": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        }
+      },
+      "if": {
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+      },
+      "then": {
+        "pattern": "^ast_",
+        "x-studio": {
+          "pattern": {
+            "rule": "id.type_mismatch",
+            "message": "must be a ast_ ID"
+          }
+        }
+      }
+    },
+    "kind": {
+      "enum": [
+        "cast",
+        "costume",
+        "set",
+        "prop",
+        "sound",
+        "motion",
+        "voice",
+        "character_card",
+        "photo",
+        "board_voice"
+      ]
+    },
+    "capability": {
+      "enum": [
+        "rgba_cutout",
+        "keyed_layer",
+        "mask",
+        "opaque_photo",
+        "opaque_plate",
+        "motion_clip",
+        "set_loop",
+        "tts_voice",
+        "sound_effect",
+        "sound_bed",
+        "board_voice"
+      ]
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "not": {
+        "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+      },
+      "x-studio": {
+        "not": {
+          "message": "must not contain control characters"
+        }
+      }
+    },
+    "labels": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64,
+        "not": {
+          "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+        },
+        "x-studio": {
+          "not": {
+            "message": "must not contain control characters"
+          }
+        }
+      }
+    },
+    "attributes": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]{0,39}$",
+        "maxLength": 40,
+        "not": {
+          "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+        },
+        "x-studio": {
+          "not": {
+            "message": "must not contain control characters"
+          }
+        }
+      },
+      "properties": {
+        "character_slot": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/slot"
+        },
+        "expression": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          }
+        },
+        "voice_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters"
+            }
+          }
+        },
+        "stock": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "string",
+            "maxLength": 200,
+            "not": {
+              "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+            },
+            "x-studio": {
+              "not": {
+                "message": "must not contain control characters"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "scope": {
+      "type": "object",
+      "required": [
+        "production_id"
+      ],
+      "properties": {
+        "production_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+          "maxLength": 30,
+          "x-studio": {
+            "pattern": {
+              "rule": "id.malformed",
+              "message": "must be <prefix>_<ULID> (contract section 2)"
+            },
+            "maxLength": {
+              "rule": "id.malformed",
+              "message": "must be <prefix>_<ULID> (contract section 2)"
+            }
+          },
+          "if": {
+            "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "then": {
+            "pattern": "^prd_",
+            "x-studio": {
+              "pattern": {
+                "rule": "id.type_mismatch",
+                "message": "must be a prd_ ID"
+              }
+            }
+          }
+        },
+        "story_id": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/sty_id"
+        },
+        "board_id": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/brd_id"
+        }
+      },
+      "additionalProperties": false,
+      "dependentRequired": {
+        "board_id": [
+          "story_id"
+        ],
+        "story_id": [
+          "board_id"
+        ]
+      },
+      "if": {
+        "required": [
+          "board_id"
+        ]
+      },
+      "then": {
+        "properties": {
+          "production_id": {
+            "type": "string",
+            "x-studio": {
+              "type": {
+                "rule": "schema.invalid",
+                "message": "a board-scoped asset belongs to a production"
+              }
+            }
+          }
+        }
+      }
+    },
+    "kind_rules": {
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "voice"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "attributes": {
+                "required": [
+                  "voice_id",
+                  "stock"
+                ],
+                "properties": {
+                  "stock": {
+                    "const": true,
+                    "x-studio": {
+                      "const": {
+                        "rule": "voice.not_stock",
+                        "message": "a voice is a stock TTS voice: stock must be true (P-22)"
+                      }
+                    }
+                  }
+                },
+                "x-studio": {
+                  "required": {
+                    "rule": "voice.not_stock",
+                    "message": "a voice records its stock voice_id and stock: true (P-22)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "character_card"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "kind": {
+                "not": {
+                  "const": "character_card"
+                },
+                "x-studio": {
+                  "not": {
+                    "rule": "schema.invalid",
+                    "message": "character_card is reserved for E2 (contract section 9)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "photo",
+                  "board_voice"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {},
+          "else": {
+            "properties": {
+              "scope": {
+                "not": {
+                  "required": [
+                    "board_id"
+                  ]
+                },
+                "x-studio": {
+                  "not": {
+                    "rule": "schema.invalid",
+                    "message": "only photo and board_voice assets are board-scoped"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "board_voice"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "scope": {
+                "required": [
+                  "board_id"
+                ],
+                "x-studio": {
+                  "required": {
+                    "rule": "schema.invalid",
+                    "message": "a board voice is scoped to its board"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
