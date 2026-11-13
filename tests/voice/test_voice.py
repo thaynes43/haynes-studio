@@ -423,8 +423,9 @@ def test_a_gap_edit_on_a_legacy_board_needs_its_takes_bytes():
 
 def test_with_a_recorded_model_digest_takes_are_signed_anew():
     """VOICE-3: legacy takes were signed with the model name. Once a digest is recorded
-    every take signs differently, so a request re-synthesizes (the library's facts still
-    time the legacy board: they compare lines, speakers, voices, lead and gaps)."""
+    every take signs differently, so a request re-synthesizes (with no current engine
+    named, the library's facts still time the legacy board: they compare lines,
+    speakers, voices, lead and gaps; the next test names it)."""
     studio = legacy_r4(engine=Engine(digest=DIGEST))
     plan = plan_board_voice(studio.story, studio.board(8)["id"], studio.library, engine=studio.engine)
     assert (plan.action, plan.speech_calls) == (SYNTHESIZE, 6)
@@ -434,6 +435,35 @@ def test_with_a_recorded_model_digest_takes_are_signed_anew():
     generator = run.version.provenance["generator"]
     assert generator["files_sha256"] == {"model": "d" * 64}
     assert {take.engine for take in run.version.voice.takes} == {DIGEST}
+
+
+def test_naming_the_current_engine_makes_voices_signed_with_another_stale():
+    """VOICE-9 (story 849): ``voice_facts`` passes the current engine to the library.
+    Named as the digest, every legacy board voice (signed with the model name) is stale
+    and Build is refused; a voice made with the digest is current. Not named, or named
+    as the model name the legacy takes carry, nothing is stale."""
+    studio = legacy_r4(engine=Engine(digest=DIGEST))
+    assert queue_problems(studio) == set()
+    name = Engine().signing_name
+    plain = voice_facts(studio.library, studio.story)
+    assert voice_facts(studio.library, studio.story, current_engine=name) == plain
+
+    def stale(engine):
+        facts = voice_facts(studio.library, studio.story, current_engine=engine)
+        return {board["number"] for board in spoken(studio)
+                if not facts.voice_versions[board["voice"]["current_version_id"]].matches_board}
+
+    assert stale(DIGEST) == {board["number"] for board in spoken(studio)}
+    draft = {key: value for key, value in studio.story.items() if key != "derived"}
+    draft["boards"] = [{k: v for k, v in b.items() if k != "derived"} for b in studio.story["boards"]]
+    refused = {(v.rule, v.path) for v in blocking(validate_story(
+        draft, context="queue_run", facts=voice_facts(studio.library, studio.story,
+                                                      current_engine=DIGEST)))}
+    assert refused == {("voice.stale", f"/boards/{i}/voice/current_version_id")
+                       for i, board in enumerate(studio.story["boards"]) if board["lines"]}
+    every = {board["number"] for board in spoken(studio)}
+    studio.generate(studio.board(8)["id"])  # signed with the digest
+    assert (stale(DIGEST), stale(name), stale(None)) == (every - {8}, {8}, set())
 
 
 def test_a_job_for_another_engine_fails():

@@ -38,6 +38,7 @@ from haynes_studio.library.model import (
     PROMOTED,
     Asset,
     AssetVersion,
+    BoardVoice,
     Content,
     Licence,
     Scope,
@@ -218,7 +219,8 @@ class Library:
         return [self.document(v.id) for v in sorted(self.versions.values(),
                                                      key=lambda v: (v.asset_id, v.number))]
 
-    def facts(self, story: Mapping[str, Any] | None = None) -> Facts:
+    def facts(self, story: Mapping[str, Any] | None = None, *,
+              current_engine: str | None = None) -> Facts:
         """What story 404's validators and derived values take from the library: each
         version's capabilities, each board voice's measured takes and each photo.
 
@@ -227,14 +229,19 @@ class Library:
         ``voice.stale``) unless its takes are the board's lines in order (line ID,
         speaker, NFC text), each from the voice the story casts for that speaker, with
         the board's lead and gaps (VOICE-3, VOICE-4). Without a story every voice is
-        taken as current. Photos are always current here: a photo's inputs signature is
-        story 407's."""
+        taken as current. With ``current_engine`` (the engine a take signature names
+        now: the TTS model's digest once one is recorded, else its name), a board voice
+        any of whose takes is signed with another engine is stale too, with or without
+        a story (VOICE-9); without it the engine is not compared. Photos are always
+        current here: a photo's inputs signature is story 407's."""
         current = {} if story is None else _voice_currency(self, story)
         voices, photos = [], []
         for version in self.versions.values():
             if version.voice is not None:
+                matches = (current.get(version.id, True)
+                           and _signed_with(version.voice, current_engine))
                 voices.append(VoiceVersionFacts(id=version.id, takes_ms=version.voice.takes_ms,
-                                                matches_board=current.get(version.id, True)))
+                                                matches_board=matches))
             if version.kind == "photo":
                 photos.append(PhotoVersionFacts(id=version.id))
         return Facts.build(voices=voices, photos=photos,
@@ -253,6 +260,11 @@ class Library:
 
 
 EMPTY = Library()
+
+
+def _signed_with(voice: BoardVoice, engine: str | None) -> bool:
+    """VOICE-9: every take is signed with ``engine``; always true when none is named."""
+    return engine is None or all(take.engine == engine for take in voice.takes)
 
 
 def _voice_currency(library: Library, story: Mapping[str, Any]) -> dict[str, bool]:

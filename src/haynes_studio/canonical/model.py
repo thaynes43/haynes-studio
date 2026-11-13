@@ -59,7 +59,10 @@ def _verbatim(value: Any) -> Any:
 @dataclass(frozen=True, slots=True)
 class Principal:
     """``{kind: human, iss, sub}``, ``{kind: agent, key_id}``, ``{kind: worker,
-    worker_id}`` or ``{kind: cli, command, operator}`` (contract section 2)."""
+    worker_id}``, ``{kind: cli, command, operator}`` or ``{kind: agent_session, session,
+    harness, model}`` (contract section 2). An agent session (P-24) is an agent working
+    in its own dev-env session without a studio key, such as one that checked a licence:
+    it records who did the work and grants nothing."""
 
     kind: str
     iss: str | None = None
@@ -68,8 +71,12 @@ class Principal:
     worker_id: str | None = None
     command: str | None = None
     operator: Principal | None = None
+    session: str | None = None
+    harness: str | None = None
+    model: str | None = None
 
-    _omit_none = ("iss", "sub", "key_id", "worker_id", "command", "operator")
+    _omit_none = ("iss", "sub", "key_id", "worker_id", "command", "operator", "session",
+                  "harness", "model")
 
     @classmethod
     def from_document(cls, doc: Mapping[str, Any]) -> Principal:
@@ -77,7 +84,9 @@ class Principal:
         return cls(kind=doc["kind"], iss=doc.get("iss"), sub=doc.get("sub"),
                    key_id=doc.get("key_id"), worker_id=doc.get("worker_id"),
                    command=doc.get("command"),
-                   operator=None if operator is None else cls.from_document(operator))
+                   operator=None if operator is None else cls.from_document(operator),
+                   session=doc.get("session"), harness=doc.get("harness"),
+                   model=doc.get("model"))
 
     @classmethod
     def cli(cls, command: str, iss: str, sub: str) -> Principal:

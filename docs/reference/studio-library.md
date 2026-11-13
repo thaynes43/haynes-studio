@@ -67,7 +67,7 @@ Pure functions; each returns a new `Library`. Nothing is deleted (D17).
 | `Library.latest` | Pickers only; candidates hidden unless asked. |
 | `Library.search` | Section 9 filters: kind, labels (all of them), production (its own versions and the global library's), board (exactly the versions it references). |
 | `Library.has_capability`, `capabilities`, `takes` | What stories 405, 426 and 427 ask, without knowing the storage. |
-| `Library.facts(story=None)` | Story 404's `Facts`: every version's capabilities, every board voice's measured takes, every photo. Given the story, a board's voice is stale unless its takes are the board's lines (ID, speaker, NFC text) from the voices the story casts, with the board's lead and gaps; without it every voice counts as current. Photo currency is story 407's. |
+| `Library.facts(story=None, current_engine=None)` | Story 404's `Facts`: every version's capabilities, every board voice's measured takes, every photo. Given the story, a board's voice is stale unless its takes are the board's lines (ID, speaker, NFC text) from the voices the story casts, with the board's lead and gaps; without it every voice counts as current. Given `current_engine` (the engine a take signature names now: the TTS model's digest once one is recorded, else its name), a board voice any of whose takes is signed with another engine is stale, with or without the story (VOICE-9, story 849); without it the engine is not compared. Photo currency is story 407's. |
 
 ## Validation
 
@@ -75,13 +75,13 @@ Pure functions; each returns a new `Library`. Nothing is deleted (D17).
 |---|---|
 | `schema.unsupported`, `schema.unknown_field`, `id.malformed`, `id.type_mismatch` | schema (as story 404) |
 | `prov.external_incomplete` | schema: an `uploaded` version needs the full D42 `external` marker (`externally_generated: true`, agent key, session and harness, `paid_api: false`, `server_computed_sha256: true`), a `model` and a `prompt` or `prompt_ref` |
-| `prov.licence_missing` | schema: a `licence` object with all seven fields |
+| `prov.licence_missing` | schema: a `licence` object with all seven fields; `commercial_use` is `allowed`, `conditional`, `noncommercial` or `unknown` (section 7, P-23) |
 | `store.locator_invalid` | schema: the section 8 grammar `library/sha256/<h[0:2]>/<h>.<ext>` or `productions/<prd_id>/sha256/<h[0:2]>/<h>.<ext>`, `ext` one of `mp4 wav png jpg webp json`, no control characters; code: the file name is the content's `sha256`, the folder its first two digits, the extension the media type's, the production folder the version's own (a global version uses `library/`; proposal) |
 | `voice.not_stock` | schema: a voice has `attributes.stock: true` and no bytes; code: its `voice_id` is a recorded stock voice of its model, the generator agrees, no `source_sample_sha256`, every board voice take uses a stock voice, and (proposal) its origin is `declared` |
 | `asset.capability_mismatch` | code: capabilities fit the kind and the media type (tables below), and an opaque photo or plate is never also a layer (review M6) |
 | `ref.duplicate` | code: labels, a board voice's line IDs |
 | `schema.invalid` (code, proposal) | `legacy.source_key` differs from `provenance.source_key` |
-| `schema.invalid` | schema: each kind's and state's shape (a board-scoped kind has a board scope and state `board`; a voice and a board voice have no bytes; other kinds do; `character_card` is reserved for E2; a library `photo` is `derived`), a checked licence names `checked_at` and `checked_by`; code: a board voice's offsets follow TIME-2, `speech_end_ms` is the last take's end, a `samples` duration follows TIME-1 |
+| `schema.invalid` | schema: each kind's and state's shape (a board-scoped kind has a board scope and state `board`; a voice and a board voice have no bytes; other kinds do; `character_card` is reserved for E2; a library `photo` is `derived`), a checked licence (`allowed`, `conditional` or `noncommercial`) names `name`, `checked_at` and `checked_by`, and a `conditional` one keeps its conditions in `note` (proposal, story 849); code: a board voice's offsets follow TIME-2, `speech_end_ms` is the last take's end, a `samples` duration follows TIME-1 |
 
 Stock voices (VOICE-1, P-22) are the ones this repository records:
 `Kokoro-82M v1.0` `af_bella`, `af_heart`, `af_nicole`, `bf_emma` (the r4 ledger) and
@@ -124,13 +124,17 @@ byte counts come from the ledger and the timeline, cross-checked with `prompts.j
 (`legacy.evidence_mismatch`, proposal, if they disagree). Locators are in the
 production's folder. Each licence comes from the
 [model licence register](model-licences.md); a model it does not name stays `unknown`
-with the reason. All four revisions resolve completely; r4 is timed at 1087 frames with
+with the reason. The register writes a conditional term `unknown` in its licence object
+and `conditional` in the entry's `outputs_commercial_use`; the lookup gives
+`conditional` with the register's note (P-23, story 849), so the Winter Menu's sounds
+(Stable Audio) are `conditional`. A licence is not part of a pin: no version ID or pin
+changes with it. All four revisions resolve completely; r4 is timed at 1087 frames with
 the library's facts.
 
 Gaps (`WinterMenuLibrary.gaps`): the bed's byte count (its hash is in `timeline.json`
 only), the sound model (named only inside the service text), the Kokoro model digest,
-take sample counts and rates (`speech.json` records `duration_s`), and the sounds'
-licence terms (Stable Audio's are conditional, so `unknown`). Legacy takes are signed
+and take sample counts and rates (`speech.json` records `duration_s`); every licence
+is recorded, so none is a gap. Legacy takes are signed
 with speed 1.0: `poc/studio.py` sent no speed, so the server default applied, as the
 contract's example records.
 

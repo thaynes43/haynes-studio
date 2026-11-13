@@ -52,8 +52,11 @@ is pure and calls nothing:
 A version **is** an input when its input signature is the input's and its takes have the
 same line IDs, speakers and cast voice versions. This is stricter than the library's
 currency in `Library.facts(story)`, which compares lines, speakers, cast voices, lead and
-gaps but not the engine. Once a model digest is recorded, a legacy board stays timed and
-buildable, yet a request for it re-synthesizes every take.
+gaps, and the engine only when the caller names the current one (`current_engine`,
+VOICE-9, story 849). Named, a board voice any of whose takes is signed with another
+engine is stale (`voice.stale`), so once a model digest is recorded and named, every
+legacy board must be voiced again before a build. Not named, a legacy board stays timed
+and buildable, yet a request for it re-synthesizes every take.
 
 A take is reused when any version of the board's voice holds its signature, newest
 version first (`take_sources`; the worker applies the same function, so the plan shows
@@ -115,7 +118,8 @@ order:
    `heard_matches` null (the transcript check is VOICE-8). The library validates it
    (TIME-1, TIME-2, stock voices, the track's locator).
 
-A board voice has at most 256 lines (proposal). Stored takes to reuse are checked
+A board voice has at most 256 lines (proposal), as a board does (TIME-5; the board
+schema refuses more at write since story 849). Stored takes to reuse are checked
 against the track bound from their recorded durations before any of them is read, a
 stored take is read once however many lines play it, and the running length is
 checked after each read and after each speech answer.
@@ -161,15 +165,16 @@ Proposal (story 405). Nothing is sized from a header or a time before it is boun
 |---|---|---|---|
 | a take's format | 16-bit PCM, mono, 8000 to 48000 Hz, at least one frame | `voice.format_mismatch` | `read_wav` (from the header, before the frames are read), `assemble` |
 | a take | at most 120000 ms | `schema.invalid` | `read_wav` (from the header), `assemble` |
-| the lead, each gap | integer ms, 0 to 120000 (the contract's longest silent hold, TIME-4) | `schema.invalid` | `plan_board_voice` and `request_voice`, the job schema, `make_voice`, `assemble` |
+| the lead, each gap | integer ms, 0 to 120000 (the contract's longest silent hold, TIME-4 and TIME-5) | `schema.invalid` | the board schema at write (story 849), `plan_board_voice` and `request_voice`, the job schema, `make_voice`, `assemble` |
 | lead and gaps together | at most 600000 ms | `schema.invalid` | the job validator, `plan_board_voice` and `request_voice`, `make_voice` |
 | the track (`speech_end_ms`) | at most 600000 ms | `schema.invalid` | `make_voice` after each answer (lead, gaps and takes so far), `assemble` |
 | the track's PCM buffer | at most 57 600 000 bytes (600 s at 48 kHz, mono, 16-bit) | `schema.invalid` | `assemble`, checked explicitly before `bytearray` |
 
 `schema.invalid` is used because the package has no closer code; a story 404 rule such
-as `time.hold_out_of_range` names a hold, not a lead or gap. A board's own schema has no
-maximum for a lead or gap, so a board over these bounds stays a valid draft and is
-refused only when its voice is requested.
+as `time.hold_out_of_range` names a hold, not a lead or gap. Since story 849 the board
+schema refuses a lead or gap over 120000 ms and more than 256 lines at write (TIME-5),
+so such a board is never saved as a draft; the voice checks stay for inputs made
+outside a saved board (a job's `voice` block, `make_voice`).
 
 ## Jobs (`studio.job/v1`)
 
@@ -227,9 +232,12 @@ no version on failure (second review, finding 4).
 
 ## Timing and Build (VOICE-5, VOICE-6)
 
-`voice_facts(library, story, jobs)` is story 404's `Facts`: the library's measured
-takes and currency, plus `generating` for every board with a voice or photo job in
-flight. With them, `with_derived` and `timing_summary` time each board from its
+`voice_facts(library, story, jobs, current_engine=None)` is story 404's `Facts`: the
+library's measured takes and currency, plus `generating` for every board with a voice
+or photo job in flight. `current_engine` (proposal, story 849) passes to
+`Library.facts`: the engine a take signature names now (`Engine().signing_name`, the
+model's digest once one is recorded); a board voice signed with another is stale
+(VOICE-9). Without it the engine is not compared. With them, `with_derived` and `timing_summary` time each board from its
 current voice. `queue_run` refuses `voice.absent`, `voice.stale` and `asset.generating`
 and accepts the rest. Voices are never made inside a run.
 
