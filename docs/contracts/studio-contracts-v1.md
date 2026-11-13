@@ -683,8 +683,12 @@ which are reserved ([RIGHTS.md](../../RIGHTS.md)).
 
 - **What a licence blocks: nothing, while the use is research and personal (D49, Q-01
   answered 2026-11-13).** Licence values are recorded as facts. No value blocks Build,
-  a run or a release. If commercial use is ever planned, the question reopens
-  before any such release, and the register says which engines it touches.
+  a run or a private delivery. *Coordinator's reading:* a go-live is not blocked by a
+  licence value either, but it still needs Tom's own approval
+  ([section 11](#11-go-live-approval-identity-boundary-only)), and the release checks
+  show him the recorded terms at that point. If commercial use is ever planned, the
+  question reopens before any such release, and the register says which engines it
+  touches.
 - **`conditional` (P-23).** A term that allows commercial use only under conditions
   (registration, a revenue limit; Stable Audio 3) is `conditional`, with the conditions
   in `note`. A research- or evaluation-only term (Qwen-Image 2.1, ControlFoley's CLIP
