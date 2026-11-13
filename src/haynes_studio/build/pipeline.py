@@ -81,6 +81,7 @@ from haynes_studio.cache.build import PictureBuilder
 from haynes_studio.cache.keys import (
     CHECK_RESULT,
     FILM_PICTURE,
+    KEYED_FRAMES,
     MASTER,
     MIX,
     PROXY,
@@ -113,6 +114,9 @@ PHASES = (ALL, SERVICE, OFFLINE)
 JSON, MP4 = "application/json", "video/mp4"
 COMPOSITORS = {"layered": LAYERED_COMPOSITOR, "whole_frame": WHOLE_FRAME_COMPOSITOR}
 SERVICE_KINDS = frozenset({S2V_DRIVE_TRACK, S2V_CLIP, WHOLE_FRAME_CLIP})
+# What the service phase looks up rather than makes, by kind (the cached artifact's type).
+CACHED_MEDIA = {KEYED_FRAMES: "image/png", SEGMENT: "video/mp4", FILM_PICTURE: "video/mp4",
+                MIX: "audio/wav", MASTER: "video/mp4"}
 FILM_KINDS = frozenset({FILM_PICTURE, MIX, MASTER, PROXY, CHECK_RESULT})
 
 
@@ -141,6 +145,7 @@ class BuildResult:
     plan: StoryPlan | None = None
     made: tuple[str, ...] = ()  # key values this run made
     source_calls: int = 0
+    worker_made: tuple[str, ...] = ()  # segment keys worker processes rendered
 
 
 def media_format(media_kind: str) -> MediaFormat:
@@ -177,17 +182,37 @@ class Made:
 
 
 class _Chain:
-    """The plan's content chain (see the module docstring), recording each answer."""
+    """The plan's content chain (see the module docstring), recording each answer.
+
+    ``defer`` kinds are answered with a stand-in (the first pass with workers). With
+    ``service`` set, only the service phase's kinds are made (clips, and the transcript
+    of a master the cache already holds); every other artifact is looked up in the cache
+    and, when it is not there, answered with a stand-in, so nothing is rendered, mixed
+    or delivered and no stand-in reaches a service."""
 
     def __init__(self, build: _Build, *, defer: frozenset[str] = frozenset(),
-                 only: frozenset[str] | None = None):
+                 service: bool = False):
         self.build = build
-        self.defer = defer  # kinds answered with a stand-in
-        self.only = only  # when set: the only kinds made; the rest are stand-ins
+        self.defer = defer
+        self.service = service
         self.segments_seen = 0
         self.records: dict[str, Made] = {}
         self.segment_board: dict[str, str] = {}
         self.segment_keys: dict[str, CacheKey] = {}
+        self.stand_ins: set[str] = set()
+
+    def _service_answer(self, key: CacheKey) -> str | None:
+        """The service phase's answer, or ``None`` for a stand-in."""
+        build, kind = self.build, key.kind
+        if kind in SERVICE_KINDS:
+            return build.route(key)
+        if kind == CHECK_RESULT:  # a transcript, only of a master the cache holds
+            if key.document.get("artifact") in self.stand_ins or not build.transcript.handles(key):
+                return None
+            return build.route(key)
+        media = CACHED_MEDIA.get(kind)
+        found = None if media is None else build.cache.lookup(key, media)
+        return None if found is None else found.sha256
 
     def board_id(self, kind: str) -> str | None:
         if kind in FILM_KINDS:
@@ -199,10 +224,18 @@ class _Chain:
         build, kind = self.build, key.kind
         board_id = self.board_id(kind)
         build.where = (board_id, kind)
-        deferred = kind in self.defer or (self.only is not None and kind not in self.only)
         before = len(build.cache.stats.made)
         start = build.timer()
-        sha = _stand_in(key) if deferred else build.route(key)
+        if kind in self.defer:
+            sha = None
+        elif self.service:
+            sha = self._service_answer(key)
+        else:
+            sha = build.route(key)
+        deferred = sha is None
+        if sha is None:
+            sha = _stand_in(key)
+            self.stand_ins.add(sha)
         seconds = round(max(0.0, build.timer() - start), 3)
         made = key.value in build.cache.stats.made[before:]
         self.records[key.value] = Made(key.value, kind, sha, made, seconds, board_id, deferred)
@@ -239,7 +272,7 @@ class _Build:
         self.pictures = {name: PictureBuilder(self.cache, renderer, open_input=read)
                          for name, renderer in self.renderers.items()}
         self.sound = SoundBuilder(self.cache, story=story, workdir=workdir)
-        self.transcript = None if transcriber is None else TranscriptChecks(self.cache, transcriber, story)
+        self.transcript = TranscriptChecks(self.cache, transcriber, story)
         self.worker_reports: dict[str, dict[str, Any]] = {}
         self.worker_made: list[str] = []  # segment keys worker processes made
 
@@ -261,7 +294,7 @@ class _Build:
             return self.sound(key)
         if kind == PROXY:
             return _stand_in(key)  # the delivery makes the proxy (see the module docstring)
-        if kind == CHECK_RESULT and self.transcript is not None and self.transcript.handles(key):
+        if kind == CHECK_RESULT and self.transcript.handles(key):
             return self.transcript(key)
         raise BuildError("cache.key_input_invalid", f"this build makes no {kind} artifact",
                          stage=kind)
@@ -431,6 +464,8 @@ class _Recorder:
             pinned = None if motion is None else motion.boards.get(board.id)
             for name, planned in by_board.get(board.id, []):
                 made = self.records.get(planned.key.value)
+                if made is not None and made.deferred:  # not made in this phase: no hash to record
+                    continue
                 was_made, seconds = self.made(planned.key.value)
                 artifacts.append({"name": name.split("/", 1)[1], "kind": planned.key.kind,
                                   "key": planned.key.value, "sha256": planned.content,
@@ -457,11 +492,13 @@ class _Recorder:
             segment = board_plan.segment
             _, render_s = self.made(segment.key.value)
             report, checks = self.report(segment.key.value)
+            seg_record = self.records.get(segment.key.value)
+            deferred = seg_record is not None and seg_record.deferred
             out.append({"board_id": board.id, "board_number": board.number,
                         "method": {"layer": board.method.layer, "motion": board.method.motion},
                         "frames": board_plan.frames, "film_start_frame": board_plan.film_start_frame,
-                        "clips": clips, "segment_sha256": segment.content,
-                        "segment_key": segment.key.value,
+                        "clips": clips, "segment_sha256": None if deferred else segment.content,
+                        "segment_key": None if deferred else segment.key.value,
                         "compositor": segment.key.document["compositor"],
                         "artifacts": artifacts, "report": report, "checks": checks,
                         "render_s": render_s})
@@ -505,7 +542,8 @@ def build_story(inputs: BuildInputs, *, store: Store, phase: str, sources: ClipS
                 workdir: str | None = None, delivery_id: str | None = None) -> BuildResult:
     """Build ``inputs.story`` as one new run (see the module docstring). ``sources``
     are the clip sources of this phase (the offline ones refuse); ``transcriber`` is
-    needed by phases that check a master. ``earlier_runs`` (newest first) are searched
+    the recognizer of the transcript check, a service: the offline phase never uses it
+    and reads cached check results only. ``earlier_runs`` (newest first) are searched
     for cached artifacts. Returns the run as last recorded."""
     if phase not in PHASES:
         raise ValueError(f"phase is one of {', '.join(PHASES)}, got {phase!r}")
@@ -521,6 +559,8 @@ def build_story(inputs: BuildInputs, *, store: Store, phase: str, sources: ClipS
     prepared = prepare(inputs.story, library=library, store=store, toolchain=toolchain,
                        frame_size=(media.width, media.height),
                        current_engine=Engine().signing_name)
+    if phase == OFFLINE:  # the recognizer is a service: the offline phase reads the cache only
+        transcriber = None
     return _build(inputs, prepared, store=store, phase=phase, sources=sources,
                   transcriber=transcriber, actor=actor, earlier_runs=earlier_runs, now=now,
                   timer=timer, minter=minter, workers=workers, run_number=run_number,
@@ -567,28 +607,33 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
                            toolchain=toolchain, media=media, timer=timer, workdir=scratch_dir)
             register = Register(inputs.register)
             if phase == SERVICE:
-                chain = _Chain(build, only=SERVICE_KINDS)
+                chain = _Chain(build, service=True)
                 plan = build.plan(chain)
                 recorder = _Recorder(build, plan, chain.records, register)
                 stages = recorder.stages()
                 made = sum(1 for m in chain.records.values() if m.made and m.kind in (S2V_CLIP, WHOLE_FRAME_CLIP))
+                checked = sum(1 for m in chain.records.values() if m.made and m.kind == CHECK_RESULT)
                 run = records.write(advance(
                     run, CANCELLED, at=now(), by=actor, stages=stages,
                     progress={"percent": 100, "stage": "service_phase_complete"},
-                    reason=f"service phase complete: {made} clip artifacts made, the rest found in "
-                           "the cache; build the picture with --offline (proposal: a run without a "
-                           "delivery is never succeeded)"))
+                    reason=f"service phase complete: {made} clip artifacts made and {checked} "
+                           "transcript checks run, the rest found in the cache; build the picture "
+                           "with --offline (proposal: a run without a delivery is never succeeded)"))
                 return BuildResult(run, plan, (*build.cache.stats.made, *build.worker_made),
                                build.source_calls())
+            first_pass: dict[str, Made] = {}
             if workers > 1:
-                _render_in_workers(build, workers)
+                first_pass = _render_in_workers(build, workers)
             chain = _Chain(build)
             plan = build.plan(chain)
+            for value, made_first in first_pass.items():  # what pass 1 made, and its time
+                if made_first.made and not made_first.deferred:
+                    chain.records[value] = made_first
             build.where = (None, "checks")
             sound = film_sound(story, plan, build.sound)
             checks = _sound_checks(sound)
             transcript_key = plan.artifacts.get(f"check/{TRANSCRIPT}")
-            if transcript_key is not None and build.transcript is not None:
+            if transcript_key is not None:
                 result = build.transcript.result(transcript_key.content)
                 checks.append(_transcript_entry(result, transcript_key.key.value, transcript_key.content))
             recorder = _Recorder(build, plan, chain.records, register)
@@ -612,8 +657,12 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
                     verified.id != delivered.id or verified.proxy is None:
                 raise BuildError(DELIVERY_UNVERIFIED, "the delivery did not read back with the "
                                  "plan's master and a proxy", stage="delivery")
+            decoded = verified.verification.decoded_frames
+            if decoded != plan.frames:
+                raise BuildError(DELIVERY_UNVERIFIED, f"the delivery decoded {decoded} frames, the "
+                                 f"plan holds {plan.frames} (TIME-11)", stage="delivery")
             checks.append({"check": "frame_count", "result": "pass", "expected": plan.frames,
-                           "actual": verified.verification.decoded_frames})
+                           "actual": decoded})
             if transcript_key is not None and "asr" in register.engines:
                 recorder.use("asr", "check", f"check/{TRANSCRIPT}")
             library_uses(register, library, _input_versions(prepared, recorder), recorder.uses,
@@ -633,7 +682,7 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
                 stages=stages, outputs=outputs, checks=checks, provenance=prov,
                 delivery_id=verified.id, progress={"percent": 100, "stage": "delivered"}))
             return BuildResult(run, plan, (*build.cache.stats.made, *build.worker_made),
-                               build.source_calls())
+                               build.source_calls(), tuple(build.worker_made))
     except Exception as error:  # every failure is recorded on the run, then reported
         board_id, stage = (None, "prebuild") if build is None else build.where
         failure = failure_of(error, board_id=board_id, stage=stage)
@@ -686,9 +735,10 @@ def _tools(toolchain: Toolchain) -> dict[str, Any]:
             "tts_model": toolchain.tts_model}
 
 
-def _render_in_workers(build: _Build, workers: int) -> None:
+def _render_in_workers(build: _Build, workers: int) -> dict[str, Made]:
     """Pass 1 makes every clip and keyed frame and collects the segment keys; the
-    segments the cache lacks are rendered in up to ``workers`` processes."""
+    segments the cache lacks are rendered in up to ``workers`` processes. Returns pass
+    1's records, so the run keeps what it made then and how long it took."""
     from haynes_studio.build.workers import render_segments
     chain = _Chain(build, defer=frozenset({SEGMENT}) | FILM_KINDS)
     build.plan(chain)
@@ -696,6 +746,7 @@ def _render_in_workers(build: _Build, workers: int) -> None:
                if build.cache.lookup(key, MP4) is None]
     build.where = (None, SEGMENT)
     build.worker_reports.update(render_segments(build, missing, workers))
+    return chain.records
 
 
 __all__ = ["ALL", "BuildInputs", "BuildResult", "COMPOSITORS", "OFFLINE", "PHASES", "SERVICE",

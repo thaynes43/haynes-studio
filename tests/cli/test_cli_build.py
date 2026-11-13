@@ -100,6 +100,14 @@ def test_service_then_offline_builds_and_run_show_reads_the_run(setup, monkeypat
     assert "(service phase): cancelled" in out
     assert len(sources.s2v.calls) == 1 and len(sources.i2v.calls) == 1
     monkeypatch.setattr(studio_build, "live_clip_sources", lambda: pytest.fail("offline asks no hook"))
+    # Offline renders the picture and master, then stops at the transcript check (a
+    # service call); the service phase checks the cached master; offline then delivers.
+    code, out, err = run_cli("build", *base, "--offline", clients=Fakes().clients())
+    assert code == 1 and "rule build.offline_missing" in err and "(stage check_result)" in err
+    monkeypatch.setattr(studio_build, "live_clip_sources", lambda: sources)
+    code, out, err = run_cli("build", *base, "--phase", "service", clients=Fakes().clients())
+    assert code == 0, err
+    monkeypatch.setattr(studio_build, "live_clip_sources", lambda: pytest.fail("offline asks no hook"))
     code, out, err = run_cli("build", *base, "--offline", "--json", clients=Fakes().clients())
     assert code == 0, err
     run = json.loads(out)

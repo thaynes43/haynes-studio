@@ -116,6 +116,21 @@ class Register:
         return out
 
 
+RESTRICTION = {"allowed": 0, "conditional": 1, "unknown": 2, "noncommercial": 3}
+
+
+def most_restrictive(licences: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
+    """Section 7: an engine's licence is the most restrictive of its files (proposal:
+    ``noncommercial`` over ``unknown`` over ``conditional`` over ``allowed``; the first
+    of equals, so the register's own entry wins a tie)."""
+    chosen: Mapping[str, Any] | None = None
+    for licence in licences:
+        if chosen is None or RESTRICTION.get(licence["commercial_use"], 2) > \
+                RESTRICTION.get(chosen["commercial_use"], 2):
+            chosen = licence
+    return copy.deepcopy(dict(chosen)) if chosen is not None else _unknown("No licence recorded.")
+
+
 def _generator(library: Library, version_id: str) -> Mapping[str, Any]:
     version = library.get(version_id)
     if version is None:
@@ -156,9 +171,11 @@ def engines(register: Register, uses: Mapping[str, Use],
         use = uses[key]
         if key in register.engines:
             entry = register.engines[key]
+            files = register.engine_files(key, use.files)
             out.append({"key": key, "role": entry["role"], "name": entry["name"],
-                        "files": register.engine_files(key, use.files),
-                        "licence": register.licence(key),
+                        "files": files,
+                        "licence": most_restrictive([register.licence(key),
+                                                     *(file["licence"] for file in files)]),
                         "profile": None if use.profile is None else thaw(use.profile),
                         "hardware": use.hardware or entry.get("where"),
                         "used_by": sorted(set(use.used_by))})
@@ -175,15 +192,19 @@ def engines(register: Register, uses: Mapping[str, Use],
     return out
 
 
-def credits(engine_list: Iterable[Mapping[str, Any]]) -> list[dict[str, str]]:
-    """D44: one credit per video, voice or sound engine, naming it and its hardware
-    (**proposal**: ``<Video|Voices|Sound>: <engine name> on <hardware>``)."""
+def credits(engine_list: Iterable[Mapping[str, Any]],
+            reported_hardware: Mapping[str, str | None]) -> list[dict[str, str]]:
+    """D44: one credit per video, voice or sound engine, naming it, and the hardware it
+    ran on when the engine reported it (**proposal**: ``<Video|Voices|Sound>: <engine
+    name>[ on <hardware>]``). The register's ``where`` names cluster deployments and
+    nodes; it stays in the private ``engines[].hardware`` and never reaches a credit."""
     out = []
     for engine in engine_list:
         if engine["role"] in CREDIT_ROLES:
             text = f"{ROLE_LABEL[engine['role']]}: {engine['name']}"
-            if engine.get("hardware"):
-                text += f" on {engine['hardware']}"
+            hardware = reported_hardware.get(engine["key"])
+            if hardware:
+                text += f" on {hardware}"
             out.append({"engine_key": engine["key"], "text": text[:200]})
     return out
 
@@ -220,9 +241,10 @@ def provenance(*, register: Register, uses: Mapping[str, Use],
     return {"toolchain": dict(toolchain), "engines": engine_list,
             "inputs_externally_generated": externally_generated(library, inputs),
             "usage": {"frontier_tokens": None, "basis": "not metered"},
-            "public": {"ai_generated": True, "credits": credits(engine_list),
+            "public": {"ai_generated": True,
+                       "credits": credits(engine_list, {k: u.hardware for k, u in uses.items()}),
                        "derived_from_roles": list(CREDIT_ROLES)}}
 
 
 __all__ = ["CREDIT_ROLES", "Register", "Use", "credits", "engines", "externally_generated",
-           "library_uses", "provenance", "toolchain_record"]
+           "library_uses", "most_restrictive", "provenance", "toolchain_record"]

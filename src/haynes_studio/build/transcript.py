@@ -112,9 +112,11 @@ def dialogue_wav(master: bytes) -> bytes:
 
 class TranscriptChecks:
     """The ``master.transcript`` check results through ``cache`` (a plan content
-    source for ``check_result`` keys of this check)."""
+    source for ``check_result`` keys of this check). With no ``transcriber`` (the
+    offline phase) it answers cached results only: a miss is ``build.offline_missing``
+    naming the check and its master, and the recognizer, a service, is never asked."""
 
-    def __init__(self, cache: ArtifactCache, transcriber: Transcriber, story: Story):
+    def __init__(self, cache: ArtifactCache, transcriber: Transcriber | None, story: Story):
         self.cache = cache
         self.transcriber = transcriber
         self.story = story
@@ -124,7 +126,16 @@ class TranscriptChecks:
         return key.kind == CHECK_RESULT and key.document.get("check") == CHECK
 
     def __call__(self, key: CacheKey) -> str:
-        return self.cache.get_or_make(key, lambda: self._make(key), JSON).sha256
+        found = self.cache.lookup(key, JSON)
+        if found is not None:
+            return found.sha256
+        if self.transcriber is None:
+            from haynes_studio.build.errors import OFFLINE_MISSING, BuildError
+            raise BuildError(OFFLINE_MISSING, f"the transcript check {key.value} of master "
+                             f"{key.document['artifact'][:12]}... is not in the cache; the offline "
+                             "phase calls no service: run `studio build --phase service` (which "
+                             "checks a cached master) or a full build", stage=CHECK_RESULT)
+        return self.cache.commit(key, self._make(key), JSON).sha256
 
     def result(self, sha256: str) -> dict[str, Any]:
         """A check result document by its hash, re-hashed."""
@@ -147,12 +158,13 @@ class TranscriptChecks:
             raise CacheError(ENTRY_INVALID, "the check key names another script than the story's",
                              where=key.value)
         tolerances = thresholds.get("asr_tolerances")
+        assert self.transcriber is not None
         heard = self.transcriber.transcribe(dialogue_wav(self._read(document["artifact"], MP4)))
         if not isinstance(heard, str):
             raise CacheError(ENTRY_INVALID, "the recognizer returned no text", where=key.value)
         expected = " ".join(text for _, text in script)
         verdict = compare(heard, expected, tolerances)
-        passed = verdict["match_with_tolerances"]
+        passed = verdict["exact_match"] or verdict["match_with_tolerances"]
         result = "pass" if verdict["exact_match"] else ("pass_with_tolerances" if passed else "fail")
         self.made.append(key.value)
         return canonical_json({

@@ -300,6 +300,7 @@ def build(world: World, document: dict[str, Any], library: Library, *, phase: st
     inputs = BuildInputs(story=document, library=library, register=register(),
                          toolchain=tools or toolchain(), studio="git:fixture")
     recognizer, _ = transcriber(heard)
+    recognizer = kwargs.pop("recognizer", recognizer)
     runs = local_run_ids(world.store, PRODUCTION) if earlier is None else list(earlier)
     return build_story(inputs, store=world.store, phase=phase, sources=source or sources(),
                        transcriber=recognizer, actor=OPERATOR, earlier_runs=runs,

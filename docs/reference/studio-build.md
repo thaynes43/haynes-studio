@@ -46,8 +46,11 @@ Every command takes the local store's root (`--store`), and the build commands t
 draft (`--story`, a `studio.story/v1` file with its boards embedded), the library
 (`--library`, a JSON array of `studio.asset-version/v1` documents) and the operator
 (`--operator-iss`, `--operator-sub`, as `studio legacy import`). Exit status: `0` done,
-`1` a rule failed or the run failed, `2` a usage error. Problems print on stderr as
-`<file>: rule <code> [at board <brd_id>] (stage <stage>): <message>`.
+`1` a rule failed or the run failed, `2` a usage error. Problems print on stderr, one per
+line: a failed run as `<story file>: rule <code> [at board <brd_id>] (stage <stage>):
+<message>`; a pre-build problem of a story that makes no run as `<story file>: rule
+<code> at <board or story> field <pointer>: <message>`; the unfilled hook as `<story
+file>: rule build.clip_sources_unwired: <message>`.
 
 | Command | Does |
 |---|---|
@@ -81,11 +84,11 @@ register. A failed job is reported with its code and the next board is still tri
 
 The service phase and the offline phase are one build with different clip sources.
 
-| Phase | Flag | Clip sources | Makes | The run ends |
+| Phase | Flag | Services | Makes | The run ends |
 |---|---|---|---|---|
-| all | none | `live_clip_sources()` | everything, then the delivery | `succeeded`, or `failed` |
-| service | `--phase service` | `live_clip_sources()` | drive tracks (the clip requests' input) and clips: speech-to-video and whole-frame; nothing else | `cancelled`, reason `service phase complete` (**proposal**: a run is never `succeeded` without a delivery) |
-| offline | `--offline` | `OfflineS2VSource`, `OfflineClipSource`: refuse every call | keyed frames, segments, the film, the sound, the checks, the delivery, from the cache | `succeeded`, or `failed` |
+| all | none | `live_clip_sources()` and the Whisper client | everything, then the delivery | `succeeded`, or `failed` |
+| service | `--phase service` | `live_clip_sources()` and the Whisper client | only what needs a service: drive tracks (the clip requests' input) and clips, speech-to-video and whole-frame; and the transcript check of a master the cache already holds. Everything else is looked up in the cache, never made | `cancelled`, reason `service phase complete` (**proposal**: a run is never `succeeded` without a delivery) |
+| offline | `--offline` | none: `OfflineS2VSource` and `OfflineClipSource` refuse every call, and no recognizer is used | keyed frames, segments, the film, the sound, the sound checks and the delivery, from the cache | `succeeded`, or `failed` |
 
 - **The hook is not wired yet.** `live_clip_sources()` raises
   `build.clip_sources_unwired` ("the Wan clip clients (story 842) are not on main; build
@@ -93,10 +96,14 @@ The service phase and the offline phase are one build with different clip source
   makes a run, so `studio build` and `studio build --phase service` stop with that
   message, exit 1 and record nothing. A later story fills the hook with story 842's
   clients; nothing else changes.
-- **Offline needs no client.** An offline build of a story whose clips are all cached
-  succeeds with no clip client at all. One that lacks a clip stops the run with
-  `build.offline_missing`, naming the clip's key, its board and the stage, before any
-  service is asked.
+- **Offline needs no client.** An offline build of a story whose clips and transcript
+  check are cached succeeds with no client at all. One that lacks a clip stops the run
+  with `build.offline_missing`, naming the clip's key, its board and the stage, before
+  any service is asked. The transcript check is a service call (Whisper), so the offline
+  phase reads it from the cache only: a new master stops the run at stage
+  `check_result` with `build.offline_missing`, after the picture, mix and master are
+  made and cached. The next `--phase service` run checks that cached master, and the
+  next offline run delivers. A full build (no flag) does all of it in one run.
 
 ## What a build does
 
@@ -121,7 +128,9 @@ workers=)`, in order:
    `derived` blocks), every asset version the build reads pinned by content hash
    (by `definition_signature` for a voice, by `input_signature` and take hashes for a
    board voice), the motion loops the resolver chose (a loop found by search is an input
-   too), and `toolchain_request.studio`. No run ID, no time: the same draft gives the
+   too), and `toolchain_request.studio`. A library timed clip is chosen during the plan
+   (it is found by the drive track the plan computes), so it is recorded in the board's
+   `clips[]` with its version ID, not in the snapshot (observation O-406-4). No run ID, no time: the same draft gives the
    same canonical bytes. A story whose references do not resolve cannot be pinned, and
    **no run is made** (the command prints the problems and exits 1).
 3. **The run** is recorded `queued` with its snapshot, then `running`. A blocking
@@ -148,9 +157,10 @@ workers=)`, in order:
 5. **Checks.** `film_sound(story, plan, sound)` gives the placement record and the
    seven sound checks; the transcript check compares the master's audio (16 kHz mono)
    with the script, word by word, each heard word replaced by the story's
-   `checks.asr_tolerances` (the PoC's `poc/edit.py transcript`). Any failed check, the
-   renderers' decal checks included, stops the run with `build.check_failed` naming
-   them, and **nothing is delivered**.
+   `checks.asr_tolerances` (the PoC's `poc/edit.py transcript`). Any failed check stops
+   the run with `build.check_failed` naming them, and **nothing is delivered**. A decal
+   track below its floor never gets this far: the layered renderer refuses the segment
+   (`layered.decal_weak`, stage `segment`) and keeps the check result.
 6. **Delivery.** `deliver(master, ..., expected_frames=plan.frames, media_kind=)` checks
    the master, makes and checks the phone proxy, and publishes the delivery (story 381).
    `deliver` makes the proxy itself, so the plan's `proxy` key is recorded with the
@@ -187,7 +197,9 @@ problems).
   version of a run document is a completed stage of the run, `run-0001` (with the
   snapshot blob as its second output), `run-0002` and so on. A stage name is
   create-only, so two writers moving one run from the same version race to one name and
-  the loser gets `store.collision` (a compare-and-set). Readers take the highest
+  the loser gets `store.collision` (a compare-and-set). Before each write the stored
+  versions are counted again: a run another writer moved since this one read it, or
+  whose stored status is terminal, is `run.transition`. Readers take the highest
   completed version (`RunRecords.latest`). Which runs a production has is read from the
   local adapter's `records/` folder (`local_run_ids`, newest first); every build
   searches those runs for cached artifacts. The run `number` is one more than the
@@ -218,15 +230,20 @@ A reused segment has no report in this run (the run that rendered it has it).
   `model` (with the files and hardware the clip's record reports); a library version
   (stills, loops, timed clips, sounds, voices), by its generator's role and recorded
   model name; the transcript check, the register's `asr`. Each engine lists its files
-  with hashes and licences, its licence (the register's, `conditional` where the
-  register says so, P-23), its profile, its hardware, and what it made (`used_by`). A
+  with hashes and licences, its licence (the most restrictive of the register's entry
+  and its files: `noncommercial`, then `unknown`, then `conditional`, then `allowed`;
+  `conditional` where the register says so, P-23), its profile, its hardware (what the
+  engine reported, else the register's `where`), and what it made (`used_by`). A
   generator the register does not name is an `unregistered-...` engine with an `unknown`
   licence and the reason; nothing is guessed. Licences block nothing (D49).
 - `inputs_externally_generated`: every input version with the D42 marker.
 - `usage`: `{frontier_tokens: null, basis: "not metered"}`.
 - `public`: `ai_generated: true` and one credit per video, voice or sound engine,
-  `"<Video|Voices|Sound>: <engine name> on <hardware>"` (proposal); image, check and
-  writer engines stay private (`credit.outside_video_sound`).
+  `"<Video|Voices|Sound>: <engine name>"`, with `" on <hardware>"` only when the engine
+  itself reported its hardware (proposal). The register's `where` names cluster
+  deployments and nodes, so it stays in the private `engines[].hardware` and never
+  reaches a credit. Image, check and writer engines stay private
+  (`credit.outside_video_sound`).
 
 ## Supported method matrix as built
 
@@ -251,11 +268,11 @@ No row ends in success, and none delivers anything. Tests are in `tests/build/`.
 | `photo.absent` | `prebuild` | a whole-frame board without a current photo | the pre-build check's own tests (story 379, 427) |
 | `build.voice_track_missing` | `voice` | a current board voice that records no assembled track (a legacy import's), which the picture's envelope and the mix read | `test_failures.py::test_a_board_voice_without_a_track_fails_the_run` |
 | `layered.clip_invalid`, `wholeframe.clip_invalid`, `time.source_short` | `s2v_clip`, `whole_frame_clip`, `segment` | a clip source's answer that is not what was asked, or a clip too short | `test_a_failed_clip_fails_the_run_on_its_board` |
-| `build.offline_missing` | `s2v_clip`, `whole_frame_clip` | the offline phase needs a clip no run made | `test_phases.py::test_the_offline_phase_refuses_a_service_call_naming_the_missing_artifact` |
-| `layered.decal_weak`, render and splice codes (`render.*`, `splice.incompatible`, `time.conservation`) | `segment`, `film_picture` | a renderer, encoder or splice refusal | the adapters' and cache's own tests |
-| `build.check_failed` | `checks` | a sound check, the transcript check or a decal check did not pass | `test_a_failed_check_fails_the_run_and_delivers_nothing` |
+| `build.offline_missing` | `s2v_clip`, `whole_frame_clip`, `check_result` | the offline phase needs a clip, or a transcript check of a new master, that no run made | `test_phases.py::test_the_offline_phase_refuses_a_service_call_naming_the_missing_artifact`, `test_the_service_phase_fills_the_cache_and_the_offline_phase_never_asks_the_recognizer` |
+| `layered.decal_weak`, render and splice codes (`render.*`, `splice.incompatible`, `time.conservation`) | `segment`, `film_picture` | a decal track below its floor, a renderer, encoder or splice refusal | the adapters' and cache's own tests |
+| `build.check_failed` | `checks` | a sound check or the transcript check did not pass | `test_a_failed_check_fails_the_run_and_delivers_nothing` |
 | `delivery.*` | `delivery` | the master or the proxy fails a delivery check | `test_a_failed_delivery_fails_the_run` |
-| `build.delivery_unverified` | `delivery` | the delivery does not read back with the plan's master | `test_a_delivery_that_does_not_read_back_fails_the_run` |
+| `build.delivery_unverified` | `delivery` | the delivery does not read back with the plan's master, or decodes another frame count | `test_a_delivery_that_does_not_read_back_fails_the_run` |
 | `build.internal` | where it was | an exception that carries no code | (a bug: the message names its type) |
 
 | Code | Status | Source |
@@ -304,13 +321,19 @@ decision are marked **(428 decides)**.
    "service phase complete"; every clip is now cached. Watch the Wan compute lease;
    never bypass it.
 7. **The offline phase.** `nice -n 10 uv run studio build ... --offline --workers N`
-   (N up to 22 on `ai/studio-render`, 1 in a session pod). Expect `succeeded` with a
-   delivery; `studio run show <run_id> --store ROOT --production <prd> --json` prints the
-   record. **(428 decides)** where the transcript check runs: the Whisper client is
-   reached by `kubectl exec`, which the render worker may not have.
-8. **A second build** of the same draft with `--offline`: every artifact is a hit and the
-   source and recognizer are asked nothing; only the new run's delivery is made.
-9. **Record** the run's timings (each artifact's `seconds`, `render_s`), sizes and IO,
+   (N up to 22 on `ai/studio-render`, 1 in a session pod). It renders the picture, the
+   mix and the master, then stops at the transcript check with `build.offline_missing`
+   (stage `check_result`): the master is new, and the recognizer is a service.
+8. **The transcript.** `uv run studio build ... --phase service` again, from where the
+   Whisper client works (`kubectl exec`): it checks the cached master and makes nothing
+   else. **(428 decides)** whether the render worker can reach the store this needs.
+9. **Delivery.** `uv run studio build ... --offline` once more: every artifact is a hit;
+   the run delivers and ends `succeeded`. `studio run show <run_id> --store ROOT
+   --production <prd> --json` prints the record. (Where one host has both the services
+   and the CPU, steps 6 to 9 are one full build: `studio build` with no flag.)
+10. **A second build** of the same draft with `--offline`: every artifact is a hit and
+    no source or recognizer is asked; only the new run's delivery is made.
+11. **Record** the run's timings (each artifact's `seconds`, `render_s`), sizes and IO,
    and compare with the E0 delivery. Tom watches the delivery for the demo; a source PR
    and a delivered run are not his acceptance.
 
@@ -338,5 +361,8 @@ and `studio voice` reports those boards `current` (story 405's planner).
 - The proxy key is answered by the delivery's proxy.
 - The transcript check's version `1`, its 16 kHz mono input and the PoC's word-level
   comparison; its result document.
-- The engine matching rules, the unregistered engine, the credit text.
+- The engine matching rules, the unregistered engine, the credit text (no hardware
+  unless the engine reported it), the order of restriction for an engine's licence.
+- The transcript check runs in the service phase (it is a service call), on a master the
+  cache holds; the offline phase reads it from the cache only.
 - The codes above; `--toolchain`, `--studio-commit`, the library file as a JSON array.

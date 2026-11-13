@@ -588,7 +588,10 @@
           "pattern": "^[0-9a-f]{64}$"
         },
         "segment_key": {
-          "type": "string",
+          "type": [
+            "string",
+            "null"
+          ],
           "pattern": "^sha256:[0-9a-f]{64}$"
         },
         "segment_note": {

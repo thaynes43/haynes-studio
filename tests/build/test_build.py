@@ -89,6 +89,13 @@ def test_provenance_names_every_engine_with_its_licence_and_credits_only_video_v
     assert set(engines["wan-ti2v"]["used_by"]) >= {f.LOOP["a"], f.LOOP["b"], f.SET_LOOP}
     credits = {c["engine_key"] for c in prov["public"]["credits"]}
     assert credits == {"wan-s2v", "wan-ti2v", "kokoro"}  # no image, check or writer engine
+    # The register's "where" (deployments, nodes) stays private: never in a credit.
+    assert engines["kokoro"]["hardware"] == "ai/deploy/kokoro"
+    assert not any("ai/" in c["text"] or "talos" in c["text"] for c in prov["public"]["credits"])
+    # An engine's licence is the most restrictive of its files (section 7): the fake
+    # engine reports a file the register does not name, whose terms are unknown.
+    assert engines["wan-s2v"]["licence"]["commercial_use"] == "unknown"
+    assert engines["kokoro"]["licence"]["commercial_use"] == "allowed"
     assert prov["public"]["ai_generated"] is True
     assert [i["id"] for i in prov["inputs_externally_generated"]] == [f.PHOTO]  # D42
     toolchain = prov["toolchain"]
@@ -141,6 +148,14 @@ def test_a_finished_run_is_unchanged_by_later_draft_edits(world, voiced, first):
     with pytest.raises(BuildError) as error:
         advance(first.run, "running", at=f.NOW, by=f.OPERATOR, reason="again")
     assert error.value.code == "run.transition"
+    # A writer holding an older version cannot append to a terminal run either.
+    older = records.history(run_id)[1]  # the running version
+    assert older["status"] == "running"
+    stale = advance(older, "failed", at=f.NOW, by=f.OPERATOR, reason="a late writer")
+    with pytest.raises(BuildError) as error:
+        RunRecords(world.store, f.PRODUCTION).write(stale)
+    assert error.value.code == "run.transition"
+    assert records.latest(run_id)["status"] == "succeeded"
 
 
 def test_the_snapshot_is_the_same_bytes_for_the_same_draft_and_holds_no_run(world, voiced):
@@ -167,3 +182,13 @@ def test_the_snapshot_blob_is_where_the_run_says(world, first):
     assert snapshot["locator"] == blob_locator(f.PRODUCTION, snapshot["sha256"], "application/json")
     assert world.store.verify(snapshot["locator"], snapshot["sha256"]) == "present"
     assert snapshot["board_count"] == 3 and snapshot["story_revision"] == 1
+
+
+def test_the_transcript_comparison_is_the_pocs_word_by_word_with_tolerances():
+    from haynes_studio.build.transcript import compare
+    assert compare("Go team two", "Go, team two.", {"2": "two"}) == {
+        "exact_match": True, "match_with_tolerances": True, "tolerances_used": []}
+    assert compare("go team 2", "Go, team two.", {"2": "two"})["tolerances_used"] == ["2"]
+    assert not compare("stop team 2", "Go, team two.", {"2": "two"})["match_with_tolerances"]
+    # A tolerance applies to the heard words only, so the script's own "2" still matches.
+    assert compare("Go team 2", "Go, team 2.", {"2": "two"})["exact_match"]

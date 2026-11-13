@@ -143,10 +143,11 @@ def _build_parsers(commands) -> None:
                     "and the delivery with its phone proxy. The run is recorded in the store.")
     _store_and_story(build)
     phase = build.add_mutually_exclusive_group()
-    phase.add_argument("--phase", choices=("service",), help="only fill the cache with clips "
-                       "through the live clip sources")
+    phase.add_argument("--phase", choices=("service",), help="only make what needs a service: "
+                       "clips through the live clip sources, and the transcript check of a "
+                       "master the cache already holds")
     phase.add_argument("--offline", action="store_true", help="build from the cache only; any "
-                       "clip it lacks stops the run (no service is called)")
+                       "clip or transcript check it lacks stops the run (no service is called)")
     build.add_argument("--workers", type=int, default=1, metavar="N",
                        help="render boards in up to N processes (default 1)")
     build.add_argument("--register", metavar="REGISTER", default=_REGISTER,
@@ -659,7 +660,7 @@ def _build(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
     try:
         result = studio_build.build_story(
             inputs, store=store, phase=phase, sources=sources,
-            transcriber=None if phase == "service" else args.clients.transcriber(),
+            transcriber=None if phase == "offline" else args.clients.transcriber(),
             actor=operator, earlier_runs=earlier, workers=args.workers,
             run_number=len(earlier) + 1)
     except PreflightError as error:  # nothing to snapshot: no run is made

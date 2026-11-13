@@ -144,14 +144,22 @@ class RunRecords:
         return dict(run)
 
     def write(self, run: Mapping[str, Any]) -> dict[str, Any]:
-        """Record the next version of a run (create-only: a concurrent writer of the
-        same version makes this ``store.collision``)."""
+        """Record the next version of a run. The stored versions are counted again
+        first: a run another writer moved since this one read it, or one whose stored
+        status is terminal, is ``run.transition``; two writers of the same next version
+        race to a create-only name, and the loser gets ``store.collision``."""
         run_id = check_run_id(run["id"])
-        current = self._versions.get(run_id)
-        if current is None:
-            current = self._count(run_id)
-            if current == 0:
-                raise BuildError(RUN_UNKNOWN, f"no run {run_id} in {self.production_id}")
+        current = self._count(run_id)
+        if current == 0:
+            raise BuildError(RUN_UNKNOWN, f"no run {run_id} in {self.production_id}")
+        known = self._versions.get(run_id)
+        if known is not None and known != current:
+            raise BuildError(RUN_TRANSITION, f"run {run_id} was moved by another writer "
+                             f"(version {current}, this writer read {known})")
+        stored = self._read(run_id, current)
+        if stored["status"] in TERMINAL:
+            raise BuildError(RUN_TRANSITION, f"run {run_id} is {stored['status']}; a terminal run "
+                             "never changes")
         commit_stage(self.store, production_id=self.production_id, run_id=run_id,
                      stage=version_stage(current + 1),
                      outputs={RUN_OUTPUT: StageOutput(self._check(run), JSON)})
@@ -166,17 +174,19 @@ class RunRecords:
             number += 1
         return number
 
+    def _read(self, run_id: str, number: int) -> dict[str, Any]:
+        record = completed_stage(self.store, production_id=self.production_id, run_id=run_id,
+                                 stage=version_stage(number))
+        with self.store.open(record.blobs[RUN_OUTPUT].locator) as handle:
+            return json.loads(handle.read())
+
     def latest(self, run_id: str) -> dict[str, Any] | None:
         """The run's newest recorded document, or ``None`` for an unknown run."""
         number = self._count(check_run_id(run_id))
         if number == 0:
             return None
         self._versions[run_id] = number
-        record = completed_stage(self.store, production_id=self.production_id, run_id=run_id,
-                                 stage=version_stage(number))
-        blob = record.blobs[RUN_OUTPUT]
-        with self.store.open(blob.locator) as handle:
-            return json.loads(handle.read())
+        return self._read(run_id, number)
 
     def history(self, run_id: str) -> list[dict[str, Any]]:
         """Every recorded version of the run, oldest first."""
