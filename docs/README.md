@@ -13,6 +13,7 @@
 | [proposals/0003-studio-plan.md](proposals/0003-studio-plan.md) | you are planning or building the studio: decisions, product model, pipeline, epics |
 | [contracts/README.md](contracts/README.md) | you are building any E1 or later story: the canonical contract (vocabulary and legacy mapping, IDs, time, cache, methods, provenance, store, API and MCP operations, stack, tests) with JSON examples |
 | [reference/studio-model.md](reference/studio-model.md) | you are building on productions, stories or boards: the canonical schemas, validators and their contexts, derived timing, the facts the asset library supplies, and the legacy import |
+| [reference/store-and-stages.md](reference/store-and-stages.md) | you are publishing or reading media, committing a build stage, or checking a story before a build: the store layout and locators, create-only publication, stage records, `store doctor` and the pre-build check |
 | [design/studio-ui-mockup/index.html](design/studio-ui-mockup/index.html) | you are building the studio UI (E6) or its API (E3, E9): the clickable storyboard mockup, with API notes per panel |
 | [design/studio-ui-mockup/implementation-backlog.md](design/studio-ui-mockup/implementation-backlog.md) | you are picking up UI or API work: each mockup surface mapped to its OpenProject story, with order and blockers |
 | [proposals/0002-agentic-studio.md](proposals/0002-agentic-studio.md) | history: the first plan and where the PoC's assistance went (superseded by 0003) |
