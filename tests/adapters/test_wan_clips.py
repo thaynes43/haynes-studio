@@ -1314,7 +1314,10 @@ def test_g12_the_file_journal_appends_one_fsynced_line_per_event(tmp_path, monke
     assert len(flags) == 5 and all(f & os.O_APPEND and not f & os.O_TRUNC for f in flags)
     assert flags[0] & os.O_EXCL and flags[0] & os.O_CREAT  # created once, then opened to append
     assert synced.count(path.stat().st_ino) == 5  # every line synced
-    assert synced.count(tmp_path.stat().st_ino) == 1  # and the directory that got the new file
+    assert synced.count(tmp_path.stat().st_ino) == 2  # and the directory, once per new file
+    lock = [f for target, f in opened if target == os.fspath(path) + ".lock"]
+    assert len(lock) == 5 and all(not f & (os.O_WRONLY | os.O_RDWR | os.O_TRUNC) for f in lock)
+    assert (tmp_path / "wan-journal.jsonl.lock").stat().st_size == 0  # never written
     assert all(b.startswith(a) and b.count(b"\n") == a.count(b"\n") + 1 for a, b in zip(contents, contents[1:]))
     assert FileJournal(path).load() is None and FileJournal(path).load_halt() is None
 
@@ -1413,6 +1416,10 @@ def test_g13_a_journal_another_holder_has_is_refused_before_anything_runs(journa
     client = client_for(runner, journal=journal)
     other = reopen(journal) if isinstance(journal, MemoryJournal) else FileJournal(journal.path)
     other.hold()
+    if isinstance(journal, FileJournal):  # an append outside a call holds it too
+        with pytest.raises(WanError) as caught:
+            FileJournal(journal.path).remember("a" * 32, IN_FLIGHT, "0" * 64)
+        assert caught.value.code == BUSY
     for call in (lambda: client.render(i2v()), lambda: client.recover(i2v(), "a" * 32)):
         with pytest.raises(WanError) as caught:
             call()
@@ -1424,13 +1431,15 @@ def test_g13_a_journal_another_holder_has_is_refused_before_anything_runs(journa
 
 
 def test_g13_a_second_process_on_the_file_journal_is_refused(tmp_path):
-    """The same, with a real second process holding the journal's flock."""
+    """The same, with a real second process holding the journal's lock file."""
     path = tmp_path / "wan-journal.jsonl"
+    path.write_bytes(b"")  # as the holder's first hold would have left it
     pod = FakeWan()
     runner = FakeRunner(pod)
     with subprocess.Popen(
             [sys.executable, "-I", "-c", "import fcntl,os,sys;fd=os.open(sys.argv[1],os.O_RDONLY|os.O_CREAT,0o600);"
-             "fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB);print('held',flush=True);sys.stdin.read()", str(path)],
+             "fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB);print('held',flush=True);sys.stdin.read()",
+             str(path) + ".lock"],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True) as holder:
         try:
             assert holder.stdout.readline().strip() == "held"
@@ -1440,6 +1449,198 @@ def test_g13_a_second_process_on_the_file_journal_is_refused(tmp_path):
             holder.stdin.close()  # the holder exits, and its flock goes with it
             holder.wait(30)
     assert client_for(runner, journal=FileJournal(path)).render(i2v()).frames == 9
+
+
+SECOND_PROCESS = """
+import sys
+from haynes_studio.adapters.errors import WanError
+from haynes_studio.adapters.fakes import FakeRunner, FakeWan, synthetic_png
+from haynes_studio.adapters.wan import FileJournal, ImageToVideo, WanClipClient
+pod = FakeWan()
+request = ImageToVideo(image_png=synthetic_png(seed=3), prompt="b", seed=1, width=64, height=128, length=9,
+                       story="https://work.haynesnetwork.com/work_packages/428")
+try:
+    WanClipClient(FakeRunner(pod), journal=FileJournal(sys.argv[1])).render(request)
+    print("rendered", len(pod.submitted))
+except WanError as error:
+    print(error.code, len(pod.submitted))
+try:
+    FileJournal(sys.argv[1]).hold()
+    print("held")
+except WanError as error:
+    print(error.code)
+"""
+
+
+def second_process(path):
+    """A real second process on the same journal path, with its own fake pod (so its own
+    cool checks pass): its render's outcome code, how many prompts it submitted, and what
+    a bare ``hold()`` of the journal then gives."""
+    done = subprocess.run([sys.executable, "-I", "-c", SECOND_PROCESS, str(path)], capture_output=True,
+                          text=True, timeout=120, env={"OMP_NUM_THREADS": "1", "PATH": os.environ.get("PATH", "")})
+    code, submitted, hold = done.stdout.split()[-3:]
+    return code, int(submitted), hold
+
+
+@pytest.mark.parametrize("move,refusal", [("unlink", "adapter.journal_failed"), ("rename", "adapter.journal_failed"),
+                                          ("replace", "adapter.busy")])
+def test_g17_a_journal_moved_while_held_lets_no_second_process_submit(tmp_path, move, refusal):
+    """Review 3 finding 1, the reviewer's sequence: A journals its job and blocks in its
+    first probe; the journal path is unlinked, renamed, or replaced by a fresh file; B, a
+    real second process on that path, must be refused with nothing submitted (a missing
+    journal beside its lock file is refused when B is made; a fresh file there by the
+    lock A holds), and the lock refuses B in every case; A, released, must stop before it
+    uploads or submits, its job still unsettled in memory."""
+    path = tmp_path / "wan-journal.jsonl"
+    pod = FakeWan()
+    runner = FakeRunner(pod)
+    paused = Paused(runner, "wan_probe.py")
+    client = client_for(paused, journal=FileJournal(path))
+    thread, outcomes = in_thread(lambda: client.render(i2v()))
+    try:
+        assert paused.inside.wait(30)
+        if move == "rename":
+            path.rename(tmp_path / "moved.jsonl")
+        else:
+            path.unlink()
+        if move == "replace":
+            path.write_bytes(b"")
+        assert second_process(path) == (refusal, 0, "adapter.busy")
+    finally:
+        paused.go.set()
+        thread.join(30)
+    error = outcomes[0]
+    assert isinstance(error, WanError) and error.code == JOURNAL_FAILED, error
+    assert "removed or replaced while" in str(error) or "removed or replaced while" in str(error.__context__)
+    assert snippets(runner) == ["wan_probe.py"] and runs(runner) == 0
+    nothing_submitted(pod)
+    assert WanClipClient.in_flight().state == IN_FLIGHT  # still on record in this process
+
+
+def test_g17_the_lock_file_removed_while_held_stops_the_holder_and_the_journal_still_blocks(tmp_path):
+    """The lock file is the client's to keep: if a person removes it while A holds it, A
+    stops at its next check, and B, which can then lock a new lock file, still finds A's
+    job in the journal and submits nothing."""
+    path = tmp_path / "wan-journal.jsonl"
+    pod = FakeWan()
+    runner = FakeRunner(pod)
+    paused = Paused(runner, "wan_probe.py")
+    thread, outcomes = in_thread(lambda: client_for(paused, journal=FileJournal(path)).render(i2v()))
+    try:
+        assert paused.inside.wait(30)
+        (tmp_path / "wan-journal.jsonl.lock").unlink()
+        assert second_process(path) == ("adapter.busy", 0, "held")  # A's job, no ledger yet
+    finally:
+        paused.go.set()
+        thread.join(30)
+    assert outcomes[0].code == JOURNAL_FAILED and runs(runner) == 0
+    nothing_submitted(pod)
+
+
+def test_g17_a_journal_replaced_during_the_run_gets_none_of_the_holders_later_lines(tmp_path):
+    path = tmp_path / "wan-journal.jsonl"
+    pod = FakeWan()
+    runner = FakeRunner(pod)
+    paused = Paused(runner, "wan_run.py")
+    thread, outcomes = in_thread(lambda: client_for(paused, journal=FileJournal(path)).render(i2v()))
+    try:
+        assert paused.inside.wait(30)
+        path.rename(tmp_path / "moved.jsonl")
+        path.write_bytes(b"")
+    finally:
+        paused.go.set()
+        thread.join(30)
+    assert outcomes[0].code == JOURNAL_FAILED
+    assert path.read_bytes() == b""  # nothing of A's landed in the new file
+    assert WanClipClient.in_flight().job_id == pod.payloads[0]["job"]["id"]  # still held in memory
+    assert events(FileJournal(tmp_path / "moved.jsonl")) == ["remember in_flight"]
+
+
+@pytest.mark.parametrize("move", ["unlink", "rename", "replace"])
+@pytest.mark.parametrize("use", ["read", "append"])
+def test_g17_a_held_file_journal_refuses_to_read_or_append_after_it_moved(tmp_path, move, use):
+    path = tmp_path / "wan-journal.jsonl"
+    journal = FileJournal(path)
+    journal.hold()
+    try:
+        journal.remember(A, IN_FLIGHT, G)
+        if move == "rename":
+            path.rename(tmp_path / "moved.jsonl")
+        else:
+            path.unlink()
+        if move == "replace":
+            path.write_bytes(b"")
+        with pytest.raises(WanError) as caught:
+            journal.read_state() if use == "read" else journal.settle(A, "cleared")
+        assert caught.value.code == JOURNAL_FAILED and "while this call held it" in str(caught.value)
+    finally:
+        journal.release()
+    assert not path.exists() or path.read_bytes() == b""
+
+
+def test_g17_a_missing_journal_beside_its_lock_file_is_refused(tmp_path):
+    """Review 3, decision 3: missing on first use is empty; missing after use is not."""
+    path = tmp_path / "wan-journal.jsonl"
+    pod = FakeWan()
+    runner = FakeRunner(pod)
+    assert client_for(runner, journal=FileJournal(path)).render(i2v()).frames == 9  # first use
+    assert path.exists() and (tmp_path / "wan-journal.jsonl.lock").exists()
+    path.unlink()  # removed between runs
+    with pytest.raises(WanError) as caught:
+        client_for(runner, journal=FileJournal(path))
+    assert caught.value.code == JOURNAL_FAILED and "delete the lock file too" in str(caught.value)
+    with pytest.raises(WanError) as caught:
+        FileJournal(path).hold()
+    assert caught.value.code == JOURNAL_FAILED and not path.exists()
+    assert runs(runner) == 1
+    (tmp_path / "wan-journal.jsonl.lock").unlink()  # a person, after checking the service
+    assert client_for(runner, journal=FileJournal(path), ids=Ids(100)).render(i2v(seed=8)).frames == 9
+
+
+@pytest.mark.parametrize("data", [None, b""], ids=["removed", "replaced"])
+@pytest.mark.parametrize("during,steps", [
+    (1, ["wan_probe.py"]), (2, ["wan_probe.py", "wan_upload.py"]),
+    (3, ["wan_probe.py", "wan_upload.py", "wan_probe.py"]),
+], ids=["first-probe", "upload", "second-probe"])
+def test_g17_a_memory_journal_removed_or_replaced_while_held_stops_the_call(data, during, steps):
+    """Checked after each step that sends a command: nothing more is sent once it moved."""
+    pod = FakeWan()
+    runner = FakeRunner(pod)
+    journal = MemoryJournal()
+
+    class Swap:
+        def run(self, command):
+            if len(runner.calls) + 1 == during:
+                journal.replace(data)
+            return runner.run(command)
+    error = refused(pod, client_for(Swap(), journal=journal), i2v(), JOURNAL_FAILED)
+    assert "removed or replaced while" in str(error) or "removed or replaced while" in str(error.__context__)
+    assert snippets(runner) == steps and runs(runner) == 0
+    assert WanClipClient.in_flight().state == IN_FLIGHT and not journal.held
+
+
+def test_g17_a_memory_journal_removed_after_use_is_refused():
+    journal = MemoryJournal()
+    pod = FakeWan()
+    runner = FakeRunner(pod)
+    client_for(runner, journal=journal).render(i2v())
+    journal.replace(None)
+    with pytest.raises(WanError) as caught:
+        client_for(runner, journal=journal)
+    assert caught.value.code == JOURNAL_FAILED
+    with pytest.raises(WanError):
+        journal.hold()
+    assert MemoryJournal(None).load() is None  # never used: empty
+
+
+def test_g17_two_journal_objects_on_one_path_in_one_process_write_through_the_held_one(tmp_path):
+    path = tmp_path / "wan-journal.jsonl"
+    pod = FakeWan(lose="timeout", lost_state="failed")
+    runner = FakeRunner(pod)
+    refused(pod, client_for(runner, journal=FileJournal(path)), i2v(), TIMEOUT)
+    pod.lose = None
+    assert client_for(runner, journal=FileJournal(path), ids=Ids(100)).render(i2v(seed=8)).frames == 9
+    assert events(FileJournal(path))[:2] == ["remember in_flight", "settle failed"]
 
 
 def test_g13_the_journal_is_held_and_the_job_on_record_from_the_first_probe(tmp_path):
