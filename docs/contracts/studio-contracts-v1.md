@@ -564,9 +564,14 @@ Every asset version, every run engine and every engine file has a `licence` obje
 `noncommercial` or `unknown`), `attribution_required`, `checked_at`, `checked_by`, `note`.
 A licence moves from `unknown` to a checked value by an appended record; content and
 provenance never change. Unknown licences never block Build. What they block at release
-is Held **Q-01**. Proposal 0003 lists Stable Audio, Kokoro and Qwen terms as unchecked.
-The S2V model files from haynes-ops PR 4625 are Apache-2.0; the lightning LoRA's terms
-(PR 4634) are not recorded in this repository.
+is Held **Q-01**. The terms of every engine and model file the studio uses are in the
+licence register, [`model-licences.json`](../reference/model-licences.json) with
+[its page](../reference/model-licences.md) (story 809, checked 2026-11-13, D48); a
+version, engine or file takes its licence object from there, and the examples do. A
+licence object records the model's terms for what it makes, not the studio's own rights,
+which are reserved ([RIGHTS.md](../../RIGHTS.md)). A conditional term (commercial use
+only after registration or under a revenue limit) has no `commercial_use` value of its
+own: it is `unknown`, with the conditions in `note` (proposal).
 
 ### Runs
 

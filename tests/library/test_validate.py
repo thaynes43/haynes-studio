@@ -158,7 +158,7 @@ SCHEMA_CASES = [
     (cast, _set(["licence"], None), "prov.licence_missing", "/licence"),
     (cast, _set(["licence", "commercial_use"], _DELETE), "prov.licence_missing", "/licence"),
     (cast, lambda d: d["licence"].update(commercial_use="allowed", name="Apache-2.0",
-                                         checked_at="2026-11-13T08:00:00Z"),
+                                         checked_at="2026-11-13T08:00:00Z", checked_by=None),
      "schema.invalid", "/licence/checked_by"),
     (photo, _set(["provenance", "external"], None), "prov.external_incomplete", "/provenance/external"),
     (photo, _set(["provenance", "external"], _DELETE),
