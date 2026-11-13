@@ -555,8 +555,9 @@ def _journal_busy(name: Any) -> WanError:
 
 
 # Each event's keys besides "v", "event" and "at".
-_EVENT_KEYS = {"remember": {"job_id", "state", "graph_sha256"}, "settle": {"job_id", "outcome"},
-               "halt": {"job_id", "unexpected_work_seen"}, "clear_halt": {"job_id"}}
+_EVENT_KEYS = {"created": set(), "remember": {"job_id", "state", "graph_sha256"},
+               "settle": {"job_id", "outcome"}, "halt": {"job_id", "unexpected_work_seen"},
+               "clear_halt": {"job_id"}}
 
 
 def _event_problem(event: Any) -> str | None:
@@ -565,6 +566,8 @@ def _event_problem(event: Any) -> str | None:
         return "not a version 1 event"
     if set(event) != _EVENT_KEYS[event["event"]] | {"v", "event", "at"} or not isinstance(event["at"], str):
         return f"{event['event']} has other keys than {sorted(_EVENT_KEYS[event['event']])} and at"
+    if event["event"] == "created":
+        return None
     if not isinstance(event["job_id"], str) or not JOB_ID.fullmatch(event["job_id"]):
         return "job_id is not a Wan job ID"
     if event["event"] == "remember" and (event["state"] not in (IN_FLIGHT, UNCOLLECTED)
@@ -609,7 +612,7 @@ class Journal:
     def __init__(self, *, wall=time.time):
         self.wall = wall
 
-    def _read(self) -> bytes:
+    def _read(self) -> bytes | None:
         raise NotImplementedError
 
     def _append(self, line: bytes) -> None:
@@ -650,6 +653,12 @@ class Journal:
     def clear_halt(self, job_id: str) -> None:
         self._write({"event": "clear_halt", "job_id": job_id})
 
+    def _created_line(self) -> bytes:
+        """The first line of every journal file, written when it is created."""
+        event = {"v": 1, "event": "created", "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self.wall()))}
+        assert _event_problem(event) is None
+        return (json.dumps(event) + "\n").encode()
+
     def _write(self, event: dict) -> None:
         event = {"v": 1, **event, "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self.wall()))}
         problem = _event_problem(event)
@@ -662,11 +671,16 @@ class Journal:
             raise _journal_error(f"the journal could not be written ({type(error).__name__})") from None
 
     def read_state(self) -> JournalState:
-        """One read of the journal, replayed."""
+        """One read of the journal, replayed. A journal not created yet is empty; one that
+        exists must start with its ``created`` line."""
         try:
             data = self._read()
         except OSError as error:
             raise _journal_error(f"the journal could not be read ({type(error).__name__})") from None
+        if data is None:  # first use: nothing created yet
+            return JournalState(None, None, frozenset())
+        if not data:
+            raise _journal_error(_EMPTIED)
         if data and not data.endswith(b"\n"):
             raise _journal_error("the journal's last line is incomplete")
         try:
@@ -684,6 +698,11 @@ class Journal:
             problem = _event_problem(event)
             if problem:
                 raise _journal_error(f"journal line {number}: {problem}")
+            if (event["event"] == "created") != (number == 1):  # the first line, and only it
+                raise _journal_error(_EMPTIED if number == 1 else
+                                     f"journal line {number} is a second created line")
+            if event["event"] == "created":
+                continue
             kind, job_id = event["event"], event["job_id"]
             if kind == "remember":
                 if job is not None and (job.job_id != job_id or job.graph_sha256 != event["graph_sha256"]):
@@ -709,16 +728,17 @@ class Journal:
 
 class MemoryJournal(Journal):
     """A journal in memory, lost with the process: for tests only. ``data`` holds the
-    lines exactly as :class:`FileJournal` writes them (``None``: the journal was
-    removed); ``held`` models the lock file, ``used`` that the lock file exists. It keeps
+    lines exactly as :class:`FileJournal` writes them, its ``created`` line first
+    (``None``: not created yet, or removed once used); ``held`` models the lock file,
+    ``used`` that the lock file exists. It keeps
     a :class:`FileJournal`'s rules: an append outside a call holds it for that append; a
     journal removed or replaced (:meth:`replace`) while held is
     ``adapter.journal_failed`` at the next read, append or :meth:`check`; and one removed
     after it was used is ``adapter.journal_failed`` until a person starts it afresh."""
 
-    def __init__(self, data: bytes | None = b"", *, wall=time.time):
+    def __init__(self, data: bytes | None = None, *, wall=time.time):
         super().__init__(wall=wall)
-        self.data = data
+        self.data = data  # None: not created yet (or removed, once used)
         self.held = False
         self.used = False
         self._generation = 0
@@ -734,12 +754,12 @@ class MemoryJournal(Journal):
         if self.held and self._generation != self._held_generation:
             raise _journal_error(_moved("in memory"))
 
-    def _read(self) -> bytes:
+    def _read(self) -> bytes | None:
         self.check()
         if self.data is None:
             if self.used:
                 raise _journal_error(_missing_after_use("in memory"))
-            return b""
+            return None
         return self.data
 
     def _append(self, line: bytes) -> None:
@@ -759,7 +779,7 @@ class MemoryJournal(Journal):
         if self.data is None and self.used:
             raise _journal_error(_missing_after_use("in memory"))
         if self.data is None:
-            self.data = b""  # first use
+            self.data = self._created_line()  # first use
         self.held, self.used, self._held_generation = True, True, self._generation
 
     def release(self) -> None:
@@ -810,16 +830,21 @@ class FileJournal(Journal):
 
     :meth:`hold` takes an exclusive ``flock`` on the lock file without waiting, so a
     second process (or a second ``FileJournal`` on the same path) is refused while one
-    call holds it, whether or not the journal file still exists. The lock file is
+    call holds it, whether or not the journal file still exists; then one on the journal
+    file itself, so a second name for it (a symlink, a hard link: another lock file) is
+    refused too, before it reads anything. The lock file is
     created if missing and is never written, replaced or deleted by the client. While
     held, the journal is read and appended only through one descriptor on the journal
     file, and before each read, append and :meth:`check` the path of the journal and of
     the lock file must still name the files those descriptors hold; a journal removed or
     replaced while in use is ``adapter.journal_failed``. Each event is one ``os.write``
     to that descriptor (opened ``O_APPEND``), then ``fsync``; a new file's directory is
-    synced too. The journal is never rewritten, truncated or deleted. A missing journal
-    is an empty one on first use only: with its lock file present it was removed
-    between runs, and that is ``adapter.journal_failed`` too. An append outside a call
+    synced too. The journal is never rewritten, truncated or deleted. Its first line,
+    written when the file is created and before any job, is ``created``; a journal file
+    that is empty or does not start with it was emptied or replaced, and is
+    ``adapter.journal_failed``. A missing journal is an empty one on first use only: with
+    its lock file present it was removed between runs, and that is
+    ``adapter.journal_failed`` too. An append outside a call
     holds the journal for that append. Keep both files under the store root, the same
     path for every run."""
 
@@ -840,7 +865,7 @@ class FileJournal(Journal):
         if not _same_file(self.path, self._fd) or not _same_file(self.lock_path, self._lock_fd):
             raise _journal_error(_moved(self.path))
 
-    def _read(self) -> bytes:
+    def _read(self) -> bytes | None:
         if self._fd is not None:
             self.check()
             size, chunks, offset = os.fstat(self._fd).st_size, [], 0
@@ -856,7 +881,7 @@ class FileJournal(Journal):
         except FileNotFoundError:
             if self.lock_path.exists():
                 raise _journal_error(_missing_after_use(self.path)) from None
-            return b""
+            return None  # first use
 
     def _append(self, line: bytes) -> None:
         if self._fd is None:  # outside a call: hold the journal for this one append
@@ -890,15 +915,39 @@ class FileJournal(Journal):
                                  "on a local file system") from None
         try:
             try:
-                fd = os.open(self.path, os.O_RDWR | os.O_APPEND | getattr(os, "O_CLOEXEC", 0))
+                fd, created = os.open(self.path, os.O_RDWR | os.O_APPEND | getattr(os, "O_CLOEXEC", 0)), False
             except FileNotFoundError:
                 if not first_use:  # the lock file shows it was used: it was removed since
                     raise _journal_error(_missing_after_use(self.path)) from None
-                fd, _ = _create_or_open(self.path, os.O_RDWR | os.O_APPEND)
+                fd, made = _create_or_open(self.path, os.O_RDWR | os.O_APPEND)
+                created = True  # it did not exist a moment ago, and the lock file is held
+                if not made:  # created through a symlink (O_EXCL refuses one): sync its directory
+                    _sync_directory(Path(os.path.realpath(self.path)).parent)
         except OSError as error:
             _unlock(lock_fd)
             raise _journal_error(f"the journal could not be opened ({type(error).__name__})") from None
         except BaseException:
+            _unlock(lock_fd)
+            raise
+        try:
+            # The journal file itself too: another name for it (a symlink, a hard link) has
+            # another lock file, but not another file.
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            if created:  # its first line, before any job can be remembered
+                line = self._created_line()
+                if os.write(fd, line) != len(line):
+                    raise OSError(errno.EIO, "short write to the journal")
+                os.fsync(fd)
+        except BlockingIOError:
+            os.close(fd)
+            _unlock(lock_fd)
+            raise _journal_busy(self.path) from None
+        except OSError as error:
+            os.close(fd)
+            _unlock(lock_fd)
+            raise _journal_error(f"the journal could not be locked or started ({type(error).__name__})") from None
+        except BaseException:
+            os.close(fd)
             _unlock(lock_fd)
             raise
         self._lock_fd, self._fd = lock_fd, fd
@@ -919,6 +968,13 @@ def _unlock(lock_fd: int) -> None:
         fcntl.flock(lock_fd, fcntl.LOCK_UN)
     finally:
         os.close(lock_fd)
+
+
+_EMPTIED = ("the journal is empty or does not start with its created line: it was emptied or "
+            "replaced, or the call that created it stopped before writing that line (that call "
+            "submitted nothing: the created line is written before any job is remembered, and a "
+            "job is remembered before the first probe). A person inspects the Wan service, then "
+            "removes the journal and its lock file to start afresh")
 
 
 def _moved(name: Any) -> str:

@@ -265,11 +265,11 @@ request needs a drive track of `board_frames / 24` seconds to one sample (TIME-9
 Each guard stops before anything is submitted unless the row says otherwise. Tests
 are in [`test_wan_clips.py`](../../tests/adapters/test_wan_clips.py) unless a file is
 named. A mutation run removed each client-side guard in turn (42 mutations), and a
-named test failed every time (story 842's PR). The fixes for the three cross-family
+named test failed every time (story 842's PR). The fixes for the four cross-family
 reviews of that PR (findings 1 to 7 of the first, R2-1 to R2-9 of the second, R3-1 of
-the third, marked below) were checked the same way: 83 mutations of the new and
+the third, R4-1 and R4-2 of the fourth, marked below) were checked the same way: 94 mutations of the new and
 changed guards, the fetch snippet's redirect check among them, each failing a named
-test. The other
+test (the journal's 63 run again after the fourth review). The other
 in-pod guards are the PoC's snippets byte for byte
 ([`test_wan_compat.py`](../../tests/adapters/test_wan_compat.py)), and the fake pod runs
 them.
@@ -277,7 +277,7 @@ them.
 | # | Guard | PoC line | Client | Test |
 |---|---|---|---|---|
 | 1 | Template and snippets pinned, checked before any command; the template's edited nodes have their classes | `poc/wan.py` 107-111 (the PoC checked after uploading, from a mutable checkout) | `_check_pins`, `i2v_graph` | `test_g10_a_changed_template_or_snippet_is_refused_before_anything_runs` |
-| 2 | The client needs a journal and loads it when made. Each `render` and `recover` holds it for its whole length by a lock on its `.lock` sibling (a second process on the path, or a second `FileJournal` on it, is `adapter.busy` before anything runs, whether or not the journal file still exists) and reads it once; while held it is read and appended only through one descriptor, and before each read, append and each step that sends a command both paths must still name the held files, else `adapter.journal_failed` and nothing more is sent, the job staying unsettled in memory; a journal missing beside its lock file (removed between runs) is `adapter.journal_failed`, one missing with no lock file a first use: a job or halt an earlier process left there blocks this one as its own; what memory holds from that journal follows it (another process may have settled it); a held job or halt the journal no longer names (the file was replaced or cut), a journal that is not read exactly (a malformed or incomplete line, two unsettled jobs, a settle or clear of something not set) or cannot be read is `adapter.journal_failed`; a journal job other than the one the process holds is `adapter.busy` | new (findings 6, R2-2, R3-1) | `__init__`, `_exclusive`, `_adopt`, `render`, `Journal.read_state`, `FileJournal.hold`, `FileJournal.check`, `MemoryJournal` | `test_g17_*` (a real second process after the journal is unlinked, renamed or replaced, and after the lock file is removed), `test_g12_*`, `test_g13_a_journal_another_holder_has_is_refused_before_anything_runs`, `test_g13_a_second_process_on_the_file_journal_is_refused`, `test_g13_one_read_of_the_journal_per_call`, `test_g13_a_job_another_process_settled_is_dropped_not_settled_twice`, `test_g13_a_journal_that_no_longer_names_what_the_process_holds_is_refused` |
+| 2 | The client needs a journal and loads it when made. Each `render` and `recover` holds it for its whole length by a lock on its `.lock` sibling (a second process on the path, or a second `FileJournal` on it, is `adapter.busy` before anything runs, whether or not the journal file still exists) and reads it once; while held it is read and appended only through one descriptor, and before each read, append and each step that sends a command both paths must still name the held files, else `adapter.journal_failed` and nothing more is sent, the job staying unsettled in memory; a second name for the same file (a symlink, a hard link) is refused by a lock on the journal file itself; a journal's first line is `created`, written before any job, and a journal missing beside its lock file (removed between runs), empty, or not starting with exactly one `created` line (emptied or replaced) is `adapter.journal_failed`, one missing with no lock file a first use; a journal overwritten with another valid journal is outside what it guards (see the threat model): a job or halt an earlier process left there blocks this one as its own; what memory holds from that journal follows it (another process may have settled it); a held job or halt the journal no longer names (the file was replaced or cut), a journal that is not read exactly (a malformed or incomplete line, two unsettled jobs, a settle or clear of something not set) or cannot be read is `adapter.journal_failed`; a journal job other than the one the process holds is `adapter.busy` | new (findings 6, R2-2, R3-1, R4-1, R4-2) | `__init__`, `_exclusive`, `_adopt`, `render`, `Journal.read_state`, `FileJournal.hold`, `FileJournal.check`, `MemoryJournal` | `test_g17_*` (a real second process after the journal is unlinked, renamed or replaced, and after the lock file is removed), `test_g18_*` (a symlink and a hard link, in one process and with a real second process before either remembers), `test_g19_*` (a journal emptied, truncated, replaced by an empty file or through a retargeted symlink between runs, and the `created` line rules), `test_g12_*`, `test_g13_a_journal_another_holder_has_is_refused_before_anything_runs`, `test_g13_a_second_process_on_the_file_journal_is_refused`, `test_g13_one_read_of_the_journal_per_call`, `test_g13_a_job_another_process_settled_is_dropped_not_settled_twice`, `test_g13_a_journal_that_no_longer_names_what_the_process_holds_is_refused` |
 | 3 | `clear_in_flight()` and `clear_halt()` take the one-job lock without waiting: while a `render` or `recover` runs in this process (another thread, or the runner itself) they are `adapter.busy` and change nothing. They hold the journal too, and write nothing for what another process already settled or cleared | new (R2-1) | `clear_in_flight`, `clear_halt`, `_process_lock` | `test_g13_the_clears_refuse_while_a_render_runs_in_another_thread`, `test_g13_the_clears_refuse_when_called_from_inside_the_run`, `test_g13_a_clear_after_another_process_settled_the_job_writes_nothing`, `test_g13_a_clear_halt_after_another_process_cleared_it_writes_nothing` |
 | 4 | One job per process (`adapter.busy`) | new (the `ImageClient` rule; the PoC ran one job per script) | `render`: `WanClipClient._lock` | `test_g1_one_job_per_process` |
 | 5 | Nothing after foreign engine work was seen, by this process or a later one on the same journal, until `clear_halt()` (`adapter.competing_work`). A halt is never replaced, only extended: foreign work on another job later (a `recover`, or the settle step) keeps the first job's ID and adds the new prompt IDs, first seen first, and the journal gets that whole halt (a `halt` line for another job while one is set is `adapter.journal_failed`); the refusal, the error and what `clear_halt()` hands back name every prompt ID seen | `poc/wan.py` 146-147, `poc/s2v.py` 137-138 (the script stops); extending is new (advisory review) | `_check_halt`, `_latch_halt`, `clear_halt`, `Journal.read_state` | `test_g5_foreign_work_keeps_the_output_and_stops_further_submissions`, `test_g5_a_second_halt_extends_the_first_never_replaces_it`, `test_g5_clear_halt_hands_back_what_another_process_added`, `test_g12_a_later_halt_line_for_the_same_job_extends_the_halt`, `test_g12_a_journal_that_does_not_read_exactly_submits_nothing`, `test_g12_the_halt_outlives_the_process` |
@@ -348,10 +348,11 @@ tests, and models the same hold.
 whole length, and the clears hold it while they write. The lock is a sibling file,
 `<journal>.lock`, created if missing and never written, replaced or deleted by the
 client: `FileJournal` takes an exclusive `flock` on it without waiting
-(`LOCK_EX | LOCK_NB`), after the process's one-job lock, and releases it when the call
-returns. A second process on the same path is refused with `adapter.busy`, naming the
-journal, before it probes, uploads or submits, whether or not the journal file itself
-still exists. `flock` needs a local file system: keep the journal on one (not NFS).
+(`LOCK_EX | LOCK_NB`), after the process's one-job lock, and then the same lock on the
+journal file itself, and releases both when the call returns. A second process on the
+same path is refused with `adapter.busy`, naming the journal, before it reads, probes,
+uploads or submits, whether or not the journal file itself still exists; one on a second
+name for the same file (another lock file) is refused by the journal file's lock. `flock` needs a local file system: keep the journal on one (not NFS).
 
 While it holds the lock, a `FileJournal` reads and appends only through one descriptor
 on the journal file. Before each read, each append, and each step of a `render` that
@@ -367,6 +368,7 @@ holds the journal for that one append.
 
 | Event | Written | Keys besides `v`, `event`, `at` |
 |---|---|---|
+| `created` | once, as the first line, when the file is created | none |
 | `remember` | before the first probe (`state` `in_flight`), and when its ledger reads `succeeded` (`uncollected`) | `job_id`, `state`, `graph_sha256` |
 | `settle` | when the job stops blocking: `collected` (a clip fetched and checked), `failed` (its ledger, and if its prompt was accepted a probe showing the queue empty), `no_submission` (a refusal or failure before the run, a run that never started, or the admission readback refused), `cleared` (`clear_in_flight()`) | `job_id`, `outcome` |
 | `halt` | foreign engine work seen; again, with the first job's ID and every prompt ID so far, when another job sees more | `job_id`, `unexpected_work_seen` |
@@ -387,19 +389,37 @@ discards the only record of a job the engine queue may not show yet.
 
 **Known limit: one journal per store.** The client sees only the journal it was given.
 Another `WanClipClient` given another path does not see this one's job, and only the
-engine queue and the API's lease stand between them.
-
-**A missing journal.** A journal file that is missing when a call starts is an empty
-journal only on first use, with no lock file beside it (the first hold creates both).
-A missing journal beside its lock file was removed between runs: that is
-`adapter.journal_failed`, when the client is made and when a call holds it. A person
-checks the Wan service (its engine queue and ledgers) and may then delete the lock file
-as well, to start afresh. Moving the journal or its lock while a call holds them is
-refused as above. So every run against a store uses one journal path under its store
-root, the same path every time (story
+engine queue and the API's lease stand between them. So every run against a store uses
+one journal path under its store root, the same path every time (story
 [406](https://work.haynesnetwork.com/work_packages/406) sets that path); a lease shared
 by every agent session is dev-env work
-([839](https://work.haynesnetwork.com/work_packages/839)).
+([839](https://work.haynesnetwork.com/work_packages/839)). A second name for the same
+file (a symlink, a hard link, or a store root reached through a symlinked directory) is
+not another journal: the lock on the journal file itself refuses it.
+
+**A missing or emptied journal.** A journal file starts with one `created` line, written
+when the file is created and before any job is remembered, so a journal is never empty
+after first use. A journal file that is missing when a call starts is an empty journal
+only on first use, with no lock file beside it (the first hold creates both). A missing
+journal beside its lock file was removed between runs, and a journal file that is empty
+or does not start with its `created` line was emptied or replaced: both are
+`adapter.journal_failed`, when the client is made and when a call holds it. An empty
+journal beside its lock file is also what a crash between creating the file and writing
+that line leaves; the call that made it submitted nothing, and the message says so. A
+person checks the Wan service (its engine queue and ledgers), then removes the journal
+and its lock file to start afresh. Moving the journal or its lock while a call holds
+them is refused as above. No journal without a `created` line exists to migrate: nothing
+has run live.
+
+**What the journal protects against, and what not.** The journal guards against
+forgetting: a crash, a timeout, a lost answer, a restarted build, a second process, or a
+second name for the same file. It is not a tamper-proof record. Whoever can write in the
+run directory can clear it with `clear_in_flight()` anyway, and overwriting it with a
+different valid journal is the same act by other means; the client does not detect that.
+What does not depend on the journal, and still holds then: the client never submits while
+the API is busy or holding, while the engine queue shows any work, or while the two GPUs
+are not cool and idle (rows 10 to 15), and the API's own compute lock inside `generate()`
+(row 18) still serializes jobs.
 
 ### The provenance record
 
@@ -492,9 +512,11 @@ Run these read-only checks with the coordinator watching, then one job:
    local file system, never `MemoryJournal`, and use that same path for every run of the
    store (the known limit beside P-842-08). If the journal is held by another process
    (`adapter.busy` naming it), find that process; never point a run at another file.
-   Never delete, move or replace the journal or its `.lock` file while a build runs; a
-   journal missing beside its lock file is a stop until a person has checked the
-   service.
+   Never delete, move, empty or replace the journal or its `.lock` file while a build
+   runs; a journal missing beside its lock file, or empty, is a stop until a person has
+   checked the service (then remove both to start afresh). The journal is a record
+   against forgetting, not against tampering (see the threat model in the journal
+   section): keep the run directory writable by the build only.
 1. `git -C ~/repos/haynes-ops fetch` and check that
    `kubernetes/main/apps/ai/wan-video/app/workflow.json` still hashes to
    `88fe79ad...136b` and that `api.py` still has `acquire_compute`, `gpu_sample`,
