@@ -1,3 +1,4 @@
-"""Haynes Studio tooling. Stories 378 and 404 add the first modules."""
+"""Haynes Studio tooling: the `studio` command, integer time helpers (`timebase`) and
+read-only legacy adapters (`legacy`). Reference: docs/reference/studio-cli.md."""
 
 __version__ = "0.1.0.dev0"

@@ -1,0 +1,365 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:haynes-studio:schema:legacy.manifest:v1",
+  "title": "legacy.manifest/v1",
+  "description": "A PoC title manifest (The Winter Menu r1 to r4), read-only. It has no schema field; a reader detects it by shape: an object with shots, frame and job. Times are decimal seconds that must be whole milliseconds (checked in code, rule time.not_integer_ms). The x-studio annotation maps a failing keyword to a contract rule code, a message and a field; any other failure is legacy.invalid, and additionalProperties false is schema.unknown_field. Contract: docs/contracts/studio-contracts-v1.md sections 1 to 3. Reference: docs/reference/studio-cli.md.",
+  "type": "object",
+  "required": ["title", "job", "frame", "shots"],
+  "properties": {
+    "title": {"type": "string", "minLength": 1},
+    "story": {"type": "string", "minLength": 1, "description": "A tracker URL, not a domain story."},
+    "job": {"type": "string", "minLength": 1},
+    "job_dir": {"type": "string", "minLength": 1, "description": "Private, non-portable input path; never imported."},
+    "revision": {"type": "integer", "minimum": 1, "description": "Absent in r1, which reads as revision 1."},
+    "revision_note": {"type": "string"},
+    "frame": {"$ref": "#/$defs/frame"},
+    "set": {"$ref": "#/$defs/set"},
+    "cast": {
+      "type": "object",
+      "propertyNames": {"$ref": "#/$defs/slot"},
+      "additionalProperties": {"$ref": "#/$defs/castMember"}
+    },
+    "layouts": {
+      "type": "object",
+      "propertyNames": {"minLength": 1},
+      "additionalProperties": {"$ref": "#/$defs/layout"}
+    },
+    "shots": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/shot"}},
+    "sfx": {
+      "type": "object",
+      "propertyNames": {"minLength": 1},
+      "additionalProperties": {"$ref": "#/$defs/sound"}
+    },
+    "beds": {
+      "type": "object",
+      "propertyNames": {"minLength": 1},
+      "additionalProperties": {"$ref": "#/$defs/bed"}
+    },
+    "motion": {"$ref": "#/$defs/motion"},
+    "master": {"$ref": "#/$defs/master"},
+    "asr_tolerances": {"type": "object", "additionalProperties": {"type": "string"}},
+    "asr_tolerances_note": {"type": "string"},
+    "provenance": {"type": "object", "additionalProperties": {"type": "string"}}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "slot": {"type": "string", "pattern": "^[a-z]$"},
+    "number2": {
+      "type": "array",
+      "prefixItems": [{"type": "number"}, {"type": "number"}],
+      "minItems": 2,
+      "items": false
+    },
+    "seconds": {
+      "type": "number",
+      "minimum": 0,
+      "x-studio": {"minimum": {"rule": "time.negative", "message": "a time must not be negative"}}
+    },
+    "frame": {
+      "type": "object",
+      "required": ["width", "height", "fps"],
+      "properties": {
+        "width": {"type": "integer", "minimum": 1},
+        "height": {"type": "integer", "minimum": 1},
+        "fps": {"const": 24, "description": "All four revisions deliver 24 fps (contract section 3)."}
+      },
+      "additionalProperties": false
+    },
+    "castMember": {
+      "type": "object",
+      "required": ["name", "voice"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "voice": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "set": {
+      "type": "object",
+      "required": ["image"],
+      "properties": {
+        "image": {"type": "string", "minLength": 1},
+        "foreground_edge": {"type": "array", "minItems": 2, "items": {"$ref": "#/$defs/number2"}},
+        "foreground_feather": {"type": "number", "minimum": 0},
+        "note": {"type": "string"},
+        "fire": {"$ref": "#/$defs/fire"}
+      },
+      "additionalProperties": false
+    },
+    "fire": {
+      "type": "object",
+      "required": ["box"],
+      "properties": {
+        "box": {
+          "type": "array",
+          "prefixItems": [{"type": "number"}, {"type": "number"}, {"type": "number"}, {"type": "number"}],
+          "minItems": 4,
+          "items": false
+        },
+        "glow_center": {"$ref": "#/$defs/number2"},
+        "glow_radius": {"type": "number", "minimum": 0},
+        "strength": {"type": "number"},
+        "doll_glow": {"type": "number"},
+        "seed": {"type": "integer"}
+      },
+      "additionalProperties": false
+    },
+    "layout": {
+      "type": "object",
+      "properties": {
+        "x": {"type": "number"},
+        "height": {"type": "number"},
+        "bottom": {"type": "number"},
+        "note": {"type": "string"},
+        "slots": {
+          "type": "object",
+          "propertyNames": {"$ref": "#/$defs/slot"},
+          "additionalProperties": {"$ref": "#/$defs/layoutSlot"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "layoutSlot": {
+      "type": "object",
+      "properties": {
+        "x": {"type": "number"},
+        "height": {"type": "number"},
+        "bottom": {"type": "number"},
+        "crop": {
+          "type": "array",
+          "prefixItems": [
+            {"type": "number", "minimum": 0, "maximum": 1},
+            {"type": "number", "minimum": 0, "maximum": 1},
+            {"type": "number", "minimum": 0, "maximum": 1},
+            {"type": "number", "minimum": 0, "maximum": 1}
+          ],
+          "minItems": 4,
+          "items": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "firstLine": {
+      "type": "object",
+      "required": ["doll", "text", "start"],
+      "properties": {
+        "doll": {"$ref": "#/$defs/slot"},
+        "text": {"type": "string", "minLength": 1},
+        "start": {"$ref": "#/$defs/seconds"},
+        "gap": true
+      },
+      "additionalProperties": false,
+      "not": {"type": "object", "required": ["gap"]},
+      "x-studio": {
+        "not": {
+          "rule": "time.first_line_gap",
+          "field": "gap",
+          "message": "the first line starts at start; a gap applies only to later lines"
+        }
+      }
+    },
+    "laterLine": {
+      "type": "object",
+      "required": ["doll", "text"],
+      "properties": {
+        "doll": {"$ref": "#/$defs/slot"},
+        "text": {"type": "string", "minLength": 1},
+        "gap": {"$ref": "#/$defs/seconds"},
+        "start": true
+      },
+      "additionalProperties": false,
+      "not": {"type": "object", "required": ["start"]},
+      "x-studio": {
+        "not": {"field": "start", "message": "only the first line has start; a later line has gap"}
+      }
+    },
+    "anchor": {
+      "oneOf": [{"required": ["at"]}, {"required": ["after_line"]}],
+      "dependentRequired": {"after_line": ["offset"], "offset": ["after_line"]},
+      "x-studio": {
+        "oneOf": {"message": "needs exactly one anchor: at, or after_line with offset"}
+      }
+    },
+    "shotSound": {
+      "type": "object",
+      "required": ["cue"],
+      "properties": {
+        "cue": {"type": "string", "minLength": 1},
+        "at": {"$ref": "#/$defs/seconds"},
+        "after_line": {"type": "integer", "minimum": 0},
+        "offset": {"$ref": "#/$defs/seconds"}
+      },
+      "additionalProperties": false,
+      "allOf": [{"$ref": "#/$defs/anchor"}]
+    },
+    "move": {
+      "type": "object",
+      "required": ["doll"],
+      "properties": {
+        "doll": {"$ref": "#/$defs/slot"},
+        "at": {"$ref": "#/$defs/seconds"},
+        "after_line": {"type": "integer", "minimum": 0},
+        "offset": {"$ref": "#/$defs/seconds"},
+        "dur": {"$ref": "#/$defs/seconds"},
+        "dx": {"type": "number"},
+        "dy": {"type": "number"},
+        "angle": {"type": "number"}
+      },
+      "additionalProperties": false,
+      "allOf": [{"$ref": "#/$defs/anchor"}]
+    },
+    "camera": {
+      "type": "object",
+      "required": ["zoom", "center"],
+      "properties": {
+        "zoom": {
+          "type": "array",
+          "prefixItems": [{"type": "number", "exclusiveMinimum": 0}, {"type": "number", "exclusiveMinimum": 0}],
+          "minItems": 2,
+          "items": false
+        },
+        "over": {"type": "number", "exclusiveMinimum": 0},
+        "center": {"$ref": "#/$defs/number2"}
+      },
+      "additionalProperties": false
+    },
+    "shot": {
+      "type": "object",
+      "required": ["id", "layout", "dolls"],
+      "properties": {
+        "id": {"type": "integer", "minimum": 1},
+        "layout": {"type": "string", "minLength": 1},
+        "dolls": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"$ref": "#/$defs/slot"},
+          "additionalProperties": {"type": "string", "minLength": 1}
+        },
+        "line": {"$ref": "#/$defs/firstLine"},
+        "lines": {
+          "type": "array",
+          "minItems": 1,
+          "prefixItems": [{"$ref": "#/$defs/firstLine"}],
+          "items": {"$ref": "#/$defs/laterLine"}
+        },
+        "tail": {
+          "type": "number",
+          "minimum": 0.25,
+          "x-studio": {
+            "minimum": {
+              "rule": "time.tail_too_short",
+              "message": "lines must end at least 0.25 s before the cut"
+            }
+          }
+        },
+        "duration": {"type": "number", "exclusiveMinimum": 0},
+        "sfx": {"type": "array", "items": {"$ref": "#/$defs/shotSound"}},
+        "moves": {"type": "array", "items": {"$ref": "#/$defs/move"}},
+        "camera": {"$ref": "#/$defs/camera"},
+        "foreground": {"type": "boolean"},
+        "note": {"type": "string"}
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "not": {
+            "type": "object",
+            "required": ["duration"],
+            "anyOf": [{"required": ["line"]}, {"required": ["lines"]}]
+          },
+          "x-studio": {
+            "not": {
+              "rule": "legacy.duration_with_lines",
+              "message": "a shot with lines has no duration; the legacy editor silently let duration win"
+            }
+          }
+        },
+        {
+          "not": {"type": "object", "required": ["line", "lines"]},
+          "x-studio": {"not": {"field": "lines", "message": "has both line and lines; use one"}}
+        },
+        {
+          "anyOf": [{"required": ["line"]}, {"required": ["lines"]}, {"required": ["duration"]}],
+          "x-studio": {
+            "anyOf": {"message": "a shot needs line, lines or (for a silent shot) duration"}
+          }
+        },
+        {
+          "if": {"anyOf": [{"required": ["line"]}, {"required": ["lines"]}]},
+          "then": {"required": ["tail"]},
+          "else": {
+            "not": {"type": "object", "required": ["tail"]},
+            "x-studio": {"not": {"field": "tail", "message": "a silent shot has no tail"}}
+          }
+        }
+      ]
+    },
+    "generation": {
+      "type": "object",
+      "properties": {
+        "service": {"type": "string"},
+        "job": {"type": "string"},
+        "seed": {"type": "integer"},
+        "seconds": {"type": "number"},
+        "steps": {"type": "integer"},
+        "prompt": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "rejectedTake": {
+      "type": "object",
+      "properties": {
+        "job": {"type": "string"},
+        "seed": {"type": "integer"},
+        "reason": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "sound": {
+      "type": "object",
+      "required": ["file", "gain_db"],
+      "properties": {
+        "file": {"type": "string", "minLength": 1},
+        "trim": {
+          "type": "array",
+          "prefixItems": [{"$ref": "#/$defs/seconds"}, {"$ref": "#/$defs/seconds"}],
+          "minItems": 2,
+          "items": false
+        },
+        "gain_db": {"type": "number", "description": "A target RMS level in dBFS after trimming, not a gain."},
+        "source": {"$ref": "#/$defs/generation"},
+        "rejected": {"type": "array", "items": {"$ref": "#/$defs/rejectedTake"}}
+      },
+      "additionalProperties": false
+    },
+    "bed": {
+      "type": "object",
+      "required": ["file", "gain_db"],
+      "properties": {
+        "file": {"type": "string", "minLength": 1},
+        "gain_db": {"type": "number", "description": "A target RMS level in dBFS, not a gain."},
+        "source": {"$ref": "#/$defs/generation"}
+      },
+      "additionalProperties": false
+    },
+    "motion": {
+      "type": "object",
+      "properties": {
+        "idle_scale": {"type": "number"},
+        "talk_hop": {"type": "number"},
+        "talk_tilt": {"type": "number"},
+        "talk_shuffle": {"type": "number"}
+      },
+      "additionalProperties": false
+    },
+    "master": {
+      "type": "object",
+      "required": ["lufs", "true_peak"],
+      "properties": {
+        "lufs": {"type": "number"},
+        "true_peak": {"type": "number"}
+      },
+      "additionalProperties": false
+    }
+  }
+}
