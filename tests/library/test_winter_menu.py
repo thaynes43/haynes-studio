@@ -11,16 +11,18 @@ import pytest
 
 from haynes_studio.canonical import timing_summary, validate_story, with_derived
 from haynes_studio.errors import ContractError
-from haynes_studio.library import import_version, resolve
+from haynes_studio.library import import_version, resolve, validate_asset_version
 from haynes_studio.library.model import Scope
 from haynes_studio.library.resolve import references
-from haynes_studio.library.winter_menu import winter_menu_requests
+from haynes_studio.library.winter_menu import LicenceRegister, winter_menu_requests
 from tests.canonical.fixtures import NOW, REVISIONS, example
 from tests.library.fixtures import (
     BY,
     SyntheticStore,
     imported,
     record_id,
+    register,
+    register_document,
     sources,
     story,
     winter_menu,
@@ -101,7 +103,8 @@ def test_a_wrong_capability_fails():
     """An opaque photo is not accepted as a keyed layer (section 5, review M6)."""
     library = winter_menu().library
     opaque = import_version(library, dataclasses.replace(
-        next(r for r in winter_menu_requests(imported(4).story, imported(4).import_map, sources(4))[0]
+        next(r for r in winter_menu_requests(imported(4).story, imported(4).import_map, sources(4),
+                                             register())[0]
              if r.kind == "cast"),
         version_id=None, capabilities=("opaque_photo",), legacy=None,
         provenance={"origin": "imported", "external": None, "source_key": "test:opaque-still",
@@ -156,8 +159,6 @@ def test_records_hold_the_public_evidence_and_nothing_guessed():
     timeline = {(a["kind"], a.get("cue")): a for a in sources(4).timeline["audio"]}
     for version in library.versions.values():
         document = library.document(version.id)
-        assert document["licence"]["commercial_use"] == "unknown"
-        assert document["licence"]["checked_at"] is None and document["licence"]["name"] is None
         assert document["provenance"]["created_at"] == NOW
         if version.content is None:
             continue
@@ -205,7 +206,10 @@ def test_the_gaps_list_what_the_public_files_do_not_hold():
         f"speech:shot:{shot}" for shot in (1, 2, 3, 4, 5, 6, 8, 9)}
     assert by_field["provenance.generator.model"] == {
         "sfx:crow", "sfx:crunch", "sfx:gavel", "sfx:sting", "bed:fire"}
-    assert len(by_field["licence"]) == 24
+    # Only Stable Audio's conditional terms stay unknown; the images' and voices' are recorded.
+    assert by_field["licence"] == {"sfx:crow", "sfx:crunch", "sfx:gavel", "sfx:sting", "bed:fire"}
+    assert all(gap.reason.startswith("Register entry stable-audio;")
+               for gap in gaps if gap.field == "licence")
     assert set(by_field) == {"content.bytes", "provenance.generator.files_sha256",
                              "provenance.generator.model", "voice.takes[].samples, sample_rate",
                              "licence"}
@@ -281,7 +285,8 @@ def test_the_private_import_returns_the_public_versions():
     """Story 425 and 428's import: the same hashes with the store's byte counts return
     the versions built from public files; the bed keeps bytes: null."""
     library = winter_menu().library
-    requests, _ = winter_menu_requests(imported(4).story, imported(4).import_map, sources(4))
+    requests, _ = winter_menu_requests(imported(4).story, imported(4).import_map, sources(4),
+                                       register())
     for request in requests:
         if request.content is None:
             continue
@@ -300,3 +305,106 @@ def test_the_private_import_returns_the_public_versions():
         import_version(library, dataclasses.replace(still, content=dataclasses.replace(
             still.content, bytes=still.content.bytes + 1)), by=BY, now=NOW)
     assert caught.value.violations[0].rule == "idempotency.mismatch"
+
+
+# Licences (story 809): the register, the library's licence objects and the contract
+# examples agree.
+
+ENGINE_KEYS = {"qwen-image", "kokoro", "stable-audio", "wan-ti2v", "wan-s2v", "asr", "controlfoley"}
+TO_CONTRACT = {"allowed": "allowed", "noncommercial": "noncommercial",
+               "conditional": "unknown", "unknown": "unknown"}
+RESTRICTION = {"allowed": 0, "conditional": 1, "unknown": 2, "noncommercial": 3}
+
+
+def _engine(key):
+    return next(e for e in register_document()["engines"] if e["key"] == key)
+
+
+def _file(name):
+    """The register file whose recorded name is ``name`` (a contract example's file name)."""
+    found = [f for f in register_document()["files"] if name in f["recorded_as"]]
+    assert len(found) == 1, name
+    return found[0]
+
+
+def test_the_register_has_one_checked_entry_per_engine_and_file():
+    document = register_document()
+    engines = {e["key"]: e for e in document["engines"]}
+    assert set(engines) == ENGINE_KEYS
+    files = document["files"]
+    assert len({f["key"] for f in files}) == len(files)
+    assert {f["engine"] for f in files} == ENGINE_KEYS
+    for item in files + document["engines"]:
+        use, licence = item["outputs_commercial_use"], item["licence"]
+        assert licence["commercial_use"] == TO_CONTRACT[use], item["key"]
+        assert licence["checked_at"] == document["checked_at"] and licence["checked_by"]
+        assert licence["url"].startswith("https://") and licence["name"], item["key"]
+        if licence["commercial_use"] != "allowed":
+            assert licence["note"], item["key"]  # the reason or the condition
+    for item in files:
+        assert item["source"].startswith("https://huggingface.co/"), item["key"]
+        assert item["evidence"] and all(e["url"].startswith("https://") for e in item["evidence"])
+    for key, engine in engines.items():
+        mine = [f for f in files if f["engine"] == key]
+        assert engine["files"] == [f["key"] for f in mine]
+        worst = max(RESTRICTION[f["outputs_commercial_use"]] for f in mine)
+        assert RESTRICTION[engine["outputs_commercial_use"]] == worst, key
+    # A conditional or non-commercial term is never softened to "allowed".
+    assert {k: e["outputs_commercial_use"] for k, e in engines.items()} == {
+        "qwen-image": "noncommercial", "kokoro": "allowed", "stable-audio": "conditional",
+        "wan-ti2v": "allowed", "wan-s2v": "allowed", "asr": "allowed",
+        "controlfoley": "noncommercial"}
+
+
+def test_every_register_licence_is_a_valid_licence_object():
+    """Each licence object passes the asset version schema in place of the cast example's."""
+    document = register_document()
+    for item in document["files"] + document["engines"]:
+        version = example("valid/asset-version-cast.json")
+        version["licence"] = item["licence"]
+        assert list(validate_asset_version(version, context="write")) == [], item["key"]
+
+
+def test_each_version_takes_its_licence_from_the_register():
+    library = winter_menu().library
+    expected = {"cast": "qwen-image", "set": "qwen-image", "sound": "stable-audio",
+                "voice": "kokoro", "board_voice": "kokoro"}
+    seen = set()
+    for version in library.versions.values():
+        key = expected[version.kind]
+        assert library.document(version.id)["licence"] == _engine(key)["licence"], version.id
+        seen.add(key)
+    assert len(library.versions) == 24 and seen == {"qwen-image", "stable-audio", "kokoro"}
+
+
+def test_a_model_the_register_does_not_name_stays_unknown_with_its_reason():
+    changed = dataclasses.replace(sources(4), prompts={**sources(4).prompts,
+                                                       "models": "Some other image model"})
+    requests, gaps = winter_menu_requests(imported(4).story, imported(4).import_map, changed,
+                                          register())
+    images = [r for r in requests if r.kind in ("cast", "set")]
+    assert images and all(r.licence.commercial_use == "unknown" and r.licence.name is None
+                          for r in images)
+    assert "no entry for the image model 'Some other image model'" in images[0].licence.note
+    keys = {g.source_key for g in gaps if g.field == "licence"}
+    assert {r.provenance["source_key"] for r in images} <= keys
+    # Two engines claiming the same name is ambiguous, never a guess.
+    twice = LicenceRegister(register().engines + register().engines[:1])
+    licence = twice.licence_for("image", sources(4).prompts["models"])
+    assert licence.commercial_use == "unknown" and "several entries" in licence.note
+
+
+def test_the_contract_examples_take_their_licences_from_the_register():
+    assert example("valid/asset-version-cast.json")["licence"] == _engine("qwen-image")["licence"]
+    assert example("invalid/store-locator-invalid.json")["document"]["licence"] == \
+        _engine("qwen-image")["licence"]
+    assert example("valid/asset-version-board-voice.json")["licence"] == _engine("kokoro")["licence"]
+    for run in (example("valid/run-succeeded.json"),
+                example("invalid/credit-outside-video-sound.json")["document"]):
+        for engine in run["provenance"]["engines"]:
+            if engine["role"] == "writer":
+                assert engine["licence"] is None  # a frontier agent, not a model the studio runs
+                continue
+            assert engine["licence"] == _engine(engine["key"])["licence"], engine["key"]
+            for item in engine.get("files", []):
+                assert item["licence"] == _file(item["name"])["licence"], item["name"]

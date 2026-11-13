@@ -9,10 +9,12 @@ the manifest's ``source`` blocks and takes from ``speech.json``. No media is rea
 copied: locators are computed from the hashes, and whether the bytes exist is the
 resolver's injected question.
 
-Every version carries a licence object with ``commercial_use: unknown``: no terms are
-recorded in this repository (proposal 0003: "Stable Audio, Kokoro and Qwen terms still
-need checking"). Values the public files do not hold stay ``null`` and are listed as
-:class:`Gap` records; nothing is guessed.
+Every version takes its licence object from the model licence register (story 809,
+``docs/reference/model-licences.json``): the entry of its role whose recorded name the
+version's model or service text contains. A version no entry matches, or more than one,
+gets ``commercial_use: unknown`` with the reason. Values the public files do not hold
+stay ``null`` and are listed as :class:`Gap` records, as is every licence still
+``unknown`` (the register records a conditional term as ``unknown``); nothing is guessed.
 
 Take, input and definition signatures follow the formulas of the contract's examples
 (``asset-version-board-voice.json``, ``run-snapshot.json``), with the model name in
@@ -58,14 +60,7 @@ ASSET_VERSION = "asset_version"
 CUTOUT_TOOL = "poc/cutout.py"
 MEDIA_TYPES = {".png": "image/png", ".wav": "audio/wav", ".jpg": "image/jpeg",
                ".webp": "image/webp", ".mp4": "video/mp4"}
-LICENCE_NOTES = {
-    "image": "Terms not recorded in this repository: Qwen-Image terms still need checking "
-             "(proposal 0003, Requirements: licences).",
-    "sound": "Terms not recorded in this repository: Stable Audio terms still need checking "
-             "(proposal 0003, Requirements: licences).",
-    "voice": "Terms not recorded in this repository: Kokoro terms still need checking "
-             "(proposal 0003, Requirements: licences).",
-}
+REGISTER_PATH = "docs/reference/model-licences.json"  # from the repository root (story 809)
 TRACK_NOTE = "Legacy kept one WAV per line; no assembled board track exists."
 # poc/studio.py synthesize() sent only a voice and text, so the Kokoro server's default
 # speed applied; the contract's board voice example signs legacy takes with 1.0.
@@ -97,6 +92,50 @@ def load_public_sources(title_dir: str | Path, manifest: str, evidence: str) -> 
         timeline=read_json(title / evidence / "timeline.json").document,
         ledger=read_json(title / evidence / "production.json").document,
         prompts=read_json(title / "prompts.json").document)
+
+
+@dataclass(frozen=True)
+class RegisteredEngine:
+    """One engine of the licence register: its role, the names this repository's records
+    use for it, and its licence object (the most restrictive of its files)."""
+
+    key: str
+    role: str
+    recorded_as: tuple[str, ...]
+    licence: Licence
+
+
+@dataclass(frozen=True)
+class LicenceRegister:
+    """The model licence register (story 809), as the builder reads it."""
+
+    engines: tuple[RegisteredEngine, ...]
+
+    @classmethod
+    def from_document(cls, doc: Mapping[str, Any]) -> LicenceRegister:
+        return cls(tuple(
+            RegisteredEngine(key=engine["key"], role=engine["role"],
+                             recorded_as=tuple(engine["recorded_as"]),
+                             licence=Licence.from_document(engine["licence"]))
+            for engine in doc["engines"]))
+
+    def licence_for(self, role: str, model: Any) -> Licence:
+        """The licence of the one engine of ``role`` whose recorded name ``model``
+        contains; ``unknown`` with the reason when none or several match."""
+        text = model if isinstance(model, str) else ""
+        found = [engine for engine in self.engines if engine.role == role
+                 and any(name and name in text for name in engine.recorded_as)]
+        if len(found) == 1:
+            return found[0].licence
+        reason = ("no entry" if not found else
+                  "several entries (" + ", ".join(engine.key for engine in found) + ")")
+        return Licence.unknown(f"The licence register has {reason} for the {role} model "
+                               f"{text!r}; terms not recorded.")
+
+
+def load_licence_register(path: str | Path) -> LicenceRegister:
+    """Read the register (``REGISTER_PATH`` in a checkout): JSON text only."""
+    return LicenceRegister.from_document(read_json(Path(path)).document)
 
 
 @dataclass(frozen=True)
@@ -176,9 +215,11 @@ def _sound_generator(source: Mapping[str, Any] | None) -> dict[str, Any]:
 
 
 def winter_menu_requests(story: Mapping[str, Any], import_map: Mapping[str, Any],
-                         sources: PublicSources) -> tuple[list[VersionRequest], list[Gap]]:
+                         sources: PublicSources, licences: LicenceRegister,
+                         ) -> tuple[list[VersionRequest], list[Gap]]:
     """One import request per asset version the import map's ``story_records`` name,
-    in that order, and the gaps the public files leave."""
+    in that order, with licences from the register, and the gaps the public files
+    leave."""
     evidence = _Evidence(sources)
     manifest = sources.manifest
     job, production_id = manifest.job, story["production_id"]
@@ -195,8 +236,8 @@ def winter_menu_requests(story: Mapping[str, Any], import_map: Mapping[str, Any]
     requests: list[VersionRequest] = []
     gaps: list[Gap] = []
 
-    def licence(role: str) -> Licence:
-        return Licence.unknown(LICENCE_NOTES[role])
+    image_licence = licences.licence_for("image", sources.prompts.get("models"))
+    voice_licence = licences.licence_for("voice", KOKORO)
 
     def legacy(key: str, path: str) -> dict[str, str]:
         return {"source_key": key, "path": path, "job": job}
@@ -231,7 +272,7 @@ def winter_menu_requests(story: Mapping[str, Any], import_map: Mapping[str, Any]
                 capabilities=("rgba_cutout",), content=_content(rest, sha256, size, production_id),
                 provenance={"origin": "imported", "generator": generator, "external": None,
                             "source_key": key},
-                licence=licence("image")))
+                licence=image_licence))
         elif kind == "set":
             chosen = sources.prompts["set"]
             if Path(rest).name != chosen["file"]:
@@ -248,7 +289,7 @@ def winter_menu_requests(story: Mapping[str, Any], import_map: Mapping[str, Any]
                 provenance={"origin": "imported",
                             "generator": _image_generator(sources.prompts, render),
                             "external": None, "source_key": key},
-                licence=licence("image")))
+                licence=image_licence))
         elif kind in ("sfx", "bed"):
             if kind == "sfx":
                 sound = manifest.sound(rest)
@@ -275,7 +316,7 @@ def winter_menu_requests(story: Mapping[str, Any], import_map: Mapping[str, Any]
                 content=_content(sound.file, sha256, size, production_id),
                 provenance={"origin": "imported", "generator": _sound_generator(sound.source),
                             "external": None, "source_key": key},
-                licence=licence("sound")))
+                licence=licences.licence_for("sound", (sound.source or {}).get("service"))))
         elif kind == "voice":
             if rest not in voice_ids:
                 raise _mismatch("/cast", f"the manifest's cast has no voice {rest}")
@@ -288,7 +329,7 @@ def winter_menu_requests(story: Mapping[str, Any], import_map: Mapping[str, Any]
                             "generator": {"role": "voice", "engine": service, "model": KOKORO,
                                           "voice_id": rest},
                             "external": None, "source_key": key},
-                licence=licence("voice")))
+                licence=voice_licence))
             gaps.append(Gap(key, "provenance.generator.files_sha256",
                             "no Kokoro model digest is recorded; the model name stands in "
                             "(VOICE-3)"))
@@ -307,13 +348,14 @@ def winter_menu_requests(story: Mapping[str, Any], import_map: Mapping[str, Any]
                 provenance={"origin": "imported",
                             "generator": {"role": "voice", "engine": service, "model": KOKORO},
                             "external": None, "source_key": key},
-                licence=licence("voice")))
+                licence=voice_licence))
             gaps.append(Gap(key, "voice.takes[].samples, sample_rate",
                             "speech.json records duration_s, not samples or rate; durations are "
                             "legacy_duration_s (TIME-1)"))
     for request in requests:
-        key = request.provenance["source_key"]
-        gaps.append(Gap(key, "licence", request.licence.note or "terms not recorded"))
+        if request.licence.commercial_use == "unknown":
+            gaps.append(Gap(request.provenance["source_key"], "licence",
+                            request.licence.note or "terms not recorded"))
     return requests, gaps
 
 
@@ -345,15 +387,17 @@ def _board_voice(board: Mapping[str, Any], shot: int, sources: PublicSources,
 
 
 def build_winter_menu_library(story: Mapping[str, Any], import_map: Mapping[str, Any],
-                              sources: PublicSources, *, by: Principal, now: str,
-                              library: Library = EMPTY,
+                              sources: PublicSources, *, licences: LicenceRegister,
+                              by: Principal, now: str, library: Library = EMPTY,
                               minter: Minter | None = None) -> WinterMenuLibrary:
-    """Import every record into ``library``. Run it again on its own result and nothing
-    is created: the same source keys and bytes return the same versions."""
-    requests, gaps = winter_menu_requests(story, import_map, sources)
+    """Import every record into ``library``, each licence from ``licences``. Run it again
+    on its own result and nothing is created: the same source keys and bytes return the
+    same versions."""
+    requests, gaps = winter_menu_requests(story, import_map, sources, licences)
     library, outcomes = import_all(library, requests, by=by, now=now, minter=minter)
     return WinterMenuLibrary(library=library, outcomes=tuple(outcomes), gaps=tuple(gaps))
 
 
-__all__ = ["EVIDENCE_MISMATCH", "LEGACY_SPEED", "Gap", "PublicSources", "WinterMenuLibrary",
-           "build_winter_menu_library", "load_public_sources", "winter_menu_requests"]
+__all__ = ["EVIDENCE_MISMATCH", "LEGACY_SPEED", "REGISTER_PATH", "Gap", "LicenceRegister",
+           "PublicSources", "RegisteredEngine", "WinterMenuLibrary", "build_winter_menu_library",
+           "load_licence_register", "load_public_sources", "winter_menu_requests"]

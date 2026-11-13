@@ -73,13 +73,16 @@
       "created_at": "2026-11-13T07:00:00Z"
     },
     "licence": {
-      "name": null,
-      "url": null,
-      "commercial_use": "unknown",
-      "attribution_required": null,
-      "checked_at": null,
-      "checked_by": null,
-      "note": "Terms not yet checked (proposal 0003, Requirements: licences)."
+      "name": "Qwen Research License Agreement",
+      "url": "https://huggingface.co/Qwen/Qwen-Image-2.1/blob/main/LICENSE",
+      "commercial_use": "noncommercial",
+      "attribution_required": false,
+      "checked_at": "2026-11-13T14:18:00Z",
+      "checked_by": {
+        "kind": "worker",
+        "worker_id": "dev-env agent session haynes-studio-1113-141004"
+      },
+      "note": "Register entry qwen-image; the most restrictive of its files. Non-commercial only: Qwen-Image 2.1 is under the Qwen Research License Agreement, which allows use 'FOR NON-COMMERCIAL PURPOSES ONLY' ('research or evaluation purposes only'); commercial use needs a separate licence from the licensor. The session's reading of the text, not legal advice."
     },
     "legacy": {
       "source_key": "legacy:the-winter-menu-r4:file:cutouts/a-proud.png",
