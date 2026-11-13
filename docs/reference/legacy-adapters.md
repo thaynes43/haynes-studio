@@ -262,33 +262,36 @@ request needs a drive track of `board_frames / 24` seconds to one sample (TIME-9
 
 Each guard stops before anything is submitted unless the row says otherwise. Tests
 are in [`test_wan_clips.py`](../../tests/adapters/test_wan_clips.py) unless a file is
-named; a mutation run removed each client-side guard in turn and a named test failed
-every time (story 842's PR). The in-pod guards are the PoC's snippets byte for byte
-([`test_wan_compat.py`](../../tests/adapters/test_wan_compat.py)), and the fake pod runs
-them.
+named. A mutation run removed each client-side guard in turn (42 mutations), and a
+named test failed every time (story 842's PR). The in-pod guards are the PoC's snippets
+byte for byte ([`test_wan_compat.py`](../../tests/adapters/test_wan_compat.py)), and the
+fake pod runs them.
 
 | # | Guard | PoC line | Client | Test |
 |---|---|---|---|---|
-| 1 | One job per process (`adapter.busy`) | new (the `ImageClient` rule; the PoC ran one job per script) | `render`: `WanClipClient._lock` | `test_g1_one_job_per_process` |
-| 2 | Nothing after foreign engine work was seen, until `clear_halt()` (`adapter.competing_work`) | `poc/wan.py` 146-147, `poc/s2v.py` 137-138 (the script stops) | `render` latches `Halt`; `_check_halt` | `test_g5_foreign_work_keeps_the_output_and_stops_further_submissions` |
-| 3 | Nothing while an earlier job may be running: its ledger must read `succeeded` or `failed`; a missing ledger or failed read keeps it, until `clear_in_flight()` | new (scope c; services.md: read the job before resubmitting) | `_settle_in_flight` | `test_g7_*` (8 tests) |
-| 4 | API busy or holding: refuse at once | `poc/wan.py` 82-83 | `wait_cool` | `test_g2_a_busy_or_holding_api_is_refused_at_once` |
-| 5 | Any engine work queued or running: refuse, preserve it | 84-85 | `wait_cool` | `test_g2_queued_unknown_work_is_refused_and_preserved` |
-| 6 | Wait (reading only) until every GPU is under 62 C and at most 5 % busy, a probe every 10 s | 86-88, 91 | `wait_cool`, `Probe.cool` | `test_g2_hot_gpus_are_waited_for_reading_only` |
-| 7 | Not cool after 1800 s: refuse | 77, 89-90 | `wait_cool` | `test_g2_gpus_that_never_cool_stop_before_submission` |
-| 8 | Inputs created once under `studio-e0/<16 hex>`; another file of that name is refused, never overwritten; the read-back hash must match | 29-37, 102-106; `poc/s2v.py` 21-26 | `upload`, `wan_upload.py` | `test_g8_*` (4 tests) |
-| 9 | Template and snippets pinned; the template's edited nodes have their classes | 107-111 | `_check_pins`, `i2v_graph` | `test_g10_a_changed_template_or_snippet_is_refused_before_anything_runs` |
-| 10 | Admission readback of `/health` just before submission; its refusal submits nothing (`adapter.busy`, not in flight) | `RUN` 43-46 | `wan_run.py`; `_submit` | `test_g3_*` |
-| 11 | The API's compute lease: busy is a failed job, never a wait (`adapter.busy`) | haynes-ops `api.py` `generate` 154-157 | `wan_run.py`; `render` | `test_g4_a_busy_lease_is_a_refusal_never_a_wait` |
-| 12 | The API's own GPU and queue checks before it submits | `api.py` 158-163 | `wan_run.py` | `test_g4_gpus_busy_at_generate_*`, `test_g4_work_queued_after_the_probe_*` |
-| 13 | A slow engine read is retried (6 tries, 5 s apart) and counted; a write never | `RUN` 47-55 | `wan_run.py` | `test_g6_*` |
-| 14 | Foreign prompt IDs seen during the job are recorded | `RUN` 56-61 | `wan_run.py` | `test_g5_*` |
-| 15 | A lost answer, timeout or non-zero exit leaves the job in flight; never resubmitted | new (scope c) | `_submit` | `test_g7_a_lost_answer_is_never_followed_by_a_resubmission` |
-| 16 | A job that did not succeed is an error (`adapter.job_failed`) | 125-126; `poc/s2v.py` 115-116 | `render` | `test_g9_a_failed_job_is_an_error` |
-| 17 | The clip is read-only fetched, its bytes equal to the pod's own hash and size and to the ledger's size | 127-128 (the hash is new) | `_fetch`, `wan_clip_fetch.py` | `test_g9_a_clip_cut_in_transfer_is_an_error`, `test_g9_a_clip_of_another_size_than_the_ledger_is_an_error` |
-| 18 | The clip decodes; fewer frames than asked or another size is an error, never a clip | 131-136 (decode); short and size are new (TIME-8) | `measure_clip`, `render` | `test_g9_a_corrupt_clip_is_an_error`, `test_g9_a_short_*`, `test_g9_a_clip_of_another_size_is_an_error` |
-| 19 | Foreign work during a job: the clip is checked and kept on the error, then the halt | 146-147 | `render` | `test_g5_foreign_work_keeps_the_output_and_stops_further_submissions` |
-| 20 | No snippet deletes, moves, interrupts or overwrites; the only open is `'xb'` | snippet text | pins | `test_no_snippet_deletes_moves_interrupts_or_overwrites` |
+| 1 | Template and snippets pinned, checked before any command; the template's edited nodes have their classes | `poc/wan.py` 107-111 (the PoC checked after uploading, from a mutable checkout) | `_check_pins`, `i2v_graph` | `test_g10_a_changed_template_or_snippet_is_refused_before_anything_runs` |
+| 2 | One job per process (`adapter.busy`) | new (the `ImageClient` rule; the PoC ran one job per script) | `render`: `WanClipClient._lock` | `test_g1_one_job_per_process` |
+| 3 | Nothing after foreign engine work was seen, until `clear_halt()` (`adapter.competing_work`) | `poc/wan.py` 146-147, `poc/s2v.py` 137-138 (the script stops) | `_check_halt` | `test_g5_foreign_work_keeps_the_output_and_stops_further_submissions` |
+| 4 | Nothing while an earlier job may be running: its ledger must read `succeeded` or `failed`; a missing ledger or a failed read keeps it, until `clear_in_flight()` | new (scope c; services.md: read the job before resubmitting) | `_settle_in_flight` | `test_g7_*` |
+| 5 | API busy or holding: refuse at once | `poc/wan.py` 82-83 | `wait_cool` | `test_g2_a_busy_or_holding_api_is_refused_at_once` |
+| 6 | Any engine work queued or running: refuse, preserve it | 84-85 | `wait_cool` | `test_g2_queued_unknown_work_is_refused_and_preserved` |
+| 7 | Wait (reading only) until every GPU is under 62 C and at most 5 % busy, a probe every 10 s; a sample with no GPU is an error | 86-88, 91 | `wait_cool`, `probe`, `Probe.cool` | `test_g2_hot_gpus_are_waited_for_reading_only`, `test_g2_an_unreadable_probe_is_an_error_not_a_pass` |
+| 8 | Not cool after 1800 s: refuse | 77, 89-90 | `wait_cool` | `test_g2_gpus_that_never_cool_stop_before_submission` |
+| 9 | Inputs created once under `studio-e0/<16 hex>`; another file of that name is refused, never overwritten; the read-back hash must match | 29-37, 102-106; `poc/s2v.py` 21-26 | `upload`, `wan_upload.py` | `test_g8_*` |
+| 10 | The job is remembered as in flight before the run starts; only a run that never started, the admission readback's refusal, or a finished ledger read clears it | new (scope c) | `_submit`, `render` | `test_g7_*`, `test_g3_*` |
+| 11 | Admission readback of `/health` just before submission; its refusal submits nothing (`adapter.busy`) | `RUN` 43-46 | `wan_run.py`; `_submit` | `test_g3_*` |
+| 12 | The API's compute lease: busy is a failed job, never a wait (`adapter.busy`) | haynes-ops `api.py` `generate` 154-157 | `wan_run.py`; `render` | `test_g4_a_busy_lease_is_a_refusal_never_a_wait` |
+| 13 | The API's own GPU and queue checks before it submits | `api.py` 158-163 | `wan_run.py` | `test_g4_gpus_busy_at_generate_*`, `test_g4_work_queued_after_the_probe_*` |
+| 14 | A slow engine read is retried (6 tries, 5 s apart) and counted; a write never | `RUN` 47-55 | `wan_run.py` | `test_g6_*` |
+| 15 | Foreign prompt IDs seen during the job are recorded | `RUN` 56-61 | `wan_run.py` | `test_g5_*` |
+| 16 | A lost answer, timeout or non-zero exit leaves the job in flight; never resubmitted | new (scope c) | `_submit` | `test_g7_a_lost_answer_is_never_followed_by_a_resubmission` |
+| 17 | Foreign work latches the halt before the job is forgotten, whatever happens next | 146-147 | `render`, `_settle_in_flight`, `recover` | `test_g5_*`, `test_g7_a_settled_job_that_saw_foreign_work_halts` |
+| 18 | A job that did not succeed is an error (`adapter.job_failed`) | 125-126; `poc/s2v.py` 115-116 | `render` | `test_g9_a_failed_job_is_an_error` |
+| 19 | The clip is fetched read-only, its bytes equal to the pod's own hash and size and to the ledger's size | 127-128 (the hash is new) | `_fetch`, `wan_clip_fetch.py` | `test_g9_a_clip_cut_in_transfer_is_an_error`, `test_g9_a_clip_of_another_size_than_the_ledger_is_an_error` |
+| 20 | The clip decodes; fewer frames than asked or another size is an error, never a clip | 131-136 (decode); short and size are new (TIME-8) | `_check_clip` | `test_g9_a_corrupt_clip_is_an_error`, `test_g9_a_short_*`, `test_g9_a_clip_of_another_size_is_an_error` |
+| 21 | Foreign work during a job: the clip is checked and kept on the error | 146-147 | `render` | `test_g5_foreign_work_keeps_the_output_and_stops_further_submissions` |
+| 22 | A finished job whose answer or fetch was lost is collected, read-only, with `recover(request, job_id)`, never rendered again; the ledger must be this request's job | new | `recover` | `test_g11_*` |
+| 23 | No snippet deletes, moves, interrupts or overwrites; the only open is `'xb'` | snippet text | pins | `test_no_snippet_deletes_moves_interrupts_or_overwrites` |
 
 `api.generate()` is the installed code the PoC ran; when its own job fails after
 submission it removes or interrupts *its own* prompt (`api.py` 211-223). That is the
@@ -307,13 +310,15 @@ volume), `seed`, `width`, `height`, `fps`, `frames_requested`, `frames_delivered
 GPU's temperature and utilization at the passing probe), `render_s`, `fetch_s`,
 `wall_s`, the job's `created`, `started` and `finished` times, `admission_readback_at`,
 `engine_read_retries`, `poll_misses`, `unexpected_work_seen`, `telemetry_tail` (last
-three GPU samples), `peak_gpu_mib`, `at`; for speech-to-video also `method`, `chunks`,
+three GPU samples), `peak_gpu_mib`, `recovered`, `at`; for speech-to-video also `method`, `chunks`,
 `board_frames`, `frames_needed` (TIME-8), `drive_samples` and `drive_rate`. For the
 clip-source interfaces of stories 426 and 427, `WanClip` exposes `engine`, `job_id`,
 `files_sha256` and `start_image_sha256`.
 
 ### Differences from the PoC
 
+- After a lost answer or a failed fetch, `recover(request, job_id)` collects a finished
+  job's clip read-only; the PoC stopped and a person fetched it.
 - The client returns bytes; writing the clip create-only, its first and last frame
   PNGs and a records file is the caller's job (`render` in the PoC did it).
 - The graph and the pins are checked before anything runs; the PoC read the template
@@ -333,15 +338,19 @@ clip-source interfaces of stories 426 and 427, `WanClip` exposes `engine`, `job_
 
 ### Fake Wan pod
 
-`FakeWan` (in `fakes`) runs the pinned snippets themselves in a namespace whose `sys`,
-`time`, `pathlib`, `urllib.request` and `api` belong to the fake pod, with a port of
-`api.generate()` and a small engine that makes synthetic MP4s (speech-to-video
-delivers as many frames as every E0 clip did, `s2v_frames_delivered`). It can be busy
-or holding, hold only at the admission readback, hold the lease, run hot or busy GPUs,
-queue foreign work before or during the job, time out reads or the `/prompt` write,
-fail, deliver short, odd-sized or corrupt clips, lose the run's answer (timeout, empty,
-non-zero exit, never started) and cut a fetch. It records every run payload, graph
-submitted, engine call and volume write.
+`FakeWan` (in `fakes`) runs the pinned snippets themselves. Each run gets a fresh
+namespace (each `kubectl exec` is a new process) whose `sys`, `time`, `pathlib`,
+`urllib.request` and `api` belong to the fake pod, and whose builtins have no `open`,
+`exec`, `eval` or `compile`. Its `api.generate()` is a port of the installed one (the
+lease, GPU and queue checks, one submission, the 12-miss and 90 s poll rules, and the
+cleanup of its own prompt), on a pod clock where a timed-out engine read takes the API's
+20 s. A small engine makes synthetic MP4s (speech-to-video delivers as many frames as
+every E0 clip did, `s2v_frames_delivered`). It can be busy or holding, hold only at the
+admission readback, hold the lease, run hot or busy GPUs, queue foreign work before or
+during the job, time out reads or the `/prompt` write, fail, deliver short, odd-sized
+or corrupt clips, lose the run's answer (timeout, empty, non-zero exit, never started)
+and cut a fetch. It records every run payload, graph submitted, engine call and volume
+write.
 
 ### Before the first live job (story 428)
 
@@ -363,8 +372,8 @@ Run these read-only checks with the coordinator watching, then one job:
    `/videos/<job_id>` and confirm the ledger shows `succeeded` with the same `bytes`.
 7. Only then one `SpeechToVideo`, on a board of at most one chunk first.
 
-If any call fails, stop and read `/videos/<job_id>` before anything else; never
-resubmit to recover.
+If any call fails, stop and read `/videos/<job_id>` before anything else; a finished
+job's clip is collected with `recover(request, job_id)`; never resubmit to recover.
 
 ### Proposals (story 842)
 
@@ -383,3 +392,6 @@ resubmit to recover.
   error; extra frames are kept and recorded (TIME-8 trims them).
 - **P-842-06** The upload folder and presets keep the PoC's `studio-e0` names, so the
   jobs match E0's byte for byte; renaming them is a separate change.
+- **P-842-07** `recover(request, job_id)` collects a finished job's clip after a lost
+  answer or a failed fetch, read-only, once the ledger matches the request (preset,
+  seed, input names and hashes); its record says `recovered: true`.

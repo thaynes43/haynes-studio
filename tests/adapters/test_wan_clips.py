@@ -439,13 +439,67 @@ def test_g7_a_settled_job_that_saw_foreign_work_halts():
     assert runs(runner) == 1
 
 
-def test_g7_a_runner_that_never_started_leaves_nothing_in_flight():
+def test_g7_a_runner_that_never_started_the_run_leaves_nothing_in_flight():
+    pod = FakeWan()
+    runner = FakeRunner(pod)
+
     class NoStart:
         def run(self, command):
-            raise AdapterError(COMMAND_FAILED, command.label, "could not start kubectl")
-    with pytest.raises(AdapterError):
-        client_for(NoStart()).render(i2v())
-    assert WanClipClient.in_flight() is None
+            if snippets_of(command) == "wan_run.py":
+                raise AdapterError(COMMAND_FAILED, command.label, "could not start kubectl")
+            return runner.run(command)
+    error = refused(pod, client_for(NoStart()), i2v(), COMMAND_FAILED)
+    assert error.in_flight is False and WanClipClient.in_flight() is None
+    assert snippets(runner) == ["wan_probe.py", "wan_upload.py"]  # it reached the run
+    nothing_submitted(pod)
+
+
+def test_g7_an_unfinished_answer_is_in_flight():
+    pod = FakeWan()
+    runner = FakeRunner(pod)
+
+    class Running:
+        def run(self, command):
+            result = runner.run(command)
+            if snippets_of(command) == "wan_run.py":
+                answer = json.loads(result.stdout)
+                answer["state"] = "running"
+                return Completed(0, json.dumps(answer).encode(), result.stderr)
+            return result
+    error = refused(pod, client_for(Running()), i2v(), RESPONSE_INVALID)
+    assert error.in_flight is True and WanClipClient.in_flight().job_id == error.job_id
+
+
+def test_g7_a_runner_that_returns_no_result_leaves_the_job_in_flight():
+    pod = FakeWan()
+    runner = FakeRunner(pod)
+
+    class Nothing:
+        def run(self, command):
+            result = runner.run(command)
+            return None if snippets_of(command) == "wan_run.py" else result
+    with pytest.raises(TypeError):
+        client_for(Nothing()).render(i2v())
+    assert WanClipClient.in_flight().code == "unknown"
+
+
+def test_g7_an_interruption_while_reading_a_failed_run_keeps_it_in_flight():
+    pod = FakeWan()
+    runner = FakeRunner(pod)
+
+    class Stderr(bytes):
+        def decode(self, *args):
+            raise KeyboardInterrupt
+
+    class Interrupted:
+        def run(self, command):
+            result = runner.run(command)
+            if snippets_of(command) == "wan_run.py":
+                return Completed(1, b"", Stderr(b"error: lost connection to pod\n"))
+            return result
+    with pytest.raises(KeyboardInterrupt):
+        client_for(Interrupted()).render(i2v())
+    assert WanClipClient.in_flight().code == "unknown"
 
 
 def test_g7_an_unexpected_runner_error_during_the_run_is_in_flight():
@@ -651,6 +705,98 @@ def test_g10_a_job_id_that_is_not_the_apis_form_is_refused():
     with pytest.raises(RequestInvalid) as caught:
         client.render(i2v())
     assert caught.value.code == REQUEST_INVALID
+
+
+# G11 Collecting a finished job instead of rendering it again ---------------------------------
+
+def test_g11_recover_collects_a_lost_answers_clip_without_a_second_job():
+    pod = FakeWan(lose="empty", lost_state="succeeded")
+    runner = FakeRunner(pod)
+    client = client_for(runner)
+    request = i2v()
+    lost = refused(pod, client, request, RESPONSE_INVALID)
+    clip = client.recover(request, lost.job_id)
+    assert clip.job_id == lost.job_id and clip.frames == 9 and clip.record["recovered"] is True
+    assert clip.record["cooldown_s"] is None and clip.record["inputs"]["image"]["sha256"] == request.image_sha256
+    assert WanClipClient.in_flight() is None
+    assert runs(runner) == 1 and snippets(runner)[-2:] == ["wan_ledger_read.py", "wan_clip_fetch.py"]
+
+
+def test_g11_recover_after_a_failed_fetch():
+    pod = FakeWan()
+    runner = FakeRunner(pod)
+
+    class SlowOnce:
+        failed = False
+
+        def run(self, command):
+            if snippets_of(command) == "wan_clip_fetch.py" and not self.failed:
+                self.failed = True
+                raise AdapterError(TIMEOUT, command.label, "no answer within 90 s")
+            return runner.run(command)
+    client = client_for(SlowOnce())
+    request = s2v()
+    error = refused(pod, client, request, TIMEOUT)
+    assert "recover" in str(error)
+    clip = client.recover(request, error.job_id)
+    assert clip.record["frames_requested"] == 9 and runs(runner) == 1
+
+
+def test_g11_recover_refuses_another_requests_job_and_an_unfinished_one():
+    pod = FakeWan(lose="timeout", lost_state="running")
+    client = client_for(FakeRunner(pod))
+    lost = refused(pod, client, i2v(), TIMEOUT)
+    with pytest.raises(WanError) as caught:
+        client.recover(i2v(seed=99), lost.job_id)
+    assert caught.value.code == RESPONSE_INVALID
+    with pytest.raises(WanError) as caught:
+        client.recover(i2v(), lost.job_id)
+    assert caught.value.code == BUSY and WanClipClient.in_flight() is not None
+
+
+def test_g11_recover_keeps_the_halt_rule():
+    pod = FakeWan(lose="empty", lost_state="succeeded", foreign_during_job=["foreign-1"])
+    runner = FakeRunner(pod)
+    client = client_for(runner)
+    lost = refused(pod, client, i2v(), RESPONSE_INVALID)
+    with pytest.raises(WanError) as caught:
+        client.recover(i2v(), lost.job_id)  # recover is the first to read the ledger
+    assert caught.value.code == COMPETING_WORK and caught.value.clip.frames == 9
+    assert WanClipClient.halted().unexpected_work_seen == ("foreign-1",)
+    refused(pod, client, i2v(seed=8), COMPETING_WORK)
+    assert runs(runner) == 1
+
+
+def test_g11_recover_reports_a_failed_job_as_failed():
+    pod = FakeWan(lose="empty", lost_state="failed")
+    runner = FakeRunner(pod)
+    client = client_for(runner)
+    lost = refused(pod, client, i2v(), RESPONSE_INVALID)
+    with pytest.raises(WanError) as caught:
+        client.recover(i2v(), lost.job_id)
+    assert caught.value.code == JOB_FAILED and caught.value.clip is None
+    assert "wan_clip_fetch.py" not in snippets(runner) and WanClipClient.in_flight() is None
+
+
+# The fake pod behaves like the real one ---------------------------------------------------------
+
+def test_each_run_gets_a_fresh_api_module_so_records_belong_to_their_job():
+    pod = FakeWan()
+    client = client_for(FakeRunner(pod))
+    first = client.render(i2v())
+    pod.slow_reads = 2
+    second = client.render(i2v(seed=8))
+    assert first.record["engine_read_retries"] == 0
+    assert second.record["engine_read_retries"] == 2
+    assert pod.jobs[second.job_id]["engine_read_retries"] == 2
+
+
+def test_the_apis_90_second_miss_rule_fails_a_job_whose_engine_stalls():
+    pod = FakeWan(slow_reads=12)
+    error = refused(pod, client_for(FakeRunner(pod)), i2v(), JOB_FAILED)
+    assert "timed out" in str(error)
+    assert pod.jobs[error.job_id]["poll_misses"] == 2  # 145 s of stalled reads, then 90 s since the first miss
+    assert ("/interrupt", True) in pod.engine_calls  # the API interrupted its own prompt
 
 
 # Reads -------------------------------------------------------------------------------------

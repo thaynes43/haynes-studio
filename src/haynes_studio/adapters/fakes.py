@@ -362,7 +362,8 @@ class FakeWan:
     client's tests. It **runs the pinned snippets themselves** (``wan_probe.py``,
     ``wan_upload.py``, ``wan_run.py``, ``wan_clip_fetch.py``, ``wan_ledger_read.py``),
     each in a namespace whose ``sys``, ``time``, ``pathlib``, ``urllib.request`` and
-    ``api`` are this pod's: nothing reaches the host's files, clock or network.
+    ``api`` are this pod's and whose builtins have no ``open``, ``exec``, ``eval`` or
+    ``compile``: nothing reaches the host's files, clock or network.
 
     The ``api`` module is a port of the installed ``api.py`` (haynes-ops
     ``kubernetes/main/apps/ai/wan-video/app/api.py``): ``generate()`` takes the compute
@@ -385,7 +386,9 @@ class FakeWan:
     no ledger; ``"no_start"``: the command fails before the snippet starts);
     ``mangle_fetch`` (the clip is cut in transfer).
 
-    ``payloads`` holds every run's stdin, ``submitted`` every graph sent to ``/prompt``,
+    Each snippet run gets a fresh ``api`` module, as each ``kubectl exec`` is a new
+    process in the real pod. ``payloads`` holds every run's stdin, ``submitted`` every
+    graph sent to ``/prompt``,
     ``engine_calls`` every engine call (path, whether it had a body), ``files`` the
     volume, ``writes`` every write to it and ``jobs`` the saved ledgers."""
 
@@ -429,6 +432,7 @@ class FakeWan:
         self.submitted: list[dict] = []
         self.engine_calls: list[tuple[str, bool]] = []
         self.probes = 0
+        self.unsafe = False  # what api.py sets when its cleanup meets work it cannot account for
         self.now = 1_800_000_000.0
         self.slept: list[float] = []
         self._snippet = None
@@ -465,6 +469,7 @@ class FakeWan:
     def run_snippet(self, name: str, code: str, args, stdin: bytes = b"") -> Completed:
         """Run one snippet's code in the fake pod: exit status, stdout, stderr."""
         out, err = _PodOut(), _PodOut()
+        self._api = self._make_api()  # each kubectl exec is a new process with a fresh api module
         pod_sys = _Namespace(argv=["-c", *args], path=[], stdin=_PodIn(stdin), stdout=out, stderr=err)
         urllib = _Namespace(request=_Namespace(urlopen=self._urlopen))
         modules = {"sys": pod_sys, "json": json, "hashlib": hashlib, "api": self._api,
@@ -480,7 +485,8 @@ class FakeWan:
         def pod_print(*values, sep=" ", end="\n", file=None, flush=False):
             (file or out).write(sep.join(str(v) for v in values) + end)
 
-        namespace = dict(vars(builtins))
+        namespace = {k: v for k, v in vars(builtins).items()
+                     if k not in ("open", "exec", "eval", "compile", "input", "breakpoint", "__loader__")}
         namespace.update(__import__=pod_import, print=pod_print)
         self._snippet = name
         if name == "wan_probe.py":
@@ -545,6 +551,7 @@ class FakeWan:
                     'queue_pending': [[3, p, {}, {'client_id': 'other'}] for p in self.queue_pending]}
         if path == "/prompt":
             if self.slow_prompt:
+                self.now += 20  # api.engine's urlopen timeout
                 raise TimeoutError("timed out")
             self.submitted.append(body)
             graph_hash = hashlib.sha256(json.dumps(body["prompt"], sort_keys=True).encode()).hexdigest()
@@ -555,6 +562,7 @@ class FakeWan:
         if path.startswith("/history/") and body is None:
             if self.slow_reads > 0:
                 self.slow_reads -= 1
+                self.now += 20  # api.engine's urlopen timeout
                 raise TimeoutError("timed out")
             prompt_id = path[len("/history/"):]
             if prompt_id != self._running_prompt:
@@ -577,7 +585,11 @@ class FakeWan:
                                 'outputs': {'save': {'images': [{'filename': filename, 'subfolder': subfolder,
                                                                  'type': 'output'}],
                                                      'animated': [True]}}}}
-        if body is not None:  # /interrupt or a queue delete: the API removing its own prompt
+        if path == "/interrupt" and body is not None:  # api.py interrupts only its own prompt
+            self._running_prompt = None
+            return {}
+        if path == "/queue" and body is not None:  # api.py deletes only its own pending prompts
+            self.queue_pending = [p for p in self.queue_pending if p not in body.get("delete", [])]
             return {}
         raise AssertionError(f"the fake engine does not answer {path}")
 
@@ -622,9 +634,11 @@ class FakeWan:
             raise AssertionError("wan_run.py replaces api.make_graph before generate()")
 
         def generate(job, prompt, lease=None):
-            # A port of api.py generate(): the same checks in the same order. It calls
-            # api.engine through the module, so the snippet's wrapper is what runs.
-            started = submission_attempted = False
+            # A port of api.py generate() (haynes-ops main, lines 149-241): the same checks,
+            # polls and cleanup in the same order, on the pod's clock. It calls api.engine
+            # through the module, so the snippet's wrapper is what runs.
+            started = False
+            submission_attempted = False
             try:
                 if pod.lease_held:
                     raise RuntimeError("Compute is reserved by another video/audio job")
@@ -642,16 +656,17 @@ class FakeWan:
                 job.update(state="running", started_at=pod.now, prompt_id=prompt_id)
                 save(job)
                 deadline = pod.now + 1200
-                misses = 0
+                misses, first_miss = 0, None
                 while pod.now < deadline:
                     job["telemetry"].append(api.gpu_sample())
                     try:
                         history = api.engine("/history/" + prompt_id).get(prompt_id)
-                        misses = 0
+                        misses, first_miss = 0, None
                     except (TimeoutError, OSError):
                         misses += 1
+                        first_miss = first_miss or pod.now
                         job["poll_misses"] = job.get("poll_misses", 0) + 1
-                        if misses >= 12:
+                        if misses >= 12 or pod.now - first_miss >= 90:
                             raise
                         pod._sleep(5)
                         continue
@@ -676,9 +691,30 @@ class FakeWan:
                     pod._sleep(5)
                 raise TimeoutError("Video exceeded the 20-minute job limit")
             except Exception as exc:
-                if (started or submission_attempted) and pod._running_prompt is not None:
-                    api.engine("/interrupt", {})  # api.py interrupts only its own prompt
-                    pod._running_prompt = None
+                if started or submission_attempted:
+                    try:
+                        queue = api.engine("/queue")
+
+                        def owned(e):
+                            return (len(e) > 3 and e[3].get("client_id") == job["id"]) \
+                                or e[1] == job.get("prompt_id")
+                        running = queue.get("queue_running", [])
+                        pending = [e[1] for e in queue.get("queue_pending", []) if owned(e)]
+                        if pending:
+                            api.engine("/queue", {"delete": pending})
+                        if running and not all(owned(e) for e in running):
+                            pod.unsafe = True
+                            raise RuntimeError("Unknown backend work requires inspection")
+                        if running:
+                            api.engine("/interrupt", {})
+                        for _ in range(12):
+                            if not api.engine("/queue").get("queue_running"):
+                                break
+                            pod._sleep(5)
+                        else:
+                            pod.unsafe = True
+                    except Exception:
+                        pod.unsafe = True
                 job.update(state="failed", error=type(exc).__name__ + ": " + str(exc)[:200],
                            finished_at=pod.now)
                 save(job)
