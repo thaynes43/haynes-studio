@@ -100,6 +100,12 @@ def test_every_package_module_imports_without_side_effects():
         "haynes_studio.adapters.fakes", "haynes_studio.adapters.recovery",
         "haynes_studio.adapters.errors", "haynes_studio.adapters.wan"}
     assert "haynes_studio.cli" in outcome["imported"]
+    # Story 846: the volume reader and the importer, its python -m entry point included
+    # (it runs main() only as __main__).
+    assert {"haynes_studio.adapters.wan_volume", "haynes_studio.importer",
+            "haynes_studio.importer.plan", "haynes_studio.importer.run",
+            "haynes_studio.importer.command", "haynes_studio.importer.__main__"} \
+        <= set(outcome["imported"])
 
 
 def test_the_guards_catch_each_side_effect(tmp_path):
