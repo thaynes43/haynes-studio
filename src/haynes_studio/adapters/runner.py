@@ -16,7 +16,14 @@ import subprocess
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from haynes_studio.adapters.errors import COMMAND_FAILED, NOT_FOUND, TIMEOUT, AdapterError, safe_detail
+from haynes_studio.adapters.errors import (
+    COMMAND_FAILED,
+    DETAIL_LIMIT,
+    NOT_FOUND,
+    TIMEOUT,
+    AdapterError,
+    redact,
+)
 
 
 @dataclass(frozen=True)
@@ -49,8 +56,9 @@ class Completed:
 
 class Runner(Protocol):
     """Runs one command and returns its result. Raises :class:`AdapterError` with code
-    ``adapter.timeout`` when the timeout passes, or ``adapter.command_failed`` when the
-    process cannot start; a non-zero exit status is a result, not an exception."""
+    ``adapter.timeout`` when the timeout passes (``redacted_stderr`` holds all the stderr
+    read before it, redacted), or ``adapter.command_failed`` when the process cannot
+    start; a non-zero exit status is a result, not an exception."""
 
     def run(self, command: Command) -> Completed: ...
 
@@ -66,10 +74,13 @@ class SubprocessRunner:
             result = subprocess.run(list(command.argv), input=command.stdin, capture_output=True,
                                     timeout=command.timeout_s, check=False)
         except subprocess.TimeoutExpired as expired:
+            # The whole stderr read so far, redacted, stays on the error (not in its
+            # message): a line the caller needs can sit far before the 300-character tail.
+            stderr = redact(expired.stderr)
             problem = AdapterError(TIMEOUT, command.label,
                                    f"no answer from {command.target or command.argv[0]} "
                                    f"within {command.timeout_s:g} s",
-                                   detail=safe_detail(expired.stderr))
+                                   detail=stderr[-DETAIL_LIMIT:], redacted_stderr=stderr)
         except OSError as error:
             problem = AdapterError(COMMAND_FAILED, command.label,
                                    f"could not start {command.argv[0]}: {error.strerror}")
@@ -107,11 +118,12 @@ WAN_API = ExecTarget("ai", "deploy/wan-video", "api", "python3")  # poc/deliver.
 def failure(command: Command, result: Completed, *, error=AdapterError, **extra) -> AdapterError:
     """The error for a non-zero exit: code ``adapter.command_failed``, or
     ``adapter.not_found`` when the in-pod snippet reported an HTTP 404."""
-    detail = safe_detail(result.stderr)
+    stderr = redact(result.stderr)
+    detail = stderr[-DETAIL_LIMIT:]
     code = NOT_FOUND if "HTTP Error 404" in detail else COMMAND_FAILED
     return error(code, command.label, f"{command.target or command.argv[0]} exited "
                                       f"{result.returncode}", detail=detail,
-                 returncode=result.returncode, **extra)
+                 returncode=result.returncode, redacted_stderr=stderr, **extra)
 
 
 def run_checked(runner: Runner, command: Command, *, error=AdapterError) -> Completed:

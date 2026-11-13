@@ -3,14 +3,23 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import re
+import subprocess
 import threading
+import time
 
 import pytest
 
-from haynes_studio.adapters import errors, pinned
-from haynes_studio.adapters.comfyui import ImageClient, ImageEdit, TextToImage, upload_name_for
+from haynes_studio.adapters import errors, pinned, runner
+from haynes_studio.adapters.comfyui import (
+    ImageClient,
+    ImageEdit,
+    InFlight,
+    TextToImage,
+    upload_name_for,
+)
 from haynes_studio.adapters.errors import AdapterError, ImageError, PinMismatch, RequestInvalid
 from haynes_studio.adapters.fakes import (
     FailingRunner,
@@ -23,11 +32,12 @@ from haynes_studio.adapters.fakes import (
     synthetic_wav,
 )
 from haynes_studio.adapters.kokoro import KokoroClient, SpeechRequest
-from haynes_studio.adapters.runner import Command, Completed, ExecTarget
+from haynes_studio.adapters.runner import Command, Completed, ExecTarget, SubprocessRunner
 from haynes_studio.adapters.whisper import TranscriptRequest, WhisperClient
 
 SECRET_URL = "https://agent:hunter2-not-a-real-password@kube.example:6443/api"
 SECRET_TOKEN = "token=abcdef0123456789abcdef"
+PROMPT = "0b5d5a1e-1111-4222-8333-944445555666"
 
 
 def t2i(**changes):
@@ -82,9 +92,16 @@ def test_edit_request_needs_png_and_names_the_upload_by_its_bytes():
         ImageEdit("j", "n", "p", 1, b"not a png")
     edit = ImageEdit("j", "n", "p", 1, png)
     assert edit.upload_name == upload_name_for(png) != upload_name_for(synthetic_png(seed=1))
-    assert re.fullmatch(r"studio-[0-9a-f]{12}\.png", edit.upload_name)
     with pytest.raises(TypeError):
         ImageEdit("j", "n", "p", 1, png, "studio-000000000000.png")
+
+
+def test_edit_upload_name_is_the_full_sha256():
+    """Finding 2: the name carries all 64 hex digits, not a 12-digit prefix."""
+    png = synthetic_png(seed=4)
+    name = ImageEdit("j", "n", "p", 1, png).upload_name
+    assert name == f"studio-{hashlib.sha256(png).hexdigest()}.png"
+    assert re.fullmatch(r"studio-[0-9a-f]{64}\.png", name)
 
 
 def test_transcript_request_needs_a_wav():
@@ -149,6 +166,57 @@ def test_safe_detail_redacts_before_cutting():
     assert "p" * 10 not in detail and detail.endswith("<redacted>")
     assert errors.safe_detail(b"\x1b[31mred\x00") == "?[31mred?"
     assert errors.safe_detail(None) == ""
+    spaced = 'x' * 400 + ' password: "correct horse battery staple"'
+    assert errors.safe_detail(spaced, limit=40).endswith('password: "<redacted>"')
+
+
+# Finding 6: each form the review found left in place, as the reviewer wrote it.
+@pytest.mark.parametrize("raw,secrets,kept", [
+    ('login failed: password: "correct horse battery staple"\nnext',
+     ("correct", "horse", "battery", "staple"), ('password: "<redacted>"', "next")),
+    ("{'api_key': 'ak 0123 4567'}", ("0123", "4567"), ("{'api_key': '<redacted>'}",)),
+    ("token=super secret leftover\nRuntimeError: boom",
+     ("super", "leftover"), ("token=<redacted>", "RuntimeError: boom")),
+    ("aws_access_key_id=AKIAIOSFODNN7EXAMPLE region us-east-1",
+     ("AKIAIOSFODNN7EXAMPLE",), ("region us-east-1",)),
+    ("key xASIAY34FZKBOKMUTVV7Ax", ("Y34FZKBOKMUTVV7A",), ("key x",)),
+    ("before\n-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA0123\nabcdEFGH\n"
+     "-----END RSA PRIVATE KEY-----\nafter",
+     ("MIIEowIBAAKCAQEA0123", "abcdEFGH", "PRIVATE KEY"), ("before", "after")),
+    ("before\n-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEA\ncut off here",
+     ("b3BlbnNzaC1rZXktdjEA", "cut off"), ("before",)),
+    ("dial https://user:correct horse@kube.example/api: refused",
+     ("correct", "horse"), ("https://<redacted>@kube.example/api: refused",)),
+])
+def test_safe_detail_redacts_the_reviewed_forms(raw, secrets, kept):
+    detail = errors.safe_detail(raw.encode())
+    for secret in secrets:
+        assert secret not in detail, secret
+    for text in kept:
+        assert text in detail, text
+
+
+@pytest.mark.parametrize("plain", [
+    "Get https://kube.example:8080/path: dial tcp 10.0.0.1:8080: connect: refused",
+    "GET http://127.0.0.1:8188/history/abc?x=1 then mail ops@example.com",
+    "uploaded {'name': 'studio-0a1b.png', 'subfolder': '', 'type': 'input'}",
+    "PROMPT_ID 0b5d5a1e-1111-4222-8333-944445555666",
+])
+def test_safe_detail_leaves_plain_text_alone(plain):
+    assert errors.safe_detail(plain) == plain
+
+
+@pytest.mark.parametrize("unit", ["a://", "https://" + "x:" * 3, "token", "password=\"\\",
+                                  "-----BEGIN", "AKIA", "Bearer ", "x", "a.b", "a:b c@",
+                                  "'secret': '", "token_x-"])
+def test_safe_detail_stays_linear_on_long_input(unit):
+    """Every pattern is bounded or cannot backtrack. 64 KiB of a repeated fragment takes
+    a few milliseconds here; the patterns before this fix took minutes on the "x" and
+    "token" inputs (4 KiB of "token" alone took 39 s)."""
+    raw = unit * (65536 // len(unit))
+    start = time.perf_counter()
+    errors.redact(raw)
+    assert time.perf_counter() - start < 1
 
 
 def test_timeout_from_the_runner_passes_through():
@@ -184,11 +252,12 @@ def test_fake_whisper_without_a_transcript_fails_like_the_snippet():
 # ComfyUI -----------------------------------------------------------------------------
 
 def test_comfyui_failure_after_submission_carries_the_prompt_id():
-    stderr = b"PROMPT_ID 0b5d5a1e-1111-4222-8333-944445555666\nSystemExit: Timed out waiting\n"
+    stderr = f"PROMPT_ID {PROMPT}\nSystemExit: Timed out waiting\n".encode()
     with pytest.raises(ImageError) as caught:
         ImageClient(FailingRunner(1, stderr)).render(t2i())
-    assert caught.value.prompt_id == "0b5d5a1e-1111-4222-8333-944445555666"
+    assert caught.value.prompt_id == PROMPT
     assert "do not resubmit" in str(caught.value)
+    assert ImageClient.in_flight() == InFlight(PROMPT, errors.COMMAND_FAILED)
 
 
 def test_comfyui_timeout_keeps_the_prompt_id_from_partial_stderr():
@@ -199,11 +268,130 @@ def test_comfyui_timeout_keeps_the_prompt_id_from_partial_stderr():
     assert (caught.value.code, caught.value.prompt_id) == (errors.TIMEOUT, "abc-123")
 
 
+def _timeout_run(stderr):
+    """A stand-in for ``subprocess.run`` that times out: nothing is started."""
+    def run(argv, **kwargs):
+        assert argv[:2] == ["kubectl", "exec"]
+        raise subprocess.TimeoutExpired(argv, kwargs["timeout"], output=b"", stderr=stderr)
+    return run
+
+
+def test_subprocess_runner_timeout_keeps_the_whole_redacted_stderr(monkeypatch):
+    stderr = (f"uploaded {{}}\nPROMPT_ID {PROMPT}\n" + "polling history\n" * 40
+              + f"{SECRET_TOKEN}\n").encode()
+    monkeypatch.setattr(runner.subprocess, "run", _timeout_run(stderr))
+    with pytest.raises(AdapterError) as caught:
+        SubprocessRunner().run(ImageClient(FakeRunner()).command(t2i(prompt="a secret-ish doll")))
+    error = caught.value
+    assert error.code == errors.TIMEOUT and error.__cause__ is None and error.__context__ is None
+    assert f"PROMPT_ID {PROMPT}" in error.redacted_stderr
+    assert len(error.detail) <= errors.DETAIL_LIMIT and "PROMPT_ID" not in error.detail
+    assert error.redacted_stderr.endswith("token=<redacted>")
+    for text in (error.redacted_stderr, error.detail, str(error), repr(error)):
+        assert "abcdef0123456789" not in text and "secret-ish" not in text
+    assert "PROMPT_ID" not in str(error) and "urlopen" not in str(error)
+
+
+def test_comfyui_timeout_finds_the_prompt_id_behind_long_stderr(monkeypatch):
+    """Finding 1A: over 300 characters of stderr after the PROMPT_ID line."""
+    stderr = (f"uploaded {{}}\nPROMPT_ID {PROMPT}\n" + "x" * 1000 + "\n").encode()
+    monkeypatch.setattr(runner.subprocess, "run", _timeout_run(stderr))
+    with pytest.raises(ImageError) as caught:
+        ImageClient(SubprocessRunner()).render(t2i(prompt="a secret-ish doll"))
+    error = caught.value
+    assert (error.code, error.prompt_id) == (errors.TIMEOUT, PROMPT)
+    assert "PROMPT_ID" not in error.detail and "do not resubmit" in str(error)
+    assert "secret-ish" not in str(error) and "urlopen" not in str(error)
+    assert ImageClient.in_flight() == InFlight(PROMPT, errors.TIMEOUT)
+
+
 def test_comfyui_busy_queue_message_is_kept():
     stderr = b"SystemExit: ComfyUI stayed busy for 30 min; not submitting\n"
     with pytest.raises(ImageError) as caught:
         ImageClient(FailingRunner(1, stderr)).render(t2i())
     assert caught.value.prompt_id is None and "stayed busy" in caught.value.detail
+    assert ImageClient.in_flight() is None  # the snippet gave up before submitting
+
+
+# Finding 1B: a prompt that may be in flight blocks a second submission ----------------
+
+def _leave_a_prompt_in_flight(prompt_id=PROMPT):
+    stderr = f"PROMPT_ID {prompt_id}\n" if prompt_id else ""
+    timeout = AdapterError(errors.TIMEOUT, "comfyui.render", "no answer within 3300 s",
+                           redacted_stderr=stderr + "x" * 1000)
+    with pytest.raises(ImageError):
+        ImageClient(ScriptedRunner(timeout)).render(t2i())
+    assert ImageClient.in_flight() == InFlight(prompt_id, errors.TIMEOUT)
+
+
+def test_comfyui_after_a_timeout_render_reads_the_queue_before_submitting():
+    _leave_a_prompt_in_flight()
+    busy = FakeComfyUI(running=1)
+    queue_only = FakeRunner(busy)
+    with pytest.raises(ImageError) as caught:
+        ImageClient(queue_only).render(t2i(name="b-test"))  # another client, same process
+    assert (caught.value.code, caught.value.prompt_id) == (errors.BUSY, PROMPT)
+    assert "do not resubmit" in str(caught.value) and "1 running" in str(caught.value)
+    assert [c.label for c in queue_only.calls] == ["comfyui.queue"] and busy.payloads == []
+    assert ImageClient.in_flight().prompt_id == PROMPT
+
+    idle = FakeComfyUI()
+    runner_ = FakeRunner(idle)
+    assert ImageClient(runner_).render(t2i(name="c-test")).png
+    assert [c.label for c in runner_.calls] == ["comfyui.queue", "comfyui.render"]
+    assert ImageClient.in_flight() is None
+
+
+def test_comfyui_unknown_prompt_after_a_failure_holds_until_the_queue_empties():
+    with pytest.raises(ImageError):
+        ImageClient(FailingRunner(1, b"error: connection reset by peer\n")).render(t2i())
+    assert ImageClient.in_flight() == InFlight(None, errors.COMMAND_FAILED)
+    busy = FakeComfyUI(pending=2)
+    with pytest.raises(ImageError) as caught:
+        ImageClient(FakeRunner(busy)).render(t2i(name="b-test"))
+    assert caught.value.code == errors.BUSY and caught.value.prompt_id is None
+    assert "do not resubmit" in str(caught.value) and busy.payloads == []
+
+
+def test_comfyui_clear_in_flight_lets_the_next_render_submit():
+    _leave_a_prompt_in_flight()
+    assert ImageClient.clear_in_flight() == InFlight(PROMPT, errors.TIMEOUT)
+    assert ImageClient.in_flight() is None
+    runner_ = FakeRunner(FakeComfyUI(running=1))
+    assert ImageClient(runner_).render(t2i(name="b-test")).png
+    assert [c.label for c in runner_.calls] == ["comfyui.render"]
+
+
+def test_comfyui_queue_failure_during_the_check_keeps_the_prompt_in_flight():
+    _leave_a_prompt_in_flight()
+    broken = ScriptedRunner(Completed(1, b"", b"error: connection refused\n"))
+    with pytest.raises(ImageError) as caught:
+        ImageClient(broken).render(t2i(name="b-test"))
+    assert caught.value.label == "comfyui.queue"
+    assert [c.label for c in broken.calls] == ["comfyui.queue"]
+    assert ImageClient.in_flight().prompt_id == PROMPT
+
+
+@pytest.mark.parametrize("outcome", [
+    AdapterError(errors.COMMAND_FAILED, "comfyui.render", "could not start kubectl: not found"),
+    Completed(0, b"not json", b"PROMPT_ID p\n"),
+])
+def test_comfyui_nothing_in_flight_when_the_prompt_never_started_or_finished(outcome):
+    with pytest.raises(ImageError):
+        ImageClient(ScriptedRunner(outcome)).render(t2i())
+    assert ImageClient.in_flight() is None
+
+
+def test_comfyui_unexpected_runner_error_leaves_an_unknown_prompt_in_flight():
+    with pytest.raises(RuntimeError):
+        ImageClient(ScriptedRunner(RuntimeError("runner broke"))).render(t2i())
+    assert ImageClient.in_flight() == InFlight(None, "unknown")
+
+
+def test_comfyui_in_flight_markers_are_in_the_pinned_snippet():
+    text = pinned.load("comfyui_prompt.py").text
+    assert "sys.stderr.write('PROMPT_ID %s\\n' % pid); sys.stderr.flush()" in text
+    assert "ComfyUI stayed busy for 30 min; not submitting" in text
 
 
 @pytest.mark.parametrize("body", [

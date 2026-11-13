@@ -6,11 +6,24 @@ up without submitting), submits one prompt, polls its history (20 min limit) and
 prints the images as base64. It never cancels or interrupts other work. The command
 timeout is the PoC's 3300 s.
 
+:meth:`ImageClient.render` is the only supported way to submit. :meth:`ImageClient.command`
+builds the same command for inspection and tests; it takes no lock and checks nothing.
+
 One prompt in flight: this process runs at most one :meth:`ImageClient.render` at a
-time (a second concurrent call fails with ``adapter.busy``). Across processes the
-snippet's queue check is best effort: checking for an idle queue and submitting are
-two steps, as in the PoC, so two clients that check at the same moment can both submit. :meth:`ImageClient.queue` reads the queue without
-submitting anything.
+time (a second concurrent call fails with ``adapter.busy``). When a render times out,
+or fails once ComfyUI may already have accepted its prompt, the process remembers that
+a prompt may still be running (:meth:`ImageClient.in_flight`, with its ID when the
+snippet printed one). Until that is settled, ``render`` first reads the queue: an
+empty queue settles it and the render goes ahead; anything else fails with
+``adapter.busy``, naming the prompt and saying not to resubmit. A caller that knows the
+prompt finished (from ``/history/<prompt_id>``) can call
+:meth:`ImageClient.clear_in_flight`. Nothing here interrupts, cancels or deletes any
+work on ComfyUI.
+
+Across processes the snippet's queue check is best effort: checking for an idle queue
+and submitting are two steps, as in the PoC, so two clients that check at the same
+moment can both submit. :meth:`ImageClient.queue` reads the queue without submitting
+anything.
 
 Graphs are the pinned ``qwen_image_2_1_t2i_API.json`` and
 ``qwen_image_2_1_edit_API.json``; the filled graph's hash is ``graph_sha256`` exactly as
@@ -35,6 +48,7 @@ from typing import Any
 from haynes_studio.adapters import pinned
 from haynes_studio.adapters.errors import (
     BUSY,
+    COMMAND_FAILED,
     RESPONSE_INVALID,
     AdapterError,
     ImageError,
@@ -71,6 +85,9 @@ EDIT_NODES = {"1": "LoadImage", "6": "TextEncodeQwenImage21", "7": "KSampler", "
 
 NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,79}")
 PROMPT_ID = re.compile(r"PROMPT_ID ([0-9A-Za-z-]{1,64})")
+# What comfyui_prompt.py prints when the queue stayed busy and it gave up before
+# submitting: the one failure that certainly left nothing on the GPU.
+NOT_SUBMITTED = "not submitting"
 
 
 def _check_common(job: Any, name: Any, prompt: Any, seed: Any) -> None:
@@ -107,9 +124,9 @@ class TextToImage:
 
 
 def upload_name_for(source_png: bytes) -> str:
-    """The upload name for an image: the PoC's form with the image's own hash in place
-    of 12 random hex digits (proposal P-425-03), so equal names mean equal bytes."""
-    return f"studio-{hashlib.sha256(source_png).hexdigest()[:12]}.png"
+    """The upload name for an image: the PoC's form with the image's full SHA-256 in
+    place of 12 random hex digits (proposal P-425-03), so equal names mean equal bytes."""
+    return f"studio-{hashlib.sha256(source_png).hexdigest()}.png"
 
 
 @dataclass(frozen=True)
@@ -160,6 +177,15 @@ class QueueState:
         return self.running == 0 and self.pending == 0
 
 
+@dataclass(frozen=True)
+class InFlight:
+    """A prompt this process may have left running on ComfyUI: its ID when the snippet
+    printed one (else None), and the error code of the render that left it."""
+
+    prompt_id: str | None
+    code: str
+
+
 def graph_sha256(graph: dict) -> str:
     """The ``graph_sha256`` ``poc/comfy.py`` records for a filled graph."""
     return hashlib.sha256(json.dumps(graph, sort_keys=True).encode()).hexdigest()
@@ -175,7 +201,11 @@ def _template(item: pinned.PinnedInput, name: str, nodes: dict[str, str]) -> dic
 
 
 class ImageClient:
-    _in_flight = threading.Lock()  # one render per process; the snippet waits for others
+    # Both are per process, shared by every ImageClient: one render at a time (the
+    # snippet waits for other clients' work), and the prompt a failed render may have
+    # left running.
+    _render_lock = threading.Lock()
+    _unsettled: InFlight | None = None
 
     def __init__(self, runner: Runner, *, target: ExecTarget = COMFYUI,
                  prompt_snippet: pinned.PinnedInput | None = None,
@@ -222,7 +252,10 @@ class ImageClient:
         return json.dumps(payload).encode()
 
     def command(self, request: TextToImage | ImageEdit) -> Command:
-        """The command :meth:`render` runs, with the graph built from the pinned template."""
+        """The command :meth:`render` runs, with the graph built from the pinned template.
+
+        For inspection and tests only: it takes no lock and checks no prompt in flight.
+        Submit with :meth:`render`, the only supported way."""
         return self._command(request, self.graph(request))
 
     def _command(self, request: TextToImage | ImageEdit, graph: dict) -> Command:
@@ -230,27 +263,83 @@ class ImageClient:
         return Command(LABEL, self.target.argv(self.prompt_snippet.text),
                        self._payload(request, graph), TIMEOUT_S, self.target.describe())
 
+    @classmethod
+    def in_flight(cls) -> InFlight | None:
+        """The prompt a failed render in this process may have left running, or None."""
+        return ImageClient._unsettled
+
+    @classmethod
+    def clear_in_flight(cls) -> InFlight | None:
+        """Forget the prompt in flight, once the caller knows it finished (for example
+        from ``/history/<prompt_id>``). Returns what it forgot. Touches nothing on
+        ComfyUI."""
+        cleared, ImageClient._unsettled = ImageClient._unsettled, None
+        return cleared
+
     def render(self, request: TextToImage | ImageEdit) -> ImageResult:
+        """Submit one prompt and return its first image. The only supported way to
+        submit: one render per process, and none while an earlier prompt may be in flight
+        (see the module notes)."""
         graph = self.graph(request)
         command = self._command(request, graph)
-        if not ImageClient._in_flight.acquire(blocking=False):
+        if not ImageClient._render_lock.acquire(blocking=False):
             raise ImageError(BUSY, LABEL, "another render is in flight in this process; "
                                           "one prompt at a time on the shared GPU")
         try:
-            result = self.runner.run(command)
-        except ImageError:
-            raise
-        except AdapterError as error:  # a timeout: the prompt may be running on the GPU
-            raise ImageError(error.code, LABEL, error.message, prompt_id=_prompt_id(error.detail),
-                             detail=error.detail) from None
+            self._settle_in_flight()
+            result = self._run(command)
+            stderr = result.stderr.decode("utf-8", "replace")
+            prompt_id = _prompt_id(stderr)
+            if result.returncode != 0:
+                error = failure(command, result, error=ImageError, prompt_id=prompt_id)
+                # Remembered before the lock is released. Only the snippet's own "not
+                # submitting" exit, with no PROMPT_ID, certainly left nothing running.
+                if prompt_id is not None or NOT_SUBMITTED not in stderr:
+                    ImageClient._unsettled = InFlight(prompt_id, error.code)
+                raise error
         finally:
-            ImageClient._in_flight.release()
-        if not isinstance(result, Completed):
-            raise TypeError("a runner must return Completed")
-        prompt_id = _prompt_id(result.stderr.decode("utf-8", "replace"))
-        if result.returncode != 0:
-            raise failure(command, result, error=ImageError, prompt_id=prompt_id)
+            ImageClient._render_lock.release()
         return self._parse(result.stdout, graph, prompt_id)
+
+    def _settle_in_flight(self) -> None:
+        """With a prompt in flight, go ahead only once ComfyUI's queue is empty."""
+        unsettled = ImageClient._unsettled
+        if unsettled is None:
+            return
+        state = self.queue()  # read-only; an error here leaves the prompt in flight
+        if state.idle:
+            ImageClient._unsettled = None
+            return
+        message = (f"a prompt this process sent may still be on ComfyUI ({state.running} "
+                   f"running, {state.pending} pending); render submits again only once the "
+                   f"queue is empty or after ImageClient.clear_in_flight()")
+        if unsettled.prompt_id is None:
+            message += "; do not resubmit"
+        raise ImageError(BUSY, LABEL, message, prompt_id=unsettled.prompt_id)
+
+    def _run(self, command: Command) -> Completed:
+        """Run the prompt command (render lock held). When the runner raises, remember a
+        prompt that may be left in flight before the lock is released."""
+        try:
+            result = self.runner.run(command)
+        except AdapterError as error:
+            stderr = error.redacted_stderr or error.detail
+            prompt_id = getattr(error, "prompt_id", None) or _prompt_id(stderr)
+            message = error.message
+            if error.code != COMMAND_FAILED:  # a runner's command_failed: it never started
+                ImageClient._unsettled = InFlight(prompt_id, error.code)
+                if prompt_id is None:
+                    message += "; ComfyUI may have accepted the prompt: do not resubmit"
+            raise ImageError(error.code, LABEL, message, prompt_id=prompt_id,
+                             detail=error.detail, returncode=error.returncode,
+                             redacted_stderr=error.redacted_stderr) from None
+        except BaseException:
+            ImageClient._unsettled = InFlight(None, "unknown")
+            raise
+        if not isinstance(result, Completed):
+            ImageClient._unsettled = InFlight(None, "unknown")
+            raise TypeError("a runner must return Completed")
+        return result
 
     def _parse(self, stdout: bytes, graph: dict, prompt_id: str | None) -> ImageResult:
         def bad(message):

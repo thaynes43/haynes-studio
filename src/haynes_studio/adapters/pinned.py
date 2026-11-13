@@ -50,13 +50,16 @@ PINS: dict[str, Pin] = {
         "ba9fa7aac19a20a54d52d6081323c008345bc74e243c359e7c35ea7005a96469", "snippet",
         "poc/deliver.py READ, byte for byte: GET /videos/<id> on the Wan API"),
     "wan_ledger_list.py": Pin(
-        "32d6228e662fc4d793e0d037c5543c2f03eed3a968a0ebc243adb0f1de4f0ede", "snippet",
+        "e068145dfcb8a1b13e525d613e335c8c478ebf04f090e6ede6e1f5d8c248f424", "snippet",
         "new in story 425: lists edited_production ledgers in /workspace/jobs/, read-only "
-        "(the Wan API has no list route)"),
+        "(the Wan API has no list route); a ledger must resolve under /workspace/jobs and be "
+        "a regular file opened with O_NOFOLLOW, else it is listed as unreadable"),
     "wan_ledger_fetch.py": Pin(
-        "5682a9ea1f50c7724095008b3e5fdb426371e4302c62baf33df7fda76dcd9584", "snippet",
-        "new in story 425: prints one ledger asset's bytes after checking its path is under "
-        "/workspace/output/productions/ and its sha256 matches, read-only"),
+        "8aaa1c0f555bb907127863968db7087cf08d47aa94be760a2bf1464e4d9c4300", "snippet",
+        "new in story 425: prints one ledger asset's bytes, read-only, after checking the "
+        "ledger as wan_ledger_list.py does, that the asset path is under "
+        "/workspace/output/productions/, and on its O_NOFOLLOW descriptor that it is a "
+        "regular file with one link and at most 64 MiB whose sha256 matches"),
     "qwen_image_2_1_t2i_API.json": Pin(
         "f18a6e29a1f225467874d6c4d9fe16861982ad9ff6e274ca3d170245c43d226d", "graph",
         "poc/graphs/qwen_image_2_1_t2i_API.json, byte for byte (hand-converted from "

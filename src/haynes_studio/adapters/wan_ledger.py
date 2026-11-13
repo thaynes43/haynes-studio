@@ -9,13 +9,19 @@ snippets read files and one HTTP route only:
   /videos/<ledger_id>`` on the API (snippet ``wan_ledger_read.py``, 30 s).
 - :meth:`LedgerReader.list` reads ``/workspace/jobs/*.json`` and keeps the
   ``edited_production`` ledgers (``wan_ledger_list.py``, 60 s; the API has no list
-  route). A ledger it cannot parse is reported by file name, never fatal.
+  route). A ledger file must resolve under ``/workspace/jobs`` and be a regular file,
+  opened with ``O_NOFOLLOW``; one that is not, or that it cannot parse, is reported by
+  file name, never fatal.
 - :meth:`LedgerReader.find` lists, then matches a SHA-256 against each ledger's output
   and assets.
 - :meth:`LedgerReader.fetch_asset` prints one asset's bytes after checking, in the pod,
-  that the ledger lists it, that its path is under ``/workspace/output/productions/``
-  and that its SHA-256 matches; the client checks the hash again
-  (``wan_ledger_fetch.py``, 180 s, 64 MiB).
+  the ledger file as ``list`` does, that the ledger lists the asset, that its path is
+  under ``/workspace/output/productions/``, and, on the descriptor it reads from (opened
+  with ``O_NOFOLLOW``), that it is a regular file with one link and at most 64 MiB, and
+  that its SHA-256 matches; the client checks the hash again (``wan_ledger_fetch.py``,
+  180 s).
+- :meth:`LedgerReader.get` also refuses an asset path that ``fetch_asset`` would
+  refuse: not under ``/workspace/output/productions/``, or with a ``..`` segment.
 
     reader = LedgerReader(runner)
     r4 = reader.get("032f1bb230794aaf84dce9001181a7d7")
@@ -44,6 +50,7 @@ MAX_ASSET_BYTES = 64 * 1024 * 1024  # the largest Winter Menu delivery is 33 541
 MAX_ANSWER_BYTES = 16 * 1024 * 1024
 LEDGER_ID = re.compile(r"[0-9a-f]{32}")  # the Wan API's JOB_ID
 SHA256 = re.compile(r"[0-9a-f]{64}")
+ASSET_ROOT = "/workspace/output/productions/"  # where poc/deliver.py copies every asset
 KIND = "edited_production"
 REQUIRED = ("id", "kind", "state", "output", "title", "story", "assets", "bytes", "sha256",
             "created_at", "finished_at", "telemetry", "preset", "provenance")
@@ -147,6 +154,8 @@ def record_from_document(document: Any, label: str = "wan_ledger.get") -> Ledger
                 or not _is_count(asset.get("bytes")) or not isinstance(asset.get("sha256"), str) \
                 or not SHA256.fullmatch(asset["sha256"]):
             raise bad(f"ledger asset {i} lacks path, bytes or sha256")
+        if not _asset_path_ok(asset["path"]):
+            raise bad(f"ledger asset {i} path is not under {ASSET_ROOT} or has a .. segment")
         assets.append(LedgerAsset(asset["path"], asset["bytes"], asset["sha256"]))
     for name in ("title", "story", "preset"):
         if not isinstance(document[name], str):
@@ -154,6 +163,13 @@ def record_from_document(document: Any, label: str = "wan_ledger.get") -> Ledger
     return LedgerRecord(document["id"], document["title"], document["story"], document["state"],
                         output, document["bytes"], document["sha256"], float(times[0]),
                         float(times[1]), document["preset"], tuple(assets), freeze(document))
+
+
+def _asset_path_ok(path: str) -> bool:
+    """The rule ``fetch_asset`` applies in the pod, checked as text: an absolute path
+    below ``/workspace/output/productions/`` with no ``..`` segment."""
+    return path.startswith(ASSET_ROOT) and len(path) > len(ASSET_ROOT) \
+        and ".." not in path.split("/")
 
 
 def _json_answer(stdout: bytes, label: str) -> Any:
