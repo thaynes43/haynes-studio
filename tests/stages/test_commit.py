@@ -95,6 +95,8 @@ def test_a_commit_is_checked_before_anything_is_written(root):
         ({"outputs": {}}, RECORD_INVALID),
         ({"outputs": {"a/b": StageOutput(b"x", "video/mp4")}}, RECORD_INVALID),
         ({"outputs": {"clip": StageOutput(b"x", "video/quicktime")}}, MEDIA_TYPE_UNSUPPORTED),
+        # a later output's bad hash is refused before an earlier output is published
+        ({"outputs": {**outputs(), "z": StageOutput(b"x", "video/mp4", "BAD")}}, "store.locator_invalid"),
     ]
     for change, code in bad:
         arguments = {"production_id": PRD, "run_id": RUN, "stage": "segment",
@@ -102,6 +104,9 @@ def test_a_commit_is_checked_before_anything_is_written(root):
         with pytest.raises(StoreError) as caught:
             commit_stage(store, **arguments)
         assert caught.value.code == code
+    with pytest.raises(TypeError):
+        commit_stage(store, production_id=PRD, run_id=RUN, stage="segment",
+                     outputs={**outputs(), "z": StageOutput("a/str/path.mp4", "video/mp4")})
     assert tree(root) == {}
 
 

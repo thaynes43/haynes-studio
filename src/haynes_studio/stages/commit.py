@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from haynes_studio.store import (
     BLOB_MISSING,
     HASH_MISMATCH,
+    LOCATOR_INVALID,
     MISSING,
     PRESENT,
     RECORD_INVALID,
@@ -26,8 +27,14 @@ from haynes_studio.store import (
     Store,
     StoreError,
 )
-from haynes_studio.store.base import Source
-from haynes_studio.store.layout import check_production_id, check_run_id, check_stage, extension
+from haynes_studio.store.base import Source, check_source
+from haynes_studio.store.layout import (
+    check_production_id,
+    check_run_id,
+    check_stage,
+    extension,
+    is_sha256,
+)
 from haynes_studio.store.records import check_name
 
 
@@ -47,7 +54,8 @@ def commit_stage(store: Store, *, production_id: str, run_id: str, stage: str,
                  ledger: StageLedger | None = None) -> StageRecord:
     """Publish every output into the production's folder, in name order, then record
     the stage as complete. ``ledger`` defaults to ``store`` (the local adapter keeps
-    both). Names, IDs and media types are checked before anything is written."""
+    both). IDs, the stage name, output names, media types, sources and expected
+    hashes are checked before anything is written."""
     if ledger is None:
         if not isinstance(store, StageLedger):
             raise TypeError("this store keeps no stage records; pass a ledger")
@@ -60,6 +68,10 @@ def commit_stage(store: Store, *, production_id: str, run_id: str, stage: str,
     for name, output in outputs.items():
         check_name(name)
         extension(output.media_type)
+        check_source(output.source)
+        if output.expected_sha256 is not None and not is_sha256(output.expected_sha256):
+            raise StoreError(LOCATOR_INVALID, f"output {name!r}: expected_sha256 must be 64 "
+                             f"lower-case hex digits, got {output.expected_sha256!r}")
     blobs = {name: store.publish(outputs[name].source, scope=production_id,
                                  media_type=outputs[name].media_type,
                                  expected_sha256=outputs[name].expected_sha256)

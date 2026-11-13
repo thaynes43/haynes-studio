@@ -64,9 +64,14 @@ called after each one, so a test can inject a failure there:
 | 4. unlink the staging file | `_finish` | `unlink` |
 | 4. `fsync` the final and staging directories | `_finish` | `fsync_dir` |
 
-- Final paths are only ever opened `O_RDONLY | O_NOFOLLOW`; a symbolic link at a final
-  path is a collision and is not followed. Published files are mode `0444`.
-- New folders are made one at a time with `mkdir`, and each parent is `fsync`ed.
+- Final paths are only ever opened `O_RDONLY | O_NOFOLLOW | O_NONBLOCK`, each folder
+  on the way opened relative to the last with `O_NOFOLLOW`, so no symbolic link in the
+  path is followed out of the store. A link, folder, FIFO or socket at a final path is
+  a collision (and `mismatch` to `verify`). Published files are mode `0444`.
+- Folders are made one at a time with `mkdir`, and the parent of every folder on the
+  way is `fsync`ed, also when another writer made the folder, so a blob's name is
+  durable before a record that names it. Something other than a folder where one
+  belongs is `store.collision`.
 - The only `unlink` is step 4's, of the store's own staging file once the final path
   holds its bytes. A refused or interrupted publication leaves its `.part` file; the
   doctor reports it.
@@ -96,7 +101,8 @@ folder in name order, then writes one completion record through the ledger
 The record (`studio.stage-record/v1`, a local-adapter file) is canonical JSON of
 `production_id`, `run_id`, `stage` and `blobs` (`name` to `sha256`, `bytes`,
 `media_type`, `locator`). It holds no time or writer, so the same outputs always
-give the same bytes:
+give the same bytes. Sources and expected hashes are checked for every output before
+the first is published:
 
 - Any crash before the record's `link()` leaves no record: only orphan blobs and
   staging leftovers, which no reader trusts. From the record's `link()` on, the record
@@ -116,18 +122,20 @@ threads in lockstep at every `check` step (a barrier, no sleeps).
 `LocalStore.doctor(referenced=())` reads the tree and returns a `DoctorReport`:
 `orphans` (blobs no completed record lists and the caller did not name in
 `referenced`, such as library assets from story 382), `staging` (every file under
-`.staging/`, including one being written right now), `unexpected` (anything not in
-the layout, symbolic links included), `broken_records` and `dangling` (a record naming
-a missing blob; publication order makes this impossible). It removes, moves and
-repairs nothing; removing a leftover is a user action (D17).
+`.staging/`, including one being written right now: check its age before removing
+it), `unexpected` (files and links not in the layout; empty folders are not listed),
+`broken_records` (unreadable or malformed records), `dangling` (a record naming a
+missing blob; publication order makes this impossible) and `unreadable` (folders it
+could not list). It removes, moves and repairs nothing; removing a leftover is a user
+action (D17).
 
 ## Pre-build check
 
 `preflight(story, facts=, resolved=, store=)` takes story 404's `Story` model with its
 boards embedded, its `Facts`, and the asset versions the library resolved
 (`{asset_version_id: ResolvedVersion}`; `ResolvedVersion.of(sha256, locator)` for one
-blob, `DEFINITION_ONLY` for a stock voice). It reports every problem, sorted by board
-and field:
+blob, `DEFINITION_ONLY` for a stock voice). It reports every problem: story-level
+ones first, then by the board's place in `board_order`, then field:
 
 1. the story's `queue_run` validation (`validate_story(..., context="queue_run",
    facts=...)`): voices, photos, methods, cue anchors and ranges, and every write rule;

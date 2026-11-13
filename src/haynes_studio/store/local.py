@@ -39,7 +39,15 @@ from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from typing import Any, BinaryIO
 
-from haynes_studio.store.base import MISMATCH, MISSING, PRESENT, Source, StageLedger, Store
+from haynes_studio.store.base import (
+    MISMATCH,
+    MISSING,
+    PRESENT,
+    Source,
+    StageLedger,
+    Store,
+    check_source,
+)
 from haynes_studio.store.errors import (
     BLOB_MISSING,
     COLLISION,
@@ -67,6 +75,7 @@ CHUNK = 1 << 20
 # O_NONBLOCK so a FIFO planted at a final path cannot block the open; it does not
 # change reads of a regular file.
 _READ = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
+_DIR = os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC
 _ABSENT, _NOT_REGULAR = "absent", "not a regular file"
 _CREATE = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW
 # Proposal: published files are read-only (0444), so nothing can reopen one for writing
@@ -92,12 +101,15 @@ class DoctorReport:
     - ``orphans``: blob locators no completed stage record lists and the caller did
       not name as referenced (harmless, section 8).
     - ``staging``: files under ``.staging/`` (an interrupted, refused or in-progress
-      publication).
+      publication: check a file's age before removing it).
     - ``unexpected``: paths in the store that are not part of the layout (including
       symbolic links).
     - ``broken_records``: record files that do not read as a stage record, with why.
     - ``dangling``: ``(record path, locator)`` where a record names a missing blob.
       Publication order makes this impossible; it is reported if it ever happens.
+    - ``unreadable``: ``(folder, reason)`` for a folder the doctor could not list.
+
+    Only files and links are listed; an empty folder outside the layout is not.
     """
 
     blobs: int = 0
@@ -107,18 +119,20 @@ class DoctorReport:
     unexpected: tuple[str, ...] = ()
     broken_records: tuple[tuple[str, str], ...] = ()
     dangling: tuple[tuple[str, str], ...] = ()
+    unreadable: tuple[tuple[str, str], ...] = ()
     referenced: frozenset[str] = field(default=frozenset(), repr=False)
 
     @property
     def clean(self) -> bool:
         return not (self.orphans or self.staging or self.unexpected or self.broken_records
-                    or self.dangling)
+                    or self.dangling or self.unreadable)
 
     def to_document(self) -> dict[str, Any]:
         return {"blobs": self.blobs, "records": self.records, "orphans": list(self.orphans),
                 "staging": list(self.staging), "unexpected": list(self.unexpected),
                 "broken_records": [list(item) for item in self.broken_records],
-                "dangling": [list(item) for item in self.dangling]}
+                "dangling": [list(item) for item in self.dangling],
+                "unreadable": [list(item) for item in self.unreadable]}
 
 
 class LocalStore(Store, StageLedger):
@@ -155,14 +169,14 @@ class LocalStore(Store, StageLedger):
         parse_locator(locator)
         if not is_sha256(sha256):
             raise StoreError(LOCATOR_INVALID, f"sha256 must be 64 lower-case hex digits, got {sha256!r}")
-        found = self._hash_existing(self._abs(locator))
+        found = self._hash_existing(locator)
         if found is None:
             return MISSING
         return PRESENT if found[0] == sha256 else MISMATCH
 
     def open(self, locator: str) -> BinaryIO:
         parse_locator(locator)
-        handle = _open_read(self._abs(locator))
+        handle = self._open_read(locator)
         if isinstance(handle, str):
             raise StoreError(BLOB_MISSING, f"no blob at this locator ({handle})", locator=locator)
         return handle
@@ -175,7 +189,7 @@ class LocalStore(Store, StageLedger):
         record is written). Same bytes again succeed; other bytes are
         ``store.collision`` and the finished record is left as it was."""
         for name, blob in record.blobs.items():
-            if not self._is_file_of_size(self._abs(blob.locator), blob.bytes):
+            if not self._is_file_of_size(blob.locator, blob.bytes):
                 raise StoreError(BLOB_MISSING, f"output {name!r} is not published; the "
                                  "record would name a missing blob", locator=blob.locator)
         path = record_path(record.production_id, record.run_id, record.stage)
@@ -186,7 +200,7 @@ class LocalStore(Store, StageLedger):
 
     def stage_record(self, production_id: str, run_id: str, stage: str) -> StageRecord | None:
         path = record_path(production_id, run_id, stage)
-        data = self._read(self._abs(path))
+        data = self._read(path)
         if data is None:
             return None
         record = StageRecord.decode(data, source=path)
@@ -202,10 +216,10 @@ class LocalStore(Store, StageLedger):
         is not the layout. ``referenced`` names locators known elsewhere (asset
         versions, run snapshots), which are then not orphans. Deletes nothing."""
         blobs: set[str] = set()
-        staging, unexpected, broken, dangling = [], [], [], []
+        staging, unexpected, broken, dangling, unreadable = [], [], [], [], []
         from_records: set[str] = set()
         records = 0
-        for rel, entry in self._walk():
+        for rel, entry in self._walk(unreadable):
             if rel.startswith(STAGING + "/"):
                 staging.append(rel)
             elif rel.startswith(PROBE + "/"):
@@ -221,6 +235,9 @@ class LocalStore(Store, StageLedger):
                 except StoreError as error:
                     broken.append((rel, error.message))
                     continue
+                except OSError as error:
+                    broken.append((rel, error.strerror or type(error).__name__))
+                    continue
                 for blob in (record.blobs.values() if record else ()):
                     from_records.add(blob.locator)
             else:
@@ -231,11 +248,12 @@ class LocalStore(Store, StageLedger):
         return DoctorReport(blobs=len(blobs), records=records,
                             orphans=tuple(sorted(blobs - known)), staging=tuple(sorted(staging)),
                             unexpected=tuple(sorted(unexpected)), broken_records=tuple(sorted(broken)),
-                            dangling=tuple(sorted(dangling)), referenced=frozenset(known))
+                            dangling=tuple(sorted(dangling)), unreadable=tuple(sorted(unreadable)),
+                            referenced=frozenset(known))
 
     # The four steps ------------------------------------------------------------------
 
-    def _publish(self, chunks: Iterator[bytes], expected: str | None, what: str,
+    def _publish(self, chunks: _Chunks, expected: str | None, what: str,
                  final_for: Callable[[str], str]) -> _Staged:
         try:
             fd, path = self._open_staging(what)  # step 1
@@ -267,7 +285,7 @@ class LocalStore(Store, StageLedger):
             raise
         return fd, path
 
-    def _stream(self, fd: int, path: str, chunks: Iterator[bytes], what: str) -> _Staged:
+    def _stream(self, fd: int, path: str, chunks: _Chunks, what: str) -> _Staged:
         """Step 1: stream the bytes into the staging file while hashing."""
         digest, size = hashlib.sha256(), 0
         for chunk in chunks:
@@ -284,7 +302,7 @@ class LocalStore(Store, StageLedger):
         against what was streamed, and against ``expected`` when the caller gave one."""
         os.fsync(fd)
         self._step(what, "fsync")
-        found = self._hash_existing(staged.path)
+        found = self._hash_existing(self._rel(staged.path))
         if found != (staged.sha256, staged.size) or os.fstat(fd).st_size != staged.size:
             raise StoreError(HASH_MISMATCH, "the staging file does not read back as the bytes "
                              "written", locator=self._rel(staged.path))
@@ -301,7 +319,7 @@ class LocalStore(Store, StageLedger):
         try:
             os.link(staged.path, final, follow_symlinks=False)
         except FileExistsError:
-            if self._hash_existing(final) != (staged.sha256, staged.size):
+            if self._hash_existing(final_rel) != (staged.sha256, staged.size):
                 raise StoreError(COLLISION, "other bytes are already published at this path; "
                                  "nothing was overwritten", locator=final_rel) from None
         self._step(what, "link")
@@ -325,8 +343,10 @@ class LocalStore(Store, StageLedger):
         return os.path.relpath(path, self.root)
 
     def _ensure_dir(self, rel: str) -> str:
-        """Create each missing folder of ``rel`` under the root (never a symbolic
-        link), ``fsync``-ing the parent of each folder it creates."""
+        """Create each missing folder of ``rel`` under the root and ``fsync`` the
+        parent of every folder on the way, also one another writer made (its entry
+        may not be durable yet). Something else where a folder belongs (a file, a
+        symbolic link) is ``store.collision``."""
         current = self.root
         for part in rel.split("/"):
             parent, current = current, os.path.join(current, part)
@@ -334,17 +354,16 @@ class LocalStore(Store, StageLedger):
                 os.mkdir(current, DIR_MODE)
             except FileExistsError:
                 if not stat.S_ISDIR(os.lstat(current).st_mode):
-                    raise StoreError(LOCATOR_INVALID, "a store folder is not a directory",
-                                     locator=self._rel(current)) from None
-            else:
-                _fsync_dir(parent)
+                    raise StoreError(COLLISION, "something other than a folder holds a store "
+                                     "folder's path", locator=self._rel(current)) from None
+            _fsync_dir(parent)
         return current
 
-    def _hash_existing(self, path: str) -> tuple[str, int] | None:
-        """``(sha256, size)`` of the regular file at ``path``, read-only and without
+    def _hash_existing(self, rel: str) -> tuple[str, int] | None:
+        """``(sha256, size)`` of the regular file at ``rel``, read-only and without
         following a symbolic link; ``None`` if there is no file; ``("", -1)`` for
         something that is not a regular file."""
-        handle = _open_read(path)
+        handle = self._open_read(rel)
         if handle == _ABSENT:
             return None
         if isinstance(handle, str):
@@ -356,30 +375,77 @@ class LocalStore(Store, StageLedger):
                 size += len(chunk)
         return digest.hexdigest(), size
 
-    def _is_file_of_size(self, path: str, size: int) -> bool:
-        try:
-            info = os.lstat(path)
-        except (FileNotFoundError, NotADirectoryError):
+    def _is_file_of_size(self, rel: str, size: int) -> bool:
+        handle = self._open_read(rel)
+        if isinstance(handle, str):
             return False
-        return stat.S_ISREG(info.st_mode) and info.st_size == size
+        with handle:
+            return os.fstat(handle.fileno()).st_size == size
 
-    def _read(self, path: str) -> bytes | None:
-        handle = _open_read(path)
+    def _read(self, rel: str) -> bytes | None:
+        handle = self._open_read(rel)
         if handle == _ABSENT:
             return None
         if isinstance(handle, str):
-            raise StoreError(RECORD_INVALID, handle, locator=self._rel(path))
+            raise StoreError(RECORD_INVALID, handle, locator=rel)
         with handle:
             return handle.read()
 
-    def _walk(self) -> Iterator[tuple[str, os.DirEntry[str]]]:
+    def _open_read(self, rel: str) -> BinaryIO | str:
+        """The regular file at ``rel`` under the root, opened read-only, or
+        :data:`_ABSENT` or :data:`_NOT_REGULAR`. Each folder on the way is opened
+        relative to the last with ``O_NOFOLLOW``, so no symbolic link anywhere in the
+        path is followed out of the store. Never opens anything for writing."""
+        parts = rel.split("/")
+        folder = os.open(self.root, _DIR)
+        try:
+            for part in parts[:-1]:
+                try:
+                    inner = os.open(part, _DIR | os.O_NOFOLLOW, dir_fd=folder)
+                except FileNotFoundError:
+                    return _ABSENT
+                except OSError as error:
+                    if error.errno in (errno.ELOOP, errno.ENOTDIR):
+                        return _NOT_REGULAR  # a link or a file where a folder belongs
+                    raise
+                os.close(folder)
+                folder = inner
+            try:
+                fd = os.open(parts[-1], _READ, dir_fd=folder)
+            except FileNotFoundError:
+                return _ABSENT
+            except OSError as error:
+                if error.errno in (errno.ELOOP, errno.ENXIO, errno.ENOTDIR):
+                    return _NOT_REGULAR  # a link, a socket, or a folder in the way
+                raise
+        finally:
+            os.close(folder)
+        try:
+            regular = stat.S_ISREG(os.fstat(fd).st_mode)
+        except BaseException:
+            os.close(fd)
+            raise
+        if not regular:
+            os.close(fd)
+            return _NOT_REGULAR
+        return os.fdopen(fd, "rb")
+
+    def _walk(self, unreadable: list[tuple[str, str]] | None = None
+              ) -> Iterator[tuple[str, os.DirEntry[str]]]:
         """Every entry under the root that is not a directory (symbolic links
-        included, never followed), as ``(relative path, entry)``, sorted."""
+        included, never followed), as ``(relative path, entry)``, sorted. A folder
+        that cannot be listed goes to ``unreadable`` with the reason."""
         stack = [self.root]
         while stack:
             current = stack.pop()
-            with os.scandir(current) as entries:
-                listed = sorted(entries, key=lambda entry: entry.name)
+            try:
+                with os.scandir(current) as entries:
+                    listed = sorted(entries, key=lambda entry: entry.name)
+            except OSError as error:
+                if unreadable is not None:
+                    unreadable.append((self._rel(current).replace(os.sep, "/"),
+                                       error.strerror or type(error).__name__))
+                continue
             for entry in listed:
                 if entry.is_dir(follow_symlinks=False):
                     stack.append(entry.path)
@@ -394,79 +460,54 @@ class LocalStore(Store, StageLedger):
                 continue
             try:
                 record = self.stage_record(*ids)
-            except StoreError:
+            except (StoreError, OSError):
                 continue
             if record and any(blob.locator == locator for blob in record.blobs.values()):
                 out.append(rel)
         return out
 
 
-def _open_read(path: str) -> BinaryIO | str:
-    """The regular file at ``path``, opened read-only without following a symbolic
-    link, or :data:`_ABSENT` or :data:`_NOT_REGULAR`. Never opens anything for writing."""
-    try:
-        fd = os.open(path, _READ)
-    except (FileNotFoundError, NotADirectoryError):
-        return _ABSENT
-    except OSError as error:
-        if error.errno == errno.ELOOP:
-            return _NOT_REGULAR
-        raise
-    try:
-        regular = stat.S_ISREG(os.fstat(fd).st_mode)
-    except BaseException:
-        os.close(fd)
-        raise
-    if not regular:
-        os.close(fd)
-        return _NOT_REGULAR
-    return os.fdopen(fd, "rb")
-
-
 def _fsync_dir(path: str) -> None:
-    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    fd = os.open(path, _DIR)
     try:
         os.fsync(fd)
     finally:
         os.close(fd)
 
 
-def _chunks(source: Source, size: int) -> Iterator[bytes]:
-    """The source's bytes in chunks: bytes-like, a path (``os.PathLike``, opened
-    read-only here, before any staging file exists) or a binary file object. A plain
-    ``str`` is refused: pass a ``pathlib.Path``."""
-    if isinstance(source, bytes | bytearray | memoryview):
-        return _from_bytes(memoryview(source).cast("B"), size)
-    if isinstance(source, str):
-        raise TypeError("pass a pathlib.Path for a file, or bytes; a str is ambiguous")
-    if isinstance(source, os.PathLike):
-        return _from_file(open(os.fspath(source), "rb"), size, close=True)  # noqa: SIM115
-    if not callable(getattr(source, "read", None)) or isinstance(source, io.TextIOBase):
-        raise TypeError(f"cannot publish a {type(source).__name__}; pass bytes, a "
-                        "pathlib.Path or a binary file object")
-    return _from_file(source, size, close=False)
+class _Chunks:
+    """An iterator of byte chunks that closes the file it opened when closed, even
+    if iteration never started."""
 
+    def __init__(self, read: Callable[[int], Any], size: int, handle: BinaryIO | None = None):
+        self._read, self._size, self._handle = read, size, handle
 
-def _from_bytes(view: memoryview, size: int) -> Iterator[bytes]:
-    for start in range(0, len(view), size):
-        yield bytes(view[start:start + size])
-
-
-def _from_file(handle: BinaryIO, size: int, *, close: bool) -> Iterator[bytes]:
-    try:
-        while chunk := handle.read(size):
-            if not isinstance(chunk, bytes):
+    def __iter__(self) -> Iterator[bytes]:
+        while chunk := self._read(self._size):
+            if not isinstance(chunk, bytes | bytearray):
                 raise TypeError("a file object to publish must be opened in binary mode")
-            yield chunk
-    finally:
-        if close:
-            handle.close()
+            yield bytes(chunk)
+
+    def close(self) -> None:
+        if self._handle is not None:
+            self._handle.close()
 
 
-def _close(chunks: Iterator[bytes]) -> None:
-    close = getattr(chunks, "close", None)
-    if close is not None:
-        close()
+def _chunks(source: Source, size: int) -> _Chunks:
+    """The source's bytes in chunks: bytes-like, a path (``os.PathLike``, opened
+    read-only here, before any staging file exists) or a binary file object."""
+    check_source(source)
+    if isinstance(source, bytes | bytearray | memoryview):
+        data = io.BytesIO(memoryview(source).cast("B"))
+        return _Chunks(data.read, size)
+    if isinstance(source, os.PathLike):
+        handle = open(os.fspath(source), "rb")  # noqa: SIM115 (closed by _Chunks.close)
+        return _Chunks(handle.read, size, handle)
+    return _Chunks(source.read, size)  # type: ignore[union-attr]
+
+
+def _close(chunks: _Chunks) -> None:
+    chunks.close()
 
 
 __all__ = ["DoctorReport", "LocalStore"]

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import io
 import os
 import stat
@@ -16,11 +17,14 @@ from haynes_studio.store import (
     MISSING,
     PRESENT,
     LocalStore,
+    StageRecord,
     StoreError,
     blob_locator,
+    record_path,
 )
 from tests.store.helpers import (
     PRD,
+    RUN,
     STEPS,
     FailAt,
     InjectedFault,
@@ -158,6 +162,30 @@ def test_a_directory_source_is_refused_before_any_write(root, tmp_path):
     assert files(root, ".staging") == []
 
 
+@pytest.mark.parametrize("locator", ["../../etc/passwd", "/etc/passwd", "library/../x.png"])
+def test_verify_and_open_refuse_a_locator_outside_the_layout(root, locator):
+    store = LocalStore(root)
+    for call in (lambda: store.verify(locator, sha(DATA)), lambda: store.open(locator)):
+        with pytest.raises(StoreError) as caught:
+            call()
+        assert caught.value.code == "store.locator_invalid"
+
+
+def test_a_symbolic_link_in_place_of_a_store_folder_is_never_followed(root, tmp_path):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    blob = LocalStore(outside).publish(DATA, scope="library", media_type="image/png")
+    (root / "library").symlink_to(outside / "library")
+    store = LocalStore(root)
+    assert store.verify(blob.locator, blob.sha256) == MISMATCH  # not "present"
+    with pytest.raises(StoreError) as caught:
+        store.open(blob.locator)
+    assert caught.value.code == "store.blob_missing"
+    with pytest.raises(StoreError) as caught:
+        store.publish(DATA, scope="library", media_type="image/png")
+    assert caught.value.code == COLLISION
+
+
 def test_verify_reports_missing_and_open_refuses_a_missing_blob(root):
     store = LocalStore(root)
     locator = blob_locator("library", sha(DATA), "image/png")
@@ -210,14 +238,21 @@ def test_a_crash_during_a_retry_never_changes_the_published_file(root, step):
 
 
 def test_final_paths_are_only_ever_opened_read_only(root, monkeypatch):
-    opened = []
-    real_open = os.open
+    opened, modes = [], []
+    real_open, real_builtin_open = os.open, builtins.open
 
-    def spy(path, flags, *args, **kwargs):
-        opened.append((os.fspath(path), flags))
-        return real_open(path, flags, *args, **kwargs)
+    def spy(path, flags, *args, dir_fd=None, **kwargs):
+        full = os.fspath(path) if dir_fd is None else os.path.join(
+            os.readlink(f"/proc/self/fd/{dir_fd}"), os.fspath(path))
+        opened.append((full, flags))
+        return real_open(path, flags, *args, dir_fd=dir_fd, **kwargs)
+
+    def builtin_spy(file, mode="r", *args, **kwargs):
+        modes.append((os.fspath(file) if not isinstance(file, int) else file, mode))
+        return real_builtin_open(file, mode, *args, **kwargs)
 
     monkeypatch.setattr(os, "open", spy)
+    monkeypatch.setattr(builtins, "open", builtin_spy)
     store = LocalStore(root)
     blob = store.publish(DATA, scope="library", media_type="image/png")
     store.publish(DATA, scope="library", media_type="image/png")  # EEXIST, re-hash
@@ -226,7 +261,59 @@ def test_final_paths_are_only_ever_opened_read_only(root, monkeypatch):
         store.publish(OTHER + b"x", scope="library", media_type="image/png")  # collision
     store.verify(blob.locator, blob.sha256)
     store.open(blob.locator).close()
+    source = root.parent / "source.png"
+    source.write_bytes(DATA)
+    store.publish(source, scope=PRD, media_type="image/png")  # a path source: builtin open
     writes = os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC | os.O_APPEND
     written = [path for path, flags in opened if flags & writes]
     assert written and all(os.path.dirname(path) == str(root / ".staging") for path in written)
     assert all(flags & os.O_EXCL for path, flags in opened if flags & writes)
+    assert modes and all(mode == "rb" for _file, mode in modes)  # the store's own opens
+
+
+def test_each_fsync_comes_before_what_depends_on_it(root, monkeypatch):
+    """Section 8 order: the staging file is synced before link(); the final folder is
+    synced after link(); a blob's folder is synced before a stage record naming it is
+    linked, so a durable record never names a blob whose name is not durable."""
+    events = []
+    real_fsync, real_link = os.fsync, os.link
+
+    def fsync(fd):
+        events.append(("fsync", os.readlink(f"/proc/self/fd/{fd}")))
+        return real_fsync(fd)
+
+    def link(src, dst, **kwargs):
+        events.append(("link", os.fspath(dst)))
+        return real_link(src, dst, **kwargs)
+
+    monkeypatch.setattr(os, "fsync", fsync)
+    monkeypatch.setattr(os, "link", link)
+    store = LocalStore(root)
+    blob = store.publish(DATA, scope=PRD, media_type="image/png")
+    store.complete_stage(StageRecord(PRD, RUN, "voice", {"still": blob}))
+    staging_sync = next(i for i, (kind, path) in enumerate(events)
+                        if kind == "fsync" and path.endswith(".part"))
+    blob_link = events.index(("link", str(root / blob.locator)))
+    folder_sync = events.index(("fsync", str((root / blob.locator).parent)), blob_link)
+    record_link = events.index(("link", str(root / record_path(PRD, RUN, "voice"))))
+    assert staging_sync < blob_link < folder_sync < record_link
+    record_folder = str((root / record_path(PRD, RUN, "voice")).parent)
+    assert ("fsync", record_folder) in events[record_link:]
+
+
+def test_a_path_source_is_closed_when_staging_fails(root, tmp_path, monkeypatch):
+    source = tmp_path / "rendered.png"
+    source.write_bytes(DATA)
+    plant(root, ".staging", b"a file where the staging folder belongs")
+    handles = []
+    real_open = builtins.open
+
+    def spy(*args, **kwargs):
+        handles.append(real_open(*args, **kwargs))
+        return handles[-1]
+
+    monkeypatch.setattr(builtins, "open", spy)
+    with pytest.raises(StoreError) as caught:
+        LocalStore(root).publish(source, scope="library", media_type="image/png")
+    assert caught.value.code == COLLISION
+    assert handles and all(handle.closed for handle in handles)

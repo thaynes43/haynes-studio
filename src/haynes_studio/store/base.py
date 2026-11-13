@@ -10,6 +10,7 @@ truncates, renames or overwrites (D17).
 
 from __future__ import annotations
 
+import io
 import os
 from abc import ABC, abstractmethod
 from typing import BinaryIO
@@ -19,6 +20,18 @@ from haynes_studio.store.records import Blob, StageRecord
 Source = bytes | bytearray | memoryview | os.PathLike[str] | BinaryIO
 """What :meth:`Store.publish` streams: bytes, a local file path (a ``pathlib.Path``,
 never a plain ``str``) or a binary file object opened for reading."""
+
+
+def check_source(source: object) -> None:
+    """Refuse a source a store cannot stream (``TypeError``), before any write."""
+    if isinstance(source, bytes | bytearray | memoryview | os.PathLike):
+        return
+    if isinstance(source, str):
+        raise TypeError("pass a pathlib.Path for a file, or bytes; a str is ambiguous")
+    if not callable(getattr(source, "read", None)) or isinstance(source, io.TextIOBase):
+        raise TypeError(f"cannot publish a {type(source).__name__}; pass bytes, a "
+                        "pathlib.Path or a binary file object")
+
 
 PRESENT = "present"
 MISSING = "missing"

@@ -115,6 +115,33 @@ def test_an_invalid_anchor_names_the_board_the_legacy_shot_and_the_field(fx):
         "cue.out_of_range (invalid): ")
 
 
+def test_problems_name_the_right_board_when_order_and_shots_differ(fx):
+    """Attribution comes from the board at the violation's index, not from its
+    number, its place in board_order or its legacy shot."""
+    def change(document):
+        document["boards"].reverse()  # the array order no longer matches board_order
+        for entry in document["boards"]:
+            entry["origin"]["legacy_shot"] = entry["number"] + 100
+        board(document, 9)["cues"][0]["anchor"]["at_ms"] = 60000
+    story = fx.story_with(change)
+    resolved = {k: v for k, v in fx.resolved.items() if k != SOUND_7}
+    report = fx.check(story, resolved=resolved)
+    assert [(p.rule, p.board_id, p.board_number, p.legacy_shot, p.field, p.path)
+            for p in report.blocking] == [
+        (ASSET_UNRESOLVED, "brd_01M79V9FC00000000000000007", 7, 107,
+         "/cues/0/asset_version_id", "/boards/2/cues/0/asset_version_id"),
+        ("cue.out_of_range", "brd_01M79V9FC00000000000000009", 9, 109,
+         "/cues/0/anchor/at_ms", "/boards/0/cues/0/anchor/at_ms"),
+    ]  # sorted by board_order (B07 before B09), whatever the array order
+
+
+def test_a_field_with_a_newline_in_a_key_stays_on_its_board(fx):
+    story = fx.story_with(lambda d: board(d, 2)["seeds"].update({"s2v:zz\nq": 1}))
+    found = [(p.rule, p.board_number, p.field) for p in fx.check(story).blocking]
+    assert found and all(number == 2 and field.startswith("/seeds/")
+                         for _rule, number, field in found)
+
+
 def test_a_missing_cue_sound_fails_whether_unresolved_or_absent_from_the_store(fx):
     absent = sha(b"a sound that was never published")
     resolved = {**fx.resolved,

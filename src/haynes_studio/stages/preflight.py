@@ -44,7 +44,7 @@ from haynes_studio.store.errors import FAILED
 # Proposal (story 379): a version the story names that the library did not resolve.
 ASSET_UNRESOLVED = "asset.unresolved"
 
-_BOARD_PATH = re.compile(r"/boards/(\d+)((?:/.*)?)")
+_BOARD_PATH = re.compile(r"/boards/(\d+)((?:/.*)?)", re.DOTALL)
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,8 +132,9 @@ def ensure_buildable(story: Story, *, facts: Facts, resolved: Mapping[str, Resol
 
 def preflight(story: Story, *, facts: Facts, resolved: Mapping[str, ResolvedVersion],
               store: Store) -> PreflightReport:
-    """Every problem that would stop a build of ``story``, sorted by board and field.
-    Reads the store, never writes it."""
+    """Every problem that would stop a build of ``story``: story-level problems first,
+    then by the board's place in ``board_order``, then field. Reads the store, never
+    writes it."""
     boards = story.boards or ()
     raw: list[tuple[str, str, str, str | None, str | None]] = []  # rule, status, path, message, avid, locator
     if story.boards is None:
@@ -144,9 +145,9 @@ def preflight(story: Story, *, facts: Facts, resolved: Mapping[str, ResolvedVers
     raw += _blob_problems(story, resolved, store)
     problems = [_locate(rule, status, path, message, avid, locator, boards)
                 for rule, status, path, message, avid, locator in raw]
-    order = {board.id: index for index, board in enumerate(boards)}
-    problems.sort(key=lambda p: (-1 if p.board_id is None else order[p.board_id], p.field,
-                                 p.rule, p.message))
+    order = {board_id: index for index, board_id in enumerate(story.board_order)}
+    problems.sort(key=lambda p: (-1 if p.board_id is None else order.get(p.board_id, len(order)),
+                                 p.board_number or 0, p.field, p.rule, p.message))
     return PreflightReport(tuple(problems))
 
 

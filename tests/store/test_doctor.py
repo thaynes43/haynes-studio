@@ -4,6 +4,7 @@ purge, truncate or rename (contract section 8)."""
 from __future__ import annotations
 
 import ast
+import os
 from pathlib import Path
 
 import pytest
@@ -53,7 +54,7 @@ def test_doctor_lists_orphans_and_leftovers_and_removes_neither(root):
     named = store.doctor(referenced=[library.locator])
     assert named.orphans == (orphan.locator,)
     assert set(report.to_document()) == {"blobs", "records", "orphans", "staging", "unexpected",
-                                         "broken_records", "dangling"}
+                                         "broken_records", "dangling", "unreadable"}
     assert tree(root) == before
 
 
@@ -70,6 +71,27 @@ def test_doctor_reports_broken_and_dangling_records(root):
     assert report.dangling == ((dangling, missing.locator),)
     assert [path for path, _why in report.broken_records] == [broken]
     assert tree(root) == before
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root reads files whatever their mode")
+def test_doctor_reports_what_it_cannot_read_and_does_not_stop(root):
+    store = LocalStore(root)
+    take = store.publish(b"take", scope=PRD, media_type="audio/wav")
+    store.complete_stage(StageRecord(PRD, RUN, "voice", {"take:1": take}))
+    record = root / record_path(PRD, RUN, "voice")
+    locked = root / "library" / "locked"
+    locked.mkdir(parents=True)
+    record.chmod(0o000)
+    locked.chmod(0o000)
+    try:
+        report = store.doctor()
+    finally:
+        record.chmod(0o444)
+        locked.chmod(0o755)
+    assert report.unreadable == (("library/locked", "Permission denied"),)
+    assert report.broken_records == ((record_path(PRD, RUN, "voice"), "Permission denied"),)
+    assert report.orphans == (take.locator,)  # its record could not be read
+    assert not report.clean
 
 
 def _calls(path: Path) -> list[tuple[str, int, str]]:
