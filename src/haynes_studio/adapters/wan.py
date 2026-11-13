@@ -694,7 +694,10 @@ class Journal:
                 if job is None or job.job_id != job_id:
                     raise _journal_error(f"journal line {number} settles job {job_id}, which is not unsettled")
                 job = None
-            elif kind == "halt":
+            elif kind == "halt":  # a later line for the same job extends it; it never moves
+                if halt is not None and halt.job_id != job_id:
+                    raise _journal_error(f"journal line {number} sets a halt for job {job_id} while "
+                                         f"the halt of job {halt.job_id} is set")
                 halt = Halt(job_id, tuple(event["unexpected_work_seen"]))
             else:
                 if halt is None or halt.job_id != job_id:
@@ -1192,6 +1195,7 @@ class WanClipClient:
                     state = journal.read_state()
                     if state.halt is not None and state.halt.job_id == cleared.job_id:
                         journal.clear_halt(cleared.job_id)
+                        cleared = _extended(cleared, state.halt.unexpected_work_seen)
                     elif cleared.job_id not in state.named:
                         raise _journal_error(_unnamed(cleared.job_id))
                 finally:
@@ -1327,7 +1331,7 @@ class WanClipClient:
         t_done = self.clock()
         foreign = _ids(result.get('unexpected_work_seen'))
         if foreign:  # latched before anything else can fail, as the PoC stops here too
-            self._latch_halt(Halt(job_id, tuple(foreign)))
+            foreign = self._latch_halt(Halt(job_id, tuple(foreign))).unexpected_work_seen
         if result['state'] != 'succeeded':
             error = redact(str(result.get('error') or ''))[:200]
             if result.get('prompt_id'):  # accepted by the engine: it may still be there
@@ -1393,8 +1397,8 @@ class WanClipClient:
         if state not in TERMINAL:
             raise WanError(BUSY, LABEL, f"Wan job {job_id} is {state}", job_id=job_id, in_flight=True)
         foreign = _ids(ledger.get('unexpected_work_seen'))
-        if foreign:
-            self._latch_halt(Halt(job_id, tuple(foreign)))
+        if foreign:  # every prompt ID the halt now holds, an earlier halt's first
+            foreign = self._latch_halt(Halt(job_id, tuple(foreign))).unexpected_work_seen
         if state != 'succeeded':
             error = redact(str(ledger.get('error') or ''))[:200]
             if ledger.get('prompt_id'):  # accepted by the engine: it may still be there
@@ -1442,8 +1446,8 @@ class WanClipClient:
         halt = WanClipClient._halt
         if halt is not None:
             raise WanError(COMPETING_WORK, LABEL, f"competing engine work was seen during job "
-                           f"{halt.job_id}; no further submissions until WanClipClient.clear_halt()",
-                           job_id=halt.job_id)
+                           f"{halt.job_id} ({', '.join(halt.unexpected_work_seen)}); no further "
+                           "submissions until WanClipClient.clear_halt()", job_id=halt.job_id)
 
     def _adopt(self) -> None:
         """One read of this client's journal (``adapter.journal_failed`` unless it reads
@@ -1502,13 +1506,14 @@ class WanClipClient:
                            in_flight=True)
         foreign = _ids(job.get('unexpected_work_seen'))
         if foreign:  # latched before the job is settled
-            self._latch_halt(Halt(unsettled.job_id, tuple(foreign)))
+            foreign = self._latch_halt(Halt(unsettled.job_id, tuple(foreign))).unexpected_work_seen
         if state == 'succeeded':  # its clip has not been collected: it keeps blocking
             self._mark_uncollected(unsettled.job_id)
             if foreign:
                 raise WanError(COMPETING_WORK, LABEL, f"competing engine work was seen during the "
-                               f"earlier job {unsettled.job_id}; no further submissions until "
-                               f"WanClipClient.clear_halt(); {_uncollected(unsettled.job_id)}",
+                               f"earlier job {unsettled.job_id} ({', '.join(foreign)}); no further "
+                               f"submissions until WanClipClient.clear_halt(); "
+                               f"{_uncollected(unsettled.job_id)}",
                                job_id=unsettled.job_id)
             raise WanError(BUSY, LABEL, _uncollected(unsettled.job_id), job_id=unsettled.job_id)
         if job.get('prompt_id') and not self._engine_idle():
@@ -1517,8 +1522,9 @@ class WanClipClient:
         self._settle(unsettled.job_id, "failed")
         if foreign:
             raise WanError(COMPETING_WORK, LABEL, f"competing engine work was seen during the earlier "
-                           f"job {unsettled.job_id}; its output stays on the Wan API; no further "
-                           "submissions until WanClipClient.clear_halt()", job_id=unsettled.job_id)
+                           f"job {unsettled.job_id} ({', '.join(foreign)}); its output stays on the Wan "
+                           "API; no further submissions until WanClipClient.clear_halt()",
+                           job_id=unsettled.job_id)
 
     # The process's memory and the journal: every change to a blocking job or the halt is
     # journalled. Remembering a job writes the journal first, so a job whose line could not
@@ -1556,9 +1562,16 @@ class WanClipClient:
             journal.settle(job_id, outcome)
             WanClipClient._unsettled = WanClipClient._unsettled_journal = None
 
-    def _latch_halt(self, halt: Halt) -> None:
+    def _latch_halt(self, halt: Halt) -> Halt:
+        """Latch ``halt``, or extend the one already set: a halt is never replaced. It
+        keeps the first job's ID and gains the new prompt IDs, first seen first, and the
+        journal gets that whole halt (a replay keeps the last ``halt`` line). Returns the
+        halt now set."""
+        if WanClipClient._halt is not None:
+            halt = _extended(WanClipClient._halt, halt.unexpected_work_seen)
         WanClipClient._halt, WanClipClient._halt_journal = halt, self.journal
         self.journal.halt(halt.job_id, halt.unexpected_work_seen)
+        return halt
 
     def _submit(self, command: Command, job_id: str) -> dict:
         """Run ``wan_run.py`` once (lock and journal held). The job was journalled as in
@@ -1730,6 +1743,12 @@ def _process_lock(refusal: str):
         yield
     finally:
         WanClipClient._lock.release()
+
+
+def _extended(halt: Halt, seen) -> Halt:
+    """``halt`` with the prompt IDs of ``seen`` it lacks added, first seen first."""
+    return Halt(halt.job_id, halt.unexpected_work_seen
+                + tuple(dict.fromkeys(p for p in seen if p not in halt.unexpected_work_seen)))
 
 
 def _unnamed(job_id: str) -> str:

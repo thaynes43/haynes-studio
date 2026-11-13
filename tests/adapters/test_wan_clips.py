@@ -494,6 +494,39 @@ def test_g5_foreign_work_keeps_the_output_and_stops_further_submissions():
     assert client.render(i2v(seed=8)).frames == 9
 
 
+def test_g5_a_second_halt_extends_the_first_never_replaces_it():
+    """Advisory review: with halt A latched, recovering job B that also saw foreign work
+    must not replace A; the halt keeps A's ID and every prompt ID seen, in the error, in
+    the journal and in what clear_halt() hands back."""
+    pod = FakeWan(lose="empty", lost_state="succeeded", foreign_during_job=["foreign-2", "foreign-0"])
+    runner = FakeRunner(pod)
+    journal = MemoryJournal()
+    client = client_for(runner, journal=journal)
+    job_b = refused(pod, client, i2v(), RESPONSE_INVALID).job_id  # its answer lost: not read yet
+    WanClipClient.clear_in_flight()  # a person checked it; its ledger and clip stay on the API
+    pod.lose, pod.foreign_during_job = None, ["foreign-1"]
+    job_a = refused(pod, client, i2v(seed=8), COMPETING_WORK).job_id
+    assert WanClipClient.halted() == wan.Halt(job_a, ("foreign-1",))
+    with pytest.raises(WanError) as caught:
+        client.recover(i2v(), job_b)
+    assert caught.value.code == COMPETING_WORK and caught.value.clip.job_id == job_b
+    every = ("foreign-1", "foreign-0", "foreign-2")  # first seen first
+    assert all(prompt in str(caught.value) for prompt in every)
+    assert WanClipClient.halted() == wan.Halt(job_a, every) == journal.load_halt()
+    error = refused(pod, client, i2v(seed=9), COMPETING_WORK)
+    assert job_a in str(error) and all(prompt in str(error) for prompt in every)
+    assert WanClipClient.clear_halt() == wan.Halt(job_a, every)
+    assert journal.load_halt() is None and runs(runner) == 2
+
+
+def test_g5_clear_halt_hands_back_what_another_process_added():
+    pod = FakeWan(foreign_during_job=["foreign-1"])
+    journal = MemoryJournal()
+    job_a = refused(pod, client_for(FakeRunner(pod), journal=journal), i2v(), COMPETING_WORK).job_id
+    journal.halt(job_a, ["foreign-1", "foreign-7"])  # another process on the journal extended it
+    assert WanClipClient.clear_halt() == wan.Halt(job_a, ("foreign-1", "foreign-7"))
+
+
 def test_g5_our_own_running_prompt_is_not_foreign_work():
     pod = FakeWan(history_polls=4)
     clip = client_for(FakeRunner(pod)).render(i2v())
@@ -1250,13 +1283,15 @@ REMEMBER_A = _line(event="remember", job_id=A, state=IN_FLIGHT, graph_sha256=G)
     REMEMBER_A + _line(event="settle", job_id=B, outcome="cleared"),
     _line(event="clear_halt", job_id=A),
     _line(event="halt", job_id=A, unexpected_work_seen=["x"]) + _line(event="clear_halt", job_id=B),
+    _line(event="halt", job_id=A, unexpected_work_seen=["x"]) + _line(event="halt", job_id=B, unexpected_work_seen=["y"]),
     REMEMBER_A.replace(b'"v": 1', b'"v": 2'), REMEMBER_A.replace(b'"in_flight"', b'"running"'),
     REMEMBER_A.replace(A.encode(), b"../etc"), REMEMBER_A.replace(b'"remember"', b'"forget"'),
     REMEMBER_A.replace(b'"at"', b'"extra": 1, "at"'), REMEMBER_A.replace(b', "graph_sha256": "' + G.encode() + b'"', b""),
     REMEMBER_A + _line(event="settle", job_id=A, outcome="cleared").replace(b"cleared", b"gone"),
     _line(event="halt", job_id=A, unexpected_work_seen=["x"]).replace(b'["x"]', b"[]"),
 ], ids=["not-json", "empty-line", "not-utf8", "incomplete-line", "incomplete-last-line", "two-unsettled",
-        "graph-changed", "settle-unknown", "settle-other", "clear-no-halt", "clear-other-halt", "version",
+        "graph-changed", "settle-unknown", "settle-other", "clear-no-halt", "clear-other-halt", "halt-other-job",
+        "version",
         "state", "job-id", "event", "extra-key", "missing-key", "outcome", "empty-halt"])
 def test_g12_a_journal_that_does_not_read_exactly_submits_nothing(data, tmp_path):
     pod = FakeWan()
@@ -1274,6 +1309,13 @@ def test_g12_a_journal_that_does_not_read_exactly_submits_nothing(data, tmp_path
     assert "inspected" in str(error)
     assert runner.calls == [] and WanClipClient.in_flight() is None
     nothing_submitted(pod)
+
+
+def test_g12_a_later_halt_line_for_the_same_job_extends_the_halt():
+    data = (_line(event="halt", job_id=A, unexpected_work_seen=["x"])
+            + _line(event="halt", job_id=A, unexpected_work_seen=["x", "y"]))
+    assert MemoryJournal(data).load_halt() == wan.Halt(A, ("x", "y"))
+    assert MemoryJournal(data + _line(event="clear_halt", job_id=A)).load_halt() is None
 
 
 def test_g12_an_unreadable_journal_submits_nothing(tmp_path):
