@@ -232,7 +232,8 @@ class Library:
         taken as current. With ``current_engine`` (the engine a take signature names
         now: the TTS model's digest once one is recorded, else its name), a board voice
         any of whose takes is signed with another engine is stale too, with or without
-        a story (VOICE-9); without it the engine is not compared. Photos are always
+        a story (VOICE-9); without it the engine is not compared. Proposal (story 849):
+        the caller names the engine, and the check applies without a story too. Photos are always
         current here: a photo's inputs signature is story 407's."""
         current = {} if story is None else _voice_currency(self, story)
         voices, photos = [], []

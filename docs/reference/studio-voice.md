@@ -118,8 +118,8 @@ order:
    `heard_matches` null (the transcript check is VOICE-8). The library validates it
    (TIME-1, TIME-2, stock voices, the track's locator).
 
-A board voice has at most 256 lines (proposal), as a board does (TIME-5; the board
-schema refuses more at write since story 849). Stored takes to reuse are checked
+A board voice has at most 256 lines (P-30), as a board does (TIME-5; the board schema
+refuses more at write since story 849). Stored takes to reuse are checked
 against the track bound from their recorded durations before any of them is read, a
 stored take is read once however many lines play it, and the running length is
 checked after each read and after each speech answer.

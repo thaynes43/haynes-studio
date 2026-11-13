@@ -586,7 +586,9 @@ def test_a_board_has_at_most_256_lines():
     spoken = board(8)
     _lines(spoken, 256)
     assert check(spoken) == [] and _schema_rules(spoken) == set()
+    spoken = board(8)
     _lines(spoken, 257)
+    assert len({line["id"] for line in spoken["lines"]}) == 257
     assert check(spoken) == [("schema.invalid", "invalid", "/lines")]
     assert _schema_rules(spoken) == {"schema.invalid"}
 
