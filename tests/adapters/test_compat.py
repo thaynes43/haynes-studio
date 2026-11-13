@@ -211,7 +211,8 @@ def test_comfyui_edit_payload_matches_poc():
     source = synthetic_png(seed=3)
     render = EDIT_RENDERS[0]
     request = ImageEdit(job=PROMPTS["job"], name=render["name"], prompt="p", seed=render["seed"],
-                        source_png=source, upload_name=comfyui.upload_name_for(source))
+                        source_png=source)
+    assert request.upload_name == comfyui.upload_name_for(source)
     client = ImageClient(_NoRunner())
     graph = client.graph(request)
     assert graph["1"]["inputs"]["image"] == request.upload_name

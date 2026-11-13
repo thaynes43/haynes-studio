@@ -21,7 +21,7 @@ never expanded). The map claims no file exists.
   `clip-records.jsonl`, all under [`titles/the-winter-menu/`](../../titles/the-winter-menu/).
   The JSON lists each with its SHA-256.
 - The tool to read the Wan copies is the read-only
-  [ledger reader](legacy-adapters.md#legacy-delivery-ledger-read-only).
+  [ledger reader](legacy-adapters.md#clients).
 
 ## What a row holds
 
@@ -52,8 +52,9 @@ never expanded). The map claims no file exists.
 | keyframe | 9 | 7 | `wan_upload` only |
 
 28 distinct hashes have a `wan_pvc` locator: every still, the set, every effect and
-every take. The fire bed (`sfx/fire-s701.wav`), the eight renders and the seven
-keyframe images do not.
+every take. Render `set-left-s221` has the same bytes as the set, so its hash has a Wan
+copy too. The other 15 do not: the fire bed (`sfx/fire-s701.wav`), the other seven
+renders and the seven keyframe images.
 
 ## Checklist for story 428
 

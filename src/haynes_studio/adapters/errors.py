@@ -20,10 +20,15 @@ NOT_FOUND = "adapter.not_found"
 BUSY = "adapter.busy"
 
 DETAIL_LIMIT = 300
-_URL_USERINFO = re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/\s@]+@")
+# Everything between a scheme and the last "@" before a space is userinfo (it over-redacts
+# a path that contains "@", which is harmless).
+_URL_USERINFO = re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://)\S*@")
+_AUTH_SCHEME = re.compile(r"(?i)\b(bearer|basic|token)(\s+)[^\s\"',;}]+")
+# A key that contains one of these words (GH_TOKEN, client_secret, DB_PASSWORD), then
+# "=" or ":" with optional quotes (JSON, Python reprs, headers), then the value.
 _KEYED = re.compile(
-    r"(?i)\b(token|access_token|password|passwd|secret|api[_-]?key|authorization|bearer|cookie)"
-    r"(\"?\s*[:=]\s*\"?|\s+)([^\s\"',;]+)")
+    r"(?i)([\w-]*(?:token|password|passwd|secret|api[_-]?key|authorization|cookie|credential)"
+    r"[\w-]*)(['\"]?\s*[:=]\s*['\"]?)([^\s\"',;}]+)")
 
 
 def safe_detail(raw: bytes | str | None, limit: int = DETAIL_LIMIT) -> str:
@@ -36,6 +41,7 @@ def safe_detail(raw: bytes | str | None, limit: int = DETAIL_LIMIT) -> str:
         return ""
     text = raw.decode("utf-8", "replace") if isinstance(raw, bytes) else raw
     text = _URL_USERINFO.sub(r"\1<redacted>@", text)
+    text = _AUTH_SCHEME.sub(lambda m: m.group(1) + m.group(2) + "<redacted>", text)
     text = _KEYED.sub(lambda m: m.group(1) + m.group(2) + "<redacted>", text)
     text = "".join(ch if ch.isprintable() or ch == "\n" else "?" for ch in text).strip()
     return text[-limit:]

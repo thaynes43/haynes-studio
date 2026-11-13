@@ -41,22 +41,25 @@ arguments and reads no environment
 |---|---|---|---|---|---|
 | `KokoroClient` (`kokoro`) | `synthesize(SpeechRequest(voice, text))` | `kubectl exec -i -n ai deploy/kokoro -c app -- python -c <kokoro_tts.py>` | `{"voice", "text"}` JSON | 55 s (snippet: 45 s, 30 s per event, 2 000 000 audio bytes) | `SpeechTake`: WAV bytes, SHA-256, channels, width, rate, frames, `legacy_duration_s` |
 | `WhisperClient` (`whisper`) | `transcribe(TranscriptRequest(wav))` | `... deploy/whisper -c app -- python -c <whisper_asr.py>` | the WAV | 55 s (snippet: 45 s, 30 s per event) | `Transcript(text)`; `heard_matches(heard, text)` is the PoC's `norm` comparison |
-| `ImageClient` (`comfyui`) | `render(TextToImage(...) or ImageEdit(...))` | `kubectl exec -i -n ai comfyui-0 -c app -- python3 -c <comfyui_prompt.py>` | `{"graph", "client_id", "upload"?}` JSON | 3300 s (snippet: 30 min queue wait, 20 min render) | `ImageResult`: PNG, SHA-256, `prompt_id`, ComfyUI file and subfolder, timings, `graph_sha256` |
+| `ImageClient` (`comfyui`) | `render(TextToImage(...) or ImageEdit(...))`; an edit's upload name comes from its PNG's hash | `kubectl exec -i -n ai comfyui-0 -c app -- python3 -c <comfyui_prompt.py>` | `{"graph", "client_id", "upload"?}` JSON | 3300 s (snippet: 30 min queue wait, 20 min render) | `ImageResult`: PNG, SHA-256, `prompt_id`, ComfyUI file and subfolder, timings, `graph_sha256` |
 | `ImageClient` | `queue()` | `... -- python3 -c <comfyui_queue.py>` | none | 45 s | `QueueState(running, pending)`; submits nothing |
 | `LedgerReader` (`wan_ledger`) | `get(ledger_id)` | `kubectl exec -i -n ai deploy/wan-video -c api -- python3 -c <wan_ledger_read.py> <id>` | none | 30 s | `LedgerRecord`, checked like `poc/deliver.py` `check_ledger` |
-| `LedgerReader` | `list()`, `find(sha256)` | `... -- python3 -c <wan_ledger_list.py>` | none | 60 s | `LedgerListing` of `edited_production` summaries (unparseable ledger files by name) |
+| `LedgerReader` | `list()`, `find(sha256)` | `... -- python3 -c <wan_ledger_list.py>` | none | 60 s | `LedgerListing` of `edited_production` summaries; unparseable ledger files and malformed entries are listed in `unreadable`, never fatal |
 | `LedgerReader` | `fetch_asset(ledger_id, sha256)` | `... -- python3 -c <wan_ledger_fetch.py> <id> <sha256>` | none | 180 s, 64 MiB | `AssetBytes`, hash checked in the pod and again here |
 
 ComfyUI is shared with Home Assistant and Open WebUI. The prompt snippet waits until
-the queue is empty before submitting and never cancels anyone's work; `render` also
-refuses a second concurrent call in the same process (`adapter.busy`), so one prompt
-is in flight. If a render fails after ComfyUI accepted the prompt (including a
-timeout), the `ImageError` carries `prompt_id`: read `/history/<prompt_id>`, do not
-resubmit.
+the queue is empty before submitting and never cancels anyone's work, and `render`
+refuses a second concurrent call in the same process (`adapter.busy`). Across
+processes this is best effort, as in the PoC: checking for an idle queue and submitting
+are two steps, so two clients that check at the same moment can both submit. If a
+render fails after ComfyUI accepted the prompt (including a timeout), the `ImageError`
+carries `prompt_id`: read `/history/<prompt_id>`, do not resubmit.
 
 The ledger reader is read-only by construction (contract section 8: product code never
 writes the Wan volume): it has no write, publish, link, rename or delete method, and a
-test scans its three snippets for any call that could write.
+test holds its three snippets to an allowlist of read calls and imports, so any new
+call fails until someone reviews it. `wan_ledger.ADAPTER` is `legacy_wan_ledger`, the
+adapter name the contract gives legacy deliveries.
 
 ## Errors
 
@@ -64,10 +67,17 @@ Every failure is an `AdapterError` with a `code`, the call's `label` and a short
 message: `adapter.request_invalid` (names the field, before anything runs),
 `adapter.pin_mismatch`, `adapter.command_failed` (non-zero exit), `adapter.not_found`
 (an HTTP 404 inside the pod), `adapter.timeout`, `adapter.response_invalid`,
-`adapter.busy`. An error never carries the request payload, the snippet, the full
-command line or an environment value. Its only service text is `detail`: the last 300
-characters of stderr after URL passwords and `token=`-style values are replaced with
-`<redacted>`. Redaction runs before the cut, so a cut cannot expose part of a value.
+`adapter.busy`. The package never puts the request payload, the snippet, the full
+command line or an environment value into an error, and the real runner drops the raw
+`subprocess` exception (it is not kept as the error's cause or context). The only
+service text is `detail`: the last 300 characters of stderr, with URL userinfo,
+`Bearer` and `Basic` credentials, and the value of any key containing `token`,
+`password`, `secret`, `api_key`, `authorization`, `cookie` or `credential` (in `=`,
+`:`, JSON or Python-repr form) replaced by `<redacted>`. Redaction runs before the cut,
+so a cut cannot expose part of a value. The ported ComfyUI snippet prints ComfyUI's
+error status on failure, and that status can quote a node's inputs, so `detail` may
+hold part of an image prompt. Prompts are not secrets, but treat `detail` as service
+output. Changing the snippet would break byte parity with the PoC.
 
 ## Pinned inputs
 
@@ -101,7 +111,7 @@ source with `ast` (never importing it) and the committed Winter Menu evidence.
 | Kokoro `synthesize` | argument vector, 55 s timeout, the `input=` expression, snippet text | all 38 r1 to r4 takes: each request's stdin is the PoC's JSON; a fake WAV of the recorded byte size parses to the recorded `duration_s` | none |
 | Whisper `transcribe` | argument vector, 55 s timeout, snippet text | each take's recorded `heard` parses back and gives the recorded `heard_matches`; each revision's film transcript parses | the PoC passes the open file as stdin, the package its bytes (same content) |
 | ComfyUI text to image | argument vector, 3300 s timeout, payload statements, graph field edits, template bytes, snippet text | **all 14 recorded t2i renders rebuild to the exact `graph_sha256` in `prompts.json`** | none |
-| ComfyUI edit | graph field edits, upload payload, template from the recorded haynes-ops commit | the three recorded edit graphs cannot be rebuilt: the PoC named each upload with 12 random hex digits | `upload_name` is a request field; `upload_name_for(png)` derives it from the image's hash (proposal P-425-03) |
+| ComfyUI edit | graph field edits, upload payload, template from the recorded haynes-ops commit | the three recorded edit graphs cannot be rebuilt: the PoC named each upload with 12 random hex digits | the upload name is `studio-<first 12 hex of the PNG's SHA-256>.png`, derived from the bytes (proposal P-425-03) |
 | ComfyUI `queue` | new | none | new call (P-425-02) |
 | Wan ledger `get` | argument vector with the ledger ID, 30 s timeout, snippet text, required fields of `check_ledger` | the four committed `production.json` files parse as served answers | the PoC inherited the caller's stdin; the package sends empty stdin |
 | Wan ledger `list`, `find`, `fetch_asset` | new | `find` matches the set still across all four ledgers | new calls (P-425-04) |
@@ -129,14 +139,15 @@ Choices beyond the contract, each open to change:
 - **P-425-02** `ImageClient.queue()` reads ComfyUI's queue without submitting, so a
   caller can show "waiting for a household render" first.
 - **P-425-03** Edit uploads take a content-derived name, `studio-<first 12 hex of the
-  PNG's SHA-256>.png`, so an edit graph and its hash can be rebuilt. ComfyUI's upload
-  overwrites by name (as in the PoC), and equal names now mean equal bytes.
+  PNG's SHA-256>.png`, so an edit graph and its hash can be rebuilt. The request derives
+  it from its own bytes and takes no name from the caller: ComfyUI's upload overwrites
+  by name (as in the PoC), so a name can only ever replace identical bytes.
 - **P-425-04** The ledger reader adds `list`, `find` and `fetch_asset`. The Wan API has
   no list route, so `list` reads the ledger files directly; `fetch_asset` serves only a
   file that a ledger lists, under `/workspace/output/productions/`, at most 64 MiB,
   with its hash checked in the pod and again by the client. It is the route for
   recovering delivered inputs in story 428.
-- **P-425-05** Failure text: stderr is kept as a 300-character, redacted tail; payloads,
-  snippets and full command lines never appear in an error.
+- **P-425-05** Failure text: stderr is kept as a 300-character, redacted tail; the
+  package never adds payloads, snippets or full command lines to an error.
 - **P-425-06** `ImageClient.render` allows one call at a time per process
   (`adapter.busy`) on top of the snippet's queue wait.

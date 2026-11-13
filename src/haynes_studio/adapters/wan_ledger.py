@@ -33,6 +33,7 @@ from haynes_studio.adapters.errors import RESPONSE_INVALID, AdapterError, Reques
 from haynes_studio.adapters.runner import WAN_API, Command, ExecTarget, Runner, run_checked
 from haynes_studio.jsonio import freeze, parse_strict
 
+ADAPTER = "legacy_wan_ledger"  # the delivery adapter name in contract section 8
 READ_SNIPPET = "wan_ledger_read.py"
 LIST_SNIPPET = "wan_ledger_list.py"
 FETCH_SNIPPET = "wan_ledger_fetch.py"
@@ -99,7 +100,9 @@ class LedgerSummary:
 @dataclass(frozen=True)
 class LedgerListing:
     ledgers: tuple[LedgerSummary, ...]
-    unreadable: tuple[str, ...]  # ledger file names the pod could not parse
+    # Ledger files the pod could not parse, and listed entries with a malformed field
+    # (by file name, or "entry <n>" when even the ID is unusable).
+    unreadable: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -220,8 +223,10 @@ class LedgerReader:
                 continue
             try:
                 ledgers.append(_summary(entry))
-            except (KeyError, TypeError, ValueError):
-                raise AdapterError(RESPONSE_INVALID, command.label, f"entry {i} is malformed") from None
+            except (KeyError, TypeError, ValueError):  # one odd ledger never hides the rest
+                found = entry.get("id") if isinstance(entry, dict) else None
+                unreadable.append(f"{found}.json" if isinstance(found, str)
+                                  and LEDGER_ID.fullmatch(found) else f"entry {i}")
         return LedgerListing(tuple(ledgers), tuple(unreadable))
 
     def find(self, sha256: str) -> tuple[LedgerSummary, ...]:

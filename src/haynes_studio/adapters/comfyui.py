@@ -7,8 +7,9 @@ prints the images as base64. It never cancels or interrupts other work. The comm
 timeout is the PoC's 3300 s.
 
 One prompt in flight: this process runs at most one :meth:`ImageClient.render` at a
-time (a second concurrent call fails with ``adapter.busy``), and the snippet's queue
-check covers everyone else. :meth:`ImageClient.queue` reads the queue without
+time (a second concurrent call fails with ``adapter.busy``). Across processes the
+snippet's queue check is best effort: checking for an idle queue and submitting are
+two steps, as in the PoC, so two clients that check at the same moment can both submit. :meth:`ImageClient.queue` reads the queue without
 submitting anything.
 
 Graphs are the pinned ``qwen_image_2_1_t2i_API.json`` and
@@ -39,7 +40,15 @@ from haynes_studio.adapters.errors import (
     ImageError,
     RequestInvalid,
 )
-from haynes_studio.adapters.runner import COMFYUI, Command, ExecTarget, Runner, failure, run_checked
+from haynes_studio.adapters.runner import (
+    COMFYUI,
+    Command,
+    Completed,
+    ExecTarget,
+    Runner,
+    failure,
+    run_checked,
+)
 from haynes_studio.jsonio import parse_strict
 
 LABEL = "comfyui.render"
@@ -61,7 +70,6 @@ T2I_NODES = {"4": "TextEncodeQwenImage21", "5": "EmptyLatentImage", "6": "KSampl
 EDIT_NODES = {"1": "LoadImage", "6": "TextEncodeQwenImage21", "7": "KSampler", "9": "SaveImage"}
 
 NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,79}")
-UPLOAD_NAME = re.compile(r"studio-[0-9a-f]{12}\.png")
 PROMPT_ID = re.compile(r"PROMPT_ID ([0-9A-Za-z-]{1,64})")
 
 
@@ -99,29 +107,31 @@ class TextToImage:
 
 
 def upload_name_for(source_png: bytes) -> str:
-    """A content-derived upload name in the PoC's form (proposal: the PoC used 12 random
-    hex digits, which made a recorded edit graph impossible to rebuild)."""
+    """The upload name for an image: the PoC's form with the image's own hash in place
+    of 12 random hex digits (proposal P-425-03), so equal names mean equal bytes."""
     return f"studio-{hashlib.sha256(source_png).hexdigest()[:12]}.png"
 
 
 @dataclass(frozen=True)
 class ImageEdit:
-    """``poc/comfy.py edit``: ``source_png`` is uploaded as ``upload_name`` (ComfyUI's
-    ``/upload/image`` with ``overwrite=true``, as the PoC does), then edited."""
+    """``poc/comfy.py edit``: ``source_png`` is uploaded as :attr:`upload_name`
+    (ComfyUI's ``/upload/image`` with ``overwrite=true``, as the PoC does), then edited.
+    The name is derived from the bytes, so an upload can only replace identical bytes."""
 
     job: str
     name: str
     prompt: str
     seed: int
     source_png: bytes = field(repr=False)
-    upload_name: str
 
     def __post_init__(self):
         _check_common(self.job, self.name, self.prompt, self.seed)
         if not isinstance(self.source_png, bytes) or not self.source_png.startswith(PNG_SIGNATURE):
             raise RequestInvalid(LABEL, "source_png must be PNG bytes")
-        if not isinstance(self.upload_name, str) or not UPLOAD_NAME.fullmatch(self.upload_name):
-            raise RequestInvalid(LABEL, "upload_name must look like studio-<12 hex>.png")
+
+    @property
+    def upload_name(self) -> str:
+        return upload_name_for(self.source_png)
 
 
 @dataclass(frozen=True)
@@ -200,23 +210,29 @@ class ImageClient:
             return g
         raise RequestInvalid(LABEL, "request must be TextToImage or ImageEdit")
 
-    def payload(self, request: TextToImage | ImageEdit, graph: dict | None = None) -> bytes:
+    def payload(self, request: TextToImage | ImageEdit) -> bytes:
         """The stdin bytes, exactly as ``poc/comfy.py`` ``run()`` writes them."""
-        payload = {'graph': graph if graph is not None else self.graph(request),
-                   'client_id': f'studio-{request.job}'}
+        return self._payload(request, self.graph(request))
+
+    def _payload(self, request: TextToImage | ImageEdit, graph: dict) -> bytes:
+        payload = {'graph': graph, 'client_id': f'studio-{request.job}'}
         if isinstance(request, ImageEdit):
             payload['upload'] = {'name': request.upload_name,
                                  'b64': base64.b64encode(request.source_png).decode()}
         return json.dumps(payload).encode()
 
-    def command(self, request: TextToImage | ImageEdit, graph: dict | None = None) -> Command:
+    def command(self, request: TextToImage | ImageEdit) -> Command:
+        """The command :meth:`render` runs, with the graph built from the pinned template."""
+        return self._command(request, self.graph(request))
+
+    def _command(self, request: TextToImage | ImageEdit, graph: dict) -> Command:
         pinned.check(self.prompt_snippet, PROMPT_SNIPPET)
         return Command(LABEL, self.target.argv(self.prompt_snippet.text),
-                       self.payload(request, graph), TIMEOUT_S, self.target.describe())
+                       self._payload(request, graph), TIMEOUT_S, self.target.describe())
 
     def render(self, request: TextToImage | ImageEdit) -> ImageResult:
         graph = self.graph(request)
-        command = self.command(request, graph)
+        command = self._command(request, graph)
         if not ImageClient._in_flight.acquire(blocking=False):
             raise ImageError(BUSY, LABEL, "another render is in flight in this process; "
                                           "one prompt at a time on the shared GPU")
@@ -229,6 +245,8 @@ class ImageClient:
                              detail=error.detail) from None
         finally:
             ImageClient._in_flight.release()
+        if not isinstance(result, Completed):
+            raise TypeError("a runner must return Completed")
         prompt_id = _prompt_id(result.stderr.decode("utf-8", "replace"))
         if result.returncode != 0:
             raise failure(command, result, error=ImageError, prompt_id=prompt_id)

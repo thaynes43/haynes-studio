@@ -59,17 +59,22 @@ class SubprocessRunner:
     """The real runner. Thin by design: no shell, no retries, no environment edits."""
 
     def run(self, command: Command) -> Completed:
+        # Errors are raised after the except blocks so that neither ``__cause__`` nor
+        # ``__context__`` keeps the raw exception (full argv, unredacted stderr).
+        problem = None
         try:
             result = subprocess.run(list(command.argv), input=command.stdin, capture_output=True,
                                     timeout=command.timeout_s, check=False)
         except subprocess.TimeoutExpired as expired:
-            raise AdapterError(TIMEOUT, command.label,
-                               f"no answer from {command.target or command.argv[0]} "
-                               f"within {command.timeout_s:g} s",
-                               detail=safe_detail(expired.stderr)) from None
+            problem = AdapterError(TIMEOUT, command.label,
+                                   f"no answer from {command.target or command.argv[0]} "
+                                   f"within {command.timeout_s:g} s",
+                                   detail=safe_detail(expired.stderr))
         except OSError as error:
-            raise AdapterError(COMMAND_FAILED, command.label,
-                               f"could not start {command.argv[0]}: {error.strerror}") from None
+            problem = AdapterError(COMMAND_FAILED, command.label,
+                                   f"could not start {command.argv[0]}: {error.strerror}")
+        if problem is not None:
+            raise problem
         return Completed(result.returncode, result.stdout, result.stderr)
 
 

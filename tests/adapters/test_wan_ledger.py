@@ -22,9 +22,13 @@ LEDGERS = [json.loads((TITLE / e / "production.json").read_text())
 WRITE_WORDS = ("write", "publish", "put", "post", "delete", "remove", "unlink", "link", "rename",
                "replace", "save", "upload", "create", "mkdir", "touch", "chmod", "copy", "move")
 SNIPPETS = ("wan_ledger_read.py", "wan_ledger_list.py", "wan_ledger_fetch.py")
-FORBIDDEN_CALLS = {"write_text", "write_bytes", "unlink", "rename", "replace", "mkdir", "rmdir",
-                   "link", "symlink_to", "hardlink_to", "touch", "chmod", "remove", "rmtree",
-                   "makedirs", "Request", "open", "urlretrieve", "system", "popen", "run"}
+# Every call the three ledger snippets make, by full name, and the read-only methods
+# they call on values (a path's read_text, a dict's get).
+ALLOWED_CALLS = {"print", "sorted", "isinstance", "SystemExit", "json.loads", "json.dumps",
+                 "pathlib.Path", "re.fullmatch", "hashlib.sha256", "sys.stdout.buffer.write",
+                 "urllib.request.urlopen", "out.append"}
+ALLOWED_METHODS = {"glob", "read_text", "read_bytes", "get", "resolve", "is_relative_to", "stat",
+                   "hexdigest", "decode", "read", "urlopen"}
 
 
 def reader(**fake):
@@ -41,15 +45,20 @@ def test_reader_has_no_write_method():
 
 @pytest.mark.parametrize("name", SNIPPETS)
 def test_ledger_snippets_only_read(name):
+    """An allowlist: every call in the three snippets is one of these. A new call (a
+    process, a copy, a POST, a write) fails here until someone reviews it."""
     tree = ast.parse(pinned.load(name).text)
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
-            called = node.func.attr if isinstance(node.func, ast.Attribute) else getattr(node.func, "id", "")
-            assert called not in FORBIDDEN_CALLS, f"{name}: {ast.unparse(node)}"
-            if called == "urlopen":
+            called = ast.unparse(node.func)
+            base = called.rsplit(".", 1)[-1]
+            assert called in ALLOWED_CALLS or (base in ALLOWED_METHODS and "." in called), \
+                f"{name}: {ast.unparse(node)}"
+            if base == "urlopen":
                 assert len(node.args) == 1 and not node.keywords, "urlopen with data would POST"
-        if isinstance(node, ast.Attribute) and node.attr == "write":
-            assert ast.unparse(node) == "sys.stdout.buffer.write", f"{name}: {ast.unparse(node)}"
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            names = {a.name for a in node.names} | {getattr(node, "module", None) or ""}
+            assert names <= {"hashlib", "json", "pathlib", "re", "sys", "urllib.request", ""}, name
 
 
 def test_the_ported_read_is_a_get_on_the_api():
@@ -115,12 +124,22 @@ def test_list_and_find():
         reader().find("abc")
 
 
-def test_list_refuses_a_malformed_answer():
-    class Bad:
+def test_list_reports_a_malformed_entry_and_keeps_the_rest():
+    good = {"id": "b" * 32, "asset_sha256": []}
+    entries = [{"id": "nope"}, {"id": "c" * 32, "asset_sha256": ["XYZ"]}, good, 7]
+
+    class Odd:
         def run(self, command):
-            return Completed(0, b'[{"id": "nope"}]')
+            return Completed(0, json.dumps(entries).encode())
+    listing = LedgerReader(Odd()).list()
+    assert [s.id for s in listing.ledgers] == ["b" * 32]
+    assert listing.unreadable == ("entry 0", "c" * 32 + ".json", "entry 3")
+
+    class NotAList:
+        def run(self, command):
+            return Completed(0, b'{"id": "x"}')
     with pytest.raises(AdapterError) as caught:
-        LedgerReader(Bad()).list()
+        LedgerReader(NotAList()).list()
     assert caught.value.code == errors.RESPONSE_INVALID
 
 

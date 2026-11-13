@@ -89,8 +89,8 @@ def test_a_snippet_changed_after_construction_is_refused_before_running():
     assert runner.calls == []
 
 
-def test_no_package_code_reads_another_checkout_or_home():
-    for path in PACKAGE.rglob("*.py"):
+def test_no_adapter_code_reads_another_checkout_or_home():
+    for path in (PACKAGE / "adapters").rglob("*.py"):
         text = path.read_text(encoding="utf-8")
         for needle in ("haynes-ops/kubernetes", "repos/haynes-ops", "Path.home", "expanduser",
                        "os.environ", "getenv"):

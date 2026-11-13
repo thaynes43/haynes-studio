@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import threading
 
 import pytest
@@ -75,13 +76,15 @@ def test_image_request_validation(changes):
         t2i(**changes)
 
 
-def test_edit_request_needs_png_and_a_studio_upload_name():
+def test_edit_request_needs_png_and_names_the_upload_by_its_bytes():
     png = synthetic_png()
     with pytest.raises(RequestInvalid):
-        ImageEdit("j", "n", "p", 1, b"not a png", upload_name_for(png))
-    with pytest.raises(RequestInvalid):
-        ImageEdit("j", "n", "p", 1, png, "../evil.png")
-    assert upload_name_for(png) == upload_name_for(png)
+        ImageEdit("j", "n", "p", 1, b"not a png")
+    edit = ImageEdit("j", "n", "p", 1, png)
+    assert edit.upload_name == upload_name_for(png) != upload_name_for(synthetic_png(seed=1))
+    assert re.fullmatch(r"studio-[0-9a-f]{12}\.png", edit.upload_name)
+    with pytest.raises(TypeError):
+        ImageEdit("j", "n", "p", 1, png, "studio-000000000000.png")
 
 
 def test_transcript_request_needs_a_wav():
@@ -119,6 +122,25 @@ def test_failure_keeps_a_redacted_stderr_tail_and_no_payload():
     assert "hunter2" not in text and "abcdef0123456789" not in text
     assert "<redacted>" in text and "TTS error" in text
     assert "Bibs on" not in text and "wyoming" not in text and "kubectl exec -n ai deploy/kokoro" in text
+
+
+@pytest.mark.parametrize("raw,secret", [
+    ("GH_TOKEN=ghs_aaaabbbbccccdddd1234", "ghs_aaaa"),
+    ("DB_PASSWORD=correct-horse-battery", "correct-horse"),
+    ("AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMIK7MDENG", "wJalrXUt"),
+    ("refresh_token=rt-0123456789abcdef", "0123456789ab"),
+    ("client_secret: cs-0123456789abcdef", "0123456789ab"),
+    ("uploaded {'token': 'tk-0123456789abcdef'}", "0123456789ab"),
+    ('{"password": "pw-0123456789abcdef"}', "0123456789ab"),
+    ("Authorization: Bearer bt-0123456789abcdef", "0123456789ab"),
+    ("Authorization: Basic dXNlcjpwYXNzd29yZA==", "dXNlcjpw"),
+    ("dial https://u:p/ss0123456789@host:6443", "ss0123456789"),
+    ("dial https://u:p@ss0123456789@host:6443", "ss0123456789"),
+    ("cookie=session-0123456789abcdef", "0123456789ab"),
+])
+def test_safe_detail_redacts_credential_forms(raw, secret):
+    detail = errors.safe_detail(raw.encode())
+    assert secret not in detail and "<redacted>" in detail
 
 
 def test_safe_detail_redacts_before_cutting():
@@ -228,8 +250,7 @@ def test_comfyui_one_render_in_flight_per_process():
 def test_comfyui_edit_uploads_and_renders():
     fake = FakeComfyUI()
     source = synthetic_png(seed=9)
-    request = ImageEdit("the-winter-menu-r9", "a-edit", "make her stare", 301, source,
-                        upload_name_for(source))
+    request = ImageEdit("the-winter-menu-r9", "a-edit", "make her stare", 301, source)
     result = ImageClient(FakeRunner(fake)).render(request)
     assert fake.payloads[0]["upload"]["name"] == request.upload_name
     assert result.comfy_subfolder == "studio/the-winter-menu-r9"
