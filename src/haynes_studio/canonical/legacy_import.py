@@ -3,9 +3,12 @@ become one canonical story with boards, lines, cues, notes and layout references
 a ``studio.legacy-import/v1`` map with a ``source_key`` per record.
 
 Identifiers come from an existing import map when one is given, so a second import
-returns the same IDs (P-01); otherwise they are minted. The returned map records every
-ID the import used, including the ones the contract's map does not list (cues, notes,
-beds and the asset versions the boards name), so the next import reuses them too.
+returns the same IDs (P-01); otherwise they are minted. A map refuses an import whose
+manifest or ``speech.json`` bytes differ from the ones it recorded for that revision,
+so an ID never names different content (a board voice version, for one, never names
+other takes). The returned map records every ID the import used, including the ones
+the contract's map does not list (cues, notes, beds and the asset versions the boards
+name), so the next import reuses them too.
 Nothing here writes a legacy file; the caller decides where the result goes.
 
 Asset versions (cast stills, the set, sounds, stock voices, board voices) belong to the
@@ -24,6 +27,7 @@ from haynes_studio.canonical import validate as rules
 from haynes_studio.canonical import with_derived
 from haynes_studio.canonical.facts import Facts, VoiceVersionFacts
 from haynes_studio.canonical.ids import Minter
+from haynes_studio.canonical.jsonvalues import normalize
 from haynes_studio.canonical.methods import default_method
 from haynes_studio.canonical.model import (
     BOARD_SCHEMA,
@@ -55,11 +59,12 @@ class ImportResult:
     facts: Facts  # the board voice versions' measured takes, from speech.json
     reused: int  # IDs taken from the existing map
     minted: int  # IDs minted by this import
+    given: int = 0  # IDs the caller gave without a map (the production)
 
 
 def story_source_key(manifest: LegacyManifest) -> str:
     """``legacy:<title slug>``: the job name without its ``-r<revision>`` suffix."""
-    return "legacy:" + re.sub(rf"-r{manifest.revision}$", "", manifest.job)
+    return "legacy:" + re.sub(rf"-r{manifest.revision}\Z", "", manifest.job)
 
 
 def media_kind(manifest: LegacyManifest) -> str:
@@ -72,10 +77,10 @@ def media_kind(manifest: LegacyManifest) -> str:
 
 
 class _Ids:
-    """IDs from the existing map, else minted; counts both."""
+    """IDs from the existing map, else minted; counts both, and IDs the caller gave."""
 
     def __init__(self, existing: Mapping[str, Any] | None, revision: int, minter: Minter):
-        self.minter, self.reused, self.minted = minter, 0, 0
+        self.minter, self.reused, self.minted, self.given = minter, 0, 0, 0
         existing = existing or {}
         self.boards = {b["legacy_shot"]: b for b in existing.get(f"boards_from_r{revision}", [])}
         self.records = {(r["kind"], r["source_key"]): r["id"]
@@ -87,6 +92,13 @@ class _Ids:
             return known
         self.minted += 1
         return self.minter.mint(prefix)
+
+    def given_or_minted(self, prefix: str, given: str | None) -> str:
+        """An ID the caller supplied without a map, else a minted one."""
+        if given is not None:
+            self.given += 1
+            return given
+        return self.take(prefix, None)
 
     def board(self, shot: int) -> str:
         return self.take("brd", self.boards.get(shot, {}).get("board_id"))
@@ -105,7 +117,10 @@ class _Ids:
 
 
 def _check_existing(existing: Mapping[str, Any], manifest: LegacyManifest,
-                    production_id: str | None, kind: str, label: str) -> None:
+                    speech: LegacySpeech, production_id: str | None, kind: str,
+                    label: str) -> None:
+    """Refuse a map made for another title, media kind, draft revision or production,
+    or recorded from other manifest or speech.json bytes for this revision."""
     problems = [Violation(v.rule, v.path, v.message) for v in
                 blocking(rules.validate_legacy_import(existing))]
     if not problems:
@@ -119,10 +134,17 @@ def _check_existing(existing: Mapping[str, Any], manifest: LegacyManifest,
                                           f"the map has {existing[field]!r}; this import "
                                           f"needs {value!r}"))
         for i, entry in enumerate(existing["revisions"]):
-            if entry["legacy_revision"] == manifest.revision and \
-                    manifest.sha256 and entry["manifest_sha256"] != manifest.sha256:
+            if entry["legacy_revision"] != manifest.revision:
+                continue
+            if manifest.sha256 and entry["manifest_sha256"] != manifest.sha256:
                 problems.append(Violation(MAP_MISMATCH, pointer("revisions", i, "manifest_sha256"),
                                           "the manifest's bytes differ from the mapped revision"))
+            recorded = entry.get("speech_sha256")
+            if recorded and speech.sha256 and recorded != speech.sha256:
+                problems.append(Violation(
+                    MAP_MISMATCH, pointer("revisions", i, "speech_sha256"),
+                    "the speech.json bytes differ from the ones this revision was imported "
+                    "with; its voice version IDs name those takes"))
     if problems:
         raise ContractError(label, problems)
 
@@ -138,17 +160,21 @@ def import_manifest(manifest: LegacyManifest, speech: LegacySpeech, *, manifest_
     that breaks a canonical rule."""
     if operator.kind != "human":
         raise ValueError("the operator is a human principal (contract section 2)")
+    if manifest.sha256 is None:
+        raise ValueError("the manifest must be loaded from its file: the map records the "
+                         "SHA-256 of its bytes (haynes_studio.legacy.load)")
     takes = pair(manifest, speech)
     kind = media_kind(manifest)
     if existing is not None:
-        existing = thaw(existing)
-        _check_existing(existing, manifest, production_id, kind, map_label)
+        existing = normalize(existing)
+        _check_existing(existing, manifest, speech, production_id, kind, map_label)
     ids = _Ids(existing, manifest.revision, minter or Minter())
     job = manifest.job
     by = to_document(Principal(kind="cli", command=COMMAND, operator=operator))
 
-    prd = ids.take("prd", existing["production_id"] if existing else production_id)
-    sty = ids.take("sty", existing["story_id"] if existing else None)
+    prd = (ids.take("prd", existing["production_id"]) if existing is not None
+           else ids.given_or_minted("prd", production_id))
+    sty = ids.take("sty", existing["story_id"] if existing is not None else None)
     board_ids = {shot.id: ids.board(shot.id) for shot in manifest.shots}
     line_ids = {(shot.id, line.k): ids.line(shot.id, line.k)
                 for shot in manifest.shots for line in shot.lines}
@@ -202,7 +228,7 @@ def import_manifest(manifest: LegacyManifest, speech: LegacySpeech, *, manifest_
     if problems:
         raise ContractError("<import map>", problems)
     return ImportResult(story=story, import_map=import_map, facts=facts,
-                        reused=ids.reused, minted=ids.minted)
+                        reused=ids.reused, minted=ids.minted, given=ids.given)
 
 
 def _anchor(anchor, shot: Shot, line_ids: Mapping[tuple[int, int], str]) -> dict[str, Any]:

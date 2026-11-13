@@ -10,7 +10,9 @@ import pytest
 from jsonschema import Draft202012Validator
 
 from haynes_studio.canonical import (
+    Board,
     Facts,
+    FormatLength,
     VoiceVersionFacts,
     validate_board,
     validate_legacy_import,
@@ -27,12 +29,13 @@ from tests.contracts import harness
 from tests.contracts.registry import VALIDATORS
 
 TYPES = ("production", "story", "board", "story-timing", "method-capabilities", "legacy-import")
-# Rules the JSON Schema files carry (x-studio, const, additionalProperties); every other
-# rule needs more than one field and is checked in code only.
+# Rules the JSON Schema files carry (x-studio, const, additionalProperties), a board's
+# spoken or silent shape included; every other rule needs facts or a check JSON Schema
+# cannot express and is checked in code only.
 SCHEMA_RULES = {"schema.unknown_field", "schema.unsupported", "id.malformed", "id.type_mismatch",
                 "time.not_integer_ms", "time.negative", "time.tail_too_short",
-                "time.hold_out_of_range", "time.duration_is_derived", "method.unknown",
-                "cue.type_unknown"}
+                "time.hold_out_of_range", "time.hold_on_spoken_board", "time.first_line_gap",
+                "time.duration_is_derived", "method.unknown", "cue.type_unknown"}
 
 
 def _examples(kind: str):
@@ -53,6 +56,19 @@ def _id(item) -> str:
 
 def blocking(found):
     return [(v.rule, v.status, v.path) for v in found if v.status != WARNING]
+
+
+def annotated_rules(errors) -> set[str]:
+    """The rule codes a plain draft 2020-12 validator's errors carry, read straight from
+    the schema files' own annotations (x-studio, additionalProperties)."""
+    rules = set()
+    for error in errors:
+        if error.validator == "additionalProperties":
+            rules.add("schema.unknown_field")
+            continue
+        schema = error.schema if isinstance(error.schema, dict) else {}
+        rules.add(schema.get("x-studio", {}).get(error.validator, {}).get("rule", "schema.invalid"))
+    return rules
 
 
 def test_every_type_has_examples():
@@ -78,15 +94,15 @@ def test_invalid_case_fails_with_exactly_its_rule_status_and_path(item):
 @pytest.mark.parametrize("item", VALID + INVALID, ids=_id)
 def test_json_schema_and_python_agree(item):
     """A plain draft 2020-12 validator (no rule mapping) accepts every valid example,
-    rejects every case whose rule the schema carries, and accepts the rest, which the
-    code rejects."""
+    rejects every case whose rule the schema carries with exactly that rule (as the
+    schema's own annotations name it), and accepts the rest, which the code rejects."""
     shipped = validator_for(SCHEMA_FILES[f"studio.{item.type}/v1"])
     assert isinstance(shipped, Draft202012Validator)
     errors = list(shipped.iter_errors(item.document))
     if item.kind == "valid":
         assert errors == []
     elif item.rule in SCHEMA_RULES:
-        assert errors, f"the schema accepts a {item.rule} case"
+        assert annotated_rules(errors) == {item.rule}
     else:
         assert errors == [], f"the schema rejects a {item.rule} case the code owns"
 
@@ -223,6 +239,9 @@ def test_notes_are_text_only_and_nfc():
     note = board(7)
     note["notes"][0]["text"] = "Café"
     assert check(note) == [("schema.invalid", "invalid", "/notes/0/text")]
+    note = board(7)
+    note["notes"][0].update(type="sound", at_ms=0)
+    assert check(note) == [("note.text_only", "invalid", "/notes/0")]
 
 
 def test_derived_is_rejected_on_write_only():
@@ -328,3 +347,204 @@ def test_legacy_import_board_map_name_and_ids():
         import_map["boards_from_r4"][0]["lines"][0]["line_id"]
     assert blocking(validate_legacy_import(import_map)) == [
         ("ref.duplicate", "invalid", "/boards_from_r4/1/lines/0/line_id")]
+
+
+# Review fixes of story 404 -------------------------------------------------------------
+
+LENGTH_30_S = FormatLength(format_version_id="fmv_01M79V9FC00000000000000001", min_ms=1000,
+                           max_ms=30000)
+
+
+def test_integral_floats_are_integers_and_fractions_are_not():
+    silent = board(7)
+    silent["timing"]["hold_ms"] = 1900.0
+    assert check(silent) == []
+    vote = board(8)
+    vote["timing"]["lead_ms"] = 1900.0  # the board clock runs with the r4 takes
+    vote["lines"][1]["gap_before_ms"] = 300.0
+    vote["cues"][0]["anchor"] = {"at_ms": 750.0}
+    vote["cues"][2]["steps"] = 3.0
+    vote.update(number=8.0, revision=1.0, seeds={"s2v:a": 516.0})
+    assert check(vote) == []
+    assert check(vote, "queue_run") == []
+    model = Board.from_document(vote)
+    assert [type(value) for value in (model.number, model.timing.lead_ms,
+                                      model.lines[1].gap_before_ms, model.seeds["s2v:a"])] == [int] * 4
+    vote = board(8)
+    vote["timing"]["lead_ms"] = 1900.5
+    assert check(vote) == [("time.not_integer_ms", "invalid", "/timing/lead_ms")]
+    silent = board(7)
+    silent["timing"]["hold_ms"] = True  # booleans are never numbers
+    assert check(silent) == [("time.not_integer_ms", "invalid", "/timing/hold_ms")]
+    story = story_write()
+    story["boards"][6]["timing"]["hold_ms"] = 1900.0
+    story["boards"][3]["timing"]["lead_ms"] = 500.0
+    assert check_story(story) == []
+    assert check_story(story, "queue_run") == []
+
+
+@pytest.mark.parametrize("change,path", [
+    (lambda s: s["boards"].append(None), "/boards/9"),
+    (lambda s: s["boards"].append("x"), "/boards/9"),
+    (lambda s: s["boards"].__setitem__(0, 5), "/boards/0"),
+    (lambda s: s["boards"][0].__setitem__("id", []), "/boards/0/id"),
+    (lambda s: s["boards"][0].__setitem__("id", {"a": 1}), "/boards/0/id"),
+])
+def test_a_story_with_malformed_boards_returns_violations(change, path):
+    story = story_write()
+    change(story)
+    found = check_story(story)
+    assert ("schema.invalid", "invalid", path) in found
+    assert all(rule == "schema.invalid" for rule, _, _ in found)
+
+
+def test_format_length_is_a_warning_and_never_raises():
+    story = story_write()
+    found = validate_story(story, context="write", facts=example_context().facts,
+                           format_length=LENGTH_30_S)
+    assert [(v.rule, v.status, v.path) for v in found] == [
+        ("format.length_exceeded", "warning", "/board_order")]
+    assert check_story(story, "queue_run", format_length=LENGTH_30_S) == []
+    for change, rule, path in [
+        (lambda s: s["boards"][6]["timing"].update(hold_ms=None),
+         "time.hold_out_of_range", "/boards/6/timing/hold_ms"),
+        (lambda s: s["boards"][7]["timing"].update(lead_ms=None),
+         "schema.invalid", "/boards/7/timing/lead_ms"),
+        (lambda s: s["boards"][7]["lines"][0].update(gap_before_ms=5),
+         "time.first_line_gap", "/boards/7/lines/0/gap_before_ms"),
+    ]:
+        story = story_write()
+        change(story)
+        found = validate_story(story, context="write", facts=example_context().facts,
+                               format_length=LENGTH_30_S)
+        assert [(v.rule, v.status, v.path) for v in found] == [(rule, "invalid", path)]
+
+
+@pytest.mark.parametrize("change,rule,path", [
+    (lambda b: b.update(id=b["id"] + "\n"), "id.malformed", "/id"),
+    (lambda b: b["voice"].update(current_version_id=b["voice"]["current_version_id"] + "\n"),
+     "id.malformed", "/voice/current_version_id"),
+    (lambda b: b["lines"][0].update(speaker="b\n"), "schema.invalid", "/lines/0/speaker"),
+    (lambda b: b["lines"][0].update(speaker="narrator\n"), "schema.invalid", "/lines/0/speaker"),
+    (lambda b: b["cast"][0].update(slot="a\n"), "schema.invalid", "/cast/0/slot"),
+    (lambda b: b.update(seeds={"s2v:a\n": 1}), "schema.invalid", "/seeds/s2v:a\n"),
+    (lambda b: b["origin"].update(source_key=b["origin"]["source_key"] + "\n"),
+     "schema.invalid", "/origin/source_key"),
+    (lambda b: b.update(created_at=b["created_at"] + "\n"), "schema.invalid", "/created_at"),
+])
+def test_patterns_match_the_whole_value(change, rule, path):
+    """`$` in a Python regex also matches before a trailing newline; length limits and
+    `not` patterns make the schema agree with an ECMA-262 validator."""
+    vote = board(8)
+    change(vote)
+    assert check(vote) == [(rule, "invalid", path)]
+
+
+@pytest.mark.parametrize("text", ["hello\n", "tab\there", "a\u0085b", "bell\u0007", "del\u007f"])
+def test_note_text_has_no_control_characters(text):
+    note = board(7)
+    note["notes"][0]["text"] = text
+    assert check(note) == [("schema.invalid", "invalid", "/notes/0/text")]
+
+
+@pytest.mark.parametrize("number,change", [
+    (7, lambda b: b["voice"].update(style="cast")),
+    (7, lambda b: b["voice"].update(current_version_id="asv_01M79V9FC0000000000000000Y")),
+    (7, lambda b: b["timing"].update(lead_ms=500)),
+    (8, lambda b: b["timing"].update(lead_ms=None)),
+    (8, lambda b: b["timing"].update(tail_ms=None)),
+    (8, lambda b: b["voice"].update(style=None)),
+    (8, lambda b: b["lines"][3].update(gap_before_ms=None)),
+])
+def test_the_schema_carries_each_boards_spoken_or_silent_shape(number, change):
+    document = board(number)
+    change(document)
+    plain = list(validator_for(SCHEMA_FILES["studio.board/v1"]).iter_errors(document))
+    assert annotated_rules(plain) == {"schema.invalid"}
+    assert [rule for rule, _, _ in check(document)] == ["schema.invalid"]
+
+
+@pytest.mark.parametrize("number,change,expected", [
+    (8, lambda b: b["timing"].update(hold_ms=50),
+     ("time.hold_on_spoken_board", "invalid", "/timing/hold_ms")),
+    (8, lambda b: b["timing"].update(hold_ms=1900.5),
+     ("time.hold_on_spoken_board", "invalid", "/timing/hold_ms")),
+    (8, lambda b: b["timing"].update(hold_ms=500000),
+     ("time.hold_on_spoken_board", "invalid", "/timing/hold_ms")),
+    (7, lambda b: b["timing"].update(tail_ms=100), ("schema.invalid", "invalid", "/timing/tail_ms")),
+    (7, lambda b: b["timing"].update(lead_ms=-5), ("schema.invalid", "invalid", "/timing/lead_ms")),
+    (8, lambda b: b["lines"][0].update(gap_before_ms=-5),
+     ("time.first_line_gap", "invalid", "/lines/0/gap_before_ms")),
+])
+def test_a_boards_shape_comes_before_its_ranges(number, change, expected):
+    document = board(number)
+    change(document)
+    assert check(document) == [expected]
+
+
+def test_board_slots_and_seeds_must_be_story_cast_slots():
+    vote = board(8)
+    vote["cast"].append({"slot": "z", "asset_version_id": vote["cast"][0]["asset_version_id"]})
+    vote["seeds"]["s2v:z"] = 7
+    assert check(vote) == [("ref.unknown", "invalid", "/cast/4/slot"),
+                           ("ref.unknown", "invalid", "/seeds/s2v:z")]
+    assert check(vote, story_cast=None) == []  # a lone board cannot see the cast
+    story = story_write()
+    story["boards"][7]["cast"].append(
+        {"slot": "z", "asset_version_id": story["boards"][7]["cast"][0]["asset_version_id"]})
+    assert check_story(story) == [("ref.unknown", "invalid", "/boards/7/cast/4/slot")]
+
+
+def test_story_timing_totals_agree_with_their_rows():
+    timing = example("valid/story-timing-summary.json")
+    timing.update(complete=True, frames_known=1, build_allowed=True)
+    assert blocking(validate_story_timing(timing)) == [
+        ("schema.invalid", "invalid", "/build_allowed"),
+        ("schema.invalid", "invalid", "/complete"),
+        ("schema.invalid", "invalid", "/frames_known")]
+
+
+def test_method_capabilities_follow_the_contract_matrix():
+    methods = example("valid/method-capabilities.json")
+    index = next(i for i, c in enumerate(methods["cells"])
+                 if (c["layer"], c["motion"]) == ("whole_frame", "s2v"))
+    cell = methods["cells"][index]
+    cell.update(status="buildable", adapter_story=427, profile={})
+    del cell["reason"]
+    assert blocking(validate_method_capabilities(methods)) == [
+        ("schema.invalid", "invalid", f"/cells/{index}/status")]
+
+
+def test_import_map_refuses_repeated_shots_and_lines():
+    import_map = example("valid/legacy-import-map.json")
+    import_map["boards_from_r4"][1]["legacy_shot"] = import_map["boards_from_r4"][0]["legacy_shot"]
+    import_map["boards_from_r4"][7]["lines"][1]["legacy_k"] = 0
+    assert blocking(validate_legacy_import(import_map)) == [
+        ("ref.duplicate", "invalid", "/boards_from_r4/1/legacy_shot"),
+        ("ref.duplicate", "invalid", "/boards_from_r4/7/lines/1/legacy_k")]
+
+
+@pytest.mark.parametrize("kind,record_id", [
+    ("asset_version", "brd_01M79V9FC000000000000000ZZ"),
+    ("asset_version", "cue_01M79V9FC000000000000000ZZ"),
+    ("bed", "asv_01M79V9FC000000000000000ZZ"),
+])
+def test_import_map_record_ids_match_their_kind(kind, record_id):
+    import_map = example("valid/legacy-import-map.json")
+    import_map["story_records"] = [{"source_key": "legacy:the-winter-menu-r4:bed:fire",
+                                    "kind": kind, "id": record_id}]
+    assert blocking(validate_legacy_import(import_map)) == [
+        ("id.type_mismatch", "invalid", "/story_records/0/id")]
+
+
+@pytest.mark.parametrize("depth", [70, 2000])
+def test_a_document_nested_too_deeply_is_refused(depth):
+    deep: object = 1
+    for _ in range(depth):
+        deep = {"a": deep}
+    story = story_write()
+    story["motion_style"] = deep
+    assert check_story(story) == [("schema.invalid", "invalid", "")]
+    import_map = example("valid/legacy-import-map.json")
+    import_map["hidden_candidates"] = [deep]
+    assert blocking(validate_legacy_import(import_map)) == [("schema.invalid", "invalid", "")]

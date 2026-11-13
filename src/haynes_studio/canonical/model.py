@@ -2,7 +2,8 @@
 
 Each model is a frozen dataclass whose field names are the JSON field names, built
 with ``from_document`` from a document that has passed its validator, and turned
-back into JSON with :func:`to_document`. Verbatim legacy JSON (layout presets, the
+back into JSON with :func:`to_document`. ``from_document`` reads a normalized copy
+(:func:`~haynes_studio.canonical.jsonvalues.normalize`: integral floats are ints). Verbatim legacy JSON (layout presets, the
 legacy fire, motion style) stays a read-only mapping. Nothing here reads files,
 calls services or knows about the command line.
 """
@@ -15,6 +16,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
 
+from haynes_studio.canonical.jsonvalues import integral, normalize
 from haynes_studio.jsonio import freeze, thaw
 
 BOARD_SCHEMA = "studio.board/v1"
@@ -275,6 +277,7 @@ class Board:
     @classmethod
     def from_document(cls, doc: Mapping[str, Any]) -> Board:
         """The model of a board document that has passed :func:`validate_board`."""
+        doc = normalize(doc)
         origin, derived = doc.get("origin"), doc.get("derived")
         photo = doc["photo"]
         return cls(
@@ -314,7 +317,9 @@ class StorySet:
     foreground_edge_px: tuple[tuple[float, float], ...] | None
     foreground_feather_px: float | None
     legacy_fire: Mapping[str, Any] | None  # read only by the rigid renderer
-    note: str | None = None
+    note: str | None = None  # optional in the schema: left out when absent or null
+
+    _omit_none = ("note",)
 
 
 @dataclass(frozen=True, slots=True)
@@ -326,8 +331,12 @@ class Mix:
 
 @dataclass(frozen=True, slots=True)
 class Checks:
+    """Both fields are optional in the schema: left out when absent or null."""
+
     asr_tolerances: Mapping[str, str] | None = None
     asr_tolerances_note: str | None = None
+
+    _omit_none = ("asr_tolerances", "asr_tolerances_note")
 
 
 @dataclass(frozen=True, slots=True)
@@ -400,6 +409,7 @@ class Story:
     @classmethod
     def from_document(cls, doc: Mapping[str, Any]) -> Story:
         """The model of a story document that has passed :func:`validate_story`."""
+        doc = normalize(doc)
         story_set, origin, derived = doc["set"], doc["origin"], doc.get("derived")
         boards = doc.get("boards")
         return cls(
@@ -461,6 +471,7 @@ class Production:
 
     @classmethod
     def from_document(cls, doc: Mapping[str, Any]) -> Production:
+        doc = normalize(doc)
         return cls(schema=doc["schema"], id=doc["id"], name=doc["name"],
                    revision=doc["revision"],
                    media_types=tuple(MediaType(**media) for media in doc["media_types"]),
@@ -495,6 +506,10 @@ class FormatLength:
 
     _omit_none = ("source",)
 
+    def __post_init__(self) -> None:
+        for name in ("min_ms", "max_ms"):  # integral floats are integers
+            object.__setattr__(self, name, integral(getattr(self, name)))
+
 
 @dataclass(frozen=True, slots=True)
 class BuildBlocker:
@@ -521,6 +536,7 @@ class StoryTiming:
 
     @classmethod
     def from_document(cls, doc: Mapping[str, Any]) -> StoryTiming:
+        doc = normalize(doc)
         length = doc["format_length"]
         return cls(schema=doc["schema"], story_id=doc["story_id"],
                    story_revision=doc["story_revision"], fps=doc["fps"],
@@ -563,6 +579,7 @@ class MethodCapabilities:
 
     @classmethod
     def from_document(cls, doc: Mapping[str, Any]) -> MethodCapabilities:
+        doc = normalize(doc)
         return cls(schema=doc["schema"], contract=doc["contract"],
                    cells=tuple(MethodCell(**{**cell, "evidence": tuple(cell["evidence"]),
                                              "profile": _verbatim(cell.get("profile"))})
@@ -586,7 +603,7 @@ class LegacyImport:
 
     @classmethod
     def from_document(cls, doc: Mapping[str, Any]) -> LegacyImport:
-        return cls(document=freeze(doc))
+        return cls(document=freeze(normalize(doc)))
 
     def to_json(self) -> dict[str, Any]:
         return thaw(self.document)

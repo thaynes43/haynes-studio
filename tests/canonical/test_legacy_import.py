@@ -24,6 +24,7 @@ from haynes_studio.canonical.methods import MATRIX
 from haynes_studio.canonical.model import Principal
 from haynes_studio.errors import ContractError
 from haynes_studio.legacy import load, load_speech
+from haynes_studio.legacy.manifest import from_document
 from tests.canonical.fixtures import (
     NOW,
     OPERATOR,
@@ -182,6 +183,15 @@ def test_operator_must_be_human():
                         now=NOW)
 
 
+def test_the_manifest_must_come_from_its_file():
+    """The map records the manifest's SHA-256, so a manifest built from a document (no
+    bytes) is refused up front rather than producing a map that breaks its schema."""
+    raw = json.loads(manifest_path(4).read_text(encoding="utf-8"))
+    with pytest.raises(ValueError, match="loaded from its file"):
+        import_manifest(from_document(raw), load_speech(speech_path(4)), manifest_label="x",
+                        operator=Principal.from_document(OPERATOR), now=NOW)
+
+
 # Round trips -------------------------------------------------------------------------
 
 
@@ -206,3 +216,85 @@ def test_imports_round_trip_through_json_and_the_models(r4):
 def test_the_method_matrix_matches_the_contract_example():
     cells = example("valid/method-capabilities.json")["cells"]
     assert {(c["layer"], c["motion"]): c["status"] for c in cells} == dict(MATRIX)
+
+
+# Review fixes of story 404 -------------------------------------------------------------
+
+
+def test_a_changed_speech_file_is_refused_by_the_map(tmp_path):
+    """A map that recorded the speech.json bytes refuses other takes, so a voice version
+    ID never names two sets of takes."""
+    first = run_import(4)
+    speech = json.loads(speech_path(4).read_text(encoding="utf-8"))
+    speech["lines"][0]["duration_s"] = round(speech["lines"][0]["duration_s"] + 2.0, 3)
+    changed = tmp_path / "speech.json"
+    changed.write_text(json.dumps(speech), encoding="utf-8")
+    with pytest.raises(ContractError) as error:
+        import_manifest(load(manifest_path(4)), load_speech(changed), manifest_label="x",
+                        operator=Principal.from_document(OPERATOR), now=NOW,
+                        existing=first.import_map)
+    assert [(v.rule, v.path) for v in error.value.violations] == [
+        ("legacy.import_map_mismatch", "/revisions/0/speech_sha256")]
+    assert run_import(4, existing=first.import_map).minted == 0  # the recorded bytes still fit
+
+
+@pytest.mark.parametrize("field,value", [("source_key", "legacy:another-title"),
+                                         ("media_kind", "video")])
+def test_a_map_from_another_title_or_media_kind_is_refused(field, value):
+    other = dict(example("valid/legacy-import-map.json"), **{field: value})
+    with pytest.raises(ContractError) as error:
+        run_import(4, existing=other)
+    assert [(v.rule, v.path) for v in error.value.violations] == [
+        ("legacy.import_map_mismatch", f"/{field}")]
+
+
+def test_a_map_with_repeated_entries_is_refused():
+    repeated = example("valid/legacy-import-map.json")
+    repeated["boards_from_r4"].append(dict(repeated["boards_from_r4"][0],
+                                           board_id="brd_01M79V9FC000000000000000ZZ", lines=[]))
+    with pytest.raises(ContractError) as error:
+        run_import(4, existing=repeated)
+    assert [(v.rule, v.path) for v in error.value.violations] == [
+        ("ref.duplicate", "/boards_from_r4/9/legacy_shot")]
+
+
+@pytest.mark.parametrize("existing", [None, [], {}, "map"])
+def test_a_map_that_is_not_an_import_map_is_refused(existing):
+    if existing is None:
+        assert run_import(1).reused == 0  # no map: every ID is minted
+        return
+    with pytest.raises(ContractError) as error:
+        run_import(4, existing=existing)
+    assert {v.rule for v in error.value.violations} == {"schema.invalid"}
+
+
+def test_a_map_nested_too_deeply_is_refused_without_recursion():
+    deep: object = 1
+    for _ in range(3000):
+        deep = {"a": deep}
+    import_map = dict(example("valid/legacy-import-map.json"), hidden_candidates=[deep])
+    with pytest.raises(ContractError) as error:
+        run_import(4, existing=import_map)
+    assert [(v.rule, v.path) for v in error.value.violations] == [("schema.invalid", "")]
+
+
+def test_a_given_production_counts_as_given_not_reused():
+    result = run_import(1, production_id="prd_01M79V9FC00000000000000009")
+    assert (result.given, result.reused) == (1, 0)
+    assert result.minted > 0
+    assert run_import(4, existing=example("valid/legacy-import-map.json")).given == 0
+
+
+def test_optional_story_fields_round_trip_when_absent(tmp_path):
+    story = example("valid/story-winter-menu-r4.json")
+    del story["set"]["note"]
+    story["checks"] = {}
+    assert to_document(Story.from_document(story)) == story
+    raw = json.loads(manifest_path(4).read_text(encoding="utf-8"))
+    del raw["set"]["note"], raw["asr_tolerances"], raw["asr_tolerances_note"]
+    plain = tmp_path / "manifest-r4.json"
+    plain.write_text(json.dumps(raw), encoding="utf-8")
+    imported = import_manifest(load(plain), load_speech(speech_path(4)), manifest_label="x",
+                               operator=Principal.from_document(OPERATOR), now=NOW).story
+    assert "note" not in imported["set"] and imported["checks"] == {}
+    assert to_document(Story.from_document(imported)) == imported

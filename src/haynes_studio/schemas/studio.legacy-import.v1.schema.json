@@ -107,14 +107,16 @@
               "string",
               "null"
             ],
-            "pattern": "^[0-9a-f]{32}$"
+            "pattern": "^[0-9a-f]{32}$",
+            "maxLength": 32
           },
           "master_sha256": {
             "type": [
               "string",
               "null"
             ],
-            "pattern": "^[0-9a-f]{64}$"
+            "pattern": "^[0-9a-f]{64}$",
+            "maxLength": 64
           },
           "frames": {
             "$ref": "studio.defs.v1.schema.json#/$defs/count"
@@ -149,7 +151,47 @@
             "$ref": "studio.defs.v1.schema.json#/$defs/id"
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "bed"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "id": {
+                  "$ref": "studio.defs.v1.schema.json#/$defs/cue_id"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "asset_version"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "id": {
+                  "$ref": "studio.defs.v1.schema.json#/$defs/asv_id"
+                }
+              }
+            }
+          }
+        ]
       }
     },
     "e0_deliveries": {
@@ -167,7 +209,8 @@
           },
           "ledger_id": {
             "type": "string",
-            "pattern": "^[0-9a-f]{32}$"
+            "pattern": "^[0-9a-f]{32}$",
+            "maxLength": 32
           },
           "method": {
             "type": "object"

@@ -13,6 +13,9 @@ requires-python = ">=3.11,<3.13"
 dependencies = [
     # Checks the shipped JSON Schema files (contract section 13).
     "jsonschema>=4.23,<5",
+    # Resolves references between the shipped schema files offline (story 404);
+    # jsonschema 4.23 needs at least 0.28.4.
+    "referencing>=0.28.4,<1",
 ]
 
 [project.scripts]

@@ -2,13 +2,19 @@
 the server returns it, ``derived`` allowed), ``write`` (as a client sends it) or
 ``queue_run`` (the draft is about to be built).
 
+Each validator first refuses a document that nests deeper than
+:data:`~haynes_studio.canonical.jsonvalues.MAX_DEPTH` levels and then reads a
+normalized copy (integral floats such as ``1900.0`` are ints), so the schema, the code
+rules, the models and the derived values see the same numbers.
+
 Each rule is checked in exactly one place. The JSON Schema file reports field rules
-through its ``x-studio`` annotations (identifiers, integer and bounded times,
-``method.unknown``, ``cue.type_unknown``, ``time.duration_is_derived``); anything
-else it rejects is ``schema.unknown_field`` or the generic ``schema.invalid``. The
-code here checks what needs more than one field, and runs only on the parts of a
-document the schema accepted, so a malformed field never raises. Rules that need the
-asset library take :class:`~haynes_studio.canonical.facts.Facts`.
+through its ``x-studio`` annotations (identifiers, integer and bounded times, a board's
+spoken or silent shape, ``method.unknown``, ``cue.type_unknown``,
+``time.duration_is_derived``); anything else it rejects is ``schema.unknown_field`` or
+the generic ``schema.invalid``. The code here checks what needs more than one field or
+facts JSON Schema cannot hold, and runs only on the parts of a document the schema
+accepted, so a malformed document never raises. Rules that need the asset library take
+:class:`~haynes_studio.canonical.facts.Facts`.
 """
 
 from __future__ import annotations
@@ -17,10 +23,13 @@ import unicodedata
 from collections.abc import Collection, Iterable, Mapping
 from typing import Any
 
+from haynes_studio.canonical import methods
 from haynes_studio.canonical.derive import (
     ABSENT,
     GENERATING,
+    METHOD_UNAVAILABLE,
     STALE,
+    TIMED,
     board_clock,
     length_warning,
     photo_state,
@@ -28,6 +37,7 @@ from haynes_studio.canonical.derive import (
     voice_state,
 )
 from haynes_studio.canonical.facts import NO_FACTS, Facts
+from haynes_studio.canonical.jsonvalues import MAX_DEPTH, normalize, too_deep
 from haynes_studio.canonical.model import (
     BOARD_SCHEMA,
     LEGACY_IMPORT_SCHEMA,
@@ -81,17 +91,21 @@ def _check_context(context: str) -> None:
         raise ValueError(f"context must be one of {', '.join(CONTEXTS)}, got {context!r}")
 
 
-def _header(document: Any, name: str) -> list[Violation] | None:
-    """Stop early when the document is not an object of this schema and major."""
+def _prepare(document: Any, name: str) -> tuple[Any, list[Violation] | None]:
+    """The normalized document, and the violations that stop validation early: it
+    nests too deeply, or it is not an object of this schema and major."""
+    if too_deep(document):
+        return document, [_v(SCHEMA_INVALID, "", f"nests deeper than {MAX_DEPTH} levels")]
+    document = normalize(document)
     if not isinstance(document, dict):
-        return [_v(SCHEMA_INVALID, "", "must be a JSON object")]
+        return document, [_v(SCHEMA_INVALID, "", "must be a JSON object")]
     schema = document.get("schema")
     if schema is None:
-        return [_v(SCHEMA_INVALID, "/schema", f"required: {name!r}")]
+        return document, [_v(SCHEMA_INVALID, "/schema", f"required: {name!r}")]
     if schema != name:
-        return [_v(SCHEMA_UNSUPPORTED, "/schema",
-                   f"{schema!r} is not supported here; this reader implements {name!r}")]
-    return None
+        return document, [_v(SCHEMA_UNSUPPORTED, "/schema",
+                             f"{schema!r} is not supported here; this reader implements {name!r}")]
+    return document, None
 
 
 def _no_derived(document: Mapping, context: str, prefix: str = "") -> list[Violation]:
@@ -108,6 +122,10 @@ def _schema(name: str, document: Mapping) -> list[Violation]:
 
 def _under(path: str, prefix: str) -> bool:
     return path == prefix or path.startswith(prefix + "/")
+
+
+def _blocking(found: Iterable[Violation]) -> list[Violation]:
+    return [v for v in found if v.status != WARNING]
 
 
 def _duplicates(items: Iterable[tuple[str, Any]], what: str) -> list[Violation]:
@@ -131,16 +149,16 @@ def validate_board(document: Any, *, context: str = READ, facts: Facts | None = 
     """Every rule a ``studio.board/v1`` document breaks, sorted by path.
 
     ``story_cast`` (the story's cast slots) and ``story_layouts`` (its preset names)
-    enable the speaker rule (VOICE-1) and the layout reference; ``facts`` supplies
-    measured takes, voice and photo states and capabilities. Without them those
-    checks do not run, except at ``queue_run``, where a voice the facts do not know
-    is ``voice.absent``."""
+    enable the speaker rule (VOICE-1) and the slot and layout references; ``facts``
+    supplies measured takes, voice and photo states and capabilities. Without them
+    those checks do not run, except at ``queue_run``, where a voice the facts do not
+    know is ``voice.absent``."""
     _check_context(context)
-    stop = _header(document, BOARD_SCHEMA)
+    document, stop = _prepare(document, BOARD_SCHEMA)
     if stop is not None:
         return stop
     found = _no_derived(document, context) + _schema(BOARD_SCHEMA, document)
-    if not any(v.status != WARNING for v in found):
+    if not _blocking(found):
         found += board_rules(document, "", context=context, facts=facts or NO_FACTS,
                              story_cast=story_cast, story_layouts=story_layouts)
     return _sorted(found)
@@ -149,45 +167,12 @@ def validate_board(document: Any, *, context: str = READ, facts: Facts | None = 
 def board_rules(document: Mapping, prefix: str, *, context: str, facts: Facts,
                 story_cast: Collection[str] | None, story_layouts: Collection[str] | None,
                 check_ids: bool = True) -> list[Violation]:
-    """The code rules of one schema-valid board, paths under ``prefix``."""
+    """The code rules of one normalized, schema-valid board, paths under ``prefix``.
+    The schema has already checked the board's spoken or silent shape (lead, tail,
+    hold, gaps and voice; TIME-2 to TIME-5), so its clock can be computed."""
     board = Board.from_document(document)
     at = lambda *parts: prefix + pointer(*parts)  # noqa: E731
     found: list[Violation] = []
-
-    # Lines and timing: TIME-2 to TIME-5.
-    for i, line in enumerate(board.lines):
-        if i == 0 and line.gap_before_ms is not None:
-            found.append(_v("time.first_line_gap", at("lines", 0, "gap_before_ms"),
-                            "the first line starts at lead_ms; its gap must be null (TIME-2)"))
-        if i > 0 and line.gap_before_ms is None:
-            found.append(_v(SCHEMA_INVALID, at("lines", i, "gap_before_ms"),
-                            "a later line needs gap_before_ms (TIME-2)"))
-    timing = board.timing
-    if board.spoken:
-        if timing.hold_ms is not None:
-            found.append(_v("time.hold_on_spoken_board", at("timing", "hold_ms"),
-                            "a spoken board's length comes from its takes; hold must be null (TIME-4)"))
-        for name in ("lead_ms", "tail_ms"):
-            if getattr(timing, name) is None:
-                found.append(_v(SCHEMA_INVALID, at("timing", name),
-                                f"a spoken board needs {name} (TIME-3)"))
-        if board.voice.style is None:
-            found.append(_v(SCHEMA_INVALID, at("voice", "style"),
-                            "a spoken board's voice style is cast or narrator"))
-    else:
-        if timing.hold_ms is None:
-            found.append(_v("time.hold_out_of_range", at("timing", "hold_ms"),
-                            "a silent board needs a hold of 100 to 120000 ms (TIME-4)"))
-        for name in ("lead_ms", "tail_ms"):
-            if getattr(timing, name) is not None:
-                found.append(_v(SCHEMA_INVALID, at("timing", name),
-                                f"a silent board has a hold only; {name} must be null (TIME-4)"))
-        for name in ("style", "current_version_id"):
-            if getattr(board.voice, name) is not None:
-                found.append(_v(SCHEMA_INVALID, at("voice", name),
-                                f"a silent board has no voice; {name} must be null"))
-
-    timing_ok = not found  # the board clock needs valid lines and timing
 
     # Speakers: VOICE-1.
     for i, line in enumerate(board.lines):
@@ -198,6 +183,18 @@ def board_rules(document: Mapping, prefix: str, *, context: str, facts: Facts,
         elif story_cast is not None and line.speaker not in story_cast:
             found.append(_v("voice.speaker_not_in_cast", at("lines", i, "speaker"),
                             f"speaker {line.speaker!r} is not a story cast slot (VOICE-1)"))
+
+    # Slots the board places or seeds must be the story's.
+    if story_cast is not None:
+        for i, entry in enumerate(board.cast):
+            if entry.slot not in story_cast:
+                found.append(_v(REF_UNKNOWN, at("cast", i, "slot"),
+                                f"slot {entry.slot!r} is not a story cast slot"))
+        for key in board.seeds:
+            kind, _, slot = key.partition(":")
+            if kind == S2V and slot not in story_cast:
+                found.append(_v(REF_UNKNOWN, at("seeds", key),
+                                f"seed {key!r} names slot {slot!r}, which is not a story cast slot"))
 
     # Method matrix: section 5.
     method = board.method
@@ -217,8 +214,8 @@ def board_rules(document: Mapping, prefix: str, *, context: str, facts: Facts,
             if capabilities is not None and not capabilities & LAYER_CAPABILITIES:
                 found.append(_v("asset.capability_mismatch", at("cast", i, "asset_version_id"),
                                 "a layered cast still needs rgba_cutout or keyed_layer (review M6)"))
-    if (method.layer, method.motion) == (WHOLE_FRAME, S2V):
-        found.append(_v("method.unavailable", at("method"),
+    if methods.status(method.layer, method.motion) == methods.UNAVAILABLE:
+        found.append(_v(METHOD_UNAVAILABLE, at("method"),
                         "whole-frame speech-to-video has no adapter yet; it saves and Build refuses it",
                         UNAVAILABLE if context == QUEUE_RUN else WARNING))
 
@@ -231,9 +228,9 @@ def board_rules(document: Mapping, prefix: str, *, context: str, facts: Facts,
     if check_ids:
         found += _duplicates(_board_ids(board, prefix), "ID")
 
-    # Cues: section 6 and TIME-10.
+    # Cues: section 6 and TIME-10. An untimed board's cue range waits for queue_run.
     line_ids = {line.id for line in board.lines}
-    clock = board_clock(board, facts) if timing_ok else None
+    clock = board_clock(board, facts)
     for i, cue in enumerate(board.cues):
         anchor = cue.anchor
         if anchor.after_line_id is not None and anchor.after_line_id not in line_ids:
@@ -254,7 +251,7 @@ def board_rules(document: Mapping, prefix: str, *, context: str, facts: Facts,
                                 f"starts at {start} ms, outside the board's {clock.frames} "
                                 "frames (TIME-10)"))
 
-    # Notes: free text only.
+    # Notes: free text only (control characters are the schema's).
     for i, raw in enumerate(document["notes"]):
         extra = sorted(set(raw) - NOTE_FIELDS)
         if extra:
@@ -309,7 +306,7 @@ def validate_story(document: Any, *, context: str = READ, facts: Facts | None = 
     included (each against the story's cast and layouts). ``enabled_media_kinds``
     (the production's) and ``format_length`` (D45, a warning) are optional facts."""
     _check_context(context)
-    stop = _header(document, STORY_SCHEMA)
+    document, stop = _prepare(document, STORY_SCHEMA)
     if stop is not None:
         return stop
     facts = facts or NO_FACTS
@@ -320,9 +317,8 @@ def validate_story(document: Any, *, context: str = READ, facts: Facts | None = 
             if isinstance(board, dict):
                 found += _no_derived(board, context, pointer("boards", i))
     found += _schema(STORY_SCHEMA, document)
-    blocking = [v for v in found if v.status != WARNING]
-    story_ok = not any(not _under(v.path, "/boards") for v in blocking)
-    if not story_ok:
+    blocking = _blocking(found)
+    if any(not _under(v.path, "/boards") for v in blocking):
         return _sorted(found)
 
     slots = [member["slot"] for member in document["cast"]]
@@ -343,6 +339,8 @@ def validate_story(document: Any, *, context: str = READ, facts: Facts | None = 
             and b["voice"].get("style") == NARRATOR for b in boards or ()):
         found.append(_v("voice.absent", "/narrator_voice_version_id",
                         "a narrator board needs the story's narrator voice"))
+    # D45 needs every board's clock, so only a story whose boards all passed the
+    # schema (which checks each board's shape) gets the warning.
     if format_length is not None and isinstance(boards, list) and not blocking:
         found += _length(document, boards, facts, format_length)
     return _sorted(found)
@@ -350,14 +348,17 @@ def validate_story(document: Any, *, context: str = READ, facts: Facts | None = 
 
 def _story_boards(document: Mapping, boards: list, blocking: list[Violation], context: str,
                   facts: Facts, slots: list[str], ids: list[tuple[str, str]]) -> list[Violation]:
+    """Code rules of the embedded boards that passed the schema; references between
+    them and the story. A board with a schema violation is skipped, never read."""
     found: list[Violation] = []
     layouts = set(document["layouts"])
     listed = set(document["board_order"])
+    clean = [(i, board) for i, board in enumerate(boards)
+             if isinstance(board, dict)
+             and not any(_under(v.path, pointer("boards", i)) for v in blocking)]
     present = set()
-    for i, board in enumerate(boards):
+    for i, board in clean:
         prefix = pointer("boards", i)
-        if any(_under(v.path, prefix) for v in blocking):
-            continue
         present.add(board["id"])
         if board["id"] not in listed:
             found.append(_v(BOARD_ORDER, prefix + "/id", "the board is not in board_order"))
@@ -366,9 +367,9 @@ def _story_boards(document: Mapping, boards: list, blocking: list[Violation], co
         found += board_rules(board, prefix, context=context, facts=facts, story_cast=slots,
                              story_layouts=layouts, check_ids=False)
         ids += list(_board_ids(Board.from_document(board), prefix))
-    found += _duplicates(((pointer("boards", i, "number"), b["number"])
-                          for i, b in enumerate(boards) if b.get("id") in present), "board number")
-    if len(present) == len(boards):
+    found += _duplicates(((pointer("boards", i, "number"), board["number"]) for i, board in clean),
+                         "board number")
+    if len(clean) == len(boards):
         for i, board_id in enumerate(document["board_order"]):
             if board_id not in present:
                 found.append(_v(BOARD_ORDER, pointer("board_order", i),
@@ -389,18 +390,18 @@ def _length(document: Mapping, boards: list, facts: Facts,
 # The other four types -------------------------------------------------------------------
 
 
-def _simple(document: Any, name: str, context: str) -> tuple[list[Violation], bool]:
+def _simple(document: Any, name: str, context: str) -> tuple[Any, list[Violation], bool]:
     _check_context(context)
-    stop = _header(document, name)
+    document, stop = _prepare(document, name)
     if stop is not None:
-        return stop, False
+        return document, stop, False
     found = _schema(name, document)
-    return found, not found
+    return document, found, not found
 
 
 def validate_production(document: Any, *, context: str = READ) -> list[Violation]:
     """``studio.production/v1``: schema, identifiers, one entry per media kind."""
-    found, ok = _simple(document, PRODUCTION_SCHEMA, context)
+    document, found, ok = _simple(document, PRODUCTION_SCHEMA, context)
     if ok:
         found += _duplicates(((pointer("media_types", i, "kind"), media["kind"])
                               for i, media in enumerate(document["media_types"])), "media kind")
@@ -409,27 +410,55 @@ def validate_production(document: Any, *, context: str = READ) -> list[Violation
 
 def validate_story_timing(document: Any, *, context: str = READ) -> list[Violation]:
     """``studio.story-timing/v1`` (read-only output): schema, identifiers, one row per
-    board."""
-    found, ok = _simple(document, STORY_TIMING_SCHEMA, context)
-    if ok:
-        found += _duplicates(((pointer("boards", i, "board_id"), row["board_id"])
-                              for i, row in enumerate(document["boards"])), "board")
+    board, and totals that agree with the rows: ``complete`` when every row is timed,
+    ``frames_known`` the sum of the timed rows' frames, ``build_allowed`` when there is
+    no build blocker."""
+    document, found, ok = _simple(document, STORY_TIMING_SCHEMA, context)
+    if not ok:
+        return _sorted(found)
+    rows = document["boards"]
+    found += _duplicates(((pointer("boards", i, "board_id"), row["board_id"])
+                          for i, row in enumerate(rows)), "board")
+    complete = all(row["state"] == TIMED for row in rows)
+    if document["complete"] != complete:
+        found.append(_v(SCHEMA_INVALID, "/complete",
+                        f"must be {str(complete).lower()}: "
+                        + ("every board row is timed" if complete else "a board row is untimed")))
+    frames = sum(row["frames"] for row in rows if row["state"] == TIMED)
+    if document["frames_known"] != frames:
+        found.append(_v(SCHEMA_INVALID, "/frames_known",
+                        f"must be {frames}, the sum of the timed rows' frames"))
+    allowed = not document["build_blockers"]
+    if document["build_allowed"] != allowed:
+        found.append(_v(SCHEMA_INVALID, "/build_allowed",
+                        f"must be {str(allowed).lower()}: "
+                        + ("there is no build blocker" if allowed else "build_blockers is not empty")))
     return _sorted(found)
 
 
 def validate_method_capabilities(document: Any, *, context: str = READ) -> list[Violation]:
-    """``studio.method-capabilities/v1``: schema, and each layer and motion pair once."""
-    found, ok = _simple(document, METHOD_CAPABILITIES_SCHEMA, context)
-    if ok:
-        found += _duplicates(((pointer("cells", i), (cell["layer"], cell["motion"]))
-                              for i, cell in enumerate(document["cells"])), "method")
+    """``studio.method-capabilities/v1``: schema, each layer and motion pair once, and
+    each cell's status as contract v1's matrix has it (:data:`methods.MATRIX`)."""
+    document, found, ok = _simple(document, METHOD_CAPABILITIES_SCHEMA, context)
+    if not ok:
+        return _sorted(found)
+    cells = document["cells"]
+    found += _duplicates(((pointer("cells", i), (cell["layer"], cell["motion"]))
+                          for i, cell in enumerate(cells)), "method")
+    for i, cell in enumerate(cells):
+        expected = methods.status(cell["layer"], cell["motion"])
+        if cell["status"] != expected:
+            found.append(_v(SCHEMA_INVALID, pointer("cells", i, "status"),
+                            f"{cell['layer']} + {cell['motion']} is {expected} in contract v1 "
+                            "(section 5)"))
     return _sorted(found)
 
 
 def validate_legacy_import(document: Any, *, context: str = READ) -> list[Violation]:
     """``studio.legacy-import/v1``: schema, identifiers, the draft's board map named
-    ``boards_from_r<draft_from_revision>``, and unique revisions, IDs and source keys."""
-    found, ok = _simple(document, LEGACY_IMPORT_SCHEMA, context)
+    ``boards_from_r<draft_from_revision>``, and unique revisions, legacy shots, legacy
+    lines within a shot, IDs and source keys."""
+    document, found, ok = _simple(document, LEGACY_IMPORT_SCHEMA, context)
     if not ok:
         return _sorted(found)
     expected = f"boards_from_r{document['draft_from_revision']}"
@@ -443,8 +472,12 @@ def validate_legacy_import(document: Any, *, context: str = READ) -> list[Violat
                           for i, r in enumerate(document["revisions"])), "revision")
     ids: list[tuple[str, str]] = []
     keys: list[tuple[str, tuple[str, str]]] = []
+    shots: list[tuple[str, int]] = []
     for i, board in enumerate(document.get(expected, [])):
         base = pointer(expected, i)
+        shots.append((base + "/legacy_shot", board["legacy_shot"]))
+        found += _duplicates(((base + pointer("lines", j, "legacy_k"), line["legacy_k"])
+                              for j, line in enumerate(board["lines"])), "legacy line")
         ids.append((base + "/board_id", board["board_id"]))
         ids += [(base + pointer("lines", j, "line_id"), line["line_id"])
                 for j, line in enumerate(board["lines"])]
@@ -454,6 +487,7 @@ def validate_legacy_import(document: Any, *, context: str = READ) -> list[Violat
                 keys.append((base + pointer(kind, j, "source_key"), (kind, item["source_key"])))
         if "source_key" in board:
             keys.append((base + "/source_key", ("board", board["source_key"])))
+    found += _duplicates(shots, "legacy shot")
     for j, record in enumerate(document.get("story_records", [])):
         ids.append((pointer("story_records", j, "id"), record["id"]))
         keys.append((pointer("story_records", j, "source_key"),

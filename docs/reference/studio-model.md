@@ -29,7 +29,18 @@ name that is never fetched); `haynes_studio.schemas` registers them together.
 ## Validators
 
 `validate_<type>(document, context=...)` returns a sorted list of violations
-(`rule`, `path` as a JSON Pointer, `message`, `status`); empty means valid.
+(`rule`, `path` as a JSON Pointer, `message`, `status`); empty means valid. It never
+raises for a malformed document; `load_story`, `with_derived` and `timing_summary`
+raise only `ContractError`.
+
+Every validator, every `from_document` and the derive functions read a normalized
+copy (`haynes_studio.canonical.jsonvalues`): an integral float such as `1900.0` is the
+integer 1900, as JSON Schema, JavaScript and story 378's loader read it, so schema,
+code, models and derived values agree. `1900.5` stays `time.not_integer_ms`; booleans
+are never numbers. A document nested deeper than 64 levels is `schema.invalid` at the
+root before anything recursive reads it. `to_document` leaves out the optional fields
+`set.note`, `checks.asr_tolerances` and `checks.asr_tolerances_note` when they are null,
+so a story without them round-trips unchanged.
 
 | Context | Meaning |
 |---|---|
@@ -38,19 +49,25 @@ name that is never fetched); `haynes_studio.schemas` registers them together.
 | `queue_run` | the draft is about to be built: adds `voice.absent`, `voice.stale`, `photo.absent`, `asset.generating`, and `method.unavailable` as `unavailable` |
 
 Each rule is checked in one place. The schema carries the field rules through `x-studio`
-annotations; the code checks what needs several fields, and only on parts the schema
-accepted. Statuses: `invalid`, `unavailable` (`method.unavailable` at `queue_run`) and
-`warning` (`method.unavailable` on read and write, `format.length_exceeded`).
+annotations, including a board's spoken or silent shape (an `if`/`then`/`else` on
+whether `lines` is empty), which it checks before any range, so a hold on a spoken board
+is always `time.hold_on_spoken_board`. The code checks what needs facts, other documents
+or a test JSON Schema cannot express, and only on parts the schema accepted. Patterns
+match whole values in Python and in an ECMA-262 validator alike: identifiers, slots and
+speakers have length limits, and notes, source keys and timestamps refuse control
+characters (U+0000 to U+001F, U+007F to U+009F) with a `not` pattern. Statuses:
+`invalid`, `unavailable` (`method.unavailable` at `queue_run`) and `warning`
+(`method.unavailable` on read and write, `format.length_exceeded`).
 
 | Rule | Checked by |
 |---|---|
 | `schema.unsupported` | code, first: another type or major stops validation |
 | `schema.unknown_field` | schema (`additionalProperties: false`); `derived` on write in code |
-| `schema.invalid` | schema default; code for a later line without a gap, a spoken board without lead or tail, a silent board with lead, tail or voice, a reversed trim, a note that is not NFC |
+| `schema.invalid` | schema default, including a board's shape (a later line without a gap, a spoken board without lead, tail or voice style, a silent board with lead, tail or voice), an identifier or slot with trailing characters, a control character; code-only (JSON Schema cannot express them): a reversed trim, a note that is not NFC, a timing summary whose `complete`, `frames_known` or `build_allowed` disagree with its rows and blockers, a method cell whose status differs from the contract's matrix, a document nested deeper than 64 levels |
 | `id.malformed`, `id.type_mismatch` | schema (`$defs/<prefix>_id`) |
 | `time.not_integer_ms`, `time.negative`, `time.tail_too_short`, `time.duration_is_derived` | schema |
-| `time.hold_out_of_range` | schema (bounds); code (a silent board without a hold) |
-| `time.hold_on_spoken_board`, `time.first_line_gap` | code |
+| `time.hold_out_of_range` | schema (bounds, and a silent board without a hold) |
+| `time.hold_on_spoken_board`, `time.first_line_gap` | schema (a board's shape, before ranges) |
 | `method.unknown`, `cue.type_unknown` | schema |
 | `method.s2v_needs_line`, `method.s2v_needs_onscreen_speaker`, `method.layered_needs_cast`, `method.unavailable` | code |
 | `asset.capability_mismatch` | code, with capability facts |
@@ -60,7 +77,7 @@ accepted. Statuses: `invalid`, `unavailable` (`method.unavailable` at `queue_run
 | `voice.speaker_not_in_cast` | code, against the story's cast (a lone board needs `story_cast`) |
 | `voice.absent`, `voice.stale`, `photo.absent`, `asset.generating` | code, at `queue_run`, with facts |
 | `format.length_exceeded` | code, a warning, with a format length (D45) |
-| `ref.unknown`, `ref.duplicate`, `story.board_order` | code; **proposals**, not yet in the rule index |
+| `ref.unknown`, `ref.duplicate`, `story.board_order` | code; **proposals**, not yet in the rule index. `ref.unknown`: a layout preset, a board cast slot or an `s2v:<slot>` seed the story does not have (where the story's cast is known), a media kind the production has not enabled, a board of another story. `ref.duplicate`: IDs, slots, board numbers, and in an import map revisions, legacy shots, a shot's legacy lines and source keys |
 | `legacy.import_map_mismatch` | the importer; **proposal** |
 
 ## Facts
@@ -85,7 +102,10 @@ board names is `absent`, so `queue_run` fails closed.
 - `voice_state` is `not_needed`, `generating`, `absent`, `stale` or `current`;
   `photo_state` is `generating`, `absent`, `stale` or `current`.
 - A story's `derived` counts timed boards; its `frames` and `duration_ms` (floor) are a
-  lower bound while `untimed_boards > 0`.
+  lower bound while `untimed_boards > 0`. Its `warnings` list each board's
+  `method.unavailable` (`build_allowed: false`), then the D45 length warning.
+- `story_derived`, `with_derived` and `timing_summary` need the boards embedded; a story
+  without them is a `ContractError` (`schema.invalid` at `/boards`).
 - `timing_summary(story, facts, format_length)` returns `studio.story-timing/v1`; its
   build blockers are exactly the story's `queue_run` violations.
 - `with_derived(story, facts)` returns the story as a read returns it.
@@ -97,9 +117,13 @@ The contract's story example and timing summary are reproduced exactly by tests.
 `import_manifest(manifest, speech, manifest_label, operator, now, existing=None)` maps
 one legacy manifest (story 378's model) to one story and an import map. IDs come from
 `existing` when given, else they are minted (`haynes_studio.canonical.ids.Minter`,
-monotonic prefixed ULIDs). The returned map records every ID used, so a second import
-returns the same story. A map from another title, draft revision, production or
-manifest file is refused (`legacy.import_map_mismatch`).
+monotonic prefixed ULIDs); a `production_id` given without a map is counted as `given`.
+The returned map records every ID used, so a second import returns the same story. A
+map from another title, media kind, draft revision or production, or recorded from
+other manifest or `speech.json` bytes for that revision, is refused
+(`legacy.import_map_mismatch`): a board voice version ID never names other takes. The
+manifest must be loaded from its file (`haynes_studio.legacy.load`), because the map
+records its SHA-256.
 
 | Legacy | Canonical (import choices beyond the contract are proposals) |
 |---|---|

@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import copy
 
+import pytest
+
 from haynes_studio.canonical import (
     Board,
     Facts,
@@ -26,6 +28,7 @@ from haynes_studio.canonical.derive import (
     story_derived,
     voice_state,
 )
+from haynes_studio.errors import ContractError
 from haynes_studio.timebase import mix_sample
 from tests.canonical.fixtures import example, example_context
 
@@ -149,3 +152,71 @@ def test_length_warning_on_a_complete_story():
         "The story runs 45.292 s, past the format maximum of 45 s."]
     roomy = FormatLength(format_version_id=length.format_version_id, min_ms=0, max_ms=45292)
     assert timing_summary(story, facts=FACTS, format_length=roomy).warnings == ()
+
+
+# Review fixes of story 404 -------------------------------------------------------------
+
+
+def _write_story() -> dict:
+    story = copy.deepcopy(example("valid/story-winter-menu-r4.json"))
+    del story["derived"]
+    for item in story["boards"]:
+        del item["derived"]
+    return story
+
+
+def test_with_derived_lists_each_unavailable_method_as_a_warning():
+    story = _write_story()
+    story["boards"][0]["method"]["layer"] = "whole_frame"
+    warnings = with_derived(story, facts=FACTS)["derived"]["warnings"]
+    assert warnings == [{
+        "code": "method.unavailable", "severity": "warning", "build_allowed": False,
+        "message": "Board B01 (brd_01M79V9FC00000000000000001) uses whole_frame s2v, which "
+                   "has no adapter yet: it saves, and Build refuses it."}]
+    length = FormatLength(format_version_id="fmv_01M79V9FC00000000000000001", min_ms=0,
+                          max_ms=30000)
+    codes = [w["code"] for w in with_derived(story, facts=FACTS, format_length=length)
+             ["derived"]["warnings"]]
+    assert codes == ["method.unavailable", "format.length_exceeded"]
+    assert with_derived(_write_story(), facts=FACTS)["derived"]["warnings"] == []
+
+
+@pytest.mark.parametrize("change,path", [
+    (lambda s: s.pop("boards"), "/boards"),
+    (lambda s: s["boards"].append(None), "/boards/9"),
+    (lambda s: s["boards"][6]["timing"].update(hold_ms=None), "/boards/6/timing/hold_ms"),
+])
+def test_derived_values_refuse_a_malformed_story_with_a_contract_error(change, path):
+    story = _write_story()
+    change(story)
+    for derive in (with_derived, timing_summary):
+        with pytest.raises(ContractError) as error:
+            derive(story, facts=FACTS)
+        assert path in [v.path for v in error.value.violations]
+
+
+@pytest.mark.parametrize("document", [None, [], "story", 5])
+def test_derived_values_refuse_a_document_that_is_not_a_story(document):
+    for derive in (with_derived, timing_summary):
+        with pytest.raises(ContractError):
+            derive(document)
+
+
+def test_integral_floats_reach_derived_values_as_integers():
+    story = _write_story()
+    story["boards"][6]["timing"]["hold_ms"] = 1900.0
+    story["boards"][0]["timing"].update(lead_ms=500.0, tail_ms=700.0)
+    story["boards"][0]["number"] = 1.0
+    out = with_derived(story, facts=FACTS)
+    assert out == with_derived(_write_story(), facts=FACTS)
+    assert type(out["boards"][6]["timing"]["hold_ms"]) is int
+    assert type(out["boards"][6]["derived"]["frames"]) is int
+    one = board(1)
+    takes = Facts.build(voices=[VoiceVersionFacts(one.voice.current_version_id,
+                                                  {one.lines[0].id: 5163.0})])
+    clock = board_clock(one, takes)
+    assert (clock.content_ms, clock.frames) == (6363, 153)
+    assert type(clock.content_ms) is int
+    length = FormatLength(format_version_id="fmv_01M79V9FC00000000000000001", min_ms=0.0,
+                          max_ms=45000.0)
+    assert (type(length.min_ms), type(length.max_ms)) == (int, int)

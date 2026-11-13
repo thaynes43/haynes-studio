@@ -72,12 +72,61 @@
             "minLength": 1,
             "maxLength": 1200
           },
-          "gap_before_ms": {
-            "$ref": "studio.defs.v1.schema.json#/$defs/ms_or_null"
-          }
+          "gap_before_ms": true
         },
         "additionalProperties": false
-      }
+      },
+      "allOf": [
+        {
+          "prefixItems": [
+            {
+              "properties": {
+                "gap_before_ms": {
+                  "type": "null",
+                  "x-studio": {
+                    "type": {
+                      "rule": "time.first_line_gap",
+                      "message": "the first line starts at lead_ms; its gap must be null (TIME-2)"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "prefixItems": [
+            true
+          ],
+          "items": {
+            "properties": {
+              "gap_before_ms": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "not": {
+                  "type": "null"
+                },
+                "minimum": 0,
+                "x-studio": {
+                  "type": {
+                    "rule": "time.not_integer_ms",
+                    "message": "must be integer milliseconds"
+                  },
+                  "not": {
+                    "message": "a later line needs gap_before_ms (TIME-2)"
+                  },
+                  "minimum": {
+                    "rule": "time.negative",
+                    "message": "must not be negative"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
     },
     "timing": {
       "type": "object",
@@ -87,15 +136,9 @@
         "hold_ms"
       ],
       "properties": {
-        "lead_ms": {
-          "$ref": "studio.defs.v1.schema.json#/$defs/ms_or_null"
-        },
-        "tail_ms": {
-          "$ref": "studio.defs.v1.schema.json#/$defs/tail_ms_or_null"
-        },
-        "hold_ms": {
-          "$ref": "studio.defs.v1.schema.json#/$defs/hold_ms_or_null"
-        },
+        "lead_ms": true,
+        "tail_ms": true,
+        "hold_ms": true,
         "duration_ms": {
           "$ref": "studio.defs.v1.schema.json#/$defs/duration_is_derived"
         },
@@ -118,16 +161,8 @@
         "current_version_id"
       ],
       "properties": {
-        "style": {
-          "enum": [
-            "cast",
-            "narrator",
-            null
-          ]
-        },
-        "current_version_id": {
-          "$ref": "studio.defs.v1.schema.json#/$defs/asv_id_or_null"
-        }
+        "style": true,
+        "current_version_id": true
       },
       "additionalProperties": false
     },
@@ -231,7 +266,20 @@
     "seeds": {
       "type": "object",
       "propertyNames": {
-        "pattern": "^(s2v:[a-z]|i2v:frame)$"
+        "anyOf": [
+          {
+            "pattern": "^s2v:[a-z]$",
+            "maxLength": 5
+          },
+          {
+            "const": "i2v:frame"
+          }
+        ],
+        "x-studio": {
+          "anyOf": {
+            "message": "seed keys are s2v:<slot> or i2v:frame (contract section 4)"
+          }
+        }
       },
       "additionalProperties": {
         "type": "integer",
@@ -332,6 +380,171 @@
     },
     "updated_at": {
       "$ref": "studio.defs.v1.schema.json#/$defs/timestamp"
+    }
+  },
+  "$comment": "A board with lines is spoken (lead, tail, voice style; no hold), without lines silent (a hold of 100 to 120000 ms; no lead, tail or voice). Each branch checks the shape before any range, so a hold on a spoken board is always time.hold_on_spoken_board (contract sections 2 and 3, TIME-2 to TIME-5).",
+  "if": {
+    "properties": {
+      "lines": {
+        "minItems": 1
+      }
+    },
+    "required": [
+      "lines"
+    ]
+  },
+  "then": {
+    "properties": {
+      "timing": {
+        "properties": {
+          "lead_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "not": {
+              "type": "null"
+            },
+            "minimum": 0,
+            "x-studio": {
+              "type": {
+                "rule": "time.not_integer_ms",
+                "message": "must be integer milliseconds"
+              },
+              "not": {
+                "message": "a spoken board needs lead_ms (TIME-3)"
+              },
+              "minimum": {
+                "rule": "time.negative",
+                "message": "must not be negative"
+              }
+            }
+          },
+          "tail_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "not": {
+              "type": "null"
+            },
+            "minimum": 250,
+            "x-studio": {
+              "type": {
+                "rule": "time.not_integer_ms",
+                "message": "must be integer milliseconds"
+              },
+              "not": {
+                "message": "a spoken board needs tail_ms (TIME-3)"
+              },
+              "minimum": {
+                "rule": "time.tail_too_short",
+                "message": "must be at least 250 ms (TIME-5)"
+              }
+            }
+          },
+          "hold_ms": {
+            "type": "null",
+            "x-studio": {
+              "type": {
+                "rule": "time.hold_on_spoken_board",
+                "message": "a spoken board's length comes from its takes; hold must be null (TIME-4)"
+              }
+            }
+          }
+        }
+      },
+      "voice": {
+        "properties": {
+          "style": {
+            "enum": [
+              "cast",
+              "narrator"
+            ],
+            "x-studio": {
+              "enum": {
+                "message": "a spoken board's voice style is cast or narrator"
+              }
+            }
+          },
+          "current_version_id": {
+            "$ref": "studio.defs.v1.schema.json#/$defs/asv_id_or_null"
+          }
+        }
+      }
+    }
+  },
+  "else": {
+    "properties": {
+      "timing": {
+        "properties": {
+          "lead_ms": {
+            "type": "null",
+            "x-studio": {
+              "type": {
+                "message": "a silent board has a hold only; lead_ms must be null (TIME-4)"
+              }
+            }
+          },
+          "tail_ms": {
+            "type": "null",
+            "x-studio": {
+              "type": {
+                "message": "a silent board has a hold only; tail_ms must be null (TIME-4)"
+              }
+            }
+          },
+          "hold_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "not": {
+              "type": "null"
+            },
+            "minimum": 100,
+            "maximum": 120000,
+            "x-studio": {
+              "type": {
+                "rule": "time.not_integer_ms",
+                "message": "must be integer milliseconds"
+              },
+              "not": {
+                "rule": "time.hold_out_of_range",
+                "message": "a silent board needs a hold of 100 to 120000 ms (TIME-4)"
+              },
+              "minimum": {
+                "rule": "time.hold_out_of_range",
+                "message": "must be 100 to 120000 ms (TIME-4)"
+              },
+              "maximum": {
+                "rule": "time.hold_out_of_range",
+                "message": "must be 100 to 120000 ms (TIME-4)"
+              }
+            }
+          }
+        }
+      },
+      "voice": {
+        "properties": {
+          "style": {
+            "type": "null",
+            "x-studio": {
+              "type": {
+                "message": "a silent board has no voice; style must be null"
+              }
+            }
+          },
+          "current_version_id": {
+            "type": "null",
+            "x-studio": {
+              "type": {
+                "message": "a silent board has no voice; current_version_id must be null"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "additionalProperties": false

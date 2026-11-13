@@ -10,7 +10,9 @@ boards, the story timing summary, the method matrix and the legacy import map.
 - :mod:`.ids`: prefixed ULIDs.
 
 Nothing here reads or writes files except :mod:`.legacy_import`'s explicit loaders,
-and nothing calls a service.
+and nothing calls a service. A malformed document never raises anything but
+:class:`~haynes_studio.errors.ContractError` from :func:`load_story`,
+:func:`timing_summary` or :func:`with_derived`, and validators only return violations.
 """
 
 from __future__ import annotations
@@ -34,6 +36,7 @@ from haynes_studio.canonical.model import (
 from haynes_studio.canonical.validate import (
     CONTEXTS,
     QUEUE_RUN,
+    SCHEMA_INVALID,
     validate_board,
     validate_legacy_import,
     validate_method_capabilities,
@@ -41,7 +44,7 @@ from haynes_studio.canonical.validate import (
     validate_story,
     validate_story_timing,
 )
-from haynes_studio.errors import ContractError, blocking
+from haynes_studio.errors import ContractError, Violation, blocking
 
 __all__ = [
     "CONTEXTS", "Board", "BuildBlocker", "Facts", "FormatLength", "LegacyImport",
@@ -53,8 +56,11 @@ __all__ = [
 ]
 
 
-def _draft(document: Mapping[str, Any]) -> dict[str, Any]:
-    """The story without its ``derived`` blocks (the server recomputes them)."""
+def _draft(document: Any) -> Any:
+    """The story without its ``derived`` blocks (the server recomputes them); anything
+    that is not an object is returned as is, for the validator to refuse."""
+    if not isinstance(document, Mapping):
+        return document
     out = {key: value for key, value in document.items() if key != "derived"}
     if isinstance(out.get("boards"), list):
         out["boards"] = [{k: v for k, v in board.items() if k != "derived"}
@@ -71,13 +77,25 @@ def load_story(document: Any, *, facts: Facts | None = None, context: str = "rea
     return Story.from_document(document)
 
 
-def timing_summary(document: Mapping[str, Any], *, facts: Facts | None = None,
-                   format_length: FormatLength | None = None) -> StoryTiming:
+def _with_boards(document: Any, *, facts: Facts, source: str) -> Story:
+    """A validated story whose boards are embedded (the exchange and snapshot form)."""
+    story = load_story(document, facts=facts, source=source)
+    if story.boards is None:
+        raise ContractError(source, [Violation(
+            SCHEMA_INVALID, "/boards",
+            "the story's boards must be embedded to derive its timing (exchange form)")])
+    return story
+
+
+def timing_summary(document: Any, *, facts: Facts | None = None,
+                   format_length: FormatLength | None = None,
+                   source: str = "<document>") -> StoryTiming:
     """``studio.story-timing/v1`` for a story with embedded boards. Its build blockers
-    are the story's ``queue_run`` violations, so Build and the summary agree."""
+    are the story's ``queue_run`` violations, so Build and the summary agree. Raises
+    :class:`ContractError` if the story breaks a rule or has no embedded boards."""
     facts = facts or NO_FACTS
     document = _draft(document)
-    story = load_story(document, facts=facts)
+    story = _with_boards(document, facts=facts, source=source)
     by_path = {f"/boards/{i}": board.id for i, board in enumerate(story.boards or ())}
     blockers = []
     for violation in blocking(validate_story(document, context=QUEUE_RUN, facts=facts)):
@@ -89,14 +107,16 @@ def timing_summary(document: Mapping[str, Any], *, facts: Facts | None = None,
                         format_length=format_length)
 
 
-def with_derived(document: Mapping[str, Any], *, facts: Facts | None = None,
+def with_derived(document: Any, *, facts: Facts | None = None,
                  format_length: FormatLength | None = None,
                  source: str = "<document>") -> dict[str, Any]:
     """A copy of a story document (boards embedded) with every ``derived`` block
-    computed from the document and ``facts``, as a read returns it. Raises
-    :class:`ContractError` if the story breaks a rule."""
+    computed from the document and ``facts``, as a read returns it; the story's
+    ``derived.warnings`` carry each board's ``method.unavailable`` and the D45 length
+    warning. Raises :class:`ContractError` if the story breaks a rule or has no
+    embedded boards."""
     facts = facts or NO_FACTS
-    story = load_story(_draft(document), facts=facts, source=source)
+    story = _with_boards(_draft(document), facts=facts, source=source)
     ordered = story.ordered_boards()
     derived = dict(zip((b.id for b in ordered), boards_derived(ordered, facts)))
     out = to_document(story)

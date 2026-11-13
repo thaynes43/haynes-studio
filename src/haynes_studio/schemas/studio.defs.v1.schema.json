@@ -11,14 +11,23 @@
         "pattern": {
           "rule": "id.malformed",
           "message": "must be <prefix>_<ULID> (contract section 2)"
+        },
+        "maxLength": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
         }
-      }
+      },
+      "maxLength": 30
     },
     "prd_id": {
       "type": "string",
       "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        },
+        "maxLength": {
           "rule": "id.malformed",
           "message": "must be <prefix>_<ULID> (contract section 2)"
         }
@@ -34,13 +43,18 @@
             "message": "must be a prd_ ID"
           }
         }
-      }
+      },
+      "maxLength": 30
     },
     "sty_id": {
       "type": "string",
       "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        },
+        "maxLength": {
           "rule": "id.malformed",
           "message": "must be <prefix>_<ULID> (contract section 2)"
         }
@@ -56,13 +70,18 @@
             "message": "must be a sty_ ID"
           }
         }
-      }
+      },
+      "maxLength": 30
     },
     "brd_id": {
       "type": "string",
       "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        },
+        "maxLength": {
           "rule": "id.malformed",
           "message": "must be <prefix>_<ULID> (contract section 2)"
         }
@@ -78,13 +97,18 @@
             "message": "must be a brd_ ID"
           }
         }
-      }
+      },
+      "maxLength": 30
     },
     "lin_id": {
       "type": "string",
       "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        },
+        "maxLength": {
           "rule": "id.malformed",
           "message": "must be <prefix>_<ULID> (contract section 2)"
         }
@@ -100,13 +124,18 @@
             "message": "must be a lin_ ID"
           }
         }
-      }
+      },
+      "maxLength": 30
     },
     "cue_id": {
       "type": "string",
       "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        },
+        "maxLength": {
           "rule": "id.malformed",
           "message": "must be <prefix>_<ULID> (contract section 2)"
         }
@@ -122,13 +151,18 @@
             "message": "must be a cue_ ID"
           }
         }
-      }
+      },
+      "maxLength": 30
     },
     "nte_id": {
       "type": "string",
       "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        },
+        "maxLength": {
           "rule": "id.malformed",
           "message": "must be <prefix>_<ULID> (contract section 2)"
         }
@@ -144,13 +178,18 @@
             "message": "must be a nte_ ID"
           }
         }
-      }
+      },
+      "maxLength": 30
     },
     "asv_id": {
       "type": "string",
       "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        },
+        "maxLength": {
           "rule": "id.malformed",
           "message": "must be <prefix>_<ULID> (contract section 2)"
         }
@@ -166,13 +205,18 @@
             "message": "must be a asv_ ID"
           }
         }
-      }
+      },
+      "maxLength": 30
     },
     "fmv_id": {
       "type": "string",
       "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        },
+        "maxLength": {
           "rule": "id.malformed",
           "message": "must be <prefix>_<ULID> (contract section 2)"
         }
@@ -188,13 +232,18 @@
             "message": "must be a fmv_ ID"
           }
         }
-      }
+      },
+      "maxLength": 30
     },
     "run_id": {
       "type": "string",
       "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        },
+        "maxLength": {
           "rule": "id.malformed",
           "message": "must be <prefix>_<ULID> (contract section 2)"
         }
@@ -210,13 +259,18 @@
             "message": "must be a run_ ID"
           }
         }
-      }
+      },
+      "maxLength": 30
     },
     "dlv_id": {
       "type": "string",
       "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        },
+        "maxLength": {
           "rule": "id.malformed",
           "message": "must be <prefix>_<ULID> (contract section 2)"
         }
@@ -232,7 +286,8 @@
             "message": "must be a dlv_ ID"
           }
         }
-      }
+      },
+      "maxLength": 30
     },
     "asv_id_or_null": {
       "type": [
@@ -244,6 +299,10 @@
         "pattern": {
           "rule": "id.malformed",
           "message": "must be <prefix>_<ULID> (contract section 2)"
+        },
+        "maxLength": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
         }
       },
       "if": {
@@ -257,7 +316,8 @@
             "message": "must be a asv_ ID"
           }
         }
-      }
+      },
+      "maxLength": 30
     },
     "fmv_id_or_null": {
       "type": [
@@ -267,6 +327,10 @@
       "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        },
+        "maxLength": {
           "rule": "id.malformed",
           "message": "must be <prefix>_<ULID> (contract section 2)"
         }
@@ -282,7 +346,8 @@
             "message": "must be a fmv_ ID"
           }
         }
-      }
+      },
+      "maxLength": 30
     },
     "run_id_or_null": {
       "type": [
@@ -292,6 +357,10 @@
       "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        },
+        "maxLength": {
           "rule": "id.malformed",
           "message": "must be <prefix>_<ULID> (contract section 2)"
         }
@@ -307,7 +376,8 @@
             "message": "must be a run_ ID"
           }
         }
-      }
+      },
+      "maxLength": 30
     },
     "dlv_id_or_null": {
       "type": [
@@ -317,6 +387,10 @@
       "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
+          "rule": "id.malformed",
+          "message": "must be <prefix>_<ULID> (contract section 2)"
+        },
+        "maxLength": {
           "rule": "id.malformed",
           "message": "must be <prefix>_<ULID> (contract section 2)"
         }
@@ -332,7 +406,8 @@
             "message": "must be a dlv_ ID"
           }
         }
-      }
+      },
+      "maxLength": 30
     },
     "ms": {
       "type": "integer",
@@ -345,62 +420,6 @@
         "minimum": {
           "rule": "time.negative",
           "message": "must not be negative"
-        }
-      }
-    },
-    "ms_or_null": {
-      "type": [
-        "integer",
-        "null"
-      ],
-      "minimum": 0,
-      "x-studio": {
-        "type": {
-          "rule": "time.not_integer_ms",
-          "message": "must be integer milliseconds"
-        },
-        "minimum": {
-          "rule": "time.negative",
-          "message": "must not be negative"
-        }
-      }
-    },
-    "tail_ms_or_null": {
-      "type": [
-        "integer",
-        "null"
-      ],
-      "minimum": 250,
-      "x-studio": {
-        "type": {
-          "rule": "time.not_integer_ms",
-          "message": "must be integer milliseconds"
-        },
-        "minimum": {
-          "rule": "time.tail_too_short",
-          "message": "must be at least 250 ms (TIME-5)"
-        }
-      }
-    },
-    "hold_ms_or_null": {
-      "type": [
-        "integer",
-        "null"
-      ],
-      "minimum": 100,
-      "maximum": 120000,
-      "x-studio": {
-        "type": {
-          "rule": "time.not_integer_ms",
-          "message": "must be integer milliseconds"
-        },
-        "minimum": {
-          "rule": "time.hold_out_of_range",
-          "message": "must be 100 to 120000 ms (TIME-4)"
-        },
-        "maximum": {
-          "rule": "time.hold_out_of_range",
-          "message": "must be 100 to 120000 ms (TIME-4)"
         }
       }
     },
@@ -430,23 +449,52 @@
     },
     "sha256": {
       "type": "string",
-      "pattern": "^[0-9a-f]{64}$"
+      "pattern": "^[0-9a-f]{64}$",
+      "maxLength": 64
     },
     "timestamp": {
       "type": "string",
-      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+      "not": {
+        "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+      },
+      "x-studio": {
+        "not": {
+          "message": "must not contain control characters"
+        }
+      }
     },
     "slot": {
       "type": "string",
-      "pattern": "^[a-z]$"
+      "pattern": "^[a-z]$",
+      "maxLength": 1
     },
     "speaker": {
-      "type": "string",
-      "pattern": "^([a-z]|narrator)$"
+      "anyOf": [
+        {
+          "$ref": "#/$defs/slot"
+        },
+        {
+          "const": "narrator"
+        }
+      ],
+      "x-studio": {
+        "anyOf": {
+          "message": "must be a cast slot a to z, or narrator"
+        }
+      }
     },
     "source_key": {
       "type": "string",
-      "pattern": "^[a-z][a-z0-9-]*:[^\\s]+$"
+      "pattern": "^[a-z][a-z0-9-]*:[^\\s]+$",
+      "not": {
+        "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+      },
+      "x-studio": {
+        "not": {
+          "message": "must not contain control characters"
+        }
+      }
     },
     "text_line": {
       "type": "string",
@@ -531,7 +579,8 @@
               "kind": true,
               "key_id": {
                 "type": "string",
-                "pattern": "^key_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                "pattern": "^key_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+                "maxLength": 30
               }
             },
             "additionalProperties": false
@@ -897,7 +946,14 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 200,
-          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+          },
+          "x-studio": {
+            "not": {
+              "message": "must not contain control characters (contract section 6)"
+            }
+          }
         }
       }
     },

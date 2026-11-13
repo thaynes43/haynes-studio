@@ -27,8 +27,9 @@ _TIME_BITS = 48
 
 
 def is_id(value: object, prefix: str | None = None) -> bool:
-    """True when ``value`` is a well-formed ID (of ``prefix``, when given)."""
-    if not isinstance(value, str) or not _ID.match(value):
+    """True when ``value`` is a well-formed ID (of ``prefix``, when given). The whole
+    string must match: ``$`` alone would also accept a trailing newline."""
+    if not isinstance(value, str) or not _ID.fullmatch(value):
         return False
     return prefix is None or value.startswith(prefix + "_")
 

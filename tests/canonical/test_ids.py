@@ -38,3 +38,11 @@ def test_real_minter_and_is_id():
     assert not is_id("sty_01jcil0u000000000000000001") and not is_id(None)
     with pytest.raises(ValueError):
         Minter().mint("xyz")
+
+
+@pytest.mark.parametrize("value", ["sty_01M79V9FC00000000000000001\n",
+                                   "sty_01M79V9FC00000000000000001 ",
+                                   "\nsty_01M79V9FC00000000000000001"])
+def test_the_whole_value_must_be_an_id(value):
+    """`$` alone also matches before a trailing newline; the whole string must match."""
+    assert not is_id(value) and not is_id(value, "sty")

@@ -1,9 +1,9 @@
 """The ``studio`` command line. Standard library only; the work is in the package.
 
 Exit status: 0 valid (or the timelines match, or the import succeeded), 1 a rule
-failed (or the timelines differ), 2 a usage error, an unreadable file or an output
-file that already exists. Problems print one per line as
-``<file>: rule <code> at <path>: <message>``.
+failed (or the timelines differ), 2 a usage error, an unreadable or too deeply nested
+file, or an output file that exists or cannot be written. Problems print one per line
+as ``<file>: rule <code> at <path>: <message>``.
 """
 
 from __future__ import annotations
@@ -11,17 +11,20 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TextIO
+from urllib.parse import urlsplit
 
 from haynes_studio import __version__
 from haynes_studio.canonical.ids import is_id
+from haynes_studio.canonical.jsonvalues import MAX_DEPTH, too_deep
 from haynes_studio.canonical.legacy_import import import_manifest
 from haynes_studio.canonical.model import Principal
-from haynes_studio.errors import ContractError
+from haynes_studio.errors import ContractError, Violation
 from haynes_studio.jsonio import read_json
 from haynes_studio.legacy import manifest as legacy_manifest
 from haynes_studio.legacy.speech import load_speech
@@ -122,6 +125,9 @@ def main(argv: Sequence[str] | None = None, *, stdout: TextIO | None = None,
         print(f"studio: cannot read {error.filename}: "
               f"{error.strerror or type(error).__name__}", file=err)
         return USAGE
+    except RecursionError:  # a legacy loader reading a pathologically nested file
+        print("studio: an input file is nested too deeply to read", file=err)
+        return USAGE
 
 
 # legacy validate --------------------------------------------------------------------
@@ -167,6 +173,8 @@ def _count(number: int, noun: str) -> str:
 # legacy import ----------------------------------------------------------------------
 
 STORY_FILE, MAP_FILE = "story.json", "legacy-import.json"
+_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+_SUBJECT_MAX = 255  # OpenID Connect Core 1.0, section 2: sub is at most 255 ASCII characters
 
 
 def _now() -> str:
@@ -174,32 +182,86 @@ def _now() -> str:
 
 
 def _label(path: str) -> str:
-    """The manifest path recorded in the story: relative to the working directory
-    (the repository root, normally) when it lies inside it."""
+    """The manifest path the story records: relative to the root of the repository
+    that holds it (the nearest folder with a ``.git`` entry), else only its file name.
+    Never an absolute path, which would carry a private local folder into the story."""
     resolved = Path(path).resolve()
+    for folder in resolved.parents:
+        if (folder / ".git").exists():
+            return resolved.relative_to(folder).as_posix()
+    return resolved.name
+
+
+def _bad_text(value: str) -> bool:
+    return not value or bool(_CONTROL.search(value)) or any(c.isspace() for c in value)
+
+
+def _operator_problem(iss: str, sub: str) -> str | None:
+    """Why the operator's OIDC issuer or subject is unusable, or None."""
     try:
-        return resolved.relative_to(Path.cwd().resolve()).as_posix()
+        parts = urlsplit(iss)
+        issuer_ok = parts.scheme in ("https", "http") and bool(parts.hostname)
     except ValueError:
-        return Path(path).as_posix()
+        issuer_ok = False
+    if _bad_text(iss) or not issuer_ok:
+        return (f"--operator-iss {iss!r} is not an OIDC issuer (an http or https URL with "
+                "a host, no spaces)")
+    if _bad_text(sub) or len(sub) > _SUBJECT_MAX:
+        return (f"--operator-sub {sub!r} is not an OIDC subject (1 to {_SUBJECT_MAX} "
+                "characters, no spaces or control characters)")
+    return None
+
+
+def _nested_too_deeply(path: str) -> bool:
+    """True when a JSON file nests deeper than the canonical model reads. A file that
+    cannot be read or parsed is left to its loader, which reports it."""
+    try:
+        document = read_json(path).document
+    except (OSError, ValueError):
+        return False
+    return too_deep(document)
+
+
+def _read_map(path: str) -> dict:
+    """An import map file's document. ``ValueError`` if it is not JSON, ``OSError`` if
+    unreadable, :class:`ContractError` if it is not a JSON object."""
+    document = read_json(path).document
+    if too_deep(document):
+        raise ValueError(f"{path}: nested deeper than {MAX_DEPTH} levels")
+    if not isinstance(document, dict):
+        kind = "null" if document is None else type(document).__name__
+        raise ContractError(path, [Violation(
+            "schema.invalid", "", f"an import map must be a JSON object, not {kind}")])
+    return document
 
 
 def _import(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
     if args.production is not None and not is_id(args.production, "prd"):
         print(f"studio: --production {args.production!r} is not a prd_ ID", file=err)
         return USAGE
-    out_dir = Path(args.out) if args.out else None
+    problem = _operator_problem(args.operator_iss, args.operator_sub)
+    if problem:
+        print(f"studio: {problem}", file=err)
+        return USAGE
+    out_dir = Path(args.out) if args.out is not None else None
     if out_dir is not None:
         existing = [str(out_dir / name) for name in (STORY_FILE, MAP_FILE)
-                    if (out_dir / name).exists()]
+                    if os.path.lexists(out_dir / name)]
         if existing:
             print(f"studio: will not overwrite {', '.join(existing)}", file=err)
             return USAGE
     existing_map = None
-    if args.map:
+    if args.map is not None:
         try:
-            existing_map = read_json(args.map).document
+            existing_map = _read_map(args.map)
+        except ContractError:  # a rule failure (exit 1), not a usage error
+            raise
         except ValueError as error:
             print(f"studio: {error}", file=err)
+            return USAGE
+    for path in (args.manifest, args.speech):
+        if _nested_too_deeply(path):
+            print(f"studio: {path}: nested deeper than {MAX_DEPTH} levels", file=err)
             return USAGE
     manifest = legacy_manifest.load(args.manifest)
     result = import_manifest(
@@ -208,9 +270,9 @@ def _import(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
         now=_now(), existing=existing_map, production_id=args.production,
         map_label=args.map or "<import map>")
     if out_dir is not None:
-        out_dir.mkdir(parents=True, exist_ok=True)
-        for name, document in ((STORY_FILE, result.story), (MAP_FILE, result.import_map)):
-            _create(out_dir / name, document)
+        written = _write_outputs(out_dir, result, err)
+        if written is None:
+            return USAGE
     if args.json:
         json.dump({"story": result.story, "legacy_import": result.import_map}, out, indent=2,
                   ensure_ascii=False)
@@ -219,6 +281,7 @@ def _import(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
     story = result.story
     boards = story["boards"]
     derived = story["derived"]
+    given = f", {result.given} given" if result.given else ""
     out.write(
         f"{manifest.source}: imported revision {manifest.revision} as story {story['id']} "
         f"(production {story['production_id']}, {story['media_kind']}): "
@@ -228,7 +291,7 @@ def _import(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
         f"{_count(sum(len(b['notes']) for b in boards), 'note')}, "
         f"{_count(len(story['beds']), 'bed')}; {derived['frames']} frames "
         f"({display_seconds(derived['frames'])} s); IDs: {result.reused} from the map, "
-        f"{result.minted} minted\n")
+        f"{result.minted} minted{given}\n")
     for board, number in ((b, b["number"]) for b in boards):
         d = board["derived"]
         out.write(f"  B{number:02d} {board['id']} shot {board['origin']['legacy_shot']}: "
@@ -238,6 +301,34 @@ def _import(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
     if out_dir is not None:
         out.write(f"wrote {out_dir / STORY_FILE} and {out_dir / MAP_FILE}\n")
     return OK
+
+
+def _write_outputs(out_dir: Path, result, err: TextIO) -> list[Path] | None:
+    """Create ``story.json`` then ``legacy-import.json`` in ``out_dir``; the paths
+    written, or None after printing which file could not be written and which was.
+    Outputs are create-only: nothing already written is deleted or renamed."""
+    written: list[Path] = []
+    targets = [(out_dir / STORY_FILE, result.story), (out_dir / MAP_FILE, result.import_map)]
+    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        _cannot_write(out_dir, error, written, err)
+        return None
+    for path, document in targets:
+        try:
+            _create(path, document)
+        except OSError as error:
+            _cannot_write(path, error, written, err)
+            return None
+        written.append(path)
+    return written
+
+
+def _cannot_write(path: Path, error: OSError, written: list[Path], err: TextIO) -> None:
+    done = (f"; {', '.join(str(p) for p in written)} was already written and is left as "
+            "it is (choose a new --out folder)" if written else "; nothing was written")
+    print(f"studio: cannot write {path}: {error.strerror or type(error).__name__}{done}",
+          file=err)
 
 
 def _create(path: Path, document: dict) -> None:

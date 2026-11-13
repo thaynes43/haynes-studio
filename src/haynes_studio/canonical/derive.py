@@ -8,6 +8,9 @@ measured takes, in integers through :mod:`haynes_studio.timebase`.
   untimed board, later starts are unknown (``None``).
 - Absent, stale and generating voices and photos are explicit states, never inferred
   from a null alone.
+- Every number reaches :mod:`haynes_studio.timebase` as an int: models and facts are
+  normalized when built, and the entry points here normalize again (an integral float
+  such as ``1900.0`` is the integer 1900).
 """
 
 from __future__ import annotations
@@ -18,6 +21,8 @@ from decimal import Decimal
 from types import MappingProxyType
 
 from haynes_studio.canonical.facts import PHOTO, VOICE, Facts
+from haynes_studio.canonical.jsonvalues import integral
+from haynes_studio.canonical.methods import UNAVAILABLE, status
 from haynes_studio.canonical.model import (
     STORY_TIMING_SCHEMA,
     Anchor,
@@ -43,6 +48,7 @@ TIMED, UNTIMED = "timed", "untimed"
 NOT_NEEDED, ABSENT, GENERATING, CURRENT, STALE = (
     "not_needed", "absent", "generating", "current", "stale")
 LENGTH_EXCEEDED = "format.length_exceeded"
+METHOD_UNAVAILABLE = "method.unavailable"
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,15 +105,16 @@ def untimed_reason(board: Board, facts: Facts) -> str | None:
 def board_clock(board: Board, facts: Facts) -> BoardClock | None:
     """The board's timing, or None while it is untimed (TIME-6)."""
     if not board.spoken:
-        hold = board.timing.hold_ms
+        hold = integral(board.timing.hold_ms)
         return BoardClock(content_ms=hold, frames=frames_for_ms(hold),
                           spans=MappingProxyType({}))
     if _voice_base(board, facts) != CURRENT:
         return None
     takes = facts.voice_versions[board.voice.current_version_id].takes_ms
-    spans = line_spans(board.timing.lead_ms, [takes[line.id] for line in board.lines],
-                       [line.gap_before_ms for line in board.lines])
-    content = spans[-1].end_ms + board.timing.tail_ms
+    spans = line_spans(integral(board.timing.lead_ms),
+                       [integral(takes[line.id]) for line in board.lines],
+                       [integral(line.gap_before_ms) for line in board.lines])
+    content = spans[-1].end_ms + integral(board.timing.tail_ms)
     return BoardClock(content_ms=content, frames=frames_for_ms(content),
                       spans=MappingProxyType({line.id: span
                                               for line, span in zip(board.lines, spans)}))
@@ -117,8 +124,8 @@ def resolve_anchor(anchor: Anchor, clock: BoardClock) -> int:
     """A cue anchor in ms from board start: ``at_ms``, or the end of the named line
     plus ``offset_ms`` (contract section 6)."""
     if anchor.at_ms is not None:
-        return anchor.at_ms
-    return clock.spans[anchor.after_line_id].end_ms + anchor.offset_ms
+        return integral(anchor.at_ms)
+    return clock.spans[anchor.after_line_id].end_ms + integral(anchor.offset_ms)
 
 
 def board_derived(board: Board, facts: Facts, film_start_frame: int | None) -> BoardDerived:
@@ -153,6 +160,7 @@ def length_warning(frames_known: int, complete: bool,
                    length: FormatLength | None) -> DocWarning | None:
     """D45: a warning when the story (or, while incomplete, its timed boards
     already) runs past the format's maximum. Build stays allowed."""
+    frames_known = integral(frames_known)
     if length is None or frames_known * 1000 <= length.max_ms * DELIVERY_FPS:
         return None
     runs = display_seconds(frames_known)
@@ -163,22 +171,36 @@ def length_warning(frames_known: int, complete: bool,
                       build_allowed=True, decision="D45")
 
 
+def method_warnings(boards: Sequence[Board]) -> tuple[DocWarning, ...]:
+    """``method.unavailable`` for each board whose method saves but cannot be built
+    (whole-frame speech-to-video, section 5), in film order."""
+    return tuple(
+        DocWarning(code=METHOD_UNAVAILABLE, severity="warning", build_allowed=False,
+                   message=(f"Board B{board.number:02d} ({board.id}) uses "
+                            f"{board.method.layer} {board.method.motion}, which has no "
+                            "adapter yet: it saves, and Build refuses it."))
+        for board in boards if status(board.method.layer, board.method.motion) == UNAVAILABLE)
+
+
 def story_derived(story: Story, boards: Sequence[Board], facts: Facts, *,
                   format_length: FormatLength | None = None,
                   highest_number_issued: int | None = None) -> StoryDerived:
     """A story's totals from its boards in ``board_order``. ``highest_number_issued``
     is the largest board number ever given in the story, removed boards included
-    (numbers are never reused); by default the largest number among ``boards``."""
+    (numbers are never reused); by default the largest number among ``boards``.
+    ``warnings`` lists each board's ``method.unavailable``, then the D45 length
+    warning."""
     derived = boards_derived(boards, facts)
     timed = [d for d in derived if d.timing_state == TIMED]
     frames = sum(d.frames for d in timed)
-    highest = max([b.number for b in boards] + [highest_number_issued or 0])
+    highest = max([integral(b.number) for b in boards] +
+                  [integral(highest_number_issued) or 0])
     warning = length_warning(frames, len(timed) == len(derived), format_length)
     return StoryDerived(
         board_count=len(boards), next_board_number=highest + 1, timed_boards=len(timed),
         untimed_boards=len(derived) - len(timed), frames=frames, fps=DELIVERY_FPS,
         duration_ms=frames * 1000 // DELIVERY_FPS,
-        warnings=(warning,) if warning else (),
+        warnings=method_warnings(boards) + ((warning,) if warning else ()),
     )
 
 

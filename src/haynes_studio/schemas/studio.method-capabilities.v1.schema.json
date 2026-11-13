@@ -115,7 +115,15 @@
       "type": "array",
       "items": {
         "type": "string",
-        "pattern": "^method\\.[a-z0-9_]+$"
+        "pattern": "^method\\.[a-z0-9_]+$",
+        "not": {
+          "pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+        },
+        "x-studio": {
+          "not": {
+            "message": "must not contain control characters"
+          }
+        }
       }
     }
   },

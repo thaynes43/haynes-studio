@@ -20,6 +20,8 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
+from haynes_studio.canonical.jsonvalues import integral
+
 VOICE = "voice"
 PHOTO = "photo"
 
@@ -32,6 +34,11 @@ class VoiceVersionFacts:
     id: str
     takes_ms: Mapping[str, int]
     matches_board: bool = True
+
+    def __post_init__(self) -> None:
+        # Integral floats are integers (jsonvalues.normalize); the mapping is read-only.
+        object.__setattr__(self, "takes_ms", MappingProxyType(
+            {line_id: integral(ms) for line_id, ms in self.takes_ms.items()}))
 
 
 @dataclass(frozen=True, slots=True)
