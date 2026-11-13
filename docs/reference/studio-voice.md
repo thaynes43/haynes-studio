@@ -42,15 +42,19 @@ is pure and calls nothing:
 | `current` | the board's current voice version is this input | 0 | no |
 | `existing` | another version of this board is this input (an undo) | 0 | no; the board points at it again |
 | `assemble` | every take signature is held by a version of this board (lead or gap edit, a line moved to a speaker whose take exists) | 0 | yes, re-assembled |
-| `synthesize` | some take signatures are new (text, speaker voice, a cast voice change) | one per new signature (`plan.speech_lines`) | yes |
+| `synthesize` | some take signatures are new (text, speaker voice, a cast voice change) | one per new signature, even if two lines share it (`plan.speech_lines`) | yes |
 
 A version **is** an input when its input signature is the input's and its takes have the
 same line IDs, speakers and cast voice versions. This is stricter than the library's
 currency in `Library.facts(story)`, which compares lines, speakers, cast voices, lead and
 gaps but not the engine. Once a model digest is recorded, a legacy board stays timed and
-buildable, yet a request for it re-synthesizes every take. A take is reused when any version of
-the board's voice holds its signature. The current version is searched first, then the
-others, newest first. A stale result therefore still saves calls on the next request.
+buildable, yet a request for it re-synthesizes every take.
+
+A take is reused when any version of the board's voice holds its signature, newest
+version first (`take_sources`; the worker applies the same function, so the plan shows
+what the worker does). A stale result therefore still saves calls on the next request.
+A line whose text the speech client would refuse (blank, or over 1000 characters) is
+`voice.request_invalid` at request time, so no job is queued that can only fail.
 
 ## Making a version
 
@@ -60,10 +64,12 @@ others, newest first. A stale result therefore still saves calls on the next req
    and nothing is called or published.
 2. Every reused take is read back with `fetch(locator, sha256)`, checked by hash and
    re-measured from its WAV header. Every other request is checked too. A missing take
-   (`asset.bytes_missing`) or a bad request fails here, before any speech call.
-3. The other lines go to `speech.synthesize(SpeechRequest(voice_id, text))` (the Kokoro
-   client and its injected runner). Each answer is published with
-   `publish(bytes, "audio/wav") -> (sha256, locator)`.
+   (`asset.bytes_missing`) or a bad request fails here, before any speech call. The
+   worker validates the job document first, stock voices included.
+3. Each new signature goes once to `speech.synthesize(SpeechRequest(voice_id, text))`
+   (the Kokoro client and its injected runner). Each answer is published with
+   `publish(bytes, "audio/wav") -> (sha256, locator)`. An answer in another format than
+   the board's other takes fails the job before the next call.
 4. `duration_ms = ceil(samples * 1000 / rate)` (TIME-1, `timebase.take_duration_ms`).
    Offsets follow TIME-2 (`timebase.line_spans`), and `speech_end_ms` is the last take's
    end. All of these are integers.
@@ -75,10 +81,20 @@ others, newest first. A stale result therefore still saves calls on the next req
 6. The track is published, and the version is imported through
    `library.import_version`. It is a `board_voice` in state `board`, origin `generated`,
    under source key `board-voice:<board_id>`, so each board's generated versions are
-   numbered 1, 2, ... on one asset. Its licence is `unknown`. The library validates it
+   numbered 1, 2, ... on one asset. Its licence is `unknown`. Takes have `heard` and
+   `heard_matches` null (the transcript check is VOICE-8). The library validates it
    (TIME-1, TIME-2, stock voices, the track's locator).
 
-`publish` must answer the bytes' own hash (`store.hash_mismatch`) and place them at
+The library's pin for a board voice is its input signature and take hashes only. A new
+version can therefore carry another version's pin with other line IDs, speakers or
+cast voice versions. Examples: a line deleted and re-added with the same text, or a
+cast voice swapped for another `voice` version of the same stock voice. Importing it
+on the board's asset would be `idempotency.mismatch`, so it goes to an asset keyed
+`board-voice:<board_id>:lines:<16 hex digits of the lines' signature>` (proposal,
+until the library's pin covers line identity).
+
+`publish` is bound to the job's production by the caller. It must answer the bytes'
+own hash (`store.hash_mismatch`) and place them at
 `productions/<production_id>/sha256/<h[0:2]>/<h>.wav` (`store.locator_invalid`). Takes
 have no locator field: a take is found by its hash in that folder.
 
@@ -163,7 +179,7 @@ and accepts the rest. Voices are never made inside a run.
 | `voice.absent` | a narrator line without the story's narrator voice | contract |
 | `asset.kind_mismatch`, `asset.bytes_missing`, `ref.unknown` | a cast voice that is not a `voice`; a reused take the store does not hold (or holds with another hash); an unknown board or voice | story 382 and 404 proposals |
 | `store.locator_invalid` | `publish` placed bytes outside the production's hash path | contract |
-| `voice.not_needed`, `voice.format_mismatch`, `voice.engine_mismatch`, `store.hash_mismatch`, `job.transition` | a silent board; a take that is not 16-bit PCM or differs in format; a job signed for another engine; `publish` answered another hash; a move the state machine refuses | proposals |
+| `voice.not_needed`, `voice.request_invalid`, `voice.format_mismatch`, `voice.engine_mismatch`, `store.hash_mismatch`, `job.transition` | a silent board; a line the speech client would refuse; a take that is not 16-bit PCM or differs in format; a job signed for another engine; `publish` answered another hash; a move the state machine refuses | proposals |
 
 ## Proposals
 
@@ -173,11 +189,18 @@ and accepts the rest. Voices are never made inside a run.
 - The track ends at `speech_end_ms`, because the tail is not voice. A take starts at
   `offset_ms * rate div 1000`.
 - Speed is fixed at 1.0.
-- A board's generated versions share one asset under `board-voice:<board_id>`. A legacy
-  import keeps its own asset.
-- Takes are reused from any version of the same board, never across boards.
-- A reused take keeps its `heard` and `heard_matches`, because they describe its bytes.
-  A new take has them null: the transcript check is VOICE-8, later.
+- A board's generated versions share one asset under `board-voice:<board_id>`, with a
+  lines-keyed asset only when the library's pin would collide. A legacy import keeps
+  its own asset.
+- Takes are reused from any version of the same board, newest first, never across
+  boards.
+- Generated takes have `heard` and `heard_matches` null, reused ones included, so a
+  version's content follows from its input, its take bytes and the engine alone.
+- The take signature has no sample rate, although the contract's cache table lists one
+  among a take's key inputs. If Kokoro's rate changed, takes of two rates would share
+  signatures, and a partly edited board would fail with `voice.format_mismatch`. Nothing
+  here remakes a take whose signature is held, so the fix is the rate in the signature
+  (an observation for the contract owner and story 382).
 - The job fields beyond the contract's: `error` as `{code, message}`, `created_by`,
   `created_at`, `updated_at`, and the `voice` block.
 - An in-flight job is never cancelled automatically when the board changes. It

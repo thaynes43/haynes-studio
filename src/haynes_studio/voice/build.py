@@ -30,7 +30,7 @@ from haynes_studio.adapters.kokoro import SpeechRequest, SpeechTake
 from haynes_studio.canonical.facts import Facts
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.canonical.model import Principal
-from haynes_studio.errors import ContractError, Violation
+from haynes_studio.errors import ContractError, Violation, blocking
 from haynes_studio.library import Library, import_version
 from haynes_studio.library.library import VersionRequest
 from haynes_studio.library.model import (
@@ -42,6 +42,8 @@ from haynes_studio.library.model import (
     Scope,
     Take,
     locator_for,
+    signature,
+    takes_signature,
 )
 from haynes_studio.library.resolve import BYTES_MISSING
 from haynes_studio.library.validate import LOCATOR_INVALID
@@ -58,13 +60,16 @@ from haynes_studio.voice.model import (
     VoiceInput,
 )
 from haynes_studio.voice.plan import (
+    NOT_NEEDED,
     board_voice_key,
     board_voice_versions,
     drafted_input,
-    reusable_takes,
     same_input,
+    same_lines,
+    take_sources,
 )
-from haynes_studio.voice.track import Pcm, assemble, read_wav
+from haynes_studio.voice.track import FORMAT_MISMATCH, Pcm, assemble, read_wav
+from haynes_studio.voice.validate import validate_job
 
 WAV = "audio/wav"
 ENGINE_MISMATCH = "voice.engine_mismatch"  # proposal: a job planned for another engine
@@ -79,7 +84,8 @@ class Speech(Protocol):
 
 Publish = Callable[[bytes, str], tuple[str, str]]
 """``publish(data, media_type) -> (sha256, locator)``: store bytes create-only in the
-production's folder (story 379's adapter, or an in-memory one in tests)."""
+production's folder (story 379's adapter, or an in-memory one in tests). The caller
+binds it to the job's production; an answer outside that folder fails the job."""
 
 Fetch = Callable[[str, str], bytes | None]
 """``fetch(locator, sha256) -> bytes`` or None when the store does not hold them."""
@@ -127,11 +133,13 @@ def _fetch(fetch: Fetch, take: Take, production_id: str, path: str) -> Pcm:
 def make_voice(voice: VoiceInput, board_id: str, library: Library, *, speech: Speech,
                publish: Publish, fetch: Fetch, by: Principal, now: str,
                minter: Minter | None = None, engine: Engine = Engine()) -> Made:
-    """One board voice version for ``voice`` (VOICE-2). Takes whose signature a version
-    of this board holds are read back (``fetch``), checked by hash and re-measured;
-    only the others go to ``speech``, after every reused take was found, so a missing
-    take costs no call. If a version of this board already is the input, it is
-    returned and nothing is called or published."""
+    """One board voice version for ``voice`` (VOICE-2). Takes come from
+    :func:`~haynes_studio.voice.plan.take_sources`, the rule the plan shows: a take a
+    version of this board holds is read back (``fetch``), checked by hash and
+    re-measured; each new signature goes to ``speech`` once. Every reused take and every
+    request is checked before the first call, and each answer's format before the next
+    call. If a version of this board already is the input, it is returned and nothing
+    is called or published."""
     if (engine.model, engine.signing_name) != (voice.model, voice.engine):
         raise _error(ENGINE_MISMATCH, "/voice/engine",
                      f"the input was signed for {voice.engine!r} ({voice.model}); this worker "
@@ -140,22 +148,31 @@ def make_voice(voice: VoiceInput, board_id: str, library: Library, *, speech: Sp
     existing = next((v for v in versions if same_input(v, voice)), None)
     if existing is not None:
         return Made(library, existing, False, (), ())
-    pool = reusable_takes(versions)
+    sources = take_sources(voice, versions)
     production = voice.production_id
     pcms: dict[int, Pcm] = {}
-    reused: dict[int, Take] = {}
+    hashes: dict[int, str] = {}
     requests: dict[int, SpeechRequest] = {}
-    for i, line in enumerate(voice.lines):  # check everything first: fail before any call
-        if line.signature in pool:
-            reused[i] = pool[line.signature][0]
-            pcms[i] = _fetch(fetch, reused[i], production, f"/voice/lines/{i}")
-        else:
+    for i, (line, source) in enumerate(zip(voice.lines, sources)):  # all checks first
+        if source.reuse is not None:
+            pcms[i] = _fetch(fetch, source.reuse, production, f"/voice/lines/{i}")
+            hashes[i] = source.reuse.sha256
+        elif source.synthesize:
             requests[i] = SpeechRequest(voice=line.voice_id, text=line.text)
-    hashes = {i: take.sha256 for i, take in reused.items()}
+    shape = next((pcm.shape for pcm in pcms.values()), None)
     for i, request in requests.items():
         answer = speech.synthesize(request)
         pcms[i] = read_wav(answer.wav, f"/voice/lines/{i}")
+        shape = shape or pcms[i].shape
+        if pcms[i].shape != shape:  # stop before the next paid call
+            raise _error(FORMAT_MISMATCH, f"/voice/lines/{i}",
+                         f"the take is {pcms[i].shape}, the board's others {shape}; the track "
+                         "is assembled without resampling")
         hashes[i] = _publish(publish, answer.wav, production, f"/voice/lines/{i}").sha256
+    index = {line.line_id: i for i, line in enumerate(voice.lines)}
+    for i, source in enumerate(sources):
+        if source.same_as is not None:
+            pcms[i], hashes[i] = pcms[index[source.same_as]], hashes[index[source.same_as]]
     ordered = [pcms[i] for i in range(len(voice.lines))]
     durations = [take_duration_ms(pcm.frames, pcm.rate) for pcm in ordered]  # TIME-1
     spans = line_spans(voice.lead_ms, durations, (None, *voice.gaps_ms))  # TIME-2
@@ -166,15 +183,14 @@ def make_voice(voice: VoiceInput, board_id: str, library: Library, *, speech: Sp
              voice_version_id=line.voice_version_id, engine=voice.engine, voice_id=line.voice_id,
              sha256=hashes[i], sample_rate=pcm.rate, samples=pcm.frames,
              duration_ms=durations[i], duration_source="samples", offset_ms=spans[i].start_ms,
-             heard=reused[i].heard if i in reused else None,
-             heard_matches=reused[i].heard_matches if i in reused else None,
-             signature=line.signature)
+             heard=None, heard_matches=None, signature=line.signature)
         for i, (line, pcm) in enumerate(zip(voice.lines, ordered)))
     board_voice = BoardVoice(input_signature=voice.input_signature, lead_ms=voice.lead_ms,
                              gaps_ms=voice.gaps_ms, speech_end_ms=spans[-1].end_ms, track=track,
                              takes=takes)
     generator: dict[str, Any] = {
         "role": "voice", "engine": engine.service, "model": engine.model,
+        # Stored normalized (speed 1); takes are always signed with the float SPEED.
         "params": {"speed": SPEED, "assembler": ASSEMBLER},
         "source_asset_version_ids": sorted({line.voice_version_id for line in voice.lines}),
     }
@@ -185,12 +201,31 @@ def make_voice(voice: VoiceInput, board_id: str, library: Library, *, speech: Sp
         scope=Scope(production, story_id=voice.story_id, board_id=board_id), state=BOARD,
         capabilities=("board_voice",), content=None, voice=board_voice,
         provenance={"origin": "generated", "generator": generator, "external": None,
-                    "source_key": board_voice_key(board_id)},
+                    "source_key": _source_key(library, board_id, voice, board_voice)},
         licence=Licence.unknown(LICENCE_NOTES["voice"]))
     outcome = import_version(library, version, by=by, now=now, minter=minter)
     return Made(outcome.library, outcome.version, outcome.created,
-                tuple(line.line_id for i, line in enumerate(voice.lines) if i not in reused),
-                tuple(line.line_id for i, line in enumerate(voice.lines) if i in reused))
+                tuple(voice.lines[i].line_id for i in requests),
+                tuple(line.line_id for line, source in zip(voice.lines, sources)
+                      if not source.synthesize))
+
+
+def _source_key(library: Library, board_id: str, voice: VoiceInput,
+                board_voice: BoardVoice) -> str:
+    """``board-voice:<board_id>``, the board's one generated voice asset, unless that
+    asset already holds a version with this pin for other lines (a line re-added with
+    the same text, a cast voice version swapped for another of the same stock voice).
+    The library's pin is the input signature and take hashes only, so importing there
+    would be ``idempotency.mismatch``; such a version goes to an asset keyed by its lines
+    as well (proposal, until the pin covers line identity)."""
+    key = board_voice_key(board_id)
+    asset = library.by_source_key(key)
+    pin = takes_signature(board_voice)
+    if asset is None or not any(v.voice is not None and takes_signature(v.voice) == pin
+                                for v in library.versions_of(asset.id)):
+        return key
+    lines = signature([[line.line_id, line.speaker, line.voice_version_id] for line in voice.lines])
+    return f"{key}:lines:{lines.removeprefix('sha256:')[:16]}"
 
 
 def is_current(job: Job, story: Mapping[str, Any], library: Library) -> bool:
@@ -204,9 +239,7 @@ def is_current(job: Job, story: Mapping[str, Any], library: Library) -> bool:
                                 signing_name=job.voice.engine)
     except ContractError:
         return False
-    return (drafted.input_signature == job.input_signature
-            and [(line.line_id, line.speaker, line.voice_version_id) for line in drafted.lines]
-            == [(line.line_id, line.speaker, line.voice_version_id) for line in job.voice.lines])
+    return drafted.input_signature == job.input_signature and same_lines(drafted, job.voice)
 
 
 @dataclass(frozen=True)
@@ -237,6 +270,9 @@ def run_voice_job(job: Job, library: Library, *, draft: Callable[[], Mapping[str
     loop to fail."""
     if job.kind != VOICE or job.voice is None:
         raise _error("schema.invalid", "/kind", "not a voice job")
+    problems = blocking(validate_job(job.to_document()))  # stock voices, signatures
+    if problems:
+        raise ContractError(job.id, problems)
     running = job if job.status == RUNNING else start(job, now=now)  # a terminal job: refused
     try:
         made = make_voice(running.voice, running.target_id, library, speech=speech,
@@ -260,6 +296,8 @@ def with_current_voice(story: Mapping[str, Any], board_id: str, version_id: str)
     board = next((b for b in out.get("boards") or [] if b.get("id") == board_id), None)
     if board is None:
         raise _error("ref.unknown", "/boards", f"the story has no board {board_id}")
+    if not board.get("lines") or not isinstance(board.get("voice"), dict):
+        raise _error(NOT_NEEDED, "/boards", f"board {board_id} is silent: it has no voice")
     board["voice"]["current_version_id"] = version_id
     return out
 

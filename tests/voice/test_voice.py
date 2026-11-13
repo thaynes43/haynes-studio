@@ -6,6 +6,7 @@ service is called."""
 
 from __future__ import annotations
 
+import copy
 import dataclasses
 import io
 import json
@@ -18,7 +19,7 @@ from haynes_studio.adapters.fakes import FailingRunner
 from haynes_studio.adapters.kokoro import KokoroClient
 from haynes_studio.canonical import timing_summary, validate_story
 from haynes_studio.errors import ContractError, blocking
-from haynes_studio.library import Library
+from haynes_studio.library import Library, import_version
 from haynes_studio.library.model import measured_ms
 from haynes_studio.voice import (
     ASSEMBLE,
@@ -32,6 +33,7 @@ from haynes_studio.voice import (
     plan_board_voice,
     run_voice_job,
     voice_facts,
+    with_current_voice,
 )
 from haynes_studio.voice.plan import board_voice_key
 from tests.canonical.fixtures import EXAMPLES
@@ -483,3 +485,134 @@ def test_versions_are_never_overwritten():
     assert sorted(numbers) == [1, 2, 3]  # the last text was version 1 again: no new version
     assert studio.current(8).id == first.id
     assert studio.library.document(first.id) == snapshot
+
+
+# Review follow-ups ---------------------------------------------------------------------------
+
+
+def test_a_line_readded_with_the_same_text_is_assembled_and_current():
+    """Same take signatures and bytes, new line ID: the library's pin is the same, so the
+    version goes to the board's lines-keyed asset instead of failing."""
+    studio = generated_r4()
+    board = studio.board(8)
+    board["lines"][0]["id"] = "lin_01MCC5RM00000000000000ZZZZ"
+    plan = plan_board_voice(studio.story, board["id"], studio.library)
+    assert (plan.action, plan.speech_calls) == (ASSEMBLE, 0)
+    outcome, run = studio.generate(board["id"])
+    assert (run.job.status, run.job.result_is_current, run.created) == ("succeeded", True, True)
+    assert run.version.source_key.startswith(board_voice_key(board["id"]) + ":lines:")
+    assert studio.calls == 13 and queue_problems(studio) == set()
+    assert studio.request(board["id"]).plan.action == CURRENT
+
+
+def test_a_cast_voice_version_of_the_same_stock_voice_is_assembled():
+    """A second ``voice`` version of af_heart (another asset, as story 382 keys stock
+    voices per legacy job): slot b's takes keep their signatures and bytes."""
+    studio = generated_r4()
+    slot_b = studio.story["cast"][1]["voice_version_id"]
+    request = dataclasses.replace(
+        _voice_request(studio, slot_b),
+        provenance={**studio.library.version(slot_b).provenance, "source_key": "test:voice:af_heart"})
+    outcome = import_version(studio.library, request, by=BY, now=LATER)
+    assert outcome.created and outcome.version.id != slot_b
+    studio.library = outcome.library
+    studio.story["cast"][1]["voice_version_id"] = outcome.version.id
+    for number in (2, 8, 9):
+        plan = plan_board_voice(studio.story, studio.board(number)["id"], studio.library)
+        assert (plan.action, plan.speech_calls) == (ASSEMBLE, 0), number
+        _, run = studio.generate(studio.board(number)["id"])
+        assert run.job.result_is_current, (number, run.job.error)
+        assert ":lines:" in run.version.source_key  # the pin was taken on the board's asset
+    assert studio.calls == 13 and queue_problems(studio) == set()
+
+
+def _voice_request(studio, version_id):
+    from haynes_studio.library.library import VersionRequest
+
+    version = studio.library.version(version_id)
+    asset = studio.library.asset_of(version_id)
+    return VersionRequest(kind="voice", name=asset.name, scope=asset.scope,
+                          capabilities=version.capabilities, content=None,
+                          provenance=version.provenance, licence=version.licence,
+                          labels=asset.labels, attributes=asset.attributes)
+
+
+def test_two_lines_with_one_new_signature_cost_one_call():
+    studio = generated_r4()
+    board = studio.board(8)
+    board["lines"][4]["text"] = board["lines"][5]["text"] = "Order, order!"
+    plan = plan_board_voice(studio.story, board["id"], studio.library)
+    assert plan.speech_lines == (board["lines"][4]["id"],)
+    assert plan.takes[5].same_as == board["lines"][4]["id"]
+    calls = studio.calls
+    _, run = studio.generate(board["id"])
+    takes = run.version.voice.takes
+    assert studio.calls == calls + 1 and takes[4].sha256 == takes[5].sha256
+    assert run.synthesized == (board["lines"][4]["id"],)
+
+
+@pytest.mark.parametrize("text", ["x" * 1001, "   "], ids=["too-long", "blank"])
+def test_a_line_the_speech_client_would_refuse_is_refused_at_request(text):
+    studio = fresh_r4()
+    studio.board(1)["lines"][0]["text"] = text
+    with pytest.raises(ContractError) as caught:
+        studio.request(studio.board(1)["id"])
+    assert {(v.rule, v.path) for v in caught.value.violations} == {
+        ("voice.request_invalid", "/boards/0/lines/0/text")}
+    assert studio.jobs == [] and studio.calls == 0
+
+
+def test_a_hand_made_job_with_a_non_stock_voice_is_refused_before_any_call():
+    studio = fresh_r4()
+    job = studio.request(studio.board(1)["id"]).job
+    line = dataclasses.replace(job.voice.lines[0], voice_id="af_someone_real")
+    forged = dataclasses.replace(job, voice=dataclasses.replace(job.voice, lines=(line,)))
+    with pytest.raises(ContractError) as caught:
+        studio.run(forged)
+    assert "voice.not_stock" in {v.rule for v in caught.value.violations}
+    assert studio.calls == 0
+
+
+def test_an_in_flight_job_for_other_lines_is_not_the_same_request():
+    studio = generated_r4()
+    board = studio.board(8)
+    board["lines"][0]["text"] = "All opposed?"
+    first = studio.request(board["id"])
+    board["lines"][0]["id"] = "lin_01MCC5RM00000000000000ZZZZ"  # same signature, other line
+    second = studio.request(board["id"])
+    assert first.created and second.created and second.job.id != first.job.id
+
+
+def test_a_take_in_another_format_stops_before_the_next_call():
+    from haynes_studio.adapters.fakes import synthetic_wav
+    from haynes_studio.adapters.kokoro import SpeechTake
+
+    class Shifting:
+        calls = 0
+
+        def synthesize(self, request):
+            Shifting.calls += 1
+            wav = synthetic_wav(4800, rate=24000 if Shifting.calls == 1 else 22050)
+            return SpeechTake(wav, "0" * 64, 1, 2, 24000, 4800)
+
+    studio = fresh_r4()
+    studio.client = Shifting()
+    _, run = studio.generate(studio.board(8)["id"])
+    assert (run.job.status, run.job.error.code) == ("failed", "voice.format_mismatch")
+    assert Shifting.calls == 2  # of six lines
+
+
+def test_a_board_silenced_while_its_job_ran_keeps_the_result_stale():
+    studio = fresh_r4()
+    board = studio.board(9)
+    outcome = studio.request(board["id"])
+    silent = copy.deepcopy(studio.story)
+    target = next(b for b in silent["boards"] if b["id"] == board["id"])
+    target.update(lines=[], voice={"style": None, "current_version_id": None},
+                  timing={"lead_ms": None, "tail_ms": None, "hold_ms": 1000})
+    target["method"]["motion"] = "i2v"
+    run = studio.run(outcome.job, draft=lambda: silent)
+    assert (run.job.status, run.job.result_is_current, run.created) == ("succeeded", False, True)
+    with pytest.raises(ContractError) as caught:
+        with_current_voice(silent, board["id"], run.version.id)
+    assert {v.rule for v in caught.value.violations} == {"voice.not_needed"}

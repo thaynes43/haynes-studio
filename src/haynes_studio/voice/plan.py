@@ -11,15 +11,16 @@ edit need":
 - ``assemble``: every take is reusable (a lead or gap edit, a reorder of lines, a cast
   voice version with the same stock voice); the track is re-assembled with no speech
   call.
-- ``synthesize``: the takes whose signature no version of this board holds go to the
-  speech client, and only those.
+- ``synthesize``: the take signatures no version of this board holds go to the speech
+  client, and only those, each once (two lines with one new signature cost one call).
 
 A take is reusable when any version of this board's voice holds a take with the same
-signature (VOICE-3): the current version first, then the others, newest first. A
-version "is" an input when its input signature and its lines (ID, speaker, cast voice
-version) are the input's. Stock voices only (VOICE-1): a cast voice that is not a
-recorded stock voice of the engine's model is refused (``voice.not_stock``) before any
-call.
+signature (VOICE-3), newest version first; :func:`take_sources` is that rule, and the
+worker applies the same function. A version "is" an input when its input signature and
+its lines (ID, speaker, cast voice version) are the input's. Stock voices only
+(VOICE-1): a cast voice that is not a recorded stock voice of the engine's model is
+refused (``voice.not_stock``), and so is a line the speech client would refuse
+(``voice.request_invalid``), before any job is queued.
 """
 
 from __future__ import annotations
@@ -28,6 +29,8 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from haynes_studio.adapters.errors import AdapterError
+from haynes_studio.adapters.kokoro import SpeechRequest
 from haynes_studio.canonical import load_story
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.canonical.model import NARRATOR, Principal
@@ -43,6 +46,7 @@ CURRENT, EXISTING, ASSEMBLE, SYNTHESIZE = "current", "existing", "assemble", "sy
 ACTIONS = (CURRENT, EXISTING, ASSEMBLE, SYNTHESIZE)
 
 NOT_NEEDED = "voice.not_needed"  # proposal: a silent board has no voice
+REQUEST_INVALID = "voice.request_invalid"  # proposal: a line the speech client refuses
 VOICE_ABSENT = "voice.absent"  # a narrator line without the story's narrator voice
 REF_UNKNOWN = "ref.unknown"
 SOURCE_KEY_PREFIX = "board-voice:"  # proposal: the source key of a board's generated voice
@@ -67,14 +71,21 @@ def board_voice_versions(library: Library, board_id: str) -> tuple[AssetVersion,
     return tuple(sorted(found, key=lambda version: version.id, reverse=True))
 
 
+def _identity(lines) -> list[tuple[str, str, str]]:
+    return [(line.line_id, line.speaker, line.voice_version_id) for line in lines]
+
+
+def same_lines(a: VoiceInput, b: VoiceInput) -> bool:
+    """The same input: signature, and the same lines, speakers and cast voice versions."""
+    return a.input_signature == b.input_signature and _identity(a.lines) == _identity(b.lines)
+
+
 def same_input(version: AssetVersion, voice: VoiceInput) -> bool:
     """Is this board voice version that input: the same input signature (takes, lead,
     gaps) and the same lines, speakers and cast voice versions?"""
-    takes = version.voice.takes if version.voice is not None else ()
     return (version.voice is not None
             and version.voice.input_signature == voice.input_signature
-            and [(t.line_id, t.speaker, t.voice_version_id) for t in takes]
-            == [(line.line_id, line.speaker, line.voice_version_id) for line in voice.lines])
+            and _identity(version.voice.takes) == _identity(voice.lines))
 
 
 def drafted_input(story: Mapping[str, Any], board_id: str, library: Library, *,
@@ -84,7 +95,9 @@ def drafted_input(story: Mapping[str, Any], board_id: str, library: Library, *,
     is its), a board it does not hold (``ref.unknown``), a silent board
     (``voice.not_needed``), a narrator line without a narrator voice
     (``voice.absent``), a cast voice that is not a ``voice`` version
-    (``asset.kind_mismatch``) or not a stock voice of ``model`` (``voice.not_stock``)."""
+    (``asset.kind_mismatch``) or not a stock voice of ``model`` (``voice.not_stock``),
+    and a line the speech client would refuse (``voice.request_invalid``: blank, or over
+    its 1000 characters)."""
     model_story = load_story(story, facts=library.facts(story), source="<story>")
     if model_story.boards is None:
         raise _error("schema.invalid", "/boards", "the story's boards must be embedded")
@@ -104,6 +117,11 @@ def drafted_input(story: Mapping[str, Any], board_id: str, library: Library, *,
             raise _error(VOICE_ABSENT, "/narrator_voice_version_id",
                          "a narrator line needs the story's narrator voice")
         voice_id = _stock_voice(library, version_id, model, pointer("boards", index, "lines", i))
+        try:
+            SpeechRequest(voice=voice_id, text=line.text)
+        except AdapterError as error:
+            raise _error(REQUEST_INVALID, pointer("boards", index, "lines", i, "text"),
+                         error.message) from None
         lines.append(VoiceLine(line_id=line.id, speaker=line.speaker, text=line.text,
                                voice_version_id=version_id, voice_id=voice_id,
                                signature=line_signature(signing_name, voice_id, line.text)))
@@ -146,16 +164,34 @@ def reusable_takes(versions: Iterable[AssetVersion]) -> dict[str, tuple[Take, st
 
 @dataclass(frozen=True)
 class TakePlan:
-    """One line: reuse ``reuse`` (from version ``from_version_id``) or synthesize."""
+    """Where one line's take comes from: ``reuse`` (held by version
+    ``from_version_id``), the take of the earlier line ``same_as`` in this input (one
+    new signature, one call), or the speech client."""
 
     line_id: str
     signature: str
     reuse: Take | None
     from_version_id: str | None
+    same_as: str | None = None
 
     @property
     def synthesize(self) -> bool:
-        return self.reuse is None
+        return self.reuse is None and self.same_as is None
+
+
+def take_sources(voice: VoiceInput, versions: Iterable[AssetVersion]) -> tuple[TakePlan, ...]:
+    """For each line of ``voice``: a take of ``versions`` (newest first, as
+    :func:`board_voice_versions` orders them) with its signature, else the first line
+    of this input with that signature, else a speech call."""
+    pool = reusable_takes(versions)
+    first: dict[str, str] = {}
+    out = []
+    for line in voice.lines:
+        take, version_id = pool.get(line.signature, (None, None))
+        same_as = first.get(line.signature) if take is None else None
+        first.setdefault(line.signature, line.line_id)
+        out.append(TakePlan(line.line_id, line.signature, take, version_id, same_as))
+    return tuple(out)
 
 
 @dataclass(frozen=True)
@@ -187,26 +223,16 @@ def plan_board_voice(story: Mapping[str, Any], board_id: str, library: Library, 
     voice = drafted_input(story, board_id, library, model=engine.model,
                           signing_name=engine.signing_name)
     versions = board_voice_versions(library, board_id)
+    takes = take_sources(voice, versions)
     current_id = _current_version_id(story, board_id)
-    ordered = sorted(versions, key=lambda version: version.id != current_id)  # stable
     current = next((v for v in versions if v.id == current_id), None)
     if current is not None and same_input(current, voice):
-        return VoicePlan(board_id, voice, CURRENT, current.id, _takes(voice, ordered))
+        return VoicePlan(board_id, voice, CURRENT, current.id, takes)
     existing = next((v for v in versions if same_input(v, voice)), None)
     if existing is not None:
-        return VoicePlan(board_id, voice, EXISTING, existing.id, _takes(voice, ordered))
-    takes = _takes(voice, ordered)
+        return VoicePlan(board_id, voice, EXISTING, existing.id, takes)
     action = SYNTHESIZE if any(take.synthesize for take in takes) else ASSEMBLE
     return VoicePlan(board_id, voice, action, None, takes)
-
-
-def _takes(voice: VoiceInput, versions: Iterable[AssetVersion]) -> tuple[TakePlan, ...]:
-    pool = reusable_takes(versions)
-    out = []
-    for line in voice.lines:
-        take, version_id = pool.get(line.signature, (None, None))
-        out.append(TakePlan(line.line_id, line.signature, take, version_id))
-    return tuple(out)
 
 
 def _current_version_id(story: Mapping[str, Any], board_id: str) -> str | None:
@@ -238,13 +264,13 @@ def request_voice(story: Mapping[str, Any], board_id: str, library: Library, *,
                   minter: Minter | None = None, engine: Engine = Engine()) -> VoiceRequest:
     """``generate_board_voice``: plan, then queue a voice job only if something must be
     made. A second identical request creates nothing: the board is ``current``, or the
-    in-flight job for the same board and input signature is returned."""
+    in-flight job for the same board and input (signature and lines) is returned."""
     plan = plan_board_voice(story, board_id, library, engine=engine)
     if plan.action in (CURRENT, EXISTING):
         return VoiceRequest(plan, None, False)
     for job in jobs:
         if (job.kind == VOICE and job.in_flight and job.target_id == board_id
-                and job.input_signature == plan.input_signature):
+                and job.voice is not None and same_lines(job.voice, plan.input)):
             return VoiceRequest(plan, job, False)
     job = new_job(VOICE, board_id, plan.input_signature, by=by, now=now, minter=minter,
                   voice=plan.input)
@@ -252,7 +278,8 @@ def request_voice(story: Mapping[str, Any], board_id: str, library: Library, *,
 
 
 __all__ = [
-    "ACTIONS", "ASSEMBLE", "CURRENT", "EXISTING", "NOT_NEEDED", "SOURCE_KEY_PREFIX", "SYNTHESIZE",
-    "TakePlan", "VoicePlan", "VoiceRequest", "board_voice_key", "board_voice_versions",
-    "drafted_input", "plan_board_voice", "request_voice", "reusable_takes", "same_input",
+    "ACTIONS", "ASSEMBLE", "CURRENT", "EXISTING", "NOT_NEEDED", "REQUEST_INVALID",
+    "SOURCE_KEY_PREFIX", "SYNTHESIZE", "TakePlan", "VoicePlan", "VoiceRequest", "board_voice_key",
+    "board_voice_versions", "drafted_input", "plan_board_voice", "request_voice",
+    "reusable_takes", "same_input", "same_lines", "take_sources",
 ]
