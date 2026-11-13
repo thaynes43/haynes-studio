@@ -197,6 +197,29 @@ def test_a_clip_that_decodes_short_fails_mid_render_and_commits_nothing(store):
         builder.segment(h.wf_segment(blob.sha256, 24))
     assert error.value.code == SOURCE_SHORT and "decodes to 20 frames" in str(error.value)
     assert cache.stats.made == [] and builder.rendered == []
+    assert builder.renderer.reports == {}  # a failed render leaves no report
+
+
+def test_a_clip_that_does_not_decode_is_short(store):
+    honest = make_clips(store, h.clip_key(lengths=(25,)))
+    document = h.parse(store, honest)
+    garbage = b"\x00\x00\x00\x18ftypmp42" + bytes(range(256)) * 8
+    store.publish(garbage, scope=PRODUCTION, media_type="video/mp4")
+    document["clips"][0].update(sha256=hashlib.sha256(garbage).hexdigest(), bytes=len(garbage))
+    blob = store.publish(canonical_json(document), scope=PRODUCTION, media_type="application/json")
+    renderer = WholeFrameRenderer()
+    with pytest.raises(WholeFrameError) as error:
+        list(renderer.render(request(store, h.wf_segment(blob.sha256, 24))))
+    assert error.value.code == SOURCE_SHORT and renderer.reports == {}
+
+
+def test_a_16_fps_chain_shows_source_frame_floor_2n_over_3(store):
+    """TIME-8 end to end at 16 fps: frames repeat, the boundary duplicate is dropped."""
+    clip_set = make_clips(store, h.clip_key(profile={**h.PROFILE, "source_fps": 16}))
+    shown = [read_code(f) for f in WholeFrameRenderer().render(request(store, h.wf_segment(clip_set, 45)))]
+    chain = expected_codes(49, 25, 31)  # the chain's distinct frames, in order
+    assert shown == [chain[2 * n // 3] for n in range(45)]
+    assert shown[36:39] == [chain[24], chain[24], chain[25]]  # source 24 is clip 0's last
 
 
 def test_a_clip_set_that_is_not_its_hash_fails(store):

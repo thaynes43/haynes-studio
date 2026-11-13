@@ -20,11 +20,11 @@ UNAVAILABLE = "unavailable"
 
 METHOD_UNAVAILABLE = "method.unavailable"  # contract: whole-frame + S2V
 PHOTO_ABSENT = "photo.absent"  # contract: a whole-frame board with no current photo
-SOURCE_SHORT = "time.source_short"  # contract: a clip is missing, short or undecodable
+SOURCE_SHORT = "time.source_short"  # contract: a stored clip is missing, short or undecodable
 # Proposals (story 427):
 UNSUPPORTED = "wholeframe.unsupported"  # an input or cue the adapter does not draw
 CHAIN_LIMIT = "wholeframe.chain_limit"  # a board needs more chained clips than the limit
-CLIP_INVALID = "wholeframe.clip_invalid"  # a clip source's answer is not what was asked
+CLIP_INVALID = "wholeframe.clip_invalid"  # a source's answer or a record is not what was asked
 
 STATUS = {
     METHOD_UNAVAILABLE: UNAVAILABLE,

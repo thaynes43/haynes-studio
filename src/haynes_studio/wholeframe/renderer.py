@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
+import PIL
 import PIL.Image
 
 from haynes_studio.render.base import SegmentRenderer, SegmentRequest
@@ -45,7 +46,9 @@ from haynes_studio.wholeframe.errors import (
     WholeFrameError,
 )
 
-COMPOSITOR = "studio.wholeframe/1"  # proposal: the segment key's compositor digest
+# Proposal: the segment key's compositor digest. It names the Pillow build, whose Lanczos
+# scaling draws the pixels when a clip is resized (the encoder build is the encoder's).
+COMPOSITOR = f"studio.wholeframe/1+pillow-{PIL.__version__}"
 LANCZOS = "lanczos"
 
 # Every input of a segment key document (keys.INVENTORY), and what this renderer does
@@ -142,10 +145,10 @@ class WholeFrameRenderer(SegmentRenderer):
                             source_fps=clip_set.get("source_fps"), fps=request.fps)
         used = [clip for clip, use in zip(clips, assembly.clips) if use.used]
         data = [self._read(request, clip["sha256"], f"clip {clip['index']}") for clip in used]
-        self.reports[request.key] = WholeFrameReport(
+        report = WholeFrameReport(
             key=request.key, clip_set=clip_set_sha, clips=tuple(c["sha256"] for c in clips),
             assembly=assembly, fit=fit, source_size=source_size)
-        return self._frames(request, assembly, used, data, fit)
+        return self._frames(request, assembly, used, data, fit, report)
 
     @staticmethod
     def _read(request: SegmentRequest, sha256: str, what: str) -> bytes:
@@ -159,7 +162,8 @@ class WholeFrameRenderer(SegmentRenderer):
             raise WholeFrameError(SOURCE_SHORT, f"{what} cannot be read: {error}", where=sha256) from error
 
     def _frames(self, request: SegmentRequest, assembly: Assembly, used: list[dict[str, Any]],
-                data: list[bytes], fit: str | None) -> Iterator[np.ndarray]:
+                data: list[bytes], fit: str | None, report: WholeFrameReport) -> Iterator[np.ndarray]:
+        """The board's frames; the report is kept only once every frame was made."""
         size = (request.width, request.height)
         picks = list(assembly.picks())
         produced = 0
@@ -172,7 +176,7 @@ class WholeFrameRenderer(SegmentRenderer):
             cursor = iter(wanted)
             target = next(cursor)
             decoded = -1
-            for decoded, frame in enumerate(decode_frames(blob)):
+            for decoded, frame in _decoded(blob, index):
                 if frame.shape != (clip["height"], clip["width"], 3):
                     raise WholeFrameError(CLIP_INVALID, f"clip {index} frame {decoded} is "
                                           f"{frame.shape}, recorded {clip['width']}x{clip['height']}")
@@ -187,6 +191,18 @@ class WholeFrameRenderer(SegmentRenderer):
                                       f"frame {last_needed} is needed")
         if produced != request.frames:  # a guard: assemble() and picks() make this hold
             raise WholeFrameError(SOURCE_SHORT, f"assembled {produced} of {request.frames} frames")
+        self.reports[request.key] = report
+
+
+def _decoded(blob: bytes, index: int) -> Iterator[tuple[int, np.ndarray]]:
+    """A stored clip's frames, numbered; a clip that stops decoding is short."""
+    try:
+        yield from enumerate(decode_frames(blob))
+    except WholeFrameError:
+        raise
+    except Exception as error:  # PyAV raises its own error types for damaged media
+        raise WholeFrameError(SOURCE_SHORT, f"clip {index} does not decode: "
+                              f"{type(error).__name__}") from error
 
 
 def _scale(frame: np.ndarray, size: tuple[int, int]) -> np.ndarray:

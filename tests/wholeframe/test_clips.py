@@ -6,6 +6,9 @@ Clips come from the fake source (25 frames at 360x640, two threads), under tmp_p
 from __future__ import annotations
 
 import hashlib
+import io
+from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -13,8 +16,9 @@ from haynes_studio.cache import ArtifactCache, stage_name
 from haynes_studio.cache.keys import WHOLE_FRAME_CLIP
 from haynes_studio.jsonio import parse_strict
 from haynes_studio.stages import completed_stage
-from haynes_studio.store import HASH_MISMATCH, StoreError
+from haynes_studio.store import BLOB_MISSING, HASH_MISMATCH, StoreError, blob_locator, record_path
 from haynes_studio.wholeframe import WholeFrameClips, chain_seed, last_frame_png, production_reader
+from haynes_studio.wholeframe.clips import media_stage
 from haynes_studio.wholeframe.errors import (
     CHAIN_LIMIT,
     CLIP_INVALID,
@@ -73,6 +77,12 @@ def test_a_miss_makes_the_chain_once_and_records_each_clips_provenance(store):
     assert second["start_image"] == {"role": "previous_last_frame",
                                      "sha256": hashlib.sha256(png).hexdigest(), "media_type": "image/png"}
     assert h.blob(store, second["start_image"]["sha256"], "image/png").read_bytes() == png
+    media = completed_stage(store, production_id=PRODUCTION, run_id=h.RUN1,
+                            stage=media_stage(made.sha256))
+    assert {name: blob.sha256 for name, blob in media.blobs.items()} == {
+        "clip.0": first["sha256"], "clip.1": second["sha256"], "start.1": second["start_image"]["sha256"]}
+    photos = [blob_locator("library", hashlib.sha256(d).hexdigest(), "image/png") for d in h.PHOTOS.values()]
+    assert store.doctor(referenced=photos).clean  # every clip is listed by a completed stage
 
 
 def test_a_hit_in_a_later_run_asks_the_source_for_nothing(store):
@@ -155,7 +165,8 @@ def test_a_hit_whose_clip_is_missing_fails_closed(store, tmp_path):
     second, _ = stage(store, run_id=h.RUN2, earlier=(h.RUN1,))
     with pytest.raises(WholeFrameError) as error:
         second.clips(h.clip_key())
-    assert error.value.code == SOURCE_SHORT and "clip 1 is missing" in str(error.value)
+    assert error.value.code == SOURCE_SHORT and "is missing" in str(error.value)
+    assert "clip.1" in str(error.value)
 
 
 def test_a_hit_whose_clip_is_damaged_fails_closed(store):
@@ -170,9 +181,52 @@ def test_a_hit_whose_clip_is_damaged_fails_closed(store):
     assert error.value.code == HASH_MISMATCH
 
 
-def test_a_photo_that_is_not_its_hash_is_never_sent(store, tmp_path):
+def test_a_photo_that_is_not_its_hash_is_never_sent(store):
+    source = FakeClipSource()
+    cache = ArtifactCache(store, production_id=PRODUCTION, run_id=h.RUN1)
+    clips = WholeFrameClips(cache, source, read_photo=lambda sha: io.BytesIO(b"other bytes"))
+    with pytest.raises(StoreError) as error:
+        clips.clips(h.clip_key())
+    assert error.value.code == HASH_MISMATCH and source.calls == []
+
+
+def test_a_photo_the_store_does_not_hold_is_never_sent(store):
     source = FakeClipSource()
     clips, _ = stage(store, source)
-    with pytest.raises(StoreError):
+    with pytest.raises(StoreError) as error:
         clips.clips(h.clip_key(photo=b"a photo the store does not hold"))
-    assert source.calls == []
+    assert error.value.code == BLOB_MISSING and source.calls == []
+
+
+@pytest.mark.parametrize(("field", "value"), [
+    ("engine", ""), ("engine_job_id", ""), ("files_sha256", {}),
+    ("files_sha256", {"model.safetensors": "not-a-hash"}), ("extra", {"render_s": float("nan")}),
+])
+def test_incomplete_provenance_fails_and_publishes_nothing(store, field, value):
+    source = FakeClipSource()
+    original = source.generate
+    source.generate = lambda request: [replace(c, **{field: value}) for c in original(request)]
+    clips, cache = stage(store, source)
+    with pytest.raises(WholeFrameError) as error:
+        clips.clips(h.clip_key())
+    assert error.value.code == CLIP_INVALID and cache.stats.made == []
+    assert not list((h.blob(store, "0" * 64).parent.parent).glob("*/*.mp4"))
+
+
+def test_a_profile_of_another_aspect_than_the_media_kind_is_refused_before_the_source(store):
+    source = FakeClipSource()
+    clips, _ = stage(store, source)
+    with pytest.raises(WholeFrameError) as error:
+        clips.clips(h.clip_key(profile={**h.PROFILE, "delivery": {"aspect": "16:9", "fps": 24}}))
+    assert error.value.code == UNSUPPORTED and source.calls == []
+
+
+def test_a_hit_whose_media_stage_record_is_missing_fails_closed(store, tmp_path):
+    first, _ = stage(store)
+    made = first.clips(h.clip_key())
+    record = Path(store.root) / record_path(PRODUCTION, h.RUN1, media_stage(made.sha256))
+    record.rename(tmp_path / "record.json")
+    second, _ = stage(store, run_id=h.RUN2, earlier=(h.RUN1,))
+    with pytest.raises(WholeFrameError) as error:
+        second.clips(h.clip_key())
+    assert error.value.code == SOURCE_SHORT and "no completion record" in str(error.value)

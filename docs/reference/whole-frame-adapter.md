@@ -17,8 +17,8 @@ Every choice beyond the contract is a **proposal** of story 427.
 | `wholeframe.chain` | `assemble`: a board's frames from a chain, by TIME-8, pure |
 | `wholeframe.source` | `ClipSource`, `ClipRequest`, `ClipSpec`, `SourceClip`, `chain_seed`, `last_frame_png` |
 | `wholeframe.fake` | `FakeClipSource`: small synthetic clips for tests and dry runs |
-| `wholeframe.clips` | `WholeFrameClips`: the clip stage on `ArtifactCache`; `production_reader` |
-| `wholeframe.renderer` | `WholeFrameRenderer` (compositor `studio.wholeframe/1`), `fit_rule`, `check_segment` |
+| `wholeframe.clips` | `WholeFrameClips`: the clip stage on `ArtifactCache`; `production_reader`, `IMAGE_TYPES`, `media_stage` |
+| `wholeframe.renderer` | `WholeFrameRenderer` (compositor `COMPOSITOR`, `studio.wholeframe/1+pillow-<version>`), `fit_rule`, `check_segment` |
 | `wholeframe.checks` | `check_board`: the refusals as violations, for the pre-build check |
 | `wholeframe.errors` | the codes below |
 
@@ -77,7 +77,7 @@ A source gets one `ClipRequest` and returns one `SourceClip` per `ClipSpec`, in 
 | `ClipRequest` field | What |
 |---|---|
 | `key` | the whole-frame clip key's value (for naming or deduplicating jobs) |
-| `photo`, `photo_sha256` | the board photo's bytes and hash, as the key names it |
+| `photo`, `photo_sha256` | the board photo's bytes and hash, as the key names it (PNG, JPEG or WebP; the bytes' signature says which) |
 | `prompt`, `seed` | the key's prompt and the board's `i2v:frame` seed |
 | `profile` | the key's profile: `model`, `source_fps`, `size` `[width, height]`, `adapter`, `delivery` |
 | `clips` | `ClipSpec(index, frames, seed)` per clip: the requested length and `chain_seed(seed, index) = seed + index` (proposal) |
@@ -101,8 +101,9 @@ cache or the renderer:
 - Return every clip or raise. Never return part of a chain, a clip of another length,
   size or start image, or a clip it did not make. The adapter checks all of these and
   fails the stage (below); a failure publishes nothing.
-- Fill `engine`, `engine_job_id` and `files_sha256` from the engine's own record (the Wan
-  ledger), not from configuration.
+- Fill `engine`, `engine_job_id` and `files_sha256` (at least one file, each by SHA-256)
+  from the engine's own record (the Wan ledger), not from configuration; `extra` must be
+  plain JSON (no NaN). A clip without them fails `wholeframe.clip_invalid`.
 
 The adapter measures everything else itself: each clip's hash, the frames it decodes to,
 its size, and the start image a chained clip should have had.
@@ -112,13 +113,18 @@ its size, and the start image a chained clip should have had.
 `WholeFrameClips(cache, source, read_photo=...)` is the plan's `content` for
 `whole_frame_clip` keys. One key is one artifact, the **clip set** (proposal): a JSON
 record committed once as the completed stage `whole_frame_clip-<key hex>` through
-`ArtifactCache` (outputs `whole_frame_clip` and `inputs`).
+`ArtifactCache` (outputs `whole_frame_clip` and `inputs`). The clips and chained start
+images it names are committed just before it, in the same run, as the **media stage**
+`whole_frame_media-<clip set hash>` (proposal; outputs `clip.<i>` and `start.<i>`), so
+every blob is listed by a completed record and `store doctor` reports no orphan. The
+media stage is named by the clip set's content, so a retry after a failure between the
+two commits makes a new pair and never collides with the first.
 
 | Case | What happens |
 |---|---|
-| Miss | refuse a profile it cannot serve; read the photo by hash and re-hash it; ask the source; check every clip; publish each clip (`video/mp4`) and each chained start image (`image/png`) into the production's folder; then commit the clip set. Blobs first, record last |
-| Hit | read the completed record; check it is this key's clip set; re-hash every clip and start image it names. Missing is `time.source_short`, other bytes `store.hash_mismatch`; nothing is repaired or regenerated |
-| Bad answer | a missing or short clip is `time.source_short`; extra frames, another size, seed, length or start image is `wholeframe.clip_invalid`. Nothing is published or committed |
+| Miss | refuse a profile it cannot serve; read the photo by hash and re-hash it; ask the source; check every clip and make the clip set record; commit the media stage (clips as `video/mp4`, start images as `image/png`); then commit the clip set. Blobs first, records last |
+| Hit | read the completed record; check it is this key's clip set; read the media stage's record in the same run, which re-hashes every blob, and check that it lists exactly the clip set's clips and start images. A missing blob or record is `time.source_short`, other bytes `store.hash_mismatch`; nothing is repaired or regenerated |
+| Bad answer | a missing or short clip is `time.source_short`; extra frames, an undecodable clip, another size, seed, length or start image, or incomplete provenance is `wholeframe.clip_invalid`. Nothing is published or committed |
 
 The clip set (`studio.whole-frame-clips/v1`) holds `key`, `adapter`, `source` (the
 source's name), `photo` (the first photo's hash), `prompt`, `seed`, `profile`,
@@ -154,8 +160,12 @@ same aspect exactly (576x1024 to 1080x1920) is scaled with Pillow's Lanczos, as 
 assembler did; any other aspect is refused. Nothing is cropped or padded.
 
 `renderer.reports[segment key]` holds what each render used: the clip set, the clips'
-hashes, the assembly (per-clip use and the trim) and the size rule. It is not a cache
-input; the run records it (story 406).
+hashes, the assembly (per-clip use and the trim) and the size rule. It is written only
+after the last frame is made, so a failed render leaves none. It is not a cache input;
+the run records it with the committed segment (story 406).
+
+The compositor digest names the Pillow version, because Pillow's Lanczos draws the
+pixels of a resized clip; a Pillow update makes new segment keys.
 
 ## Supported and refused
 
@@ -168,9 +178,10 @@ input; the run records it (story 406).
 | A move or camera cue | refused | `wholeframe.unsupported` |
 | Layout, layers, set, motion style or foreground in the segment key; fps other than 24; an unknown input | refused | `wholeframe.unsupported` |
 | A clip of another aspect than the board | refused | `wholeframe.unsupported` |
-| A profile naming another adapter, or without a whole `source_fps` or even `size` | refused before the source is asked | `wholeframe.unsupported` |
+| A profile naming another adapter, without a whole `source_fps` or even `size`, or whose size is not the media kind's aspect | refused before the source is asked | `wholeframe.unsupported` |
 | A board needing more than 3 clips | refused | `wholeframe.chain_limit` (`cache.key_input_invalid` in the plan) |
-| A missing, short or undecodable clip; a segment key with no clip | failed stage | `time.source_short` |
+| A stored clip that is missing, short or undecodable; a missing media stage; a segment key with no clip | failed stage | `time.source_short` |
+| A source's answer that is not what was asked (above) | failed stage | `wholeframe.clip_invalid` |
 | A clip set or clip that is not its hash | failed stage | `store.hash_mismatch` |
 
 | Code | Status | Source |
@@ -189,20 +200,23 @@ from haynes_studio.cache import ArtifactCache, plan_story
 from haynes_studio.cache.build import PictureBuilder
 from haynes_studio.cache.keys import WHOLE_FRAME_CLIP
 from haynes_studio.wholeframe import WholeFrameClips, WholeFrameRenderer, production_reader
+from haynes_studio.wholeframe.clips import IMAGE_TYPES
 
 cache = ArtifactCache(store, production_id=prd, run_id=run, earlier_runs=earlier)
 clips = WholeFrameClips(cache, source,  # FakeClipSource() in tests; the live Wan source in 428
-                        read_photo=production_reader(store, "library", ("image/png",)))
+                        read_photo=production_reader(store, "library", IMAGE_TYPES))
 builder = PictureBuilder(cache, WholeFrameRenderer(), open_input=production_reader(store, prd),
                          upstream=lambda key: clips(key) if key.kind == WHOLE_FRAME_CLIP else other(key))
 plan = plan_story(story, ..., toolchain=toolchain, content=builder)
 ```
 
-- The toolchain's `compositor` must be `studio.wholeframe/1` for these segments, its
+- The toolchain's `compositor` must be `wholeframe.COMPOSITOR` for these segments, its
   `i2v_profile` must name adapter `studio.i2v/1` with `source_fps` and `size`, and its
   `i2v_clip_frames` is the policy's clip length. Story 406 registers this renderer for
   whole-frame boards beside the layered one of story 426 and runs `check_board` at
-  `queue_run`.
+  `queue_run`. Until it does, a move or camera cue on a whole-frame board is refused
+  only by the renderer, after the clips were made (they stay cached for the corrected
+  board).
 - Story 428 swaps `FakeClipSource` for the live source; nothing else changes. A second
   build of an unchanged board asks the source for nothing and renders nothing. Record
   `renderer.reports` and the clip sets' provenance with the run.
