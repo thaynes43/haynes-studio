@@ -2,8 +2,10 @@
 
 The canonical contract every E1 story and later work builds against:
 [`studio-contracts-v1.md`](studio-contracts-v1.md) (story
-[423](https://work.haynesnetwork.com/work_packages/423)). It is a draft until the E1
-coordinator ratifies it; a story that depends on it pins the ratified commit.
+[423](https://work.haynesnetwork.com/work_packages/423)). The E1 coordinator ratified it
+at the review of PR 37 on 2026-11-13; that is not Tom's acceptance, and its proposals and
+held questions stay open to him. A story that depends on it pins the merged commit on
+`main`.
 
 | Read | When |
 |---|---|

@@ -2,7 +2,10 @@
 
 Story [423](https://work.haynesnetwork.com/work_packages/423) (E1.9, review R01), epic
 [372](https://work.haynesnetwork.com/work_packages/372). Base: `main` at `aa73c4e`.
-**Status: draft for coordinator ratification.** Nothing here is implemented. Stories
+**Status: ratified by the E1 coordinator on 2026-11-13, at the review of PR 37, as the
+contract E1 is built against.** That is the coordinator's technical agreement, not Tom's
+acceptance: every `P-nn` stays a proposal Tom may overrule, and every `Q-nn` stays held
+for him. Nothing here is implemented. Stories
 [378](https://work.haynesnetwork.com/work_packages/378),
 [404](https://work.haynesnetwork.com/work_packages/404),
 [424](https://work.haynesnetwork.com/work_packages/424) and later E1 to E9 stories build
@@ -16,7 +19,7 @@ Every rule carries its source:
 | **D*n*** | Tom's decision in [proposal 0003](../proposals/0003-studio-plan.md). Later rulings beat older prose. |
 | **Evidence** | An E0 measurement, with its file under [`titles/the-winter-menu/video-e0/`](../../titles/the-winter-menu/video-e0/). |
 | **Legacy** | What the PoC code or a Winter Menu manifest does today (file named). |
-| **Proposal P-*nn*** | This contract's choice, with the alternative it rejects. Not Tom's decision; the coordinator ratifies or changes it at review. |
+| **Proposal P-*nn*** | This contract's choice, with the alternative it rejects. Not Tom's decision. The coordinator ratified each at review as the working choice; Tom may overrule any. |
 | **Held Q-*nn*** | An owner choice only Tom can make. Options and a recommendation are in [section 16](#16-held-owner-questions). |
 
 E0's three deferrals (NFS write contention, AI upscaler quality, Foley listening verdict)
@@ -381,7 +384,7 @@ toolchain digest (P-07).
 | S2V drive track | board | board voice track, speaker, board frames |
 | S2V clip | source | drive track, start still, prompt, negative prompt, seed, profile (model files, LoRA, steps, cfg, size, chunk), adapter version |
 | Doll clip or set loop (library `motion`) | source | still, prompt, seed, profile |
-| Whole-frame I2V clip(s) | source | photo, prompt, seed, profile, frames needed, chain policy |
+| Whole-frame I2V clip(s) | source | photo, prompt, seed, profile, requested clip lengths (set by the frames needed and the chain policy of story [427](https://work.haynesnetwork.com/work_packages/427)) |
 | Keyed and decal frames | source | clip, key thresholds, protect boxes, still, decal box, decal version (Legacy `DollClip.cache_dir`) |
 | Board picture segment | board | method, layout preset values, cast stills, clip and keyed hashes, phases, motion style, voice envelope when any line is spoken, move and camera cues, frames, frame size, fps, foreground edge, compositor digest, encoder settings |
 | Film picture | film | ordered segment hashes |
@@ -398,9 +401,9 @@ expected result of the keys; tests in story [380](https://work.haynesnetwork.com
 |---|---|---|---|---|
 | Line text, line added or removed | new voice version; TTS only for changed takes | every S2V clip whose drive track changes: the edited line's speaker, plus every speaker with a later line when a take's duration changes; all S2V clips if frames change; segment | reused | rebuilt |
 | Line speaker | takes of that line | S2V clips of old and new speaker, plus every speaker with a later line when the new take's duration differs; all if frames change; segment | reused | rebuilt |
-| Lead or gap | new voice version, no TTS | S2V clips of every speaker with a line after the edited point (a lead edit moves all); segment | reused | rebuilt |
-| Tail | none | only if frames change: S2V clips and segment | reused | rebuilt if frames change, else mix only |
-| Hold (silent board) | none | segment; I2V clips reused while they cover the frames | reused | rebuilt |
+| Lead or gap | new voice version, no TTS | S2V clips of every speaker with a line after the edited point (a lead edit moves all); all S2V clips if frames change; segment | reused | rebuilt |
+| Tail | none | only if frames change: S2V clips and segment | reused | rebuilt if frames change, else reused (no key changes) |
+| Hold (silent board) | none | segment; whole-frame I2V clips reused while the requested clip lengths are unchanged | reused | rebuilt |
 | Reorder boards | none | reused | reused | rebuilt (film offsets move) |
 | Add or remove a board | that board's | that board's | reused | rebuilt |
 | Method (layer or motion) | none | clips and segment | reused | rebuilt |
@@ -780,7 +783,7 @@ does. Example: [`go-live-approval.json`](examples/valid/go-live-approval.json).
 | `draft:write` | stories, boards, lines, cues, notes |
 | `assets:generate` | voice, photo and asset-candidate jobs |
 | `assets:upload` | D42 board photo uploads |
-| `runs:queue` | queue and cancel runs (Held **Q-02**) |
+| `runs:queue` | queue and cancel runs, record check overrides (Held **Q-02**: until Tom answers, no agent key holds this scope and these operations are for people only) |
 | `go_live:approve` | humans on the allowlist only; never on a key |
 
 A key lists its productions; anything else is `forbidden` (story
@@ -840,15 +843,15 @@ in v1.
 
 ## 13. Stack pin
 
-Each choice is a proposal for the coordinator to ratify (P-18). Nothing was installed or
-built to make it.
+Each choice is a proposal (P-18) that the coordinator ratified at review. Nothing was
+installed or built to make it.
 
 | Layer | Pin | Reason | Rejected |
 |---|---|---|---|
 | Python | CPython **3.12** in images; `requires-python = ">=3.11,<3.13"`; CI tests 3.11 and 3.12 | studio-render already runs 3.12 with pinned requirements ([services.md](../reference/services.md)); session pods have 3.11.2, and tests must run there without installing an interpreter. No 3.12-only syntax. | 3.13 (no runtime has it); 3.11 only (the worker runs 3.12) |
 | Package | distribution `haynes-studio`, import package **`haynes_studio`** under `src/`, CLI command `studio` | `poc/studio.py` is a module named `studio` that the PoC scripts import from their own folder; a package of the same name would shadow or be shadowed | package named `studio` |
 | Build and lock | `pyproject.toml` with the **hatchling** backend; **uv** with a committed `uv.lock`, `uv sync --locked` | uv is in every session pod (0.13); one cross-platform lock; hatchling builds with plain pip in image builds too | Poetry (not installed, separate lock); pip-tools (per-platform files) |
-| Runtime libraries | numpy, Pillow, PyAV, opencv-python-headless (decal, Apache-2.0), **imageio-ffmpeg** for the ffmpeg binary | what `poc/` uses; session pods have no system ffmpeg | system ffmpeg |
+| Runtime libraries | numpy, Pillow, PyAV, opencv-python-headless (decal, Apache-2.0), **imageio-ffmpeg** for the ffmpeg binary. A story that ports PoC code adds what that code already uses (scipy for keying, wyoming for the TTS and ASR adapters) to the lock | what `poc/` uses; session pods have no system ffmpeg | system ffmpeg |
 | Tests | **pytest**, serial; markers in [section 14](#14-test-contract) | standard; serial keeps the 2-thread rule | pytest-xdist by default |
 | JSON Schema | draft 2020-12 files; the `jsonschema` library checks them against the examples | language-neutral, shared with the web app and MCP | Python models as the only schema |
 | API | **FastAPI** + Pydantic v2 + Uvicorn | OpenAPI with auth and errors (story 409's acceptance); typed request models; streaming responses for media | Django (stateful sessions, ORM-first); Flask (no OpenAPI or validation) |
@@ -879,9 +882,13 @@ What story 424 implements. Proposal P-19 for the names and commands.
   return deterministic synthetic bytes; frozen responses are JSON with hashes. No private
   media, real voices or tokens in CI; `check_no_media.py` stays.
 - **Output:** no environment dumps, no tokens; failures print codes and paths.
-- **Contract examples:** every file in `examples/valid/` must validate against the 378 and
-  404 schemas once they exist; every file in `examples/invalid/` must fail with its
-  `rule` code and `expect` status. Today `check_syntax.py` parses JSON only under
+- **Contract examples:** every file in `examples/valid/` must validate against the schema
+  of its type, and every file in `examples/invalid/` must fail with its `rule` code and
+  `expect` status, once the story that owns that type has landed its schema and validator
+  (378: the legacy manifest; 404: production, story, board, timing and methods; later
+  stories for assets, runs, deliveries and approvals, as their tracker items say). Until
+  then story 424's harness reports the example as pending by type and never skips one
+  silently. Today `check_syntax.py` parses JSON only under
   `titles/` and `poc/graphs/`; story 424 extends it to `docs/contracts/examples/`.
 - **CI jobs:** `source (3.11)`, `source (3.12)`, `db`, and `browser` once the web app
   exists, plus the existing links, syntax and no-media checks. The coordinator sets
@@ -953,7 +960,9 @@ took about 37 min plus 92 min of GPU wall time
 ([findings-s2v.md](../../titles/the-winter-menu/video-e0/findings-s2v.md)). (a) People only in v1. (b) A per-key `runs:queue` scope, off by
 default, granted by Tom per production. (c) Any key with `draft:write`.
 **Recommendation: (b).** It keeps D40's frontier loop and E5's shepherd possible without
-giving every drafting key GPU spend.
+giving every drafting key GPU spend. The same answer covers `studio_cancel_run` and
+`studio_override_check`, which the operations table puts under the same scope. Until Tom
+answers, (a) applies: nothing is granted to a key by default.
 
 **Q-03 For a layered board, what is the reference photo?** Affects `board.photo`, the
 invalidation row "Board photo version", and stories [417](https://work.haynesnetwork.com/work_packages/417), [418](https://work.haynesnetwork.com/work_packages/418) and 426. Layered builds use
