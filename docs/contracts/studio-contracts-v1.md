@@ -1070,7 +1070,7 @@ does. Example: [`go-live-approval.json`](examples/valid/go-live-approval.json).
 | `draft:write` | stories, boards, lines, cues, notes |
 | `assets:generate` | voice, photo and asset-candidate jobs |
 | `assets:upload` | D42 board photo uploads |
-| `runs:queue` | queue and cancel runs, record check overrides. An agent key may hold it (D50, Q-02 answered 2026-11-13; coordinator's reading: the per-key scope is the mechanism and is no longer people-only). A key holds it only when issued with it, for its productions. A build takes the Wan compute lease, one job at a time, with its unknown-work checks; a lease or queue across agents is dev-env work in haynes-engineering |
+| `runs:queue` | queue and cancel runs; for a signed-in person, also record check overrides. An agent key may hold it to queue and cancel (D50, Q-02 answered 2026-11-13; coordinator's reading: the per-key scope is the mechanism and is no longer people-only). Tom's ruling is about using the GPUs, so it does not reach check overrides: a judgement by eye stays with people, and no agent key may record one until Tom says otherwise. A key holds the scope only when issued with it, for its productions. A build takes the Wan compute lease, one job at a time, with its unknown-work checks; a lease or queue across agents is dev-env work in haynes-engineering |
 | `go_live:approve` | humans on the allowlist only; never on a key |
 
 A key lists its productions; anything else is `forbidden` (story
@@ -1116,7 +1116,7 @@ Paths are under `/v1`. MCP tool names replace the old `patch_shot` and
 | `get_run` (status, progress, stages, checks) | `GET /runs/{id}` | `studio_get_run` | read | 410, 430 |
 | `cancel_run` | `POST /runs/{id}/cancel` | `studio_cancel_run` | runs:queue | 410 |
 | `compare_runs` (boards matched by stable ID) | `GET /runs/compare?left=&right=` | | read | 419 |
-| `record_check_override` (with a reason; never a release check) | `POST /runs/{id}/checks/{check}/overrides` | `studio_override_check` | runs:queue | 410, [450](https://work.haynesnetwork.com/work_packages/450) |
+| `record_check_override` (with a reason; never a release check) | `POST /runs/{id}/checks/{check}/overrides` | `studio_override_check` (refused for agent keys) | runs:queue, people only | 410, [450](https://work.haynesnetwork.com/work_packages/450) |
 | `get_delivery` | `GET /runs/{id}/delivery` | `studio_get_delivery` | read | 381, 409 |
 | `approve_go_live` | `POST /runs/{id}/go-live-approvals` | | go_live:approve | 412 |
 | `withdraw_go_live` | `POST /go-live-approvals/{id}/withdraw` | | go_live:approve | 412 |
@@ -1276,7 +1276,9 @@ the same time so there'd need to be some lease / queue in place but that isn't w
 you that is work for the dev-env haynes engineering project which you can simply
 backlog". *Coordinator's reading:* agents may queue builds on the two 3090s, one job at
 a time through the Wan compute lease; the per-key `runs:queue` scope stays the
-mechanism and is no longer people-only (section 12); a lease or queue across agents is
+mechanism and is no longer people-only for queueing and cancelling (section 12); check
+overrides, a judgement by eye his words do not cover, stay with people; a lease or queue
+across agents is
 dev-env work in haynes-engineering; the shared ComfyUI image GPU keeps its household
 rule.
 
