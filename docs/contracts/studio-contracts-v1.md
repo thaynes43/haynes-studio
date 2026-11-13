@@ -88,7 +88,7 @@ a canonical ID. Worked map: [`legacy-import-map.json`](examples/valid/legacy-imp
 | ledger `preset`, `provenance {..., human_approval}`, `assets[]`, `created_at` | How the delivery was made, and every delivered file | Delivery `legacy` block: `preset` and `provenance` verbatim, `assets_ref` to the evidence file; `created_at` as ISO time ([example](examples/valid/delivery-legacy-r4.json)). |
 | `speech.json` `service` | The TTS service | `board_voice` provenance `engine` |
 | `provenance` (free text), `revision_note` | Notes | Imported run notes; `revision_note` becomes feedback in E9.3. |
-| `speech.json` lines `{shot, k, file, duration_s, sha256}` | One WAV per line | Takes inside a `board_voice` asset version, with offsets ([example](examples/valid/asset-version-board-voice.json)). The legacy track was never assembled: `track: null`. |
+| `speech.json` lines `{shot, k, file, duration_s, sha256}` (`k` is absent in r1 and r2, where every shot has one line; read as 0) | One WAV per line | Takes inside a `board_voice` asset version, with offsets ([example](examples/valid/asset-version-board-voice.json)). The legacy track was never assembled: `track: null`. |
 | `prompts.json`, `cutouts/` | Image provenance, keyed RGBA stills | `cast` asset versions with provenance ([example](examples/valid/asset-version-cast.json)) |
 | E0 `keyframes.json` | Composed first frames per shot | Imported `photo` versions on the r4 boards |
 | E0 Wan `job_id`, clip records | Engine jobs and clips | `engine_job_id` in provenance; clips become run artifacts or `motion` assets (story [457](https://work.haynesnetwork.com/work_packages/457)). |
@@ -97,6 +97,14 @@ a canonical ID. Worked map: [`legacy-import-map.json`](examples/valid/legacy-imp
 Re-import is idempotent: every imported record carries a `source_key` such as
 `legacy:the-winter-menu-r4:shot:8`, unique per record type, and a second import returns
 the existing IDs (P-01).
+
+The legacy adapter has four rule codes of its own (story
+[378](https://work.haynesnetwork.com/work_packages/378)): `legacy.invalid` (a legacy
+manifest that is not strict JSON, or fails its schema in a way no specific rule names),
+`legacy.reference` (a repeated shot id, a sound that is not in the `sfx` table, an
+`after_line` beyond the shot's lines), `legacy.speech_mismatch` (a `speech.json` that
+does not pair with the manifest's lines) and `legacy.timeline_mismatch` (a computed
+timeline that differs from a recorded `timeline.json` by more than TIME-12 allows).
 
 ## 2. Schema versions and identifiers
 
@@ -114,6 +122,7 @@ wrapper `invalid-case`. Error responses use the envelope in
 - Write requests reject unknown fields (`schema.unknown_field`), so a typo from an agent
   fails instead of vanishing (P-02). When a specific rule covers a field (a typed
   `timing.duration_ms`, cue fields inside a note), the validator reports that rule instead.
+  A missing or mistyped field that no specific rule covers is `schema.invalid`.
 - Fields under `derived` are computed by the server, returned on reads and rejected on
   writes.
 - The legacy manifest has no `schema` field. Story 378 documents it as
@@ -292,14 +301,20 @@ display only.
   layered S2V film used it).
 - **TIME-10 Cues.** A cue's resolved start lies in `[0, board length)`
   (`cue.out_of_range`); on an untimed board the check runs at `queue_run`. A sound may run
-  past the cut and is cut at film end; both are recorded. Legacy (`edit.audio`).
+  past the cut and is cut at film end; both are recorded. Legacy (`edit.audio`) cut it
+  100 ms after film end (its mix buffer's spare tenth of a second), so a recorded legacy
+  sound end may exceed the film's length; no Winter Menu sound does.
 - **TIME-11 Conservation.** Sum of board frames = film frames = decoded master frames;
   master duration = frames / 24; mix length = frames x 2000 samples; every line ends at
   or before `content_ms - tail_ms` of its own board. Any mismatch fails the run.
 - **TIME-12 Legacy adapter.** Imported runs keep their recorded values. Canonical
   arithmetic reproduces every r4 frame count (table below); story 378 checks r1 to r3.
   Legacy rounded shot starts to 0.1 ms before placing samples, so legacy and canonical
-  line placements may differ by up to 3 samples (0.06 ms); cross-checks allow 1 ms.
+  sample placements differ by up to 3 samples (0.06 ms). A check against a recorded
+  `timeline.json` needs more room: the record rounds line and sound times to 3 decimals
+  and takes line ends from the resampled audio, not `duration_s` (up to 0.667 ms on the
+  Winter Menu). Such cross-checks allow 1 ms for line, sound and bed times; frames are
+  exact, and shot times are exact at the record's 4 decimals.
 
 ### Worked example: The Winter Menu r4
 
@@ -888,8 +903,8 @@ What story 424 implements. Proposal P-19 for the names and commands.
   (378: the legacy manifest; 404: production, story, board, timing and methods; later
   stories for assets, runs, deliveries and approvals, as their tracker items say). Until
   then story 424's harness reports the example as pending by type and never skips one
-  silently. Today `check_syntax.py` parses JSON only under
-  `titles/` and `poc/graphs/`; story 424 extends it to `docs/contracts/examples/`.
+  silently. `check_syntax.py` parses the JSON under `titles/`, `poc/graphs/` and, since
+  story 424, `docs/contracts/examples/`.
 - **CI jobs:** `source (3.11)`, `source (3.12)`, `db`, and `browser` once the web app
   exists, plus the existing links, syntax and no-media checks. The coordinator sets
   required checks; the Claude review stays advisory.
@@ -902,6 +917,7 @@ What story 424 implements. Proposal P-19 for the names and commands.
 |---|---|---|---|
 | `schema.unsupported` | invalid | 2 | [schema-unsupported](examples/invalid/schema-unsupported.json) |
 | `schema.unknown_field` | invalid | 2 | [schema-unknown-field](examples/invalid/schema-unknown-field.json) |
+| `schema.invalid` | invalid | 2 | |
 | `id.malformed` | invalid | 2 | [id-malformed](examples/invalid/id-malformed.json) |
 | `id.type_mismatch` | invalid | 2 | [id-type-mismatch](examples/invalid/id-type-mismatch.json) |
 | `time.hold_on_spoken_board` | invalid | 3 | [time-hold-on-spoken-board](examples/invalid/time-hold-on-spoken-board.json) |
@@ -937,6 +953,9 @@ What story 424 implements. Proposal P-19 for the names and commands.
 | `approval.not_exact_run` | invalid | 11 | [approval-not-exact](examples/invalid/approval-not-exact.json) |
 | `conflict.revision`, `idempotency.mismatch` | conflict, invalid | 12 | |
 | `legacy.duration_with_lines` | invalid | 1 | [legacy-duration-with-lines](examples/invalid/legacy-duration-with-lines.json) |
+| `legacy.invalid` | invalid | 1 | |
+| `legacy.reference` | invalid | 1 | |
+| `legacy.speech_mismatch`, `legacy.timeline_mismatch` | invalid | 1, 3 | |
 
 ## 16. Held owner questions
 
