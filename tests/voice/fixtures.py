@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
 from haynes_studio.adapters.fakes import FakeKokoro, FakeRunner
@@ -178,4 +178,41 @@ def generated_r4() -> Studio:
     """The fresh r4 draft with every spoken board voiced and current."""
     studio = fresh_r4()
     studio.generate_all()
+    return studio
+
+
+WAV = "audio/wav"
+
+
+def r4_wavs() -> dict[str, bytes]:
+    """Take signature to the synthetic WAV the fake speech service answers for it, for
+    every r4 line (13), as a fresh generation makes them."""
+    studio = generated_r4()
+    production = studio.story["production_id"]
+    return {take.signature: studio.store.blobs[locator_for(take.sha256, WAV, production)]
+            for board in studio.story["boards"] if board["lines"]
+            for take in studio.current(board["number"]).voice.takes}
+
+
+def held_legacy_r4(held: Callable[[str], bool] = lambda signature: True, **kwargs) -> Studio:
+    """The r4 story as story 404 imports it, with story 382's library, but takes the
+    store can hold: the legacy takes' bytes are not public, so each legacy take's hash
+    is replaced by the hash of the synthetic WAV of its signature (``r4_wavs``), and the
+    store holds the WAVs whose signature ``held`` accepts. The board voices keep
+    ``track: null`` as imported, and nothing is recorded as published."""
+    wavs = r4_wavs()
+    studio = legacy_r4(**kwargs)
+    documents = []
+    for document in studio.library.documents():
+        if document["kind"] == "board_voice":
+            document = copy.deepcopy(document)
+            for take in document["voice"]["takes"]:
+                take["sha256"] = hashlib.sha256(wavs[take["signature"]]).hexdigest()
+        documents.append(document)
+    studio.library = Library.from_version_documents(documents)
+    production = studio.story["production_id"]
+    for signature, data in wavs.items():
+        if held(signature):
+            digest = hashlib.sha256(data).hexdigest()
+            studio.store.blobs[locator_for(digest, WAV, production)] = data
     return studio
