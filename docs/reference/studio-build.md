@@ -217,6 +217,27 @@ workers=)`, in order:
 Any error stops the run as `failed` with its code, the board it was on and the stage.
 Every stage already completed stays in the store, and the next run reuses it.
 
+**A stopped run keeps its board stages** (proposal, story
+[860](https://work.haynesnetwork.com/work_packages/860), O-428-6). A run that stops while
+its plan runs (`failed` or `held`: `build.offline_missing` at a clip or at the transcript
+check, `layered.decal_weak` at a segment, a refusal of the Wan client) lists in
+`stages[]` every board it completed before the stop, exactly as a succeeded run lists
+it: its artifacts with `made` and `seconds`, its clips, its segment and the renderer's
+report and checks. A board is complete when the run rendered its segment or found it in
+the cache (in the service phase, also when it reached the segment it leaves to the
+offline phase, as that phase's own record lists it). A board it did not reach, or whose
+segment it did not finish, is not listed: the keyed frames of a board whose segment the
+decal gate refused are in the store but in no stage. With `--workers N`, a segment a
+worker rendered, or the first pass found cached, completes its board even when another
+worker's segment failed (every worker's result is kept before the first failure in
+board order is raised). How: the story is planned again with a chain that answers each
+key as the stopped run did and with a stand-in otherwise (`pipeline._Replay`), so the
+names and keys are the stopped plan's; it makes, reads and asks nothing (a library timed
+clip is looked up again, read-only), and if it raises the run keeps no stages rather than
+hide its failure. A failure after the plan finished (a failed check, the delivery) lists
+its stages as before, and a succeeded run's record is unchanged. A dry run ends before any
+board stage. Tests: `tests/build_story/test_stopped_runs.py`.
+
 **A failure that cannot be recorded** (**proposal**). If writing the failed run raises
 (a store error, or `run.transition` because another writer moved the run), the build
 raises `build.run_unrecorded` (`errors.RunUnrecorded`) instead of returning: its
@@ -464,7 +485,8 @@ problems).
 | `provenance` | below |
 | `delivery_id` | the verified delivery |
 
-A reused segment has no report in this run (the run that rendered it has it).
+A reused segment has no report in this run (the run that rendered it has it). A run that
+stopped lists the board stages it completed ([above](#what-a-build-does), story 860).
 
 ### Provenance (section 7, D44)
 

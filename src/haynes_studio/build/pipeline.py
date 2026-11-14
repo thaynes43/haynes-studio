@@ -37,7 +37,9 @@ In order:
    only then is the run ``succeeded``.
 
 Any error stops the run as ``failed`` with its code, the board it was on and the
-stage; every stage already completed stays in the store for the next run to reuse. A
+stage; every stage already completed stays in the store for the next run to reuse, and
+the run records the board stages it completed before it stopped, as a succeeded run
+records them (:func:`_stopped_stages`, story 860). A
 live clip source's stop (:class:`~.errors.RunHeld`, story 851: any refusal of the Wan
 client) records the run ``held`` instead, a safety stop a person reconciles, and nothing
 further is asked of any source. A
@@ -241,6 +243,8 @@ class _Chain:
         self.segment_board: dict[str, str] = {}
         self.segment_keys: dict[str, CacheKey] = {}
         self.stand_ins: set[str] = set()
+        if not local:  # a pass of the phase's plan: a stop records what it answered
+            build.passes.append(self)
 
     def _local_answer(self, key: CacheKey) -> str | None:
         """The local pass's answer, or ``None`` for a stand-in."""
@@ -346,6 +350,8 @@ class _Build:
         self.transcript = TranscriptChecks(self.cache, transcriber, story)
         self.worker_reports: dict[str, dict[str, Any]] = {}
         self.worker_made: list[str] = []  # segment keys worker processes made
+        self.passes: list[_Chain] = []  # the phase's plan passes, in order (not the local pass)
+        self.cached_segments: dict[str, str] = {}  # the workers' pass: segment key to hash, cached
 
     def route(self, key: CacheKey) -> str:
         kind = key.kind
@@ -550,7 +556,8 @@ class _Recorder:
             return {}
         return {"kept": {"key": kept["key"], "made": kept.get("run_id") == self.build.run_id}}
 
-    def stages(self) -> list[dict[str, Any]]:
+    def stages(self, boards: frozenset[str] | set[str] | None = None) -> list[dict[str, Any]]:
+        """One stage per board of the plan in film order; with ``boards``, only those."""
         build, plan = self.build, self.plan
         motion = build.prepared.motion
         by_board: dict[str, list[tuple[str, Any]]] = {}
@@ -560,6 +567,8 @@ class _Recorder:
         story_boards = {board.id: board for board in build.story.ordered_boards()}
         out = []
         for board_plan in plan.boards:
+            if boards is not None and board_plan.board_id not in boards:
+                continue
             board = story_boards[board_plan.board_id]
             artifacts, clips = [], []
             pinned = None if motion is None else motion.boards.get(board.id)
@@ -642,6 +651,63 @@ def _transcript_entry(result: Mapping[str, Any], key: str, sha256: str) -> dict[
             "measured": measured, "tolerances_used": list(measured.get("tolerances_used", []))}
 
 
+# A stopped run's stages (story 860) ------------------------------------------------------
+
+
+class _Replay:
+    """A content chain that makes, reads and asks nothing: each key is answered as the
+    stopped run's passes answered it (a segment a worker rendered or the workers' pass
+    found cached, as then), every other key with a stand-in. The plan is a function of
+    its answers, so planning the story again on it gives the stopped plan's names and
+    keys for every board it reached."""
+
+    def __init__(self, build: _Build):
+        self.build = build
+        self.answers: dict[str, Made] = {}
+        for chain in build.passes:  # in order: a later pass's answer is the one kept
+            self.answers.update(chain.records)
+        for value, sha in build.cached_segments.items():  # deferred by that pass, found cached
+            if value not in self.answers or self.answers[value].deferred:
+                self.answers[value] = Made(value, SEGMENT, sha, False, 0.0, None)
+        for value, found in build.worker_reports.items():
+            self.answers[value] = Made(value, SEGMENT, found["sha256"], True, found["seconds"], None)
+        self.records: dict[str, Made] = {}
+
+    def __call__(self, key: CacheKey) -> str:
+        found = self.answers.get(key.value)
+        if found is None:
+            found = Made(key.value, key.kind, _stand_in(key), False, 0.0, None, deferred=True)
+        self.records[key.value] = found
+        return found.sha256
+
+
+def _stopped_stages(build: _Build, register: Register) -> list[dict[str, Any]]:
+    """The board stages a run completed before it stopped (story 860, O-428-6), as a
+    succeeded run records them: a board is listed when this run answered its segment
+    (rendered it, or found it in the cache; in the service phase, also the segment it
+    leaves to the offline phase, as that phase's own record lists it) and every artifact
+    before it. A board the run did not reach, or whose segment did not complete (a decal
+    track below its floor, a clip it lacks), is not listed. Planning again is pure (only
+    a library timed clip is looked up, read-only), and any error gives no stages: what
+    stopped the run is never hidden by its record."""
+    if not build.passes:
+        return []
+    service = any(chain.service for chain in build.passes)
+    try:
+        replay = _Replay(build)
+        plan = build.plan(replay)
+        done = set()
+        for board_plan in plan.boards:
+            found = replay.answers.get(board_plan.segment.key.value)
+            if found is not None and (service or not found.deferred):
+                done.add(board_plan.board_id)
+        if not done:
+            return []
+        return _Recorder(build, plan, replay.records, register).stages(boards=done)
+    except Exception:  # noqa: BLE001 - the stop is the run's failure; its stages are extra
+        return []
+
+
 # The build ------------------------------------------------------------------------------
 
 
@@ -717,6 +783,7 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
     checked_locally = False
     delivered: Delivery | None = None
     planned: tuple[PlannedClip, ...] = ()
+    register = Register(inputs.register)
     try:
         prepared.ensure_buildable()
         scratch = tempfile.TemporaryDirectory(prefix="studio-build-", dir=workdir)
@@ -724,7 +791,6 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
             build = _Build(store=store, story=story, prepared=prepared, run_id=run_id,
                            earlier_runs=earlier_runs, sources=sources, transcriber=transcriber,
                            toolchain=toolchain, media=media, timer=timer, workdir=scratch_dir)
-            register = Register(inputs.register)
             local, local_plan = _local_pass(build)  # no clip is asked for before this passes
             planned = _check_requests(build, local, local_plan, check=None if phase == OFFLINE
                                       else sources.check)
@@ -861,6 +927,8 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
                               "may exist but could not be read)")
         reason = f"{failure.code}: {failure.message}"[:500]
         progress = {"percent": 100, "stage": failure.stage}
+        if not stages and build is not None and checked_locally:  # the plan stopped part way
+            stages = _stopped_stages(build, register)
         try:
             try:
                 run = records.write(advance(run, status, at=now(), by=actor, reason=reason,
@@ -1031,8 +1099,13 @@ def _render_in_workers(build: _Build, workers: int) -> dict[str, Made]:
     from haynes_studio.build.workers import render_segments
     chain = _Chain(build, defer=frozenset({SEGMENT}) | FILM_KINDS)
     build.plan(chain)
-    missing = [(key, chain.segment_board.get(value)) for value, key in chain.segment_keys.items()
-               if build.cache.lookup(key, MP4) is None]
+    missing = []
+    for value, key in chain.segment_keys.items():
+        found = build.cache.lookup(key, MP4)
+        if found is None:
+            missing.append((key, chain.segment_board.get(value)))
+        else:  # a stop in the workers keeps this board's stage (story 860)
+            build.cached_segments[value] = found.sha256
     build.where = (None, SEGMENT)
     build.worker_reports.update(render_segments(build, missing, workers))
     return chain.records
