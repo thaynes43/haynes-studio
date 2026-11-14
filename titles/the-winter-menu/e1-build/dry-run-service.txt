@@ -1,0 +1,18 @@
+run run_01M7BVPSE1Q0QVG4FFMAMC0F9D (service phase): cancelled
+  check mix.length: pass
+  check mix.loudness: pass
+  check mix.true_peak: pass
+  check mix.clipping: pass
+dry run: 11 clip job(s) would be requested, in this order (nothing was asked of a service):
+  s2v board 1 brd_01M79V9FC00000000000000001 slot a: 154 frames at 576x1024, 2 chunk(s), seed 510; GPU 463-466.6 s, at most 582.2 s with cool-down (3 E0 jobs)
+  s2v board 2 brd_01M79V9FC00000000000000002 slot b: 65 frames at 576x1024, 1 chunk(s), seed 501; GPU 142.5-203.1 s, at most 328.9 s with cool-down (4 E0 jobs)
+  s2v board 3 brd_01M79V9FC00000000000000003 slot c: 154 frames at 576x1024, 2 chunk(s), seed 512; GPU 463-466.6 s, at most 582.2 s with cool-down (3 E0 jobs)
+  s2v board 4 brd_01M79V9FC00000000000000004 slot a: 57 frames at 576x1024, 1 chunk(s), seed 513; GPU 142.5-203.1 s, at most 328.9 s with cool-down (4 E0 jobs)
+  s2v board 5 brd_01M79V9FC00000000000000005 slot d: 57 frames at 576x1024, 1 chunk(s), seed 514; GPU 142.5-203.1 s, at most 328.9 s with cool-down (4 E0 jobs)
+  s2v board 6 brd_01M79V9FC00000000000000006 slot c: 154 frames at 576x1024, 2 chunk(s), seed 515; GPU 463-466.6 s, at most 582.2 s with cool-down (3 E0 jobs)
+  s2v board 8 brd_01M79V9FC00000000000000008 slot a: 231 frames at 576x1024, 3 chunk(s), seed 516; GPU 269.5-716.3 s, at most 842.3 s with cool-down (4 E0 jobs)
+  s2v board 8 brd_01M79V9FC00000000000000008 slot c: 231 frames at 576x1024, 3 chunk(s), seed 518; GPU 269.5-716.3 s, at most 842.3 s with cool-down (4 E0 jobs)
+  s2v board 8 brd_01M79V9FC00000000000000008 slot d: 231 frames at 576x1024, 3 chunk(s), seed 519; GPU 269.5-716.3 s, at most 842.3 s with cool-down (4 E0 jobs)
+  s2v board 8 brd_01M79V9FC00000000000000008 slot b: 231 frames at 576x1024, 3 chunk(s), seed 517; GPU 269.5-716.3 s, at most 842.3 s with cool-down (4 E0 jobs)
+  s2v board 9 brd_01M79V9FC00000000000000009 slot b: 73 frames at 576x1024, 1 chunk(s), seed 520; GPU 142.5-203.1 s, at most 328.9 s with cool-down (4 E0 jobs)
+  total: 11 Wan job(s), GPU 3037-5077.4 s, at most 6431.4 s with cool-down

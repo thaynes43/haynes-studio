@@ -1,0 +1,93 @@
+{
+  "schema": "studio.run/v1",
+  "id": "run_01M7C55PHSHZ9RTR3DH0SC0JXN",
+  "story_id": "sty_01M79V9FC00000000000000001",
+  "number": 29,
+  "status": "failed",
+  "wait_reason": null,
+  "phase": "offline",
+  "snapshot": {
+    "sha256": "3bf340d32d16f603465cbc095ec62d3ef338cfc814444707477d9489db41cb1b",
+    "story_revision": 3,
+    "board_count": 9,
+    "locator": "productions/prd_01M79V9FC00000000000000001/sha256/3b/3bf340d32d16f603465cbc095ec62d3ef338cfc814444707477d9489db41cb1b.json"
+  },
+  "queued_by": {
+    "kind": "cli",
+    "command": "studio build",
+    "operator": {
+      "kind": "human",
+      "iss": "https://agent-session.invalid/dev-env",
+      "sub": "agent-session:haynes-studio-1114-013021"
+    }
+  },
+  "queued_at": "2026-11-14T04:31:10Z",
+  "idempotency_key": null,
+  "estimate": null,
+  "progress": {
+    "percent": 100,
+    "stage": "check_result"
+  },
+  "stages": [],
+  "outputs": null,
+  "checks": null,
+  "provenance": null,
+  "delivery_id": null,
+  "legacy": null,
+  "started_at": "2026-11-14T04:31:10Z",
+  "finished_at": "2026-11-14T04:31:17Z",
+  "error": {
+    "code": "build.offline_missing",
+    "message": "the transcript check sha256:4c975df5ddd2980c00f9b2e49e1ad0f5eb58b527c6924b1c60381c59218aa5cb of master f6fd041afc83... is not in the cache; the offline phase calls no service: run `studio build --phase service` (which checks a cached master) or a full build",
+    "board_id": null,
+    "board_number": null,
+    "stage": "check_result"
+  },
+  "transitions": [
+    {
+      "from": null,
+      "to": "queued",
+      "at": "2026-11-14T04:31:10Z",
+      "by": {
+        "kind": "cli",
+        "command": "studio build",
+        "operator": {
+          "kind": "human",
+          "iss": "https://agent-session.invalid/dev-env",
+          "sub": "agent-session:haynes-studio-1114-013021"
+        }
+      },
+      "reason": "queued by the command line"
+    },
+    {
+      "from": "queued",
+      "to": "running",
+      "at": "2026-11-14T04:31:10Z",
+      "by": {
+        "kind": "cli",
+        "command": "studio build",
+        "operator": {
+          "kind": "human",
+          "iss": "https://agent-session.invalid/dev-env",
+          "sub": "agent-session:haynes-studio-1114-013021"
+        }
+      },
+      "reason": "build started (offline phase)"
+    },
+    {
+      "from": "running",
+      "to": "failed",
+      "at": "2026-11-14T04:31:17Z",
+      "by": {
+        "kind": "cli",
+        "command": "studio build",
+        "operator": {
+          "kind": "human",
+          "iss": "https://agent-session.invalid/dev-env",
+          "sub": "agent-session:haynes-studio-1114-013021"
+        }
+      },
+      "reason": "build.offline_missing: the transcript check sha256:4c975df5ddd2980c00f9b2e49e1ad0f5eb58b527c6924b1c60381c59218aa5cb of master f6fd041afc83... is not in the cache; the offline phase calls no service: run `studio build --phase service` (which checks a cached master) or a full build"
+    }
+  ]
+}
