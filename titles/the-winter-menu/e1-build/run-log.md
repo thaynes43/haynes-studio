@@ -546,6 +546,10 @@ picture, plus 7 s for the splice and master.
 
 ## l. Private viewing — Proven
 
+These are the commands as they ran on the worker's branch. The driver they name is not on
+`main`: it is at commit `bd16777` and in PR 70 (see the top of this log), so this block is
+a record, not something to run from `main`.
+
 ```sh
 uv run python titles/the-winter-menu/e1-build/tools/private_view.py $J/store \
   prd_01M79V9FC00000000000000001 run_01M7C56SZ6TAHTJSW413RFZYQP the-winter-menu-e1-build-1 $J/view --check-only
