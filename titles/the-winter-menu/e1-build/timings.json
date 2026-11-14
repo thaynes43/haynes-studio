@@ -66,7 +66,8 @@
         "GPU-d8a856f1-f955-f683-bc24-654561496774": 87.0
       },
       "peak_gpu_mib": 22622.0,
-      "in_film": true
+      "in_film": true,
+      "ledger_created_at": 1794621287.1416714
     },
     {
       "job": 2,
@@ -92,114 +93,11 @@
         "GPU-d8a856f1-f955-f683-bc24-654561496774": 88.0
       },
       "peak_gpu_mib": 21662.0,
-      "in_film": false
+      "in_film": false,
+      "ledger_created_at": 1794621635.9139707
     },
     {
       "job": 3,
-      "board": 6,
-      "slot": "c",
-      "seed": 515,
-      "job_id": "63c0a32c4ae440349328db6fbebda51e",
-      "run_id": "run_01M7BX20VY53HFCV376P8RNVD0",
-      "chunks": 2,
-      "frames_requested": 154,
-      "frames_delivered": 158,
-      "cool_wait_before_upload_s": 125.3,
-      "cool_wait_before_run_s": 0.4,
-      "start_temps_c": [
-        61.0,
-        52.0
-      ],
-      "render_s": 478.0,
-      "fetch_s": 0.3,
-      "wall_s": 604.8,
-      "peak_temp_c": {
-        "GPU-6ff9702a-1b2c-6094-5a85-00aa1924c55a": 53.0,
-        "GPU-d8a856f1-f955-f683-bc24-654561496774": 89.0
-      },
-      "peak_gpu_mib": 21406.0,
-      "in_film": true
-    },
-    {
-      "job": 4,
-      "board": 8,
-      "slot": "a",
-      "seed": 516,
-      "job_id": "976dbb34b2844388a75805b14d00b504",
-      "run_id": "run_01M7BX20VY53HFCV376P8RNVD0",
-      "chunks": 3,
-      "frames_requested": 231,
-      "frames_delivered": 238,
-      "cool_wait_before_upload_s": 135.8,
-      "cool_wait_before_run_s": 0.4,
-      "start_temps_c": [
-        61.0,
-        52.0
-      ],
-      "render_s": 735.3,
-      "fetch_s": 0.3,
-      "wall_s": 875.9,
-      "peak_temp_c": {
-        "GPU-6ff9702a-1b2c-6094-5a85-00aa1924c55a": 53.0,
-        "GPU-d8a856f1-f955-f683-bc24-654561496774": 89.0
-      },
-      "peak_gpu_mib": 22558.0,
-      "in_film": true
-    },
-    {
-      "job": 5,
-      "board": 8,
-      "slot": "c",
-      "seed": 518,
-      "job_id": "3c114ac9683949efa4d180911a00b20e",
-      "run_id": "run_01M7BX20VY53HFCV376P8RNVD0",
-      "chunks": 3,
-      "frames_requested": 231,
-      "frames_delivered": 238,
-      "cool_wait_before_upload_s": 125.4,
-      "cool_wait_before_run_s": 0.4,
-      "start_temps_c": [
-        61.0,
-        53.0
-      ],
-      "render_s": 735.5,
-      "fetch_s": 0.3,
-      "wall_s": 862.4,
-      "peak_temp_c": {
-        "GPU-6ff9702a-1b2c-6094-5a85-00aa1924c55a": 53.0,
-        "GPU-d8a856f1-f955-f683-bc24-654561496774": 89.0
-      },
-      "peak_gpu_mib": 21406.0,
-      "in_film": true
-    },
-    {
-      "job": 6,
-      "board": 4,
-      "slot": "a",
-      "seed": 513,
-      "job_id": "5a438d01ea624d0f830365b584c15edb",
-      "run_id": "run_01M7BX20VY53HFCV376P8RNVD0",
-      "chunks": 1,
-      "frames_requested": 57,
-      "frames_delivered": 58,
-      "cool_wait_before_upload_s": 146.3,
-      "cool_wait_before_run_s": 0.4,
-      "start_temps_c": [
-        61.0,
-        52.0
-      ],
-      "render_s": 142.0,
-      "fetch_s": 0.3,
-      "wall_s": 289.6,
-      "peak_temp_c": {
-        "GPU-6ff9702a-1b2c-6094-5a85-00aa1924c55a": 53.0,
-        "GPU-d8a856f1-f955-f683-bc24-654561496774": 88.0
-      },
-      "peak_gpu_mib": 21566.0,
-      "in_film": true
-    },
-    {
-      "job": 7,
       "board": 3,
       "slot": "c",
       "seed": 512,
@@ -222,33 +120,143 @@
         "GPU-d8a856f1-f955-f683-bc24-654561496774": 89.0
       },
       "peak_gpu_mib": 22558.0,
-      "in_film": true
+      "in_film": true,
+      "ledger_created_at": 1794622246.0604272
     },
     {
-      "job": 8,
+      "job": 4,
+      "board": 4,
+      "slot": "a",
+      "seed": 513,
+      "job_id": "5a438d01ea624d0f830365b584c15edb",
+      "run_id": "run_01M7BX20VY53HFCV376P8RNVD0",
+      "chunks": 1,
+      "frames_requested": 57,
+      "frames_delivered": 58,
+      "cool_wait_before_upload_s": 146.3,
+      "cool_wait_before_run_s": 0.4,
+      "start_temps_c": [
+        61.0,
+        52.0
+      ],
+      "render_s": 142.0,
+      "fetch_s": 0.3,
+      "wall_s": 289.6,
+      "peak_temp_c": {
+        "GPU-6ff9702a-1b2c-6094-5a85-00aa1924c55a": 53.0,
+        "GPU-d8a856f1-f955-f683-bc24-654561496774": 88.0
+      },
+      "peak_gpu_mib": 21566.0,
+      "in_film": true,
+      "ledger_created_at": 1794622868.9978752
+    },
+    {
+      "job": 5,
+      "board": 5,
+      "slot": "d",
+      "seed": 514,
+      "job_id": "f742e3585fc5465d8984014480142f40",
+      "run_id": "run_01M7BX20VY53HFCV376P8RNVD0",
+      "chunks": 1,
+      "frames_requested": 57,
+      "frames_delivered": 58,
+      "cool_wait_before_upload_s": 135.8,
+      "cool_wait_before_run_s": 0.4,
+      "start_temps_c": [
+        61.0,
+        52.0
+      ],
+      "render_s": 142.2,
+      "fetch_s": 0.3,
+      "wall_s": 279.2,
+      "peak_temp_c": {
+        "GPU-6ff9702a-1b2c-6094-5a85-00aa1924c55a": 52.0,
+        "GPU-d8a856f1-f955-f683-bc24-654561496774": 88.0
+      },
+      "peak_gpu_mib": 22462.0,
+      "in_film": true,
+      "ledger_created_at": 1794623148.6574273
+    },
+    {
+      "job": 6,
+      "board": 6,
+      "slot": "c",
+      "seed": 515,
+      "job_id": "63c0a32c4ae440349328db6fbebda51e",
+      "run_id": "run_01M7BX20VY53HFCV376P8RNVD0",
+      "chunks": 2,
+      "frames_requested": 154,
+      "frames_delivered": 158,
+      "cool_wait_before_upload_s": 125.3,
+      "cool_wait_before_run_s": 0.4,
+      "start_temps_c": [
+        61.0,
+        52.0
+      ],
+      "render_s": 478.0,
+      "fetch_s": 0.3,
+      "wall_s": 604.8,
+      "peak_temp_c": {
+        "GPU-6ff9702a-1b2c-6094-5a85-00aa1924c55a": 53.0,
+        "GPU-d8a856f1-f955-f683-bc24-654561496774": 89.0
+      },
+      "peak_gpu_mib": 21406.0,
+      "in_film": true,
+      "ledger_created_at": 1794623417.748634
+    },
+    {
+      "job": 7,
       "board": 8,
-      "slot": "b",
-      "seed": 517,
-      "job_id": "3cec64eefe7d47e88e9d493b1d57e8d4",
+      "slot": "a",
+      "seed": 516,
+      "job_id": "976dbb34b2844388a75805b14d00b504",
       "run_id": "run_01M7BX20VY53HFCV376P8RNVD0",
       "chunks": 3,
       "frames_requested": 231,
       "frames_delivered": 238,
-      "cool_wait_before_upload_s": 146.2,
+      "cool_wait_before_upload_s": 135.8,
+      "cool_wait_before_run_s": 0.4,
+      "start_temps_c": [
+        61.0,
+        52.0
+      ],
+      "render_s": 735.3,
+      "fetch_s": 0.3,
+      "wall_s": 875.9,
+      "peak_temp_c": {
+        "GPU-6ff9702a-1b2c-6094-5a85-00aa1924c55a": 53.0,
+        "GPU-d8a856f1-f955-f683-bc24-654561496774": 89.0
+      },
+      "peak_gpu_mib": 22558.0,
+      "in_film": true,
+      "ledger_created_at": 1794624033.7390878
+    },
+    {
+      "job": 8,
+      "board": 8,
+      "slot": "c",
+      "seed": 518,
+      "job_id": "3c114ac9683949efa4d180911a00b20e",
+      "run_id": "run_01M7BX20VY53HFCV376P8RNVD0",
+      "chunks": 3,
+      "frames_requested": 231,
+      "frames_delivered": 238,
+      "cool_wait_before_upload_s": 125.4,
       "cool_wait_before_run_s": 0.4,
       "start_temps_c": [
         61.0,
         53.0
       ],
-      "render_s": 734.3,
+      "render_s": 735.5,
       "fetch_s": 0.3,
-      "wall_s": 881.9,
+      "wall_s": 862.4,
       "peak_temp_c": {
-        "GPU-6ff9702a-1b2c-6094-5a85-00aa1924c55a": 54.0,
+        "GPU-6ff9702a-1b2c-6094-5a85-00aa1924c55a": 53.0,
         "GPU-d8a856f1-f955-f683-bc24-654561496774": 89.0
       },
-      "peak_gpu_mib": 22558.0,
-      "in_film": true
+      "peak_gpu_mib": 21406.0,
+      "in_film": true,
+      "ledger_created_at": 1794624911.3686066
     },
     {
       "job": 9,
@@ -274,33 +282,35 @@
         "GPU-d8a856f1-f955-f683-bc24-654561496774": 89.0
       },
       "peak_gpu_mib": 22622.0,
-      "in_film": true
+      "in_film": true,
+      "ledger_created_at": 1794625795.7759748
     },
     {
       "job": 10,
-      "board": 5,
-      "slot": "d",
-      "seed": 514,
-      "job_id": "f742e3585fc5465d8984014480142f40",
+      "board": 8,
+      "slot": "b",
+      "seed": 517,
+      "job_id": "3cec64eefe7d47e88e9d493b1d57e8d4",
       "run_id": "run_01M7BX20VY53HFCV376P8RNVD0",
-      "chunks": 1,
-      "frames_requested": 57,
-      "frames_delivered": 58,
-      "cool_wait_before_upload_s": 135.8,
+      "chunks": 3,
+      "frames_requested": 231,
+      "frames_delivered": 238,
+      "cool_wait_before_upload_s": 146.2,
       "cool_wait_before_run_s": 0.4,
       "start_temps_c": [
         61.0,
-        52.0
+        53.0
       ],
-      "render_s": 142.2,
+      "render_s": 734.3,
       "fetch_s": 0.3,
-      "wall_s": 279.2,
+      "wall_s": 881.9,
       "peak_temp_c": {
-        "GPU-6ff9702a-1b2c-6094-5a85-00aa1924c55a": 52.0,
-        "GPU-d8a856f1-f955-f683-bc24-654561496774": 88.0
+        "GPU-6ff9702a-1b2c-6094-5a85-00aa1924c55a": 54.0,
+        "GPU-d8a856f1-f955-f683-bc24-654561496774": 89.0
       },
-      "peak_gpu_mib": 22462.0,
-      "in_film": true
+      "peak_gpu_mib": 22558.0,
+      "in_film": true,
+      "ledger_created_at": 1794626680.6090834
     },
     {
       "job": 11,
@@ -326,7 +336,8 @@
         "GPU-d8a856f1-f955-f683-bc24-654561496774": 89.0
       },
       "peak_gpu_mib": 21086.0,
-      "in_film": false
+      "in_film": false,
+      "ledger_created_at": 1794627565.0039158
     },
     {
       "job": 12,
@@ -352,7 +363,8 @@
         "GPU-d8a856f1-f955-f683-bc24-654561496774": 88.0
       },
       "peak_gpu_mib": 22366.0,
-      "in_film": false
+      "in_film": false,
+      "ledger_created_at": 1794629015.6529388
     },
     {
       "job": 13,
@@ -378,7 +390,8 @@
         "GPU-d8a856f1-f955-f683-bc24-654561496774": 88.0
       },
       "peak_gpu_mib": 21118.0,
-      "in_film": true
+      "in_film": true,
+      "ledger_created_at": 1794629616.7161872
     },
     {
       "job": 14,
@@ -404,7 +417,8 @@
         "GPU-d8a856f1-f955-f683-bc24-654561496774": 89.0
       },
       "peak_gpu_mib": 21310.0,
-      "in_film": true
+      "in_film": true,
+      "ledger_created_at": 1794630041.7624016
     }
   ],
   "wan_totals": {
@@ -424,7 +438,7 @@
   },
   "goals_missed": [
     "3-chunk speech clips rendered in 734-736 s, above E0's longest 716.3 s",
-    "each job after the first waited 84-146 s for the working card to cool under 62 C",
+    "each job that followed a hot one (jobs 3 to 11 and 13) waited 84-146 s for the working card to cool under 62 C; jobs 1, 2, 12 and 14 started cool",
     "the S2V graph uses one of the two 3090s; the other idled",
     "three re-rolls (boards 1 twice, 9 once) for the decal gate; board 1 needed seed 611",
     "the render worker could not be used: the offline phase ran on 2 threads in the pod",

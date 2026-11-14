@@ -268,7 +268,7 @@ through the client under the API's lease:
 | Clip | `8f460514570af84b3abf4cf55514b0dd600a03febf137eee7ed0f50b099e4dee`, 1 254 010 bytes | |
 | Times | `render_s` 188.3, `fetch_s` 0.3, `wall_s` 189.9 (E0's range 142.5 to 203.1 s); `cooldown_s` 0.4 (no wait) | |
 | Start temperatures | `GPU-d8a856f1` 50 C at 0 %, `GPU-6ff9702a` 49 C at 0 % (both probes) | under 62 C, at most 5 % |
-| During the job | one GPU worked (S2V runs on one card): `GPU-d8a856f1` peaked at **87 C** at 100 %, 22 622 MiB peak; the other stayed at 49 C, 0 % (ledger telemetry, 38 samples) | |
+| During the job | one GPU worked (S2V runs on one card): `GPU-d8a856f1` peaked at **87 C** at 100 %, 22 622 MiB peak; the other stayed at 49 to 50 C, 0 % (ledger telemetry, 38 samples) | |
 | `engine_read_retries`, `poll_misses` | 0, 0 | |
 | `unexpected_work_seen` | null (none) | empty |
 | Inputs | drive track `studio-e0/d063c1b4e6868396.wav` (188 044 bytes, 94 000 samples at 24 kHz); start image `studio-e0/342960b60079923d.png` (E0's start image of B, already on the volume) | |
@@ -279,8 +279,8 @@ through the client under the API's lease:
 Records: [`clips/94f-seed501.s2v-clip-record.json`](clips/94f-seed501.s2v-clip-record.json) (the
 adapter's provenance record with the whole Wan record),
 [`clips/94f-seed501.wan-ledger.json`](clips/94f-seed501.wan-ledger.json),
-[`wan-journal-after-h.jsonl`](wan-journal-after-h.jsonl). The Wan record's `created`,
-`started` and `finished` fields are null, although the ledger has all three
+[`wan-journal-after-h.jsonl`](wan-journal-after-h.jsonl). The job's own times are in the
+record as `job_created_at`, `job_started_at` and `job_finished_at`, equal to the ledger's
 (observation O-428-4). GPU wall time so far: 3.2 min of 150.
 - **Gate 2:** note `op428-gate-2` (`message.f5f85cb44ed4dae66a11de2b38c06ee0...`, 01:59:29
   UTC) with the values above. **Answer** (`message.13f8f012516f176a013ceb31d170c361...`,
@@ -320,7 +320,7 @@ cool-down. Then the same command on `voiced/story.json` from 02:09 UTC.
 `cancelled`: "service phase complete: the mix passed its 4 checks; 9 clip artifacts made
 and 0 transcript checks run, the rest found in the cache". Nine Wan jobs, one at a time,
 in the dry run's order; no refusal, no held run, nothing resubmitted. The journal (31
-lines, [`wan-journal-after-i.jsonl`](wan-journal-after-i.jsonl)) has one `remember
+lines after step i: the first 31 lines of [`wan-journal-final.jsonl`](wan-journal-final.jsonl)) has one `remember
 in_flight`, one `remember uncollected` and one `settle collected` per job, and no `halt`.
 
 ### Every clip of steps h and i
@@ -332,7 +332,7 @@ ledger `succeeded` with the record's bytes and `graph_sha256`, `recovered` false
 cool check right before the run passing at once (`cooldown_s` 0.4). "Wait" is the cool
 wait before the uploads (`cool_before_upload.cooldown_s`). Peak is the working card's
 (`GPU-d8a856f1`) highest temperature in the ledger telemetry; the other card stayed at
-49 to 53 C in every job.
+49 to 54 C in every job.
 
 | # | Board, slot | Job | Asked | Delivered | Wait s | Start C | `render_s` | `wall_s` | E0 `render_s` | Peak C |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -354,7 +354,8 @@ included) **6251.6 s = 104.2 min** of 150; the three commands' wall time 104.6 m
 
 **What fell short of a goal:** the four 3-chunk clips each took 734 to 736 s to render,
 above E0's longest (716.3 s) and 2.7 times E0's fastest 3-chunk job (269.5 s, `s8-a`);
-each later job first waited 84 to 146 s for the working card to cool under 62 C. Every
+each job that followed a hot one (3 to 11) first waited 84 to 146 s for the working card to
+cool under 62 C; jobs 1 and 2 started cool. Every
 job ran on one card (the S2V lightning graph uses one GPU), so the second 3090 sat idle
 for the whole phase (observation O-428-5). Board 9's render (203.9 s) is 0.8 s over E0's
 range for one chunk. The peak of 89 C is 1 C above E0's recorded range (84 to 88 C); the
@@ -407,7 +408,7 @@ nice -n 10 uv run studio build --store $J/store --story $J/voiced/story.json \
 | Board | Result | Wall s | What it made |
 |---|---|---|---|
 | 1 | **`layered.decal_weak`**, slot a: min ECC 0.7167, floor 0.8 | 24.4 | keyed frames |
-| 2 | passes; stops at the transcript check (`build.offline_missing`, `check_result`), as an offline run must | 54.3 | keyed frames, segment, picture, mix, master |
+| 2 | passes; stops at the transcript check (`build.offline_missing`, `check_result`), as an offline run must | 54.3 | keyed frames, segment, picture, master (this copy's mix was made in step h) |
 | 3 | passes, as 2 | 82.5 | the same |
 | 4 | passes | 48.6 | the same |
 | 5 | passes | 36.5 | the same |
@@ -456,11 +457,11 @@ Note `op428-blocker-1` (`message.799ebd692122b42d74861742ebacd5a1...`, kind `blo
    off what is done.
 
 [`tools/redraft.py`](tools/redraft.py) `$J/voiced $J/voiced2` wrote the new draft version
-`voiced2/story.json` (04:03 UTC): those three edits, the story's `revision` 1 -> 2 and
+`voiced2/story.json` (04:02 UTC): those three edits, the story's `revision` 1 -> 2 and
 boards 1 and 9 `revision` 1 -> 2, nothing else (checked by a JSON diff). The weak clips
 stay in the store (create-only); the voices and the library are unchanged.
 
-- **Board 7 alone** (`per-board2/board7.json`, 04:04 UTC, 18.9 s): passes; segment
+- **Board 7 alone** (`per-board2/board7.json`, 04:02:58 to 04:03:17 UTC, 18.9 s): passes; segment
   rendered, stopping only at the transcript check.
 - **Service dry run** on `voiced2` (`run_01M7C3JVRA64QSP1434YWAXEXW`): exactly two jobs,
   board 1 a (154 frames, 2 chunks, seed 610) and board 9 b (73 frames, 1 chunk, seed
@@ -564,6 +565,9 @@ PoC job folder (**Changed**: the PoC script itself needs a manifest and `edit/` 
   answers **200 `video/mp4`, 60 562 847 bytes, SHA-256 `f6fd041a...0621e`**, the master's;
   `LedgerReader.list` lists 23 edited productions and **no unreadable ledger**.
   [`production.json`](production.json) holds the ledger and the read-back.
+- **The ledger's wording:** its `provenance.video` says "14 jobs on the studio's RTX 3090s";
+  11 of the 14 clips are in the film (the three the decal gate refused stay in the store).
+  The ledger is create-only and was not changed.
 - **The link (home network only):**
   <https://video.haynesops.com/videos/d009d61541774a429fcabfeedadd8b51/file>. A session pod
   cannot open it; it was verified inside the API container as above.
@@ -572,7 +576,7 @@ PoC job folder (**Changed**: the PoC script itself needs a manifest and `edit/` 
 
 The board 8 gavel cue (`cue_01M7BVBVSBHA26B6V3F90A35N9`, sound `gavel`) from -20 to **-23
 dBFS RMS** in a new draft version, `voiced4/story.json` (story revision 4, board 8 revision
-2; a JSON diff shows nothing else changed). Then the service dry run (04:34:47 UTC, run
+2; a JSON diff shows nothing else changed). Then the service dry run (04:34:42 UTC, run
 `run_01M7C5C521H5DF4ZY68TMS2VTS`, 0 clip jobs) and **one full build** (`studio build ...
 --wan-story ... --workers 1`, no phase flag, 04:34:55 UTC, 18.3 s, exit 0): run
 **`run_01M7C5CJA7XKBCRPM0ZRP2P5RS` `succeeded`**, delivery `dlv_01M7C5D3KFX3MFVWCXBCVJHMG7`
@@ -640,10 +644,12 @@ space at the end: 26 G.
   the new version.
 - **O-428-3** One S2V prompt for every board; E0 described each doll in her own prompt. A
   known difference from E0 for Tom to weigh (coordinator's decision).
-- **O-428-4** The Wan record's `created`, `started` and `finished` are null in every clip
-  record, though the ledger has all three.
-- **O-428-5** Every speech job ran on one of the two 3090s; the other idled, and each job
-  waited 84 to 146 s for the working card to cool first.
+- **O-428-4** The reference ([legacy-adapters.md](../../../docs/reference/legacy-adapters.md),
+  "The provenance record") names the job's times `created`, `started` and `finished`; the
+  record names them `job_created_at`, `job_started_at` and `job_finished_at`. (A first draft
+  of this log called them null: `tools/clips.py` looked for the reference's names.)
+- **O-428-5** Every speech job ran on one of the two 3090s; the other idled, and each job that
+  followed a hot one (3 to 11, and 13) waited 84 to 146 s for the working card to cool first.
 - **O-428-6** A run that ends at `build.offline_missing` (the documented offline step)
   keeps no stage list, so the keying, segment and picture times are in no run record;
   here they are command wall times.
@@ -652,10 +658,26 @@ space at the end: 26 G.
   and older ranges, so the offline phase cannot use the worker (for haynes-ops).
 - **O-428-8** The decal gate refused three build-made speech clips at the default 0.8
   (board 1 seeds 510 and 610, board 9 seed 520), as E0's own clips of those boards failed;
-  re-rolls cost three jobs (24 GPU min). Board 7's close-up needed an 11 px move to pass
+  re-rolls cost three jobs (12 to 14: 1277.8 s, 21.3 GPU min). Board 7's close-up needed an 11 px move to pass
   the off-frame rule the port applies to keyed frames.
 - **O-428-9** Heat, for the hardware owner: the working card peaked at 87 to 89 C in every
   job; job 14 (`bdb9e41b`) peaked at 89 C with no cool wait, starting at 59 and 52 C.
+
+## Known defects in `tools/`
+
+The drivers are kept as they ran. `draft.py` stamps the new bed version `created_at`
+2026-11-14T01:45:00Z, a fixed value, although it ran at 01:44 (before `studio voice` at
+01:44:36). `decal.py` would raise on a clip with two or more unscored frames (no clip here
+has one). `clips.py` looked for the reference's names of the job's times (O-428-4).
+Found by an independent read of these records (a Sonnet subagent), which also caught
+the job order of `timings.json`, the re-roll GPU minutes, two temperature ranges, two
+times and the board 2 row, all corrected here.
+
+Further evidence: [`toolchain.json`](toolchain.json), [`fire-bed-job.json`](fire-bed-job.json),
+the dry runs [`dry-run-board1.json`](dry-run-board1.json), [`dry-run-part2.json`](dry-run-part2.json),
+[`dry-run-reroll-1.json`](dry-run-reroll-1.json), [`dry-run-reroll-2.json`](dry-run-reroll-2.json),
+[`dry-run-transcript.txt`](dry-run-transcript.txt) and [`dry-run-edit.txt`](dry-run-edit.txt). Step a's
+reads (file hashes, deployment, free space) are recorded in this log only.
 
 ## Tom's verdict
 

@@ -1,0 +1,4 @@
+{
+  "s2v_prompt": "Stop-motion style toy video. The same plastic fashion doll, in the same blue YELLOWBIRDS team jacket with full-length sleeves, on a flat solid bright green screen background, speaks her lines. The whole doll bobs and tilts slightly in time with her words as if a toy is being played with, her synthetic hair shifts. Her face is hard molded plastic. The green background stays flat and uniform. Static locked-off camera, same framing.",
+  "s2v_negative_prompt": "changing doll identity, changing faces, new faces, extra people, extra dolls, human hands, text, subtitles, watermark, camera shake, fast motion, cuts, scene change, blurry, distorted, melting"
+}
