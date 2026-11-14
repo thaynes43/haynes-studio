@@ -103,13 +103,13 @@ PINS: dict[str, Pin] = {
         "record; copied once"),
     # Story 846: the private input import's read-only volume reads (wan_volume.py).
     "wan_upload_read.py": Pin(
-        "6945c756d3e2d4d15307e26d6527758a5b14740b8c3f48e4b292026395dc38a9", "snippet",
+        "4ef0de38762964155c38e40284ccbdd741553a2ce25c129c7a498141ece6962f", "snippet",
         "new in story 846: prints one E0 upload, /workspace/input/studio-e0/<first 16 hex>.<png|wav>, "
         "read-only; every folder below /workspace and the file opened with O_NOFOLLOW after an "
         "lstat, the file a regular file with one link and at most 20 000 000 bytes, hash "
         "checked; refusals are REFUSED <reason> and exit status 3"),
     "wan_job_output_read.py": Pin(
-        "5a16cec45659cc6879cd17d783c8d3a2d472590f19b75ba0fefd2721dad20129", "snippet",
+        "755f6b01bd73a64af9d3a7b0c6ea22220eb2aeca9346a424af8580bc50dfa852", "snippet",
         "new in story 846: prints one Wan job's output, read-only: its ledger "
         "/workspace/jobs/<job_id>.json a succeeded job of that id, its output a plain relative "
         ".mp4 path below /workspace/output; every folder and file opened with O_NOFOLLOW after "

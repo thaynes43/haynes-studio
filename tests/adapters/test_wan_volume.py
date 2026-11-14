@@ -8,6 +8,7 @@ link, hard link, FIFO, folder, sparse file or swapped file. Nothing is sent anyw
 from __future__ import annotations
 
 import ast
+import builtins
 import hashlib
 import inspect
 import json
@@ -277,6 +278,53 @@ def test_an_oversized_ledger_is_refused(vol):
     with open(vol.root / "jobs" / f"{JOB}.json", "r+b") as handle:
         handle.truncate(16 * 1024 * 1024 + 1)
     assert refused(lambda: reader(vol).fetch_job_output(JOB, SHA)) == errors.SOURCE_TOO_LARGE
+
+
+CHUNK = 1048576  # the snippets' read size
+LEDGER_LIMIT = 16 * 1024 * 1024
+
+
+class _Held(bytearray):
+    """The snippet's read buffer, measured: ``most`` is the most bytes it ever held."""
+
+    most = 0
+
+    def __iadd__(self, other):
+        out = super().__iadd__(other)
+        type(self).most = max(type(self).most, len(self))
+        return out
+
+
+@pytest.mark.parametrize("which", ["job ledger", "upload"])
+def test_a_file_that_grows_while_read_is_refused_without_holding_more_than_the_limit(
+        vol, monkeypatch, which):
+    """A file within its limit when it is checked grows (sparse) as the snippet starts
+    reading it. The read refuses the chunk that would pass the limit before keeping it,
+    so the snippet never holds more than the limit. The job ledger is read by the same
+    ``read()`` as the job output, under the ledger's smaller limit."""
+    for name in SNIPPETS:
+        assert f"CHUNK = {CHUNK}" in pinned.load(name).text
+    assert f"LEDGER_LIMIT = {LEDGER_LIMIT}" in pinned.load("wan_job_output_read.py").text
+    if which == "job ledger":
+        vol.add_job(JOB, DATA)
+        path, limit = vol.root / "jobs" / f"{JOB}.json", LEDGER_LIMIT
+        call = lambda: reader(vol).fetch_job_output(JOB, SHA)
+    else:
+        path, limit = vol.add_upload(NAME, DATA), wan_volume.MAX_UPLOAD_BYTES
+        call = lambda: reader(vol).fetch_upload(SHA, ".png")
+    inode, real = path.stat().st_ino, os.read
+
+    def grows(fd, size):
+        if os.fstat(fd).st_ino == inode and os.fstat(fd).st_size < limit:
+            os.truncate(path, limit + CHUNK // 2)  # the test writes; the snippet only reads
+        return real(fd, size)
+    held = type("Held", (_Held,), {"most": 0})
+    monkeypatch.setattr(os, "read", grows)
+    monkeypatch.setattr(builtins, "bytearray", held)
+    assert refused(call) == errors.SOURCE_TOO_LARGE
+    monkeypatch.undo()
+    assert path.stat().st_size == limit + CHUNK // 2  # it did grow past the limit
+    assert 0 < held.most <= limit
 
 
 def test_other_bytes_or_another_size_than_the_ledger_records_are_a_mismatch(vol):

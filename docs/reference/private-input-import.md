@@ -86,9 +86,9 @@ checked before each command. Tests run the snippets themselves on a real folder
 | Read | File | Path built from | Limit | Guards | Tests |
 |---|---|---|---|---|---|
 | Delivered asset (story 425, unchanged) | `/workspace/output/productions/...` as its ledger `/workspace/jobs/<ledger_id>.json` lists it | a 32-hex ledger ID and a 64-hex hash; the path comes from the ledger, resolved and held under `/workspace/output/productions` | 64 MiB | see [legacy-adapters.md](legacy-adapters.md#clients); its refusals are read by their fixed messages (`ledger_fetch_refusal`); any other failure stops the import | `test_every_ledger_message_is_one_the_pinned_snippet_prints`, `test_ledger_fetch_refusals_are_named`, `test_ledger_fetch_refuses_a_ledger_that_is_a_link_not_a_delivery_or_not_json`, `test_ledger_client_checks_are_named`, `test_any_other_ledger_failure_is_not_a_refusal` |
-| Job ledger (`wan_job_output_read.py`) | `/workspace/jobs/<job_id>.json` | a 32-hex job ID, checked in the client and the pod | 16 MiB | each folder below `/workspace` and the file: `lstat` (a link is `source_link`, anything but a folder or regular file `source_not_regular`), then `os.open` with `O_NOFOLLOW` (`O_DIRECTORY` for a folder, `O_NONBLOCK` for a file) relative to its folder's descriptor, and the descriptor must be the inode the `lstat` saw; an open that fails as a swap fails (`ENOENT`, `ELOOP`, `ENOTDIR`, `ENXIO`) or another inode is `source_changed`, any other error (a permission, an I/O error) a traceback, so a stop; the fixed folders (`jobs`, `output`) missing or not plain folders are `adapter.volume_unexpected`, a stop; read to the end from that descriptor; JSON object with that `id`, `state: succeeded` and a text `output` (`source_record_invalid`) | `test_a_missing_ledger_or_output_is_missing`, `test_a_ledger_that_is_not_a_succeeded_job_of_that_id_is_refused`, `test_an_unparseable_ledger_is_refused`, `test_a_symlinked_ledger_is_refused`, `test_an_oversized_ledger_is_refused`, `test_a_symlinked_folder_on_the_path_is_refused`, `test_a_missing_fixed_folder_is_the_wrong_volume_not_a_missing_file`, `test_a_missing_root_is_a_failure_not_a_refusal`, `test_a_permission_or_io_error_is_a_failure_that_stops_not_a_refusal` |
-| Job output (`wan_job_output_read.py`) | `/workspace/output/<output>` | the ledger's `output`: 1 to 8 parts, each `[A-Za-z0-9_][A-Za-z0-9._-]{0,254}`, the last ending `.mp4`; one leading `/` allowed (the API writes it for an empty subfolder); else `source_outside` | 64 MiB | as the ledger, plus exactly one link (`source_hard_link`), at most the limit before and while reading (`source_too_large`), the size the ledger records when it records one (`source_hash_mismatch`), unchanged size and link count after the read (`source_changed`), SHA-256 equal to the requested hash in the pod (`source_hash_mismatch`); the client checks size and hash again | `test_a_job_output_is_read_and_hash_checked`, `test_an_output_at_the_output_root_is_read`, `test_an_output_path_that_is_not_plain_names_below_output_is_outside`, `test_a_symlinked_output_is_refused_even_to_identical_bytes`, `test_a_symlinked_folder_on_the_path_is_refused`, `test_a_fifo_or_a_folder_is_not_regular_and_never_opened`, `test_a_file_where_a_folder_belongs_is_not_regular`, `test_a_hard_linked_output_is_refused`, `test_an_oversized_output_is_refused_before_it_is_read`, `test_other_bytes_or_another_size_than_the_ledger_records_are_a_mismatch`, `test_a_file_swapped_for_a_link_after_its_lstat_is_refused`, `test_a_file_replaced_after_its_lstat_is_refused` |
-| E0 upload (`wan_upload_read.py`) | `/workspace/input/studio-e0/<name>` | `<name>` = the hash's first 16 hex digits and `.png` or `.wav` (as `poc/wan.py` and `poc/s2v.py` named uploads), built by the client from the hash and checked again in the pod; no caller text | 20 000 000 bytes (`wan_upload.py`'s own limit) | the same folder walk and file checks as a job output (fixed folders `input`, `studio-e0`), then the hash | `test_an_upload_is_read_by_its_hash`, `test_a_malformed_upload_request_is_refused_before_anything_runs`, `test_the_upload_name_is_checked_in_the_pod_too`, `test_a_missing_upload_is_missing_and_a_missing_upload_folder_the_wrong_volume`, `test_a_symlinked_upload_or_upload_folder_is_refused`, `test_a_fifo_folder_hard_link_or_oversized_upload_is_refused`, `test_an_upload_with_other_bytes_is_a_mismatch` |
+| Job ledger (`wan_job_output_read.py`) | `/workspace/jobs/<job_id>.json` | a 32-hex job ID, checked in the client and the pod | 16 MiB | each folder below `/workspace` and the file: `lstat` (a link is `source_link`, anything but a folder or regular file `source_not_regular`), then `os.open` with `O_NOFOLLOW` (`O_DIRECTORY` for a folder, `O_NONBLOCK` for a file) relative to its folder's descriptor, and the descriptor must be the inode the `lstat` saw; an open that fails as a swap fails (`ENOENT`, `ELOOP`, `ENOTDIR`, `ENXIO`) or another inode is `source_changed`, any other error (a permission, an I/O error) a traceback, so a stop; the fixed folders (`jobs`, `output`) missing or not plain folders are `adapter.volume_unexpected`, a stop; read to the end from that descriptor; JSON object with that `id`, `state: succeeded` and a text `output` (`source_record_invalid`) | `test_a_missing_ledger_or_output_is_missing`, `test_a_ledger_that_is_not_a_succeeded_job_of_that_id_is_refused`, `test_an_unparseable_ledger_is_refused`, `test_a_symlinked_ledger_is_refused`, `test_an_oversized_ledger_is_refused`, `test_a_file_that_grows_while_read_is_refused_without_holding_more_than_the_limit`, `test_a_symlinked_folder_on_the_path_is_refused`, `test_a_missing_fixed_folder_is_the_wrong_volume_not_a_missing_file`, `test_a_missing_root_is_a_failure_not_a_refusal`, `test_a_permission_or_io_error_is_a_failure_that_stops_not_a_refusal` |
+| Job output (`wan_job_output_read.py`) | `/workspace/output/<output>` | the ledger's `output`: 1 to 8 parts, each `[A-Za-z0-9_][A-Za-z0-9._-]{0,254}`, the last ending `.mp4`; one leading `/` allowed (the API writes it for an empty subfolder); else `source_outside` | 64 MiB | as the ledger, plus exactly one link (`source_hard_link`), at most the limit before reading, and never more held while reading: a chunk that would pass it is refused before it is kept (`source_too_large`), the size the ledger records when it records one (`source_hash_mismatch`), unchanged size and link count after the read (`source_changed`), SHA-256 equal to the requested hash in the pod (`source_hash_mismatch`); the client checks size and hash again | `test_a_job_output_is_read_and_hash_checked`, `test_an_output_at_the_output_root_is_read`, `test_an_output_path_that_is_not_plain_names_below_output_is_outside`, `test_a_symlinked_output_is_refused_even_to_identical_bytes`, `test_a_symlinked_folder_on_the_path_is_refused`, `test_a_fifo_or_a_folder_is_not_regular_and_never_opened`, `test_a_file_where_a_folder_belongs_is_not_regular`, `test_a_hard_linked_output_is_refused`, `test_an_oversized_output_is_refused_before_it_is_read`, `test_a_file_that_grows_while_read_is_refused_without_holding_more_than_the_limit` (the same `read()`, under the ledger's limit), `test_other_bytes_or_another_size_than_the_ledger_records_are_a_mismatch`, `test_a_file_swapped_for_a_link_after_its_lstat_is_refused`, `test_a_file_replaced_after_its_lstat_is_refused` |
+| E0 upload (`wan_upload_read.py`) | `/workspace/input/studio-e0/<name>` | `<name>` = the hash's first 16 hex digits and `.png` or `.wav` (as `poc/wan.py` and `poc/s2v.py` named uploads), built by the client from the hash and checked again in the pod; no caller text | 20 000 000 bytes (`wan_upload.py`'s own limit) | the same folder walk and file checks as a job output (fixed folders `input`, `studio-e0`), then the hash | `test_an_upload_is_read_by_its_hash`, `test_a_malformed_upload_request_is_refused_before_anything_runs`, `test_the_upload_name_is_checked_in_the_pod_too`, `test_a_missing_upload_is_missing_and_a_missing_upload_folder_the_wrong_volume`, `test_a_symlinked_upload_or_upload_folder_is_refused`, `test_a_fifo_folder_hard_link_or_oversized_upload_is_refused`, `test_a_file_that_grows_while_read_is_refused_without_holding_more_than_the_limit`, `test_an_upload_with_other_bytes_is_a_mismatch` |
 
 For all three: no write path. `VolumeReader` has only `fetch_*` and `*_command`
 methods; the two new snippets are held to an allowlist of calls, every `os.open` is
@@ -109,29 +109,38 @@ unchanged). A changed snippet is refused before anything runs
 
 | Snippet | Source | SHA-256 |
 |---|---|---|
-| `wan_upload_read.py` | new in story 846 | `6945c756d3e2d4d15307e26d6527758a5b14740b8c3f48e4b292026395dc38a9` |
-| `wan_job_output_read.py` | new in story 846 | `5a16cec45659cc6879cd17d783c8d3a2d472590f19b75ba0fefd2721dad20129` |
+| `wan_upload_read.py` | new in story 846; **pin changed in the review fix round (2026-11-14)**: a chunk that would pass the limit is refused before it is kept, so a file that grows during the read is never held past the limit (it was, by up to one 1 MiB chunk) | `4ef0de38762964155c38e40284ccbdd741553a2ce25c129c7a498141ece6962f` |
+| `wan_job_output_read.py` | new in story 846; **pin changed in the review fix round (2026-11-14)**: a chunk that would pass the limit is refused before it is kept, so a file that grows during the read is never held past the limit (it was, by up to one 1 MiB chunk) | `755f6b01bd73a64af9d3a7b0c6ea22220eb2aeca9346a424af8580bc50dfa852` |
 
 ## The import, per hash
 
 In plan order ([`run.py`](../../src/haynes_studio/importer/run.py); tests in
 [`tests/importer/`](../../tests/importer/)):
 
-1. **Held?** `Store.verify` (it re-hashes) at each locator the hash needs. All present:
-   nothing is read or written (`test_a_second_import_reads_nothing_and_changes_nothing`).
-   Some present: the others are copied from the store, not read again
-   (`test_a_hash_held_in_one_scope_is_copied_within_the_store_not_read_again`). Other bytes
-   at a locator: **stop** (`test_other_bytes_already_at_a_locator_stop_the_import`).
+1. **Held?** `Store.verify` (it re-hashes) at each locator the hash needs. Other bytes at
+   a locator: **stop** (`test_other_bytes_already_at_a_locator_stop_the_import`). One
+   present: the import reads that blob from its own descriptor, at most the recorded size
+   (the library versions' `bytes`, else 64 MiB, the largest read) plus one byte, and hashes
+   it itself; a longer blob, or one that no longer hashes to the public SHA-256 (replaced
+   after its `verify`), is a **stop**, `store.hash_mismatch`, and nothing is repaired or
+   published (`test_a_held_blob_replaced_after_its_check_is_never_called_verified`,
+   `test_a_copy_within_the_store_reads_at_most_the_recorded_size`). All present: nothing
+   is read from the volume or written
+   (`test_a_second_import_reads_nothing_and_changes_nothing`). Some present: the others are
+   copied from those bytes, not read again
+   (`test_a_hash_held_in_one_scope_is_copied_within_the_store_not_read_again`).
 2. **Read** the sources in order. A refusal (`adapter.source_*`) is recorded and the next
    source tried (`test_the_next_source_is_tried_after_a_refusal_and_reads_stop_at_the_first_good_one`).
    Any other failure (a timeout, a `kubectl` failure or denial, `adapter.volume_unexpected`,
    an unknown message, a pin mismatch, a store error, or an error no code names:
    `import.failed`) **stops the whole import**: nothing is retried, the stopping hash keeps
-   its attempts, bytes and anything already published, `stopped` holds the code, message
+   its attempts, bytes and anything already published (`published`, `bytes_published`)
+   but names no version or locator, `stopped` holds the code, message
    and redacted stderr tail, and every row from there is reported `absent`,
    `not_read: the import stopped at <code>`
    (`test_a_failure_that_is_not_a_refusal_stops_the_import`, `test_a_timeout_stops_the_import`,
    `test_a_publication_that_fails_after_a_good_read_stops_and_keeps_what_was_read`,
+   `test_a_row_that_is_not_verified_names_no_version_or_locator`,
    `test_an_error_no_code_names_stops_the_import_and_the_report_is_still_made`).
 3. **Check the records before publishing:** each library version with this hash is
    imported again with the bytes' measured content at its own locator, its own source key
@@ -140,6 +149,13 @@ In plan order ([`run.py`](../../src/haynes_studio/importer/run.py); tests in
    (`test_each_record_resolves_to_its_existing_version`,
    `test_bytes_the_record_contradicts_are_refused_never_recorded`).
 4. **Publish** create-only into each scope with the expected SHA-256, and check the blob.
+5. **Check again** right before the hash is called verified: `Store.verify` at every
+   locator the report will name. A blob replaced or removed since its check or its
+   publication is a **stop** (`store.hash_mismatch`, or `store.blob_missing` for one that
+   is gone), and nothing is repaired
+   (`test_a_held_blob_replaced_after_its_check_is_never_called_verified`,
+   `test_a_blob_replaced_after_its_publication_is_never_called_verified`). A blob replaced
+   after this check, while the report is written, is outside what the import can see.
 
 A refused read gives a named error and no record of any kind: no blob, no version, the
 store unchanged (`test_a_refused_read_is_a_named_error_and_no_record`, for a delivered
@@ -164,8 +180,8 @@ real records with an empty fake volume every row is `absent`
 | `started_at`, `finished_at`, `elapsed_s` | UTC times and seconds |
 | `stopped` | `null`, or the `code`, `message`, `detail` (the redacted stderr tail), `sha256` and `source` it stopped at |
 | `totals` | `rows`, `hashes`, `verified`, `absent`, `mismatch` (rows) and `hashes_*` (hashes), `hashes_read`, `bytes_read` (from the Wan volume), `bytes_published` (new blobs), `by_role` (each role's three counts) |
-| `rows[]` | `key` (the recovery map's, or `e0:<file>:<line>:<clip>`, or `e0:start_image:<image>`), `role`, `sha256`, `status`, `reason`, `locators` (the store locators holding it), `version_ids` |
-| `hashes[]` | `sha256`, `media_type`, `status`, `reason`, `rows`, `locators`, `read_from` (the source, `{kind: store, locator}`, or `null` when nothing was read), `attempts[]` (`source`, `outcome`: `verified` or an `adapter.source_*` code, `seconds`, `bytes`, `message`), `versions[]` (`version_id`, `source_key`, `created: false`), `bytes_read`, `bytes_published` |
+| `rows[]` | `key` (the recovery map's, or `e0:<file>:<line>:<clip>`, or `e0:start_image:<image>`), `role`, `sha256`, `status`, `reason`, `locators` (the store locators holding it), `version_ids`; both empty unless the row is `verified` (`test_a_row_that_is_not_verified_names_no_version_or_locator`) |
+| `hashes[]` | `sha256`, `media_type`, `status`, `reason`, `rows`, `locators`, `read_from` (the source, `{kind: store, locator}` for a copy within the store, or `null` when nothing was read from the volume or copied), `attempts[]` (`source`, `outcome`: `verified` or an `adapter.source_*` code, `seconds`, `bytes`, `message`), `versions[]` (`version_id`, `source_key`, `created: false`), `bytes_read`, `bytes_published`, `published` (the locators this run published, kept after a stop); `locators` and `versions` are empty unless the hash is `verified` |
 | `lacks` | after a run that did not stop: `story` (the library resolver's problems for the r4 story, by the store's own `exists`), `layered_loops` (`layered.pin.pin_story`'s problems per layered board, by `Store.verify`), `versions_not_held` (every library version whose bytes the store lacks) |
 | `library` | `versions`, and `created_now` by the public build (`winter_menu`, `e0_motion`) |
 

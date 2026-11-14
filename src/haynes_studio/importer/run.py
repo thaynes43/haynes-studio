@@ -4,10 +4,13 @@ it create-only, import it as its existing asset version, and report every row.
 For each :class:`~haynes_studio.importer.plan.Item`, in plan order:
 
 1. **Held already?** The store is asked (``Store.verify``, which re-hashes) for the
-   hash at each locator the item needs. If every one is ``present``, nothing is read
-   (a second import reads nothing it holds and writes nothing). If one is and another
-   is not, the missing ones are copied from the store, not read again. A locator that
-   holds *other* bytes stops the import (a damaged store is for a person, and
+   hash at each locator the item needs. If one is ``present``, its blob is read from the
+   import's own descriptor, at most the recorded size plus one byte, and hashed here
+   (not taken from that ``verify``); nothing is read from the Wan volume. If every
+   locator is ``present`` nothing is written (a second import reads nothing from the
+   volume and writes nothing); if some are not, they are copied from those bytes. A
+   locator that holds *other* bytes, or a held blob that is longer or no longer hashes
+   to the item's SHA-256, stops the import (a damaged store is for a person, and
    ``store doctor``).
 2. **Read** from the item's sources in order, through the read-only clients only
    (``LedgerReader.fetch_asset``; ``VolumeReader.fetch_job_output`` and
@@ -23,12 +26,16 @@ For each :class:`~haynes_studio.importer.plan.Item`, in plan order:
    (``idempotency.mismatch``) makes the item a ``mismatch`` and nothing is published.
 4. **Publish** create-only into each scope (``Store.publish`` with the expected
    SHA-256), and check the store's blob is the expected hash, size and locator.
+5. **Check again:** right before the hash is called verified, ``Store.verify`` hashes
+   it again at every locator the report will name; a blob replaced or removed since
+   stops the import (``store.hash_mismatch`` or ``store.blob_missing``).
 
 Bytes that do not hash to the public SHA-256 are never published or imported: the item
 is ``mismatch``. A row is ``verified`` when the store holds its hash, ``absent`` when it
 does not (``reason`` says why: refused reads, no readable locator, never delivered, or
 not read because the import stopped), ``mismatch`` when a read returned other bytes or
-the records contradict them.
+the records contradict them. Only a ``verified`` row (and hash) names versions and
+locators; a hash's ``published`` lists what this run published, also after a stop.
 
 After the items, the r4 story is resolved with the store's own answers: the library
 resolver (``exists`` from ``Store.verify``) and the layered motion pins
@@ -37,14 +44,20 @@ resolver (``exists`` from ``Store.verify``) and the layered motion pins
 
 from __future__ import annotations
 
+import hashlib
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
 from haynes_studio.adapters.errors import SOURCE_HASH_MISMATCH, SOURCE_REFUSALS, AdapterError
-from haynes_studio.adapters.wan_ledger import LedgerReader
-from haynes_studio.adapters.wan_volume import VolumeReader, ledger_fetch_refusal
+from haynes_studio.adapters.wan_ledger import MAX_ASSET_BYTES, LedgerReader
+from haynes_studio.adapters.wan_volume import (
+    MAX_OUTPUT_BYTES,
+    MAX_UPLOAD_BYTES,
+    VolumeReader,
+    ledger_fetch_refusal,
+)
 from haynes_studio.canonical.model import Principal
 from haynes_studio.errors import ContractError, blocking
 from haynes_studio.importer.plan import JOB_OUTPUT, LEDGER_ASSET, LIBRARY, Item, Plan, Source
@@ -55,10 +68,13 @@ from haynes_studio.library.model import Content, locator_for
 from haynes_studio.library.resolve import resolve
 from haynes_studio.store.base import MISMATCH as STORE_MISMATCH
 from haynes_studio.store.base import PRESENT, Store
-from haynes_studio.store.errors import StoreError
+from haynes_studio.store.errors import BLOB_MISSING, StoreError
+from haynes_studio.store.errors import HASH_MISMATCH as STORE_HASH_MISMATCH
 
 VERIFIED, ABSENT, MISMATCH = "verified", "absent", "mismatch"
 STATUSES = (VERIFIED, ABSENT, MISMATCH)
+# The most bytes a held blob with no recorded size may have: the largest any read returns.
+MAX_READ_BYTES = max(MAX_ASSET_BYTES, MAX_OUTPUT_BYTES, MAX_UPLOAD_BYTES)
 # Dry run only: what a run would do with each item.
 HELD, COPY, TO_READ, NOT_READ, STOP = "held", "copy", "to_read", "not_read", "stop"
 REPORT_KIND = "private-input-import"
@@ -125,7 +141,7 @@ class ItemResult:
                 "locators": list(self.locators), "read_from": self.read_from,
                 "attempts": [a.to_document() for a in self.attempts],
                 "versions": self.versions, "bytes_read": self.bytes_read,
-                "bytes_published": self.bytes_published}
+                "bytes_published": self.bytes_published, "published": list(self.published)}
 
 
 @dataclass(frozen=True)
@@ -263,17 +279,12 @@ def _import_item(result: ItemResult, *, store: Store, library: Library, readers:
     states = _held(store, item)
     missing = [scope for scope in item.scopes if states[scope] != PRESENT]
     present = [scope for scope in item.scopes if states[scope] == PRESENT]
-    data = None
-    if missing and present:  # copy within the store, never read the source again
+    if present:  # held: the store's own bytes, hashed here; the source is never read again
         locator = _locator(item, present[0])
-        try:
-            with store.open(locator) as handle:
-                data = handle.read()
-        except (StoreError, OSError) as error:
-            raise _Stop(getattr(error, "code", "store.blob_missing"),
-                        f"the store could not be read at {locator}: {error}") from None
-        result.read_from = {"kind": "store", "locator": locator}
-    elif missing:
+        data = _held_bytes(store, item, locator, _recorded_size(library, item))
+        if missing:  # copied within the store
+            result.read_from = {"kind": "store", "locator": locator}
+    else:
         if not item.sources:
             result.reason = item.unread
             return result
@@ -283,30 +294,64 @@ def _import_item(result: ItemResult, *, store: Store, library: Library, readers:
             result.status = MISMATCH if hashes else ABSENT
             result.reason = "; ".join(sorted({a.outcome for a in result.attempts}))
             return result
-    size = len(data) if data is not None else None
-    if size is None:  # every scope holds it: measure from the store's answer
-        size = _held_size(store, item)
     try:
-        result.versions = _check_records(library, item, size, by=by, now=now)
+        versions = _check_records(library, item, len(data), by=by, now=now)
     except ContractError as error:
         result.status = MISMATCH
         result.reason = ", ".join(sorted({v.rule for v in error.violations})) or str(error)
         return result
-    if data is not None:
-        _publish(store, item, data, missing, result)
-    result.status = VERIFIED
+    _publish(store, item, data, missing, result)
+    _still_held(store, item)
+    # Only a verified hash names versions and locators (a stop before here leaves none).
+    result.status, result.versions = VERIFIED, versions
     result.locators = tuple(_locator(item, scope) for scope in item.scopes)
     return result
 
 
-def _held_size(store: Store, item: Item) -> int:
-    locator = _locator(item, item.scopes[0])
+def _recorded_size(library: Library, item: Item) -> int:
+    """The most bytes a held blob of ``item`` may have: the size its library versions
+    record, or, when none records one, the largest any read may return."""
+    sizes = {library.version(v).content.bytes for v in item.versions} - {None}
+    return max(sizes) if sizes else MAX_READ_BYTES
+
+
+def _held_bytes(store: Store, item: Item, locator: str, limit: int) -> bytes:
+    """The blob at ``locator``, read from the descriptor this opens: at most ``limit`` + 1
+    bytes, and hashed here, not taken from an earlier ``verify``. A longer blob, or one
+    that no longer hashes to the item's SHA-256, stops the import; nothing is repaired,
+    moved or overwritten."""
     try:
         with store.open(locator) as handle:
-            return handle.seek(0, 2)
+            data = bytearray()
+            while len(data) <= limit and (chunk := handle.read(limit + 1 - len(data))):
+                data += chunk
     except (StoreError, OSError) as error:
         raise _Stop(getattr(error, "code", "store.blob_missing"),
                     f"the store could not be read at {locator}: {error}") from None
+    if len(data) > limit:
+        raise _Stop(STORE_HASH_MISMATCH, f"the blob at {locator} is longer than the {limit} "
+                    f"bytes {item.sha256} may have; nothing is published; run store doctor")
+    if hashlib.sha256(data).hexdigest() != item.sha256:
+        raise _Stop(STORE_HASH_MISMATCH, f"the store no longer holds {item.sha256} at {locator} "
+                    "(changed after its check); nothing is published; run store doctor")
+    return bytes(data)
+
+
+def _still_held(store: Store, item: Item) -> None:
+    """Every locator the report will name, hashed again by the store (``Store.verify``)
+    right before the hash is called verified: a blob replaced or removed since its check
+    stops the import, and nothing is repaired, moved or overwritten."""
+    for scope in item.scopes:
+        locator = _locator(item, scope)
+        try:
+            state = store.verify(locator, item.sha256)
+        except (StoreError, OSError) as error:
+            raise _Stop(getattr(error, "code", "store.blob_missing"),
+                        f"the store could not be read at {locator}: {error}") from None
+        if state != PRESENT:
+            raise _Stop(STORE_HASH_MISMATCH if state == STORE_MISMATCH else BLOB_MISSING,
+                        f"the store no longer holds {item.sha256} at {locator} ({state} when "
+                        "checked again before it was called verified); run store doctor")
 
 
 def _lacks(story: Mapping[str, Any], library: Library, store: Store) -> dict[str, Any]:
@@ -362,8 +407,8 @@ def run_import(plan: Plan, *, store: Store, library: Library, readers: Readers,
             stopped = stop.to_document(item.sha256)
             reason = f"not_read: the import stopped at {stop.code}"
             partial = stop.result or ItemResult(item, ABSENT)
+            # Not verified, so it names no version or locator; ``published`` keeps what it wrote.
             partial.status, partial.reason = ABSENT, reason
-            partial.locators = tuple(partial.published)  # anything published before the stop
             results.append(partial)
             results += [ItemResult(rest, ABSENT, reason=reason) for rest in plan.items[index + 1:]]
             break
@@ -371,10 +416,12 @@ def run_import(plan: Plan, *, store: Store, library: Library, readers: Readers,
     rows = []
     for row in plan.rows:
         result = by_hash[row.sha256]
+        verified = result.status == VERIFIED  # only a verified row names versions and locators
         rows.append({"key": row.key, "role": row.role, "sha256": row.sha256,
                      "status": result.status, "reason": result.reason,
-                     "locators": list(result.locators),
-                     "version_ids": [v["version_id"] for v in result.versions]})
+                     "locators": list(result.locators) if verified else [],
+                     "version_ids": [v["version_id"] for v in result.versions] if verified
+                     else []})
     lacks = None
     if story is not None and stopped is None:
         try:

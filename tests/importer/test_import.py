@@ -9,6 +9,7 @@ import json
 import os
 from collections import Counter
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -36,7 +37,7 @@ from haynes_studio.importer.run import (
 from haynes_studio.library.library import Library
 from haynes_studio.library.model import locator_for
 from haynes_studio.library.resolve import resolve
-from haynes_studio.store.base import PRESENT
+from haynes_studio.store.base import MISSING, PRESENT
 from haynes_studio.store.errors import StoreError
 from haynes_studio.store.local import LocalStore
 from tests.importer.twin import twin, twin_volume
@@ -381,6 +382,138 @@ def test_other_bytes_already_at_a_locator_stop_the_import(world, tmp_path):
     assert planted.read_bytes() == b"not those bytes"
 
 
+# A held blob is hashed again before it is called verified ---------------------------------
+
+
+def _scope_locator(item: Item, scope: str) -> str:
+    return locator_for(item.sha256, item.media_type, None if scope == LIBRARY else scope)
+
+
+def just(plan: Plan, item: Item) -> Plan:
+    return replace(plan, items=(item,), rows=tuple(r for r in plan.rows if r.sha256 == item.sha256))
+
+
+def _replace_blob(store, locator, data):
+    """A second writer (the same user) swaps the blob's bytes; the store is not asked."""
+    path = Path(store.root) / locator
+    new = path.with_name(path.name + ".other")
+    new.write_bytes(data)
+    os.replace(new, path)
+
+
+class Tampered:
+    """The real store, with a second writer: the blob at each locator of ``after_verify``
+    is replaced by those bytes right after ``verify`` first hashes it and answers; with
+    ``after_publish`` each blob is replaced by as many other bytes right after its
+    publication returns. ``reads`` is the length of every ``read`` of a handle the store
+    opened."""
+
+    def __init__(self, store, after_verify=None, after_publish=False):
+        self.store, self.after_verify = store, dict(after_verify or {})
+        self.after_publish, self.reads = after_publish, []
+
+    def __getattr__(self, name):
+        return getattr(self.store, name)
+
+    def verify(self, locator, sha256):
+        answer = self.store.verify(locator, sha256)
+        if locator in self.after_verify:
+            _replace_blob(self.store, locator, self.after_verify.pop(locator))
+        return answer
+
+    def publish(self, data, **kwargs):
+        blob = self.store.publish(data, **kwargs)
+        if self.after_publish:
+            _replace_blob(self.store, blob.locator, b"X" * blob.bytes)
+        return blob
+
+    def open(self, locator):
+        return _CountedHandle(self.store.open(locator), self.reads)
+
+
+class _CountedHandle:
+    def __init__(self, handle, reads):
+        self.handle, self.reads = handle, reads
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.handle.close()
+
+    def __getattr__(self, name):
+        return getattr(self.handle, name)
+
+    def read(self, size=-1):
+        data = self.handle.read(size)
+        self.reads.append(len(data))
+        return data
+
+
+@pytest.mark.parametrize("scopes", ["one", "two"])
+def test_a_held_blob_replaced_after_its_check_is_never_called_verified(world, tmp_path, scopes):
+    """The review's sequence: the store holds the hash, ``verify`` hashes it and answers
+    present, then another writer replaces it with as many other bytes. The import hashes
+    every locator it will name again before calling the hash verified, so it stops with
+    the store's code; nothing is read from the volume and nothing is repaired. With two
+    scopes the replaced blob is the one the import does not read itself."""
+    t, vol, store = world
+    plan = t.plan()
+    item = plan.item(row_sha(t, "r4:still:cutouts/a-proud.png"))
+    if scopes == "two":
+        item = replace(item, scopes=(LIBRARY, plan.production_id))
+    data = t.data[item.sha256]
+    for scope in item.scopes:
+        store.publish(data, scope=scope, media_type=item.media_type)
+    locator = _scope_locator(item, item.scopes[-1])
+    other = b"X" * len(data)
+    runner = FailingRunner()
+    result = run(t, runner, Tampered(store, {locator: other}), plan=just(plan, item), story=False)
+    assert runner.calls == []
+    assert result.stopped["code"] == "store.hash_mismatch"
+    assert locator in result.stopped["message"]
+    held = result.report["hashes"][0]
+    assert (held["status"], held["versions"], held["locators"]) == (ABSENT, [], [])
+    assert [(r["status"], r["version_ids"], r["locators"]) for r in result.report["rows"]] == \
+        [(ABSENT, [], [])] * len(item.rows)
+    assert (tmp_path / "store" / locator).read_bytes() == other  # left for store doctor
+
+
+def test_a_blob_replaced_after_its_publication_is_never_called_verified(world):
+    """The blob this run publishes is hashed again too, right before the hash is called
+    verified."""
+    t, vol, store = world
+    plan = t.plan()
+    item = plan.item(row_sha(t, "r4:still:cutouts/a-proud.png"))
+    result = run(t, vol, Tampered(store, after_publish=True), plan=just(plan, item), story=False)
+    assert result.stopped["code"] == "store.hash_mismatch"
+    held = result.report["hashes"][0]
+    assert (held["status"], held["versions"], held["locators"]) == (ABSENT, [], [])
+    assert held["published"] == [_scope_locator(item, item.scopes[0])]
+
+
+def test_a_copy_within_the_store_reads_at_most_the_recorded_size(world):
+    """On the copy path the held blob is read from the import's own descriptor, at most the
+    recorded size plus one byte, and hashed there: a longer blob (replaced after its
+    ``verify``) stops the import, and nothing is published into the missing scope."""
+    t, vol, store = world
+    plan = t.plan()
+    item = replace(plan.item(row_sha(t, "r4:still:cutouts/a-proud.png")),
+                   scopes=(LIBRARY, plan.production_id))
+    data = t.data[item.sha256]
+    recorded = t.library.version(item.versions[0]).content.bytes
+    assert recorded == len(data)
+    store.publish(data, scope=LIBRARY, media_type=item.media_type)
+    held = _scope_locator(item, LIBRARY)
+    tampered = Tampered(store, {held: data + b"X" * (1 << 20)})
+    runner = FailingRunner()
+    result = run(t, runner, tampered, plan=just(plan, item), story=False)
+    assert runner.calls == [] and result.stopped["code"] == "store.hash_mismatch"
+    assert tampered.reads and sum(tampered.reads) <= recorded + 1
+    assert store.verify(_scope_locator(item, plan.production_id), item.sha256) == MISSING
+    assert result.report["hashes"][0]["published"] == []
+
+
 # The dry run -----------------------------------------------------------------------------------
 
 
@@ -413,15 +546,19 @@ def test_the_twin_is_only_hashes_away_from_the_real_records():
 
 
 class FailingPublish:
-    """A store whose publications fail (a full disk, say); everything else is the real one."""
+    """A store whose publications fail (a full disk, say) after the first ``after`` of
+    them; everything else is the real one."""
 
-    def __init__(self, store):
-        self.store = store
+    def __init__(self, store, after=0):
+        self.store, self.after = store, after
 
     def __getattr__(self, name):
         return getattr(self.store, name)
 
     def publish(self, *args, **kwargs):
+        if self.after:
+            self.after -= 1
+            return self.store.publish(*args, **kwargs)
         raise StoreError("store.collision", "the disk is full")
 
 
@@ -434,6 +571,27 @@ def test_a_publication_that_fails_after_a_good_read_stops_and_keeps_what_was_rea
     assert item["status"] == ABSENT and item["reason"] == "not_read: the import stopped at store.collision"
     assert [a["outcome"] for a in item["attempts"]] == [VERIFIED] and item["bytes_read"] > 0
     assert result.report["totals"]["bytes_read"] == item["bytes_read"] and item["locators"] == []
+
+
+@pytest.mark.parametrize("after", [0, 1])
+def test_a_row_that_is_not_verified_names_no_version_or_locator(world, after):
+    """The review's sequence: the read and the records check pass, then a publication fails
+    (here the first, or the second of two scopes). The row is ``absent`` and names no
+    version and no locator; only a verified row does. What the run did publish is in its
+    hash's ``published``."""
+    t, vol, store = world
+    plan = t.plan()
+    item = plan.item(row_sha(t, "r4:still:cutouts/a-proud.png"))
+    if after:
+        item = replace(item, scopes=(LIBRARY, plan.production_id))
+    result = run(t, vol, FailingPublish(store, after), plan=just(plan, item), story=False)
+    assert result.stopped["code"] == "store.collision"
+    assert [(r["status"], r["version_ids"], r["locators"]) for r in result.report["rows"]] == \
+        [(ABSENT, [], [])] * len(item.rows)
+    held = result.report["hashes"][0]
+    assert (held["status"], held["versions"], held["locators"]) == (ABSENT, [], [])
+    assert held["published"] == [_scope_locator(item, LIBRARY)] * after
+    assert held["bytes_published"] == len(t.data[item.sha256]) * after
 
 
 def test_an_error_no_code_names_stops_the_import_and_the_report_is_still_made(world, monkeypatch):

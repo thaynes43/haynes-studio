@@ -55,9 +55,9 @@ def main():
         refuse('too_large')
     data = bytearray()
     while chunk := os.read(fd, CHUNK):
+        if len(data) + len(chunk) > LIMIT:
+            refuse('too_large')  # a growing file: refused before the chunk is kept
         data += chunk
-        if len(data) > LIMIT:
-            refuse('too_large')
     after = os.fstat(fd)
     if len(data) != st.st_size or after.st_size != st.st_size or after.st_nlink != 1:
         refuse('changed')
