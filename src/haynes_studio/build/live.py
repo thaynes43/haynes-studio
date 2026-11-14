@@ -47,11 +47,14 @@ from typing import Any
 from haynes_studio.adapters import wan
 from haynes_studio.adapters.errors import (
     BUSY,
+    COMMAND_FAILED,
     COMPETING_WORK,
     JOB_FAILED,
     JOURNAL_FAILED,
     NOT_FOUND,
     PIN_MISMATCH,
+    RESPONSE_INVALID,
+    TIMEOUT,
 )
 from haynes_studio.build.errors import (
     DRY_RUN_ASKED,
@@ -75,7 +78,8 @@ S2V_MAKES = {"model": "wan2.2-s2v-14b-fp8", "lora": "lightx2v-4step", "steps": 4
 I2V_MAKES = {"model": "wan2.2-ti2v-5b", "source_fps": wan.I2V_FPS}
 S2V_KEYS = frozenset(S2V_MAKES) | {"size", "delivery"}
 I2V_KEYS = frozenset(I2V_MAKES) | {"size", "adapter", "delivery"}
-E0_RECORDS = Path("titles/the-winter-menu/video-e0")  # from the checkout, as --register
+# The E0 clip records of the checkout this code runs from (an editable install).
+E0_RECORDS = Path(__file__).resolve().parents[3] / "titles" / "the-winter-menu" / "video-e0"
 E0_FILES = ("clip-records.jsonl", "clip-records-layers.jsonl", "clip-records-s2v.jsonl")
 
 
@@ -158,8 +162,12 @@ _CHECKS = {
     JOURNAL_FAILED: "read the journal file and the Wan service (its engine queue and the "
                     "ledger of every job the journal names); never delete, move, empty or "
                     "replace the journal or its .lock file to get past it",
-    JOB_FAILED: "read /videos/<job_id> and the engine queue; a failed job whose prompt was "
-                "accepted stops blocking once a probe shows the queue empty",
+    JOB_FAILED: "the job failed and made no clip: read /videos/<job_id> and the engine queue. "
+                "If the held record's in_flight names the job (its prompt was accepted), the "
+                "build keeps asking recover, which refuses, so only a person settles it: once "
+                "the ledger reads failed and the queue holds nothing of it, "
+                "WanClipClient.clear_in_flight(); otherwise the client settled it and the next "
+                "service phase asks for the clip again",
     PIN_MISMATCH: "a pinned snippet or template does not hash to its pin; nothing was sent: "
                   "check the checkout",
     INTERNAL: "an error with no code (a bug, or the system): read the journal and "
@@ -171,8 +179,18 @@ _BUSY = ("read the journal (FileJournal(path).read_state()) and /videos/<job_id>
          "never rendered again; a job with no ledger needs a person to check the api "
          "container before WanClipClient.clear_in_flight(); a journal held by another "
          "process means finding that process, never pointing a run at another file")
-_LOST = ("the answer was lost or unreadable: read the journal and /videos/<job_id>; the next "
-         "service phase collects a finished job with recover and never renders it again")
+_LOST = ("the command failed or its answer was lost: read the journal; if it names a job "
+         "(in_flight), read /videos/<job_id>: a finished job is collected by the next service "
+         "phase of the same draft and --wan-story with recover, never rendered again; one with "
+         "no ledger is a person's to check")
+_CHECKS[RESPONSE_INVALID] = (
+    "an answer did not read as this request's: a probe answer, a clip cut in transfer or "
+    "failing its checks, or a ledger that is not this request's job (another --wan-story, "
+    "seed or input). Read the journal and /videos/<job_id>: a cut transfer is collected by "
+    "the next service phase of the same draft and --wan-story with recover; a clip that "
+    "fails its checks, or a ledger of another request, stays held until a person inspects "
+    "it and calls WanClipClient.clear_in_flight()")
+_CHECKS[TIMEOUT] = _CHECKS[COMMAND_FAILED] = _LOST
 
 
 def _check_for(code: str) -> str:
@@ -209,10 +227,12 @@ class WanClips:
         return self.client
 
     def make(self, request: wan.WanRequest, *, stage: str,
-             collected: Sequence[Mapping[str, Any]] = ()) -> wan.WanClip:
+             collected: Sequence[Mapping[str, Any]] = (), keepable: bool = True) -> wan.WanClip:
         """One clip for ``request``: recovered when the journal holds the job made for
         it, else rendered once. ``collected`` names the clips of this chain already
-        made, so a stop records them."""
+        made, so a stop records them; ``keepable`` says the caller can hand a clip kept
+        on a competing-work stop to its adapter (false for a chain clip before the last:
+        a chain is committed whole)."""
         if self.stopped is not None:
             raise self.stopped
         try:
@@ -227,9 +247,10 @@ class WanClips:
             self.calls.append(("render", None))
             return client.render(request)
         except Exception as error:  # every refusal stops the phase; nothing goes on
-            self.stopped = self._held(error, stage, collected)
             clip = getattr(error, "clip", None)
-            if getattr(error, "code", None) == COMPETING_WORK and isinstance(clip, wan.WanClip):
+            kept = getattr(error, "code", None) == COMPETING_WORK and isinstance(clip, wan.WanClip)
+            self.stopped = self._held(error, stage, collected, handed=kept and keepable)
+            if kept and keepable:
                 # Foreign work during this request's own job: its clip passed every check
                 # and the client kept it (guard 27). It is handed to the adapter, cached,
                 # and the build stops held right after (ClipSources.stopped); the stop
@@ -237,8 +258,8 @@ class WanClips:
                 return clip
             raise self.stopped from None
 
-    def _held(self, error: Exception, stage: str, collected: Sequence[Mapping[str, Any]]
-              ) -> RunHeld:
+    def _held(self, error: Exception, stage: str, collected: Sequence[Mapping[str, Any]],
+              *, handed: bool) -> RunHeld:
         code = getattr(error, "code", None)
         if not isinstance(code, str) or not code:
             code = INTERNAL
@@ -253,9 +274,10 @@ class WanClips:
             "halt": None if halt is None else {"job_id": halt.job_id,
                                                "unexpected_work_seen": list(halt.unexpected_work_seen)},
             "collected_before_stop": [dict(c) for c in collected]}
-        clip = getattr(error, "clip", None)  # competing work: checked, kept, handed to the adapter
-        if isinstance(clip, wan.WanClip):
-            detail["clip_kept"] = {"job_id": clip.job_id, "sha256": clip.sha256}
+        clip = getattr(error, "clip", None)  # competing work: checked and kept by the client
+        if isinstance(clip, wan.WanClip):  # handed to the adapter, or not (a chain's earlier clip)
+            detail["clip_kept"] = {"job_id": clip.job_id, "sha256": clip.sha256,
+                                   "handed_to_adapter": handed}
         return RunHeld(code, message, job_id=job_id, check=_check_for(code), detail=detail,
                        stage=stage)
 
@@ -300,11 +322,12 @@ class WanChainSource(ClipSource):
         self.calls.append(request)
         out: list[SourceClip] = []
         start = request.photo
-        for spec in request.clips:
+        for number, spec in enumerate(request.clips, 1):
             collected = [{"index": c.index, "job_id": c.engine_job_id,
                           "sha256": c.extra["wan"]["clip_sha256"]} for c in out]
             clip = self.clips.make(i2v_request(request, spec, start, self.clips.story),
-                                   stage=I2V_STAGE, collected=collected)
+                                   stage=I2V_STAGE, collected=collected,
+                                   keepable=number == len(request.clips))
             record = clip.record
             out.append(SourceClip(index=spec.index, data=clip.data, seed=record["seed"],
                                   frames_requested=record["frames_requested"],
@@ -419,7 +442,7 @@ def e0_clips(directory: str | Path = E0_RECORDS) -> list[E0Clip]:
     """The E0 clip records' timings: image-to-video jobs (records without ``method``)
     and speech-to-video jobs on the lightning profile (``method`` ``s2v-lightning``);
     the one 20-step speech job (``method`` ``s2v``) is another profile and is left out.
-    A missing file gives no records."""
+    A missing file gives no records (the estimate then says none were read)."""
     out = []
     for name in E0_FILES:
         path = Path(directory) / name
@@ -473,6 +496,8 @@ def estimate(clip: PlannedClip, records: Sequence[E0Clip]) -> Estimate:
         basis = (f"E0 image-to-video jobs at {clip.width}x{clip.height} of "
                  f"{', '.join(map(str, lengths)) or '?'} frames"
                  + (" (an upper bound)" if same and min(lengths) > clip.frames else ""))
+    if not records:
+        return Estimate(None, None, 0, "no E0 records were read")
     if not same:
         return Estimate(None, None, 0, f"no E0 job of this shape ({clip.kind} {clip.width}x"
                         f"{clip.height}, {clip.frames} frames)")
@@ -494,6 +519,7 @@ def dry_run_report(clips: Sequence[PlannedClip], records: Sequence[E0Clip]) -> d
     total = {"jobs": len(clips), "render_s": [round(low, 1), round(high, 1)] if known else None,
              "wall_s_max": round(wall, 1) if known else None,
              "basis": "the sum of each job's E0 range" if known else
+             "unknown: no E0 records were read" if not records else
              "unknown: a job has no E0 job of its shape"}
     return {"clips": rows, "total": total}
 

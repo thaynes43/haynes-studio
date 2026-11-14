@@ -49,6 +49,7 @@ from haynes_studio.layered.s2v import read_provenance, record_stage
 from haynes_studio.motion.winter_menu import complete_block
 from haynes_studio.store import LocalStore, blob_locator
 from haynes_studio.wholeframe.clips import read_clip_set
+from haynes_studio.wholeframe.source import last_frame_png
 from tests.adapters.conftest import forget_wan_process_state
 from tests.build_story import fixtures as f
 from tests.layered import media
@@ -575,3 +576,90 @@ def test_the_offline_phase_needs_no_client_and_reads_no_journal(prepared, files,
     code, out, err = cli(*cli_args(world, files, "--offline"))  # its Wan runner fails if asked
     assert code == 1 and "rule build.offline_missing" in err and f"at board {f.B1}" in err
     assert not journal_path(world.root).exists()
+
+
+# Chains of more than one clip ------------------------------------------------------------------
+
+
+class Staged:
+    """The fake pod's runner, with ``hooks[n]`` applied to the pod once it has received
+    ``n`` Wan runs (``0``: before the first command; ``1``: right after the first run)."""
+
+    def __init__(self, pod: FakeWan, hooks):
+        self.pod, self.hooks, self.runner = pod, dict(hooks), FakeRunner(pod)
+
+    def run(self, command):
+        hook = self.hooks.pop(len(self.pod.payloads), None)
+        if hook is not None:
+            hook(self.pod)
+        return self.runner.run(command)
+
+
+CHAIN = toolchain(i2v_clip_frames=9)  # B3's 12 source frames: two clips of 9
+
+
+def chain_world(prepared, tmp_path, pod, hooks=()):
+    world = copy_world(prepared, tmp_path)
+    phase = Phase(world, prepared[1], prepared[2], pod, runner=Staged(pod, hooks))
+    return phase
+
+
+def b3_clips(world, run):
+    b3 = next(s for s in run["stages"] if s["board_id"] == f.B3)
+    entry = next(c for c in b3["clips"] if c["role"] == "whole_frame_clip")
+    with world.store.open(blob_locator(f.PRODUCTION, entry["sha256"], "application/json")) as handle:
+        return read_clip_set(handle.read(), entry["sha256"])["clips"]
+
+
+def test_a_chain_renders_each_clip_once_in_order_each_on_the_last_frame_before(prepared, tmp_path):
+    phase = chain_world(prepared, tmp_path, FakeWan())
+    built = phase.run(tools=CHAIN)
+    assert built.run["status"] == "cancelled", built.run["error"]
+    assert [(c.kind, c.index, c.frames, c.seed) for c in built.planned] == [
+        ("s2v", None, 13, 11), ("i2v", 0, 9, 31), ("i2v", 1, 9, 32)]
+    assert payload_shapes(phase.pod.payloads) == [("s2v", 11, 13), ("i2v", 31, 9), ("i2v", 32, 9)]
+    clips = b3_clips(phase.world, built.run)
+    first, second = clips[0]["extra"]["wan"], clips[1]["extra"]["wan"]
+    assert first["inputs"]["image"]["sha256"] == hashlib.sha256(f.photo_png()).hexdigest()
+    with phase.world.store.open(blob_locator(f.PRODUCTION, clips[0]["sha256"], "video/mp4")) as handle:
+        last = last_frame_png(handle.read())
+    assert second["inputs"]["image"]["sha256"] == hashlib.sha256(last).hexdigest()
+    assert clips[1]["start_image"]["role"] == "previous_last_frame"
+
+
+def _refuse(pod):
+    pod.health["accepting_jobs"] = False
+
+
+def test_a_refusal_inside_a_chain_holds_naming_the_clips_collected_before_it(prepared, tmp_path):
+    phase = chain_world(prepared, tmp_path, FakeWan(), {2: _refuse})  # after B1 and clip 0
+    problem = held_problem(phase.run(tools=CHAIN).run)
+    assert problem["rule"] == BUSY and phase.clips.stopped is not None
+    (collected,) = problem["collected_before_stop"]
+    assert collected["index"] == 0 and collected["job_id"] == f"{2:032x}"
+    assert len(phase.pod.payloads) == 2 and phase.clips.calls == [("render", None)] * 3
+
+
+def test_foreign_work_on_a_chains_earlier_clip_holds_and_submits_nothing_more(prepared, tmp_path):
+    def foreign(pod):
+        pod.foreign_during_job = ["p-foreign"]
+
+    def quiet(pod):
+        pod.foreign_during_job = []
+    phase = chain_world(prepared, tmp_path, FakeWan(), {1: foreign, 2: quiet})
+    problem = held_problem(phase.run(tools=CHAIN).run)
+    assert problem["rule"] == COMPETING_WORK and problem["collected_before_stop"] == []
+    assert problem["clip_kept"]["handed_to_adapter"] is False  # a chain is committed whole
+    assert len(phase.pod.payloads) == 2  # B1, then clip 0; clip 1 never sent
+    assert phase.clips.calls == [("render", None)] * 2
+
+
+def test_a_lost_answer_on_a_chains_later_clip_holds_the_next_run_unsettled(prepared, tmp_path):
+    def lose(pod):
+        pod.lose, pod.lost_state = "timeout", "succeeded"
+    phase = chain_world(prepared, tmp_path, FakeWan(), {2: lose})
+    job = held_problem(phase.run(tools=CHAIN).run)["job_id"]
+    phase.pod.lose = None
+    problem = held_problem(phase.run(tools=CHAIN).run)  # the next run asks for clip 0 first
+    assert problem["rule"] == "build.wan_unsettled" and problem["job_id"] == job
+    assert phase.clips.calls == [] and len(phase.pod.payloads) == 3

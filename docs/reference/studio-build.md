@@ -276,10 +276,19 @@ first clip request, so a phase whose clips are all cached never reads the journa
   asking the client. A `held` run is a safety stop (section 8): it resumes only after a
   person reconciles it, never by resubmitting.
 - **Foreign work during this request's own job** (`adapter.competing_work` with the
-  clip): the clip passed every check and the client kept it (guard 27), so it is handed
-  to the adapter and cached, and the build stops `held` right after
-  (`ClipSources.stopped`); the next run finds it cached and is stopped by the
-  journal's halt before any submission.
+  clip): the clip passed every check and the client kept it (guard 27). A speech clip, or
+  a chain's last clip, is handed to the adapter and cached, and the build stops `held`
+  right after (`ClipSources.stopped`); the next run finds it cached and is stopped by
+  the journal's halt before any submission. A chain clip before the last cannot be
+  cached (a chain is committed whole): the stop is raised at once, and the record names
+  it (`clip_kept.handed_to_adapter: false`).
+- **One build per process.** The client keeps the job that blocks and the halt per
+  process, for every client (story 842), and the build reads that state to choose
+  between `recover` and a stop; the command line runs one build per process. A long-lived
+  process that builds two stores would share it (tests reset it between builds).
+- **The journal is not stray.** `LocalStore.doctor()` lists `wan-journal.jsonl` and its
+  `.lock` among a store's unexpected paths (the store does not know them): never remove
+  them to tidy a store.
 
 ### Request mapping
 
@@ -330,24 +339,33 @@ are in `tests/build_story/test_live_sources.py`.
 | the pod cannot be reached | `adapter.command_failed` | held | `test_a_runner_that_cannot_reach_the_pod_stops_the_phase_held` |
 | a journal it cannot read | `adapter.journal_failed` | held at the client's construction; no command; the file is not touched | `test_an_unreadable_journal_stops_the_phase_held_before_any_command` |
 | the journal held by another holder | `adapter.busy` | held; no command | `test_a_journal_another_holder_has_stops_the_phase_held_before_any_command` |
-| foreign work during the job | `adapter.competing_work` | the checked clip is cached, then held; the next run is held by the halt with nothing submitted | `test_competing_work_keeps_the_checked_clip_then_holds_and_the_halt_holds_the_next_run` |
+| foreign work during the job | `adapter.competing_work` | the checked clip is cached (a speech clip or a chain's last), then held; the next run is held by the halt with nothing submitted; on a chain's earlier clip, held at once, the clip named and not cached | `test_competing_work_keeps_the_checked_clip_then_holds_and_the_halt_holds_the_next_run`, `test_foreign_work_on_a_chains_earlier_clip_holds_and_submits_nothing_more` |
+| a refusal at a chain's later clip | its code | held; the clips collected before it are named (`collected_before_stop`) | `test_a_refusal_inside_a_chain_holds_naming_the_clips_collected_before_it` |
 | an earlier job in flight whose ledger reads succeeded, same request | (none) | `recover`, then the next clip | `test_a_lost_answer_is_recovered_by_the_next_phase_never_rendered_again` |
 | an earlier job uncollected, same request | (none) | `recover`, then the next clip | `test_a_lost_fetch_is_recovered_by_the_next_phase_never_rendered_again` |
 | an earlier job still running / with no ledger / failed | `adapter.busy` / `adapter.not_found` / `adapter.job_failed` | `recover` refuses: held, no render | `test_a_lost_job_that_has_not_succeeded_stops_the_next_phase_held_without_a_render` |
-| an earlier job made for another request | `build.wan_unsettled` | held; neither `recover` nor `render` | `test_a_journal_job_made_for_another_request_stops_the_phase_held` |
+| an earlier job made for another request | `build.wan_unsettled` | held; neither `recover` nor `render` | `test_a_journal_job_made_for_another_request_stops_the_phase_held`, `test_a_lost_answer_on_a_chains_later_clip_holds_the_next_run_unsettled` |
 | any other exception of the client | its code, else `build.internal` | held | (the same path) |
 
-Every refusal test also checks that the client was called once, that the next clip was
-never asked for, and that a later request to the stopped sources raises the same stop
-without a call.
+Each parametrized refusal test also checks that the client was called once, that the
+next clip was never asked for, and that a later request to the stopped sources raises
+the same stop without a call. A chain of two clips is rendered in order, clip 1 on clip
+0's last frame (`test_a_chain_renders_each_clip_once_in_order_each_on_the_last_frame_before`).
+
+A held run stays held for the same request until its cause is gone: a job the journal
+still holds is asked of `recover` again by every later run, and `recover` refuses until
+its ledger reads `succeeded`. A failed job whose prompt the engine accepted is therefore
+settled only by a person (`clear_in_flight()` once its ledger reads failed and the queue
+holds nothing of it); the client's own settle on an empty queue (story 842's row 7)
+happens inside `render`, which the build does not call while a job is held.
 
 ### The dry run
 
 `studio build ... --phase service --dry-run --wan-story URL` lists, in the order the
 phase would request them, the clip jobs the plan lacks: kind, board, slot (speech) or
 chain index (whole-frame), requested length, size, chunks and seed, each with its GPU
-time from the E0 records (`titles/the-winter-menu/video-e0/clip-records*.jsonl`, read
-from the checkout): the range of `render_s` and the longest `wall_s` (with its cool-down
+time from the E0 records (`titles/the-winter-menu/video-e0/clip-records*.jsonl` of the
+checkout the code runs from; none found reads "no E0 records were read"): the range of `render_s` and the longest `wall_s` (with its cool-down
 wait) of the E0 jobs of the same kind and size, speech-to-video by chunk count,
 image-to-video of at least its length (E0 ran 121 frames only), marked an upper or lower
 bound when E0's lengths were longer or shorter (proposal). The one 20-step speech job is
@@ -370,7 +388,8 @@ jobs)`, `total: 2 Wan job(s), GPU 259-355.2 s, at most 623 s with cool-down`.
 - **A chain stopped after its first clip** keeps nothing in the cache: a chain is
   committed whole or not at all (story 427), so clips 0 to *k - 1* collected before a
   stop at clip *k* are named in the held record (`collected_before_stop`: index, job,
-  SHA-256) and stay on the Wan volume. A lost answer on clip *k* > 0 holds every later
+  SHA-256; and `clip_kept` for clip *k* itself on foreign work) and stay on the Wan
+  volume; after reconciliation the next run renders the chain from clip 0. A lost answer on clip *k* > 0 holds every later
   run with `build.wan_unsettled` (the next run asks for clip 0 first) until a person
   collects it with `recover` (its start image is clip *k - 1*'s last frame) or clears it
   after checking. With the default 121-frame clips a chain is one clip for a board of up
@@ -609,10 +628,12 @@ as the build runs it. Read-only checks with the coordinator watching, then one j
 If a run is held, read its record (`studio run show RUN_ID --store ROOT --production
 PRD --json`, `error.problems[0]`), then the journal, then `/videos/<job_id>` for the job
 it names and the engine queue. A finished job whose answer was lost is collected by the
-next service phase of the same draft with `recover`, never rendered again; a failed job
-whose prompt was accepted clears itself once a probe shows the queue empty; anything
-else is a person's: never resubmit to recover, never call `clear_in_flight()` or
-`clear_halt()` without checking, and never start a new journal to get past a blocked one.
+next service phase of the same draft (and `--wan-story`) with `recover`, never rendered
+again; a failed job whose prompt was accepted is a person's to settle
+(`clear_in_flight()` once its ledger reads failed and the engine queue holds nothing of
+it); anything else is a person's too: never resubmit to recover, never call
+`clear_in_flight()` or `clear_halt()` without checking, and never start a new journal to
+get past a blocked one.
 
 Known blockers with r4 as imported, both observations in the PR: O-406-1, the phone
 proxy of a film whose frame count is not a multiple of 3 fails `delivery.proxy_invalid`
