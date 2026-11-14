@@ -103,7 +103,22 @@ rest; the SHA-256, not the decode, proves the bytes are the ones the build made.
 
 libx264 `veryfast`, CRF 23 capped at 2 500 kbit/s with a 5 000 kbit buffer, High
 profile, a key frame every 48 frames, `yuv420p`; AAC-LC stereo 128 kbit/s at
-48 000 Hz, trimmed or padded to exactly `frames x 2000` samples; `+faststart`.
+48 000 Hz, trimmed or padded to exactly `frames x 2000` samples; `+faststart`; an MP4
+movie timescale of 48 000 (`PROXY_MOVIE_TIMESCALE`, proposal), as the master's mux
+([studio-mix.md](studio-mix.md)).
+
+The timescale is what makes the proxy's exact audio check pass at any length (story
+[857](https://work.haynesnetwork.com/work_packages/857), observation O-406-1). A frame
+is 2000 samples, 41.667 ms. At the muxer's default timescale of 1000 the edit list
+records the audio's length in whole ms, rounded down, so a film whose frame count is not
+a multiple of 3 recorded fewer samples than it holds: 41 frames, 81 984 of 82 000; 43
+frames, 85 968 of 86 000; r4's 1087 frames, 2 173 968 of 2 174 000. `deliver` refused
+those proxies (`delivery.proxy_invalid`, `audio_duration`). At 48 000 the length is
+recorded in samples. The check is unchanged. Nothing else in the file changed for the
+existing fixtures: the same size to the byte (12 frames: 12 130 bytes; 96 frames of
+noise: 1 572 953; the 60 s fixture: 1 240 092), codecs and frame count. Tests:
+`tests/delivery/test_proxy.py` (41, 42 and 43 frames through `deliver`, and a
+1087-frame proxy at 64x64).
 
 The cap makes the size rule hold for any picture: video is at most
 `(2 500 000 x s + 5 000 000) / 8` bytes, so a 60 s proxy is at most about 20.3 MB with

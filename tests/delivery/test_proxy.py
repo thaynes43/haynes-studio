@@ -89,3 +89,39 @@ def test_the_60_s_fixture_delivers_a_proxy_under_25_mb(minute, record_property):
     with open(proxy, "rb") as handle:  # +faststart: the index comes before the media
         head = handle.read(64 * 1024)
     assert 0 <= head.find(b"moov") < head.find(b"mdat") or b"mdat" not in head
+
+
+# The proxy's recorded audio length at a frame count that is not a multiple of 3
+# (story 857, observation O-406-1). A frame is 2000 samples, 41.667 ms: at the MP4
+# muxer's default movie timescale of 1000 the edit list rounds the audio down to a whole
+# ms (41 frames: 1708.333 ms recorded as 1708 ms, 81 984 samples, not 82 000), and the
+# proxy's check allows no difference. A multiple of 3 frames is a whole ms (125 ms).
+@pytest.mark.parametrize("frames", [41, 42, 43])
+def test_a_film_of_any_frame_count_delivers_a_proxy_with_exact_audio(tmp_path, frames):
+    master = write_master(tmp_path / "final.mp4", frames=frames)
+    root = tmp_path / "store"
+    root.mkdir()
+    delivery = deliver(master, store=LocalStore(root), production_id=PRD, run_id=RUN,
+                       expected_frames=frames, now=datetime(2026, 11, 13, tzinfo=UTC))
+    report = inspect(root / delivery.proxy.locator, width=720, height=1280,
+                     expected_frames=frames, max_bytes=25_000_000, audio_tolerance=0)
+    assert report.ok, report.problems
+    assert (report.video_codec, report.audio_codec, report.frames) == ("h264", "aac", frames)
+    assert report.audio_samples == frames * 2000
+    assert frames * 2000 <= report.decoded_audio_samples < frames * 2000 + 1024
+
+
+def test_a_1087_frame_proxy_records_its_audio_exactly(tmp_path):
+    """r4's length (1087 frames, 1087 mod 3 = 1), at a tiny picture: the length, not
+    the size, is what the audio check measures."""
+    frames = 1087
+    master = write_master(tmp_path / "final.mp4", frames=frames, width=64, height=64, long=True)
+    proxy = tmp_path / "proxy.mp4"
+    make_proxy(master, proxy, width=64, height=64, frames=frames)
+    report = inspect(proxy, width=64, height=64, expected_frames=frames, audio_tolerance=0)
+    assert report.ok, report.problems
+    assert report.audio_samples == frames * 2000 == 2_174_000
+    assert frames * 2000 <= report.decoded_audio_samples < frames * 2000 + 1024
+    with av.open(str(proxy)) as container:
+        video = container.streams.video[0]
+        assert video.duration * video.time_base * 24 == frames

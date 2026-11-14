@@ -31,7 +31,11 @@ audio stream is 32 samples short).
 
 :func:`make_proxy` encodes the phone proxy from a checked master: H.264 at the
 profile's size, a capped bit rate so the size bound holds for any picture, AAC with
-exactly ``frames x 2000`` samples, ``+faststart``. Decoders, the scaler and x264 are
+exactly ``frames x 2000`` samples, ``+faststart``, and the MP4 movie timescale at
+48 000 (story 857, as the master's mux of story 841): at the muxer's default of 1000 the
+edit list rounds the audio's recorded length down to a whole ms, so a film whose frame
+count is not a multiple of 3 recorded fewer samples than it holds (41 frames: 81 984 of
+82 000), and the proxy's exact check refused it. Decoders, the scaler and x264 are
 given ``threads`` threads (2 in session pods and tests). PyAV's audio resampler and its
 AAC encoder each build a libavfilter graph whose thread pool starts one thread per CPU;
 no filter in those graphs is slice-threaded, so the pool stays idle. Measured in a
@@ -81,6 +85,10 @@ PROXY_VIDEO_MAXRATE = 2_500_000  # bits per second
 PROXY_VIDEO_BUFSIZE = 5_000_000  # bits
 PROXY_AUDIO_BITRATE = 128_000  # bits per second, AAC-LC stereo
 PROXY_AUDIO_LAYOUT = "stereo"
+# The MP4 movie timescale: the edit lists in audio samples, so the recorded audio length
+# is exactly frames x 2000 (one frame is 2000 samples, 41.667 ms; the default 1000
+# rounds that down to a whole ms). Story 841 set the same for the master.
+PROXY_MOVIE_TIMESCALE = AUDIO_RATE
 
 
 @dataclass(frozen=True, slots=True)
@@ -313,7 +321,8 @@ def make_proxy(source: str | os.PathLike[str], dest: str | os.PathLike[str], *, 
     os.close(fd)
     with av.open(os.fspath(source), "r") as master, \
             av.open(os.fspath(dest), "w", format="mp4",
-                    options={"movflags": "+faststart"}) as proxy:
+                    options={"movflags": "+faststart",
+                             "movie_timescale": str(PROXY_MOVIE_TIMESCALE)}) as proxy:
         video_in, audio_in = master.streams.video[0], master.streams.audio[0]
         for stream in (video_in, audio_in):
             stream.thread_type = "AUTO"
@@ -386,6 +395,7 @@ class _AudioSink:
 
 
 __all__ = [
-    "AAC_FRAME", "MediaReport", "PIXEL_FORMAT", "PROXY_AUDIO_BITRATE", "PROXY_VIDEO_BUFSIZE",
-    "PROXY_VIDEO_MAXRATE", "PROXY_VIDEO_OPTIONS", "Problem", "inspect", "make_proxy",
+    "AAC_FRAME", "MediaReport", "PIXEL_FORMAT", "PROXY_AUDIO_BITRATE", "PROXY_MOVIE_TIMESCALE",
+    "PROXY_VIDEO_BUFSIZE", "PROXY_VIDEO_MAXRATE", "PROXY_VIDEO_OPTIONS", "Problem", "inspect",
+    "make_proxy",
 ]
