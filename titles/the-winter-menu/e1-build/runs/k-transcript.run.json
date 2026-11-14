@@ -1,0 +1,1263 @@
+{
+  "schema": "studio.run/v1",
+  "id": "run_01M7C56FGG1XJBAEANF07EYY2Z",
+  "story_id": "sty_01M79V9FC00000000000000001",
+  "number": 31,
+  "status": "cancelled",
+  "wait_reason": null,
+  "phase": "service",
+  "snapshot": {
+    "sha256": "3bf340d32d16f603465cbc095ec62d3ef338cfc814444707477d9489db41cb1b",
+    "story_revision": 3,
+    "board_count": 9,
+    "locator": "productions/prd_01M79V9FC00000000000000001/sha256/3b/3bf340d32d16f603465cbc095ec62d3ef338cfc814444707477d9489db41cb1b.json"
+  },
+  "queued_by": {
+    "kind": "cli",
+    "command": "studio build",
+    "operator": {
+      "kind": "human",
+      "iss": "https://agent-session.invalid/dev-env",
+      "sub": "agent-session:haynes-studio-1114-013021"
+    }
+  },
+  "queued_at": "2026-11-14T04:31:36Z",
+  "idempotency_key": null,
+  "estimate": null,
+  "progress": {
+    "percent": 100,
+    "stage": "service_phase_complete"
+  },
+  "stages": [
+    {
+      "board_id": "brd_01M79V9FC00000000000000001",
+      "board_number": 1,
+      "method": {
+        "layer": "layered",
+        "motion": "s2v"
+      },
+      "frames": 153,
+      "film_start_frame": 0,
+      "clips": [
+        {
+          "role": "s2v_clip",
+          "slot": "a",
+          "sha256": "7bfecdbef46de0f9e4dd203403221fd85e5ee21e5dfb03d9bdff9955e810dac0",
+          "key": "sha256:01e4f49770476739b4adad305e81674c08bc16d7ed7dc4daf2eff80aae787a99",
+          "made": false,
+          "frames": 158,
+          "fps": 16,
+          "requested_length": 154,
+          "seed": 611,
+          "engine": "wan-api/s2v-14b-lightning",
+          "engine_job_id": "bdb9e41bfe494aa3a996c135e6348101",
+          "files_sha256": {
+            "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+            "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+            "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+            "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+            "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+          },
+          "trimmed": 56,
+          "render_s": null
+        },
+        {
+          "role": "set_loop",
+          "slot": null,
+          "sha256": "d9992080f596d71119aaad39b6717bff898e8bc9ac40f93d079a4ffdc74298a1",
+          "made": false,
+          "library_version_id": "asv_01M7BVCF7QZG0E27A6CQZ458AA",
+          "frames": 121,
+          "fps": 24
+        }
+      ],
+      "segment_sha256": "68fbfe51c9c0e4ce2e981dbfa4f4e7777ecc80538f558f8062f64f8b1929ae3c",
+      "segment_key": "sha256:4e203ad19e2fce5eeb654dfdb85f82ef3853c9d0dfdfd1b9456f64c7840e9c38",
+      "compositor": "studio.layered/1+pillow-13.0.0+numpy-2.4.6",
+      "artifacts": [
+        {
+          "name": "take/lin_01M79V9FC00000000000000001",
+          "kind": "voice_take",
+          "key": "sha256:948004866105c88814758bb60cc1d09438b6bd4eb1f34b452081c57162d53eca",
+          "sha256": "b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "voice_track",
+          "kind": "board_voice_track",
+          "key": "sha256:5d7033633fea34f68c52204cd1217ef267c6988d48f8be2909c7c698f440ff4a",
+          "sha256": "a4a41e87cb822401d904a4bf23fa025667f36643f2fe8a3bf4605759575df261",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "drive/a",
+          "kind": "s2v_drive_track",
+          "key": "sha256:f6a2c8d1a1ff20243ff7e211f765e4ca5051c979b746f9c1d627fc90304719ce",
+          "sha256": "49231811f21290897f757e1a7a6676c8e96f9075e34f0076273f195c327446fa",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "s2v_clip/a",
+          "kind": "s2v_clip",
+          "key": "sha256:01e4f49770476739b4adad305e81674c08bc16d7ed7dc4daf2eff80aae787a99",
+          "sha256": "7bfecdbef46de0f9e4dd203403221fd85e5ee21e5dfb03d9bdff9955e810dac0",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "keyed/a",
+          "kind": "keyed_frames",
+          "key": "sha256:e75b79c191754ceda42c78e944fd2bb1d5cc0c85cb4862c4d4b3cb3fbbe8e572",
+          "sha256": "7a9506fa97b96e93df82736f6b65de867a3e82a2f31fc370654ac0d8da44d99c",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "segment",
+          "kind": "segment",
+          "key": "sha256:4e203ad19e2fce5eeb654dfdb85f82ef3853c9d0dfdfd1b9456f64c7840e9c38",
+          "sha256": "68fbfe51c9c0e4ce2e981dbfa4f4e7777ecc80538f558f8062f64f8b1929ae3c",
+          "made": false,
+          "seconds": null
+        }
+      ],
+      "report": null,
+      "checks": [],
+      "render_s": null
+    },
+    {
+      "board_id": "brd_01M79V9FC00000000000000002",
+      "board_number": 2,
+      "method": {
+        "layer": "layered",
+        "motion": "s2v"
+      },
+      "frames": 94,
+      "film_start_frame": 153,
+      "clips": [
+        {
+          "role": "s2v_clip",
+          "slot": "b",
+          "sha256": "8f460514570af84b3abf4cf55514b0dd600a03febf137eee7ed0f50b099e4dee",
+          "key": "sha256:28d8580732065f60fcadbf01094e16aec59b13b741f4351f9056daaf205aac48",
+          "made": false,
+          "frames": 66,
+          "fps": 16,
+          "requested_length": 65,
+          "seed": 501,
+          "engine": "wan-api/s2v-14b-lightning",
+          "engine_job_id": "95372414266440f387298aeb282c921f",
+          "files_sha256": {
+            "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+            "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+            "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+            "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+            "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+          },
+          "trimmed": 3,
+          "render_s": null
+        },
+        {
+          "role": "set_loop",
+          "slot": null,
+          "sha256": "d9992080f596d71119aaad39b6717bff898e8bc9ac40f93d079a4ffdc74298a1",
+          "made": false,
+          "library_version_id": "asv_01M7BVCF7QZG0E27A6CQZ458AA",
+          "frames": 121,
+          "fps": 24
+        }
+      ],
+      "segment_sha256": "fb66bd389e29588fe78930cf0a8cf18bad0648e1ee2a046505aac957ec475a5e",
+      "segment_key": "sha256:a1ca806bc2520f76cd443c0ebcc7aefc3d10aeec295bf48ba256e9dac3da4431",
+      "compositor": "studio.layered/1+pillow-13.0.0+numpy-2.4.6",
+      "artifacts": [
+        {
+          "name": "take/lin_01M79V9FC00000000000000002",
+          "kind": "voice_take",
+          "key": "sha256:4cd6935490ca8e3ff2a9abd909a6e0d486ce276d4d14323934c935cc17451e3b",
+          "sha256": "7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "voice_track",
+          "kind": "board_voice_track",
+          "key": "sha256:a869c637a2fbe3aaaa82061f5475bee16668acda85b5b1dce7faa6bebd1c4b4e",
+          "sha256": "613770d8dcecfe6cff3202d7a6d08fdd8643718891ba43817bbfc7f92dd4347e",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "drive/b",
+          "kind": "s2v_drive_track",
+          "key": "sha256:ecc8a4bdaaaa8f7c2cf49355cb0700ff38159db0e348a39b878e8d3b6eb7dcbb",
+          "sha256": "d063c1b4e6868396212a7a65e31a8bb011a923539a06140dfcb0d45c0a80d3fe",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "s2v_clip/b",
+          "kind": "s2v_clip",
+          "key": "sha256:28d8580732065f60fcadbf01094e16aec59b13b741f4351f9056daaf205aac48",
+          "sha256": "8f460514570af84b3abf4cf55514b0dd600a03febf137eee7ed0f50b099e4dee",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "keyed/b",
+          "kind": "keyed_frames",
+          "key": "sha256:5db943a91d600984d5a112b54d9daa3cf88c4b8e087e50f31fcb76a6bc623af6",
+          "sha256": "27e29fdb10ca9217fc082a796b849c4588afd03c8c879438b8cb6a6b0fb4184a",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "segment",
+          "kind": "segment",
+          "key": "sha256:a1ca806bc2520f76cd443c0ebcc7aefc3d10aeec295bf48ba256e9dac3da4431",
+          "sha256": "fb66bd389e29588fe78930cf0a8cf18bad0648e1ee2a046505aac957ec475a5e",
+          "made": false,
+          "seconds": null
+        }
+      ],
+      "report": null,
+      "checks": [],
+      "render_s": null
+    },
+    {
+      "board_id": "brd_01M79V9FC00000000000000003",
+      "board_number": 3,
+      "method": {
+        "layer": "layered",
+        "motion": "s2v"
+      },
+      "frames": 146,
+      "film_start_frame": 247,
+      "clips": [
+        {
+          "role": "s2v_clip",
+          "slot": "c",
+          "sha256": "8f179557d45eea2abf4802b62fd12dc9e605ef32189201f740dee1c74c3c28d2",
+          "key": "sha256:20d75f007818dc99ddd8a4299d0262f6e0f8bcb88cb2e34a7b6b1b4213c8da0a",
+          "made": false,
+          "frames": 158,
+          "fps": 16,
+          "requested_length": 154,
+          "seed": 512,
+          "engine": "wan-api/s2v-14b-lightning",
+          "engine_job_id": "44c425818c0644de8b883553ed247ca9",
+          "files_sha256": {
+            "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+            "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+            "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+            "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+            "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+          },
+          "trimmed": 61,
+          "render_s": null
+        },
+        {
+          "role": "set_loop",
+          "slot": null,
+          "sha256": "d9992080f596d71119aaad39b6717bff898e8bc9ac40f93d079a4ffdc74298a1",
+          "made": false,
+          "library_version_id": "asv_01M7BVCF7QZG0E27A6CQZ458AA",
+          "frames": 121,
+          "fps": 24
+        }
+      ],
+      "segment_sha256": "c3684314c4cc2733fb39133d97793962455d4178c9ba22162a7924ce78a3bbbe",
+      "segment_key": "sha256:0f1f6a141f9de489a5b587a9e70b236433864912074e3331f9be0406849350de",
+      "compositor": "studio.layered/1+pillow-13.0.0+numpy-2.4.6",
+      "artifacts": [
+        {
+          "name": "take/lin_01M79V9FC00000000000000003",
+          "kind": "voice_take",
+          "key": "sha256:6737a320f3a3d1a2c7e4afb25deec542c03e6513a11adff97d5176280ce00086",
+          "sha256": "6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "voice_track",
+          "kind": "board_voice_track",
+          "key": "sha256:b3e613cc9036ccc3f0c0f8feb7b8dbd2c6df7847af7c1f2026b27da6df4c7e74",
+          "sha256": "00f025f05c0c25ea6b4b6e05b1d4aeaa48023009d8c02c5bc2d51224b65be135",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "drive/c",
+          "kind": "s2v_drive_track",
+          "key": "sha256:857bff7088c0f49923d1e48d269fa2742c6143a457ecd435d14afb1f2a73350a",
+          "sha256": "337d2c3f47010bd6c0e28b67f4aeae530444cef2221f41889d2a36990c779420",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "s2v_clip/c",
+          "kind": "s2v_clip",
+          "key": "sha256:20d75f007818dc99ddd8a4299d0262f6e0f8bcb88cb2e34a7b6b1b4213c8da0a",
+          "sha256": "8f179557d45eea2abf4802b62fd12dc9e605ef32189201f740dee1c74c3c28d2",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "keyed/c",
+          "kind": "keyed_frames",
+          "key": "sha256:8cc52670cce3687d78e193bad5d0e50a6e81fff0a83c176b896e076739a42daf",
+          "sha256": "9df7ab6fb54bb90a808b483032a156c927d32d391ae1c294429138b83d56f35a",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "segment",
+          "kind": "segment",
+          "key": "sha256:0f1f6a141f9de489a5b587a9e70b236433864912074e3331f9be0406849350de",
+          "sha256": "c3684314c4cc2733fb39133d97793962455d4178c9ba22162a7924ce78a3bbbe",
+          "made": false,
+          "seconds": null
+        }
+      ],
+      "report": null,
+      "checks": [],
+      "render_s": null
+    },
+    {
+      "board_id": "brd_01M79V9FC00000000000000004",
+      "board_number": 4,
+      "method": {
+        "layer": "layered",
+        "motion": "s2v"
+      },
+      "frames": 84,
+      "film_start_frame": 393,
+      "clips": [
+        {
+          "role": "s2v_clip",
+          "slot": "a",
+          "sha256": "87de868dd6c161c21f2a072f523afacb215713b20be5a683932fdfc903790976",
+          "key": "sha256:5ec09776e1d3dce667bceb294e4676291e4e57a8aa9c427deb5a1bf228d1121a",
+          "made": false,
+          "frames": 58,
+          "fps": 16,
+          "requested_length": 57,
+          "seed": 513,
+          "engine": "wan-api/s2v-14b-lightning",
+          "engine_job_id": "5a438d01ea624d0f830365b584c15edb",
+          "files_sha256": {
+            "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+            "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+            "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+            "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+            "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+          },
+          "trimmed": 2,
+          "render_s": null
+        },
+        {
+          "role": "set_loop",
+          "slot": null,
+          "sha256": "d9992080f596d71119aaad39b6717bff898e8bc9ac40f93d079a4ffdc74298a1",
+          "made": false,
+          "library_version_id": "asv_01M7BVCF7QZG0E27A6CQZ458AA",
+          "frames": 121,
+          "fps": 24
+        }
+      ],
+      "segment_sha256": "8dc7b84bfa79a37e388594de02bff7d86f06a7bb0ce12d5d4c8e65d24af6df09",
+      "segment_key": "sha256:82bc39d575cbcae7be341e42b909f180ec7649c83163ca198fa39b17aac61eb6",
+      "compositor": "studio.layered/1+pillow-13.0.0+numpy-2.4.6",
+      "artifacts": [
+        {
+          "name": "take/lin_01M79V9FC00000000000000004",
+          "kind": "voice_take",
+          "key": "sha256:44401bf36d342f84e9c2b764cf79dd108dc0e0f390fcd211526de3c31ad74b9b",
+          "sha256": "0063d7e0e0d8a551fece4373ba1252d94339c00e10155bd08804b44c388773fd",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "voice_track",
+          "kind": "board_voice_track",
+          "key": "sha256:5f556e38d66a7eaff691ccdacb3980cbee0984717d7d39170b5362833ad6c0e9",
+          "sha256": "ce6013696258720b5fc7f8ddac6ffc7c4ba63de94176b3197b1f4a520d81e6ca",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "drive/a",
+          "kind": "s2v_drive_track",
+          "key": "sha256:f594187e3b7dc9e1decd80c4d8af7e241ea3e4c224b821814efd4fd1b06bc8f4",
+          "sha256": "4bfe3a15108adcfc2a2ea379b9a23bdd6e4b746f69f2461a74aecac90b26fd31",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "s2v_clip/a",
+          "kind": "s2v_clip",
+          "key": "sha256:5ec09776e1d3dce667bceb294e4676291e4e57a8aa9c427deb5a1bf228d1121a",
+          "sha256": "87de868dd6c161c21f2a072f523afacb215713b20be5a683932fdfc903790976",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "keyed/a",
+          "kind": "keyed_frames",
+          "key": "sha256:2086d708ac6b2ba10034da6c9b0bbdca7b8ff85258bb18e80ceb97b56ea469d5",
+          "sha256": "835a135c99529409c8748be488a8cb1a78136c71739ef2e26b9559a591099738",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "segment",
+          "kind": "segment",
+          "key": "sha256:82bc39d575cbcae7be341e42b909f180ec7649c83163ca198fa39b17aac61eb6",
+          "sha256": "8dc7b84bfa79a37e388594de02bff7d86f06a7bb0ce12d5d4c8e65d24af6df09",
+          "made": false,
+          "seconds": null
+        }
+      ],
+      "report": null,
+      "checks": [],
+      "render_s": null
+    },
+    {
+      "board_id": "brd_01M79V9FC00000000000000005",
+      "board_number": 5,
+      "method": {
+        "layer": "layered",
+        "motion": "s2v"
+      },
+      "frames": 83,
+      "film_start_frame": 477,
+      "clips": [
+        {
+          "role": "s2v_clip",
+          "slot": "d",
+          "sha256": "d903ed0684ab75a9c806d99f92c53d843b2cb6b4423b53419c255e94c95dea8f",
+          "key": "sha256:2471c32d9e74482f233b73f7fb42cc023218f45fe93d5480f849e896a73faafc",
+          "made": false,
+          "frames": 58,
+          "fps": 16,
+          "requested_length": 57,
+          "seed": 514,
+          "engine": "wan-api/s2v-14b-lightning",
+          "engine_job_id": "f742e3585fc5465d8984014480142f40",
+          "files_sha256": {
+            "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+            "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+            "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+            "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+            "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+          },
+          "trimmed": 3,
+          "render_s": null
+        },
+        {
+          "role": "set_loop",
+          "slot": null,
+          "sha256": "d9992080f596d71119aaad39b6717bff898e8bc9ac40f93d079a4ffdc74298a1",
+          "made": false,
+          "library_version_id": "asv_01M7BVCF7QZG0E27A6CQZ458AA",
+          "frames": 121,
+          "fps": 24
+        }
+      ],
+      "segment_sha256": "b976478395efc8a32731e4f5c38b1476e00ad9ba9b4f20a9cbc5f720598f4393",
+      "segment_key": "sha256:ce141bf12555c44d9963cb67c58edb91028d04e44fe37c2adc49cba345842647",
+      "compositor": "studio.layered/1+pillow-13.0.0+numpy-2.4.6",
+      "artifacts": [
+        {
+          "name": "take/lin_01M79V9FC00000000000000005",
+          "kind": "voice_take",
+          "key": "sha256:ff539d9fe3deaf9a47986c049fea8e3e6efb096961225ec8a8c1bea3010cdf48",
+          "sha256": "f89e05a2c53e9be7edd35f3b31862da311ce2730cb330421cb93e25b20a3ab59",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "voice_track",
+          "kind": "board_voice_track",
+          "key": "sha256:3d9b8d06151de94cc4ea212ce3a48c172a1ba3e3051f353bc329b2a2d8608a9b",
+          "sha256": "f92bbc528636aedbaf89f1d9aeebc8f2ce6b87d65a85f076b3ae26bc46f8af68",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "drive/d",
+          "kind": "s2v_drive_track",
+          "key": "sha256:7432fe4ee2b6f88301088416a8ec61f759bf6784d236e47d8fcf5590d70cd118",
+          "sha256": "e707810105907e4e81e6f87f0997a92edcb34af34013908bbb05c8694fd2da6a",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "s2v_clip/d",
+          "kind": "s2v_clip",
+          "key": "sha256:2471c32d9e74482f233b73f7fb42cc023218f45fe93d5480f849e896a73faafc",
+          "sha256": "d903ed0684ab75a9c806d99f92c53d843b2cb6b4423b53419c255e94c95dea8f",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "keyed/d",
+          "kind": "keyed_frames",
+          "key": "sha256:78fd24b51bd177d17d199da57a4a47c326596c3b06c5fe8517976ddf3cb6736b",
+          "sha256": "cc5a6edb5cb350f19728ed83156d78ffffc6eb006411b3f8cf7f56565cc2deaa",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "segment",
+          "kind": "segment",
+          "key": "sha256:ce141bf12555c44d9963cb67c58edb91028d04e44fe37c2adc49cba345842647",
+          "sha256": "b976478395efc8a32731e4f5c38b1476e00ad9ba9b4f20a9cbc5f720598f4393",
+          "made": false,
+          "seconds": null
+        }
+      ],
+      "report": null,
+      "checks": [],
+      "render_s": null
+    },
+    {
+      "board_id": "brd_01M79V9FC00000000000000006",
+      "board_number": 6,
+      "method": {
+        "layer": "layered",
+        "motion": "s2v"
+      },
+      "frames": 122,
+      "film_start_frame": 560,
+      "clips": [
+        {
+          "role": "s2v_clip",
+          "slot": "c",
+          "sha256": "2d9df1a748bfd1b026c1f7e99f315b880127c01d5372eed304c88d9c08bc8d1c",
+          "key": "sha256:fe71d738cb0f6dfe5e2618e0ec97a96bfb4e8b1557232ceb6f933d2c9da44d82",
+          "made": false,
+          "frames": 158,
+          "fps": 16,
+          "requested_length": 154,
+          "seed": 515,
+          "engine": "wan-api/s2v-14b-lightning",
+          "engine_job_id": "63c0a32c4ae440349328db6fbebda51e",
+          "files_sha256": {
+            "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+            "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+            "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+            "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+            "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+          },
+          "trimmed": 77,
+          "render_s": null
+        },
+        {
+          "role": "set_loop",
+          "slot": null,
+          "sha256": "d9992080f596d71119aaad39b6717bff898e8bc9ac40f93d079a4ffdc74298a1",
+          "made": false,
+          "library_version_id": "asv_01M7BVCF7QZG0E27A6CQZ458AA",
+          "frames": 121,
+          "fps": 24
+        }
+      ],
+      "segment_sha256": "b24ba5e4a66b6e87957025a735829554efd4c08f14cbd2e743041bdcc82eb66a",
+      "segment_key": "sha256:d515933e069c112a21329f4277d95de202f412472f6caac79a35e4985dace916",
+      "compositor": "studio.layered/1+pillow-13.0.0+numpy-2.4.6",
+      "artifacts": [
+        {
+          "name": "take/lin_01M79V9FC00000000000000006",
+          "kind": "voice_take",
+          "key": "sha256:d48840436a4d23fc753d7e0f515307a3980161d7bd4275356d8b9d4e54c08041",
+          "sha256": "46bf17ecaa3a9729b16fd45ba67c2f123b32756cf36eef133abf029c681a7395",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "voice_track",
+          "kind": "board_voice_track",
+          "key": "sha256:d97dd92e24d7aaca8ad00cc67f336656362d205b57a31494db2b88dfb0cd0f91",
+          "sha256": "ca836db6753cdf1b8c7c183574606272000b1cd03a2209a2e301a4dc1a006482",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "drive/c",
+          "kind": "s2v_drive_track",
+          "key": "sha256:4fc4f036932cac66f09157baf39449c4851291a0d5bcd7eb9223d44f2fbc39b8",
+          "sha256": "ea033bb40a51acfdb48e36c20624f888938ec9ab5d03f832ed11d4a162e77e69",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "s2v_clip/c",
+          "kind": "s2v_clip",
+          "key": "sha256:fe71d738cb0f6dfe5e2618e0ec97a96bfb4e8b1557232ceb6f933d2c9da44d82",
+          "sha256": "2d9df1a748bfd1b026c1f7e99f315b880127c01d5372eed304c88d9c08bc8d1c",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "keyed/c",
+          "kind": "keyed_frames",
+          "key": "sha256:ea1399bf7482b71c08f659c883da7aaf022febb3aa0054da90bfb916fd7b14f1",
+          "sha256": "2631dfd16094158dd44be71d431bcd5ae58dff870a41a844fcaaa95247f02fd7",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "segment",
+          "kind": "segment",
+          "key": "sha256:d515933e069c112a21329f4277d95de202f412472f6caac79a35e4985dace916",
+          "sha256": "b24ba5e4a66b6e87957025a735829554efd4c08f14cbd2e743041bdcc82eb66a",
+          "made": false,
+          "seconds": null
+        }
+      ],
+      "report": null,
+      "checks": [],
+      "render_s": null
+    },
+    {
+      "board_id": "brd_01M79V9FC00000000000000007",
+      "board_number": 7,
+      "method": {
+        "layer": "layered",
+        "motion": "i2v"
+      },
+      "frames": 46,
+      "film_start_frame": 682,
+      "clips": [
+        {
+          "role": "doll_clip",
+          "slot": "d",
+          "sha256": "7e33e2af4191305d9c6704ff32eb2f8acd7d3f52130ad927dfe6ea3ba721eb30",
+          "key": "sha256:a9fa4514c5d31b6c819f42c998541759f2906a47a8bcabe8b9efa503cf5adaa0",
+          "made": false,
+          "library_version_id": "asv_01M7BVCF86G8BD4VYH39FDDYK3",
+          "frames": 121,
+          "fps": 24,
+          "seed": 416
+        },
+        {
+          "role": "set_loop",
+          "slot": null,
+          "sha256": "d9992080f596d71119aaad39b6717bff898e8bc9ac40f93d079a4ffdc74298a1",
+          "made": false,
+          "library_version_id": "asv_01M7BVCF7QZG0E27A6CQZ458AA",
+          "frames": 121,
+          "fps": 24
+        }
+      ],
+      "segment_sha256": "eb7d72f7f07d73c4c73298e2bbb7588568ab218325550f23857c28bccb78a0e5",
+      "segment_key": "sha256:802f695bbdcfc2696456a9cbc971021331d0e0423f0a12a84d69b61fd570936b",
+      "compositor": "studio.layered/1+pillow-13.0.0+numpy-2.4.6",
+      "artifacts": [
+        {
+          "name": "doll_clip/d",
+          "kind": "motion_clip",
+          "key": "sha256:a9fa4514c5d31b6c819f42c998541759f2906a47a8bcabe8b9efa503cf5adaa0",
+          "sha256": "7e33e2af4191305d9c6704ff32eb2f8acd7d3f52130ad927dfe6ea3ba721eb30",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "keyed/d",
+          "kind": "keyed_frames",
+          "key": "sha256:33e53dc009570405cbedaa6c2d7bd65d16242512f0954c4181781bbce1b9d230",
+          "sha256": "6db624cb32c520d8fdcad2d4344a97bfcea05ef5d329440cb1a002a88c04efc9",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "segment",
+          "kind": "segment",
+          "key": "sha256:802f695bbdcfc2696456a9cbc971021331d0e0423f0a12a84d69b61fd570936b",
+          "sha256": "eb7d72f7f07d73c4c73298e2bbb7588568ab218325550f23857c28bccb78a0e5",
+          "made": false,
+          "seconds": null
+        }
+      ],
+      "report": null,
+      "checks": [],
+      "render_s": null
+    },
+    {
+      "board_id": "brd_01M79V9FC00000000000000008",
+      "board_number": 8,
+      "method": {
+        "layer": "layered",
+        "motion": "s2v"
+      },
+      "frames": 251,
+      "film_start_frame": 728,
+      "clips": [
+        {
+          "role": "s2v_clip",
+          "slot": "a",
+          "sha256": "4e6df2f5c5107bd831825981ecb0b07bbf9a2b6ebac53b68c44237a5eac2b135",
+          "key": "sha256:df9877ed81c146db8285a3b3433a341f432142815dcd461e734cb7e064c996c6",
+          "made": false,
+          "frames": 238,
+          "fps": 16,
+          "requested_length": 231,
+          "seed": 516,
+          "engine": "wan-api/s2v-14b-lightning",
+          "engine_job_id": "976dbb34b2844388a75805b14d00b504",
+          "files_sha256": {
+            "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+            "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+            "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+            "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+            "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+          },
+          "trimmed": 71,
+          "render_s": null
+        },
+        {
+          "role": "s2v_clip",
+          "slot": "c",
+          "sha256": "563bc0ceb9f31897669dd147058a50dd74351aed8ecbc650dd146b746a3934d1",
+          "key": "sha256:8cf6e77638f64b5cb36127f09612b83a59748d7f59fd6e60cf8e6b6261a831d5",
+          "made": false,
+          "frames": 238,
+          "fps": 16,
+          "requested_length": 231,
+          "seed": 518,
+          "engine": "wan-api/s2v-14b-lightning",
+          "engine_job_id": "3c114ac9683949efa4d180911a00b20e",
+          "files_sha256": {
+            "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+            "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+            "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+            "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+            "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+          },
+          "trimmed": 71,
+          "render_s": null
+        },
+        {
+          "role": "s2v_clip",
+          "slot": "d",
+          "sha256": "c9b9acec029cd30652ae37835453708ed4d50500eb6234eda192b81e25985f29",
+          "key": "sha256:b002033649424d2be57b00f32eea3050ea3c6643da3adb19a911cf7c50dddf1e",
+          "made": false,
+          "frames": 238,
+          "fps": 16,
+          "requested_length": 231,
+          "seed": 519,
+          "engine": "wan-api/s2v-14b-lightning",
+          "engine_job_id": "412bf43461f8449d8367aff74ef82eb8",
+          "files_sha256": {
+            "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+            "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+            "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+            "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+            "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+          },
+          "trimmed": 71,
+          "render_s": null
+        },
+        {
+          "role": "s2v_clip",
+          "slot": "b",
+          "sha256": "b81b31c723c4c1aa913efa1d8eb5f7119f91fd66fac0bf901077f716e1c248ba",
+          "key": "sha256:d4ce212d7baf48880902ed0726c450a2c3d3221ae18a461f251cd9851f0b5a03",
+          "made": false,
+          "frames": 238,
+          "fps": 16,
+          "requested_length": 231,
+          "seed": 517,
+          "engine": "wan-api/s2v-14b-lightning",
+          "engine_job_id": "3cec64eefe7d47e88e9d493b1d57e8d4",
+          "files_sha256": {
+            "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+            "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+            "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+            "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+            "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+          },
+          "trimmed": 71,
+          "render_s": null
+        },
+        {
+          "role": "set_loop",
+          "slot": null,
+          "sha256": "d9992080f596d71119aaad39b6717bff898e8bc9ac40f93d079a4ffdc74298a1",
+          "made": false,
+          "library_version_id": "asv_01M7BVCF7QZG0E27A6CQZ458AA",
+          "frames": 121,
+          "fps": 24
+        }
+      ],
+      "segment_sha256": "5903efcf8cc57fc841cdb0855ffe3396886820052b13a28e8f6103a216701bce",
+      "segment_key": "sha256:ac06ae69af5c6e305abf7fdb7ac72b428870172b73948b76a66ff526e924d1fc",
+      "compositor": "studio.layered/1+pillow-13.0.0+numpy-2.4.6",
+      "artifacts": [
+        {
+          "name": "take/lin_01M79V9FC00000000000000007",
+          "kind": "voice_take",
+          "key": "sha256:424a60e687a2356438a149fce7cb781e69eb0d3610d346f1383b710b20c26355",
+          "sha256": "37e81c9db699303d9fbdef03479d9500d5514ae3f38fa103c4f481d6513350e6",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "take/lin_01M79V9FC00000000000000008",
+          "kind": "voice_take",
+          "key": "sha256:aa67e748b0b2a3a294b4a2efa6aee871a21d5769c6318a60132c1c5d73abdd24",
+          "sha256": "1dadd22ef158db129f37ece9de63e0db871f4f72cd912fdc7a260126021aa6b2",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "take/lin_01M79V9FC00000000000000009",
+          "kind": "voice_take",
+          "key": "sha256:3dbe53c402bee473de69fa45bda7ef441f1635b8f090d06cadf74f383112698d",
+          "sha256": "1e5206395dc510de18f1f2050485cd63b9bcba90411ea34bbee7a44a3298d00d",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "take/lin_01M79V9FC0000000000000000A",
+          "kind": "voice_take",
+          "key": "sha256:7787167bd3bf0c1e0f2f594fdda61718e3eef46c7bcd347957e0b5cfde6fff9a",
+          "sha256": "5fc1718e8659568b2234544470bce9c23404b855b9c563ea90f4f75596773b35",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "take/lin_01M79V9FC0000000000000000B",
+          "kind": "voice_take",
+          "key": "sha256:b396bb948a73a03243c74e3c2bb4a1204b0547cb3a31dc51c3c5f9539c9351cc",
+          "sha256": "9b3ba267baecf4407cb1ec7dfa66598566e83e615b009f307a47c4b3be4aaad9",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "take/lin_01M79V9FC0000000000000000C",
+          "kind": "voice_take",
+          "key": "sha256:728931a638c4af44c07a3b3fa7cd9f73dd6588ecc1b2b175f216915413fc78d5",
+          "sha256": "1be02e6d7b243b572d6b6d61e0a629f35803b22b741fe13a97e907ff0d17ddab",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "voice_track",
+          "kind": "board_voice_track",
+          "key": "sha256:01001800a8a3932af934f417451af74339aa1c95c1ddbbeab9e927928ec4b2fb",
+          "sha256": "00720fda182369f7e156f3cfe26d60e140c904aaa605e61dada2d4e6dcf14eed",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "drive/a",
+          "kind": "s2v_drive_track",
+          "key": "sha256:01566464233aa51e90ad92f7dad93df5c1de2ce25edc4a446a9f3569e4540850",
+          "sha256": "28c62c803ed591c41a96a051a9f92300611eebf8d6004c9d06922a8bfdac16ea",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "s2v_clip/a",
+          "kind": "s2v_clip",
+          "key": "sha256:df9877ed81c146db8285a3b3433a341f432142815dcd461e734cb7e064c996c6",
+          "sha256": "4e6df2f5c5107bd831825981ecb0b07bbf9a2b6ebac53b68c44237a5eac2b135",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "keyed/a",
+          "kind": "keyed_frames",
+          "key": "sha256:1e79bbbbad14ac4910a3613194b3c36a90e6156caf9fc4cb25c61847059cffde",
+          "sha256": "448eae4f0237a5e412e244df2b264ff0ff8ce61049cf32f69998a63893c958c4",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "drive/c",
+          "kind": "s2v_drive_track",
+          "key": "sha256:91e5825f22b7c66e66e805f0900a56b10b29950d9ac24088fe6bd0a344819814",
+          "sha256": "6a16f81deba5f89ef3cbad3170dbdadb868d8416c1ebe113cd291b062a746eae",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "s2v_clip/c",
+          "kind": "s2v_clip",
+          "key": "sha256:8cf6e77638f64b5cb36127f09612b83a59748d7f59fd6e60cf8e6b6261a831d5",
+          "sha256": "563bc0ceb9f31897669dd147058a50dd74351aed8ecbc650dd146b746a3934d1",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "keyed/c",
+          "kind": "keyed_frames",
+          "key": "sha256:bf65b31d35758066534a24340488ec1ce4f8298802b36e6cdcf441778432ebd7",
+          "sha256": "b51fa9c3e214f58b32d910114e75ff3ac81776eeb2d16f951d9f8f7b531d55f5",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "drive/d",
+          "kind": "s2v_drive_track",
+          "key": "sha256:f49aabc8d79c7a1cbbe3709b5a74dd8ec23d8b4d3b1cdefd76db0b1ce5d33fbc",
+          "sha256": "0a3eff86857fee87e217e715fdb6c05cb990e3ec9732e97b80664396b843c900",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "s2v_clip/d",
+          "kind": "s2v_clip",
+          "key": "sha256:b002033649424d2be57b00f32eea3050ea3c6643da3adb19a911cf7c50dddf1e",
+          "sha256": "c9b9acec029cd30652ae37835453708ed4d50500eb6234eda192b81e25985f29",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "keyed/d",
+          "kind": "keyed_frames",
+          "key": "sha256:4c3b7a6120609824db130dad2a18b85f4b63ba91a3760def12b309fdbe218e3a",
+          "sha256": "7a30ed6e3388f5443355577ad89ce8d6d3574288249a54ee7bb326bfcf0cc57a",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "drive/b",
+          "kind": "s2v_drive_track",
+          "key": "sha256:0f9975b4befa0d1c520d6d338c7b58d7e9eb442758079edbee281b4713b781de",
+          "sha256": "d47a091344c923b0d558dc9d4a8ea1348db4496cd514d1c84a290bef4efd7e38",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "s2v_clip/b",
+          "kind": "s2v_clip",
+          "key": "sha256:d4ce212d7baf48880902ed0726c450a2c3d3221ae18a461f251cd9851f0b5a03",
+          "sha256": "b81b31c723c4c1aa913efa1d8eb5f7119f91fd66fac0bf901077f716e1c248ba",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "keyed/b",
+          "kind": "keyed_frames",
+          "key": "sha256:2b6d971fdfbd8785c78a47e5eb00d277020a6845d556b540fbc23dba8c8e7e38",
+          "sha256": "b46baf4f2514eba7723314a32985e3c52605197e6b9f1d625cda75931e9d73da",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "segment",
+          "kind": "segment",
+          "key": "sha256:ac06ae69af5c6e305abf7fdb7ac72b428870172b73948b76a66ff526e924d1fc",
+          "sha256": "5903efcf8cc57fc841cdb0855ffe3396886820052b13a28e8f6103a216701bce",
+          "made": false,
+          "seconds": null
+        }
+      ],
+      "report": null,
+      "checks": [],
+      "render_s": null
+    },
+    {
+      "board_id": "brd_01M79V9FC00000000000000009",
+      "board_number": 9,
+      "method": {
+        "layer": "layered",
+        "motion": "s2v"
+      },
+      "frames": 108,
+      "film_start_frame": 979,
+      "clips": [
+        {
+          "role": "doll_clip",
+          "slot": "c",
+          "sha256": "aa9259b21d9f833000ae272d8c5d81a94bfb544ec92e0a2440f49d078da34b0a",
+          "key": "sha256:a926b30e35797a920463a6bb4a6461290d8f7bc0b76f6903610eb3902be74d54",
+          "made": false,
+          "library_version_id": "asv_01M7BVCF7Y1NJ5X15A484F9J79",
+          "frames": 121,
+          "fps": 24,
+          "seed": 313
+        },
+        {
+          "role": "doll_clip",
+          "slot": "a",
+          "sha256": "f0a8e332f0729899d6b827c5f6130a043e2c9cd26bf89140eab76a06e91252fa",
+          "key": "sha256:8d815a25f6ae3b3acf6a2bafd87bdbccedd2da47ed0b5b3d52b9abba5f29b1c0",
+          "made": false,
+          "library_version_id": "asv_01M7BVCF7SGWGWH3WYR8AEQA1S",
+          "frames": 121,
+          "fps": 24,
+          "seed": 302
+        },
+        {
+          "role": "s2v_clip",
+          "slot": "b",
+          "sha256": "969002320052b83182fbece30a500bf9e4c2a44dc69db565eee0e550f47d5798",
+          "key": "sha256:a54ed7d92da72414150cb1104d8ad5e036f1fc78e8f0ee7ba51fed2141bf1d88",
+          "made": false,
+          "frames": 74,
+          "fps": 16,
+          "requested_length": 73,
+          "seed": 620,
+          "engine": "wan-api/s2v-14b-lightning",
+          "engine_job_id": "9d4ce7d33d5a4bc1828bad102be6f50a",
+          "files_sha256": {
+            "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+            "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+            "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+            "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+            "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+          },
+          "trimmed": 2,
+          "render_s": null
+        },
+        {
+          "role": "set_loop",
+          "slot": null,
+          "sha256": "d9992080f596d71119aaad39b6717bff898e8bc9ac40f93d079a4ffdc74298a1",
+          "made": false,
+          "library_version_id": "asv_01M7BVCF7QZG0E27A6CQZ458AA",
+          "frames": 121,
+          "fps": 24
+        }
+      ],
+      "segment_sha256": "5a4eb7c105b63ec460f475f5b60fa3363c92ac4f4d3d87020d14897021e516ee",
+      "segment_key": "sha256:1a5fadf9c86973d9a176996119267a552206f4ba13c7b5d407c80e3a222bb816",
+      "compositor": "studio.layered/1+pillow-13.0.0+numpy-2.4.6",
+      "artifacts": [
+        {
+          "name": "take/lin_01M79V9FC0000000000000000D",
+          "kind": "voice_take",
+          "key": "sha256:64b7aa11a5e774b75ae853b3293bd283bf642a3d28c1ffcc7d015f2614660cdc",
+          "sha256": "4e12138ee373ac45b6fce8f9049680d5494892fcc13a511bc77dbf37afbb5d31",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "voice_track",
+          "kind": "board_voice_track",
+          "key": "sha256:e770135fe934ba2eeb53bb058baae98ee776c6a855c5e8f75935d443668d3238",
+          "sha256": "d158fef54aa236b3f3483620ee0fa7357996a5dd040d142c60f0c4f10695c633",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "doll_clip/c",
+          "kind": "motion_clip",
+          "key": "sha256:a926b30e35797a920463a6bb4a6461290d8f7bc0b76f6903610eb3902be74d54",
+          "sha256": "aa9259b21d9f833000ae272d8c5d81a94bfb544ec92e0a2440f49d078da34b0a",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "keyed/c",
+          "kind": "keyed_frames",
+          "key": "sha256:ce9a76a7e9c849cdabf384d6914a1a27875fa3e1aaa0547190e8369a2bb73888",
+          "sha256": "7ea2c67fb57f697d3666387fb0d9a377f8bc25cdb81e23b2f5b0280699ac281e",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "doll_clip/a",
+          "kind": "motion_clip",
+          "key": "sha256:8d815a25f6ae3b3acf6a2bafd87bdbccedd2da47ed0b5b3d52b9abba5f29b1c0",
+          "sha256": "f0a8e332f0729899d6b827c5f6130a043e2c9cd26bf89140eab76a06e91252fa",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "keyed/a",
+          "kind": "keyed_frames",
+          "key": "sha256:c5cd61b8635b26f743b5fd808bc7ee4a82379a50bb7644bac01f419906dc21bc",
+          "sha256": "558bca8ace1a87d19a706f3b502e4108a8bfd3f5d0bc4bbdb43ad6c27a55d5f5",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "drive/b",
+          "kind": "s2v_drive_track",
+          "key": "sha256:d0d0398e27aad69fc975595a7e1f53f2ee4b3cffae80e2f924117289bbf6756a",
+          "sha256": "4c1c437910d1c95983981d8290e10c1a0e346ad6c95fb8ebbcaecd9776bc8c9f",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "s2v_clip/b",
+          "kind": "s2v_clip",
+          "key": "sha256:a54ed7d92da72414150cb1104d8ad5e036f1fc78e8f0ee7ba51fed2141bf1d88",
+          "sha256": "969002320052b83182fbece30a500bf9e4c2a44dc69db565eee0e550f47d5798",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "keyed/b",
+          "kind": "keyed_frames",
+          "key": "sha256:75e5b05e8334a788c1eeaed8a41789353ad91b92b4ab23619b328e11d990c83e",
+          "sha256": "f6f77111c1b0bd8c64e140397100aa66a1a752549ea827dbb8819594bd7ce7cc",
+          "made": false,
+          "seconds": null
+        },
+        {
+          "name": "segment",
+          "kind": "segment",
+          "key": "sha256:1a5fadf9c86973d9a176996119267a552206f4ba13c7b5d407c80e3a222bb816",
+          "sha256": "5a4eb7c105b63ec460f475f5b60fa3363c92ac4f4d3d87020d14897021e516ee",
+          "made": false,
+          "seconds": null
+        }
+      ],
+      "report": null,
+      "checks": [],
+      "render_s": null
+    }
+  ],
+  "outputs": null,
+  "checks": [
+    {
+      "check": "mix.length",
+      "result": "pass",
+      "key": "sha256:d84d8b423c8eceaad815585cb0379b2f9ad2da51e56cb32f6d3bd65df250d9fd",
+      "sha256": "54707b13edf8fce8501bf146102f4b7376b42289a6f67911f355e13dff475afb",
+      "version": "1/pyav-18.1.0/libavfilter-11.14.102/libswresample-6.3.102",
+      "thresholds": {
+        "bits": 24,
+        "channels": 2,
+        "rate": 48000,
+        "samples": 2174000
+      },
+      "measured": {
+        "bits": 24,
+        "channels": 2,
+        "rate": 48000,
+        "samples": 2174000
+      }
+    },
+    {
+      "check": "mix.loudness",
+      "result": "pass",
+      "key": "sha256:765fea5fc6c04eb2a03c90e05156f161e3f96e65e8051d16cdd529a3b09258b8",
+      "sha256": "79d9fd2aaa6037928381436494412106063b73e51c7ebf2d190a881d212f8b94",
+      "version": "1/pyav-18.1.0/libavfilter-11.14.102/libswresample-6.3.102",
+      "thresholds": {
+        "target_lufs": -20,
+        "tolerance_lu": 1.5
+      },
+      "measured": {
+        "integrated_lufs": -20.296
+      }
+    },
+    {
+      "check": "mix.true_peak",
+      "result": "pass",
+      "key": "sha256:9ff90e0f39f4344c4d8ef652fd4cf8f9aef96a30a1644fcff0d02b9ceb68d597",
+      "sha256": "0f426d57e78094829eb7188f8655adbeaa3f776c296e3f9dca41bcf3f488eb09",
+      "version": "1/pyav-18.1.0/libavfilter-11.14.102/libswresample-6.3.102",
+      "thresholds": {
+        "max_dbtp": -2.5
+      },
+      "measured": {
+        "true_peak_dbtp": -4.082
+      }
+    },
+    {
+      "check": "mix.clipping",
+      "result": "pass",
+      "key": "sha256:d591ac8c2dce7a7820094e2a327bc160c67ef2e7f0ca2a6645f9d62c2a335910",
+      "sha256": "e28d524065be8a0d109d87164cca49d155f8b44111eaead2ca9dd3bcd8dffc27",
+      "version": "1/pyav-18.1.0/libavfilter-11.14.102/libswresample-6.3.102",
+      "thresholds": {
+        "max_clipped_samples": 0
+      },
+      "measured": {
+        "clipped_samples": 0
+      }
+    },
+    {
+      "check": "master.transcript",
+      "result": "pass_with_tolerances",
+      "key": "sha256:4c975df5ddd2980c00f9b2e49e1ad0f5eb58b527c6924b1c60381c59218aa5cb",
+      "sha256": "2c8ad0bc89242d7b87942e88b5cb78125242b2e01a55cb97001cc6bb20e77cce",
+      "version": "1",
+      "thresholds": {
+        "asr_tolerances": {
+          "340": "three hundred forty",
+          "mos": "moss"
+        },
+        "script_sha256": "1cad9f369001c69805016b643377a02189ddf019278d289dc35a24446d5b7d40"
+      },
+      "measured": {
+        "exact_match": false,
+        "expected": "Day three hundred forty. I've mastered fire, shelter, and emotionally supportive moss. Winter's coming. We need to discuss the menu. I nominate whoever brought orange slices. They know what they did. Or we could just eat the crunchy butter squishies. Absolutely not. These are limited edition. If we can't eat the squishies, why don't we just eat her? All in favor? Aye. Aye. Nay! Motion carried. Bibs on, ladies. Needs salt.",
+        "heard": "Day 340. I've mastered fire, shelter, and emotionally supportive moss. Winter's coming. We need to discuss the menu. I nominate whoever brought orange slices. They know what they did. Or we could just eat the crunchy butter squishies. Absolutely not. These are limited edition. If we can't eat the squishies, why don't we just eat her? All in favor? Aye. Aye. Nay. Motion carried. Bibs on, ladies. Needs salt.",
+        "match_with_tolerances": true,
+        "recognizer": "whisper (ai/deploy/whisper, Wyoming ASR)",
+        "tolerances_used": [
+          "340"
+        ]
+      },
+      "tolerances_used": [
+        "340"
+      ]
+    }
+  ],
+  "provenance": null,
+  "delivery_id": null,
+  "legacy": null,
+  "started_at": "2026-11-14T04:31:36Z",
+  "finished_at": "2026-11-14T04:31:38Z",
+  "error": null,
+  "transitions": [
+    {
+      "from": null,
+      "to": "queued",
+      "at": "2026-11-14T04:31:36Z",
+      "by": {
+        "kind": "cli",
+        "command": "studio build",
+        "operator": {
+          "kind": "human",
+          "iss": "https://agent-session.invalid/dev-env",
+          "sub": "agent-session:haynes-studio-1114-013021"
+        }
+      },
+      "reason": "queued by the command line"
+    },
+    {
+      "from": "queued",
+      "to": "running",
+      "at": "2026-11-14T04:31:36Z",
+      "by": {
+        "kind": "cli",
+        "command": "studio build",
+        "operator": {
+          "kind": "human",
+          "iss": "https://agent-session.invalid/dev-env",
+          "sub": "agent-session:haynes-studio-1114-013021"
+        }
+      },
+      "reason": "build started (service phase)"
+    },
+    {
+      "from": "running",
+      "to": "cancelled",
+      "at": "2026-11-14T04:31:38Z",
+      "by": {
+        "kind": "cli",
+        "command": "studio build",
+        "operator": {
+          "kind": "human",
+          "iss": "https://agent-session.invalid/dev-env",
+          "sub": "agent-session:haynes-studio-1114-013021"
+        }
+      },
+      "reason": "service phase complete: the mix passed its 4 checks; 0 clip artifacts made and 1 transcript checks run, the rest found in the cache; build the picture with --offline (proposal: a run without a delivery is never succeeded)"
+    }
+  ]
+}

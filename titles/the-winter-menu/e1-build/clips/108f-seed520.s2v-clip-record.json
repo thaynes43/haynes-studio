@@ -1,0 +1,203 @@
+{
+  "adapter": "studio.s2v/1",
+  "clip": {
+    "bytes": 1583601,
+    "engine": "wan-api/s2v-14b-lightning",
+    "engine_job_id": "7dfdfb11444f4bb589143826a10eb51a",
+    "extra": {
+      "wan": {
+        "admission_readback_at": 1794627565.7614322,
+        "at": "2026-11-14T03:42:50Z",
+        "board_frames": 108,
+        "chunks": 1,
+        "clip_bytes": 1583601,
+        "clip_sha256": "f1bd8404b9ee2c66c52f378f32f9ad426cafe3d1fb70087d0812e3ecdec0e0fa",
+        "cool_before_upload": {
+          "cooldown_s": 146.2,
+          "start_temps": [
+            [
+              61.0,
+              0.0
+            ],
+            [
+              53.0,
+              0.0
+            ]
+          ]
+        },
+        "cooldown_s": 0.4,
+        "drive_rate": 24000,
+        "drive_samples": 108000,
+        "engine": "wan-api/s2v-14b-lightning",
+        "engine_read_retries": 0,
+        "fetch_s": 0.3,
+        "fps": 16,
+        "frames_delivered": 74,
+        "frames_needed": 72,
+        "frames_requested": 73,
+        "graph_sha256": "83bbb76eaed9c3d30776d95b385b1749cf4e32fc0b12791da5c248d3d25d82e3",
+        "height": 1024,
+        "inputs": {
+          "audio": {
+            "bytes": 216044,
+            "ref": "studio-e0/4c1c437910d1c959.wav",
+            "sha256": "4c1c437910d1c95983981d8290e10c1a0e346ad6c95fb8ebbcaecd9776bc8c9f"
+          },
+          "image": {
+            "bytes": 669402,
+            "ref": "studio-e0/342960b60079923d.png",
+            "sha256": "342960b60079923da08ed15d25ae3344d33ee128148371047e752843f06a16fc"
+          }
+        },
+        "job_created_at": 1794627565.0039158,
+        "job_finished_at": 1794627769.2883797,
+        "job_id": "7dfdfb11444f4bb589143826a10eb51a",
+        "job_started_at": 1794627565.8165102,
+        "kind": "s2v",
+        "measured": {
+          "fps": "16",
+          "height": 1024,
+          "width": 576
+        },
+        "method": "s2v-lightning",
+        "model_files_sha256": {
+          "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+          "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+          "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+          "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+          "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+        },
+        "model_files_source": "docs/reference/model-licences.json",
+        "negative": "changing doll identity, changing faces, new faces, extra people, extra dolls, human hands, text, subtitles, watermark, camera shake, fast motion, cuts, scene change, blurry, distorted, melting",
+        "peak_gpu_mib": 21086.0,
+        "poll_misses": 0,
+        "preset": "studio-e0-s2v-lightning-576x1024-73f",
+        "prompt": "Stop-motion style toy video. The same plastic fashion doll, in the same blue YELLOWBIRDS team jacket with full-length sleeves, on a flat solid bright green screen background, speaks her lines. The whole doll bobs and tilts slightly in time with her words as if a toy is being played with, her synthetic hair shifts. Her face is hard molded plastic. The green background stays flat and uniform. Static locked-off camera, same framing.",
+        "prompt_id": "a1e4c3c4-2764-4b4e-952d-59434ee0b19f",
+        "recovered": false,
+        "render_s": 203.9,
+        "run_snippet_sha256": "b44fcef47d1b125c0f061fd6f4f6d69357969a34f298549e85d44645b90836ce",
+        "seed": 520,
+        "start_temps": [
+          [
+            61.0,
+            0.0
+          ],
+          [
+            53.0,
+            0.0
+          ]
+        ],
+        "story": "https://work.haynesnetwork.com/work_packages/428",
+        "telemetry_tail": [
+          {
+            "gpus": [
+              {
+                "memory_mib": 19326.0,
+                "power_w": 285.39,
+                "temperature_c": 88.0,
+                "utilization_percent": 100.0,
+                "uuid": "GPU-d8a856f1-f955-f683-bc24-654561496774"
+              },
+              {
+                "memory_mib": 312.0,
+                "power_w": 25.96,
+                "temperature_c": 52.0,
+                "utilization_percent": 0.0,
+                "uuid": "GPU-6ff9702a-1b2c-6094-5a85-00aa1924c55a"
+              }
+            ],
+            "time": 1794627759.180747
+          },
+          {
+            "gpus": [
+              {
+                "memory_mib": 19326.0,
+                "power_w": 288.04,
+                "temperature_c": 89.0,
+                "utilization_percent": 100.0,
+                "uuid": "GPU-d8a856f1-f955-f683-bc24-654561496774"
+              },
+              {
+                "memory_mib": 312.0,
+                "power_w": 25.96,
+                "temperature_c": 52.0,
+                "utilization_percent": 0.0,
+                "uuid": "GPU-6ff9702a-1b2c-6094-5a85-00aa1924c55a"
+              }
+            ],
+            "time": 1794627764.235398
+          },
+          {
+            "gpus": [
+              {
+                "memory_mib": 13246.0,
+                "power_w": 155.61,
+                "temperature_c": 84.0,
+                "utilization_percent": 0.0,
+                "uuid": "GPU-d8a856f1-f955-f683-bc24-654561496774"
+              },
+              {
+                "memory_mib": 312.0,
+                "power_w": 25.72,
+                "temperature_c": 52.0,
+                "utilization_percent": 0.0,
+                "uuid": "GPU-6ff9702a-1b2c-6094-5a85-00aa1924c55a"
+              }
+            ],
+            "time": 1794627769.2865458
+          }
+        ],
+        "template_sha256": null,
+        "unexpected_work_seen": null,
+        "wall_s": 351.9,
+        "width": 576
+      }
+    },
+    "files_sha256": {
+      "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+      "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+      "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+      "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+      "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+    },
+    "frames_delivered": 74,
+    "frames_needed": 72,
+    "frames_requested": 73,
+    "height": 1024,
+    "media_type": "video/mp4",
+    "sha256": "f1bd8404b9ee2c66c52f378f32f9ad426cafe3d1fb70087d0812e3ecdec0e0fa",
+    "trimmed": 2,
+    "width": 576
+  },
+  "drive_track": {
+    "board_frames": 108,
+    "sha256": "4c1c437910d1c95983981d8290e10c1a0e346ad6c95fb8ebbcaecd9776bc8c9f"
+  },
+  "key": "sha256:295b2cbd8d51dd9db4f13d40ae7db435c6afd412ac18afec89f681532ab4a915",
+  "negative_prompt": "changing doll identity, changing faces, new faces, extra people, extra dolls, human hands, text, subtitles, watermark, camera shake, fast motion, cuts, scene change, blurry, distorted, melting",
+  "profile": {
+    "cfg": 1,
+    "chunk": 77,
+    "delivery": {
+      "aspect": "9:16",
+      "fps": 24
+    },
+    "lora": "lightx2v-4step",
+    "model": "wan2.2-s2v-14b-fp8",
+    "size": [
+      576,
+      1024
+    ],
+    "source_fps": 16,
+    "steps": 4
+  },
+  "prompt": "Stop-motion style toy video. The same plastic fashion doll, in the same blue YELLOWBIRDS team jacket with full-length sleeves, on a flat solid bright green screen background, speaks her lines. The whole doll bobs and tilts slightly in time with her words as if a toy is being played with, her synthetic hair shifts. Her face is hard molded plastic. The green background stays flat and uniform. Static locked-off camera, same framing.",
+  "schema": "studio.s2v-clip/v1",
+  "seed": 520,
+  "source": "studio.build.wan-s2v/1",
+  "source_fps": 16,
+  "start_image": {
+    "sha256": "342960b60079923da08ed15d25ae3344d33ee128148371047e752843f06a16fc"
+  }
+}

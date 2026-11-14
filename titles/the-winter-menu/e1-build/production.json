@@ -1,0 +1,61 @@
+{
+  "ledger": {
+    "id": "d009d61541774a429fcabfeedadd8b51",
+    "kind": "edited_production",
+    "story": "https://work.haynesnetwork.com/work_packages/428",
+    "title": "The Winter Menu (E1 build 1, studio build)",
+    "state": "succeeded",
+    "created_at": 1794630857.588938,
+    "finished_at": 1794630857.588938,
+    "telemetry": [],
+    "output": "productions/the-winter-menu-e1-build-1/final.mp4",
+    "bytes": 60562847,
+    "sha256": "f6fd041afc837a3a050da4ad5a574e96798b4014b5e9b67ca1d9966039b0621e",
+    "assets": [
+      {
+        "path": "/workspace/output/productions/the-winter-menu-e1-build-1/final.mp4",
+        "bytes": 60562847,
+        "sha256": "f6fd041afc837a3a050da4ad5a574e96798b4014b5e9b67ca1d9966039b0621e"
+      },
+      {
+        "path": "/workspace/output/productions/the-winter-menu-e1-build-1/proxy.mp4",
+        "bytes": 12986068,
+        "sha256": "222873565e1df9f0e2ca61a7632b5c9c92be707e683173e4208eaabe7ea13c01"
+      },
+      {
+        "path": "/workspace/output/productions/the-winter-menu-e1-build-1/delivery.json",
+        "bytes": 1063,
+        "sha256": "c4b5ef1fc6fd54cb8b0ffaef51cf768121f5cbc9f6587bfb0a99d94c7358adf2"
+      },
+      {
+        "path": "/workspace/output/productions/the-winter-menu-e1-build-1/run.json",
+        "bytes": 64993,
+        "sha256": "265856bb78f5e54410e713c51216f3e2011f1e75742f190fde6ab64f2a512ceb"
+      }
+    ],
+    "preset": "studio-build-layered-s2v",
+    "provenance": {
+      "records": "haynes-studio titles/the-winter-menu/e1-build/ (run-log.md, runs/, clips/)",
+      "run_id": "run_01M7C56SZ6TAHTJSW413RFZYQP",
+      "delivery_id": "dlv_01M7C576EAX9NY1S0JHFYW2QQS",
+      "production_id": "prd_01M79V9FC00000000000000001",
+      "story_id": "sty_01M79V9FC00000000000000001",
+      "studio_commit": "git:ec8c3869e8e699b4f7cf58bb3d1485f4cdb4af5e",
+      "frames": 1087,
+      "proxy": "proxy.mp4 (720x1280, the phone proxy)",
+      "voices": "Kokoro-82M v1.0 stock voices bf_emma, af_heart, af_nicole, af_bella (r4's takes); no cloning",
+      "video": "Wan2.2 S2V-14B lightning (speech clips, 14 jobs on the studio's RTX 3090s) and E0's TI2V-5B doll and set loops, keyed and composited by the studio's layered renderer",
+      "sound": "audio-authoring Stable Audio 3 Small SFX: r4's cues and the regenerated fire bed (job ebe4a478d4cf44e3974fea1da6a179cb)",
+      "human_approval": "Pending: Tom (E1 demo)."
+    }
+  },
+  "served_file": {
+    "status": 200,
+    "content_type": "video/mp4",
+    "bytes": 60562847,
+    "sha256": "f6fd041afc837a3a050da4ad5a574e96798b4014b5e9b67ca1d9966039b0621e"
+  },
+  "ledgers_listed": 23,
+  "unreadable": [],
+  "url": "https://video.haynesops.com/videos/d009d61541774a429fcabfeedadd8b51/file"
+}

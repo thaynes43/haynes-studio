@@ -1,0 +1,93 @@
+{
+  "schema": "studio.run/v1",
+  "id": "run_01M7C2TPGEKW0F5RDYG4D6KTGT",
+  "story_id": "sty_01M79V9FC00000000000000001",
+  "number": 18,
+  "status": "failed",
+  "wait_reason": null,
+  "phase": "offline",
+  "snapshot": {
+    "sha256": "52ba1ad3cea77b9733790c825484d9627679135b08a468bb857f26eaaaf17276",
+    "story_revision": 1,
+    "board_count": 1,
+    "locator": "productions/prd_01M79V9FC00000000000000001/sha256/52/52ba1ad3cea77b9733790c825484d9627679135b08a468bb857f26eaaaf17276.json"
+  },
+  "queued_by": {
+    "kind": "cli",
+    "command": "studio build",
+    "operator": {
+      "kind": "human",
+      "iss": "https://agent-session.invalid/dev-env",
+      "sub": "agent-session:haynes-studio-1114-013021"
+    }
+  },
+  "queued_at": "2026-11-14T03:50:13Z",
+  "idempotency_key": null,
+  "estimate": null,
+  "progress": {
+    "percent": 100,
+    "stage": "segment"
+  },
+  "stages": [],
+  "outputs": null,
+  "checks": null,
+  "provenance": null,
+  "delivery_id": null,
+  "legacy": null,
+  "started_at": "2026-11-14T03:50:13Z",
+  "finished_at": "2026-11-14T03:50:30Z",
+  "error": {
+    "code": "layered.layout_invalid",
+    "message": "slot 'd' puts the doll more than 240 px off the frame",
+    "board_id": "brd_01M79V9FC00000000000000007",
+    "board_number": 7,
+    "stage": "segment"
+  },
+  "transitions": [
+    {
+      "from": null,
+      "to": "queued",
+      "at": "2026-11-14T03:50:13Z",
+      "by": {
+        "kind": "cli",
+        "command": "studio build",
+        "operator": {
+          "kind": "human",
+          "iss": "https://agent-session.invalid/dev-env",
+          "sub": "agent-session:haynes-studio-1114-013021"
+        }
+      },
+      "reason": "queued by the command line"
+    },
+    {
+      "from": "queued",
+      "to": "running",
+      "at": "2026-11-14T03:50:13Z",
+      "by": {
+        "kind": "cli",
+        "command": "studio build",
+        "operator": {
+          "kind": "human",
+          "iss": "https://agent-session.invalid/dev-env",
+          "sub": "agent-session:haynes-studio-1114-013021"
+        }
+      },
+      "reason": "build started (offline phase)"
+    },
+    {
+      "from": "running",
+      "to": "failed",
+      "at": "2026-11-14T03:50:30Z",
+      "by": {
+        "kind": "cli",
+        "command": "studio build",
+        "operator": {
+          "kind": "human",
+          "iss": "https://agent-session.invalid/dev-env",
+          "sub": "agent-session:haynes-studio-1114-013021"
+        }
+      },
+      "reason": "layered.layout_invalid: slot 'd' puts the doll more than 240 px off the frame"
+    }
+  ]
+}
