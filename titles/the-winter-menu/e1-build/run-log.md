@@ -359,3 +359,70 @@ job ran on one card (the S2V lightning graph uses one GPU), so the second 3090 s
 for the whole phase (observation O-428-5). Jobs 10 and 11 are E0's 9 b and the board 9
 job; 9 b's render (203.9 s) is 0.8 s over E0's range. The peak of 89 C is 1 C above E0's
 recorded range (84 to 88 C); the coordinator set no temperature stop for part 2.
+
+## j. The offline phase — **blocked** (three refusals; a blocker note to the coordinator)
+
+**Where it runs: the session pod**, one worker at two threads (`--workers 1`,
+`STUDIO_THREADS=2`, `OMP/OPENBLAS/MKL_NUM_THREADS=2`, `nice -n 10`). The `ai/studio-render`
+worker was inspected read-only first (`kubectl exec -n ai deploy/studio-render -c app --
+...`): image `python:3.13-slim-bookworm`, 24 CPUs (limit 24, 32 Gi), `/studio` on gasha01
+NFS with 94 T free, nothing else running (load 0.9; only `sleep infinity`); packages av
+19.0.2, numpy 2.5.4, opencv-python-headless 5.0.0.93, pillow 13.0.0, scipy 1.18.1,
+imageio-ffmpeg 0.8.1, **no jsonschema or referencing**. The package needs Python 3.11 or
+3.12 (`requires-python >=3.11,<3.13`), jsonschema and referencing, av <19, numpy <2.5,
+scipy <1.17 and OpenCV <5, and the keyer's and encoder's builds are cache-key inputs (a
+picture keyed there would not match the pod's keys). It cannot run there without
+installing into the cluster, which the work order forbids, so nothing was copied to
+`/studio` and no folder was made there. **Changed** from the runbook's heavy-CPU rule:
+the work order allows the pod in this case (observation O-428-7: the worker image no
+longer matches services.md's "python 3.12, pinned requirements").
+
+```sh
+nice -n 10 uv run studio build --store $J/store --story $J/voiced/story.json \
+  --library $J/voiced/library.json --operator-iss ... --operator-sub ... \
+  --toolchain $J/toolchain.json --studio-commit ec8c3869e8e699b4f7cf58bb3d1485f4cdb4af5e \
+  --offline --workers 1 --json
+```
+
+- 03:43:54 UTC: the first attempt wrapped the command in `/usr/bin/time -v`, which the
+  pod lacks: exit 127, nothing ran, no run made. Re-run with the shell's `time`.
+- 03:44:15 to 03:44:39 UTC (24.4 s), exit 1: run `run_01M7C2FS3G1YMAVKMSBES6N6YY`
+  `failed`, **`layered.decal_weak` at board 1, stage `segment`**: "slot a: the decal
+  track is too weak (min 0.7167, 0 failed; floor 0.8); re-roll the clip or record a lower
+  decal_min_ecc". The speaker's clip was keyed (one `keyed_frames` stage), and the
+  gate refused the segment before its first frame.
+- To give the coordinator the whole picture in one note, boards 2 to 9 were then run
+  the same way, each alone on a one-board copy of the draft (`per-board/board<n>.json`,
+  as for the first clips; CPU only, no service). A board that passes leaves its keyed
+  frames and segment in the cache, under the same keys the whole story uses.
+  ([`offline-per-board.json`](offline-per-board.json), [`offline-per-board.txt`](offline-per-board.txt),
+  [`runs/`](runs/)):
+
+| Board | Result | Wall s | What it made |
+|---|---|---|---|
+| 1 | **`layered.decal_weak`**, slot a: min ECC 0.7167, floor 0.8 | 24.4 | keyed frames |
+| 2 | passes; stops at the transcript check (`build.offline_missing`, `check_result`), as an offline run must | 54.3 | keyed frames, segment, picture, mix, master |
+| 3 | passes, as 2 | 82.5 | the same |
+| 4 | passes | 48.6 | the same |
+| 5 | passes | 36.5 | the same |
+| 6 | passes | 61.7 | the same |
+| 7 | **`layered.layout_invalid`**: "slot 'd' puts the doll more than 240 px off the frame" | 17.7 | keyed frames |
+| 8 | passes (four speakers) | 412.1 | 4 keyed frames, segment, picture, mix, master |
+| 9 | **`layered.decal_weak`**, slot b: min ECC 0.6867, floor 0.8 | 41.6 | 3 keyed frames |
+
+- **Boards 1 and 9 (the decal gate).** A clip the build makes is gated at the default
+  0.8 (Q-426-1, the contract owner's ruling); the draft has no field for a build-made
+  clip's floor. E0 met the same two: its `s1-a` scored 0.71 and `s9-b` 0.80, both failed
+  the gate, and both were overridden by eye with a recorded reason (`clipmap-s2v.json`
+  `decal_min_ecc` 0.7 and 0.78; `video-e0/findings-s2v.md`). With E0's overrides board 1
+  (0.7167) would pass and board 9 (0.6867) still fail.
+- **Board 7 (the close-up).** r4's `closeup` preset puts D at `x` 0.56, height 2300, crop
+  `[0.27, 0, 0.9, 0.75]`. Her loop's keyed box is 548x730 (of 576x1024), so the cropped
+  sprite is 345x548, scaled to 1448x2300; its left edge is at -119 px and its right edge
+  at 1329 px, **9 px past** the 1320 px the 240 px margin allows. The rule is
+  `poc/edit.py place`'s assert for still cutouts, which the port also applies to keyed
+  frames (`layered/compose.py place`); E0's `poc/layered_film.py`, which rendered this
+  board from the same loop, made no such check. The r4 still gives the same width to a
+  few pixels, so the preset itself sits at the edge.
+- Nothing was retried, no GPU job was asked for, no code changed. Step j stops here: a
+  `blocker` note to the coordinator (below).
