@@ -31,6 +31,7 @@ from tests.library.fixtures import (
     sources,
     story,
     winter_menu,
+    with_tracks,
 )
 
 CONTENT_KINDS = {"cast", "set", "sound"}
@@ -241,8 +242,33 @@ def test_signatures_and_pins_agree_with_the_contract_examples():
     assert [t["signature"] for t in vote["takes"]] == [t["signature"] for t in expected["takes"]]
 
 
-def test_facts_with_the_story_mark_changed_boards_stale():
+def test_a_board_voice_without_a_track_is_stale_for_a_build():
+    """Story 857 (the contract owner's decision): a legacy board voice records its takes
+    and no track, and the picture's envelope and the mix read the track, so with the
+    story every spoken board of the imported r4 is stale: ``queue_run`` refuses each
+    with ``voice.stale``, derived ``voice_state`` is ``stale`` and Build is not allowed.
+    Without a story every voice is still taken as current; the versions are unchanged."""
     library = winter_menu().library
+    before = library.documents()
+    document = story()
+    spoken = [i for i, board in enumerate(document["boards"]) if board["lines"]]
+    assert len(spoken) == 8
+    assert all(library.version(document["boards"][i]["voice"]["current_version_id"]).voice.track
+               is None for i in spoken)
+    facts = library.facts(document)
+    assert _queue_stale(document, facts) == {f"/boards/{i}/voice/current_version_id"
+                                             for i in spoken}
+    derived = with_derived(document, facts=facts)
+    assert [b["derived"]["voice_state"] for b in derived["boards"]] == [
+        "stale" if b["lines"] else "not_needed" for b in document["boards"]]
+    assert not timing_summary(document, facts=facts).build_allowed
+    assert all(f.matches_board for f in library.facts().voice_versions.values())
+    assert _queue_stale(document, with_tracks(library).facts(document)) == set()
+    assert library.documents() == before  # the versions themselves are unchanged
+
+
+def test_facts_with_the_story_mark_changed_boards_stale():
+    library = with_tracks(winter_menu().library)
     document = story()
     summary = timing_summary(document, facts=library.facts(document))
     assert (summary.frames_known, summary.build_allowed) == (1087, True)
@@ -273,9 +299,10 @@ def _queue_stale(document, facts) -> set[str]:
 
 def test_engine_currency_needs_a_current_engine_named():
     """VOICE-9 (story 849). No current engine named: nothing changes. Named as the
-    model name the legacy takes carry (no digest is recorded): r4 stays buildable.
-    Named as a digest: every board voice is stale, with or without the story."""
-    library = winter_menu().library
+    model name the legacy takes carry (no digest is recorded): r4 with tracks stays
+    buildable (without them it is stale, story 857). Named as a digest: every board
+    voice is stale, with or without the story."""
+    library = with_tracks(winter_menu().library)
     document = story()
     plain = library.facts(document)
     assert library.facts(document, current_engine=None) == plain
@@ -298,7 +325,7 @@ def test_engine_currency_needs_a_current_engine_named():
 
 
 def test_one_take_signed_with_another_engine_makes_its_voice_stale():
-    library = winter_menu().library
+    library = with_tracks(winter_menu().library)
     document = story()
     version = library.version(document["boards"][7]["voice"]["current_version_id"])
     takes = version.voice.takes
