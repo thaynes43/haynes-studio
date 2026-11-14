@@ -101,6 +101,20 @@ PINS: dict[str, Pin] = {
         f"{HAYNES_OPS_WAN_COMMIT} (git blob 5f9e9f968176, its only commit; unchanged at "
         "haynes-ops main bab21e14 on 2026-11-13), the template_sha256 of every E0 layer "
         "record; copied once"),
+    # Story 846: the private input import's read-only volume reads (wan_volume.py).
+    "wan_upload_read.py": Pin(
+        "4ef0de38762964155c38e40284ccbdd741553a2ce25c129c7a498141ece6962f", "snippet",
+        "new in story 846: prints one E0 upload, /workspace/input/studio-e0/<first 16 hex>.<png|wav>, "
+        "read-only; every folder below /workspace and the file opened with O_NOFOLLOW after an "
+        "lstat, the file a regular file with one link and at most 20 000 000 bytes, hash "
+        "checked; refusals are REFUSED <reason> and exit status 3"),
+    "wan_job_output_read.py": Pin(
+        "755f6b01bd73a64af9d3a7b0c6ea22220eb2aeca9346a424af8580bc50dfa852", "snippet",
+        "new in story 846: prints one Wan job's output, read-only: its ledger "
+        "/workspace/jobs/<job_id>.json a succeeded job of that id, its output a plain relative "
+        ".mp4 path below /workspace/output; every folder and file opened with O_NOFOLLOW after "
+        "an lstat, the clip a regular file with one link, at most 64 MiB and the size its "
+        "ledger records, hash checked; refusals are REFUSED <reason> and exit status 3"),
 }
 
 

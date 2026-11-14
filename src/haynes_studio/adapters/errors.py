@@ -22,6 +22,23 @@ BUSY = "adapter.busy"
 JOB_FAILED = "adapter.job_failed"  # story 842: a Wan job ended in a state other than succeeded
 COMPETING_WORK = "adapter.competing_work"  # story 842: foreign engine work seen during a job
 JOURNAL_FAILED = "adapter.journal_failed"  # story 842: the Wan journal could not be read exactly or written
+# Story 846: a read-only volume read refused the file it was asked for (wan_volume.py). Each
+# names why; none ever comes with bytes.
+SOURCE_MISSING = "adapter.source_missing"  # no such file, folder or ledger entry
+SOURCE_LINK = "adapter.source_link"  # the file, or a folder on its path, is a symbolic link
+SOURCE_NOT_REGULAR = "adapter.source_not_regular"  # a folder, FIFO, socket or device where a file belongs
+SOURCE_HARD_LINK = "adapter.source_hard_link"  # the file has more than one name
+SOURCE_TOO_LARGE = "adapter.source_too_large"  # over the read's size limit, in the pod or the client
+SOURCE_OUTSIDE = "adapter.source_outside"  # the recorded path leaves the folder the read may use
+SOURCE_HASH_MISMATCH = "adapter.source_hash_mismatch"  # other bytes than the expected sha256 (or size)
+SOURCE_RECORD_INVALID = "adapter.source_record_invalid"  # the ledger is not a succeeded job of that ID
+SOURCE_CHANGED = "adapter.source_changed"  # the file or a folder changed between its checks and its read
+# Not a refusal of one file: a fixed folder of the Wan volume (/workspace/jobs, output, input or
+# input/studio-e0) is missing or not a plain folder, so the reader is in the wrong container or the
+# volume is not as recorded. The import stops on it.
+VOLUME_UNEXPECTED = "adapter.volume_unexpected"
+SOURCE_REFUSALS = (SOURCE_MISSING, SOURCE_LINK, SOURCE_NOT_REGULAR, SOURCE_HARD_LINK, SOURCE_TOO_LARGE,
+                   SOURCE_OUTSIDE, SOURCE_HASH_MISMATCH, SOURCE_RECORD_INVALID, SOURCE_CHANGED)
 
 DETAIL_LIMIT = 300
 REDACTED = "<redacted>"
