@@ -249,6 +249,7 @@ def test_a_board_voice_without_a_track_is_stale_for_a_build():
     with ``voice.stale``, derived ``voice_state`` is ``stale`` and Build is not allowed.
     Without a story every voice is still taken as current; the versions are unchanged."""
     library = winter_menu().library
+    before = library.documents()
     document = story()
     spoken = [i for i, board in enumerate(document["boards"]) if board["lines"]]
     assert len(spoken) == 8
@@ -263,7 +264,7 @@ def test_a_board_voice_without_a_track_is_stale_for_a_build():
     assert not timing_summary(document, facts=facts).build_allowed
     assert all(f.matches_board for f in library.facts().voice_versions.values())
     assert _queue_stale(document, with_tracks(library).facts(document)) == set()
-    assert library.documents() == winter_menu().library.documents()
+    assert library.documents() == before  # the versions themselves are unchanged
 
 
 def test_facts_with_the_story_mark_changed_boards_stale():

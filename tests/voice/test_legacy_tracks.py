@@ -12,7 +12,9 @@ No service is called and nothing is written outside ``tmp_path``.
 from __future__ import annotations
 
 import copy
+import dataclasses
 import hashlib
+from types import MappingProxyType
 
 import pytest
 
@@ -20,12 +22,14 @@ from haynes_studio.adapters.fakes import FakeKokoro, FakeRunner
 from haynes_studio.adapters.kokoro import KokoroClient
 from haynes_studio.build import make_story_voices
 from haynes_studio.canonical import timing_summary, validate_story, with_derived
+from haynes_studio.canonical.ids import Minter
 from haynes_studio.canonical.model import to_document
 from haynes_studio.errors import ContractError, blocking
+from haynes_studio.library import Library
 from haynes_studio.library.model import locator_for
 from haynes_studio.store import LocalStore
 from haynes_studio.voice import ASSEMBLE, CURRENT, SYNTHESIZE, make_voice, voice_facts
-from haynes_studio.voice.plan import board_voice_key, plan_board_voice
+from haynes_studio.voice.plan import board_voice_key, board_voice_versions, plan_board_voice
 from tests.canonical.fixtures import NOW
 from tests.library.fixtures import BY
 from tests.voice.fixtures import LATER, WAV, generated_r4, held_legacy_r4, legacy_r4, r4_frames
@@ -61,7 +65,8 @@ def test_an_imported_r4_story_is_stale_on_every_spoken_board():
     assert all(studio.current(b["number"]).voice.track is None for b in spoken(studio))
     assert queue_problems(studio.story, studio.library) == stale_everywhere(studio.story)
     facts = voice_facts(studio.library, studio.story)
-    states = [b["derived"]["voice_state"] for b in with_derived(studio.story, facts=facts)["boards"]]
+    derived = with_derived(studio.story, facts=facts)["boards"]
+    states = [board["derived"]["voice_state"] for board in derived]
     assert states == ["stale" if b["lines"] else "not_needed" for b in studio.story["boards"]]
     assert not timing_summary(studio.story, facts=facts).build_allowed
 
@@ -141,8 +146,9 @@ def test_with_no_take_held_every_line_is_spoken_once():
 
 
 def test_held_bytes_with_another_hash_are_refused_before_any_call():
-    """A take is reused only after its hash is checked; a store that answers other
-    bytes is a store fault, not a take to speak again (proposal)."""
+    """A take is reused only after its hash is checked; a ``fetch`` that answers other
+    bytes is a store fault, not a take to speak again (proposal). (``studio voice``'s
+    ``fetch`` answers None for a blob that does not verify: that is a missing take.)"""
     studio = held_legacy_r4()
     board_id = studio.board(8)["id"]
     plan = plan_board_voice(studio.story, board_id, studio.library)
@@ -171,6 +177,35 @@ def test_a_take_of_a_version_with_a_track_must_still_be_held():
     _, run = studio.generate(board["id"])
     assert (run.job.status, run.job.error.code) == ("failed", "asset.bytes_missing")
     assert (studio.calls, len(studio.library.versions)) == (calls, versions)
+
+
+@pytest.mark.parametrize("older_held, calls", [(True, 0), (False, 1)], ids=["held", "missing"])
+def test_an_unheld_legacy_take_falls_back_to_an_older_one_of_its_signature(older_held, calls):
+    """Two versions without a track hold one signature with other bytes; the newer one's
+    are not held. Its take leaves the pool, so the older one's is chosen and read in its
+    turn: reused when held, else the line is spoken once (never ``bytes_missing``)."""
+    signature = legacy_r4().current(1).voice.takes[0].signature
+    studio = held_legacy_r4(held=lambda s: older_held or s != signature)
+    board_id = studio.board(1)["id"]
+    older = studio.current(1)
+    minter = Minter(clock=lambda: 1_900_000_000_000, random_bits=lambda: 9)
+    asset = dataclasses.replace(studio.library.asset(older.asset_id), id=minter.mint("ast"))
+    other = hashlib.sha256(b"bytes no store holds").hexdigest()
+    newer = dataclasses.replace(older, id=minter.mint("asv"), asset_id=asset.id,
+                                voice=dataclasses.replace(older.voice, takes=(dataclasses.replace(
+                                    older.voice.takes[0], sha256=other),)))
+    studio.library = Library(
+        assets=MappingProxyType({**studio.library.assets, asset.id: asset}),
+        versions=MappingProxyType({**studio.library.versions, newer.id: newer}))
+    assert [v.id for v in board_voice_versions(studio.library, board_id)] == [newer.id, older.id]
+    assert plan_board_voice(studio.story, board_id, studio.library).takes[0].from_version_id \
+        == newer.id
+    _, run = studio.generate(board_id)
+    assert run.job.status == "succeeded", run.job.error
+    assert studio.calls == calls and len(run.synthesized) == calls
+    # The fake speaks the same WAV for a signature, so a take spoken again has the
+    # older take's hash too; what differs is whether a call was made.
+    assert run.version.voice.takes[0].sha256 == older.voice.takes[0].sha256 != other
 
 
 def test_each_held_legacy_take_is_read_once():

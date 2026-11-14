@@ -25,8 +25,10 @@ signature (VOICE-3), newest version first; :func:`take_sources` is that rule, an
 worker applies the same function. The plan takes every recorded take as held. The
 worker reads each take of a version without a track before it plans its calls: one the
 store does not hold is left out of the pool (``unheld``), so its line is spoken again,
-once per signature; a held one is reused after its hash is checked (story 857). A version "is" an input when its input signature and
-its lines (ID, speaker, cast voice version) are the input's. Stock voices only
+once per signature; a held one is reused after its hash is checked (story 857).
+
+A version "is" an input when its input signature and its lines (ID, speaker, cast
+voice version) are the input's. Stock voices only
 (VOICE-1): a cast voice that is not a recorded stock voice of the engine's model is
 refused (``voice.not_stock``), and so are a line the speech client would refuse
 (``voice.request_invalid``) and a lead or gap over its bound (``schema.invalid``),

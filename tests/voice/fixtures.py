@@ -213,5 +213,6 @@ def held_legacy_r4(held: Callable[[str], bool] = lambda signature: True, **kwarg
     production = studio.story["production_id"]
     for signature, data in wavs.items():
         if held(signature):
-            studio.store.blobs[locator_for(hashlib.sha256(data).hexdigest(), WAV, production)] = data
+            digest = hashlib.sha256(data).hexdigest()
+            studio.store.blobs[locator_for(digest, WAV, production)] = data
     return studio

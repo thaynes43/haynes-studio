@@ -108,7 +108,9 @@ order:
    worker validates the job document before all of this. A take of a version without a
    track is read first: one the store does not hold (`fetch` answers None) leaves the
    pool (`take_sources(..., unheld)`), so its line goes to the speech client, once per
-   signature; bytes with another hash are still `asset.bytes_missing` (story 857).
+   signature; bytes `fetch` answers with another hash are still `asset.bytes_missing`
+   (story 857). `studio voice`'s `fetch` answers None for a blob the store cannot verify
+   (`store.verify`), so through it a damaged legacy take is spoken again too.
 4. Each new signature goes once to `speech.synthesize(SpeechRequest(voice_id, text))`
    (the Kokoro client and its injected runner). Each answer is read from its header
    first (`read_wav`: 16-bit PCM, mono, 8000 to 48000 Hz, at most 120000 ms). An answer
@@ -292,7 +294,7 @@ hold. Tests: `tests/voice/test_legacy_tracks.py`.
 | `schema.invalid` | among others: a lead, gap or take over 120000 ms, lead and gaps or a track over 600000 ms, a track buffer over 57 600 000 bytes ([Bounds](#bounds)) | story 404 |
 | `voice.speaker_not_in_cast` | story 404's validator, run on the draft first | contract |
 | `voice.absent` | a narrator line without the story's narrator voice | contract |
-| `asset.kind_mismatch`, `asset.bytes_missing`, `ref.unknown` | a cast voice that is not a `voice`; a reused take of a version with a track that the store does not hold, or any reused take it holds with another hash (a legacy take it does not hold is spoken again); an unknown board or voice | story 382 and 404 proposals |
+| `asset.kind_mismatch`, `asset.bytes_missing`, `ref.unknown` | a cast voice that is not a `voice`; a reused take of a version with a track that the store does not hold, or any reused take `fetch` answers with another hash (a legacy take the store does not hold is spoken again); an unknown board or voice | story 382 and 404 proposals |
 | `store.locator_invalid` | `publish` placed bytes outside the production's hash path | contract |
 | `voice.not_needed`, `voice.request_invalid`, `voice.format_mismatch`, `voice.engine_mismatch`, `store.hash_mismatch`, `job.transition` | a silent board; a line the speech client would refuse; a take that is not 16-bit PCM, mono, 8000 to 48000 Hz, or differs in format; a job signed for another engine; `publish` answered another hash; a move the state machine refuses | proposals |
 
@@ -314,8 +316,11 @@ hold. Tests: `tests/voice/test_legacy_tracks.py`.
   boards.
 - Story 857: only a take of a version without a track (a legacy import) is spoken again
   when the store does not hold it. A take of a version with a track was published with
-  it, so its absence is a store fault and stays `asset.bytes_missing`; so do bytes with
-  another hash, for any version.
+  it, so its absence is a store fault and stays `asset.bytes_missing`; so do bytes
+  `fetch` answers with another hash, for any version. The `studio voice` driver (story
+  406) answers None for a blob that does not verify, so a damaged legacy take is spoken
+  again there rather than refused; the damaged blob stays, and `store doctor` lists it
+  as `damaged`.
 - Story 857: before any take is read, a legacy take counts at its recorded length in
   the track bound; if it is not held, the take spoken again has the same signature
   (engine, voice, text). The running check after each answer still applies.

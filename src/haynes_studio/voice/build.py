@@ -7,8 +7,8 @@ behind its injected runner), every take is published, and the assembled track is
 published and recorded on the version. A version without a track (a legacy import) is
 never returned as the input: its board gets a new version with a track, from its held
 takes, and only a take the store does not hold is spoken again (story 857). Durations
-are TIME-1 from sample counts and
-offsets TIME-2, through :mod:`haynes_studio.timebase`. Bytes leave only through the
+are TIME-1 from sample counts and offsets TIME-2, through :mod:`haynes_studio.timebase`.
+Bytes leave only through the
 injected ``publish`` and come back only through the injected ``fetch``; nothing here
 knows the store.
 
@@ -181,8 +181,10 @@ def make_voice(voice: VoiceInput, board_id: str, library: Library, *, speech: Sp
     Story 857: a version without a track (a legacy import) is never returned; its takes
     are read first (once each), and one the store does not hold (``fetch`` answers None)
     is left out of the pool, so its line goes to ``speech`` (once per signature). A take
-    of a version with a track that is not held is still ``asset.bytes_missing``, and
-    bytes with another hash are refused for either (proposal)."""
+    of a version with a track that is not held is still ``asset.bytes_missing``, and so
+    is any take whose bytes ``fetch`` answers with another hash (proposal). The ``studio
+    voice`` driver's ``fetch`` answers None for a blob the store cannot verify by hash,
+    so through it a damaged legacy take is spoken again like a missing one."""
     problems = voice_input_violations(voice)  # stock voices first: nothing is sent unchecked
     if problems:
         raise ContractError("<voice>", problems)
@@ -211,14 +213,20 @@ def make_voice(voice: VoiceInput, board_id: str, library: Library, *, speech: Sp
         raise _error(SCHEMA_INVALID, "/voice", f"the track would be over {TRACK_MAX_MS} ms "
                                                f"({recorded} ms with the takes to reuse)")
     # Story 857: a take of a version without a track is reused only if the store holds
-    # it; one it does not hold leaves the pool and its line is spoken again. Each is read
-    # once here; the read below answers from that.
+    # it; one it does not hold leaves the pool and its line is spoken again. Leaving one
+    # out can put an older take of the same signature in its place, so this repeats
+    # until every trackless take chosen is held. Each is read once (``read``), here and
+    # before the room checks below; the reads below answer from these.
     trackless = {v.id for v in versions if not has_track(v)}
-    unheld = {source.reuse.sha256 for source in sources
-              if source.reuse is not None and source.from_version_id in trackless
-              and read(locator_for(source.reuse.sha256, WAV, production),
-                       source.reuse.sha256) is None}
-    if unheld:
+    unheld: set[str] = set()
+    while True:
+        missing = {source.reuse.sha256 for source in sources
+                   if source.reuse is not None and source.from_version_id in trackless
+                   and read(locator_for(source.reuse.sha256, WAV, production),
+                            source.reuse.sha256) is None}
+        if not missing:
+            break
+        unheld |= missing
         sources = take_sources(voice, versions, unheld)
     owners = [i if source.same_as is None else index[source.same_as]
               for i, source in enumerate(sources)]  # the line whose take each line plays

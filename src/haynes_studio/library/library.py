@@ -231,8 +231,7 @@ class Library:
         the board's lead and gaps (VOICE-3, VOICE-4), and it holds an assembled track:
         a legacy import's voice (``track: null``) is not current for a build (story 857,
         the contract owner's decision; ``studio voice`` makes it a version with a
-        track). Without a story every voice is
-        taken as current. With ``current_engine`` (the engine a take signature names
+        track). Without a story every voice is taken as current. With ``current_engine`` (the engine a take signature names
         now: the TTS model's digest once one is recorded, else its name), a board voice
         any of whose takes is signed with another engine is stale too, with or without
         a story (VOICE-9); without it the engine is not compared. Proposal (story 849):
