@@ -214,10 +214,9 @@ def test_a_story_whose_assets_do_not_resolve_makes_no_run(world, voiced, first):
     assert len(f.local_run_ids(world.store, f.PRODUCTION)) == before
 
 
-@pytest.mark.xfail(strict=True, reason="observation O-406-1: deliver's proxy is refused "
-                   "(delivery.proxy_invalid, audio a few samples short) when the film's frame "
-                   "count is not a multiple of 3; story 381's package, not changed here")
 def test_a_film_of_43_frames_delivers(world, voiced, first):
+    # Observation O-406-1, fixed by story 857: the proxy records its audio exactly at a
+    # frame count that is not a multiple of 3 (the fixture film is 42 frames).
     document, library = voiced
     edited = copy.deepcopy(document)
     f.board_of(edited, f.B3)["timing"]["hold_ms"] = 540  # 13 frames: 43 in all
