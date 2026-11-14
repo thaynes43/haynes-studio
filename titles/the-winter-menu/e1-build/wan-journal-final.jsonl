@@ -32,3 +32,12 @@
 {"v": 1, "event": "remember", "job_id": "7dfdfb11444f4bb589143826a10eb51a", "state": "in_flight", "graph_sha256": "83bbb76eaed9c3d30776d95b385b1749cf4e32fc0b12791da5c248d3d25d82e3", "at": "2026-11-14T03:36:58Z"}
 {"v": 1, "event": "remember", "job_id": "7dfdfb11444f4bb589143826a10eb51a", "state": "uncollected", "graph_sha256": "83bbb76eaed9c3d30776d95b385b1749cf4e32fc0b12791da5c248d3d25d82e3", "at": "2026-11-14T03:42:49Z"}
 {"v": 1, "event": "settle", "job_id": "7dfdfb11444f4bb589143826a10eb51a", "outcome": "collected", "at": "2026-11-14T03:42:50Z"}
+{"v": 1, "event": "remember", "job_id": "0d99ac1e40ca420f9503ad9a9bba5c56", "state": "in_flight", "graph_sha256": "4cbc5954f85b6f846dd872caa5fc645979939e086a0b7def841a29ae2e933f74", "at": "2026-11-14T04:03:34Z"}
+{"v": 1, "event": "remember", "job_id": "0d99ac1e40ca420f9503ad9a9bba5c56", "state": "uncollected", "graph_sha256": "4cbc5954f85b6f846dd872caa5fc645979939e086a0b7def841a29ae2e933f74", "at": "2026-11-14T04:11:18Z"}
+{"v": 1, "event": "settle", "job_id": "0d99ac1e40ca420f9503ad9a9bba5c56", "outcome": "collected", "at": "2026-11-14T04:11:19Z"}
+{"v": 1, "event": "remember", "job_id": "9d4ce7d33d5a4bc1828bad102be6f50a", "state": "in_flight", "graph_sha256": "4c2ec0e3230d7ec6860548c6bb65d81d5c4bbe6f4b6a6031b99ec5c934097462", "at": "2026-11-14T04:11:20Z"}
+{"v": 1, "event": "remember", "job_id": "9d4ce7d33d5a4bc1828bad102be6f50a", "state": "uncollected", "graph_sha256": "4c2ec0e3230d7ec6860548c6bb65d81d5c4bbe6f4b6a6031b99ec5c934097462", "at": "2026-11-14T04:16:58Z"}
+{"v": 1, "event": "settle", "job_id": "9d4ce7d33d5a4bc1828bad102be6f50a", "outcome": "collected", "at": "2026-11-14T04:17:01Z"}
+{"v": 1, "event": "remember", "job_id": "bdb9e41bfe494aa3a996c135e6348101", "state": "in_flight", "graph_sha256": "e4923e4aa80fdc36e4b88bd3582a27addadcf138e4e5418f9b386e75cb0a3547", "at": "2026-11-14T04:20:40Z"}
+{"v": 1, "event": "remember", "job_id": "bdb9e41bfe494aa3a996c135e6348101", "state": "uncollected", "graph_sha256": "e4923e4aa80fdc36e4b88bd3582a27addadcf138e4e5418f9b386e75cb0a3547", "at": "2026-11-14T04:28:33Z"}
+{"v": 1, "event": "settle", "job_id": "bdb9e41bfe494aa3a996c135e6348101", "outcome": "collected", "at": "2026-11-14T04:28:33Z"}

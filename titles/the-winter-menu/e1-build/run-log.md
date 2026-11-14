@@ -426,3 +426,106 @@ nice -n 10 uv run studio build --store $J/store --story $J/voiced/story.json \
   few pixels, so the preset itself sits at the edge.
 - Nothing was retried, no GPU job was asked for, no code changed. Step j stops here: a
   `blocker` note to the coordinator (below).
+
+### The blocker and the coordinator's decisions
+
+Note `op428-blocker-1` (`message.799ebd692122b42d74861742ebacd5a1...`, kind `blocker`,
+04:00:21 UTC). **Answer** (`message.e1d92cccbbd1f1360b0e3d3418dda1d9...`, from
+`haynes-studio-1113-064439`, 04:02:27 UTC), the coordinator's decisions as contract owner
+(proposals Tom may overrule; each is a difference from r4 and E0):
+
+1. **Board 7:** the draft's `closeup` preset (only board 7 uses it), slot `d` `x` 0.56 ->
+   **0.55**. Edges before: -119 and 1329 px (9 px past 1320); after: -130 and 1318 px,
+   both inside. Whether keyed frames should carry the still-cutout limit at all is on the
+   coordinator's list for the contract.
+2. **Boards 1 and 9:** a re-roll by a draft seed edit, board 1 `s2v:a` 510 -> **610**,
+   board 9 `s2v:b` 520 -> **620**; no floor is lowered (check overrides stay with
+   people). The dry run must list exactly those two jobs; one more re-roll (seed 611 or
+   621) only if exactly one is still below 0.8 and the GPU total stays at or under 150
+   min; otherwise a blocker with each clip's lowest scores for a person to judge.
+3. All three pass: the whole offline phase in the pod, then steps j to n.
+4. The render worker's versions against the lock are an observation (O-428-7) for
+   haynes-ops; nothing there changed.
+5. If the ready PR and handoff are not started by 06:00 UTC, stop at a safe point and hand
+   off what is done.
+
+[`tools/redraft.py`](tools/redraft.py) `$J/voiced $J/voiced2` wrote the new draft version
+`voiced2/story.json` (04:03 UTC): those three edits, the story's `revision` 1 -> 2 and
+boards 1 and 9 `revision` 1 -> 2, nothing else (checked by a JSON diff). The weak clips
+stay in the store (create-only); the voices and the library are unchanged.
+
+- **Board 7 alone** (`per-board2/board7.json`, 04:04 UTC, 18.9 s): passes; segment
+  rendered, stopping only at the transcript check.
+- **Service dry run** on `voiced2` (`run_01M7C3JVRA64QSP1434YWAXEXW`): exactly two jobs,
+  board 1 a (154 frames, 2 chunks, seed 610) and board 9 b (73 frames, 1 chunk, seed
+  620), every other clip a cache hit; E0 estimate 605.5 to 669.7 s, at most 911.1 s.
+
+### The re-rolls — Proven
+
+- **Re-roll 1** (one command on `voiced2`, 04:03:31 to 04:17:12 UTC, run
+  `run_01M7C3K4WZKZZPKMMXY706WA47` `cancelled`, "service phase complete", 2 clips made):
+  board 1 a seed 610, job `0d99ac1e`, 158 of 154 frames, `render_s` 462.5, `wall_s`
+  464.5, no cool wait, start 52 / 50 C, peak 88 C; board 9 b seed 620, job `9d4ce7d3`, 74
+  of 73, `render_s` 201.6, `wall_s` 340.5, cool wait 135.8 s, start 61 / 52 C, peak 88 C.
+  Both: 16 fps, 576x1024, ledger `succeeded` with the record's bytes and graph hash, no
+  foreign work, retries 0. One-board offline checks (`per-board2/`): **board 9 passes**
+  (min ECC 0.9889); **board 1 still weak**, 0.6827 over the frames it shows (0.6517 over
+  the whole clip), 22.9 s.
+- **Re-roll 2**, the 14th and last job, as the go allows for exactly one weak board:
+  [`tools/redraft.py`](tools/redraft.py) `$J/voiced2 $J/voiced3 --no-layout --seed 1:a:611`
+  (story revision 3, board 1 revision 3); its dry run (`run_01M7C4GPQFCZR5TXQGDVD6G0KX`)
+  listed exactly board 1 a seed 611. One command, 04:20:33 to 04:28:35 UTC, run
+  `run_01M7C4JEJ2PQ5KR9HS6M2BQ4WH` `cancelled`: job `bdb9e41bfe494aa3a996c135e6348101`,
+  158 of 154 frames, 16 fps, `render_s` 470.9, `wall_s` 472.8, no cool wait, start 59 /
+  52 C, **peak 89 C on `GPU-d8a856f1`, 1 C over the coordinator's 88 C line** (the other
+  card 52 C); ledger `succeeded`, 5 688 951 bytes, graph hash as the journal; `settle
+  collected`; no foreign work; retries 0. Board 1 alone offline (`per-board3/`, 73.5 s):
+  **passes**. Note `op428-heat-1` (04:30:27 UTC) asked about the 89 C peak; answer
+  (`message.84167fa303f3567c072ca712e0322cb5...`, 04:31:00 UTC): go on with steps j to n,
+  no more Wan or Foley job, record the heat plainly (an observation for the hardware
+  owner, not interpreted here).
+- **Board 1 slot a, all three clips** ([`decal-scores.jsonl`](decal-scores.jsonl), whole
+  clip; the gate reads the frames the board shows): seed 510 (job `8638520a`) min ECC
+  0.7167 over the shown frames (0.7167 whole clip, lowest at source frames 19, 18, 22),
+  keyed key `sha256:959c337b...`; seed 610 (job `0d99ac1e`) 0.6827 shown (0.6517 whole,
+  frames 144, 145, 143), `sha256:646f8265...`; **seed 611 (job `bdb9e41b`) passes and is
+  the clip the film plays**. The two weak clips and their keyed frames stay in the store.
+- **Totals:** 14 Wan jobs of 14; Wan GPU wall time **7529.4 s = 125.5 min** of 150. The
+  journal ([`wan-journal-final.jsonl`](wan-journal-final.jsonl), 43 lines) ends with
+  `settle collected` for job 14: no unsettled job, no halt.
+
+### The whole offline phase — Proven
+
+`studio build ... --story $J/voiced3/story.json ... --offline --workers 1` (04:31:10 UTC,
+7.1 s, exit 1 as expected): run `run_01M7C55PHSHZ9RTR3DH0SC0JXN` stops at
+`build.offline_missing`, stage `check_result`, the transcript check of the new master
+`f6fd041a...`. Every keyed frame and segment was already in the cache from the one-board
+runs (same keys), so this run spliced the film picture and muxed the master; nothing was
+rendered again. **Timings** (no run that made them recorded stages: a run that ends at
+`build.offline_missing` keeps no stage list, observation O-428-6): keying and segment
+render per board, as each one-board command's wall time in the pod at two threads,
+board 1 73.5 s (seed 611), 2 54.3, 3 82.5, 4 48.6, 5 36.5, 6 61.7, 7 18.9 (x 0.55), 8
+412.1 (four speakers, 251 frames), 9 97.5 s (seed 620): about 15 min of CPU work for the
+picture, plus 7 s for the splice and master.
+
+## k. The transcript check and the delivery — Proven
+
+- **Dry run** on `voiced3` (`--phase service --dry-run`): 0 clip jobs. **Service phase**
+  (04:31:35 UTC, 2.2 s, exit 0): run `run_01M7C56FGG1XJBAEANF07EYY2Z` `cancelled`, "0 clip
+  artifacts made and 1 transcript checks run". One Whisper request (of 30); no Wan client
+  was made (the journal stayed at 43 lines). `master.transcript`: **`pass_with_tolerances`**
+  (the story's `asr_tolerances`: "340" heard as "three hundred forty", "mos" for "moss"),
+  key `sha256:4c975df5...`, result `2c8ad0bc...`.
+- **Delivery** (04:31:46 UTC, 13.5 s, exit 0): run **`run_01M7C56SZ6TAHTJSW413RFZYQP`
+  `succeeded`**, "delivered and verified", delivery **`dlv_01M7C576EAX9NY1S0JHFYW2QQS`**.
+  1087 frames at 24 fps. Checks: `mix.length`, `mix.loudness` (-20.296 LUFS against -20 ±
+  1.5), `mix.true_peak` (-4.082 dBTP, at most -2.5), `mix.clipping` (0), `master.loudness`,
+  `master.true_peak`, `master.clipping`: pass; `master.transcript`: pass with tolerances;
+  `frame_count`: pass.
+- **Read back** (`read_delivery`, [`delivery-readback.json`](delivery-readback.json)):
+  master `f6fd041afc837a3a050da4ad5a574e96798b4014b5e9b67ca1d9966039b0621e`, 60 562 847
+  bytes, 1080x1920, H.264 and AAC, 1087 frames; phone proxy
+  `222873565e1df9f0e2ca61a7632b5c9c92be707e683173e4208eaabe7ea13c01`, 12 986 068 bytes,
+  720x1280, under its 25 000 000-byte limit; decoded 1087 of 1087 expected,
+  `sha256_verified: true`. Picture `adb7b091...`, mix `5a13ee14...`. The run record:
+  [`runs/k-delivered.run.json`](runs/k-delivered.run.json) (`studio run show ... --json`).
