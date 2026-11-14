@@ -233,3 +233,52 @@ uses (this branch adds only records and the one-off driver).
 - **Journal:** `/home/dev/studio-jobs/winter-menu-e1-20261114/store/wan-journal.jsonl`.
 - Four dry runs left four `cancelled` run records in the store (two of them `--json`
   repeats to read the clip keys); they are records only.
+- **The note:** `agent-run parent tell --key op428-gate --kind question` at 01:47:51 UTC
+  (`message.1c4eb0209a1c5689f6f4148bc51af61b.324765b5...`), then `agent-run parent wait
+  ... --for 15m`. **The answer** (reply `message.55d70d0fcc6750355186a535a517f3d3...`, key
+  `op428-gate-answer-1`, from the recorded parent session `haynes-studio-1113-064439`,
+  01:54:32 UTC): **go for step h only**, one GPU job (board 2 slot b, 65 frames, 1
+  chunk, seed 501, on the one-board copy, through `studio build --phase service` with
+  `--wan-story https://work.haynesnetwork.com/work_packages/428`); step i needs its own
+  written go after a second note (`op428-gate-2`) with the first job's values. The
+  coordinator accepted the four points above; the one speech prompt for every board is
+  **a known difference from E0** for Tom to weigh (E0 described each doll in her own
+  prompt), and the new fire bed is a new version byte-identical to the old one, with its
+  own job's provenance.
+
+## h. The first clip alone — Proven
+
+```sh
+nice -n 10 uv run studio build --store $J/store --story $J/first-clip/story.json \
+  --library $J/voiced/library.json --operator-iss ... --operator-sub ... \
+  --toolchain $J/toolchain.json --studio-commit ec8c3869e8e699b4f7cf58bb3d1485f4cdb4af5e \
+  --phase service --wan-story https://work.haynesnetwork.com/work_packages/428 --json
+```
+
+01:54:44 to 01:57:56 UTC, 3 min 11 s, exit 0. Run `run_01M7BW79TF5CR3J6QP6ARGGRQ7`
+`cancelled`, reason "service phase complete: the mix passed its 4 checks; 1 clip
+artifacts made and 0 transcript checks run, the rest found in the cache". One Wan job,
+through the client under the API's lease:
+
+| Value | Read | Expected |
+|---|---|---|
+| Job | `95372414266440f387298aeb282c921f`, prompt `25871362-a6a3-4a23-b0b8-48ea483ecc49`, preset `studio-e0-s2v-lightning-576x1024-65f`, story 428's URL | |
+| Frames | 65 requested, **66 delivered**, 63 needed (TIME-8), 3 trimmed; board 94 frames | 66 |
+| Rate, size | measured **16 fps**, **576x1024** | 16, 576x1024 |
+| Clip | `8f460514570af84b3abf4cf55514b0dd600a03febf137eee7ed0f50b099e4dee`, 1 254 010 bytes | |
+| Times | `render_s` 188.3, `fetch_s` 0.3, `wall_s` 189.9 (E0's range 142.5 to 203.1 s); `cooldown_s` 0.4 (no wait) | |
+| Start temperatures | `GPU-d8a856f1` 50 C at 0 %, `GPU-6ff9702a` 49 C at 0 % (both probes) | under 62 C, at most 5 % |
+| During the job | one GPU worked (S2V runs on one card): `GPU-d8a856f1` peaked at **87 C** at 100 %, 22 622 MiB peak; the other stayed at 49 C, 0 % (ledger telemetry, 38 samples) | |
+| `engine_read_retries`, `poll_misses` | 0, 0 | |
+| `unexpected_work_seen` | null (none) | empty |
+| Inputs | drive track `studio-e0/d063c1b4e6868396.wav` (188 044 bytes, 94 000 samples at 24 kHz); start image `studio-e0/342960b60079923d.png` (E0's start image of B, already on the volume) | |
+| Ledger (`GET /videos/<job>` in the API pod) | `succeeded`, 1 254 010 bytes, `graph_sha256` `9f4e7c0e...85c30` (the journal's), output `video/95372414..._00001_.mp4` | succeeded, same bytes |
+| Journal | `created`, `remember in_flight`, `remember uncollected`, **`settle collected`** (01:57:56) | settled |
+| Wan volume | 26 G free | |
+
+Records: [`clips/board2-b.s2v-clip-record.json`](clips/board2-b.s2v-clip-record.json) (the
+adapter's provenance record with the whole Wan record),
+[`clips/board2-b.wan-ledger.json`](clips/board2-b.wan-ledger.json),
+[`wan-journal-after-h.jsonl`](wan-journal-after-h.jsonl). The Wan record's `created`,
+`started` and `finished` fields are null, although the ledger has all three
+(observation O-428-4). GPU wall time so far: 3.2 min of 150.
