@@ -199,3 +199,37 @@ nice -n 10 uv run studio build --store $J/store --story $J/voiced/story.json \
 voice, photo, method, motion or adapter problem: the check stops only on the missing
 clip, first time. `--studio-commit` names `main`'s commit, the package code every run
 uses (this branch adds only records and the one-off driver).
+
+## g. Gate before the first GPU job — Proven (the note sent; the answer below)
+
+01:45 to 01:48 UTC.
+
+- **Service dry run, whole story** ([`dry-run-service.txt`](dry-run-service.txt),
+  [`dry-runs.json`](dry-runs.json)): `studio build ... --phase service --dry-run
+  --wan-story https://work.haynesnetwork.com/work_packages/428`, run
+  `run_01M7BVPSE1Q0QVG4FFMAMC0F9D` `cancelled` (1.8 s). The local pass, the check of every
+  request and the mix passed (mix length, loudness, true peak, clipping: pass). **11 clip
+  jobs**, all speech-to-video at 576x1024, in plan order: board 1 a (154 frames, 2 chunks,
+  seed 510), 2 b (65, 1, 501), 3 c (154, 2, 512), 4 a (57, 1, 513), 5 d (57, 1, 514), 6 c
+  (154, 2, 515), 8 a (231, 3, 516), 8 c (231, 3, 518), 8 d (231, 3, 519), 8 b (231, 3,
+  517), 9 b (73, 1, 520). E0 estimate: GPU 3037 to 5077.4 s, at most 6431.4 s (107 min)
+  with cool-down, against the 150 min budget.
+- **The first clip's draft:** `first-clip/story.json`, the voiced draft with only board 2
+  (`boards` and `board_order` cut to `brd_01M79V9FC00000000000000002`; a hand edit of a
+  copy, nothing else changed). Its dry run ([`dry-run-first-clip.txt`](dry-run-first-clip.txt),
+  run `run_01M7BVQD15TMV6RN3VZYT9TDBD`) lists exactly one job: s2v board 2 slot b, 65
+  frames, 1 chunk, seed 501; GPU 142.5 to 203.1 s, at most 328.9 s. Its clip key
+  `sha256:28d85807...` is board 2's key in the whole story (both `--json` dry runs), so the
+  whole story's phase will find it cached. **Changed:** the references' checklist (item
+  6) puts one `ImageToVideo` first; this story has no whole-frame board, so the first job
+  is the single-chunk speech clip the work order names (step h).
+- **Probe** ([`probe-gate.json`](probe-gate.json), [`tools/probe.py`](tools/probe.py),
+  01:47:00 UTC): one `WanClipClient.probe()` with the store's own `FileJournal`. `api ok`,
+  `accepting_jobs: true`, `active_job: null`; `queue_running: []`, `queue_pending: []`;
+  exactly the two approved GPUs, `GPU-d8a856f1...` 50 C, 0 %, 266 MiB, 25.1 W and
+  `GPU-6ff9702a...` 49 C, 0 %, 266 MiB, 25.7 W. `in_flight()` and `halted()` `None`; the
+  journal and its lock file do not exist yet, and the probe created neither.
+- **Free space:** Wan volume 26 G of 79 G; session pod 18 G; the store 122 MB.
+- **Journal:** `/home/dev/studio-jobs/winter-menu-e1-20261114/store/wan-journal.jsonl`.
+- Four dry runs left four `cancelled` run records in the store (two of them `--json`
+  repeats to read the clip keys); they are records only.

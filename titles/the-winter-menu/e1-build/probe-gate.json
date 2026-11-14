@@ -1,0 +1,36 @@
+{
+  "at": "2026-11-14T01:47:00Z",
+  "halted": null,
+  "in_flight": null,
+  "journal": "/home/dev/studio-jobs/winter-menu-e1-20261114/store/wan-journal.jsonl",
+  "journal_existed": false,
+  "journal_state": null,
+  "lock_existed": false,
+  "probe": {
+    "gpus": [
+      {
+        "memory_mib": 266.0,
+        "power_w": 25.11,
+        "temperature_c": 50.0,
+        "utilization_percent": 0.0,
+        "uuid": "GPU-d8a856f1-f955-f683-bc24-654561496774"
+      },
+      {
+        "memory_mib": 266.0,
+        "power_w": 25.73,
+        "temperature_c": 49.0,
+        "utilization_percent": 0.0,
+        "uuid": "GPU-6ff9702a-1b2c-6094-5a85-00aa1924c55a"
+      }
+    ],
+    "health": {
+      "accepting_jobs": true,
+      "active_job": null,
+      "api": "ok"
+    },
+    "queue": {
+      "queue_pending": [],
+      "queue_running": []
+    }
+  }
+}
