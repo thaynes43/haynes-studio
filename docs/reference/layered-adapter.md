@@ -234,7 +234,13 @@ otherwise, idle 1.0 or 0.6 and hop 1.0 or 0.7. What differs, and why:
 `renderer.reports[segment key]` (written after the last frame) holds, per layer, its clip
 and keyed hashes, how it plays, its phase, its first and last source frame, how many
 distinct frames it showed and how many it trimmed, and the set's; `renderer.checks` holds
-the decal checks. Neither is a cache input; the run records them (story 406).
+the decal checks. Neither is a cache input; the run records them (story 406). Since story
+[860](https://work.haynesnetwork.com/work_packages/860) a board stage of a **reused**
+segment lists its decal results too, each naming its `slot`: the build reads each
+layer's keyed-frames record from the cache and applies this renderer's arithmetic at the
+floor the segment key holds. Those results are reported, never a second gate: only a
+segment rendered in the run can fail on its track
+([studio-build.md](studio-build.md)).
 
 ## The layered board's photo (D51)
 
