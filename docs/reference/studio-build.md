@@ -255,8 +255,27 @@ first clip request, so a phase whose clips are all cached never reads the journa
 - **One request, one call, in plan order.** The adapters ask for clips in plan order,
   each missing clip once (a hit is never asked). A speech-to-video request becomes one
   `SpeechToVideo` and one `render`; a whole-frame chain one `ImageToVideo` and one
-  `render` per clip, in order, clip *k* starting on clip *k - 1*'s last frame
-  (`wholeframe.source.last_frame_png`). The two sources share the one client.
+  `render` per clip not already kept (below), in order, clip *k* starting on clip
+  *k - 1*'s last frame (`wholeframe.source.last_frame_png`). The two sources share the
+  one client.
+- **A chain clip collected is kept at once** (`build.live.KeptClips`, proposal). The
+  adapter commits a chain whole (story 427), so the chain source keeps each clip itself
+  as soon as `render` or `recover` hands it back: a cached artifact of kind
+  `wan_chain_clip` (the MP4; outputs `wan_chain_clip` and `inputs`, as every cache
+  entry), after its provenance stage `wan_chain_clip_record-<key hex>` (one `record`,
+  `studio.wan-chain-clip/v1`: the key, the source, the clip's hash and size, the whole
+  Wan record). Committed create-only under the run on the run's own cache
+  (`ClipSources.bind`, given before any clip), never deleted, found from any later run.
+  The key (`kept_key`) is only what the clip request is: the start image's hash (the
+  photo for clip 0, else clip *k - 1*'s last frame), the prompt, the client's negative
+  prompt, the seed, the size, the length, the key's profile and the source name
+  `studio.build.wan-i2v/1`; not the chain, the clip's place in it or `--wan-story`.
+  Before asking the client for any chain clip the source looks that key up; a kept clip
+  is re-hashed and used with its Wan record, with no `render` and no `recover`. A
+  damaged one fails the run with the store's code (`store.hash_mismatch`, ...) or
+  `cache.entry_invalid`, and nothing is rendered in its place. So a chain stopped at
+  clip *k* (a refusal that settles the journal, a crash) gives the next phase clips 0
+  to *k - 1* from the store, and only clip *k* and later are asked for.
 - **Checked before any clip.** After the local pass, before the mix, every recorded
   request is turned into its Wan request(s), sending nothing (`ClipSources.check`). A
   request the client would refuse (`adapter.request_invalid`: a side not a multiple of
@@ -279,9 +298,10 @@ first clip request, so a phase whose clips are all cached never reads the journa
   clip): the clip passed every check and the client kept it (guard 27). A speech clip, or
   a chain's last clip, is handed to the adapter and cached, and the build stops `held`
   right after (`ClipSources.stopped`); the next run finds it cached and is stopped by
-  the journal's halt before any submission. A chain clip before the last cannot be
-  cached (a chain is committed whole): the stop is raised at once, and the record names
-  it (`clip_kept.handed_to_adapter: false`).
+  the journal's halt before any submission (a chain's last clip is also kept, above). A
+  chain clip before the last is not handed back (the adapter takes a chain whole), so
+  it is not kept either: the stop is raised at once, and the record names it
+  (`clip_kept.handed_to_adapter: false`; see the known limits).
 - **One build per process.** The client keeps the job that blocks and the halt per
   process, for every client (story 842), and the build reads that state to choose
   between `recover` and a stop; the command line runs one build per process. A long-lived
@@ -308,7 +328,7 @@ first clip request, so a phase whose clips are all cached never reads the journa
 | `drive_track_sha256` (speech-to-video) | `record.inputs.audio.sha256` |
 | `engine`, `engine_job_id`, `files_sha256` | `record.engine`, `record.job_id`, `record.model_files_sha256` |
 | `index` (whole-frame) | the chain's `clips[k].index` |
-| `extra` | `{"wan": record}`: the whole record, every field (graph and template hashes, preset, story, prompt, negative, size, fps, frames requested and delivered, timings, temperatures, telemetry tail, `recovered`) |
+| `extra` | `{"wan": record}`: the whole record, every field (graph and template hashes, preset, story, prompt, negative, size, fps, frames requested and delivered, timings, temperatures, telemetry tail, `recovered`); a chain clip also has `kept`: `{key, run_id}`, the key it is kept under and the run whose stage holds it |
 
 The adapter then measures the clip itself (hash, frames, size) and records the source
 name (`studio.build.wan-s2v/1`, `studio.build.wan-i2v/1`). The run's board stage takes
@@ -321,8 +341,9 @@ Each row ends the run `held` at the request's board and stage (`s2v_clip` or
 check, journal, in_flight, halt, collected_before_stop[, clip_kept]}`: the code, the Wan
 job (null when no job reached the run step; the journal still names it, settled
 `no_submission`), what a person must check, the journal's path, the job the client still
-holds and its state, the halt, and the clips of a chain collected before the stop. Tests
-are in `tests/build_story/test_live_sources.py`.
+holds and its state, the halt, and the clips of a chain in hand before the stop (each
+`{index, job_id, sha256, kept, reused}`: the key it is kept under, and whether this run
+found it kept). Tests are in `tests/build_story/test_live_sources.py`.
 
 | Client refusal or state | Code | What the build does | Test |
 |---|---|---|---|
@@ -339,18 +360,24 @@ are in `tests/build_story/test_live_sources.py`.
 | the pod cannot be reached | `adapter.command_failed` | held | `test_a_runner_that_cannot_reach_the_pod_stops_the_phase_held` |
 | a journal it cannot read | `adapter.journal_failed` | held at the client's construction; no command; the file is not touched | `test_an_unreadable_journal_stops_the_phase_held_before_any_command` |
 | the journal held by another holder | `adapter.busy` | held; no command | `test_a_journal_another_holder_has_stops_the_phase_held_before_any_command` |
-| foreign work during the job | `adapter.competing_work` | the checked clip is cached (a speech clip or a chain's last), then held; the next run is held by the halt with nothing submitted; on a chain's earlier clip, held at once, the clip named and not cached | `test_competing_work_keeps_the_checked_clip_then_holds_and_the_halt_holds_the_next_run`, `test_foreign_work_on_a_chains_earlier_clip_holds_and_submits_nothing_more` |
-| a refusal at a chain's later clip | its code | held; the clips collected before it are named (`collected_before_stop`) | `test_a_refusal_inside_a_chain_holds_naming_the_clips_collected_before_it` |
+| foreign work during the job | `adapter.competing_work` | the checked clip is cached (a speech clip or a chain's last), then held; the next run is held by the halt with nothing submitted; on a chain's earlier clip, held at once, the clip named and not kept | `test_competing_work_keeps_the_checked_clip_then_holds_and_the_halt_holds_the_next_run`, `test_foreign_work_on_a_chains_earlier_clip_holds_and_submits_nothing_more` |
+| a refusal at a chain's later clip (one that settles the journal: the API holding, a busy lease, `no_submission`) | its code | held; the clips before it are kept and named (`collected_before_stop`); the next phase, a new run with no reconciliation, uses them with no client call and asks only for the refused clip and later: one Wan job per clip in all | `test_a_refusal_inside_a_chain_holds_naming_the_clips_collected_before_it`, `test_a_chain_refused_at_clip_1_keeps_clip_0_and_the_next_phase_submits_only_clip_1`, `test_a_chain_of_three_stopped_at_clip_2_reuses_clips_0_and_1` |
+| the process dies after a chain clip was collected, before the next is journalled | (no record: the run stays `running`) | the next process (a new client and sources on the same store and journal) uses the kept clips and asks only for the rest | `test_a_crash_after_a_chains_first_clip_keeps_it_for_the_next_process` |
+| a kept chain clip that is not its bytes (or its record, or another key's) | `store.hash_mismatch` (the store's code), `cache.entry_invalid` | **failed** at the chain's board, stage `whole_frame_clip`; the client is not asked for that clip or any later one, and nothing is rendered in its place | `test_a_kept_clip_that_is_not_its_bytes_is_refused_and_nothing_is_rendered_in_its_place` |
 | an earlier job in flight whose ledger reads succeeded, same request | (none) | `recover`, then the next clip | `test_a_lost_answer_is_recovered_by_the_next_phase_never_rendered_again` |
 | an earlier job uncollected, same request | (none) | `recover`, then the next clip | `test_a_lost_fetch_is_recovered_by_the_next_phase_never_rendered_again` |
+| a lost answer on a chain's later clip | (none) | the next phase uses the kept clips before it, then `recover`s that clip | `test_a_lost_answer_on_a_chains_later_clip_is_recovered_on_the_kept_clips_before_it` |
 | an earlier job still running / with no ledger / failed | `adapter.busy` / `adapter.not_found` / `adapter.job_failed` | `recover` refuses: held, no render | `test_a_lost_job_that_has_not_succeeded_stops_the_next_phase_held_without_a_render` |
-| an earlier job made for another request | `build.wan_unsettled` | held; neither `recover` nor `render` | `test_a_journal_job_made_for_another_request_stops_the_phase_held`, `test_a_lost_answer_on_a_chains_later_clip_holds_the_next_run_unsettled` |
+| an earlier job made for another request | `build.wan_unsettled` | held; neither `recover` nor `render` | `test_a_journal_job_made_for_another_request_stops_the_phase_held` |
 | any other exception of the client | its code, else `build.internal` | held | (the same path) |
 
 Each parametrized refusal test also checks that the client was called once, that the
 next clip was never asked for, and that a later request to the stopped sources raises
 the same stop without a call. A chain of two clips is rendered in order, clip 1 on clip
 0's last frame (`test_a_chain_renders_each_clip_once_in_order_each_on_the_last_frame_before`).
+A one-clip chain and a speech clip stay one job each; the chain's clip is kept and the
+board stage lists it, made, then reused by the next run
+(`test_a_single_clip_chain_and_a_speech_clip_are_one_job_each_and_the_chain_clip_is_kept`).
 
 A held run stays held for the same request until its cause is gone: a job the journal
 still holds is asked of `recover` again by every later run, and `recover` refuses until
@@ -385,15 +412,17 @@ jobs)`, `total: 2 Wan job(s), GPU 259-355.2 s, at most 623 s with cool-down`.
 
 ### Known limits
 
-- **A chain stopped after its first clip** keeps nothing in the cache: a chain is
-  committed whole or not at all (story 427), so clips 0 to *k - 1* collected before a
-  stop at clip *k* are named in the held record (`collected_before_stop`: index, job,
-  SHA-256; and `clip_kept` for clip *k* itself on foreign work) and stay on the Wan
-  volume; after reconciliation the next run renders the chain from clip 0. A lost answer on clip *k* > 0 holds every later
-  run with `build.wan_unsettled` (the next run asks for clip 0 first) until a person
-  collects it with `recover` (its start image is clip *k - 1*'s last frame) or clears it
-  after checking. With the default 121-frame clips a chain is one clip for a board of up
-  to 5 s.
+- **A stopped chain no longer loses its earlier clips.** The chain itself is still
+  committed whole (story 427), but clips 0 to *k - 1* collected before a stop or crash
+  at clip *k* are kept as they arrive and reused by the next phase, which asks only for
+  clip *k* and later; a lost answer on clip *k* is `recover`ed there on the kept clips'
+  last frame. What remains: (a) foreign work on a chain's earlier clip: the client hands
+  that clip back only on its stop, so it is named (`clip_kept`) and not kept, and once a
+  person has cleared the halt the next phase renders it again; (b) a store that refuses
+  a kept clip's commit fails the run, and the next phase asks for that clip again; (c)
+  the dry run lists every clip of a chain the cache lacks, kept ones included (an upper
+  bound: the phase asks fewer). With the default 121-frame clips a chain is one clip for
+  a board of up to 5 s.
 - **No negative prompt is invented.** The toolchain's default `s2v_negative_prompt` is
   empty, which the Wan graph refuses (`adapter.request_invalid`, before any clip): story
   428 sets it in `--toolchain` (E0's is the client's `NEGATIVE`).
@@ -429,7 +458,7 @@ problems).
 
 | Field | Holds |
 |---|---|
-| `stages[]` | one per board in film order: `board_id`, `board_number`, `method`, `frames`, `film_start_frame`, `clips[]` (role, slot, hash, key, `made`, and from the clip's own record its frames, fps, requested length, seed, engine, engine job, model files and trim; a library clip's version ID), `segment_sha256`, `segment_key`, `compositor`, `artifacts[]` (every planned artifact of the board: name, kind, key, hash, `made`, `seconds`), `report` (the renderer's report of a segment rendered in this run), `checks[]` (the renderer's decal checks), `render_s` |
+| `stages[]` | one per board in film order: `board_id`, `board_number`, `method`, `frames`, `film_start_frame`, `clips[]` (role, slot, hash, key, `made`, and from the clip's own record its frames, fps, requested length, seed, engine, engine job, model files and trim; a library clip's version ID; a whole-frame chain's `clips[]`, each with `kept: {key, made}` when a live source kept it), `segment_sha256`, `segment_key`, `compositor`, `artifacts[]` (every planned artifact of the board: name, kind, key, hash, `made`, `seconds`; and each kept chain clip, `wan_chain_clip/<index>` of kind `wan_chain_clip`, `made` when this run collected it, else reused from the run that did), `report` (the renderer's report of a segment rendered in this run), `checks[]` (the renderer's decal checks), `render_s` |
 | `checks[]` | the seven sound checks, `master.transcript` (with what was heard, the tolerances used and the result), and `frame_count` from the verified delivery |
 | `outputs` | frames, fps, picture, mix, master and proxy hashes, their keys, and the placement record with the story's IDs |
 | `provenance` | below |
@@ -493,6 +522,7 @@ tests there would never run in `uv run pytest` or CI).
 | `mix.input_invalid`, `cue.out_of_range`, `store.*`, `time.conservation`; `build.check_failed` (a mix check) | `mix`; `checks` | the mix, made after the local pass in a full build or the service phase, is refused (a `true_peak_dbtp` of -30 the schema accepts and the limiter cannot reach, a cue outside its board, a sound blob) or fails one of its own checks (a `master_lufs` the limited speech cannot reach); no clip source is asked, and the message ends "(found before any clip was requested)" | `test_local_pass.py::test_a_mix_the_limiter_refuses_stops_the_service_phase_before_any_clip`, `test_a_mix_the_limiter_refuses_stops_a_full_build_before_any_clip` (1 and 2 workers), `test_a_mix_that_fails_its_own_checks_stops_before_any_clip` |
 | `adapter.request_invalid`, `build.live_unsupported` | `s2v_clip`, `whole_frame_clip` | a live source's check of a request the local pass recorded: the Wan client would refuse it, or does not make its profile; before the mix and any clip, "(found before any clip was requested)" | `test_live_sources.py::test_a_request_the_client_would_refuse_fails_the_run_before_any_clip`, `test_a_profile_the_client_does_not_make_fails_the_run_before_any_clip` |
 | `adapter.*`, `build.wan_unsettled`, `build.internal` (status **held**) | `s2v_clip`, `whole_frame_clip` | any refusal of the Wan client ([held states](#held-states)) | `test_live_sources.py` |
+| `store.hash_mismatch`, `store.blob_missing`, `cache.entry_invalid` | `whole_frame_clip` | a kept chain clip (story 851) that is not as recorded; nothing is asked of the client | `test_live_sources.py::test_a_kept_clip_that_is_not_its_bytes_is_refused_and_nothing_is_rendered_in_its_place` |
 | `layered.clip_invalid`, `wholeframe.clip_invalid`, `time.source_short` | `s2v_clip`, `whole_frame_clip`, `segment` | a clip source's answer that is not what was asked, or a clip too short | `test_a_failed_clip_fails_the_run_on_its_board` |
 | `build.offline_missing` | `s2v_clip`, `whole_frame_clip`, `check_result` | the offline phase needs a clip, or a transcript check of a new master, that no run made | `test_phases.py::test_the_offline_phase_refuses_a_service_call_naming_the_missing_artifact`, `test_the_service_phase_fills_the_cache_and_the_offline_phase_never_asks_the_recognizer` |
 | `layered.decal_weak`, render and splice codes (`render.*`, `splice.incompatible`, `time.conservation`) | `segment`, `film_picture` | a decal track below its floor, a renderer, encoder or splice refusal | the adapters' and cache's own tests |
@@ -633,7 +663,9 @@ again; a failed job whose prompt was accepted is a person's to settle
 (`clear_in_flight()` once its ledger reads failed and the engine queue holds nothing of
 it); anything else is a person's too: never resubmit to recover, never call
 `clear_in_flight()` or `clear_halt()` without checking, and never start a new journal to
-get past a blocked one.
+get past a blocked one. A chain held part way keeps the clips it collected
+(`collected_before_stop` names each with its `kept` key): the next service phase asks
+only for the rest, and its board stage lists each chain clip as made or reused.
 
 Known blockers with r4 as imported, both observations in the PR: O-406-1, the phone
 proxy of a film whose frame count is not a multiple of 3 fails `delivery.proxy_invalid`
@@ -679,4 +711,7 @@ and `studio voice` reports those boards `current` (story 405's planner).
   request before the mix; the profile match (`build.live_unsupported`); `--wan-story`,
   `--dry-run`, the dry run as a recorded run ended `cancelled`, the E0 estimate rule;
   the source names `studio.build.wan-s2v/1` and `studio.build.wan-i2v/1`; the whole Wan
-  record kept as the clip's `extra.wan`.
+  record kept as the clip's `extra.wan`; each chain clip kept as it is collected (kind
+  `wan_chain_clip`, its key `kept_key`, the stage `wan_chain_clip_record-<key hex>` and
+  schema `studio.wan-chain-clip/v1`, `extra.kept`, `ClipSources.bind`) and listed on the
+  board stage.

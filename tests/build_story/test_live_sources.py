@@ -47,7 +47,7 @@ from haynes_studio.build.live import (
 from haynes_studio.cache.plan import Toolchain
 from haynes_studio.layered.s2v import read_provenance, record_stage
 from haynes_studio.motion.winter_menu import complete_block
-from haynes_studio.store import LocalStore, blob_locator
+from haynes_studio.store import HASH_MISMATCH, LocalStore, blob_locator
 from haynes_studio.wholeframe.clips import read_clip_set
 from haynes_studio.wholeframe.source import last_frame_png
 from tests.adapters.conftest import forget_wan_process_state
@@ -164,7 +164,8 @@ class Phase:
         self.runner = runner or FakeRunner(pod)
         self.clock, self.ids = Clock(), Ids()
 
-    def run(self, *, document=None, phase="service", dry_run=False, tools=None, new_process=True):
+    def run(self, *, document=None, phase="service", dry_run=False, tools=None, new_process=True,
+            before=None):
         if new_process:
             forget_wan_process_state()
         self.sources = live_clip_sources(
@@ -172,6 +173,8 @@ class Phase:
             client_options={"clock": self.clock, "wall": self.clock.wall, "sleep": self.clock.sleep,
                             "new_job_id": self.ids})
         self.clips: WanClips | None = self.sources.s2v.clips if not dry_run else None
+        if before is not None:
+            before(self.sources)
         return f.build(self.world, document or self.document, self.library, phase=phase,
                        source=self.sources, tools=tools or toolchain(), dry_run=dry_run)
 
@@ -654,12 +657,111 @@ def test_foreign_work_on_a_chains_earlier_clip_holds_and_submits_nothing_more(pr
     assert phase.clips.calls == [("render", None)] * 2
 
 
-def test_a_lost_answer_on_a_chains_later_clip_holds_the_next_run_unsettled(prepared, tmp_path):
+def test_a_lost_answer_on_a_chains_later_clip_is_recovered_on_the_kept_clips_before_it(prepared, tmp_path):
     def lose(pod):
         pod.lose, pod.lost_state = "timeout", "succeeded"
     phase = chain_world(prepared, tmp_path, FakeWan(), {2: lose})
     job = held_problem(phase.run(tools=CHAIN).run)["job_id"]
     phase.pod.lose = None
-    problem = held_problem(phase.run(tools=CHAIN).run)  # the next run asks for clip 0 first
-    assert problem["rule"] == "build.wan_unsettled" and problem["job_id"] == job
-    assert phase.clips.calls == [] and len(phase.pod.payloads) == 3
+    again = phase.run(tools=CHAIN)  # clip 0 is kept, so the next request is clip 1's own
+    assert again.run["status"] == "cancelled", again.run["error"]
+    assert phase.clips.calls == [("recover", job)] and len(phase.pod.payloads) == 3
+    assert [c["engine_job_id"] for c in b3_clips(phase.world, again.run)] == [f"{2:032x}", job]
+
+
+# Kept chain clips: a clip collected is never asked for again -------------------------------------
+
+
+class Crash(BaseException):
+    """The process dies: nothing in the build or the client catches it."""
+
+
+def kept_artifacts(run, board=f.B3):
+    """The kept chain clips a run's board stage lists: (name, made)."""
+    stage = next(s for s in run["stages"] if s["board_id"] == board)
+    return [(a["name"], a["made"]) for a in stage["artifacts"] if a["kind"] == "wan_chain_clip"]
+
+
+def test_a_chain_refused_at_clip_1_keeps_clip_0_and_the_next_phase_submits_only_clip_1(prepared, tmp_path):
+    phase = chain_world(prepared, tmp_path, FakeWan(), {2: _refuse})  # after B1 and clip 0
+    problem = held_problem(phase.run(tools=CHAIN).run)
+    assert problem["rule"] == BUSY and problem["in_flight"] is None  # the journal settled it
+    (collected,) = problem["collected_before_stop"]
+    assert collected["index"] == 0 and collected["kept"].startswith("sha256:") and not collected["reused"]
+    phase.pod.health["accepting_jobs"] = True
+    again = phase.run(tools=CHAIN)  # a new run: no reconciliation, nothing blocks it
+    assert again.run["status"] == "cancelled", again.run["error"]
+    assert phase.clips.calls == [("render", None)]  # clip 1 only
+    assert payload_shapes(phase.pod.payloads) == [("s2v", 11, 13), ("i2v", 31, 9), ("i2v", 32, 9)]
+    clips = b3_clips(phase.world, again.run)
+    assert clips[0]["engine_job_id"] == collected["job_id"] == f"{2:032x}"
+    assert clips[0]["extra"]["kept"]["key"] == collected["kept"]
+    assert kept_artifacts(again.run) == [("wan_chain_clip/0", False), ("wan_chain_clip/1", True)]
+    b3 = next(s for s in again.run["stages"] if s["board_id"] == f.B3)
+    entry = next(c for c in b3["clips"] if c["role"] == "whole_frame_clip")
+    assert [c["kept"]["made"] for c in entry["clips"]] == [False, True]
+
+
+def test_a_crash_after_a_chains_first_clip_keeps_it_for_the_next_process(prepared, tmp_path):
+    phase = chain_world(prepared, tmp_path, FakeWan())
+
+    def dies_before_clip_1(sources):
+        clips, make = sources.i2v.clips, sources.i2v.clips.make
+
+        def make_or_die(request, **options):
+            if len(clips.calls) == 2:  # B1 and clip 0 collected; clip 1 never journalled
+                raise Crash()
+            return make(request, **options)
+        clips.make = make_or_die
+    with pytest.raises(Crash):
+        phase.run(tools=CHAIN, before=dies_before_clip_1)
+    assert payload_shapes(phase.pod.payloads) == [("s2v", 11, 13), ("i2v", 31, 9)]
+    forget_wan_process_state()
+    assert wan.FileJournal(journal_path(phase.world.root)).read_state().job is None
+    again = phase.run(tools=CHAIN)  # a new process: a new client and sources, the same store
+    assert again.run["status"] == "cancelled", again.run["error"]
+    assert phase.clips.calls == [("render", None)]
+    assert payload_shapes(phase.pod.payloads) == [("s2v", 11, 13), ("i2v", 31, 9), ("i2v", 32, 9)]
+    assert kept_artifacts(again.run) == [("wan_chain_clip/0", False), ("wan_chain_clip/1", True)]
+
+
+def test_a_kept_clip_that_is_not_its_bytes_is_refused_and_nothing_is_rendered_in_its_place(
+        prepared, tmp_path):
+    phase = chain_world(prepared, tmp_path, FakeWan(), {2: _refuse})
+    (kept,) = held_problem(phase.run(tools=CHAIN).run)["collected_before_stop"]
+    path = phase.world.root / blob_locator(f.PRODUCTION, kept["sha256"], "video/mp4")
+    damaged = bytearray(path.read_bytes())
+    damaged[len(damaged) // 2] ^= 0xFF  # the same size, other bytes
+    path.chmod(0o644)
+    path.write_bytes(bytes(damaged))
+    phase.pod.health["accepting_jobs"] = True
+    run = phase.run(tools=CHAIN).run
+    assert run["status"] == "failed" and run["error"]["code"] == HASH_MISMATCH, run["error"]
+    assert run["error"]["board_id"] == f.B3 and run["error"]["stage"] == "whole_frame_clip"
+    assert len(phase.pod.payloads) == 2 and phase.clips.calls == [] and phase.clips.client is None
+
+
+THREE = toolchain(i2v_clip_frames=5)  # B3's 12 source frames: three clips of 5
+
+
+def test_a_chain_of_three_stopped_at_clip_2_reuses_clips_0_and_1(prepared, tmp_path):
+    phase = chain_world(prepared, tmp_path, FakeWan(), {3: _refuse})  # after B1, clips 0 and 1
+    problem = held_problem(phase.run(tools=THREE).run)
+    assert [c["index"] for c in problem["collected_before_stop"]] == [0, 1]
+    phase.pod.health["accepting_jobs"] = True
+    again = phase.run(tools=THREE)
+    assert again.run["status"] == "cancelled", again.run["error"]
+    assert phase.clips.calls == [("render", None)]
+    assert payload_shapes(phase.pod.payloads) == [
+        ("s2v", 11, 13), ("i2v", 31, 5), ("i2v", 32, 5), ("i2v", 33, 5)]
+    assert kept_artifacts(again.run) == [
+        ("wan_chain_clip/0", False), ("wan_chain_clip/1", False), ("wan_chain_clip/2", True)]
+
+
+def test_a_single_clip_chain_and_a_speech_clip_are_one_job_each_and_the_chain_clip_is_kept(served):
+    assert payload_shapes(served["payloads"]) == [("s2v", 11, 13), ("i2v", 31, 121)]
+    assert served["first_clips"].calls == [("render", None), ("render", None)]
+    first, second = served["first"].run, served["second"].run
+    assert kept_artifacts(first) == [("wan_chain_clip/0", True)]
+    assert kept_artifacts(second) == [("wan_chain_clip/0", False)]  # the chain itself was a hit
+    assert kept_artifacts(first, f.B1) == []  # speech-to-video keeps nothing more than before

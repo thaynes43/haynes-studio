@@ -11,8 +11,9 @@ clears or catches a refusal in order to go on.
 - **One request, one call.** A speech-to-video request becomes one
   :class:`~haynes_studio.adapters.wan.SpeechToVideo` and one ``render``; a whole-frame
   chain one :class:`~haynes_studio.adapters.wan.ImageToVideo` and one ``render`` per
-  clip, in order, each clip after the first starting on the last frame of the one
-  before (:func:`~haynes_studio.wholeframe.source.last_frame_png`). The inputs go as
+  clip not already kept (below), in order, each clip after the first starting on the
+  last frame of the one before (:func:`~haynes_studio.wholeframe.source.last_frame_png`).
+  The inputs go as
   the adapter gives them (start image, drive track, prompt, negative prompt, seed,
   size, length); a key whose profile the client cannot make as asked is refused before
   anything is sent (``build.live_unsupported``).
@@ -21,6 +22,15 @@ clears or catches a refusal in order to go on.
   was made for (the graph the client rebuilds for it under that job ID hashes to the
   journal's ``graph_sha256``), it is collected with ``recover``, read-only, never
   rendered again; any other request stops the phase (``build.wan_unsettled``).
+- **A chain clip collected is kept at once** (:class:`KeptClips`). As soon as the chain
+  source has a clip of a chain from ``render`` or ``recover``, it commits it, create-only,
+  as its own cached artifact (kind ``wan_chain_clip``, the MP4, with its Wan record in a
+  provenance stage named by the same key), found again by :func:`kept_key`: only what
+  the clip request is. Before it asks the client for any chain clip it looks for that
+  key, and a kept clip (re-hashed; a damaged one fails closed with the store's code) is
+  used without a ``render`` or a ``recover``. So a chain stopped at clip *k* (a refusal,
+  a crash) gives the next phase clips 0 to *k - 1* from the store, and only clip *k* and
+  later are asked for.
 - **Any refusal stops the phase.** Every exception the client raises (busy lease or
   API, unknown or competing work, GPUs that did not cool, an unsettled or uncollected
   job, a journal it cannot read or hold, a failed job, a lost or unreadable answer)
@@ -38,6 +48,7 @@ the dry run (``studio build --phase service --dry-run``) prints both and asks no
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -64,12 +75,22 @@ from haynes_studio.build.errors import (
     BuildError,
     RunHeld,
 )
-from haynes_studio.jsonio import thaw
+from haynes_studio.cache.artifacts import ArtifactCache
+from haynes_studio.cache.errors import ENTRY_INVALID, CacheError
+from haynes_studio.cache.keys import CacheKey, make_key
+from haynes_studio.jsonio import parse_strict, thaw
 from haynes_studio.layered.source import S2VClip, S2VRequest, S2VSource
+from haynes_studio.stages import StageOutput, commit_stage, completed_stage
+from haynes_studio.store import HASH_MISMATCH, StoreError, canonical_json
 from haynes_studio.wholeframe.source import ClipRequest, ClipSource, ClipSpec, SourceClip, last_frame_png
 
 JOURNAL_NAME = "wan-journal.jsonl"
 S2V_STAGE, I2V_STAGE = "s2v_clip", "whole_frame_clip"
+# A chain clip the glue keeps (proposal): its cache kind, its provenance stage and schema.
+KEPT = "wan_chain_clip"
+KEPT_RECORD = "wan_chain_clip_record"
+KEPT_SCHEMA = "studio.wan-chain-clip/v1"
+MP4, JSON, RECORD = "video/mp4", "application/json", "record"
 # What the Wan client makes (story 842), as the cache keys' profiles name it: a key that
 # asks for anything else is refused before anything is sent. ``size`` is passed as given
 # (the client checks it); ``delivery`` and ``adapter`` are the key's own.
@@ -230,9 +251,10 @@ class WanClips:
              collected: Sequence[Mapping[str, Any]] = (), keepable: bool = True) -> wan.WanClip:
         """One clip for ``request``: recovered when the journal holds the job made for
         it, else rendered once. ``collected`` names the clips of this chain already
-        made, so a stop records them; ``keepable`` says the caller can hand a clip kept
-        on a competing-work stop to its adapter (false for a chain clip before the last:
-        a chain is committed whole)."""
+        in hand (each kept), so a stop records them; ``keepable`` says the caller can
+        hand a clip kept on a competing-work stop to its adapter (false for a chain clip
+        before the last: the adapter takes a chain whole, so that clip is named on the
+        stop and not returned)."""
         if self.stopped is not None:
             raise self.stopped
         try:
@@ -307,33 +329,160 @@ class WanS2VSource(S2VSource):
                        engine_job_id=clip.job_id, files_sha256=clip.files_sha256, extra=_extra(clip))
 
 
+def kept_key(made: wan.ImageToVideo, profile: Mapping[str, Any], source: str) -> CacheKey:
+    """The key of one kept chain clip: only what its Wan request is (the start image's
+    hash, the prompt, the client's negative prompt, the seed, the size, the length), the
+    key's profile and the source's name and version. Not the chain, the clip's place in
+    it or ``--wan-story``: the same request in another chain, or under another story,
+    finds the same clip, as a cached chain does."""
+    return make_key(KEPT, {"start_image": made.image_sha256, "prompt": made.prompt,
+                           "negative_prompt": made.negative, "seed": made.seed,
+                           "size": [made.width, made.height], "length": made.length,
+                           "profile": thaw(profile), "source": source})
+
+
+def kept_record_stage(key: CacheKey) -> str:
+    """The stage that holds a kept clip's provenance record: ``wan_chain_clip_record-
+    <the key's 64 hex digits>`` (proposal), committed before the clip's cache entry. Named
+    by the key, not the clip's hash: two requests may give the same bytes."""
+    return f"{KEPT_RECORD}-{key.hex}"
+
+
+@dataclass(frozen=True)
+class Kept:
+    """A kept chain clip: the clip as the client gave it (bytes and Wan record), its key,
+    the run whose stage holds it and whether this call found it there (``reused``)."""
+
+    clip: wan.WanClip
+    key: CacheKey
+    run_id: str
+    reused: bool
+
+    def collected(self, index: int) -> dict[str, Any]:
+        """What a stop records of it (``collected_before_stop``)."""
+        return {"index": index, "job_id": self.clip.job_id, "sha256": self.clip.sha256,
+                "kept": self.key.value, "reused": self.reused}
+
+
+class KeptClips:
+    """The chain clips the glue keeps, on the store, ledger and run search of ``cache``
+    (the run's): each one a cached artifact of kind ``wan_chain_clip`` (the MP4) whose
+    provenance record (``studio.wan-chain-clip/v1``: the key, the source, the clip's hash
+    and size and its whole Wan record) is its own stage, committed first. Create-only,
+    found again from any later run by its key, never deleted. Its own cache statistics,
+    so the run's ``made`` lists only the plan's artifacts."""
+
+    def __init__(self, cache: ArtifactCache):
+        self.cache = ArtifactCache(cache.store, production_id=cache.production_id,
+                                   run_id=cache.run_id, ledger=cache.ledger, finder=cache.finder)
+
+    def keep(self, key: CacheKey, clip: wan.WanClip, *, source: str) -> Kept:
+        """Commit ``clip`` under ``key`` in this run: its record's stage, then the clip."""
+        cache = self.cache
+        try:
+            record = canonical_json({"schema": KEPT_SCHEMA, "key": key.value, "source": source,
+                                     "clip": {"sha256": clip.sha256, "bytes": len(clip.data),
+                                              "media_type": MP4},
+                                     "wan": clip.record})
+        except (TypeError, ValueError) as error:
+            raise CacheError(ENTRY_INVALID, f"the Wan record is not plain JSON: {error}",
+                             where=key.value) from error
+        commit_stage(cache.store, ledger=cache.ledger, production_id=cache.production_id,
+                     run_id=cache.run_id, stage=kept_record_stage(key),
+                     outputs={RECORD: StageOutput(record, JSON)})
+        made = cache.commit(key, clip.data, MP4)
+        return Kept(clip, key, made.record.run_id, reused=False)
+
+    def find(self, key: CacheKey) -> Kept | None:
+        """The clip kept under ``key``, checked, or ``None``. A clip or record that is not
+        as recorded is the store's error, and an entry that is not this key's clip is
+        ``cache.entry_invalid``: both fail closed, and nothing is rendered in its place."""
+        cache = self.cache
+        found = cache.lookup(key, MP4)  # the local ledger re-hashes the clip here
+        if found is None:
+            return None
+        stage = kept_record_stage(key)
+        record = completed_stage(cache.ledger, production_id=cache.production_id,
+                                 run_id=found.record.run_id, stage=stage,
+                                 store=None if cache.ledger is cache.store else cache.store)
+        if record is None or set(record.blobs) != {RECORD}:
+            raise CacheError(ENTRY_INVALID, "the kept chain clip has no provenance record",
+                             where=stage)
+        document_bytes = _read(cache, record.blobs[RECORD].locator, record.blobs[RECORD].sha256)
+        try:
+            document = parse_strict(document_bytes.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError) as error:
+            raise CacheError(ENTRY_INVALID, "the kept clip's record is not strict JSON",
+                             where=stage) from error
+        if not isinstance(document, dict):
+            document = {}
+        wan_record, named = document.get("wan"), document.get("clip")
+        if (not isinstance(wan_record, dict) or not isinstance(named, dict)
+                or document.get("schema") != KEPT_SCHEMA or document.get("key") != key.value
+                or named.get("sha256") != found.sha256
+                or wan_record.get("clip_sha256") != found.sha256):
+            raise CacheError(ENTRY_INVALID, "the kept clip's record names another key or clip",
+                             where=stage)
+        data = _read(cache, found.blob.locator, found.sha256)
+        return Kept(wan.WanClip(data, wan_record), key, found.record.run_id, reused=True)
+
+
+def _read(cache: ArtifactCache, locator: str, sha256: str) -> bytes:
+    """A blob's bytes, re-hashed (``store.hash_mismatch`` otherwise)."""
+    with cache.store.open(locator) as handle:
+        data = handle.read()
+    if hashlib.sha256(data).hexdigest() != sha256:
+        raise StoreError(HASH_MISMATCH, f"blob {sha256} is not the bytes it is named by",
+                         locator=locator)
+    return data
+
+
 class WanChainSource(ClipSource):
     """Whole-frame clip chains on the Wan client: one ``ImageToVideo`` per clip, in
-    order, clip *k* starting on clip *k - 1*'s last frame."""
+    order, clip *k* starting on clip *k - 1*'s last frame. Each clip is a kept clip when
+    one is there (no client call), else asked of the client and kept at once
+    (:class:`KeptClips`, on the cache the build gives :meth:`bind`)."""
 
     name = "studio.build.wan-i2v/1"
 
     def __init__(self, clips: WanClips):
         self.clips = clips
         self.calls: list[ClipRequest] = []
+        self.kept: KeptClips | None = None
+
+    def bind(self, cache: ArtifactCache) -> None:
+        """Keep this run's chain clips on ``cache``: the build calls it before any clip."""
+        self.kept = KeptClips(cache)
 
     def generate(self, request: ClipRequest) -> list[SourceClip]:
+        if self.clips.stopped is not None:  # a stopped phase asks nothing, kept clips included
+            raise self.clips.stopped
         check_request(request, self.clips.story)
+        kept = self.kept
+        if kept is None:  # never a clip that could not be kept
+            raise BuildError(INTERNAL, "the chain source was given no cache to keep its clips "
+                             "on (ClipSources.bind); nothing was sent", stage=I2V_STAGE)
         self.calls.append(request)
         out: list[SourceClip] = []
+        collected: list[dict[str, Any]] = []
         start = request.photo
         for number, spec in enumerate(request.clips, 1):
-            collected = [{"index": c.index, "job_id": c.engine_job_id,
-                          "sha256": c.extra["wan"]["clip_sha256"]} for c in out]
-            clip = self.clips.make(i2v_request(request, spec, start, self.clips.story),
-                                   stage=I2V_STAGE, collected=collected,
-                                   keepable=number == len(request.clips))
+            made = i2v_request(request, spec, start, self.clips.story)
+            key = kept_key(made, request.profile, self.name)
+            found = kept.find(key)
+            if found is None:
+                clip = self.clips.make(made, stage=I2V_STAGE, collected=collected,
+                                       keepable=number == len(request.clips))
+                found = kept.keep(key, clip, source=self.name)
+            clip = found.clip
             record = clip.record
             out.append(SourceClip(index=spec.index, data=clip.data, seed=record["seed"],
                                   frames_requested=record["frames_requested"],
                                   start_image_sha256=clip.start_image_sha256, engine=clip.engine,
                                   engine_job_id=clip.job_id, files_sha256=clip.files_sha256,
-                                  extra=_extra(clip)))
+                                  extra={**_extra(clip), "kept": {"key": key.value,
+                                                                  "run_id": found.run_id}}))
+            collected.append(found.collected(spec.index))
             start = last_frame_png(clip.data)
         return out
 
@@ -355,6 +504,7 @@ class LiveParts:
     s2v: S2VSource
     i2v: ClipSource
     check: Callable[[S2VRequest | ClipRequest], None]
+    bind: Callable[[ArtifactCache], None] | None = None
 
 
 def live_sources(store_root: str | Path, *, story: str, runner: Any = None, dry_run: bool = False,
@@ -376,7 +526,8 @@ def live_sources(store_root: str | Path, *, story: str, runner: Any = None, dry_
     if "journal" in options:
         raise TypeError("the journal is the store's own; it is never passed in")
     clips = WanClips(journal_path(store_root), story=story, runner=runner, client_options=options)
-    return LiveParts(clips, WanS2VSource(clips), WanChainSource(clips), check)
+    chains = WanChainSource(clips)
+    return LiveParts(clips, WanS2VSource(clips), chains, check, chains.bind)
 
 
 # The dry run ----------------------------------------------------------------------------------
@@ -545,7 +696,8 @@ def dry_run_text(report: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
-__all__ = ["E0Clip", "E0_RECORDS", "Estimate", "I2V_MAKES", "JOURNAL_NAME", "LiveParts",
-           "PlannedClip", "S2V_MAKES", "WanChainSource", "WanClips", "WanS2VSource",
-           "check_request", "dry_run_report", "dry_run_text", "e0_clips", "estimate",
-           "i2v_request", "journal_path", "live_sources", "planned_clips", "s2v_request"]
+__all__ = ["E0Clip", "E0_RECORDS", "Estimate", "I2V_MAKES", "JOURNAL_NAME", "KEPT", "KEPT_SCHEMA",
+           "Kept", "KeptClips", "LiveParts", "PlannedClip", "S2V_MAKES", "WanChainSource",
+           "WanClips", "WanS2VSource", "check_request", "dry_run_report", "dry_run_text",
+           "e0_clips", "estimate", "i2v_request", "journal_path", "kept_key", "kept_record_stage",
+           "live_sources", "planned_clips", "s2v_request"]

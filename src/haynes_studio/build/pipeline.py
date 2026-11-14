@@ -61,7 +61,10 @@ request of the local pass, in plan order, before the mix and before any clip is 
 for; a request the Wan client would refuse fails the run there. ``dry_run`` (the service
 phase only) stops after those checks and the mix: the run ends ``cancelled`` and the
 result lists the clip jobs the phase would request (``BuildResult.planned``), with
-nothing asked of a service.
+nothing asked of a service. Sources that give ``bind`` are given this run's cache before
+any clip: the live chain source keeps each chain clip on it as soon as it is collected,
+so a chain stopped part way gives a later run its earlier clips; the board stage lists
+each kept clip (``artifacts`` kind ``wan_chain_clip``, made or reused).
 
 **Workers.** With ``workers`` over 1 the plan runs twice after the local pass: once to
 make every clip and keyed frame and collect the segments the cache lacks, which up to
@@ -91,7 +94,7 @@ from haynes_studio.build.errors import (
     RunUnrecorded,
     failure_of,
 )
-from haynes_studio.build.live import PlannedClip, planned_clips
+from haynes_studio.build.live import KEPT, PlannedClip, planned_clips
 from haynes_studio.build.prebuild import Prepared, make_snapshot, prepare, snapshot_bytes
 from haynes_studio.build.provenance import Register, Use, library_uses, provenance, toolchain_record
 from haynes_studio.build.run import (
@@ -135,7 +138,7 @@ from haynes_studio.library import Library
 from haynes_studio.mix import SoundBuilder, film_sound, sound_toolchain
 from haynes_studio.stages import completed_stage
 from haynes_studio.stages.preflight import PreflightError
-from haynes_studio.store import LocalStore, Store, blob_locator
+from haynes_studio.store import LocalStore, Store, blob_locator, is_sha256
 from haynes_studio.voice import Engine
 from haynes_studio.wholeframe import COMPOSITOR as WHOLE_FRAME_COMPOSITOR
 from haynes_studio.wholeframe import WholeFrameClips, WholeFrameRenderer
@@ -324,6 +327,8 @@ class _Build:
         read = reader(store, [self.production_id, "library"])
         self.read = read
         self.sources = sources
+        if sources.bind is not None:  # a live chain source keeps each clip on this run's cache
+            sources.bind(self.cache)
         read_photo = reader(store, [self.production_id, "library"], IMAGE_TYPES)
         self.layered = LayeredStages(self.cache, sources.s2v, read=read)
         self.wholeframe = WholeFrameClips(self.cache, sources.i2v, read_photo=read_photo)
@@ -522,7 +527,8 @@ class _Recorder:
             return entry
         clips = [{"index": c["index"], "sha256": c["sha256"], "frames_requested": c["frames_requested"],
                   "frames_delivered": c["frames_delivered"], "seed": c["seed"], "engine": c["engine"],
-                  "engine_job_id": c["engine_job_id"]} for c in clip_set.get("clips", [])]
+                  "engine_job_id": c["engine_job_id"], **self._kept(c)}
+                 for c in clip_set.get("clips", [])]
         entry.update({"seed": clip_set.get("seed"), "fps": clip_set.get("source_fps"),
                       "requested_length": sum(clip_set.get("clip_lengths", [])) or None,
                       "chunks": len(clips), "clips": clips,
@@ -533,6 +539,16 @@ class _Recorder:
                      files=clip.get("files_sha256"), hardware=(clip.get("extra") or {}).get("hardware"),
                      profile=profile)
         return entry
+
+    def _kept(self, clip: Mapping[str, Any]) -> dict[str, Any]:
+        """Where a chain clip came from (story 851): the key the live chain source kept it
+        under, and whether this run collected it (``made``) or found it kept by an earlier
+        run. Nothing for a clip no live source kept."""
+        kept = (clip.get("extra") or {}).get("kept")
+        if not isinstance(kept, Mapping) or not isinstance(kept.get("key"), str) \
+                or not is_sha256(kept["key"].removeprefix("sha256:")):
+            return {}
+        return {"kept": {"key": kept["key"], "made": kept.get("run_id") == self.build.run_id}}
 
     def stages(self) -> list[dict[str, Any]]:
         build, plan = self.build, self.plan
@@ -568,7 +584,12 @@ class _Recorder:
                         self.library_inputs.add(clip.version_id)
                     clips.append(entry)
                 elif parts[1] == "whole_frame_clip":
-                    clips.append(self.whole_frame(name, planned, made))
+                    entry = self.whole_frame(name, planned, made)
+                    clips.append(entry)
+                    artifacts.extend(  # each chain clip a live source kept, made or reused
+                        {"name": f"{KEPT}/{c['index']}", "kind": KEPT, "key": c["kept"]["key"],
+                         "sha256": c["sha256"], "made": c["kept"]["made"], "seconds": None}
+                        for c in entry.get("clips", ()) if "kept" in c)
             if pinned is not None and pinned.set is not None:
                 clips.append({"role": "set_loop", "slot": None, "sha256": pinned.set.sha256,
                               "made": False, "library_version_id": pinned.set.version_id,

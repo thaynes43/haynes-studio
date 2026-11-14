@@ -34,15 +34,17 @@ from haynes_studio.wholeframe.source import ClipRequest, ClipSource, SourceClip
 class ClipSources:
     """The clip sources one build uses: speech-to-video (layered) and image-to-video
     chains (whole-frame). Live sources (story 851) also give ``check``, run on every
-    request of the local pass before any clip is asked for (it sends nothing), and
+    request of the local pass before any clip is asked for (it sends nothing),
     ``stopped``, the stop a source latched while still returning a clip it kept (foreign
     work seen during a job whose clip passed its checks): the build ends ``held`` right
-    after that clip is cached."""
+    after that clip is cached, and ``bind``, given the run's artifact cache before any
+    clip is asked for, on which the chain source keeps each clip it collects."""
 
     s2v: S2VSource
     i2v: ClipSource
     check: Callable[[S2VRequest | ClipRequest], None] | None = None
     stopped: Callable[[], BuildError | None] | None = None
+    bind: Callable[[Any], None] | None = None
 
 
 class OfflineS2VSource(S2VSource):
@@ -130,7 +132,7 @@ def live_clip_sources(store_root: str | Path, *, story: str, runner: Any = None,
                          client_options=client_options)
     clips = parts.clips
     return ClipSources(s2v=parts.s2v, i2v=parts.i2v, check=parts.check,
-                       stopped=None if clips is None else (lambda: clips.stopped))
+                       stopped=None if clips is None else (lambda: clips.stopped), bind=parts.bind)
 
 
 __all__ = ["ClipRequested", "ClipSources", "OfflineClipSource", "OfflineS2VSource",
