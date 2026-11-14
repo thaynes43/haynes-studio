@@ -116,7 +116,14 @@ message: `adapter.request_invalid` (names the field, before anything runs),
 (an HTTP 404 inside the pod), `adapter.timeout`, `adapter.response_invalid`,
 `adapter.busy`, and for the Wan clip clients `adapter.job_failed` (the Wan job ended
 other than `succeeded`), `adapter.competing_work` (foreign engine work seen) and
-`adapter.journal_failed` (the Wan journal could not be read exactly or written). The package never puts the request payload, the snippet, the full
+`adapter.journal_failed` (the Wan journal could not be read exactly or written). The
+private input import's volume reads (story 846, `wan_volume.py`) add nine refusals of one
+file, `adapter.source_missing`, `adapter.source_link`, `adapter.source_not_regular`,
+`adapter.source_hard_link`, `adapter.source_too_large`, `adapter.source_outside`,
+`adapter.source_hash_mismatch`, `adapter.source_record_invalid` and
+`adapter.source_changed`, and `adapter.volume_unexpected` (a fixed folder of the volume
+is missing or a link: a stop); they are described in
+[private-input-import.md](private-input-import.md). The package never puts the request payload, the snippet, the full
 command line or an environment value into an error, and the real runner drops the raw
 `subprocess` exception (it is not kept as the error's cause or context). The only
 service text in a message is `detail`: the last 300 characters of stderr after
@@ -168,6 +175,8 @@ any other checkout at run time.
 | `wan_upload.py` | `poc/wan.py` `UPLOAD`, byte for byte: create-only under `/workspace/input/studio-e0/`, hash checked | `636cb89c132f83ec40426e971df9ba48ddcb466fe16f78a3c896baa7052748a9` |
 | `wan_run.py` | `poc/wan.py` `RUN`, byte for byte (from OP342): admission readback, read-only engine retries, the unknown-work observer, then `api.generate()` | `b44fcef47d1b125c0f061fd6f4f6d69357969a34f298549e85d44645b90836ce` |
 | `wan_clip_fetch.py` | `poc/wan.py` `fetch`, with the job ID as an argument and a `CLIP_SHA256 <hash> <bytes>` line on stderr; a read redirected to any other URL (`geturl()`) exits non-zero having written nothing to stdout | `3db29f979cb996dfe351f0e5c040f193670a65f292c926a49272110b4f1d5c56` |
+| `wan_upload_read.py` | new in story 846 ([private input import](private-input-import.md)): one E0 upload, `/workspace/input/studio-e0/<first 16 hex>.<png\|wav>`, read-only; every folder below `/workspace` and the file opened `O_NOFOLLOW` after an `lstat`, a regular file with one link of at most 20 000 000 bytes, hash checked; a refusal is `REFUSED <reason>` with exit status 3 | `4ef0de38762964155c38e40284ccbdd741553a2ce25c129c7a498141ece6962f` |
+| `wan_job_output_read.py` | new in story 846: one Wan job's output, read-only, through its ledger `/workspace/jobs/<job_id>.json` (a succeeded job of that ID) to a plain relative `.mp4` path below `/workspace/output`; the same opens and checks, at most 64 MiB and the size the ledger records, hash checked; refusals as above | `755f6b01bd73a64af9d3a7b0c6ea22220eb2aeca9346a424af8580bc50dfa852` |
 | `wan_ti2v_workflow.json` | haynes-ops `kubernetes/main/apps/ai/wan-video/app/workflow.json` at `3a3571c4016a57465b5e995077bb691037224705` (git blob `5f9e9f968176`, its only commit; unchanged at haynes-ops `main` `bab21e14` on 2026-11-13), copied once; the `template_sha256` of all nine E0 layer records | `88fe79ad543a93febd6f72e0dc86eecdb27b70c73e54d4553917f72cb95a136b` |
 
 ## Compatibility matrix

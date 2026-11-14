@@ -58,6 +58,15 @@ renders and the seven keyframe images.
 
 ## Checklist for story 428
 
+**Superseded by [private-input-import.md](private-input-import.md)** (story
+[846](https://work.haynesnetwork.com/work_packages/846)). Its importer does steps 2, 3,
+6 and 7 below: it reads the ledgers' delivered copies and the E0 uploads through two
+new pinned read-only snippets (so step 6 needs no new snippet in 428), reports every
+row `verified`, `absent` or `mismatch`, and has its own checklist for story 428. The fire
+bed (step 4) is `absent`, made again as a new version (D54), and the ComfyUI renders
+(step 5) are not imported: the contract owner let them lapse around 2026-12-03 (Q-846-03).
+The steps are kept below as they were written.
+
 Work read-only, one call at a time, through the package's clients with the real
 runner, inside 428's own authorization. Record outcomes in 428's own evidence, keyed by
 row `key`; do not edit this map's statuses (it stays the plan, and its test compares it
