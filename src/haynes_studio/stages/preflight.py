@@ -194,6 +194,9 @@ def references(story: Story) -> Iterable[tuple[str, str, bool]]:
             yield pointer("boards", b, "photo", "input_asset_version_ids", i), version_id, True
         for i, entry in enumerate(board.cast):
             yield pointer("boards", b, "cast", i, "asset_version_id"), entry.asset_version_id, True
+            if entry.motion_asset_version_id is not None:  # the entry's pinned loop (story 457)
+                yield (pointer("boards", b, "cast", i, "motion_asset_version_id"),
+                       entry.motion_asset_version_id, True)
         for i, cue in enumerate(board.cues):
             if cue.type == "sound":
                 yield pointer("boards", b, "cues", i, "asset_version_id"), cue.asset_version_id, True

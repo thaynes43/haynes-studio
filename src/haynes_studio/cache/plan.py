@@ -153,7 +153,10 @@ class Toolchain:
     protect_boxes: tuple[Any, ...] = ()
     decal_box: tuple[int, ...] | None = None
     decal_version: str | None = None
-    compositor: str = "studio.render.synthetic/1"
+    # One digest for every board, or one per method layer (``{"layered": ...,
+    # "whole_frame": ...}``, story 406), so each board's segment names the compositor of
+    # its own method's renderer.
+    compositor: str | Mapping[str, str] = "studio.render.synthetic/1"
     encoder: Mapping[str, Any] = field(default_factory=lambda: _frozen(EncoderSettings().key_inputs()))
     procedural_seed: int = 0
     splicer: str = "studio.splice/1"
@@ -473,6 +476,17 @@ class _Planner:
                 "trim_start": record.trim_start, "trim_frames": record.trim_frames,
                 "clip_frames": record.frames}
 
+    def compositor(self, board: Board) -> str:
+        """The compositor digest of the board's method: the toolchain's one digest, or
+        its entry for the board's method layer (story 406); a layer without an entry
+        cannot be keyed."""
+        compositor = self.tools.compositor
+        if isinstance(compositor, str):
+            return compositor
+        if board.method.layer not in compositor:
+            raise _bad(f"the toolchain names no compositor for {board.method.layer} boards", board.id)
+        return compositor[board.method.layer]
+
     def board(self, board: Board, film_start: int) -> tuple[BoardPlan, dict[str, Any] | None,
                                                               list[dict[str, Any]]]:
         story, tools, media = self.story, self.tools, self.media
@@ -549,7 +563,7 @@ class _Planner:
                    "end_ms": clock.spans[line.id].end_ms} for line in board.lines],
             cues=_picture_cues(board, clock), foreground=foreground,
             procedural_stream=board_stream(tools.procedural_seed, board.id),
-            compositor=tools.compositor, encoder=tools.encoder)
+            compositor=self.compositor(board), encoder=tools.encoder)
         self.add(f"{board.id}/segment", segment, board.id)
         voice_track = None if track is None else {
             "track": track, "start_frame": film_start,
