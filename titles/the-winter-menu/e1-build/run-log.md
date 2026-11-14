@@ -20,7 +20,7 @@ on [372](https://work.haynesnetwork.com/work_packages/372)).
   --operator-sub agent-session:haynes-studio-1114-013021`. The operator field names an
   agent session, not a person: the command line has no agent-session operator yet
   (observation O-428-1).
-- **State:** in progress. **Tom's verdict: pending.**
+- **State:** source and records in this folder; tested (every check below); **delivered privately** (ledger `d009d61541774a429fcabfeedadd8b51`, <https://video.haynesops.com/videos/d009d61541774a429fcabfeedadd8b51/file>, home network only); **accepted: no**. **Tom's verdict: pending** (recorded below when he gives it).
 
 Status markers: **Proven** (it produced its result, with the evidence named), **Expected**
 (not run), **Changed** (it differed from the plan, and how).
@@ -356,11 +356,17 @@ included) **6251.6 s = 104.2 min** of 150; the three commands' wall time 104.6 m
 above E0's longest (716.3 s) and 2.7 times E0's fastest 3-chunk job (269.5 s, `s8-a`);
 each later job first waited 84 to 146 s for the working card to cool under 62 C. Every
 job ran on one card (the S2V lightning graph uses one GPU), so the second 3090 sat idle
-for the whole phase (observation O-428-5). Jobs 10 and 11 are E0's 9 b and the board 9
-job; 9 b's render (203.9 s) is 0.8 s over E0's range. The peak of 89 C is 1 C above E0's
-recorded range (84 to 88 C); the coordinator set no temperature stop for part 2.
+for the whole phase (observation O-428-5). Board 9's render (203.9 s) is 0.8 s over E0's
+range for one chunk. The peak of 89 C is 1 C above E0's recorded range (84 to 88 C); the
+coordinator set no temperature stop for part 2.
 
-## j. The offline phase — **blocked** (three refusals; a blocker note to the coordinator)
+Clips 2 (board 1, seed 510) and 11 (board 9, seed 520) were later refused by the decal
+gate and re-rolled (step j); they stay in the store, unused by the film.
+
+## j. The offline phase — Proven after three refusals and their decisions
+
+The section below is in the order it happened: the first run was blocked, a blocker note
+went to the coordinator, and the phase finished under its decisions.
 
 **Where it runs: the session pod**, one worker at two threads (`--workers 1`,
 `STUDIO_THREADS=2`, `OMP/OPENBLAS/MKL_NUM_THREADS=2`, `nice -n 10`). The `ai/studio-render`
@@ -462,7 +468,7 @@ stay in the store (create-only); the voices and the library are unchanged.
 
 ### The re-rolls — Proven
 
-- **Re-roll 1** (one command on `voiced2`, 04:03:31 to 04:17:12 UTC, run
+- **Re-roll 1** (one command on `voiced2`, 04:03:33 to 04:17:12 UTC (13 min 38 s), run
   `run_01M7C3K4WZKZZPKMMXY706WA47` `cancelled`, "service phase complete", 2 clips made):
   board 1 a seed 610, job `0d99ac1e`, 158 of 154 frames, `render_s` 462.5, `wall_s`
   464.5, no cool wait, start 52 / 50 C, peak 88 C; board 9 b seed 620, job `9d4ce7d3`, 74
@@ -474,7 +480,7 @@ stay in the store (create-only); the voices and the library are unchanged.
 - **Re-roll 2**, the 14th and last job, as the go allows for exactly one weak board:
   [`tools/redraft.py`](tools/redraft.py) `$J/voiced2 $J/voiced3 --no-layout --seed 1:a:611`
   (story revision 3, board 1 revision 3); its dry run (`run_01M7C4GPQFCZR5TXQGDVD6G0KX`)
-  listed exactly board 1 a seed 611. One command, 04:20:33 to 04:28:35 UTC, run
+  listed exactly board 1 a seed 611. One command, 04:20:39 to 04:28:35 UTC (7 min 56 s), run
   `run_01M7C4JEJ2PQ5KR9HS6M2BQ4WH` `cancelled`: job `bdb9e41bfe494aa3a996c135e6348101`,
   158 of 154 frames, 16 fps, `render_s` 470.9, `wall_s` 472.8, no cool wait, start 59 /
   52 C, **peak 89 C on `GPU-d8a856f1`, 1 C over the coordinator's 88 C line** (the other
@@ -529,3 +535,128 @@ picture, plus 7 s for the splice and master.
   720x1280, under its 25 000 000-byte limit; decoded 1087 of 1087 expected,
   `sha256_verified: true`. Picture `adb7b091...`, mix `5a13ee14...`. The run record:
   [`runs/k-delivered.run.json`](runs/k-delivered.run.json) (`studio run show ... --json`).
+
+## l. Private viewing — Proven
+
+```sh
+uv run python titles/the-winter-menu/e1-build/tools/private_view.py $J/store \
+  prd_01M79V9FC00000000000000001 run_01M7C56SZ6TAHTJSW413RFZYQP the-winter-menu-e1-build-1 $J/view --check-only
+uv run python titles/the-winter-menu/e1-build/tools/private_view.py $J/store \
+  prd_01M79V9FC00000000000000001 run_01M7C56SZ6TAHTJSW413RFZYQP the-winter-menu-e1-build-1 $J/view
+```
+
+The runbook's delivery route (stage 7) as story 840 used it:
+[`tools/private_view.py`](tools/private_view.py) imports `poc/deliver.py` unchanged for its
+`REMOTE`, `WRITE` (create-only, temp file, hash check, hard link), `PUBLISH`, `READ`,
+`SPACE` and `check_ledger`; only the file list differs, since a studio delivery is not a
+PoC job folder (**Changed**: the PoC script itself needs a manifest and `edit/` files).
+
+- **Before anything was written** (04:33 UTC, `--check-only`): `read_delivery` re-hashed the
+  master and the proxy; 27 657 875 456 bytes free for 73 614 971; the folder
+  `productions/the-winter-menu-e1-build-1` and the ledger's file unused; the ledger checked
+  locally by `check_ledger` and by story 425's `record_from_document`.
+- **The delivery** (04:34:16 to 04:34:18 UTC): the master as `final.mp4` (the ledger's
+  `output`; 60.6 MB is within the route), the phone proxy as `proxy.mp4`, the delivery
+  document and the run record, each copied create-only and hash-checked in the pod; the
+  ledger checked again, then linked: **`/workspace/jobs/d009d61541774a429fcabfeedadd8b51.json`**.
+- **Read back:** `LedgerReader.get` serves it `succeeded` with the master's `output`,
+  bytes and SHA-256; `GET 127.0.0.1:8080/videos/<id>/file` inside the API container
+  answers **200 `video/mp4`, 60 562 847 bytes, SHA-256 `f6fd041a...0621e`**, the master's;
+  `LedgerReader.list` lists 23 edited productions and **no unreadable ledger**.
+  [`production.json`](production.json) holds the ledger and the read-back.
+- **The link (home network only):**
+  <https://video.haynesops.com/videos/d009d61541774a429fcabfeedadd8b51/file>. A session pod
+  cannot open it; it was verified inside the API container as above.
+
+## m. One edit — Proven
+
+The board 8 gavel cue (`cue_01M7BVBVSBHA26B6V3F90A35N9`, sound `gavel`) from -20 to **-23
+dBFS RMS** in a new draft version, `voiced4/story.json` (story revision 4, board 8 revision
+2; a JSON diff shows nothing else changed). Then the service dry run (04:34:47 UTC, run
+`run_01M7C5C521H5DF4ZY68TMS2VTS`, 0 clip jobs) and **one full build** (`studio build ...
+--wan-story ... --workers 1`, no phase flag, 04:34:55 UTC, 18.3 s, exit 0): run
+**`run_01M7C5CJA7XKBCRPM0ZRP2P5RS` `succeeded`**, delivery `dlv_01M7C5D3KFX3MFVWCXBCVJHMG7`
+([`runs/m-edited.run.json`](runs/m-edited.run.json)). One Whisper request; no Wan client
+was made (the journal stayed at 43 lines).
+
+What was made, from the two runs' committed stages, against the first delivered run:
+
+| Artifact | Made by the edit | Evidence |
+|---|---|---|
+| clips, drive tracks, keyed frames | **no** | no board stage lists a made artifact |
+| segments (9) | **no** | every `segment_sha256` equals the first run's |
+| film picture | **no** | same key `sha256:ed390fb9...` and hash `adb7b091...` |
+| mix and its placement | yes, by the dry run | `mix-*`, `mix_placement-*` stages of `run_01M7C5C5...`; mix `af68dea8...` |
+| mix checks (4) | yes, by the dry run | four `check_result-*` stages of the same run |
+| master | yes | `master-*` stage; `92d1efa3a30c4de10c62298cd25c20671f729ab1acf257ad7cdfaecd9edb09bc` |
+| master checks (3) and the transcript check | yes | four `check_result-*` stages of `run_01M7C5CJ...` |
+| proxy and delivery | yes | the `delivery` stage; proxy `0212a7de9d6b7816c4c4d3c98bfd6d8e80fc112163944152e399b3e980a6748d` |
+
+All checks pass; the transcript check now reads `pass` (an exact match) where the first
+build's read `pass_with_tolerances`. The edited build is in the store only: the story
+allows one new production on the Wan volume, so it was not delivered for viewing.
+
+## n. The record — Proven
+
+This folder: the run log, [`import-report.json`](import-report.json) (and its dry run),
+[`clips.jsonl`](clips.jsonl) and `clips/` (each Wan clip's provenance record and ledger),
+[`decal-scores.jsonl`](decal-scores.jsonl), [`timings.json`](timings.json), the run records
+in `runs/`, [`offline-per-board.json`](offline-per-board.json), the dry runs, the probe,
+the journal before and after, [`delivery-readback.json`](delivery-readback.json),
+[`production.json`](production.json), the Wan volume's hashes before and after, and the
+one-off drivers in `tools/` (none changes package code). No media.
+
+## The Wan volume after the run
+
+The same listing as step a (04:36 UTC, [`wan-volume-after.sha256.txt`](wan-volume-after.sha256.txt)):
+501 files. **All 482 earlier lines are unchanged.** New: 15 ledgers in `jobs/` (the 14
+Wan jobs of this story, each matched to a clip record, and the production ledger
+`d009d615...`) and the production's four files. Nothing was deleted, moved or overwritten.
+Outside the listing, the jobs' clips are under `output/video/` and the client's uploads
+under `input/studio-e0/` (create-only; the start images already existed from E0). Free
+space at the end: 26 G.
+
+## Budget
+
+| | Used | Cap |
+|---|---|---|
+| Elapsed | 01:33 to about 05:00 UTC for the build; the PR after | 5 h |
+| Wan jobs | 14 | 14 |
+| Wan GPU wall time | 125.5 min (7529.4 s; `render_s` 6173 s) | 150 min |
+| Sound-model jobs | 1 | 3 |
+| Speech requests | 0 | 60 |
+| Transcript requests | 2 (one per film checked) | 30 |
+| Store | 1.8 G | 8 GiB |
+| `/studio` | nothing written | 8 GiB |
+| Paid inference | $0 | $0 |
+
+## Observations
+
+- **O-428-1** The command line records the operator as `{kind: human, iss, sub}`; an agent
+  session runs it here under a stand-in issuer. The model has an `agent_session`
+  principal (used by `tools/draft.py`), the command line has no flag for it.
+- **O-428-2** The regenerated fire bed is byte-identical to the r4 bed, so the r4 bed's
+  version now resolves from the same content-addressed blob as well; the build plays
+  the new version.
+- **O-428-3** One S2V prompt for every board; E0 described each doll in her own prompt. A
+  known difference from E0 for Tom to weigh (coordinator's decision).
+- **O-428-4** The Wan record's `created`, `started` and `finished` are null in every clip
+  record, though the ledger has all three.
+- **O-428-5** Every speech job ran on one of the two 3090s; the other idled, and each job
+  waited 84 to 146 s for the working card to cool first.
+- **O-428-6** A run that ends at `build.offline_missing` (the documented offline step)
+  keeps no stage list, so the keying, segment and picture times are in no run record;
+  here they are command wall times.
+- **O-428-7** `ai/studio-render` runs Python 3.13 with av 19.0.2, numpy 2.5.4, scipy
+  1.18.1, opencv 5.0.0.93 and no jsonschema; the package's lock needs Python 3.11 or 3.12
+  and older ranges, so the offline phase cannot use the worker (for haynes-ops).
+- **O-428-8** The decal gate refused three build-made speech clips at the default 0.8
+  (board 1 seeds 510 and 610, board 9 seed 520), as E0's own clips of those boards failed;
+  re-rolls cost three jobs (24 GPU min). Board 7's close-up needed an 11 px move to pass
+  the off-frame rule the port applies to keyed frames.
+- **O-428-9** Heat, for the hardware owner: the working card peaked at 87 to 89 C in every
+  job; job 14 (`bdb9e41b`) peaked at 89 C with no cool wait, starting at 59 and 52 C.
+
+## Tom's verdict
+
+Pending. Recorded here, word for word and apart from the checks, when he gives it.
