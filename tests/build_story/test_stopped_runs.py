@@ -124,3 +124,29 @@ def test_with_workers_a_stopped_run_keeps_the_boards_the_workers_and_the_cache_c
     assert segment["made"] and segment["key"] in built.made  # rendered by a worker
     assert b3["report"] is not None and b3["render_s"] is not None
     assert same_work(stage_of(run, f.B1)) == same_work(stage_of(first.run, f.B1))
+
+
+def test_a_stopped_full_build_records_what_each_pass_made_as_a_succeeded_run_does(
+        world, voiced, first):
+    """B1's tail grows, so its drive track is new (made by the local pass), and so are its
+    clip (asked of the fake source), keyed frames and segment; then B2 stops the run at
+    its weak track. B1's stage says this run made all four, with their seconds."""
+    document, library = voiced
+    library, _ = _weak_loop(world, library)
+    edited = copy.deepcopy(document)
+    f.board_of(edited, f.B1)["timing"]["tail_ms"] = 420  # was 340: two more frames
+    b2 = f.board_of(edited, f.B2)
+    next(e for e in b2["cast"] if e["slot"] == "b")["motion_asset_version_id"] = WEAK
+    sources = f.sources()
+    run = f.build(world, edited, library, source=sources).run
+    assert (run["status"], run["error"]["code"], run["error"]["board_id"]) == (
+        "failed", "layered.decal_weak", f.B2)
+    assert len(sources.s2v.calls) == 1
+    assert [s["board_id"] for s in run["stages"]] == [f.B1]
+    b1 = stage_of(run, f.B1)
+    made = {a["name"]: (a["made"], a["seconds"] is not None) for a in b1["artifacts"]}
+    for name in ("drive/a", "s2v_clip/a", "keyed/a", "segment"):
+        assert made[name] == (True, True), name
+    assert not made["keyed/b"][0]  # doll b's loop was keyed by an earlier run
+    s2v = next(c for c in b1["clips"] if c["role"] == "s2v_clip")
+    assert s2v["made"] and s2v["render_s"] is not None and b1["report"] is not None

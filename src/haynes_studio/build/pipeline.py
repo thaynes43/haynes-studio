@@ -244,7 +244,9 @@ class _Chain:
         self.segment_board: dict[str, str] = {}
         self.segment_keys: dict[str, CacheKey] = {}
         self.stand_ins: set[str] = set()
-        if not local:  # a pass of the phase's plan: a stop records what it answered
+        if local:  # what a stop records keeps what this pass made (story 860)
+            build.local_records = self.records
+        else:  # a pass of the phase's plan: a stop records what it answered
             build.passes.append(self)
 
     def _local_answer(self, key: CacheKey) -> str | None:
@@ -352,6 +354,7 @@ class _Build:
         self.worker_reports: dict[str, dict[str, Any]] = {}
         self.worker_made: list[str] = []  # segment keys worker processes made
         self.passes: list[_Chain] = []  # the phase's plan passes, in order (not the local pass)
+        self.local_records: dict[str, Made] = {}  # the local pass's answers
         self.cached_segments: dict[str, str] = {}  # the workers' pass: segment key to hash, cached
 
     def route(self, key: CacheKey) -> str:
@@ -636,7 +639,6 @@ class _Recorder:
                 return renderer.reports[key].to_document(), [_check_entry(c) for c in checks]
         return None, []
 
-
     def reused_checks(self, key: CacheKey) -> list[dict[str, Any]]:
         """The decal gate's results of a layered segment this run did not render (story
         860): for each layer in draw order, its keyed-frames record read from the cache
@@ -693,8 +695,10 @@ class _Replay:
     def __init__(self, build: _Build):
         self.build = build
         self.answers: dict[str, Made] = {}
-        for chain in build.passes:  # in order: a later pass's answer is the one kept
+        for chain in build.passes:  # in order: the last pass's answer is the one kept,
             self.answers.update(chain.records)
+        # with what an earlier pass made (as a succeeded run keeps it, _keep_made)
+        _keep_made(self.answers, build.local_records, *(c.records for c in build.passes[:-1]))
         for value, sha in build.cached_segments.items():  # deferred by that pass, found cached
             if value not in self.answers or self.answers[value].deferred:
                 self.answers[value] = Made(value, SEGMENT, sha, False, 0.0, None)
