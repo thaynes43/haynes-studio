@@ -228,7 +228,10 @@ class Library:
         (``matches_board: false``, so the board is untimed and ``queue_run`` reports
         ``voice.stale``) unless its takes are the board's lines in order (line ID,
         speaker, NFC text), each from the voice the story casts for that speaker, with
-        the board's lead and gaps (VOICE-3, VOICE-4). Without a story every voice is
+        the board's lead and gaps (VOICE-3, VOICE-4), and it holds an assembled track:
+        a legacy import's voice (``track: null``) is not current for a build (story 857,
+        the contract owner's decision; ``studio voice`` makes it a version with a
+        track). Without a story every voice is
         taken as current. With ``current_engine`` (the engine a take signature names
         now: the TTS model's digest once one is recorded, else its name), a board voice
         any of whose takes is signed with another engine is stale too, with or without
@@ -269,7 +272,8 @@ def _signed_with(voice: BoardVoice, engine: str | None) -> bool:
 
 
 def _voice_currency(library: Library, story: Mapping[str, Any]) -> dict[str, bool]:
-    """Board voice version ID to whether it still matches every board naming it."""
+    """Board voice version ID to whether it still matches every board naming it, with
+    an assembled track (story 857)."""
     cast = {member.get("slot"): member.get("voice_version_id")
             for member in story.get("cast") or [] if isinstance(member, Mapping)}
     cast["narrator"] = story.get("narrator_voice_version_id")
@@ -282,7 +286,8 @@ def _voice_currency(library: Library, story: Mapping[str, Any]) -> dict[str, boo
         if version is None or version.voice is None:
             continue
         voice, lines = version.voice, board.get("lines") or []
-        same = (len(voice.takes) == len(lines)
+        same = (voice.track is not None
+                and len(voice.takes) == len(lines)
                 and voice.lead_ms == (board.get("timing") or {}).get("lead_ms")
                 and list(voice.gaps_ms) == [line.get("gap_before_ms") for line in lines[1:]]
                 and all(take.line_id == line.get("id") and take.speaker == line.get("speaker")

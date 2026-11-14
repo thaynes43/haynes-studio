@@ -250,7 +250,9 @@ def test_a_cast_still_without_a_loop_fails_the_run(world, voiced, first):
 
 def test_a_board_voice_without_a_track_fails_the_run(world, voiced, first):
     # A legacy import's board voice keeps one WAV per line and no assembled track
-    # (observation O-406-2); the picture's envelope and the mix read the track.
+    # (observation O-406-2); the picture's envelope and the mix read the track. Since
+    # story 857 such a voice is stale, so the pre-build check refuses the board before
+    # any clip (``build.voice_track_missing`` stays the build's own second guard).
     document, library = voiced
     version_id = f.board_of(document, f.B1)["voice"]["current_version_id"]
     docs = []
@@ -262,7 +264,7 @@ def test_a_board_voice_without_a_track_fails_the_run(world, voiced, first):
         docs.append(doc)
     sources = f.sources()
     result = f.build(world, document, f.Library.from_version_documents(docs), source=sources)
-    assert_failed(world, result, "build.voice_track_missing", board=f.B1, stage="voice")
+    assert_failed(world, result, "voice.stale", board=f.B1, stage="prebuild")
     assert sources.s2v.calls == []
 
 

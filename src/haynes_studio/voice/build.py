@@ -4,7 +4,10 @@
 ``board_voice`` asset version through the library: reused takes are read back by hash
 and re-measured, the others go to the speech client (the Kokoro client of story 425
 behind its injected runner), every take is published, and the assembled track is
-published and recorded on the version. Durations are TIME-1 from sample counts and
+published and recorded on the version. A version without a track (a legacy import) is
+never returned as the input: its board gets a new version with a track, from its held
+takes, and only a take the store does not hold is spoken again (story 857). Durations
+are TIME-1 from sample counts and
 offsets TIME-2, through :mod:`haynes_studio.timebase`. Bytes leave only through the
 injected ``publish`` and come back only through the injected ``fetch``; nothing here
 knows the store.
@@ -69,6 +72,7 @@ from haynes_studio.voice.plan import (
     board_voice_key,
     board_voice_versions,
     drafted_input,
+    has_track,
     same_input,
     same_lines,
     take_sources,
@@ -135,6 +139,19 @@ def _fetch(fetch: Fetch, take: Take, production_id: str, path: str) -> Pcm:
     return read_wav(data, path)
 
 
+class _ReadOnce:
+    """``fetch`` called at most once per locator and hash; later calls answer the same."""
+
+    def __init__(self, fetch: Fetch):
+        self._fetch, self._answers = fetch, {}
+
+    def __call__(self, locator: str, sha256: str) -> bytes | None:
+        key = (locator, sha256)
+        if key not in self._answers:
+            self._answers[key] = self._fetch(locator, sha256)
+        return self._answers[key]
+
+
 def _voice_licence(licences: LicenceRegister | None, model: str) -> Licence:
     """The new version's licence: the voice model's entry in the model licence register
     (story 809) when a register is given, else ``unknown`` with the reason. Never guessed."""
@@ -158,7 +175,14 @@ def make_voice(voice: VoiceInput, board_id: str, library: Library, *, speech: Sp
     re-measured; each new signature goes to ``speech`` once. Every reused take and every
     request is checked before the first call, and each answer's format and the track's
     length so far before it is published and before the next call. If a version of this
-    board already is the input, it is returned and nothing is called or published."""
+    board with a track already is the input, it is returned and nothing is called or
+    published.
+
+    Story 857: a version without a track (a legacy import) is never returned; its takes
+    are read first (once each), and one the store does not hold (``fetch`` answers None)
+    is left out of the pool, so its line goes to ``speech`` (once per signature). A take
+    of a version with a track that is not held is still ``asset.bytes_missing``, and
+    bytes with another hash are refused for either (proposal)."""
     problems = voice_input_violations(voice)  # stock voices first: nothing is sent unchecked
     if problems:
         raise ContractError("<voice>", problems)
@@ -167,30 +191,43 @@ def make_voice(voice: VoiceInput, board_id: str, library: Library, *, speech: Sp
                      f"the input was signed for {voice.engine!r} ({voice.model}); this worker "
                      f"runs {engine.signing_name!r}")
     versions = board_voice_versions(library, board_id)
-    existing = next((v for v in versions if same_input(v, voice)), None)
+    existing = next((v for v in versions if same_input(v, voice) and has_track(v)), None)
     if existing is not None:
         return Made(library, existing, False, (), ())
     sources = take_sources(voice, versions)
     production = voice.production_id
+    read = _ReadOnce(fetch)
     pcms: dict[int, Pcm] = {}
     hashes: dict[int, str] = {}
     requests: dict[int, SpeechRequest] = {}
     index = {line.line_id: i for i, line in enumerate(voice.lines)}
-    owners = [i if source.same_as is None else index[source.same_as]
-              for i, source in enumerate(sources)]  # the line whose take each line plays
     # Before any stored take is read: the recorded durations of the takes to reuse must
-    # already fit the track, so a list that can only be refused costs no read at all.
+    # already fit the track, so a list that can only be refused costs no read at all. (A
+    # legacy take that turns out not to be held counts at its recorded length: the take
+    # spoken again has its signature, so its engine, voice and text.)
     recorded = voice.lead_ms + sum(voice.gaps_ms) + sum(
         source.reuse.duration_ms for source in sources if source.reuse is not None)
     if recorded > TRACK_MAX_MS:
         raise _error(SCHEMA_INVALID, "/voice", f"the track would be over {TRACK_MAX_MS} ms "
                                                f"({recorded} ms with the takes to reuse)")
+    # Story 857: a take of a version without a track is reused only if the store holds
+    # it; one it does not hold leaves the pool and its line is spoken again. Each is read
+    # once here; the read below answers from that.
+    trackless = {v.id for v in versions if not has_track(v)}
+    unheld = {source.reuse.sha256 for source in sources
+              if source.reuse is not None and source.from_version_id in trackless
+              and read(locator_for(source.reuse.sha256, WAV, production),
+                       source.reuse.sha256) is None}
+    if unheld:
+        sources = take_sources(voice, versions, unheld)
+    owners = [i if source.same_as is None else index[source.same_as]
+              for i, source in enumerate(sources)]  # the line whose take each line plays
     fetched: dict[str, Pcm] = {}  # one read per stored take, however many lines play it
     for i, (line, source) in enumerate(zip(voice.lines, sources)):  # all checks first
         if source.reuse is not None:
             digest = source.reuse.sha256
             if digest not in fetched:
-                fetched[digest] = _fetch(fetch, source.reuse, production, f"/voice/lines/{i}")
+                fetched[digest] = _fetch(read, source.reuse, production, f"/voice/lines/{i}")
             pcms[i] = fetched[digest]
             hashes[i] = digest
             _check_room(voice, pcms, owners, f"/voice/lines/{i}")  # before the next read

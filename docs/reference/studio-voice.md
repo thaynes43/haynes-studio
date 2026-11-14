@@ -44,8 +44,8 @@ is pure and calls nothing:
 
 | `action` | When | Speech calls | New version |
 |---|---|---|---|
-| `current` | the board's current voice version is this input | 0 | no |
-| `existing` | another version of this board is this input (an undo) | 0 | no; the board points at it again |
+| `current` | the board's current voice version is this input and has a track | 0 | no |
+| `existing` | another version of this board with a track is this input (an undo) | 0 | no; the board points at it again |
 | `assemble` | every take signature is held by a version of this board (lead or gap edit, a line moved to a speaker whose take exists) | 0 | yes, re-assembled |
 | `synthesize` | some take signatures are new (text, speaker voice, a cast voice change) | one per new signature, even if two lines share it (`plan.speech_lines`) | yes |
 
@@ -55,12 +55,22 @@ currency in `Library.facts(story)`, which compares lines, speakers, cast voices,
 gaps, and the engine only when the caller names the current one (`current_engine`,
 VOICE-9, story 849). Named, a board voice any of whose takes is signed with another
 engine is stale (`voice.stale`), so once a model digest is recorded and named, every
-legacy board must be voiced again before a build. Not named, a legacy board stays timed
-and buildable, yet a request for it re-synthesizes every take.
+legacy board must be voiced again before a build, and a request for it re-synthesizes
+every take.
+
+A version without an assembled track (`track: null`: a legacy import, which kept one WAV
+per line) is neither `current` nor `existing`, and the library's facts mark it stale
+with the story (`voice.stale`, derived `voice_state: stale`): the picture's envelope and
+the mix read the track, so it is not current for a build (story
+[857](https://work.haynesnetwork.com/work_packages/857), the contract owner's decision).
+See [Legacy board voices](#legacy-board-voices).
 
 A take is reused when any version of the board's voice holds its signature, newest
 version first (`take_sources`; the worker applies the same function, so the plan shows
 what the worker does). A stale result therefore still saves calls on the next request.
+The plan takes every recorded take as held; only the worker reads the store, so for a
+legacy board whose takes the store does not hold, the worker makes more calls than the
+plan shows (one per missing signature, `run.synthesized`).
 A line whose text the speech client would refuse (blank, or over 1000 characters) is
 `voice.request_invalid` at request time, and so is a lead or gap over its bound
 (`schema.invalid`, see [Bounds](#bounds)), so no job is queued that can only fail.
@@ -89,12 +99,16 @@ order:
 1. The input is checked with the job's voice rules (`voice_input_violations`): stock
    voices, take signatures, one gap per later line, no line twice and the
    [bounds](#bounds) of the lead and gaps. Then the engine (`voice.engine_mismatch`).
-2. If a version of the board already is the input, it is returned (`created: False`),
-   and nothing is called or published.
+2. If a version of the board with a track already is the input, it is returned
+   (`created: False`), and nothing is called or published. A version without a track is
+   never returned.
 3. Every reused take is read back with `fetch(locator, sha256)`, checked by hash and
    re-measured from its WAV header. Every other request is checked too. A missing take
    (`asset.bytes_missing`) or a bad request fails here, before any speech call. The
-   worker validates the job document before all of this.
+   worker validates the job document before all of this. A take of a version without a
+   track is read first: one the store does not hold (`fetch` answers None) leaves the
+   pool (`take_sources(..., unheld)`), so its line goes to the speech client, once per
+   signature; bytes with another hash are still `asset.bytes_missing` (story 857).
 4. Each new signature goes once to `speech.synthesize(SpeechRequest(voice_id, text))`
    (the Kokoro client and its injected runner). Each answer is read from its header
    first (`read_wav`: 16-bit PCM, mono, 8000 to 48000 Hz, at most 120000 ms). An answer
@@ -241,6 +255,24 @@ model's digest once one is recorded); a board voice signed with another is stale
 current voice. `queue_run` refuses `voice.absent`, `voice.stale` and `asset.generating`
 and accepts the rest. Voices are never made inside a run.
 
+## Legacy board voices
+
+An imported board voice (story 405's legacy path) records its takes, with their hashes
+and signatures, but no track. Story 857 (the contract owner's decision):
+
+| Step | What happens |
+|---|---|
+| Import | Each spoken board points at its legacy version. `queue_run` refuses every spoken board with `voice.stale`, derived `voice_state` is `stale`, and `timing_summary(...).build_allowed` is false. |
+| Plan | `assemble` with 0 speech calls: every signature is held by the board's own legacy version (with a recorded model digest the signatures differ, and it is `synthesize`). |
+| `studio voice` | One new version per spoken board, with a track, on the asset `board-voice:<board_id>`. Each take's bytes are read once and checked by hash; a held take is reused, and only a take the store does not hold is spoken (one call per missing signature). The board points at the new version. |
+| Again | Every board is `current`; nothing is called or made. |
+
+The legacy version and its asset stay as they are, and stay in
+`list_board_voice_versions`. For story 428's r4: run `studio voice` once after the
+private import ([studio-build.md](studio-build.md), step 4); it reports `made` for all
+eight spoken boards, with `synthesized` naming any line whose take the store did not
+hold. Tests: `tests/voice/test_legacy_tracks.py`.
+
 ## What story 430 needs
 
 | Operation | Call | Notes |
@@ -249,7 +281,7 @@ and accepts the rest. Voices are never made inside a run.
 | worker | `run_voice_job(job, library, draft=lambda: current_story, reload=lambda: stored_job, speech=KokoroClient(SubprocessRunner()), publish=store.publish, fetch=store.fetch, licences=load_licence_register(...), by=worker, now=)` | Claim (queued to running), run, complete through the internal endpoints. Pass the model licence register, or every new voice is recorded with an `unknown` licence. Persist the new version. If `run.moved`, write `run.job` only over a stored `running` one (compare-and-set), so a cancel or an earlier finish stands; if `run.moved` is false, write nothing. Only if that write succeeded and `run.make_current` is true, set `board.voice.current_version_id` to `run.version.id` (`with_current_voice` shows the change) and bump the story's revision. The test fixture `Studio.run` does exactly this. |
 | `get_job` `GET /jobs/{id}` | `job.to_document()` | Valid `studio.job/v1`. |
 | `list_board_voice_versions` `GET /boards/{id}/voice-versions` | `board_voice_versions(library, board_id)`, then `library.document(id)` | Newest first, legacy and generated, current and stale. Mark the board's current one. |
-| play | `GET /media/{sha256}` with `version.voice.track.sha256` (the board), or a take's `sha256` (one line) | Track and takes are `audio/wav` at the take rate. Offsets for a waveform or captions are each take's `offset_ms` and `duration_ms`. Legacy versions have no track (`track: null`, `track_note`), and their take bytes are private until story 428 imports them. |
+| play | `GET /media/{sha256}` with `version.voice.track.sha256` (the board), or a take's `sha256` (one line) | Track and takes are `audio/wav` at the take rate. Offsets for a waveform or captions are each take's `offset_ms` and `duration_ms`. Legacy versions have no track (`track: null`, `track_note`), so they are stale for a build until the board is voiced again, and their take bytes are private until story 428 imports them. |
 | board read | `with_derived(story, facts=voice_facts(...))` | `voice_state` is `generating`, `absent`, `stale` or `current`, and the board is timed from its current voice. |
 
 ## Codes
@@ -260,7 +292,7 @@ and accepts the rest. Voices are never made inside a run.
 | `schema.invalid` | among others: a lead, gap or take over 120000 ms, lead and gaps or a track over 600000 ms, a track buffer over 57 600 000 bytes ([Bounds](#bounds)) | story 404 |
 | `voice.speaker_not_in_cast` | story 404's validator, run on the draft first | contract |
 | `voice.absent` | a narrator line without the story's narrator voice | contract |
-| `asset.kind_mismatch`, `asset.bytes_missing`, `ref.unknown` | a cast voice that is not a `voice`; a reused take the store does not hold (or holds with another hash); an unknown board or voice | story 382 and 404 proposals |
+| `asset.kind_mismatch`, `asset.bytes_missing`, `ref.unknown` | a cast voice that is not a `voice`; a reused take of a version with a track that the store does not hold, or any reused take it holds with another hash (a legacy take it does not hold is spoken again); an unknown board or voice | story 382 and 404 proposals |
 | `store.locator_invalid` | `publish` placed bytes outside the production's hash path | contract |
 | `voice.not_needed`, `voice.request_invalid`, `voice.format_mismatch`, `voice.engine_mismatch`, `store.hash_mismatch`, `job.transition` | a silent board; a line the speech client would refuse; a take that is not 16-bit PCM, mono, 8000 to 48000 Hz, or differs in format; a job signed for another engine; `publish` answered another hash; a move the state machine refuses | proposals |
 
@@ -280,6 +312,17 @@ and accepts the rest. Voices are never made inside a run.
   its own asset.
 - Takes are reused from any version of the same board, newest first, never across
   boards.
+- Story 857: only a take of a version without a track (a legacy import) is spoken again
+  when the store does not hold it. A take of a version with a track was published with
+  it, so its absence is a store fault and stays `asset.bytes_missing`; so do bytes with
+  another hash, for any version.
+- Story 857: before any take is read, a legacy take counts at its recorded length in
+  the track bound; if it is not held, the take spoken again has the same signature
+  (engine, voice, text). The running check after each answer still applies.
+- Story 857: the plan takes every recorded take as held (it reads no store), so
+  `plan.speech_calls` can be lower than the worker's calls for a legacy board.
+- Story 857: a voice without a track is stale only with a story (`Library.facts(story)`);
+  without one every voice is still taken as current.
 - Generated takes have `heard` and `heard_matches` null, reused ones included, so a
   version's content follows from its input, its take bytes and the engine alone.
 - The take signature has no sample rate, although the contract's cache table lists one

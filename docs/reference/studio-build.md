@@ -360,8 +360,9 @@ decision are marked **(428 decides)**.
 4. **Voices.**
    `uv run studio voice --store ROOT --story draft.json --library library.json
    --operator-iss <iss> --operator-sub <sub> --out voiced/`. Expect `made` for every
-   spoken board (or `current` where the legacy takes are current). Kokoro is called once
-   per new take signature.
+   spoken board: a legacy board voice has no track, so it is stale (story 857). Kokoro
+   is called once per new take signature, and once per legacy take the store does not
+   hold.
 5. **The pre-build check, offline.** `uv run studio build --store ROOT --story
    voiced/story.json --library voiced/library.json --operator-iss ... --operator-sub ...
    --toolchain toolchain.json --studio-commit $(git rev-parse HEAD) --offline`. With no
@@ -402,11 +403,14 @@ decision are marked **(428 decides)**.
    and compare with the E0 delivery. Tom watches the delivery for the demo; a source PR
    and a delivered run are not his acceptance.
 
-Known blockers with r4 as imported, both observations in the PR: O-406-1, the phone
-proxy of a film whose frame count is not a multiple of 3 fails `delivery.proxy_invalid`
-(r4 is 1087 frames); O-406-2, a legacy board voice records no track, so a build of the
-imported r4 stops at `build.voice_track_missing` until each spoken board is voiced again,
-and `studio voice` reports those boards `current` (story 405's planner).
+The two blockers story 406 found with r4 as imported are fixed by story
+[857](https://work.haynesnetwork.com/work_packages/857). O-406-1: the phone proxy now
+records its audio length exactly at any frame count, so a 1087-frame film delivers
+([studio-delivery.md](studio-delivery.md#the-proxy)). O-406-2: a legacy board voice
+records no track, so the imported r4 is refused at the pre-build check with
+`voice.stale` on each spoken board (no longer `build.voice_track_missing` at a board)
+until step 4 has run once; `studio voice` then makes one version per spoken board with a
+track, from the held takes ([studio-voice.md](studio-voice.md#legacy-board-voices)).
 
 ## Proposals beyond the contract
 

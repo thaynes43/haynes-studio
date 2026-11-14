@@ -41,12 +41,13 @@ from haynes_studio.voice import track
 from haynes_studio.voice.model import line_signature
 from haynes_studio.voice.plan import board_voice_key
 from tests.canonical.fixtures import EXAMPLES, NOW
-from tests.library.fixtures import BY
+from tests.library.fixtures import BY, with_tracks
 from tests.voice.fixtures import (
     LATER,
     RATE,
     fresh_r4,
     generated_r4,
+    held_legacy_r4,
     legacy_r4,
     r4_frames,
     r4_speech,
@@ -138,13 +139,17 @@ def test_r4_board_8_signs_as_the_contract_example():
     assert [t.signature for t in voice.takes] == [t["signature"] for t in example["voice"]["takes"]]
 
 
-def test_the_legacy_r4_library_is_current_and_needs_no_call():
+def test_the_legacy_r4_library_has_no_tracks_so_each_board_gets_a_job():
+    """Story 857 (the contract owner's decision; story 405 called these boards
+    ``current``): a legacy board voice has no assembled track, so it is not current for
+    a build. Every take is recorded with its signature, so each board is planned as
+    ``assemble`` with no speech call, and a request queues one job per board."""
     studio = legacy_r4()
-    assert {number: plan.action for number, plan in plans(studio).items()} == dict.fromkeys(
-        [1, 2, 3, 4, 5, 6, 8, 9], CURRENT)
+    assert {number: (plan.action, plan.speech_calls) for number, plan in plans(studio).items()} \
+        == dict.fromkeys([1, 2, 3, 4, 5, 6, 8, 9], (ASSEMBLE, 0))
     for board in spoken(studio):
-        assert studio.request(board["id"]).job is None
-    assert studio.calls == 0 and studio.jobs == []
+        assert studio.request(board["id"]).created
+    assert studio.calls == 0 and len(studio.jobs) == 8
 
 
 # What each edit costs ----------------------------------------------------------------------
@@ -404,28 +409,34 @@ def test_a_failing_speech_service_fails_the_job_and_creates_nothing():
     assert run.library is library and studio.store.published == []
 
 
-def test_a_gap_edit_on_a_legacy_board_needs_its_takes_bytes():
-    """The legacy takes are reusable by signature, so the edit needs no speech call;
-    their bytes are not public, so the job fails before any call and makes nothing."""
-    studio = legacy_r4()
-    board = studio.board(8)
-    old = board["voice"]["current_version_id"]
-    board["lines"][2]["gap_before_ms"] = 260
-    plan = plan_board_voice(studio.story, board["id"], studio.library)
-    assert (plan.action, plan.speech_calls) == (ASSEMBLE, 0)
-    assert {take.from_version_id for take in plan.takes} == {old}
-    versions = len(studio.library.versions)
-    _, run = studio.generate(board["id"])
-    assert (run.job.status, run.job.error.code) == ("failed", "asset.bytes_missing")
-    assert (studio.calls, len(studio.library.versions)) == (0, versions)
-    assert studio.board(8)["voice"]["current_version_id"] == old
+def test_a_gap_edit_on_a_legacy_board_speaks_only_the_takes_the_store_lacks():
+    """The legacy takes are reusable by signature, so the plan needs no speech call.
+    Their bytes are not public, so the store holds none: story 857 speaks each again
+    (once per signature; story 405 failed the job with ``asset.bytes_missing``). With
+    the takes held, nothing is spoken. The legacy version is unchanged either way."""
+    for held, calls in ((legacy_r4, 6), (held_legacy_r4, 0)):
+        studio = held()
+        board = studio.board(8)
+        old = board["voice"]["current_version_id"]
+        legacy = studio.library.document(old)
+        board["lines"][2]["gap_before_ms"] = 260
+        plan = plan_board_voice(studio.story, board["id"], studio.library)
+        assert (plan.action, plan.speech_calls) == (ASSEMBLE, 0)
+        assert {take.from_version_id for take in plan.takes} == {old}
+        versions = len(studio.library.versions)
+        _, run = studio.generate(board["id"])
+        assert run.job.status == "succeeded" and run.make_current, run.job.error
+        assert (studio.calls, len(studio.library.versions)) == (calls, versions + 1)
+        assert len(run.synthesized) == calls and run.version.voice.track is not None
+        assert run.version.voice.gaps_ms[1] == 260
+        assert studio.board(8)["voice"]["current_version_id"] == run.version.id
+        assert studio.library.document(old) == legacy
 
 
 def test_with_a_recorded_model_digest_takes_are_signed_anew():
     """VOICE-3: legacy takes were signed with the model name. Once a digest is recorded
-    every take signs differently, so a request re-synthesizes (with no current engine
-    named, the library's facts still time the legacy board: they compare lines,
-    speakers, voices, lead and gaps; the next test names it)."""
+    every take signs differently, so a request re-synthesizes (the next test names the
+    current engine to the library's facts)."""
     studio = legacy_r4(engine=Engine(digest=DIGEST))
     plan = plan_board_voice(studio.story, studio.board(8)["id"], studio.library, engine=studio.engine)
     assert (plan.action, plan.speech_calls) == (SYNTHESIZE, 6)
@@ -441,8 +452,10 @@ def test_naming_the_current_engine_makes_voices_signed_with_another_stale():
     """VOICE-9 (story 849): ``voice_facts`` passes the current engine to the library.
     Named as the digest, every legacy board voice (signed with the model name) is stale
     and Build is refused; a voice made with the digest is current. Not named, or named
-    as the model name the legacy takes carry, nothing is stale."""
+    as the model name the legacy takes carry, nothing is stale. (The legacy voices are
+    given tracks here: without one a voice is stale whatever its engine, story 857.)"""
     studio = legacy_r4(engine=Engine(digest=DIGEST))
+    studio.library = with_tracks(studio.library)
     assert queue_problems(studio) == set()
     name = Engine().signing_name
     plain = voice_facts(studio.library, studio.story)
