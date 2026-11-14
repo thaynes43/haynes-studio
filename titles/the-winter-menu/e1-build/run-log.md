@@ -276,9 +276,86 @@ through the client under the API's lease:
 | Journal | `created`, `remember in_flight`, `remember uncollected`, **`settle collected`** (01:57:56) | settled |
 | Wan volume | 26 G free | |
 
-Records: [`clips/board2-b.s2v-clip-record.json`](clips/board2-b.s2v-clip-record.json) (the
+Records: [`clips/94f-seed501.s2v-clip-record.json`](clips/94f-seed501.s2v-clip-record.json) (the
 adapter's provenance record with the whole Wan record),
-[`clips/board2-b.wan-ledger.json`](clips/board2-b.wan-ledger.json),
+[`clips/94f-seed501.wan-ledger.json`](clips/94f-seed501.wan-ledger.json),
 [`wan-journal-after-h.jsonl`](wan-journal-after-h.jsonl). The Wan record's `created`,
 `started` and `finished` fields are null, although the ledger has all three
 (observation O-428-4). GPU wall time so far: 3.2 min of 150.
+- **Gate 2:** note `op428-gate-2` (`message.f5f85cb44ed4dae66a11de2b38c06ee0...`, 01:59:29
+  UTC) with the values above. **Answer** (`message.13f8f012516f176a013ceb31d170c361...`,
+  from `haynes-studio-1113-064439`, 02:00:15 UTC): the 87 C peak is the card's E0 range
+  (84 to 88 C, `video-e0/findings.md`), not a stop; **go for step i in two parts**: part
+  1 board 1 slot a alone (the first two-chunk job), then, if it holds and no card peaks
+  above 88 C, part 2 the remaining nine in one command, whose dry run must list exactly
+  board 3 c, 4 a, 5 d, 6 c, 8 a, 8 c, 8 d, 8 b, 9 b; then steps j to n without asking
+  again.
+
+## i. The service phase — Proven
+
+### Part 1: board 1 slot a alone — Proven
+
+`board1-clip/story.json`, the voiced draft cut to board 1 (as for board 2); its dry run
+(`run_01M7BWHMTB8ZFQM2CJCR3PQN1H`) listed one job with board 1's key in the whole story
+(`sha256:dfefe5c8...`). Then the same `studio build ... --phase service` on it, 02:00:33
+to 02:08:29 UTC (7 min 55 s), exit 0; run `run_01M7BWHYF16GQX6RCD5W0P1Z25` `cancelled`
+("service phase complete", 1 clip made).
+
+Job `8638520a12ba4bb2af7f635987df54dd`: 154 requested, **158 delivered** (102 needed, 56
+trimmed), **16 fps**, 576x1024, clip `e8d18705...56b0`, 6 039 663 bytes; `render_s` 468.5
+(E0 463 to 466.6), `wall_s` 473.2; `cooldown_s` 0.4, start 59 C and 50 C at 0 %; retries
+0, poll misses 0, no foreign work; peak **88 C** on `GPU-d8a856f1` (the other 51 C),
+21 662 MiB; ledger `succeeded`, bytes and graph hash as the record; journal `settle
+collected` 02:08:28. Not above 88 C, so part 2 followed without another note, as the go
+says. Records: `clips/153f-seed510.*` ([`tools/clips.py`](tools/clips.py) reads each clip
+record from the store and its ledger by `GET /videos/<job>` in the API pod, read-only).
+
+### Part 2: the remaining nine in one command
+
+Dry run (`run_01M7BX1PTSYPM3E0MJN3CFGH9X`, 02:09 UTC): exactly the nine jobs the go
+names, in its order; E0 estimate GPU 2431.5 to 4407.7 s, at most 5520.3 s with
+cool-down. Then the same command on `voiced/story.json` from 02:09 UTC.
+
+02:09:22 to 03:42:52 UTC, **93 min 31 s**, exit 0. Run `run_01M7BX20VY53HFCV376P8RNVD0`
+`cancelled`: "service phase complete: the mix passed its 4 checks; 9 clip artifacts made
+and 0 transcript checks run, the rest found in the cache". Nine Wan jobs, one at a time,
+in the dry run's order; no refusal, no held run, nothing resubmitted. The journal (31
+lines, [`wan-journal-after-i.jsonl`](wan-journal-after-i.jsonl)) has one `remember
+in_flight`, one `remember uncollected` and one `settle collected` per job, and no `halt`.
+
+### Every clip of steps h and i
+
+From [`clips.jsonl`](clips.jsonl) (one line per clip, by `tools/clips.py`) and
+`clips/<board frames>f-seed<seed>.{s2v-clip-record,wan-ledger}.json`. All at 576x1024,
+measured 16 fps, `engine_read_retries` 0, `poll_misses` 0, `unexpected_work_seen` null,
+ledger `succeeded` with the record's bytes and `graph_sha256`, `recovered` false, the
+cool check right before the run passing at once (`cooldown_s` 0.4). "Wait" is the cool
+wait before the uploads (`cool_before_upload.cooldown_s`). Peak is the working card's
+(`GPU-d8a856f1`) highest temperature in the ledger telemetry; the other card stayed at
+49 to 53 C in every job.
+
+| # | Board, slot | Job | Asked | Delivered | Wait s | Start C | `render_s` | `wall_s` | E0 `render_s` | Peak C |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 2 b | `95372414` | 65 | 66 | 0.4 | 50 / 49 | 188.3 | 189.9 | 142.5-203.1 | 87 |
+| 2 | 1 a | `8638520a` | 154 | 158 | 0.4 | 59 / 50 | 468.5 | 473.2 | 463-466.6 | 88 |
+| 3 | 3 c | `44c42581` | 154 | 158 | 83.8 | 61 / 52 | 474.0 | 559.2 | 463-466.6 | 89 |
+| 4 | 4 a | `5a438d01` | 57 | 58 | 146.3 | 61 / 52 | 142.0 | 289.6 | 142.5-203.1 | 88 |
+| 5 | 5 d | `f742e358` | 57 | 58 | 135.8 | 61 / 52 | 142.2 | 279.2 | 142.5-203.1 | 88 |
+| 6 | 6 c | `63c0a32c` | 154 | 158 | 125.3 | 61 / 52 | 478.0 | 604.8 | 463-466.6 | 89 |
+| 7 | 8 a | `976dbb34` | 231 | 238 | 135.8 | 61 / 52 | 735.3 | 875.9 | 269.5-716.3 | 89 |
+| 8 | 8 c | `3c114ac9` | 231 | 238 | 125.4 | 61 / 53 | 735.5 | 862.4 | 269.5-716.3 | 89 |
+| 9 | 8 d | `412bf434` | 231 | 238 | 146.1 | 61 / 53 | 736.0 | 883.6 | 269.5-716.3 | 89 |
+| 10 | 8 b | `3cec64ee` | 231 | 238 | 146.2 | 61 / 53 | 734.3 | 881.9 | 269.5-716.3 | 89 |
+| 11 | 9 b | `7dfdfb11` | 73 | 74 | 146.2 | 61 / 53 | 203.9 | 351.9 | 142.5-203.1 | 89 |
+
+**Totals:** 11 Wan jobs of 14; Wan GPU wall time (the sum of `wall_s`, cool waits
+included) **6251.6 s = 104.2 min** of 150; the three commands' wall time 104.6 min
+(3:11, 7:55, 93:31). Inside the dry runs' upper bound (6431.4 s).
+
+**What fell short of a goal:** the four 3-chunk clips each took 734 to 736 s to render,
+above E0's longest (716.3 s) and 2.7 times E0's fastest 3-chunk job (269.5 s, `s8-a`);
+each later job first waited 84 to 146 s for the working card to cool under 62 C. Every
+job ran on one card (the S2V lightning graph uses one GPU), so the second 3090 sat idle
+for the whole phase (observation O-428-5). Jobs 10 and 11 are E0's 9 b and the board 9
+job; 9 b's render (203.9 s) is 0.8 s over E0's range. The peak of 89 C is 1 C above E0's
+recorded range (84 to 88 C); the coordinator set no temperature stop for part 2.
