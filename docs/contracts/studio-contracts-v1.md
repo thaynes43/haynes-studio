@@ -45,6 +45,17 @@ Q-406-2 and Q-846-01 to Q-846-03 and the other-family review findings on these P
 proposals Tom may overrule. Tom decided nothing new; the three questions above stay open
 for him.
 
+**Amended a fourth time on 2026-11-14 by the contract owner** with the first live build,
+story [428](https://work.haynesnetwork.com/work_packages/428) (records, PR 69; its six
+one-off drivers are held in PR 70), and its six small fixes, story
+[860](https://work.haynesnetwork.com/work_packages/860) (PR 71). The film was delivered
+privately; **Tom's verdict is pending**. The choices beyond this text are P-46 to P-49.
+The contract owner decided Q-428-2 and Q-428-3, O-860-1, the reading of the command
+line's operator (O-428-1) and a practice on GPU heat, each a proposal Tom may overrule.
+Tom decided nothing in this batch. The heat practice rests on a relayed message that
+could not be verified, so confirming it is open for him (Q-428-6), with Q-428-4, Q-428-5
+and the differences he weighs with his verdict ([section 16](#16-held-owner-questions)).
+
 Every rule carries its source:
 
 | Label | Meaning |
@@ -226,6 +237,15 @@ Crockford base32 (first character `0` to `7`; no `I`, `L`, `O` or `U`).
   other (P-40). The licence register's entries still name their checking session
   `{kind: worker, worker_id: "dev-env agent session <name>"}`, as recorded at the check
   (story 809).
+- **The command line's operator when an agent session runs it (O-428-1; the contract
+  owner's decision, a proposal Tom may overrule, P-48).** The command line takes only a
+  human operator, so story 428's agent session recorded itself as `{kind: human, iss:
+  "https://agent-session.invalid/dev-env", sub: "agent-session:<session>"}`. That
+  reading stands for the E1 records already written: the stand-in issuer, which no
+  sign-in can issue, marks each of them as an agent session's work. Such a record is
+  never presented as a person's act. The command line gets an `agent_session` operator
+  later (story [864](https://work.haynesnetwork.com/work_packages/864), contract text and
+  schema first).
 - Hashes: a field named `sha256` is the lower-case hex SHA-256 of stored bytes. A field
   named `*signature` is `sha256:` plus the hex SHA-256 of canonical JSON
   ([section 4](#4-cache-clocks-and-invalidation)).
@@ -766,6 +786,22 @@ service was called, and no claim is made about picture quality.
   crop outside 0..1, a doll more than 240 px off the frame), `layered.drive_invalid`,
   `layered.clip_invalid` (a source's answer or a stored artifact that is not as asked),
   `layered.decal_weak`.
+- **The off-frame limit on keyed frames (Q-428-2; the contract owner's decision, a
+  proposal Tom may overrule).** The port applies `poc/edit.py`'s 240 px limit for still
+  cutouts to keyed frames too (`layered.layout_invalid`); E0's layered film had no such
+  limit. It stays for E1. In the first live build r4's `closeup` preset put D 9 px past
+  it on board 7, so the demo's draft moved that slot's `x` from 0.56 to 0.55 (11 px; only
+  board 7 uses the preset). The limit is revisited with the layout editor. Rejected: no
+  limit for keyed frames, as E0's film had.
+- **A weak lettering track on a clip the build made (Q-428-3; the contract owner's
+  decision, a proposal Tom may overrule).** It is answered by a re-roll: a draft seed
+  edit gives a new clip under a new key, and the weak clip stays in the store. No agent
+  lowers a floor. A person's override stays `record_check_override` (stories
+  [410](https://work.haynesnetwork.com/work_packages/410) and
+  [450](https://work.haynesnetwork.com/work_packages/450)), and the command line has no
+  override path. In the first live build the gate refused 3 of 14 clips at 0.8 (board 1
+  twice, board 9 once), the same two boards E0's own clips failed; the re-rolls cost 21.3
+  GPU minutes. Whether the build should re-roll by itself is Q-428-5, open for Tom.
 - Each adapter's `check_board` reports its refusals before any clip is made (the frame
   and S2V sizes included for layered boards); story 406 runs it at `queue_run`. Until
   then a whole-frame board with a camera cue fails at render, after its clips were made,
@@ -922,7 +958,11 @@ which are reserved ([RIGHTS.md](../../RIGHTS.md)).
   register holds no public hardware label, so D44's "the 3090s" is not in a credit yet.
   Files are matched by the names the engine reports: the Wan client reports its graph's
   model files with the register's SHA-256, not re-hashed on the volume (story 842), and
-  the whole Wan record is kept on each clip's provenance as `extra.wan` (story 851).
+  the whole Wan record is kept on each clip's provenance as `extra.wan` (story 851). A
+  file the graphs of two engines load has one register entry per engine with the same
+  facts (story 860, P-47): the speech-to-video graph also loads the umT5 text encoder,
+  which the register listed only under image-to-video, so story 428's records read the
+  `wan-s2v` engine as `unknown`, as they were written; the next run reads it `allowed`.
 
 Media on NFS is not backed up (D47). Provenance in Postgres must therefore be complete
 enough to regenerate: inputs by hash, prompts, seeds, model digests and profiles. A
@@ -988,13 +1028,15 @@ version; its old hash stays as recorded (D54).
   ([findings-layered.md](../../titles/the-winter-menu/video-e0/findings-layered.md)).
   The decal gate is the check `layered.decal_gate` (section 5); the layered renderer
   keeps its results in `renderer.checks` and does not commit them as stages, so story 406
-  records them, and each renderer's `reports`, with the run.
+  records them, and each renderer's `reports`, with the run; a reused segment's results
+  are listed too (story 860). Neither the command line nor the API has the override yet,
+  so a weak track on a clip the build made is re-rolled (Q-428-3, section 5).
 
 ### Builds (as built, story 406)
 
 `studio build` ([reference](../reference/studio-build.md)) builds a story from its boards
-on the local store. Source and tested with fakes only; story 428 makes the first live
-build.
+on the local store. Story 428 ran the first live build
+([below](#the-first-live-build-story-428)).
 
 - **The run record** (`studio.run/v1`) holds the fields of the
   [examples](examples/valid/run-succeeded.json) plus `phase`, `transitions` (each status
@@ -1010,6 +1052,17 @@ build.
   move another writer made first, or a write to a terminal run, is `run.transition`. The
   run `number` is one more than the production's runs (P-42). The `run` and
   `run-snapshot` examples validate.
+- **Stopped runs and reused segments (story 860, P-47).** A run that stops (`failed`,
+  `cancelled` or `held`) keeps the board stages it completed before the stop, each as a
+  succeeded run lists it; a board whose segment was not answered is not listed. A board
+  stage of a reused layered segment lists its decal gate results too, read from the
+  keyed-frames records the cache holds at the floor the segment key holds: they are
+  reported, and the gate is not run a second time, so only a segment rendered in the run
+  can fail it. A run check may name its `slot` (an optional field of the run schema). Known
+  limits: with `--workers N` a board after the failing one can be listed, when its
+  segment was found cached or another worker rendered it; and a refused board's own
+  finished work (story 428's board 1 keyed frames before `layered.decal_weak`) is in the
+  store but in no stage, since the record has no place for a partial stage.
 - **Order.** The pre-build check and the snapshot; the run `queued`, then `running`.
   Then a **local pass**: the whole story is planned with clip sources that only record
   what they would send, so every drive track is made, every speaker's library timed
@@ -1036,7 +1089,12 @@ build.
 - **Where a live build runs (Q-406-2, the contract owner).** Until the NFS store adapter of
   story [434](https://work.haynesnetwork.com/work_packages/434), a live build runs its
   service phases from a session pod (which reaches Kokoro, Whisper and the Wan API) and
-  its offline phase on `ai/studio-render`, with the store copied between them.
+  its offline phase on `ai/studio-render`, with the store copied between them. The
+  worker cannot run the package yet: on 2026-11-14 it ran Python 3.13 with media
+  libraries outside the lock, and the keyer's and encoder's builds are key inputs. So
+  story 428 ran its offline phase in the session pod at two threads under its work order,
+  and the worker waits for a haynes-ops change
+  ([862](https://work.haynesnetwork.com/work_packages/862)).
 - **Live clip sources (story 851).** The service phase's clips come from the Wan clip
   client below, one per store root on the journal `<store root>/wan-journal.jsonl`,
   made on the first clip request. A job the journal holds is settled first: `recover` for
@@ -1109,6 +1167,61 @@ the job carries the `graph_sha256` of the graph it ran (a difference from the Po
 and its story, preset, seed and input names and hashes must match. E0 ledgers have no
 `graph_sha256` and are refused; their clips come in through the private import
 (section 9). The record says `recovered: true`.
+
+### The first live build (story 428)
+
+Story [428](https://work.haynesnetwork.com/work_packages/428) built The Winter Menu on
+2026-11-14 with the studio's own code, privately, from the command line, on the two
+3090s ([run log](../../titles/the-winter-menu/e1-build/run-log.md)). An agent session
+ran it for the coordinator, each GPU step after a written go. **State: delivered
+privately; not accepted; Tom's verdict is pending.**
+
+- **Inputs.** `studio legacy import` of r4, then the private import read-only: 132 rows
+  verified, 24 absent, 0 mismatch; 79 hashes read from the Wan volume, 105 MB, each from
+  its first source. All 482 earlier files on the volume hashed the same afterwards. The
+  new fire bed (D54), one sound-model job, is byte-identical to the r4 bed and was
+  imported as a new version with its own provenance. `studio voice` made the 8 board
+  voices with no speech request: every take was held. The draft used E0's seeds, as no
+  server assigns seeds yet; no E0 clip could be reused, as E0's drive tracks are 48 kHz
+  and the build's are 24 kHz.
+- **Clips.** 14 speech-to-video clips (11, then 3 re-rolls), one at a time through the
+  Wan clip client and the API's lease: each 576x1024 at a measured 16 fps with TIME-9's
+  over-delivery. **125.5 GPU minutes** of 150 (the clips' wall time, cool waits
+  included). No refusal, no held run, nothing resubmitted; the journal ends with every
+  job settled and no halt. Each job ran on one card while the other idled, and a job that
+  followed a hot one first waited 84 to 146 s for its card to cool under 62 C.
+- **Picture.** The offline phase ran in the session pod (see above). It refused three
+  boards: boards 1 and 9 `layered.decal_weak`, board 7 `layered.layout_invalid`. Under the
+  contract owner's answers (Q-428-2, Q-428-3, section 5) the draft moved board 7's
+  close-up by 11 px and re-rolled board 1 (seed 610, still weak, then 611) and board 9
+  (seed 620); all nine boards then passed.
+- **Delivery.** The transcript check passed with the story's tolerances. Run
+  `run_01M7C56SZ6TAHTJSW413RFZYQP` `succeeded` with delivery
+  `dlv_01M7C576EAX9NY1S0JHFYW2QQS`: 1087 frames, a master of 60 562 847 bytes and a phone
+  proxy of 12 986 068 bytes, both re-read. For private viewing a one-off driver over
+  `poc/deliver.py`'s route copied the master, proxy, delivery document and run record
+  create-only onto the Wan volume and linked one ledger,
+  `d009d61541774a429fcabfeedadd8b51` (home network only). The driver is held in PR 70,
+  and a studio command for this is story
+  [863](https://work.haynesnetwork.com/work_packages/863).
+- **One edit.** The board 8 gavel cue went from -20 to -23 dBFS RMS. The next build, run
+  `run_01M7C5CJA7XKBCRPM0ZRP2P5RS` (`succeeded`), made the mix and its checks, the master
+  and its checks, the transcript check, the proxy and the delivery, and no clip, drive
+  track, keyed frame, segment or film picture: the section 4 row "Sound cue, bed, level,
+  loudness target", as built.
+- **Differences from r4 and E0** that Tom weighs with his verdict: one speech prompt for
+  every doll where E0 described each doll in her own (Q-428-4), board 7's close-up moved
+  11 px, board 1's clip from seed 611 and board 9's from seed 620.
+- **Heat.** The working card peaked at 87 to 89 C in every job, 89 C in 8 of the 14;
+  E0's recorded range was 84 to 88 C. **The practice (P-49; the contract owner's, a
+  proposal Tom may overrule):** the coordinator sets no temperature stop line of its own
+  in GPU work orders; each job's peak is recorded, and the guards are the API's lease,
+  the client's cool-idle start check and the unknown-work checks. The 88 C line set during
+  story 428 was the coordinator's own caution, not a platform limit. The recorded reason
+  is a relayed message (story 428, comment 8409): a message from session
+  `haynes-ops-1111-144013` whose text says it relays Tom's word, through Meatball, that
+  89 C is acceptable. The coordinator could not verify who sent it and did not hear Tom,
+  so it is not Tom's ruling and has no D-number. Confirming it is Q-428-6, open for Tom.
 
 ### Mix, master and sound checks (as built, story 841)
 
@@ -1262,7 +1375,11 @@ product's record is a Postgres row (story 434).
 
 Nothing deletes blobs, staging leftovers, runs or versions automatically. A
 `store doctor` command may report orphans and staging leftovers; removing them is a
-user action. User deletion, when built, tombstones records; approved or published runs,
+user action. Beside the D39 layout the store root holds two files of the Wan clip
+client, `wan-journal.jsonl` and `wan-journal.jsonl.lock`; since story 860 the doctor
+reports them under their own heading, `journal` (present or absent, kind and size, each
+by one `lstat`), never as unexpected, and never opens, locks, moves or rewrites them. A
+link or a folder under either name makes the report unclean (P-47). User deletion, when built, tombstones records; approved or published runs,
 and every asset version their snapshots reference, cannot be tombstoned. Removing bytes is
 out of scope for E1 to E3 (P-11). On the Wan PVC (`ai/wan-video`), legacy delivery
 ledgers (`edited_production`) and `/workspace/output/productions/` are never written
@@ -1394,7 +1511,7 @@ ledgers and outputs, and the clip client creates its inputs once under
   reason, not a fourth status (Q-846-01, the contract owner). The E0 drive tracks are read
   too (Q-846-02, the contract owner). The r1 ComfyUI renders are not imported and lapse
   around 2026-12-03 (Q-846-03, the contract owner); the fire bed is `absent` (D54).
-  Source and tested with fakes only; story 428 makes the first read.
+  Story 428 ran it once, live: 132 rows verified, 24 absent, 0 mismatch (section 8).
 
 ## 10. Pre-build voice policy (D33)
 
@@ -1483,12 +1600,23 @@ ledgers and outputs, and the clip client creates its inputs once under
   new version goes on the asset `board-voice:<board_id>`; the legacy version and its asset
   are never rewritten. A take of a version that has a track must still be held
   (`asset.bytes_missing`). r4 as imported is therefore stale on its 8 spoken boards until
-  `studio voice` runs. Two things still describe r4 before that: the
-  [r4 story example](examples/valid/story-winter-menu-r4.json) records
-  `voice_state: current` and 1087 timed frames for the legacy voices, and
-  `studio import` prints r4 as timed, because story 404 computes its own facts; the
-  [run snapshot example](examples/valid/run-snapshot.json) pins board voices with no track,
-  which `queue_run` now refuses.
+  `studio voice` runs.
+- **What a legacy import's own documents say (O-860-1; the contract owner's decision, a
+  proposal Tom may overrule, P-47).** The import's stored story and its map keep their
+  own derived values, the ones the legacy takes give (every spoken board `current`,
+  1087 frames). Only the import's printed summary and the library's facts speak for a
+  build: since story 860 the summary says `for a build: 8 of 9 boards untimed
+  (voice.stale ...)`, as `Library.facts` does, and also gives the legacy takes' 1087
+  frames. Stored documents are not changed. So the
+  [r4 story example](examples/valid/story-winter-menu-r4.json), which records
+  `voice_state: current` and 1087 timed frames, stays as the import's own document. The
+  [run snapshot example](examples/valid/run-snapshot.json) still pins the 8 legacy board
+  voices with no track, a snapshot `queue_run` now refuses. It is not re-pinned, because
+  the public records cannot rebuild an honest replacement: the real snapshot of story
+  428's delivered run (`3bf340d3...`, story revision 3) is the voiced draft taken by
+  value, and that draft, with the IDs minted at its import (its notes and picture cues
+  among them), is in no public record. A library test also ties this example to the
+  import of the public r4 files.
 
 ## 11. Go-live approval identity (boundary only)
 
@@ -1842,10 +1970,35 @@ answer by the contract owner is a proposal Tom may overrule.
 | Q-846-01 A row the private import does not read on purpose: (a) `absent` with a reason, keeping three statuses, (b) a fourth status `not_read` | (a) (section 9) | the contract owner |
 | Q-846-02 Read the E0 drive tracks too (11 more reads a layered build does not need)? | Yes: no other record of them exists outside the volume (section 9) | the contract owner |
 | Q-846-03 The r1 ComfyUI renders, which a CronJob may remove around 2026-12-03 | Not imported: they matter only to regenerate a cutout, and the layered build does not need them (section 9) | the contract owner |
+| Q-428-2 The off-frame limit on keyed frames: (a) keep the 240 px limit the port applies to still cutouts, (b) no limit for keyed frames, as E0's film had | (a) for E1; the demo's draft moved r4's `closeup` slot `x` from 0.56 to 0.55 (board 7 was 9 px over); revisited with the layout editor (section 5) | the contract owner |
+| Q-428-3 A weak lettering track on a clip the build made: (a) a re-roll by a draft seed edit, (b) a lower floor | (a): a new clip and key, the weak clip stays in the store; no agent lowers a floor, and a person's override stays `record_check_override` (stories 410, 450) (section 5) | the contract owner |
+| Q-428-4 The speech-clip prompt: the build sends one prompt for every doll, where E0 described each doll in her own. (a) Keep one prompt if the demo's dolls look right, (b) a per-cast description that the build puts into each speech prompt (a model and key change) | Open. Recommended: (a) until Tom has watched the demo | Tom, open |
+| Q-428-5 After a weak lettering track: (a) the build re-rolls by itself up to twice per clip, then stops; (b) it always stops for a person | Open. Recommended: (a); each re-roll is one GPU job of 3 to 15 min | Tom, open |
+| Q-428-6 Confirm the relayed word on GPU heat: a relayed message (story 428, comment 8409), not verified, says 89 C is acceptable; the coordinator's practice of no temperature stop line of its own rests on it (P-49) | Open | Tom, open |
+| Tom's verdict on the first live build (story 428, delivered privately) | Open. With it he weighs the differences from r4 and E0: one speech prompt for every doll (Q-428-4), board 7's close-up moved 11 px, board 1's clip from seed 611 and board 9's from seed 620 | Tom, open |
 | Q-841-01 A sound cut at the film's end: (a) hard cut at the last sample, (b) fade the last 50 ms before the cut (a new mixer version) | Open. Built as (a), the worker's recommendation; no Winter Menu sound is cut, and nothing waits on it | Tom, open |
 
 Tom was told on 2026-11-14 that the r1 ComfyUI renders lapse around 2026-12-03;
 he has not asked for them to be kept.
+
+**Needs code or cluster work** after the first live build. None of these is a decision;
+each waits on its story.
+
+- A default speech-to-video negative prompt, and the negative prompt in the whole-frame
+  clip key: story [861](https://work.haynesnetwork.com/work_packages/861), held for a
+  review by another model family (unavailable until about 2026-11-19).
+- The render worker at the package's lock (haynes-ops): story
+  [862](https://work.haynesnetwork.com/work_packages/862), waits for Tom.
+- The six one-off drivers of story 428: PR 70, held for the same review.
+- A studio command for private viewing (today a one-off driver over `poc/deliver.py`; it
+  writes to the shared Wan volume, so it needs that review too): story
+  [863](https://work.haynesnetwork.com/work_packages/863).
+- An `agent_session` operator on the command line (P-48): story
+  [864](https://work.haynesnetwork.com/work_packages/864), contract text and schema first.
+- A place for a refused board's partial stage in the run record: story 860's known
+  limit, recorded here; it gets a story only if a build needs that time.
+- The Wan API refusing a queue answer that is not two lists (haynes-ops): story
+  [865](https://work.haynesnetwork.com/work_packages/865), waits for Tom.
 
 ## 17. Proposals
 
@@ -1896,6 +2049,10 @@ he has not asked for them to be kept.
 | P-43 | Proxy length and legacy voice tracks as built (story 857): the proxy muxed at movie timescale 48 000; with a story a board voice without a track is stale (the contract owner's decision); `studio voice` assembles it, reusing each held take after its hash check and speaking only a take the store does not hold, on the asset `board-voice:<board_id>`; a take of a version with a track must still be held; a fetch of other bytes is refused, while `studio voice`'s own fetch answers none for a blob that does not verify, so a damaged legacy take is spoken again and stays for `store doctor` | loosening the proxy's exact audio check; calling a trackless legacy voice current (the build could not use it); speaking every legacy line again |
 | P-44 | Private import as built (story 846): reading the volume directly, folder by folder by descriptor with `O_NOFOLLOW`, rather than over `GET /videos/<id>/file`; `REFUSED <reason>` with exit status 3 and the nine `adapter.source_*` codes; sources tried in row order, a refusal moving on and anything else a stop; hashes with no library version in the production's folder; measured `bytes` with the recorded size on re-import; rows not read on purpose `absent` with a reason (Q-846-01); the drive tracks read (Q-846-02); `--authorized-by` and a new `--out` required; principal `cli`, command `studio private import`; the snippets under `python3 -I`; `import.failed`, `adapter.volume_unexpected` | a fourth `not_read` status; retrying a failed read another way; trusting the store's one `verify` before calling a held blob verified |
 | P-45 | Live clip sources as built (story 851): the journal `<store root>/wan-journal.jsonl`, one per store; the client made on the first clip request; a journal job settled first by `recover` for the same request, else `build.wan_unsettled`; every client refusal a `held` run; each chain clip kept on collection as `wan_chain_clip`, keyed by its request; every request checked before the mix; the profile must be one the client makes (`build.live_unsupported`); `--wan-story` required outside `--offline`; `--dry-run` a recorded run ended `cancelled`; the E0 estimate rule; the whole Wan record as `extra.wan` | a journal per run (a later run would not see an earlier one's job); `failed` for a refusal that may need reconciliation; caching a chain only when whole (a stop re-rendered its first clip) |
+| P-46 | The first live build's working choices (story 428): E0's seeds in the draft, as no server assigns seeds yet; one speech prompt for every doll (Q-428-4 open for Tom); the 240 px off-frame limit kept for keyed frames, with board 7's `closeup` slot moved to `x` 0.55 (Q-428-2, the contract owner); a weak lettering track answered by a re-roll by seed edit, the weak clip kept (Q-428-3, the contract owner); the offline phase in the session pod while the render worker cannot run the package | no limit for keyed frames, as E0's film had; an agent lowering a decal floor; installing into the cluster to use the render worker |
+| P-47 | Six small fixes as built (story 860): a stopped run (`failed`, `cancelled`, `held`) keeps the board stages it completed; a reused layered segment lists its decal gate results, reported and never a second gate, and a run check may name its `slot`; `store doctor` reports the journal's two root files under `journal`; one register file entry per engine for a file two engines load; the import's summary reads voices as the library does, while its stored story and map keep their own derived values (O-860-1, the contract owner) | `stages: []` on a stopped run (its work in no record); running the gate again on a reused segment; an `engines` list on a register file entry (changes the register's shape and its readers); rewriting what `studio legacy import --out` stores |
+| P-48 | The command line's operator when an agent session runs it (O-428-1, the contract owner): the E1 records written as `{kind: human}` under the stand-in issuer `https://agent-session.invalid/dev-env` are kept as they are: that issuer marks them, and they are never presented as a person's act; an `agent_session` operator comes later (story 864) | rewriting the records already written; letting an agent session sign in as a person |
+| P-49 | GPU heat (the contract owner's practice): no temperature stop line of the coordinator's own in GPU work orders; each job's peak recorded; the API's lease, the client's cool-idle start check and the unknown-work checks as the guards. Its recorded reason is a relayed, unverified message (story 428, comment 8409), not Tom's ruling; Q-428-6 asks him to confirm it | a fixed stop line such as story 428's 88 C (taken from E0's 84 to 88 C range, not a platform limit) |
 
 ## 18. Decisions and dissent
 
@@ -1929,3 +2086,5 @@ Where sources disagree, which this contract follows and why.
 | What `held` covers | section 8: unknown work on the lease, an ambiguous external job | every refusal of the Wan clip client, a busy lease and hot GPUs included | story 851; the API may later requeue a run that never reached a submission (E3) |
 | A legacy board voice | story 405's planner: current (its signatures match); story 406's build: unusable (no track) | stale for a build until `studio voice` assembles it | the contract owner's decision, built by story 857 |
 | Wan ledgers and outputs | section 8 before story 842: the Wan PVC is never written | engine jobs create their own ledgers and outputs; delivery ledgers and `productions/` are never written | the sanctioned route is the API's own `generate()` (story 842) |
+| Off-frame limit for keyed frames | `poc/edit.py`'s 240 px assert for still cutouts; E0's layered film checked none for keyed frames | 240 px for keyed frames too | Q-428-2 (the contract owner), until the layout editor |
+| A legacy import's derived values | the import's own facts (every legacy voice current); the library's facts for a build (stale without a track) | stored documents keep the import's values; the summary and the library's facts speak for a build | O-860-1 (the contract owner) |
