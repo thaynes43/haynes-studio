@@ -15,7 +15,7 @@ any of it.
 | Stage | Service | Where | Route from an agent | Status for the doll format |
 |---|---|---|---|---|
 | Cast and set images | ComfyUI with Qwen-Image 2.1 (text-to-image and edit) | `ai/comfyui-0` (StatefulSet), RTX 2000 Ada 16 GB on `talosm03` | `kubectl exec -n ai comfyui-0 -c app --` to `127.0.0.1:8188` (`poc/comfy.py`) | **Proven** for cast and set images (The Winter Menu, [run log](../../titles/the-winter-menu/run-log.md)) |
-| CPU render (decals, keying, compositing) | `ai/studio-render` (python 3.12, pinned requirements), up to 24 vCPUs, low priority, gasha01 NFS at `/studio` | `ai/deploy/studio-render` on `talosw01` | `kubectl cp` in and out, `kubectl exec -n ai deploy/studio-render -c app -- nice -n 10 python ...` | **Proven** for layered compositing (The Winter Menu layered v2: 7 keyed clips and the 45 s film in 408 s, [findings](../../titles/the-winter-menu/video-e0/findings-layered.md)) |
+| CPU render (decals, keying, compositing) | `ai/studio-render`, up to 24 vCPUs, low priority, gasha01 NFS at `/studio`; python 3.12 with pinned requirements as read on 2026-11-03, **Python 3.13 with media libraries outside the package's lock as observed on 2026-11-14** ([below](#studio-render-cpu-work)) | `ai/deploy/studio-render` on `talosw01` | `kubectl cp` in and out, `kubectl exec -n ai deploy/studio-render -c app -- nice -n 10 python ...` | **Proven** for the PoC's layered compositing (The Winter Menu layered v2: 7 keyed clips and the 45 s film in 408 s, [findings](../../titles/the-winter-menu/video-e0/findings-layered.md)); the `haynes_studio` package cannot run there (2026-11-14) |
 | Voices | Kokoro-82M v1.0 (Wyoming TTS) | `ai/deploy/kokoro`, container `app` | `kubectl exec -i -n ai deploy/kokoro -c app -- python -c ...` to Wyoming `127.0.0.1:10210` | **Proven** (OP341, OP345) |
 | Transcript check | Whisper service, configured `nemo-parakeet-tdt-0.6b-v2` (Wyoming ASR) | `ai/deploy/whisper`, container `app` | `kubectl exec -i -n ai deploy/whisper -c app -- python -c ...` to Wyoming `127.0.0.1:10300` | **Proven** (OP345) |
 | Sound effects from text | `audio-authoring`, Stable Audio 3 Small-SFX on CPU | namespace `dev` | MCP `http://audio-authoring.dev.svc.cluster.local:8000/mcp` (`generate_sound`, `get_generation`) | **Proven** (OP343) |
@@ -130,6 +130,24 @@ but a dev-env session pod's egress does not allow it. Agents use the in-pod rout
 - Links on `video.haynesops.com` may not open off the home network, and never open
   from a session pod.
 - Runbook: haynes-ops `.agents/runbooks/dual-3090-video.md`.
+
+## studio-render (CPU work)
+
+**Observation, 2026-11-14** (story [428](https://work.haynesnetwork.com/work_packages/428),
+read-only `kubectl exec -n ai deploy/studio-render -c app -- ...`, observation O-428-7 in
+the [first live build's run log](../../titles/the-winter-menu/e1-build/run-log.md#observations)):
+the image is `python:3.13-slim-bookworm` (Python 3.13), 24 CPUs (limit 24, 32 Gi),
+`/studio` on gasha01 NFS, with av 19.0.2, numpy 2.5.4, opencv-python-headless 5.0.0.93,
+pillow 13.0.0, scipy 1.18.1 and imageio-ffmpeg 0.8.1, and no jsonschema or referencing.
+
+The `haynes_studio` package's lock needs Python 3.11 or 3.12 (`requires-python =
+">=3.11,<3.13"`), jsonschema and referencing, and av below 19, numpy below 2.5, scipy
+below 1.17, OpenCV below 5 and imageio-ffmpeg below 0.8 (`pyproject.toml`). The keyer's
+and the encoder's library builds are cache-key inputs, so a picture keyed there would not
+match a session pod's keys either. **The package cannot run on the worker until
+haynes-ops pins its image to the lock**; story 428's offline phase ran in the session
+pod at two threads instead. The 2026-11-03 reading above ("python 3.12, pinned
+requirements") no longer matches; whether the image changed since then was not checked.
 
 ## What an agent pod needs
 

@@ -643,6 +643,18 @@ def test_a_refusal_inside_a_chain_holds_naming_the_clips_collected_before_it(pre
     assert len(phase.pod.payloads) == 2 and phase.clips.calls == [("render", None)] * 3
 
 
+def test_a_held_run_keeps_the_board_stages_it_completed_before_the_stop(prepared, tmp_path):
+    """Story 860: refused at B3's clip 1, after B1's clip and B3's clip 0. B1 and B2 were
+    completed (B2's segment, like B1's, is left to the offline phase); B3 was not."""
+    phase = chain_world(prepared, tmp_path, FakeWan(), {2: _refuse})
+    run = phase.run(tools=CHAIN).run
+    assert run["status"] == "held" and run["finished_at"] is None
+    assert [s["board_id"] for s in run["stages"]] == [f.B1, f.B2]
+    b1 = next(s for s in run["stages"] if s["board_id"] == f.B1)
+    s2v = next(c for c in b1["clips"] if c["role"] == "s2v_clip")
+    assert s2v["made"] and s2v["render_s"] is not None and s2v["engine_job_id"] == f"{1:032x}"
+
+
 def test_foreign_work_on_a_chains_earlier_clip_holds_and_submits_nothing_more(prepared, tmp_path):
     def foreign(pod):
         pod.foreign_during_job = ["p-foreign"]

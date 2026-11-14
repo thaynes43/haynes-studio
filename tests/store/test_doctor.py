@@ -9,7 +9,10 @@ from pathlib import Path
 
 import pytest
 
+from haynes_studio.adapters.wan import FileJournal
+from haynes_studio.build.live import journal_path
 from haynes_studio.store import Blob, LocalStore, StageRecord, record_path
+from haynes_studio.store.layout import ROOT_FILES, WAN_JOURNAL, WAN_JOURNAL_LOCK
 from tests.store.helpers import PRD, RUN, FailAt, InjectedFault, plant, tree
 from tests.support.policy import REPO_ROOT
 
@@ -55,7 +58,7 @@ def test_doctor_lists_orphans_and_leftovers_and_removes_neither(root):
     assert named.orphans == (orphan.locator,)
     assert set(report.to_document()) == {"blobs", "records", "orphans", "staging", "unexpected",
                                          "broken_records", "dangling", "damaged", "mismatched",
-                                         "foreign", "unreadable"}
+                                         "foreign", "unreadable", "journal"}
     assert (report.damaged, report.mismatched, report.foreign) == ((), (), ())
     assert tree(root) == before
 
@@ -96,6 +99,80 @@ def test_doctor_reports_what_it_cannot_read_and_does_not_stop(root):
     assert not report.clean
 
 
+def test_the_layout_names_the_files_the_wan_client_keeps_at_the_root(root):
+    """The store cannot import the build (``build.live`` imports the store), so its layout
+    names the two files; they are the build's journal and the client's lock file."""
+    journal = FileJournal(journal_path(root))
+    assert (journal.path.parent, journal.path.name, journal.lock_path.name) == (
+        root, WAN_JOURNAL, WAN_JOURNAL_LOCK)
+    assert ROOT_FILES == (WAN_JOURNAL, WAN_JOURNAL_LOCK)
+
+
+def _used_journal(root: Path) -> FileJournal:
+    """A store root with the journal and its lock file as the Wan client leaves them:
+    made by the client's own ``FileJournal`` (its ``created`` line), then one more line."""
+    journal = FileJournal(journal_path(root))
+    journal.hold()
+    journal.release()
+    with open(journal.path, "ab") as handle:  # the test's own append, as a later job's
+        handle.write(b'{"event": "settle"}\n')
+    return journal
+
+
+def test_doctor_reports_the_wan_journal_under_its_own_heading_and_never_touches_it(root):
+    store = LocalStore(root)
+    kept = store.publish(b"take one", scope=PRD, media_type="audio/wav")
+    store.complete_stage(StageRecord(PRD, RUN, "voice", {"take:1": kept}))
+    journal = _used_journal(root)
+    plant(root, "notes.txt", b"still not the layout")
+    before = tree(root)
+    report = store.doctor()
+    assert report.unexpected == ("notes.txt",)
+    sizes = {WAN_JOURNAL: journal.path.stat().st_size, WAN_JOURNAL_LOCK: 0}
+    assert report.to_document()["journal"] == [
+        {"path": name, "present": True, "kind": "file", "bytes": sizes[name]}
+        for name in ROOT_FILES]
+    assert tree(root) == before  # both files byte-identical, same inode, mode and mtime
+
+    # The doctor takes no lock: it reports the same while the client holds the journal.
+    journal.hold()
+    try:
+        assert store.doctor() == report
+    finally:
+        journal.release()
+    assert tree(root) == before
+    assert store.doctor(referenced=[kept.locator]).unexpected == ("notes.txt",)
+
+
+def test_doctor_reports_an_absent_journal_and_a_linked_one_as_journal_files(root):
+    report = LocalStore(root).doctor()
+    assert report.clean
+    assert report.to_document()["journal"] == [
+        {"path": name, "present": False, "kind": None, "bytes": None} for name in ROOT_FILES]
+    elsewhere = root.parent / "journal-elsewhere.jsonl"
+    elsewhere.write_bytes(b"{}\n")
+    (root / WAN_JOURNAL).symlink_to(elsewhere)
+    before = tree(root)
+    report = LocalStore(root).doctor()
+    # Reported under its own heading, never unexpected; a link is not the client's journal
+    # file, so the store is not clean.
+    assert report.unexpected == () and not report.clean
+    assert report.to_document()["journal"] == [
+        {"path": WAN_JOURNAL, "present": True, "kind": "link", "bytes": None},
+        {"path": WAN_JOURNAL_LOCK, "present": False, "kind": None, "bytes": None}]
+    assert tree(root) == before and elsewhere.read_bytes() == b"{}\n"
+
+
+def test_doctor_reports_a_folder_with_a_journal_files_name_as_other(root):
+    plant(root, f"{WAN_JOURNAL_LOCK}/inside.txt", b"not the layout")
+    before = tree(root)
+    report = LocalStore(root).doctor()
+    assert report.to_document()["journal"][1] == {
+        "path": WAN_JOURNAL_LOCK, "present": True, "kind": "other", "bytes": None}
+    assert report.unexpected == (f"{WAN_JOURNAL_LOCK}/inside.txt",) and not report.clean
+    assert tree(root) == before
+
+
 PY_FILES = [path for base in SOURCES for path in sorted(base.glob("*.py"))]
 WRITE_FLAGS = {"O_WRONLY", "O_RDWR", "O_CREAT", "O_TRUNC", "O_APPEND"}
 
@@ -129,7 +206,8 @@ def _keywords(call: ast.Call) -> dict[str, ast.expr]:
 def test_the_store_code_never_deletes_truncates_renames_or_chmods():
     forbidden = {"unlink", "remove", "removedirs", "rmdir", "rmtree", "rename", "renames",
                  "truncate", "ftruncate", "chmod", "fchmod", "lchmod", "chown", "fchown",
-                 "lchown", "os.replace", "shutil.move", "shutil.rmtree", "shutil.copyfile"}
+                 "lchown", "os.replace", "shutil.move", "shutil.rmtree", "shutil.copyfile",
+                 "flock", "lockf"}  # nor takes a lock (the Wan journal's, story 860)
     hits = [(name, function, path.name, call) for path in PY_FILES
             for name, function, call in _calls(path)
             if name in forbidden or name.rpartition(".")[2] in forbidden - {"os.replace"}]

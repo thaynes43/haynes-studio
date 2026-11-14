@@ -38,6 +38,14 @@ STAGING = ".staging"
 PROBE = ".probe"
 PART = ".part"
 RECORD_EXT = ".json"
+# Files another writer keeps at the store root (proposal, story 860): the Wan clip
+# client's one journal of the store (``build.live.journal_path``, story 851) and the lock
+# file the client keeps beside it (``adapters.wan.FileJournal``). The store only reports
+# them; it never opens, locks, moves or rewrites them. The build imports the store, so
+# the store cannot import those names; a test holds them equal.
+WAN_JOURNAL = "wan-journal.jsonl"
+WAN_JOURNAL_LOCK = WAN_JOURNAL + ".lock"
+ROOT_FILES = (WAN_JOURNAL, WAN_JOURNAL_LOCK)
 
 # Contract section 8: "ext is one of mp4, wav, png, jpg, webp, json, chosen from the
 # validated media type". The media type is the caller's, already validated (for an

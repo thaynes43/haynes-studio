@@ -65,8 +65,10 @@ def _render_one(job: Mapping[str, Any]) -> dict[str, Any]:
 def render_segments(build: Any, missing: Sequence[tuple[CacheKey, str | None]],
                     workers: int) -> dict[str, dict[str, Any]]:
     """Render ``missing`` (segment keys with their boards) in up to ``workers``
-    processes; returns each rendered segment's report and checks by key. The first
-    failure in board order raises, naming its board."""
+    processes; returns each rendered segment's report and checks by key. Every segment
+    a worker rendered is kept on ``build`` first (``worker_reports``, ``worker_made``),
+    so a run that stops keeps its stage (story 860); then the first failure in board
+    order raises, naming its board."""
     from haynes_studio.store import LocalStore
 
     if not missing:
@@ -84,11 +86,14 @@ def render_segments(build: Any, missing: Sequence[tuple[CacheKey, str | None]],
         results = list(pool.map(_render_one, jobs))
     out = {}
     for result in results:
-        if not result["ok"]:
-            raise BuildError(result["code"], result["message"], board_id=boards.get(result["key"]),
-                             stage=SEGMENT)
-        out[result["key"]] = result
-        build.worker_made.append(result["key"])
+        if result["ok"]:
+            out[result["key"]] = result
+            build.worker_reports[result["key"]] = result
+            build.worker_made.append(result["key"])
+    failed = next((result for result in results if not result["ok"]), None)
+    if failed is not None:
+        raise BuildError(failed["code"], failed["message"], board_id=boards.get(failed["key"]),
+                         stage=SEGMENT)
     return out
 
 
