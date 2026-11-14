@@ -25,8 +25,11 @@ holds both snippets to an allowlist of calls and ``open`` flags).
 
 A file the pod refuses is a named :class:`~haynes_studio.adapters.errors.AdapterError`
 (``adapter.source_*``, :data:`~haynes_studio.adapters.errors.SOURCE_REFUSALS`), never
-bytes. Anything else (a ``kubectl`` failure, a denial, a timeout, an unreadable
-folder) is ``adapter.command_failed`` or ``adapter.timeout``, as for every client.
+bytes. A fixed folder that is missing or not a plain folder (the wrong container, or a
+volume not as recorded) is ``adapter.volume_unexpected``. Anything else (a ``kubectl``
+failure, a denial, a timeout, a permission or I/O error in the pod) is
+``adapter.command_failed`` or ``adapter.timeout``, as for every client. The snippets run
+as ``python3 -I -c`` (isolated mode).
 
 :func:`ledger_fetch_refusal` reads an error of the existing
 :meth:`~haynes_studio.adapters.wan_ledger.LedgerReader.fetch_asset` the same way, by
@@ -58,6 +61,7 @@ from haynes_studio.adapters.errors import (
     SOURCE_OUTSIDE,
     SOURCE_RECORD_INVALID,
     SOURCE_TOO_LARGE,
+    VOLUME_UNEXPECTED,
     AdapterError,
     RequestInvalid,
     redact,
@@ -76,6 +80,8 @@ REFUSED_EXIT = 3
 JOB_ID = re.compile(r"[0-9a-f]{32}")
 SHA256 = re.compile(r"[0-9a-f]{64}")
 _REFUSED = re.compile(r"REFUSED ([a-z_]+)")
+# kubectl exec adds this line to stderr when the command in the pod exits non-zero.
+_KUBECTL_TRAILER = re.compile(r"command terminated with exit code ([0-9]+)")
 
 # The reasons the two snippets print, and the error each becomes.
 REASONS = {
@@ -92,6 +98,8 @@ REASONS = {
     "record": (SOURCE_RECORD_INVALID, "the job ledger is not a succeeded job of that ID with an "
                                       "output"),
     "changed": (SOURCE_CHANGED, "the file or a folder changed between its checks and its read"),
+    "volume": (VOLUME_UNEXPECTED, "a fixed folder of the Wan volume is missing or not a plain folder: "
+                                  "the wrong container, or the volume is not as recorded"),
 }
 
 # What the pinned wan_ledger_fetch.py (story 425) prints when it refuses, and the error
@@ -147,9 +155,15 @@ def upload_name(sha256: str, suffix: str) -> str:
     return sha256[:16] + suffix
 
 
-def _last_line(text: str) -> str:
-    lines = [line for line in text.splitlines() if line.strip()]
-    return lines[-1].strip() if lines else ""
+def _last_line(text: str, returncode: int | None) -> str:
+    """The snippet's own last stderr line: kubectl's ``command terminated with exit code
+    <status>`` after it (for this command's status) is not the snippet's."""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if lines and returncode is not None:
+        trailer = _KUBECTL_TRAILER.fullmatch(lines[-1])
+        if trailer and int(trailer.group(1)) == returncode:
+            lines.pop()
+    return lines[-1] if lines else ""
 
 
 class VolumeReader:
@@ -167,11 +181,19 @@ class VolumeReader:
 
     # Commands --------------------------------------------------------------------------
 
+    def _argv(self, code: str, *args: str) -> tuple[str, ...]:
+        """The target's vector with ``-I`` after the interpreter: isolated mode, so the
+        container's working folder and ``PYTHON*`` variables cannot put another module in
+        place of the standard library the snippet imports."""
+        argv = list(self.target.argv(code, *args))
+        at = argv.index("--") + 2
+        return tuple(argv[:at] + ["-I"] + argv[at:])
+
     def upload_command(self, sha256: str, suffix: str) -> Command:
         label = "wan_volume.fetch_upload"
         name = upload_name(sha256, suffix)
         pinned.check(self.upload_snippet, UPLOAD_SNIPPET)
-        return Command(label, self.target.argv(self.upload_snippet.text, name, sha256), b"",
+        return Command(label, self._argv(self.upload_snippet.text, name, sha256), b"",
                        UPLOAD_TIMEOUT_S, self.target.describe())
 
     def job_output_command(self, job_id: str, sha256: str) -> Command:
@@ -180,7 +202,7 @@ class VolumeReader:
             raise RequestInvalid(label, "job_id must be 32 lower-case hex digits")
         _sha256(sha256, label)
         pinned.check(self.output_snippet, OUTPUT_SNIPPET)
-        return Command(label, self.target.argv(self.output_snippet.text, job_id, sha256), b"",
+        return Command(label, self._argv(self.output_snippet.text, job_id, sha256), b"",
                        OUTPUT_TIMEOUT_S, self.target.describe())
 
     # Reads -------------------------------------------------------------------------------
@@ -219,7 +241,7 @@ def refusal(command: Command, result: Completed) -> AdapterError | None:
     if result.returncode != REFUSED_EXIT:
         return None
     stderr = redact(result.stderr)
-    found = _REFUSED.fullmatch(_last_line(stderr))
+    found = _REFUSED.fullmatch(_last_line(stderr, result.returncode))
     if not found or found.group(1) not in REASONS:
         return None
     code, message = REASONS[found.group(1)]
@@ -236,7 +258,7 @@ def ledger_fetch_refusal(error: AdapterError) -> str | None:
         return LEDGER_CLIENT_MESSAGES.get(error.message)
     if error.code != COMMAND_FAILED or error.returncode != 1:
         return None
-    last = _last_line(error.redacted_stderr)
+    last = _last_line(error.redacted_stderr, error.returncode)
     if last in LEDGER_FETCH_MESSAGES:
         return LEDGER_FETCH_MESSAGES[last]
     for prefix, code in LEDGER_FETCH_TRACEBACKS:

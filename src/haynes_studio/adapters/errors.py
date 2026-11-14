@@ -33,6 +33,10 @@ SOURCE_OUTSIDE = "adapter.source_outside"  # the recorded path leaves the folder
 SOURCE_HASH_MISMATCH = "adapter.source_hash_mismatch"  # other bytes than the expected sha256 (or size)
 SOURCE_RECORD_INVALID = "adapter.source_record_invalid"  # the ledger is not a succeeded job of that ID
 SOURCE_CHANGED = "adapter.source_changed"  # the file or a folder changed between its checks and its read
+# Not a refusal of one file: a fixed folder of the Wan volume (/workspace/jobs, output, input or
+# input/studio-e0) is missing or not a plain folder, so the reader is in the wrong container or the
+# volume is not as recorded. The import stops on it.
+VOLUME_UNEXPECTED = "adapter.volume_unexpected"
 SOURCE_REFUSALS = (SOURCE_MISSING, SOURCE_LINK, SOURCE_NOT_REGULAR, SOURCE_HARD_LINK, SOURCE_TOO_LARGE,
                    SOURCE_OUTSIDE, SOURCE_HASH_MISMATCH, SOURCE_RECORD_INVALID, SOURCE_CHANGED)
 

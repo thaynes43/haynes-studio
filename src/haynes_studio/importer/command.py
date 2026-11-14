@@ -13,8 +13,9 @@ the full URL of the work package that authorizes the read; ``--dry-run`` reads n
 from the Wan volume, writes nothing, and never makes a runner. ``--out`` must not exist:
 the run creates it with ``import-report.json`` and ``library.json``, create-only.
 
-Exit status: 0 the import completed with no mismatch; 1 it stopped, or a read returned
-other bytes; 2 a usage error, an unreadable input, or an ``--out`` that exists.
+Exit status: 0 the import completed with no mismatch; 1 it stopped, a read returned other
+bytes, or reads were made and none found its file; 2 a usage error, an unreadable input,
+or an ``--out`` that exists.
 """
 
 from __future__ import annotations
@@ -31,6 +32,7 @@ from typing import Any, TextIO
 from urllib.parse import urlsplit
 
 from haynes_studio.adapters import recovery
+from haynes_studio.adapters.errors import AdapterError
 from haynes_studio.adapters.runner import Runner, SubprocessRunner
 from haynes_studio.adapters.wan_ledger import LedgerReader
 from haynes_studio.adapters.wan_volume import VolumeReader
@@ -161,8 +163,8 @@ def _summary(report: dict[str, Any], out: TextIO) -> None:
     totals = report["totals"]
     if report["dry_run"]:
         out.write(f"dry run: {totals['rows']} rows, {totals['hashes']} distinct hashes; "
-                  + ", ".join(f"{k} {totals[k]}" for k in ("held", "to_read", "not_read")
-                              if k in totals)
+                  + ", ".join(f"{k} {totals[k]}" for k in ("held", "copy", "to_read", "not_read",
+                                                           "stop") if k in totals)
                   + f"; at most {totals['reads_at_most']} reads; nothing read or written\n")
         for item in report["hashes"]:
             sources = ", ".join(" ".join(f"{k}={v}" for k, v in s.items() if k != "path")
@@ -210,7 +212,7 @@ def main(argv: Sequence[str] | None = None, *, stdout: TextIO | None = None,
     except UsageError as error:
         err.write(f"{PROG}: {error}\n")
         return 2
-    except (OSError, ValueError, KeyError, TypeError, ContractError) as error:
+    except (OSError, ValueError, KeyError, TypeError, ContractError, AdapterError) as error:
         err.write(f"{PROG}: cannot read the inputs: {type(error).__name__}: {error}\n")
         return 2
     if args.dry_run:
@@ -244,7 +246,10 @@ def main(argv: Sequence[str] | None = None, *, stdout: TextIO | None = None,
         out.write("\n")
     else:
         _summary(report, out)
-    return 1 if result.stopped or result.mismatched else 0
+    if result.found_nothing:
+        err.write(f"{PROG}: no read found its file; check the cluster context and the container "
+                  "before reading anything else\n")
+    return 1 if result.stopped or result.mismatched or result.found_nothing else 0
 
 
 __all__ = ["LIBRARY_FILE", "REPORT_FILE", "load_inputs", "main"]

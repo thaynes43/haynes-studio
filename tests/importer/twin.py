@@ -12,7 +12,7 @@ source keys, IDs, the r4 story) is the real one; only the hashes differ.
 
 ``twin_volume`` lays the twin's private files out on a :class:`FakeWanVolume`: the four
 delivery ledgers with their assets, each E0 motion clip as its Wan job's output, and
-each start image and keyframe as its E0 upload. The fire bed is nowhere (it was never
+each start image, drive track and keyframe as its E0 upload. The fire bed is nowhere (it was never
 delivered) and no render is (ComfyUI is not read).
 """
 
@@ -131,6 +131,9 @@ def twin_volume(root, t: Twin | None = None) -> FakeWanVolume:
             vol.add_job(line.record["job_id"], t.data[line.record["clip_sha256"]])
             image = line.record["image_sha256"]
             vol.add_upload(image[:16] + ".png", t.data[image])
+            if "audio_sha256" in line.record and line.outcome == "timed clip":
+                drive = line.record["audio_sha256"]
+                vol.add_upload(drive[:16] + ".wav", t.data[drive])
     for row in t.recovery_map["rows"]:
         if row["role"] == "keyframe":
             vol.add_upload(row["sha256"][:16] + ".png", t.data[row["sha256"]])

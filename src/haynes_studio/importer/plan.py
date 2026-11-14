@@ -11,8 +11,10 @@ Sources, in the order they are tried (the rows' order, each source once):
   stills, the set, the effects and the takes, delivered by ``poc/deliver.py``);
 - ``job_output``: an E0 clip record's ``job_id``, read with
   ``VolumeReader.fetch_job_output`` (the doll loops, the set loop and the timed clips);
-- ``upload``: a ``wan_upload`` locator or an E0 clip's start image, read with
-  ``VolumeReader.fetch_upload`` (the keyframes and the doll-on-green start images).
+- ``upload``: a ``wan_upload`` locator, an E0 clip's start image or a timed clip's drive
+  track, read with ``VolumeReader.fetch_upload`` (the keyframes, the doll-on-green start
+  images and, **proposal**, the speech-to-video drive tracks, which ``poc/s2v.py``
+  uploaded as ``studio-e0/<16 hex>.wav``: no record outside the volume keeps them).
 
 Rows with no source are planned as not read, with the reason: the fire bed (never
 delivered to the Wan volume), the ComfyUI renders (another service, out of this story's
@@ -37,7 +39,7 @@ from haynes_studio.library.library import Library
 
 # Roles: the recovery map's (story 425) and the E0 lines' (story 457).
 RECOVERY_ROLES = ("render", "still", "set", "sfx", "bed", "take", "keyframe")
-E0_ROLES = ("doll_loop", "set_loop", "timed_clip", "start_image", "not_motion")
+E0_ROLES = ("doll_loop", "set_loop", "timed_clip", "start_image", "drive_track", "not_motion")
 ROLES = RECOVERY_ROLES + E0_ROLES
 E0_OUTCOMES = {"doll loop": "doll_loop", "set loop": "set_loop", "timed clip": "timed_clip",
                "not a motion clip": "not_motion"}
@@ -168,6 +170,7 @@ def _recovery_rows(recovery_map: Mapping[str, Any]) -> Iterable[tuple[Row, str, 
 
 def _e0_rows(lines: Sequence[E0Line]) -> Iterable[tuple[Row, str, list[Source]]]:
     images: dict[str, list[str]] = {}
+    drives: dict[str, list[str]] = {}
     for line in lines:
         record = line.record
         if line.outcome not in E0_OUTCOMES:
@@ -181,11 +184,14 @@ def _e0_rows(lines: Sequence[E0Line]) -> Iterable[tuple[Row, str, list[Source]]]
             [Source(JOB_OUTPUT, record["job_id"])]
         label = record.get("image") or f"{record['name']}-start.png"
         images.setdefault(record["image_sha256"], []).append(label)
-    for sha, labels in images.items():
-        name = upload_name(sha, ".png")
-        key = f"e0:start_image:{sorted(set(labels))[0]}"
-        yield Row(key, "start_image", sha), "image/png", \
-            [Source(UPLOAD, name, UPLOAD_FOLDER + name)]
+        if role == "timed_clip":  # poc/s2v.py uploaded the drive track beside the image
+            drives.setdefault(record["audio_sha256"], []).append(f"{record['name']}-drive.wav")
+    for role, found, suffix, media in (("start_image", images, ".png", "image/png"),
+                                       ("drive_track", drives, ".wav", "audio/wav")):
+        for sha, labels in found.items():
+            name = upload_name(sha, suffix)
+            yield Row(f"e0:{role}:{sorted(set(labels))[0]}", role, sha), media, \
+                [Source(UPLOAD, name, UPLOAD_FOLDER + name)]
 
 
 def plan_import(recovery_map: Mapping[str, Any], e0_lines: Sequence[E0Line], library: Library, *,

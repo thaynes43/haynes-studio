@@ -60,7 +60,7 @@ from haynes_studio.store.errors import StoreError
 VERIFIED, ABSENT, MISMATCH = "verified", "absent", "mismatch"
 STATUSES = (VERIFIED, ABSENT, MISMATCH)
 # Dry run only: what a run would do with each item.
-HELD, TO_READ, NOT_READ = "held", "to_read", "not_read"
+HELD, COPY, TO_READ, NOT_READ, STOP = "held", "copy", "to_read", "not_read", "stop"
 REPORT_KIND = "private-input-import"
 REPORT_VERSION = 1
 STORY_URL = "https://work.haynesnetwork.com/work_packages/846"
@@ -74,13 +74,19 @@ class Readers:
     volume: VolumeReader
 
 
+FAILED = "import.failed"  # an error no other code names (proposal): the import stops
+
+
 class _Stop(Exception):
-    def __init__(self, code: str, message: str, *, source: Source | None = None):
+    def __init__(self, code: str, message: str, *, source: Source | None = None,
+                 detail: str = ""):
         super().__init__(f"{code}: {message}")
-        self.code, self.message, self.source = code, message, source
+        self.code, self.message, self.source, self.detail = code, message, source, detail
+        self.result: ItemResult | None = None  # what the stopping item had done
 
     def to_document(self, sha256: str) -> dict[str, Any]:
-        return {"code": self.code, "message": self.message, "sha256": sha256,
+        return {"code": self.code, "message": self.message, "detail": self.detail,
+                "sha256": sha256,
                 "source": None if self.source is None else self.source.to_document()}
 
 
@@ -111,6 +117,7 @@ class ItemResult:
     versions: list[dict[str, Any]] = field(default_factory=list)
     bytes_read: int = 0  # from the Wan volume
     bytes_published: int = 0  # new blobs in the store
+    published: list[str] = field(default_factory=list)  # locators this run published
 
     def to_document(self) -> dict[str, Any]:
         return {"sha256": self.item.sha256, "media_type": self.item.media_type,
@@ -133,6 +140,13 @@ class ImportResult:
     @property
     def mismatched(self) -> bool:
         return self.report["totals"][MISMATCH] > 0
+
+    @property
+    def found_nothing(self) -> bool:
+        """Reads were made and none found its file: likely the wrong cluster or container."""
+        hashes = self.report["hashes"]
+        return any(h["attempts"] for h in hashes) and not any(
+            a["outcome"] == VERIFIED for h in hashes for a in h["attempts"])
 
 
 def _locator(item: Item, scope: str) -> str:
@@ -168,9 +182,10 @@ def _read(readers: Readers, item: Item, result: ItemResult, clock: Callable[[], 
         except AdapterError as error:
             code = ledger_fetch_refusal(error) if source.kind == LEDGER_ASSET else \
                 error.code if error.code in SOURCE_REFUSALS else None
+            result.attempts.append(Attempt(source, code or error.code, clock() - started,
+                                           message=error.message))
             if code is None:
-                raise _Stop(error.code, error.message, source=source) from None
-            result.attempts.append(Attempt(source, code, clock() - started, message=error.message))
+                raise _Stop(error.code, error.message, source=source, detail=error.detail) from None
             continue
         result.attempts.append(Attempt(source, VERIFIED, clock() - started, len(data)))
         result.bytes_read += len(data)
@@ -212,8 +227,7 @@ def _check_records(library: Library, item: Item, size: int, *, by: Principal,
     return out
 
 
-def _publish(store: Store, item: Item, data: bytes, scopes: list[str]) -> int:
-    published = 0
+def _publish(store: Store, item: Item, data: bytes, scopes: list[str], result: ItemResult) -> None:
     for scope in scopes:
         locator = _locator(item, scope)
         try:
@@ -224,13 +238,28 @@ def _publish(store: Store, item: Item, data: bytes, scopes: list[str]) -> int:
                         f"publishing to {locator} failed: {error}") from None
         if (blob.sha256, blob.bytes, blob.locator) != (item.sha256, len(data), locator):
             raise _Stop("store.hash_mismatch", f"the store answered another blob for {locator}")
-        published += blob.bytes
-    return published
+        result.bytes_published += blob.bytes
+        result.published.append(locator)
 
 
-def _one(item: Item, *, store: Store, library: Library, readers: Readers, by: Principal, now: str,
-         clock: Callable[[], float]) -> ItemResult:
+def _one(item: Item, **kwargs: Any) -> ItemResult:
+    """One item; a stop carries what it had done (its attempts, bytes, publications).
+    An error no code names is a stop too (``import.failed``), so the report is written."""
     result = ItemResult(item, ABSENT)
+    try:
+        return _import_item(result, **kwargs)
+    except _Stop as stop:
+        stop.result = result
+        raise
+    except Exception as error:  # noqa: BLE001 - the report must still be written
+        stop = _Stop(FAILED, f"{type(error).__name__}: {error}")
+        stop.result = result
+        raise stop from None
+
+
+def _import_item(result: ItemResult, *, store: Store, library: Library, readers: Readers,
+                 by: Principal, now: str, clock: Callable[[], float]) -> ItemResult:
+    item = result.item
     states = _held(store, item)
     missing = [scope for scope in item.scopes if states[scope] != PRESENT]
     present = [scope for scope in item.scopes if states[scope] == PRESENT]
@@ -264,7 +293,7 @@ def _one(item: Item, *, store: Store, library: Library, readers: Readers, by: Pr
         result.reason = ", ".join(sorted({v.rule for v in error.violations})) or str(error)
         return result
     if data is not None:
-        result.bytes_published = _publish(store, item, data, missing)
+        _publish(store, item, data, missing, result)
     result.status = VERIFIED
     result.locators = tuple(_locator(item, scope) for scope in item.scopes)
     return result
@@ -331,9 +360,12 @@ def run_import(plan: Plan, *, store: Store, library: Library, readers: Readers,
                                 now=started_at, clock=clock))
         except _Stop as stop:
             stopped = stop.to_document(item.sha256)
-            for rest in plan.items[index:]:
-                results.append(ItemResult(rest, ABSENT,
-                                          reason=f"not_read: the import stopped at {stop.code}"))
+            reason = f"not_read: the import stopped at {stop.code}"
+            partial = stop.result or ItemResult(item, ABSENT)
+            partial.status, partial.reason = ABSENT, reason
+            partial.locators = tuple(partial.published)  # anything published before the stop
+            results.append(partial)
+            results += [ItemResult(rest, ABSENT, reason=reason) for rest in plan.items[index + 1:]]
             break
     by_hash = {result.item.sha256: result for result in results}
     rows = []
@@ -345,7 +377,10 @@ def run_import(plan: Plan, *, store: Store, library: Library, readers: Readers,
                      "version_ids": [v["version_id"] for v in result.versions]})
     lacks = None
     if story is not None and stopped is None:
-        lacks = _lacks(story, library, store)
+        try:
+            lacks = _lacks(story, library, store)
+        except Exception as error:  # noqa: BLE001 - the report must still be written
+            lacks = {"error": f"{type(error).__name__}: {error}"}
     report = {
         "kind": REPORT_KIND, "version": REPORT_VERSION, "title": "The Winter Menu",
         "built_by": STORY_URL, "authorized_by": authorized_by, "dry_run": False,
@@ -368,8 +403,13 @@ def dry_run(plan: Plan, *, store: Store | None, now: Callable[[], str]) -> dict[
                 held = {scope: store.verify(_locator(item, scope), item.sha256) for scope in item.scopes}
             except (StoreError, OSError) as error:
                 held = {"error": str(error)}
-        if held is not None and held and all(state == PRESENT for state in held.values()):
+        states = set((held or {}).values())
+        if "error" in (held or {}) or STORE_MISMATCH in states:
+            would = STOP
+        elif states == {PRESENT}:
             would = HELD
+        elif PRESENT in states:
+            would = COPY
         else:
             would = TO_READ if item.sources else NOT_READ
         items.append({**item.to_document(), "would": would, "store": held,
@@ -388,5 +428,5 @@ def dry_run(plan: Plan, *, store: Store | None, now: Callable[[], str]) -> dict[
             "rows": rows, "hashes": items}
 
 
-__all__ = ["ABSENT", "HELD", "MISMATCH", "NOT_READ", "REPORT_KIND", "Readers", "ImportResult",
-           "STATUSES", "TO_READ", "VERIFIED", "dry_run", "run_import"]
+__all__ = ["ABSENT", "COPY", "FAILED", "HELD", "MISMATCH", "NOT_READ", "REPORT_KIND", "Readers",
+           "ImportResult", "STATUSES", "STOP", "TO_READ", "VERIFIED", "dry_run", "run_import"]

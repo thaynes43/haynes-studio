@@ -107,7 +107,7 @@ def test_the_snippets_only_read(name):
                     {"dir_fd": "folder_fd", "follow_symlinks": "False"}, ast.unparse(node)
         if isinstance(node, (ast.Import, ast.ImportFrom)):
             names = {a.name for a in node.names}
-            assert names <= {"hashlib", "json", "os", "re", "stat", "sys"}, name
+            assert names <= {"errno", "hashlib", "json", "os", "re", "stat", "sys"}, name
     assert opens == 2  # the root, and one call in step() for every folder and file
     code = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
     code = code.replace("os.open(", "os.OPEN(").replace("follow_symlinks=False", "")
@@ -124,7 +124,8 @@ def test_the_pinned_limits_are_the_clients():
     assert "('input', 'studio-e0')" in upload
     for text in (upload, output):
         assert f"raise SystemExit({wan_volume.REFUSED_EXIT})" in text
-        printed = set(re.findall(r"refuse\('([a-z_]+)'\)", text))
+        printed = set(re.findall(r"(?:refuse|bad)\('([a-z_]+)'\)", text)) | {"volume"}
+        assert "refuse('volume' if fixed else reason)" in text
         assert printed - {"request"} <= set(wan_volume.REASONS), printed
 
 
@@ -193,13 +194,33 @@ def test_a_symlinked_output_is_refused_even_to_identical_bytes(vol, tmp_path):
     assert refused(lambda: reader(vol).fetch_job_output(JOB, SHA)) == errors.SOURCE_LINK
 
 
-@pytest.mark.parametrize("folder", ["output/video", "output", "jobs"])
-def test_a_symlinked_folder_on_the_path_is_refused(vol, tmp_path, folder):
+@pytest.mark.parametrize("folder,code", [("output/video", errors.SOURCE_LINK),
+                                         ("output", errors.VOLUME_UNEXPECTED),
+                                         ("jobs", errors.VOLUME_UNEXPECTED)])
+def test_a_symlinked_folder_on_the_path_is_refused(vol, tmp_path, folder, code):
+    """A folder the record names is that record's refusal; a fixed folder of the volume
+    is ``adapter.volume_unexpected``, which stops the import."""
     vol.add_job(JOB, DATA)
     real = vol.root / folder
     moved = real.rename(tmp_path / "moved")
     real.symlink_to(moved)
-    assert refused(lambda: reader(vol).fetch_job_output(JOB, SHA)) == errors.SOURCE_LINK
+    assert refused(lambda: reader(vol).fetch_job_output(JOB, SHA)) == code
+
+
+@pytest.mark.parametrize("folder", ["jobs", "output"])
+def test_a_missing_fixed_folder_is_the_wrong_volume_not_a_missing_file(vol, folder):
+    vol.add_job(JOB, DATA)
+    target = vol.root / folder
+    target.rename(target.with_name(folder + "-moved"))
+    assert refused(lambda: reader(vol).fetch_job_output(JOB, SHA)) == errors.VOLUME_UNEXPECTED
+
+
+def test_a_missing_root_is_a_failure_not_a_refusal(tmp_path):
+    vol = FakeWanVolume(tmp_path / "pod" / "workspace")
+    for path in sorted(vol.root.rglob("*"), reverse=True):
+        path.rmdir()
+    vol.root.rmdir()
+    assert refused(lambda: reader(vol).fetch_upload(SHA, ".png")) == errors.COMMAND_FAILED
 
 
 def test_a_symlinked_ledger_is_refused(vol, tmp_path):
@@ -212,11 +233,20 @@ def test_a_symlinked_ledger_is_refused(vol, tmp_path):
     assert refused(lambda: reader(vol).fetch_job_output(JOB, SHA)) == errors.SOURCE_LINK
 
 
-def test_a_fifo_or_a_folder_is_not_regular_and_never_opened(vol):
+def test_a_fifo_or_a_folder_is_not_regular_and_never_opened(vol, monkeypatch):
     vol.add_job(JOB, DATA)
     clip_path(vol).unlink()
     os.mkfifo(clip_path(vol))  # opening it for reading would block without O_NONBLOCK
+    opened = []
+    real = os.open
+
+    def spy(path, *args, **kwargs):
+        opened.append(os.fspath(path))
+        return real(path, *args, **kwargs)
+    monkeypatch.setattr(os, "open", spy)
     assert refused(lambda: reader(vol).fetch_job_output(JOB, SHA)) == errors.SOURCE_NOT_REGULAR
+    assert clip_path(vol).name not in opened and f"{JOB}.json" in opened
+    monkeypatch.undo()
     clip_path(vol).unlink()
     clip_path(vol).mkdir()
     assert refused(lambda: reader(vol).fetch_job_output(JOB, SHA)) == errors.SOURCE_NOT_REGULAR
@@ -286,14 +316,36 @@ def test_a_file_swapped_for_a_link_after_its_lstat_is_refused(vol, tmp_path, mon
     assert refused(lambda: reader(vol).fetch_job_output(JOB, SHA)) == errors.SOURCE_CHANGED
 
 
-def test_a_file_replaced_after_its_lstat_is_refused(vol, monkeypatch):
+def test_a_file_replaced_after_its_lstat_is_refused(vol, monkeypatch, tmp_path):
+    """The old file is moved aside, not removed, so its inode stays allocated and the new
+    file cannot reuse its number (ext4 would give it at once). A number reused after a
+    removal in the same gap is a known limit; the hash stays the final guard."""
     vol.add_job(JOB, DATA)
 
     def swap():
-        clip_path(vol).unlink()
+        clip_path(vol).rename(tmp_path / "aside.mp4")
         clip_path(vol).write_bytes(DATA)  # a new inode with the same bytes
     _swap_after_lstat(monkeypatch, clip_path(vol), swap)
     assert refused(lambda: reader(vol).fetch_job_output(JOB, SHA)) == errors.SOURCE_CHANGED
+
+
+@pytest.mark.parametrize("call", ["stat", "open"])
+def test_a_permission_or_io_error_is_a_failure_that_stops_not_a_refusal(vol, monkeypatch, call):
+    """Only the errors a swap gives (ENOENT, ELOOP, ENOTDIR, ENXIO at the open) are
+    ``changed``; EACCES, EIO and the rest are a traceback, so the import stops."""
+    vol.add_job(JOB, DATA)
+    real = getattr(os, call)
+
+    def denied(path, *args, **kwargs):
+        if os.fspath(path) == clip_path(vol).name:
+            raise PermissionError(13, "Permission denied")
+        return real(path, *args, **kwargs)
+    monkeypatch.setattr(os, call, denied)
+    with pytest.raises(AdapterError) as caught:
+        reader(vol).fetch_job_output(JOB, SHA)
+    monkeypatch.undo()
+    assert caught.value.code == errors.COMMAND_FAILED
+    assert "PermissionError" in caught.value.redacted_stderr
 
 
 # Uploads -------------------------------------------------------------------------------------
@@ -325,10 +377,10 @@ def test_the_upload_name_is_checked_in_the_pod_too(vol):
     assert result.stderr.decode().strip() == "REFUSED request"
 
 
-def test_a_missing_upload_or_folder_is_missing(vol):
+def test_a_missing_upload_is_missing_and_a_missing_upload_folder_the_wrong_volume(vol):
     assert refused(lambda: reader(vol).fetch_upload(SHA, ".png")) == errors.SOURCE_MISSING
     (vol.root / "input" / "studio-e0").rmdir()
-    assert refused(lambda: reader(vol).fetch_upload(SHA, ".png")) == errors.SOURCE_MISSING
+    assert refused(lambda: reader(vol).fetch_upload(SHA, ".png")) == errors.VOLUME_UNEXPECTED
 
 
 def test_a_symlinked_upload_or_upload_folder_is_refused(vol, tmp_path):
@@ -342,7 +394,7 @@ def test_a_symlinked_upload_or_upload_folder_is_refused(vol, tmp_path):
     (tmp_path / "elsewhere").mkdir()
     (tmp_path / "elsewhere" / NAME).write_bytes(DATA)
     folder.symlink_to(tmp_path / "elsewhere")
-    assert refused(lambda: reader(vol).fetch_upload(SHA, ".png")) == errors.SOURCE_LINK
+    assert refused(lambda: reader(vol).fetch_upload(SHA, ".png")) == errors.VOLUME_UNEXPECTED
 
 
 def test_a_fifo_folder_hard_link_or_oversized_upload_is_refused(vol):
@@ -399,6 +451,27 @@ def test_the_client_checks_the_hash_and_size_again():
         hashlib.sha256(big).hexdigest(), ".png")) == errors.SOURCE_TOO_LARGE
 
 
+def test_kubectls_exit_line_after_a_refusal_is_not_the_snippets():
+    """kubectl exec ends stderr with this line when the pod's command exits non-zero."""
+    trailer = b"REFUSED missing\ncommand terminated with exit code 3\n"
+    assert refused(lambda: VolumeReader(Answer(Completed(3, b"", trailer))).fetch_job_output(
+        JOB, SHA)) == errors.SOURCE_MISSING
+    other = b"REFUSED missing\ncommand terminated with exit code 1\n"  # not this status
+    assert refused(lambda: VolumeReader(Answer(Completed(3, b"", other))).fetch_job_output(
+        JOB, SHA)) == errors.COMMAND_FAILED
+    ledger = AdapterError(errors.COMMAND_FAILED, "x", "exited 1", returncode=1, redacted_stderr=(
+        "no asset with that sha256 in the ledger\ncommand terminated with exit code 1"))
+    assert ledger_fetch_refusal(ledger) == errors.SOURCE_MISSING
+
+
+def test_the_fake_volume_adds_kubectls_line_like_the_real_exec(vol):
+    runner = FakeRunner(vol)
+    with pytest.raises(AdapterError) as caught:
+        VolumeReader(runner).fetch_upload(SHA, ".png")
+    assert caught.value.redacted_stderr.endswith("REFUSED missing\ncommand terminated with exit code 3")
+    assert caught.value.code == errors.SOURCE_MISSING
+
+
 @pytest.mark.parametrize("result", [
     Completed(1, b"", b"error: unable to upgrade connection: Forbidden\n"),
     Completed(3, b"", b"REFUSED something_else\n"),
@@ -427,13 +500,15 @@ def test_a_changed_snippet_is_refused_before_anything_runs():
 
 def test_the_command_is_the_pinned_snippet_with_validated_arguments():
     command = VolumeReader(FailingRunner()).job_output_command(JOB, SHA)
-    assert command.argv[:11] == ("kubectl", "exec", "-i", "-n", "ai", "deploy/wan-video", "-c",
-                                 "api", "--", "python3", "-c")
-    assert command.argv[11] == pinned.load("wan_job_output_read.py").text
-    assert command.argv[12:] == (JOB, SHA) and command.stdin == b""
+    assert command.argv[:12] == ("kubectl", "exec", "-i", "-n", "ai", "deploy/wan-video", "-c",
+                                 "api", "--", "python3", "-I", "-c")  # isolated mode
+    assert command.argv[12] == pinned.load("wan_job_output_read.py").text
+    assert command.argv[13:] == (JOB, SHA) and command.stdin == b""
     assert command.timeout_s == wan_volume.OUTPUT_TIMEOUT_S
     upload = VolumeReader(FailingRunner()).upload_command(SHA, ".wav")
-    assert upload.argv[12:] == (SHA[:16] + ".wav", SHA)
+    assert upload.argv[13:] == (SHA[:16] + ".wav", SHA)
+    # The other clients' commands are unchanged: the ledger reader has no -I.
+    assert "-I" not in LedgerReader(FailingRunner()).fetch_command("c" * 32, SHA).argv
 
 
 # The ledger reader's refusals, read by their fixed messages ------------------------------------

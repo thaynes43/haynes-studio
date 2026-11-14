@@ -63,12 +63,12 @@ def test_the_dry_run_lists_every_row_and_writes_nothing(tmp_path, inputs):
     factory = Factory()
     code, out, err = call(argv(tmp_path, inputs, "--dry-run", "--out", str(tmp_path / "new")), factory)
     assert (code, err) == (0, "") and factory.made == 0
-    assert out.startswith("dry run: 145 rows, 90 distinct hashes; to_read 121, not_read 24;")
+    assert out.startswith("dry run: 156 rows, 101 distinct hashes; to_read 132, not_read 24;")
     assert "nothing read or written" in out
     assert snapshot(tmp_path) == before and not (tmp_path / "new").exists()
     code, out, _ = call(argv(tmp_path, inputs, "--dry-run", "--json"), factory)
     report = json.loads(out)
-    assert code == 0 and report["dry_run"] and len(report["rows"]) == 145 and factory.made == 0
+    assert code == 0 and report["dry_run"] and len(report["rows"]) == 156 and factory.made == 0
     assert report["library"]["versions"] == 46
 
 
@@ -99,17 +99,17 @@ def test_the_operator_must_be_an_oidc_identity(tmp_path, inputs, flag, value):
     assert code == 2 and flag in err
 
 
-def test_a_run_against_an_empty_volume_reports_every_row_absent(tmp_path, inputs):
+def test_a_run_against_an_empty_volume_reports_every_row_absent_and_exits_1(tmp_path, inputs):
     vol = FakeWanVolume(tmp_path / "pod" / "workspace")
     factory = Factory(FakeRunner(vol))
     out_dir = tmp_path / "run-1"
     code, out, err = call(argv(tmp_path, inputs, "--out", str(out_dir), "--authorized-by", URL), factory)
-    assert (code, err) == (0, "") and factory.made == 1
-    assert out.startswith("145 rows: 0 verified, 145 absent, 0 mismatch;")
+    assert code == 1 and "no read found its file" in err and factory.made == 1
+    assert out.startswith("156 rows: 0 verified, 156 absent, 0 mismatch;")
     report = json.loads((out_dir / REPORT_FILE).read_text())
     assert report["authorized_by"] == URL and report["stopped"] is None
-    assert {r["status"] for r in report["rows"]} == {"absent"} and len(report["rows"]) == 145
-    assert len(vol.runs) == 118  # every source of every readable hash, each once
+    assert {r["status"] for r in report["rows"]} == {"absent"} and len(report["rows"]) == 156
+    assert len(vol.runs) == 129  # every source of every readable hash, each once
     for name in (REPORT_FILE, LIBRARY_FILE):
         assert stat.S_IMODE(os.stat(out_dir / name).st_mode) == 0o444  # create-only, read-only
     library = Library.from_version_documents(json.loads((out_dir / LIBRARY_FILE).read_text()))
@@ -118,7 +118,7 @@ def test_a_run_against_an_empty_volume_reports_every_row_absent(tmp_path, inputs
     code, _, _ = call(argv(tmp_path, inputs, "--library", str(out_dir / LIBRARY_FILE), "--out",
                            str(tmp_path / "run-2"), "--authorized-by", URL), Factory(FakeRunner(vol)))
     second = json.loads((tmp_path / "run-2" / REPORT_FILE).read_text())
-    assert code == 0 and second["library"]["created_now"] == {"winter_menu": 0, "e0_motion": 0}
+    assert code == 1 and second["library"]["created_now"] == {"winter_menu": 0, "e0_motion": 0}
     again = Library.from_version_documents(json.loads((tmp_path / "run-2" / LIBRARY_FILE).read_text()))
     assert set(again.versions) == set(library.versions)
 

@@ -45,6 +45,8 @@ def snippet_of(command: Command) -> tuple[str, tuple[str, ...]]:
     if argv[:2] != ("kubectl", "exec") or "--" not in argv:
         raise UnexpectedCommand(f"{command.label}: not a kubectl exec command")
     rest = argv[argv.index("--") + 1:]
+    if len(rest) > 3 and rest[1] == "-I":  # isolated mode (story 846's volume reads)
+        rest = rest[:1] + rest[2:]
     if len(rest) < 3 or rest[1] != "-c":
         raise UnexpectedCommand(f"{command.label}: expected <python> -c <code>")
     name = _BY_SHA.get(hashlib.sha256(rest[2].encode()).hexdigest())
@@ -758,14 +760,17 @@ class FakeWanVolume:
     have no ``open``, ``exec``, ``eval`` or ``compile``; it may import only the standard
     modules the snippets name.
 
+    A failed run's stderr ends with the line ``kubectl exec`` adds, ``command terminated
+    with exit code <status>`` (``kubectl_trailer=False`` leaves it out).
     ``add_ledger``, ``add_job`` and ``add_upload`` build the volume (tests only; the
     snippets never write). ``runs`` records each snippet run's name and arguments."""
 
     snippets = ("wan_ledger_fetch.py", "wan_upload_read.py", "wan_job_output_read.py")
-    MODULES = ("hashlib", "json", "os", "pathlib", "re", "stat")
+    MODULES = ("errno", "hashlib", "json", "os", "pathlib", "re", "stat")
 
-    def __init__(self, root: str | os.PathLike[str]):
+    def __init__(self, root: str | os.PathLike[str], *, kubectl_trailer: bool = True):
         self.root = Path(root)
+        self.kubectl_trailer = kubectl_trailer
         for folder in ("jobs", "output/productions", "input/studio-e0"):
             (self.root / folder).mkdir(parents=True, exist_ok=True)
         self.runs: list[tuple[str, tuple[str, ...]]] = []
@@ -830,9 +835,14 @@ class FakeWanVolume:
         return code
 
     def answer(self, name: str, command: Command, args) -> Completed:
-        code = command.argv[command.argv.index("--") + 3]  # <python> -c <code>
+        rest = command.argv[command.argv.index("--") + 1:]
+        code = rest[rest.index("-c") + 1]  # <python> [-I] -c <code>
         self.runs.append((name, tuple(args)))
-        return self.run_snippet(name, self._rooted(name, code), args)
+        result = self.run_snippet(name, self._rooted(name, code), args)
+        if result.returncode != 0 and self.kubectl_trailer:  # as kubectl exec reports it
+            trailer = f"command terminated with exit code {result.returncode}\n".encode()
+            return Completed(result.returncode, result.stdout, result.stderr + trailer)
+        return result
 
     def run_snippet(self, name: str, code: str, args) -> Completed:
         out, err = _PodOut(), _PodOut()

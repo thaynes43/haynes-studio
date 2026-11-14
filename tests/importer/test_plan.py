@@ -38,16 +38,18 @@ def test_every_recovery_row_and_e0_line_is_planned_once():
     assert len(keys) == len(set(keys))
     recovery = [row["key"] for row in p.recovery_map["rows"]]
     assert [k for k in keys if not k.startswith("e0:")] == recovery and len(recovery) == 98
-    e0 = [k for k in keys if k.startswith("e0:") and not k.startswith("e0:start_image:")]
+    e0 = [k for k in keys if k.startswith("e0:") and not k.startswith(("e0:start_image:",
+                                                                         "e0:drive_track:"))]
     assert e0 == [f"e0:{line.file}:{line.line}:{line.record['name']}" for line in p.lines]
     assert len(e0) == 36
     assert Counter(row.role for row in result.rows) == {
         "render": 8, "still": 25, "set": 4, "sfx": 11, "bed": 3, "take": 38, "keyframe": 9,
-        "doll_loop": 10, "set_loop": 1, "timed_clip": 11, "not_motion": 14, "start_image": 11}
+        "doll_loop": 10, "set_loop": 1, "timed_clip": 11, "not_motion": 14, "start_image": 11,
+        "drive_track": 11}
     # Every row's hash is one item, every item's rows are rows.
     assert {item.sha256 for item in result.items} == {row.sha256 for row in result.rows}
     assert sorted(k for item in result.items for k in item.rows) == sorted(keys)
-    assert len(result.items) == 90
+    assert len(result.items) == 101
 
 
 def test_the_recovery_map_is_the_one_built_from_public_files():
@@ -62,7 +64,7 @@ def test_sources_are_only_the_wan_volume_reads():
             role = next(r.role for r in result.rows if r.key == key)
             by_role.setdefault(role, set()).update(s.kind for s in item.sources)
     assert by_role["still"] == by_role["sfx"] == by_role["take"] == by_role["set"] == {LEDGER_ASSET}
-    assert by_role["keyframe"] == by_role["start_image"] == {UPLOAD}
+    assert by_role["keyframe"] == by_role["start_image"] == by_role["drive_track"] == {UPLOAD}
     assert by_role["doll_loop"] == by_role["set_loop"] == by_role["timed_clip"] == {JOB_OUTPUT}
     assert by_role["bed"] == by_role["not_motion"] == set()
     assert by_role["render"] == {LEDGER_ASSET}  # only set-left-s221, which is the set's bytes
@@ -96,7 +98,8 @@ def test_uploads_are_named_by_their_hash_and_jobs_by_their_id():
     for item in result.items:
         for source in item.sources:
             if source.kind == UPLOAD:
-                assert source.name == item.sha256[:16] + ".png"
+                suffix = {"image/png": ".png", "audio/wav": ".wav"}[item.media_type]
+                assert source.name == item.sha256[:16] + suffix
                 assert source.path == "/workspace/input/studio-e0/" + source.name
             if source.kind == JOB_OUTPUT:
                 assert len(source.name) == 32 and source.path is None

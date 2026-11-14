@@ -20,10 +20,13 @@ from haynes_studio.adapters.wan_volume import MAX_OUTPUT_BYTES, MAX_UPLOAD_BYTES
 from haynes_studio.importer.plan import JOB_OUTPUT, LEDGER_ASSET, LIBRARY, UPLOAD, Item, Plan
 from haynes_studio.importer.run import (
     ABSENT,
+    COPY,
+    FAILED,
     HELD,
     MISMATCH,
     NOT_READ,
     STATUSES,
+    STOP,
     TO_READ,
     VERIFIED,
     Readers,
@@ -34,6 +37,7 @@ from haynes_studio.library.library import Library
 from haynes_studio.library.model import locator_for
 from haynes_studio.library.resolve import resolve
 from haynes_studio.store.base import PRESENT
+from haynes_studio.store.errors import StoreError
 from haynes_studio.store.local import LocalStore
 from tests.importer.twin import twin, twin_volume
 from tests.library.fixtures import BY
@@ -101,6 +105,7 @@ def test_every_delivered_hash_is_verified_and_the_story_lacks_only_the_fire_bed(
         ("still", VERIFIED): 25, ("set", VERIFIED): 4, ("sfx", VERIFIED): 11,
         ("take", VERIFIED): 38, ("keyframe", VERIFIED): 9, ("doll_loop", VERIFIED): 10,
         ("set_loop", VERIFIED): 1, ("timed_clip", VERIFIED): 11, ("start_image", VERIFIED): 11,
+        ("drive_track", VERIFIED): 11,
         ("render", VERIFIED): 1,  # set-left-s221: the set's bytes
         ("render", ABSENT): 7, ("bed", ABSENT): 3, ("not_motion", ABSENT): 14}
     # The r4 story resolves against the store's own answers; only the bed is missing.
@@ -143,14 +148,14 @@ def test_each_distinct_hash_is_read_once_and_every_row_is_accounted_for(world):
     plan = t.plan()
     report = run(t, vol, store).report
     reads = Counter(args[-1] for _, args in vol.runs)
-    assert set(reads.values()) == {1} and len(reads) == 68
+    assert set(reads.values()) == {1} and len(reads) == 79
     assert [row["key"] for row in report["rows"]] == [row.key for row in plan.rows]
     assert {row["status"] for row in report["rows"]} <= set(STATUSES)
     assert all(row["reason"] for row in report["rows"] if row["status"] != VERIFIED)
     totals = report["totals"]
     assert (totals["rows"], totals["hashes"], totals[VERIFIED], totals[ABSENT], totals[MISMATCH]) \
-        == (145, 90, 121, 24, 0)
-    assert sum(sum(c.values()) for c in totals["by_role"].values()) == 145
+        == (156, 101, 132, 24, 0)
+    assert sum(sum(c.values()) for c in totals["by_role"].values()) == 156
 
 
 def test_the_report_records_where_each_hash_came_from_its_bytes_and_time(world):
@@ -342,6 +347,9 @@ def test_a_failure_that_is_not_a_refusal_stops_the_import(world, runner, code):
     t, vol, store = world
     result = run(t, runner, store)
     assert result.stopped["code"] == code and len(runner.calls) == 1  # nothing retried or tried next
+    assert result.stopped["detail"]  # the redacted stderr tail: a denial is told from a traceback
+    stopping = next(h for h in result.report["hashes"] if h["sha256"] == result.stopped["sha256"])
+    assert [a["outcome"] for a in stopping["attempts"]] == [code]  # the call that stopped it
     rows = result.report["rows"]
     assert {r["status"] for r in rows} == {ABSENT}
     assert sum(r["reason"].startswith("not_read: the import stopped") for r in rows) > 100
@@ -383,12 +391,12 @@ def test_the_dry_run_lists_the_plan_and_writes_nothing(world, tmp_path):
     report = dry_run(plan, store=store, now=lambda: NOW)
     assert snapshot(tmp_path) == before and vol.runs == []
     assert [r["key"] for r in report["rows"]] == [r.key for r in plan.rows]
-    assert Counter(r["would"] for r in report["rows"]) == {TO_READ: 121, NOT_READ: 24}
+    assert Counter(r["would"] for r in report["rows"]) == {TO_READ: 132, NOT_READ: 24}
     assert report["totals"]["reads_at_most"] == sum(len(i.sources) for i in plan.items)
     assert all(h["sources"] for h in report["hashes"] if h["would"] == TO_READ)
     run(t, vol, store)
     after = dry_run(plan, store=store, now=lambda: NOW)
-    assert Counter(r["would"] for r in after["rows"]) == {HELD: 121, NOT_READ: 24}
+    assert Counter(r["would"] for r in after["rows"]) == {HELD: 132, NOT_READ: 24}
     assert dry_run(plan, store=None, now=lambda: NOW)["rows"] == report["rows"]
 
 
@@ -402,3 +410,71 @@ def test_the_twin_is_only_hashes_away_from_the_real_records():
     assert [r["key"] for r in t.recovery_map["rows"]] == [r["key"] for r in p.recovery_map["rows"]]
     for h, s in t.mapping.items():
         assert hashlib.sha256(t.data[s]).hexdigest() == s and h != s
+
+
+class FailingPublish:
+    """A store whose publications fail (a full disk, say); everything else is the real one."""
+
+    def __init__(self, store):
+        self.store = store
+
+    def __getattr__(self, name):
+        return getattr(self.store, name)
+
+    def publish(self, *args, **kwargs):
+        raise StoreError("store.collision", "the disk is full")
+
+
+def test_a_publication_that_fails_after_a_good_read_stops_and_keeps_what_was_read(world):
+    t, vol, store = world
+    sha = row_sha(t, "r4:still:cutouts/a-proud.png")
+    result = run(t, vol, FailingPublish(store), plan=only(t.plan(), sha), story=False)
+    assert result.stopped["code"] == "store.collision"
+    item = result.report["hashes"][0]
+    assert item["status"] == ABSENT and item["reason"] == "not_read: the import stopped at store.collision"
+    assert [a["outcome"] for a in item["attempts"]] == [VERIFIED] and item["bytes_read"] > 0
+    assert result.report["totals"]["bytes_read"] == item["bytes_read"] and item["locators"] == []
+
+
+def test_an_error_no_code_names_stops_the_import_and_the_report_is_still_made(world, monkeypatch):
+    t, vol, store = world
+    from haynes_studio.importer import run as module
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("importing a version again made a new record")
+    monkeypatch.setattr(module, "_check_records", broken)
+    result = run(t, vol, store)
+    assert result.stopped["code"] == FAILED and "RuntimeError" in result.stopped["message"]
+    assert len(result.report["rows"]) == 156 and result.report["lacks"] is None
+    assert store.verify(locator_for(result.stopped["sha256"], "image/png", t.story["production_id"]),
+                        result.stopped["sha256"]) != PRESENT  # checked before publishing
+
+
+def test_reads_that_find_nothing_are_flagged(world, tmp_path):
+    t, vol, store = world
+    import shutil
+    shutil.rmtree(vol.root)
+    empty = twin_volume(tmp_path / "empty" / "workspace", t)
+    for path in sorted(empty.root.rglob("*"), reverse=True):
+        if path.is_file():
+            path.unlink()
+    result = run(t, empty, store)
+    assert result.found_nothing and result.stopped is None
+    assert not run(t, twin_volume(tmp_path / "full" / "workspace", t), store).found_nothing
+
+
+def test_the_dry_run_says_what_a_run_would_copy_or_stop_at(world, tmp_path):
+    t, vol, store = world
+    plan = t.plan()
+    take = next(i for i in plan.items if any(":take:" in k for k in i.rows))
+    store.publish(t.data[take.sha256], scope=plan.production_id, media_type=take.media_type)
+    two = replace(take, scopes=(LIBRARY, plan.production_id))
+    still = plan.item(row_sha(t, "r4:still:cutouts/a-proud.png"))
+    planted = tmp_path / "store" / locator_for(still.sha256, still.media_type, still.scopes[0])
+    planted.parent.mkdir(parents=True)
+    planted.write_bytes(b"not those bytes")
+    rows = tuple(r for r in plan.rows if r.sha256 in (take.sha256, still.sha256))
+    report = dry_run(replace(plan, items=(two, still), rows=rows), store=store, now=lambda: NOW)
+    assert {h["sha256"]: h["would"] for h in report["hashes"]} == {take.sha256: COPY,
+                                                                  still.sha256: STOP}
+    assert report["totals"]["reads_at_most"] == 0

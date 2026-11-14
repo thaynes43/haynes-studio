@@ -1,4 +1,4 @@
-import hashlib, json, os, re, stat, sys
+import errno, hashlib, json, os, re, stat, sys
 # Read-only (story 846): prints the bytes of one Wan job's output. The job's ledger,
 # /workspace/jobs/<job_id>.json, must be a regular file of a succeeded job with that id; its output is
 # a relative .mp4 path below /workspace/output, each part a plain name (no '.', '..' or empty part).
@@ -7,7 +7,8 @@ import hashlib, json, os, re, stat, sys
 # descriptor: a regular file (the clip also with one link, at most LIMIT bytes and the size its ledger
 # records), the same inode the lstat saw, read to the end from the descriptor; the clip is hashed. No
 # link is followed below /workspace. Nothing is opened for writing.
-# A refusal is one line, REFUSED <reason>, on stderr and exit status 3, with nothing on stdout.
+# A refusal is one line, REFUSED <reason>, on stderr and exit status 3, with nothing on stdout. Any
+# other error (a permission, an I/O error) is a traceback and exit status 1.
 ROOT = '/workspace'
 LIMIT = 67108864
 LEDGER_LIMIT = 16777216
@@ -16,24 +17,30 @@ held = []
 def refuse(reason):
     sys.stderr.write('REFUSED ' + reason + '\n')
     raise SystemExit(3)
-def step(folder_fd, name, folder):
+def step(folder_fd, name, folder, fixed=False):
+    # A fixed folder of the volume (not one a record names) that is not a plain folder means the
+    # wrong container or a volume not as recorded: REFUSED volume, which stops the whole import.
+    def bad(reason):
+        refuse('volume' if fixed else reason)
     try:
         seen = os.stat(name, dir_fd=folder_fd, follow_symlinks=False)
     except FileNotFoundError:
-        refuse('missing')
+        bad('missing')
     if stat.S_ISLNK(seen.st_mode):
-        refuse('link')
+        bad('link')
     if not (stat.S_ISDIR(seen.st_mode) if folder else stat.S_ISREG(seen.st_mode)):
-        refuse('not_regular')
+        bad('not_regular')
     try:
         fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | (os.O_DIRECTORY if folder else os.O_NONBLOCK),
                      dir_fd=folder_fd)
-    except OSError:
-        refuse('changed')
+    except OSError as error:
+        if error.errno in (errno.ENOENT, errno.ELOOP, errno.ENOTDIR, errno.ENXIO):
+            bad('changed')  # swapped between the lstat and the open
+        raise  # anything else (a permission, an I/O error) is a traceback: the import stops
     held.append(fd)
     st = os.fstat(fd)
     if (st.st_dev, st.st_ino) != (seen.st_dev, seen.st_ino):
-        refuse('changed')
+        bad('changed')
     return fd, st
 def read(fd, st, limit):
     if st.st_size > limit:
@@ -52,7 +59,7 @@ def main():
         refuse('request')
     root = os.open(ROOT, os.O_RDONLY | os.O_DIRECTORY)
     held.append(root)
-    jobs, _ = step(root, 'jobs', True)
+    jobs, _ = step(root, 'jobs', True, fixed=True)
     fd, st = step(jobs, job_id + '.json', False)
     try:
         job = json.loads(bytes(read(fd, st, LEDGER_LIMIT)))
@@ -68,7 +75,7 @@ def main():
             or not all(re.fullmatch('[A-Za-z0-9_][A-Za-z0-9._-]{0,254}', part) for part in parts):
         refuse('outside')
     size = job.get('bytes')
-    fd, _ = step(root, 'output', True)
+    fd, _ = step(root, 'output', True, fixed=True)
     for part in parts[:-1]:
         fd, _ = step(fd, part, True)
     fd, st = step(fd, parts[-1], False)
