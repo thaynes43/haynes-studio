@@ -3,18 +3,22 @@ no legacy file written."""
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import io
 import json
 import os
+import re
 
 import pytest
 
 from haynes_studio import cli
-from haynes_studio.canonical import validate_legacy_import, validate_story
+from haynes_studio.canonical import validate_legacy_import, validate_story, with_derived
 from haynes_studio.cli import main
+from haynes_studio.voice import Engine, voice_facts
 from tests.canonical.fixtures import IMPORT_MAP, NOW, OPERATOR, manifest_path, speech_path
 from tests.support.policy import REPO_ROOT
+from tests.voice.fixtures import held_legacy_r4
 
 OPERATOR_ARGS = ["--operator-iss", OPERATOR["iss"], "--operator-sub", OPERATOR["sub"]]
 
@@ -44,11 +48,54 @@ def _titles_digest() -> dict[str, str]:
 def test_import_with_the_contract_map_prints_a_summary():
     code, out, err = run(*import_args(4, "--map", str(IMPORT_MAP)))
     assert (code, err) == (0, "")
-    first = out.splitlines()[0]
+    first, second = out.splitlines()[:2]
     assert "imported revision 4 as story sty_01M79V9FC00000000000000001" in first
-    assert "9 boards, 13 lines, 17 cues, 3 notes, 1 bed; 1087 frames (45.292 s)" in first
-    assert "IDs: 24 from the map, 45 minted" in first
-    assert "B08 brd_01M79V9FC00000000000000008 shot 8: 251 frames from film frame 728" in out
+    assert "9 boards, 13 lines, 17 cues, 3 notes, 1 bed; IDs: 24 from the map, 45 minted" in first
+    assert "frames" not in first  # a legacy voice times nothing for a build (story 857)
+    assert second == ("  for a build: 8 of 9 boards untimed (voice.stale: a legacy board voice "
+                      "has no assembled track until `studio voice` makes one), 46 frames "
+                      "known; the legacy takes give 1087 frames (45.292 s)")
+    assert ("B08 brd_01M79V9FC00000000000000008 shot 8: untimed (voice.stale; legacy 251 "
+            "frames from film frame 728), layered s2v, voice stale") in out
+    assert "B07 brd_01M79V9FC00000000000000007 shot 7: 46 frames, film start unknown" in out
+    # Nothing stored changes: the written story keeps the import's derived values.
+    code, written, _ = run(*import_args(4, "--map", str(IMPORT_MAP), "--json"))
+    assert code == 0
+    story = json.loads(written)["story"]
+    assert story["derived"]["frames"] == 1087
+    assert {b["derived"]["voice_state"] for b in story["boards"]} == {"current", "not_needed"}
+
+
+_BOARD_LINE = re.compile(r"^  B\d\d (brd_\w+) shot \d+: .*, voice (\w+), photo \w+$", re.M)
+
+
+def _library_states(story, library) -> dict[str, str]:
+    """Each board's voice state as a build reads it: the library's facts (story 406's
+    pre-build check names the current engine)."""
+    facts = voice_facts(library, story, current_engine=Engine().signing_name)
+    return {board["id"]: board["derived"]["voice_state"]
+            for board in with_derived(story, facts=facts)["boards"]}
+
+
+def test_the_summary_gives_each_board_the_voice_state_of_the_librarys_facts():
+    """O-857-4: the import's summary says what ``Library.facts`` says for the same story,
+    before and after ``studio voice`` (story 405's voice job, which it runs per board)."""
+    code, out, err = run(*import_args(4, "--map", str(IMPORT_MAP)))
+    assert (code, err) == (0, "")
+    summary = dict(_BOARD_LINE.findall(out))
+    assert len(summary) == 9
+    studio = held_legacy_r4()  # the same import, with story 382's library; takes held
+    imported = copy.deepcopy(studio.story)
+    assert summary == _library_states(imported, studio.library)
+    assert sorted(set(summary.values())) == ["not_needed", "stale"]
+
+    studio.generate_all()
+    assert studio.calls == 0  # every take was held: tracks only
+    # The imported story still names the legacy voices: still stale, as the summary says.
+    assert summary == _library_states(imported, studio.library)
+    # The voiced draft names the new versions with tracks: current, as `studio voice` says.
+    assert _library_states(studio.story, studio.library) == {
+        board: "current" if state == "stale" else state for board, state in summary.items()}
 
 
 def test_json_output_is_a_valid_story_and_map():

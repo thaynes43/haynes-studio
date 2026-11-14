@@ -446,7 +446,9 @@ graph's), `frames_requested`, `frames_delivered`,
 GPU's temperature and utilization at the passing probe right before the run),
 `cool_before_upload` (the first passing probe's `cooldown_s` and `start_temps`; `null`
 for a recovered clip), `render_s`, `fetch_s`,
-`wall_s`, the job's `created`, `started` and `finished` times, `admission_readback_at`,
+`wall_s`, the job's times as `job_created_at`, `job_started_at` and `job_finished_at` (the
+ledger's `created_at`, `started_at` and `finished_at`, seconds since the epoch, or `null`
+when the ledger gives none), `admission_readback_at`,
 `engine_read_retries`, `poll_misses`, `unexpected_work_seen`, `telemetry_tail` (last
 three GPU samples), `peak_gpu_mib`, `recovered`, `at`; for speech-to-video also `method`, `chunks`,
 `board_frames`, `frames_needed` (TIME-8), `drive_samples` and `drive_rate`. For the

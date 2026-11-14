@@ -14,13 +14,15 @@ import os
 import re
 import sys
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TextIO
 from urllib.parse import urlsplit
 
 from haynes_studio import __version__
+from haynes_studio.canonical import with_derived
+from haynes_studio.canonical.facts import Facts
 from haynes_studio.canonical.ids import is_id
 from haynes_studio.canonical.jsonvalues import MAX_DEPTH, too_deep
 from haynes_studio.canonical.legacy_import import import_manifest
@@ -359,7 +361,8 @@ def _import(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
         return OK
     story = result.story
     boards = story["boards"]
-    derived = story["derived"]
+    legacy = story["derived"]
+    for_build = with_derived(story, facts=_build_facts(result), source=manifest.source)
     given = f", {result.given} given" if result.given else ""
     out.write(
         f"{manifest.source}: imported revision {manifest.revision} as story {story['id']} "
@@ -368,18 +371,46 @@ def _import(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
         f"{_count(sum(len(b['lines']) for b in boards), 'line')}, "
         f"{_count(sum(len(b['cues']) for b in boards), 'cue')}, "
         f"{_count(sum(len(b['notes']) for b in boards), 'note')}, "
-        f"{_count(len(story['beds']), 'bed')}; {derived['frames']} frames "
-        f"({display_seconds(derived['frames'])} s); IDs: {result.reused} from the map, "
+        f"{_count(len(story['beds']), 'bed')}; IDs: {result.reused} from the map, "
         f"{result.minted} minted{given}\n")
-    for board, number in ((b, b["number"]) for b in boards):
-        d = board["derived"]
-        out.write(f"  B{number:02d} {board['id']} shot {board['origin']['legacy_shot']}: "
-                  f"{d['frames']} frames from film frame {d['film_start_frame']}, "
-                  f"{board['method']['layer']} {board['method']['motion']}, voice "
-                  f"{d['voice_state']}, photo {d['photo_state']}\n")
+    built = for_build["derived"]
+    reasons = sorted({f"voice.{b['derived']['voice_state']}" for b in for_build["boards"]
+                      if b["derived"]["frames"] is None})
+    why = ("a legacy board voice has no assembled track until `studio voice` makes one"
+           if reasons == ["voice.stale"] else "")
+    untimed = (f"{built['untimed_boards']} of {_count(built['board_count'], 'board')} untimed "
+               f"({', '.join(reasons)}{': ' + why if why else ''}), {built['frames']} frames "
+               "known" if built["untimed_boards"]
+               else f"timed at {built['frames']} frames ({display_seconds(built['frames'])} s)")
+    out.write(f"  for a build: {untimed}; the legacy takes give {legacy['frames']} "
+              f"frames ({display_seconds(legacy['frames'])} s)\n")
+    for board, read in zip(boards, for_build["boards"]):
+        d, old = read["derived"], board["derived"]
+        if d["frames"] is None:
+            timing = (f"untimed (voice.{d['voice_state']}; legacy {old['frames']} frames from "
+                      f"film frame {old['film_start_frame']})")
+        elif d["film_start_frame"] is None:
+            timing = f"{d['frames']} frames, film start unknown"
+        else:
+            timing = f"{d['frames']} frames from film frame {d['film_start_frame']}"
+        out.write(f"  B{board['number']:02d} {board['id']} shot "
+                  f"{board['origin']['legacy_shot']}: {timing}, {board['method']['layer']} "
+                  f"{board['method']['motion']}, voice {d['voice_state']}, photo "
+                  f"{d['photo_state']}\n")
     if out_dir is not None:
         out.write(f"wrote {out_dir / STORY_FILE} and {out_dir / MAP_FILE}\n")
     return OK
+
+
+def _build_facts(result) -> Facts:
+    """The facts the library gives the imported story for a build (O-857-4). Each board
+    voice the import names is a legacy version: one WAV per line and no assembled track
+    (story 382 records ``track: null``), which ``Library.facts`` calls stale (story 857)
+    until ``studio voice`` makes a version with a track. The written story and map keep
+    the import's own derived values, the legacy takes' timing; only the summary reads
+    these."""
+    return Facts.build(voices=[replace(voice, matches_board=False)
+                               for voice in result.facts.voice_versions.values()])
 
 
 def _write_outputs(out_dir: Path, result, err: TextIO) -> list[Path] | None:
