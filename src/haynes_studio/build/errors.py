@@ -15,7 +15,6 @@ from typing import Any
 from haynes_studio.errors import ContractError
 
 # Proposals (story 406), not yet in the contract's rule index.
-CLIP_SOURCES_UNWIRED = "build.clip_sources_unwired"  # the live clip-source hook is not filled
 OFFLINE_MISSING = "build.offline_missing"  # the offline phase needs an artifact no run made
 CHECK_FAILED = "build.check_failed"  # a check on the master did not pass; nothing delivered
 DELIVERY_UNVERIFIED = "build.delivery_unverified"  # the delivery did not read back as made
@@ -24,9 +23,14 @@ RUN_UNKNOWN = "run.unknown"  # no such run in the production
 VOICE_TRACK_MISSING = "build.voice_track_missing"  # a current board voice with no track
 RUN_UNRECORDED = "build.run_unrecorded"  # a run's failure could not be written to its record
 INTERNAL = "build.internal"  # an exception that carries no code (a bug, or the system)
+# Proposals (story 851): the live clip sources.
+WAN_UNSETTLED = "build.wan_unsettled"  # the Wan journal holds a job made for another request
+LIVE_UNSUPPORTED = "build.live_unsupported"  # a clip key the Wan client cannot make as asked
+DRY_RUN_ASKED = "build.dry_run_asked"  # a dry run's source was asked for a clip (a bug)
 
-CODES = (CLIP_SOURCES_UNWIRED, OFFLINE_MISSING, CHECK_FAILED, DELIVERY_UNVERIFIED,
-         RUN_TRANSITION, RUN_UNKNOWN, VOICE_TRACK_MISSING, RUN_UNRECORDED, INTERNAL)
+CODES = (OFFLINE_MISSING, CHECK_FAILED, DELIVERY_UNVERIFIED, RUN_TRANSITION, RUN_UNKNOWN,
+         VOICE_TRACK_MISSING, RUN_UNRECORDED, INTERNAL, WAN_UNSETTLED, LIVE_UNSUPPORTED,
+         DRY_RUN_ASKED)
 
 
 class BuildError(Exception):
@@ -104,6 +108,26 @@ def failure_of(error: BaseException, *, board_id: str | None = None,
     return Failure(INTERNAL, _short(f"{type(error).__name__}: {error}"), board_id, None, stage)
 
 
+class RunHeld(BuildError):
+    """A live clip source stopped the phase (story 851): the run is recorded ``held``,
+    a safety stop that resumes only after a person reconciles it (contract section 8),
+    never by submitting again. ``code`` is the Wan client's refusal (or
+    ``build.wan_unsettled``), ``job_id`` the Wan job it names (if any), ``check`` what a
+    person must check before anything is asked of the Wan service again; ``detail`` is
+    plain JSON for the run's record (the journal path, the job the journal holds, the
+    halt, clips collected before the stop)."""
+
+    def __init__(self, code: str, message: str, *, job_id: str | None, check: str,
+                 detail: dict[str, Any], stage: str | None = None):
+        self.job_id = job_id
+        self.check = check
+        self.detail = detail
+        problem = {"rule": code, "status": "held", "job_id": job_id, "check": check, **detail}
+        job = f" (Wan job {job_id})" if job_id else ""
+        super().__init__(code, f"held{job}: {message}. Nothing further was submitted. Check: "
+                         f"{check}", stage=stage, problems=(problem,))
+
+
 class RunUnrecorded(BuildError):
     """A run failed and its failure could not be written (a store or transition error):
     the build raises this instead of returning, so nothing reports the run as done.
@@ -112,7 +136,8 @@ class RunUnrecorded(BuildError):
     ``unread_delivery`` that a delivery stage may exist whose ID could not be read."""
 
     def __init__(self, *, run_id: str, failure: Failure, error: BaseException,
-                 delivery_id: str | None = None, unread_delivery: bool = False):
+                 delivery_id: str | None = None, unread_delivery: bool = False,
+                 status: str = "failed"):
         self.run_id = run_id
         self.failure = failure
         self.delivery_id = delivery_id
@@ -124,13 +149,13 @@ class RunUnrecorded(BuildError):
         else:
             delivery = "no delivery of this run was published"
         super().__init__(
-            RUN_UNRECORDED, f"run {run_id} failed and its failure could not be recorded "
+            RUN_UNRECORDED, f"run {run_id} {status} and its stop could not be recorded "
             f"({write.code}: {write.message}), so its stored state may still read `running`; "
-            f"{delivery}. The failure: {failure.code}: {failure.message}",
+            f"{delivery}. Why it stopped: {failure.code}: {failure.message}",
             board_id=failure.board_id, stage=failure.stage)
 
 
-__all__ = ["BuildError", "CODES", "CHECK_FAILED", "CLIP_SOURCES_UNWIRED",
-           "DELIVERY_UNVERIFIED", "Failure", "INTERNAL", "OFFLINE_MISSING", "RUN_TRANSITION",
-           "RUN_UNKNOWN", "RUN_UNRECORDED", "RunUnrecorded", "VOICE_TRACK_MISSING",
-           "failure_of"]
+__all__ = ["BuildError", "CODES", "CHECK_FAILED", "DELIVERY_UNVERIFIED", "DRY_RUN_ASKED",
+           "Failure", "INTERNAL", "LIVE_UNSUPPORTED", "OFFLINE_MISSING", "RUN_TRANSITION",
+           "RUN_UNKNOWN", "RUN_UNRECORDED", "RunHeld", "RunUnrecorded", "VOICE_TRACK_MISSING",
+           "WAN_UNSETTLED", "failure_of"]

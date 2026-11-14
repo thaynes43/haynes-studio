@@ -7,7 +7,9 @@
 - :mod:`.run`: run states and transitions, and the run record on the store.
 - :mod:`.validate`: ``studio.run/v1`` and ``studio.run-snapshot/v1``.
 - :mod:`.sources`: the clip sources of each phase, and :func:`live_clip_sources`, the
-  hook the command line asks for live clip sources (not wired yet).
+  hook the command line asks for the live clip sources (story 851, :mod:`.live`).
+- :mod:`.live`: the Wan clip sources, the store's one journal, the held stop, the dry
+  run's clip list and its E0 estimate.
 - :mod:`.transcript`: the transcript check behind a :class:`~.transcript.Transcriber`.
 - :mod:`.provenance`: engines, licences and public credits from the licence register.
 - :mod:`.voice`: a story's board voices before a build (``studio voice``).
@@ -19,7 +21,7 @@ Importing this package starts no process and reads no environment. Reference:
 
 from __future__ import annotations
 
-from haynes_studio.build.errors import BuildError, Failure, RunUnrecorded, failure_of
+from haynes_studio.build.errors import BuildError, Failure, RunHeld, RunUnrecorded, failure_of
 from haynes_studio.build.pipeline import (
     ALL,
     OFFLINE,
@@ -45,7 +47,8 @@ from haynes_studio.build.voice import make_story_voices
 
 __all__ = [
     "ALL", "BuildError", "BuildInputs", "BuildResult", "ClipSources", "Failure", "OFFLINE",
-    "OfflineClipSource", "OfflineS2VSource", "PHASES", "RunRecords", "RunUnrecorded", "SERVICE",
+    "OfflineClipSource", "OfflineS2VSource", "PHASES", "RunHeld", "RunRecords", "RunUnrecorded",
+    "SERVICE",
     "Transcriber",
     "WhisperTranscriber", "build_story", "build_toolchain", "failure_of", "live_clip_sources",
     "local_run_ids", "make_story_voices", "media_format", "offline_sources", "validate_run",

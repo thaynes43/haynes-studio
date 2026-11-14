@@ -8,9 +8,9 @@ every call with ``build.offline_missing`` naming the artifact the cache lacks. S
 offline build of a story whose clips are all cached needs no client at all, and one
 whose clips are not stops before anything is asked of a service.
 
-:func:`live_clip_sources` is the one place the live clients will be made. Story 842's
-Wan clients are not on ``main`` yet, so it raises ``build.clip_sources_unwired``; a
-later story fills it. Nothing below the command line constructs a live client.
+:func:`live_clip_sources` is the one place the live clip sources are made (story 851):
+the Wan clients of story 842 on the store's one journal (:mod:`.live`). Only the
+command line calls it, and the client itself is made on the first clip request.
 
 :class:`RecordingS2VSource` and :class:`RecordingClipSource` are the local pass's
 sources (the build's first pass, before any clip is asked of a phase's sources): each
@@ -20,10 +20,12 @@ clip, so the adapter commits nothing and the pass answers that clip with a stand
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
-from haynes_studio.build.errors import CLIP_SOURCES_UNWIRED, OFFLINE_MISSING, BuildError
+from haynes_studio.build.errors import OFFLINE_MISSING, BuildError
 from haynes_studio.layered.source import S2VClip, S2VRequest, S2VSource
 from haynes_studio.wholeframe.source import ClipRequest, ClipSource, SourceClip
 
@@ -31,10 +33,18 @@ from haynes_studio.wholeframe.source import ClipRequest, ClipSource, SourceClip
 @dataclass(frozen=True)
 class ClipSources:
     """The clip sources one build uses: speech-to-video (layered) and image-to-video
-    chains (whole-frame)."""
+    chains (whole-frame). Live sources (story 851) also give ``check``, run on every
+    request of the local pass before any clip is asked for (it sends nothing),
+    ``stopped``, the stop a source latched while still returning a clip it kept (foreign
+    work seen during a job whose clip passed its checks): the build ends ``held`` right
+    after that clip is cached, and ``bind``, given the run's artifact cache before any
+    clip is asked for, on which the chain source keeps each clip it collects."""
 
     s2v: S2VSource
     i2v: ClipSource
+    check: Callable[[S2VRequest | ClipRequest], None] | None = None
+    stopped: Callable[[], BuildError | None] | None = None
+    bind: Callable[[Any], None] | None = None
 
 
 class OfflineS2VSource(S2VSource):
@@ -105,14 +115,24 @@ def recording_sources() -> ClipSources:
     return ClipSources(s2v=RecordingS2VSource(), i2v=RecordingClipSource())
 
 
-def live_clip_sources() -> ClipSources:
-    """The live clip sources of the service phase: the Wan clients of story 842, each
-    through the Wan API's compute lease. **Not wired yet**: story 842 is in review, and
-    a later story fills this hook once it merges. Until then the service phase stops
-    here with ``build.clip_sources_unwired``; the offline phase never calls it."""
-    raise BuildError(CLIP_SOURCES_UNWIRED, "the live clip sources are not wired yet: the Wan "
-                     "clip clients (story 842) are not on main. Build from cached clips with "
-                     "`studio build --offline`", stage="service")
+def live_clip_sources(store_root: str | Path, *, story: str, runner: Any = None,
+                      dry_run: bool = False,
+                      client_options: Mapping[str, Any] | None = None) -> ClipSources:
+    """The live clip sources of the service phase (and a full build): story 842's Wan
+    clip client on the store's one journal, ``<store root>/wan-journal.jsonl``, through
+    ``runner`` (the real ``kubectl exec`` runner when ``None``). ``story`` is the full
+    work package URL the Wan ledger records each job under. With ``dry_run`` no client
+    is made and the sources refuse every call; ``check`` still builds and checks every
+    request. Making these sources contacts nothing and reads no journal: the client is
+    made, and loads the journal, on the first clip request. ``client_options`` are the
+    client's test hooks (``clock``, ``wall``, ``sleep``, ``new_job_id``). See
+    :mod:`.live`; the offline phase never calls this."""
+    from haynes_studio.build.live import live_sources  # noqa: PLC0415 - the hook's own module
+    parts = live_sources(store_root, story=story, runner=runner, dry_run=dry_run,
+                         client_options=client_options)
+    clips = parts.clips
+    return ClipSources(s2v=parts.s2v, i2v=parts.i2v, check=parts.check,
+                       stopped=None if clips is None else (lambda: clips.stopped), bind=parts.bind)
 
 
 __all__ = ["ClipRequested", "ClipSources", "OfflineClipSource", "OfflineS2VSource",

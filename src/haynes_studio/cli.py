@@ -157,6 +157,14 @@ def _build_parsers(commands) -> None:
                             "i2v_clip_frames, prompts)")
     build.add_argument("--studio-commit", default="unknown", metavar="SHA",
                        help="the studio commit the run records as git:<SHA>")
+    build.add_argument("--wan-story", metavar="URL",
+                       help="the work package (a full https://work.haynesnetwork.com/"
+                            "work_packages/<id> URL) the Wan ledger records each clip job "
+                            "under; needed by every phase but --offline")
+    build.add_argument("--dry-run", action="store_true",
+                       help="with --phase service: the pre-build check, the local pass and "
+                            "the mix, then list the clip jobs it would request with their "
+                            "E0 GPU time; asks nothing of a service")
     build.set_defaults(handler=_build)
 
     run = commands.add_parser("run", help="read a run's record",
@@ -524,6 +532,18 @@ def _live_speech() -> Any:
     return KokoroClient(SubprocessRunner())
 
 
+def _live_wan_runner() -> Any:
+    """The real runner for story 842's Wan clip client (``kubectl exec``), made here and
+    nowhere else; the client itself is made on the first clip request."""
+    from haynes_studio.adapters.runner import SubprocessRunner
+    return SubprocessRunner()
+
+
+def _no_wan_runner() -> Any:
+    raise RuntimeError("no Wan runner was given: pass Clients(wan_runner=...) (tests: a "
+                       "FakeRunner over FakeWan)")
+
+
 def _live_transcriber() -> Any:
     """Story 425's Whisper client with the real runner, as the build's transcriber."""
     from haynes_studio.adapters.runner import SubprocessRunner
@@ -535,14 +555,16 @@ def _live_transcriber() -> Any:
 @dataclass(frozen=True)
 class Clients:
     """The live clients the command line makes (tests pass fakes): the speech client
-    for ``studio voice`` and the transcriber for ``studio build``. The clip sources of
-    the service phase come from the hook ``haynes_studio.build.live_clip_sources``."""
+    for ``studio voice``, the transcriber for ``studio build``, and the runner of the Wan
+    clip client, which the hook ``haynes_studio.build.live_clip_sources`` is given for
+    the service phase (story 851). Only ``LIVE`` has a real Wan runner."""
 
     speech: Callable[[], Any]
     transcriber: Callable[[], Any]
+    wan_runner: Callable[[], Any] = _no_wan_runner
 
 
-LIVE = Clients(speech=_live_speech, transcriber=_live_transcriber)
+LIVE = Clients(speech=_live_speech, transcriber=_live_transcriber, wan_runner=_live_wan_runner)
 
 
 def _operator(args: argparse.Namespace, command: str, err: TextIO) -> dict | None:
@@ -641,12 +663,20 @@ def _build(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
         print("studio: --workers is at least 1", file=err)
         return USAGE
     phase = "offline" if args.offline else (args.phase or "all")
-    try:
-        sources = studio_build.offline_sources() if phase == "offline" else \
-            studio_build.live_clip_sources()
-    except studio_build.BuildError as error:
-        print(f"{args.story}: rule {error.code}: {error.message}", file=err)
-        return FAILED
+    if args.dry_run and phase != "service":
+        print("studio: --dry-run is a dry run of --phase service", file=err)
+        return USAGE
+    if phase == "offline":
+        sources = studio_build.offline_sources()
+    else:
+        from haynes_studio.adapters.wan import STORY as WAN_STORY
+        if not isinstance(args.wan_story, str) or not WAN_STORY.fullmatch(args.wan_story):
+            print("studio: --wan-story is a full https://work.haynesnetwork.com/work_packages/"
+                  "<id> URL (the Wan ledger records each clip job under it)", file=err)
+            return USAGE
+        sources = studio_build.live_clip_sources(
+            args.store, story=args.wan_story, dry_run=args.dry_run,
+            runner=None if args.dry_run else args.clients.wan_runner())
     story, library = _read_inputs(args)
     store = _store(args.store)
     production = story.get("production_id")
@@ -660,9 +690,9 @@ def _build(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
     try:
         result = studio_build.build_story(
             inputs, store=store, phase=phase, sources=sources,
-            transcriber=None if phase == "offline" else args.clients.transcriber(),
+            transcriber=None if phase == "offline" or args.dry_run else args.clients.transcriber(),
             actor=operator, earlier_runs=earlier, workers=args.workers,
-            run_number=len(earlier) + 1)
+            run_number=len(earlier) + 1, dry_run=args.dry_run)
     except PreflightError as error:  # nothing to snapshot: no run is made
         for problem in error.report.blocking:
             print(f"{args.story}: rule {problem.rule} at {problem.where} field "
@@ -672,11 +702,22 @@ def _build(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
         print(f"{args.story}: rule {error.code}: {error.message}", file=err)
         return FAILED
     run = result.run
+    report = None
+    if args.dry_run and run["status"] == "cancelled":
+        from haynes_studio.build.live import dry_run_report, e0_clips
+        report = dry_run_report(result.planned, e0_clips())
     if args.json:
-        print(json.dumps(run, indent=2, ensure_ascii=False), file=out)
+        document = run if report is None else {"run": run, "dry_run": report}
+        print(json.dumps(document, indent=2, ensure_ascii=False), file=out)
     else:
         print(_run_summary(run), file=out)
-    if run["status"] == "failed":
+        if report is not None:
+            from haynes_studio.build.live import dry_run_text
+            print(f"dry run: {len(result.planned)} clip job(s) would be requested, in this "
+                  "order (nothing was asked of a service):", file=out)
+            if result.planned:
+                print(dry_run_text(report), file=out)
+    if run["status"] in ("failed", "held"):  # held: a safety stop a person reconciles
         e = run["error"]
         where = f" at board {e['board_id']}" if e.get("board_id") else ""
         print(f"{args.story}: rule {e['code']}{where} (stage {e.get('stage')}): {e['message']}",
