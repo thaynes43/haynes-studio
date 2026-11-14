@@ -1,0 +1,102 @@
+dry run: 156 rows, 101 distinct hashes; to_read 132, not_read 24; at most 129 reads; nothing read or written
+  c71ba33b3e037a13 not_read 1 rows: not_read: a ComfyUI render; this import reads only the Wan volume (story 846 scope); a layered build does not need it
+  e8c238814ca74924 not_read 1 rows: not_read: a ComfyUI render; this import reads only the Wan volume (story 846 scope); a layered build does not need it
+  ff4713d78698b1d2 not_read 1 rows: not_read: a ComfyUI render; this import reads only the Wan volume (story 846 scope); a layered build does not need it
+  ca15cbee044fdf46 not_read 1 rows: not_read: a ComfyUI render; this import reads only the Wan volume (story 846 scope); a layered build does not need it
+  4fb4f4572fb090be not_read 1 rows: not_read: a ComfyUI render; this import reads only the Wan volume (story 846 scope); a layered build does not need it
+  8e13cbdc905ff6d0 not_read 1 rows: not_read: a ComfyUI render; this import reads only the Wan volume (story 846 scope); a layered build does not need it
+  677b7a17adc90188 not_read 1 rows: not_read: a ComfyUI render; this import reads only the Wan volume (story 846 scope); a layered build does not need it
+  29ab6f47227cee7a to_read  5 rows: kind=ledger_asset ledger_id=00912e801c3c4ef3a3d7c9879faf5a32, kind=ledger_asset ledger_id=3fad3455774d4ee2a22b50f563c821be, kind=ledger_asset ledger_id=11d41839ef134a76abe46370105a99fe, kind=ledger_asset ledger_id=032f1bb230794aaf84dce9001181a7d7
+  4ea3005f4effebda to_read  4 rows: kind=ledger_asset ledger_id=00912e801c3c4ef3a3d7c9879faf5a32, kind=ledger_asset ledger_id=3fad3455774d4ee2a22b50f563c821be, kind=ledger_asset ledger_id=11d41839ef134a76abe46370105a99fe, kind=ledger_asset ledger_id=032f1bb230794aaf84dce9001181a7d7
+  d44fc8299598c56e to_read  4 rows: kind=ledger_asset ledger_id=00912e801c3c4ef3a3d7c9879faf5a32, kind=ledger_asset ledger_id=3fad3455774d4ee2a22b50f563c821be, kind=ledger_asset ledger_id=11d41839ef134a76abe46370105a99fe, kind=ledger_asset ledger_id=032f1bb230794aaf84dce9001181a7d7
+  a49b2c3046f385d4 to_read  4 rows: kind=ledger_asset ledger_id=00912e801c3c4ef3a3d7c9879faf5a32, kind=ledger_asset ledger_id=3fad3455774d4ee2a22b50f563c821be, kind=ledger_asset ledger_id=11d41839ef134a76abe46370105a99fe, kind=ledger_asset ledger_id=032f1bb230794aaf84dce9001181a7d7
+  83bcdb10da26bb27 to_read  1 rows: kind=ledger_asset ledger_id=00912e801c3c4ef3a3d7c9879faf5a32
+  022ac97a623c88bf to_read  4 rows: kind=ledger_asset ledger_id=00912e801c3c4ef3a3d7c9879faf5a32, kind=ledger_asset ledger_id=3fad3455774d4ee2a22b50f563c821be, kind=ledger_asset ledger_id=11d41839ef134a76abe46370105a99fe, kind=ledger_asset ledger_id=032f1bb230794aaf84dce9001181a7d7
+  b816a4f225e160a6 to_read  4 rows: kind=ledger_asset ledger_id=00912e801c3c4ef3a3d7c9879faf5a32, kind=ledger_asset ledger_id=3fad3455774d4ee2a22b50f563c821be, kind=ledger_asset ledger_id=11d41839ef134a76abe46370105a99fe, kind=ledger_asset ledger_id=032f1bb230794aaf84dce9001181a7d7
+  3d9c9d223ebc0137 to_read  4 rows: kind=ledger_asset ledger_id=00912e801c3c4ef3a3d7c9879faf5a32, kind=ledger_asset ledger_id=3fad3455774d4ee2a22b50f563c821be, kind=ledger_asset ledger_id=11d41839ef134a76abe46370105a99fe, kind=ledger_asset ledger_id=032f1bb230794aaf84dce9001181a7d7
+  78c5f69ff31758d2 to_read  4 rows: kind=ledger_asset ledger_id=00912e801c3c4ef3a3d7c9879faf5a32, kind=ledger_asset ledger_id=3fad3455774d4ee2a22b50f563c821be, kind=ledger_asset ledger_id=11d41839ef134a76abe46370105a99fe, kind=ledger_asset ledger_id=032f1bb230794aaf84dce9001181a7d7
+  b9fa04b49038c15c to_read  4 rows: kind=ledger_asset ledger_id=00912e801c3c4ef3a3d7c9879faf5a32, kind=ledger_asset ledger_id=3fad3455774d4ee2a22b50f563c821be, kind=ledger_asset ledger_id=11d41839ef134a76abe46370105a99fe, kind=ledger_asset ledger_id=032f1bb230794aaf84dce9001181a7d7
+  7d5d2d890c1072a2 to_read  4 rows: kind=ledger_asset ledger_id=00912e801c3c4ef3a3d7c9879faf5a32, kind=ledger_asset ledger_id=3fad3455774d4ee2a22b50f563c821be, kind=ledger_asset ledger_id=11d41839ef134a76abe46370105a99fe, kind=ledger_asset ledger_id=032f1bb230794aaf84dce9001181a7d7
+  6efd27569ac328e1 to_read  4 rows: kind=ledger_asset ledger_id=00912e801c3c4ef3a3d7c9879faf5a32, kind=ledger_asset ledger_id=3fad3455774d4ee2a22b50f563c821be, kind=ledger_asset ledger_id=11d41839ef134a76abe46370105a99fe, kind=ledger_asset ledger_id=032f1bb230794aaf84dce9001181a7d7
+  24eb53ba095394e0 to_read  1 rows: kind=ledger_asset ledger_id=00912e801c3c4ef3a3d7c9879faf5a32
+  58f6812299d32034 to_read  2 rows: kind=ledger_asset ledger_id=00912e801c3c4ef3a3d7c9879faf5a32, kind=ledger_asset ledger_id=3fad3455774d4ee2a22b50f563c821be
+  5515c7006ce09a1c to_read  3 rows: kind=ledger_asset ledger_id=3fad3455774d4ee2a22b50f563c821be, kind=ledger_asset ledger_id=11d41839ef134a76abe46370105a99fe, kind=ledger_asset ledger_id=032f1bb230794aaf84dce9001181a7d7
+  0b33af45929b8cfb not_read 3 rows: never_delivered: poc/deliver.py copied no bed to the Wan volume; its only recorded copies were in earlier sessions' job folders, which this import does not read. Its replacement is a new sound version (story 428, D54), never a repointed old one
+  0063d7e0e0d8a551 to_read  3 rows: kind=ledger_asset ledger_id=3fad3455774d4ee2a22b50f563c821be, kind=ledger_asset ledger_id=11d41839ef134a76abe46370105a99fe, kind=ledger_asset ledger_id=032f1bb230794aaf84dce9001181a7d7
+  f89e05a2c53e9be7 to_read  3 rows: kind=ledger_asset ledger_id=3fad3455774d4ee2a22b50f563c821be, kind=ledger_asset ledger_id=11d41839ef134a76abe46370105a99fe, kind=ledger_asset ledger_id=032f1bb230794aaf84dce9001181a7d7
+  4e12138ee373ac45 to_read  3 rows: kind=ledger_asset ledger_id=3fad3455774d4ee2a22b50f563c821be, kind=ledger_asset ledger_id=11d41839ef134a76abe46370105a99fe, kind=ledger_asset ledger_id=032f1bb230794aaf84dce9001181a7d7
+  a9c01ef381a0f0d0 to_read  2 rows: kind=ledger_asset ledger_id=11d41839ef134a76abe46370105a99fe, kind=ledger_asset ledger_id=032f1bb230794aaf84dce9001181a7d7
+  aadcc283d15fb7a0 to_read  2 rows: kind=ledger_asset ledger_id=11d41839ef134a76abe46370105a99fe, kind=ledger_asset ledger_id=032f1bb230794aaf84dce9001181a7d7
+  46bf17ecaa3a9729 to_read  2 rows: kind=ledger_asset ledger_id=11d41839ef134a76abe46370105a99fe, kind=ledger_asset ledger_id=032f1bb230794aaf84dce9001181a7d7
+  37e81c9db699303d to_read  2 rows: kind=ledger_asset ledger_id=11d41839ef134a76abe46370105a99fe, kind=ledger_asset ledger_id=032f1bb230794aaf84dce9001181a7d7
+  1dadd22ef158db12 to_read  2 rows: kind=ledger_asset ledger_id=11d41839ef134a76abe46370105a99fe, kind=ledger_asset ledger_id=032f1bb230794aaf84dce9001181a7d7
+  1e5206395dc510de to_read  2 rows: kind=ledger_asset ledger_id=11d41839ef134a76abe46370105a99fe, kind=ledger_asset ledger_id=032f1bb230794aaf84dce9001181a7d7
+  5fc1718e8659568b to_read  2 rows: kind=ledger_asset ledger_id=11d41839ef134a76abe46370105a99fe, kind=ledger_asset ledger_id=032f1bb230794aaf84dce9001181a7d7
+  9b3ba267baecf440 to_read  2 rows: kind=ledger_asset ledger_id=11d41839ef134a76abe46370105a99fe, kind=ledger_asset ledger_id=032f1bb230794aaf84dce9001181a7d7
+  3cd7c24827ff5c87 to_read  1 rows: kind=ledger_asset ledger_id=11d41839ef134a76abe46370105a99fe
+  1be02e6d7b243b57 to_read  1 rows: kind=ledger_asset ledger_id=032f1bb230794aaf84dce9001181a7d7
+  e4772edc3fe3f0f9 to_read  2 rows: kind=upload name=e4772edc3fe3f0f9.png
+  c146760e9f500194 to_read  1 rows: kind=upload name=c146760e9f500194.png
+  ba88a2f9ecf4a543 to_read  2 rows: kind=upload name=ba88a2f9ecf4a543.png
+  47146e2c14a27387 to_read  1 rows: kind=upload name=47146e2c14a27387.png
+  6c270139b4beb523 to_read  1 rows: kind=upload name=6c270139b4beb523.png
+  e66494d67f4cc0fd to_read  1 rows: kind=upload name=e66494d67f4cc0fd.png
+  f10f0460ba764d09 to_read  1 rows: kind=upload name=f10f0460ba764d09.png
+  752adc5daa13f6bb not_read 1 rows: not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it
+  230143c8a8e43a86 not_read 1 rows: not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it
+  471b01eae12e690b not_read 1 rows: not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it
+  62bf5d9613fe46a0 not_read 1 rows: not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it
+  b0aaf071e0461d3e not_read 1 rows: not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it
+  479eed5d63b7c7ee not_read 1 rows: not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it
+  7f043d1023286a2d not_read 1 rows: not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it
+  55c8fa8c853ec396 not_read 1 rows: not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it
+  3b1b3d9255c62f42 not_read 1 rows: not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it
+  193177033bff9e2a not_read 1 rows: not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it
+  fd9d8bae8f427d66 not_read 1 rows: not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it
+  e57673a0f3714bf1 not_read 1 rows: not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it
+  f0a8dbd0840f5b39 not_read 1 rows: not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it
+  d9992080f596d711 to_read  1 rows: kind=job_output job_id=54ca6526eb194d6d9332125121e2b671
+  f0a8e332f0729899 to_read  1 rows: kind=job_output job_id=37c7cdbc95ef42a5974f7bbaacf1b2a3
+  78cca47e1acaa9d0 not_read 1 rows: not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it
+  0b4deff131ec1312 to_read  1 rows: kind=job_output job_id=8b5a72ca7bf140b19a46e2850b857d8a
+  926390f7bcc84db3 to_read  1 rows: kind=job_output job_id=702c5f3df25b4c7eb4a8f22a18a6951e
+  aa9259b21d9f8330 to_read  1 rows: kind=job_output job_id=9a2826f2c96b4dcf9fc575da4f5373ac
+  93bd81a9abc83047 to_read  1 rows: kind=job_output job_id=0a367c98e816433db1932ecb66a7d5a9
+  9dbbb6fb64200abe to_read  1 rows: kind=job_output job_id=9526880c665b410e98aaaffe41cf5cdc
+  fd2970bd83442c0e to_read  1 rows: kind=job_output job_id=7e93087862964b0895f506e3b79ac17d
+  a5e78a06cb61d7a4 to_read  1 rows: kind=job_output job_id=78ab024d7ef94c748c9cbc4852f53681
+  a6b407c1524889d1 to_read  1 rows: kind=job_output job_id=1a18b5ffc74c4bbb90c3b0ab0c1a5826
+  7e33e2af4191305d to_read  1 rows: kind=job_output job_id=470f752ba6a94b669285640e94f14839
+  6fe52ffe86cf89ca to_read  1 rows: kind=job_output job_id=168dedaaf3924b728561a1ac04692f27
+  826102130bf4d0f5 to_read  1 rows: kind=job_output job_id=2538305ed890482ab4b3e9f34ed415d7
+  a8b3c99398404bc0 to_read  1 rows: kind=job_output job_id=34497097d16c4399a52ef5b91e37d49e
+  99bb233949e7a55e to_read  1 rows: kind=job_output job_id=f5f5810b05624ff79184e2fda8d92a7c
+  74f907176942d8d4 to_read  1 rows: kind=job_output job_id=ff904c170a4c4297b77b034250873f41
+  212a367137c6c48a to_read  1 rows: kind=job_output job_id=f6e3382574194f0c9a924e79e8403d66
+  8e52ab9757a89c1a to_read  1 rows: kind=job_output job_id=05dc689efcf045f4a2d91a599bbd0783
+  63e46a77e6d9893e to_read  1 rows: kind=job_output job_id=e78b578cb7854833925923d5eadc3ae8
+  9b7cf09be182f60e to_read  1 rows: kind=job_output job_id=16511c38febb4dce9685032e4fded5cf
+  e374d989cbf680d3 to_read  1 rows: kind=job_output job_id=45c99fea53194cbeb863e30000a2b102
+  43d23be5b2ba6631 to_read  1 rows: kind=job_output job_id=6384aa908ee84be8ae25aacae1e00fb0
+  c91aa9149458437a to_read  1 rows: kind=upload name=c91aa9149458437a.png
+  54a0d03d68ee425a to_read  1 rows: kind=upload name=54a0d03d68ee425a.png
+  1fcfaaa2ae65765c to_read  1 rows: kind=upload name=1fcfaaa2ae65765c.png
+  e98c2159c4ed8c50 to_read  1 rows: kind=upload name=e98c2159c4ed8c50.png
+  68fc2cdadb852aaf to_read  1 rows: kind=upload name=68fc2cdadb852aaf.png
+  5db01682a9006aa6 to_read  1 rows: kind=upload name=5db01682a9006aa6.png
+  5f73a7281e03d0cc to_read  1 rows: kind=upload name=5f73a7281e03d0cc.png
+  b9d32ef9a66171c0 to_read  1 rows: kind=upload name=b9d32ef9a66171c0.png
+  342960b60079923d to_read  1 rows: kind=upload name=342960b60079923d.png
+  2a5ba2bef5a5179f to_read  1 rows: kind=upload name=2a5ba2bef5a5179f.png
+  c1f316d5fa321b73 to_read  1 rows: kind=upload name=c1f316d5fa321b73.png
+  8063d3e5480530ce to_read  1 rows: kind=upload name=8063d3e5480530ce.wav
+  6eccbef0d224eaf6 to_read  1 rows: kind=upload name=6eccbef0d224eaf6.wav
+  33a742bf8f2c10e7 to_read  1 rows: kind=upload name=33a742bf8f2c10e7.wav
+  e81f866a4c559fc4 to_read  1 rows: kind=upload name=e81f866a4c559fc4.wav
+  81eb9ef2759aa45c to_read  1 rows: kind=upload name=81eb9ef2759aa45c.wav
+  81ed4db341597da2 to_read  1 rows: kind=upload name=81ed4db341597da2.wav
+  b5ecdd2d49194c19 to_read  1 rows: kind=upload name=b5ecdd2d49194c19.wav
+  147af63f7cfd246a to_read  1 rows: kind=upload name=147af63f7cfd246a.wav
+  1ef2c983c3647ab7 to_read  1 rows: kind=upload name=1ef2c983c3647ab7.wav
+  6c1eedbd43cad8c5 to_read  1 rows: kind=upload name=6c1eedbd43cad8c5.wav
+  4329c68a7a142b54 to_read  1 rows: kind=upload name=4329c68a7a142b54.wav
