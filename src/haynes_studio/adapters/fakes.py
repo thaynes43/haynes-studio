@@ -19,12 +19,14 @@ import builtins
 import hashlib
 import io
 import json
+import os
 import re
 import struct
 import uuid
 import wave
 import zlib
 from collections.abc import Iterable, Mapping
+from pathlib import Path
 
 from haynes_studio.adapters.pinned import PINS, WAN_GPU_UUIDS
 from haynes_studio.adapters.runner import Command, Completed
@@ -43,6 +45,8 @@ def snippet_of(command: Command) -> tuple[str, tuple[str, ...]]:
     if argv[:2] != ("kubectl", "exec") or "--" not in argv:
         raise UnexpectedCommand(f"{command.label}: not a kubectl exec command")
     rest = argv[argv.index("--") + 1:]
+    if len(rest) > 3 and rest[1] == "-I":  # isolated mode (story 846's volume reads)
+        rest = rest[:1] + rest[2:]
     if len(rest) < 3 or rest[1] != "-c":
         raise UnexpectedCommand(f"{command.label}: expected <python> -c <code>")
     name = _BY_SHA.get(hashlib.sha256(rest[2].encode()).hexdigest())
@@ -737,3 +741,135 @@ class FakeWan:
         api.make_graph = make_graph
         api.generate = generate
         return api
+
+
+# The Wan volume, for the read-only volume reads (story 846) ---------------------------------
+
+POD_ROOT = "/workspace"
+
+
+class FakeWanVolume:
+    """The Wan volume (PVC ``ai/wan-video``) on a **real** folder, ``root``, which stands in
+    for ``/workspace``. It answers ``wan_ledger_fetch.py`` (story 425), ``wan_upload_read.py``
+    and ``wan_job_output_read.py`` (story 846) by **running the pinned snippets themselves**
+    against that folder, so their guards (``O_NOFOLLOW``, ``lstat``, link counts, sizes,
+    hashes) meet real symbolic links, hard links, FIFOs and folders. Before a run the
+    snippet's ``/workspace`` literals are pointed at ``root`` (each must occur exactly once,
+    and none may remain); nothing else in the text changes. Each run gets a fresh namespace
+    whose ``sys`` is the fake pod's (argument vector, stdout, stderr) and whose builtins
+    have no ``open``, ``exec``, ``eval`` or ``compile``; it may import only the standard
+    modules the snippets name.
+
+    A failed run's stderr ends with the line ``kubectl exec`` adds, ``command terminated
+    with exit code <status>`` (``kubectl_trailer=False`` leaves it out).
+    ``add_ledger``, ``add_job`` and ``add_upload`` build the volume (tests only; the
+    snippets never write). ``runs`` records each snippet run's name and arguments."""
+
+    snippets = ("wan_ledger_fetch.py", "wan_upload_read.py", "wan_job_output_read.py")
+    MODULES = ("errno", "hashlib", "json", "os", "pathlib", "re", "stat")
+
+    def __init__(self, root: str | os.PathLike[str], *, kubectl_trailer: bool = True):
+        self.root = Path(root)
+        self.kubectl_trailer = kubectl_trailer
+        for folder in ("jobs", "output/productions", "input/studio-e0"):
+            (self.root / folder).mkdir(parents=True, exist_ok=True)
+        self.runs: list[tuple[str, tuple[str, ...]]] = []
+
+    # Building the volume ------------------------------------------------------------------
+
+    def path(self, pod_path: str) -> Path:
+        """The folder's path for an absolute pod path below ``/workspace``."""
+        if not pod_path.startswith(POD_ROOT + "/"):
+            raise ValueError(f"not below {POD_ROOT}: {pod_path}")
+        return self.root / pod_path[len(POD_ROOT) + 1:]
+
+    def _write(self, path: Path, data: bytes) -> Path:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        return path
+
+    def add_ledger(self, document: Mapping, files: Mapping[str, bytes] | None = None) -> Path:
+        """A delivery ledger (``edited_production``) and the bytes of its assets, by
+        sha256. Asset paths are written as this folder's real paths, as the fetch snippet
+        resolves them."""
+        doc = json.loads(json.dumps(document))
+        for asset in doc.get("assets", []):
+            pod_path = asset["path"]
+            asset["path"] = str(self.path(pod_path))
+            if files and asset["sha256"] in files:
+                self._write(self.path(pod_path), files[asset["sha256"]])
+        return self._write(self.root / "jobs" / f"{doc['id']}.json", json.dumps(doc).encode())
+
+    def add_job(self, job_id: str, data: bytes | None, *, output: str | None = None,
+                state: str = "succeeded", size: int | None | bool = True, **extra) -> Path:
+        """A Wan job's ledger and its output (``video/<job_id>_00001_.mp4`` unless given).
+        ``size=True`` records the output's byte count, ``None`` leaves it out; ``data=None``
+        writes no output file."""
+        output = f"video/{job_id}_00001_.mp4" if output is None else output
+        job = {"id": job_id, "state": state, "output": output, **extra}
+        if size is True:
+            job["bytes"] = len(data or b"")
+        elif size is not None:
+            job["bytes"] = size
+        if data is not None:
+            self._write(self.root / "output" / output.lstrip("/"), data)
+        return self._write(self.root / "jobs" / f"{job_id}.json", json.dumps(job).encode())
+
+    def add_upload(self, name: str, data: bytes) -> Path:
+        return self._write(self.root / "input" / "studio-e0" / name, data)
+
+    # The runner's view ---------------------------------------------------------------------
+
+    def _rooted(self, name: str, code: str) -> str:
+        if name == "wan_ledger_fetch.py":
+            pairs = [("/workspace/jobs", self.root / "jobs"),
+                     ("/workspace/output/productions", self.root / "output" / "productions")]
+        else:
+            pairs = [(POD_ROOT, self.root)]
+        for literal, real in pairs:
+            if code.count(repr(literal)) != 1:
+                raise AssertionError(f"{name}: expected {literal!r} exactly once")
+            code = code.replace(repr(literal), repr(str(real)))
+        if "'/workspace" in code:
+            raise AssertionError(f"{name}: a /workspace path was left unrooted")
+        return code
+
+    def answer(self, name: str, command: Command, args) -> Completed:
+        rest = command.argv[command.argv.index("--") + 1:]
+        code = rest[rest.index("-c") + 1]  # <python> [-I] -c <code>
+        self.runs.append((name, tuple(args)))
+        result = self.run_snippet(name, self._rooted(name, code), args)
+        if result.returncode != 0 and self.kubectl_trailer:  # as kubectl exec reports it
+            trailer = f"command terminated with exit code {result.returncode}\n".encode()
+            return Completed(result.returncode, result.stdout, result.stderr + trailer)
+        return result
+
+    def run_snippet(self, name: str, code: str, args) -> Completed:
+        out, err = _PodOut(), _PodOut()
+        pod_sys = _Namespace(argv=["-c", *args], stdout=out, stderr=err)
+        modules = {module: __import__(module) for module in self.MODULES}
+        modules["sys"] = pod_sys
+
+        def pod_import(module, globals=None, locals=None, fromlist=(), level=0):
+            if module not in modules:
+                raise ImportError(f"the fake pod has no module {module}")
+            return modules[module]
+
+        namespace = {k: v for k, v in vars(builtins).items()
+                     if k not in ("open", "exec", "eval", "compile", "input", "breakpoint", "__loader__")}
+        namespace["__import__"] = pod_import
+        try:
+            exec(compile(code, name, "exec"), {"__builtins__": namespace, "__name__": "__main__"})
+        except SystemExit as stop:  # as the interpreter ends: a message is printed with status 1
+            if stop.code is None or isinstance(stop.code, int):
+                return Completed(stop.code or 0, out.value(), err.value())
+            err.write(f"{stop.code}\n")
+            return Completed(1, out.value(), err.value())
+        except Exception as error:  # in the pod: a traceback and exit status 1
+            kind = type(error)
+            shown = kind.__name__ if kind.__module__ == "builtins" else f"{kind.__module__}.{kind.__qualname__}"
+            err.write(f"Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n"
+                      f"{shown}: {error}\n")
+            return Completed(1, out.value(), err.value())
+        return Completed(0, out.value(), err.value())
+
