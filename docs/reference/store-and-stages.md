@@ -299,12 +299,14 @@ reads every blob in full. It removes, moves and repairs nothing; removing a left
 is a user action (D17).
 
 `journal` (proposal, story 860) lists the Wan journal and its lock file at the root, each
-`{path, present, kind, bytes}`: `kind` is `file`, `link` or `other` (null when absent),
-`bytes` a regular file's size. They are never `unexpected` and never make the report
-unclean. The doctor reads them only from the root's listing and an `lstat` relative to
-the root's descriptor: it never opens, locks, moves or rewrites them, so they stay
-byte-identical with the same modification times, and it reports the same while the
-client holds the journal (`tests/store/test_doctor.py`).
+`{path, present, kind, bytes}`: `kind` is `file`, `link` or `other` (a folder, say; null
+when absent or when its `lstat` failed, which also lists it in `unreadable`), `bytes` a
+regular file's size. They are never `unexpected`. A regular file or an absent one leaves
+the report clean; a link or a folder with either name does not, since the client keeps
+both as plain files (what is inside such a folder is `unexpected`). The doctor reads each
+name with one `lstat` relative to the root's descriptor: it never opens, locks, moves or
+rewrites them, so they stay byte-identical with the same modification times, and it
+reports the same while the client holds the journal (`tests/store/test_doctor.py`).
 
 ## Pre-build check
 

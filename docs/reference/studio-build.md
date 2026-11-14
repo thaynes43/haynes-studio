@@ -228,13 +228,15 @@ the cache (in the service phase, also when it reached the segment it leaves to t
 offline phase, as that phase's own record lists it). A board it did not reach, or whose
 segment it did not finish, is not listed: the keyed frames of a board whose segment the
 decal gate refused are in the store but in no stage. With `--workers N`, a segment a
-worker rendered, or the first pass found cached, completes its board even when another
+worker rendered, or one the cache holds that the first pass deferred (looked up,
+read-only, also when that pass itself stopped), completes its board even when another
 worker's segment failed (every worker's result is kept before the first failure in
 board order is raised). How: the story is planned again with a chain that answers each
 key as the stopped run did and with a stand-in otherwise (`pipeline._Replay`), so the
-names and keys are the stopped plan's; it makes, reads and asks nothing (a library timed
-clip is looked up again, read-only), and if it raises the run keeps no stages rather than
-hide its failure. A failure after the plan finished (a failed check, the delivery) lists
+names and keys are the stopped plan's. The replay makes, writes and asks nothing (only a
+library timed clip is looked up again, read-only); the stages are then recorded as a
+succeeded run's are, which reads clip and keyed-frames records. If any of it raises the
+run keeps no stages rather than hide its failure. A failure after the plan finished (a failed check, the delivery) lists
 its stages as before, and a succeeded run's record is unchanged. A dry run ends before any
 board stage. Tests: `tests/build_story/test_stopped_runs.py`.
 
@@ -497,7 +499,9 @@ the source frames the board shows, the floor and the result. They are read from 
 keyed-frames record the cache holds (re-hashed) with the renderer's own arithmetic
 (`layered.renderer._Layer.index` for the frames shown, `decal_check`) at the floor the
 segment key holds, so they equal what the rendering run recorded. A reused result is
-reported, never a reason to stop: only a segment rendered in this run is gated. `slot` is
+reported, never a reason to stop: only a segment rendered in this run is gated. A layer
+whose keyed-frames record cannot be read (missing, not its bytes) has no result listed,
+and the build does not fail for it: the segment renders nothing. `slot` is
 a new optional property of a run check (`studio.run.v1.schema.json`); every stored run
 record and the contract examples still validate. Tests:
 `tests/build_story/test_reused_checks.py`.

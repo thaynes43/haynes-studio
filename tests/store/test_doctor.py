@@ -154,11 +154,23 @@ def test_doctor_reports_an_absent_journal_and_a_linked_one_as_journal_files(root
     (root / WAN_JOURNAL).symlink_to(elsewhere)
     before = tree(root)
     report = LocalStore(root).doctor()
-    assert report.unexpected == () and report.clean
+    # Reported under its own heading, never unexpected; a link is not the client's journal
+    # file, so the store is not clean.
+    assert report.unexpected == () and not report.clean
     assert report.to_document()["journal"] == [
         {"path": WAN_JOURNAL, "present": True, "kind": "link", "bytes": None},
         {"path": WAN_JOURNAL_LOCK, "present": False, "kind": None, "bytes": None}]
     assert tree(root) == before and elsewhere.read_bytes() == b"{}\n"
+
+
+def test_doctor_reports_a_folder_with_a_journal_files_name_as_other(root):
+    plant(root, f"{WAN_JOURNAL_LOCK}/inside.txt", b"not the layout")
+    before = tree(root)
+    report = LocalStore(root).doctor()
+    assert report.to_document()["journal"][1] == {
+        "path": WAN_JOURNAL_LOCK, "present": True, "kind": "other", "bytes": None}
+    assert report.unexpected == (f"{WAN_JOURNAL_LOCK}/inside.txt",) and not report.clean
+    assert tree(root) == before
 
 
 PY_FILES = [path for base in SOURCES for path in sorted(base.glob("*.py"))]

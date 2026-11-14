@@ -133,7 +133,7 @@ from haynes_studio.delivery.model import MASTER_SIZES
 from haynes_studio.delivery.publish import RECORD as DELIVERY_DOCUMENT, STAGE as DELIVERY_STAGE
 from haynes_studio.jsonio import thaw
 from haynes_studio.layered import COMPOSITOR as LAYERED_COMPOSITOR
-from haynes_studio.layered import LayeredRenderer, LayeredStages, reader
+from haynes_studio.layered import LayeredError, LayeredRenderer, LayeredStages, reader
 from haynes_studio.layered.keyed import keyer_build, read_record, read_verified
 from haynes_studio.layered.renderer import _Layer, decal_check
 from haynes_studio.layered.s2v import read_provenance, record_stage
@@ -141,7 +141,7 @@ from haynes_studio.library import Library
 from haynes_studio.mix import SoundBuilder, film_sound, sound_toolchain
 from haynes_studio.stages import completed_stage
 from haynes_studio.stages.preflight import PreflightError
-from haynes_studio.store import LocalStore, Store, blob_locator, is_sha256
+from haynes_studio.store import LocalStore, Store, StoreError, blob_locator, is_sha256
 from haynes_studio.voice import Engine
 from haynes_studio.wholeframe import COMPOSITOR as WHOLE_FRAME_COMPOSITOR
 from haynes_studio.wholeframe import WholeFrameClips, WholeFrameRenderer
@@ -645,7 +645,10 @@ class _Recorder:
         (re-hashed) and the renderer's own arithmetic over the source frames the board
         shows (``_Layer.index``, ``decal_check``), at the floor the segment key holds. So
         they are the results the run that rendered it recorded. The gate is not applied:
-        nothing is refused here, and a result is reported, never a reason to stop."""
+        nothing is refused here, and a result is reported, never a reason to stop. A layer
+        whose keyed-frames record cannot be read (missing, not its bytes, not a record) has
+        no result listed: the segment renders nothing, so the build does not fail for it,
+        and nothing is invented in its place."""
         document = key.document
         if document.get("compositor") != LAYERED_COMPOSITOR:
             return []
@@ -653,8 +656,11 @@ class _Recorder:
         for item in document.get("layers") or ():
             if item.get("keyed") is None:
                 continue
-            record = read_record(read_verified(self.build.read, item["keyed"],
-                                               f"layer {item['slot']}'s keyed frames"))
+            try:
+                record = read_record(read_verified(self.build.read, item["keyed"],
+                                                   f"layer {item['slot']}'s keyed frames"))
+            except (LayeredError, StoreError, OSError):
+                continue
             layer = _Layer(item=item, record=record, pngs=[], slot=None, puppet=None)
             shown = {layer.index(n) for n in range(document["frames"])}
             check = decal_check(item["keyed"], record, item["decal_min_ecc"], shown)
@@ -720,13 +726,24 @@ def _stopped_stages(build: _Build, register: Register) -> list[dict[str, Any]]:
     (rendered it, or found it in the cache; in the service phase, also the segment it
     leaves to the offline phase, as that phase's own record lists it) and every artifact
     before it. A board the run did not reach, or whose segment did not complete (a decal
-    track below its floor, a clip it lacks), is not listed. Planning again is pure (only
-    a library timed clip is looked up, read-only), and any error gives no stages: what
-    stopped the run is never hidden by its record."""
+    track below its floor, a clip it lacks), is not listed. With workers, a segment the
+    first pass deferred counts when the cache holds it (looked up, read-only, as that pass
+    does once its plan returns). Planning again is pure (only a library timed clip is
+    looked up, read-only); the stages are then recorded as a succeeded run's are (which
+    reads clip records and keyed-frames records, read-only). Any error gives no stages:
+    what stopped the run is never hidden by its record."""
     if not build.passes:
         return []
     service = any(chain.service for chain in build.passes)
     try:
+        for chain in build.passes:  # the workers' first pass defers every segment it reaches
+            if SEGMENT not in chain.defer:
+                continue
+            for value, key in chain.segment_keys.items():
+                if value not in build.cached_segments and value not in build.worker_reports:
+                    found = build.cache.lookup(key, MP4)  # read-only, as that pass does next
+                    if found is not None:
+                        build.cached_segments[value] = found.sha256
         replay = _Replay(build)
         plan = build.plan(replay)
         done = set()
@@ -816,7 +833,7 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
     checked_locally = False
     delivered: Delivery | None = None
     planned: tuple[PlannedClip, ...] = ()
-    register = Register(inputs.register)
+    register: Register | None = None
     try:
         prepared.ensure_buildable()
         scratch = tempfile.TemporaryDirectory(prefix="studio-build-", dir=workdir)
@@ -824,6 +841,7 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
             build = _Build(store=store, story=story, prepared=prepared, run_id=run_id,
                            earlier_runs=earlier_runs, sources=sources, transcriber=transcriber,
                            toolchain=toolchain, media=media, timer=timer, workdir=scratch_dir)
+            register = Register(inputs.register)
             local, local_plan = _local_pass(build)  # no clip is asked for before this passes
             planned = _check_requests(build, local, local_plan, check=None if phase == OFFLINE
                                       else sources.check)
@@ -960,8 +978,8 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
                               "may exist but could not be read)")
         reason = f"{failure.code}: {failure.message}"[:500]
         progress = {"percent": 100, "stage": failure.stage}
-        if not stages and build is not None and checked_locally:  # the plan stopped part way
-            stages = _stopped_stages(build, register)
+        if not stages and build is not None and register is not None and checked_locally:
+            stages = _stopped_stages(build, register)  # the plan stopped part way
         try:
             try:
                 run = records.write(advance(run, status, at=now(), by=actor, reason=reason,

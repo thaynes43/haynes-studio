@@ -11,8 +11,13 @@ from __future__ import annotations
 
 import copy
 
-from haynes_studio.build import offline_sources
+import pytest
+
+import haynes_studio.build.pipeline as pipeline
+from haynes_studio.build import BuildInputs, build_story, local_run_ids, offline_sources
 from haynes_studio.library import Library
+from haynes_studio.store import StoreError
+from haynes_studio.store.errors import HASH_MISMATCH
 from tests.build_story import fixtures as f
 from tests.layered import media
 
@@ -150,3 +155,73 @@ def test_a_stopped_full_build_records_what_each_pass_made_as_a_succeeded_run_doe
     assert not made["keyed/b"][0]  # doll b's loop was keyed by an earlier run
     s2v = next(c for c in b1["clips"] if c["role"] == "s2v_clip")
     assert s2v["made"] and s2v["render_s"] is not None and b1["report"] is not None
+
+
+def test_with_workers_a_stop_in_the_first_pass_keeps_the_boards_it_found_cached(
+        world, voiced, first):
+    """Review finding 2: the first pass defers every segment, so a stop inside it (B3's
+    clip, which no run made) must still find B1's and B2's segments in the cache, as one
+    worker does."""
+    document, library = voiced
+    edited = copy.deepcopy(document)
+    f.board_of(edited, f.B3)["seeds"]["i2v:frame"] = 54  # a clip no run made
+    one = f.build(world, edited, library, phase="offline", source=offline_sources()).run
+    two = f.build(world, edited, library, phase="offline", source=offline_sources(), workers=2).run
+    for run in (one, two):
+        assert (run["error"]["code"], run["error"]["stage"]) == ("build.offline_missing",
+                                                                  "whole_frame_clip")
+    assert [same_work(s) for s in two["stages"]] == [same_work(s) for s in one["stages"]]
+    assert [s["board_id"] for s in two["stages"]] == [f.B1, f.B2]
+
+
+def test_with_workers_a_stop_at_the_transcript_check_keeps_what_each_pass_made(
+        world, voiced, first):
+    """The documented offline stop with ``--workers 2``: B3's new segment is rendered by
+    a worker, then the transcript check stops the run; the stages are the next
+    succeeded run's, with B3's segment made here."""
+    document, library = voiced
+    edited = copy.deepcopy(document)
+    f.board_of(edited, f.B3)["seeds"]["i2v:frame"] = 55
+    assert f.build(world, edited, library, phase="service").run["status"] == "cancelled"
+    run = f.build(world, edited, library, phase="offline", source=offline_sources(), workers=2).run
+    assert (run["error"]["code"], run["error"]["stage"]) == ("build.offline_missing", "check_result")
+    b3 = stage_of(run, f.B3)
+    segment = next(a for a in b3["artifacts"] if a["name"] == "segment")
+    assert segment["made"] and b3["report"] is not None and b3["render_s"] is not None
+    assert f.build(world, edited, library, phase="service").run["status"] == "cancelled"
+    done = f.build(world, edited, library, phase="offline", source=offline_sources()).run
+    assert done["status"] == "succeeded"
+    assert [same_work(s) for s in run["stages"]] == [same_work(s) for s in done["stages"]]
+
+
+def test_a_register_the_build_cannot_read_still_fails_the_run(world, voiced, first):
+    """Review finding 1: reading the register is part of the run, so a register that
+    does not read fails the run (recorded), never leaves it ``running``."""
+    document, library = voiced
+    inputs = BuildInputs(story=document, library=library, register={"engines": [{"role": "video"}]},
+                         toolchain=f.toolchain(), studio="git:fixture")
+    result = build_story(inputs, store=world.store, phase="offline", sources=offline_sources(),
+                         transcriber=None, actor=f.OPERATOR,
+                         earlier_runs=local_run_ids(world.store, f.PRODUCTION), minter=f.minter(),
+                         now=lambda: f.NOW)
+    assert result.run["status"] == "failed" and result.run["stages"] == []
+
+
+def test_a_reused_layers_keyed_record_that_cannot_be_read_is_left_out_not_a_failure(
+        world, voiced, first, monkeypatch):
+    """Review finding 3: a reused segment renders nothing, so a keyed-frames record the
+    recorder cannot read leaves that layer's result out and never fails the build."""
+    document, library = voiced
+    keyed_a = next(a["sha256"] for a in stage_of(first.run, f.B1)["artifacts"]
+                   if a["name"] == "keyed/a")
+    real = pipeline.read_verified
+
+    def damaged(read, sha256, what):
+        if sha256 == keyed_a:
+            raise StoreError(HASH_MISMATCH, f"{what} is not its bytes")
+        return real(read, sha256, what)
+    monkeypatch.setattr(pipeline, "read_verified", damaged)
+    run = f.build(world, document, library, phase="offline", source=offline_sources()).run
+    assert run["status"] == "succeeded", run["error"]
+    assert [c["slot"] for c in stage_of(run, f.B1)["checks"]] == ["b"]
+    assert stage_of(run, f.B2)["checks"] == stage_of(first.run, f.B2)["checks"]

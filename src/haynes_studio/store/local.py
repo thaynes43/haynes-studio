@@ -146,9 +146,10 @@ class _Staged:
 @dataclass(frozen=True)
 class RootFile:
     """A file another writer keeps at the store root (:data:`~.layout.ROOT_FILES`: the
-    Wan journal and its lock file, story 851), as ``store doctor`` saw it from the root's
-    listing: ``present``, its ``kind`` (``file``, ``link`` or ``other``; None when absent)
-    and a regular file's size in ``bytes``. The doctor never opens it."""
+    Wan journal and its lock file, story 851), as ``store doctor`` saw it by one ``lstat``
+    of its name: ``present``, its ``kind`` (``file``, ``link`` or ``other``, such as a
+    folder; None when absent or when it could not be read) and a regular file's size in
+    ``bytes``. The doctor never opens it."""
 
     path: str
     present: bool = False
@@ -185,7 +186,8 @@ class DoctorReport:
     - ``journal``: the files another writer keeps at the root, present or absent, one
       :class:`RootFile` per name of :data:`~.layout.ROOT_FILES` (the Wan journal and its
       lock file, story 851). They are part of a store that made live clips, so they are
-      never ``unexpected`` and do not make the report unclean (proposal, story 860).
+      never ``unexpected``; a regular file or an absent one leaves the report clean, any
+      other kind (a link, a folder) does not (proposal, story 860).
 
     Only files and links are listed; an empty folder outside the layout is not.
     """
@@ -208,7 +210,8 @@ class DoctorReport:
     def clean(self) -> bool:
         return not (self.orphans or self.staging or self.unexpected or self.broken_records
                     or self.dangling or self.damaged or self.mismatched or self.foreign
-                    or self.unreadable)
+                    or self.unreadable
+                    or any(item.kind not in (None, "file") for item in self.journal))
 
     def to_document(self) -> dict[str, Any]:
         return {"blobs": self.blobs, "records": self.records, "orphans": list(self.orphans),
@@ -410,14 +413,14 @@ class LocalStore(Store, StageLedger):
         unreadable: list[tuple[str, str]] = []
         records: dict[str, StageRecord] = {}
         record_files: list[str] = []
-        root_files: dict[str, RootFile] = {}
+        journal = tuple(self._root_file(name, unreadable) for name in ROOT_FILES)
         for rel, regular in self._walk(unreadable):
             if rel.startswith(STAGING + "/"):
                 staging.append(rel)
             elif rel.startswith(PROBE + "/"):
                 continue  # the NFS adapter's start-up probe area (story 434)
-            elif rel in ROOT_FILES:  # at the root only: a name with no folder
-                root_files[rel] = self._root_file(rel, unreadable)
+            elif rel in ROOT_FILES:  # at the root only (a name with no folder): in journal
+                continue
             elif not regular:
                 unexpected.append(rel)  # a symbolic link or other special file
             elif is_locator(rel):
@@ -465,17 +468,16 @@ class LocalStore(Store, StageLedger):
                             mismatched=tuple(sorted(mismatched)),
                             foreign=self._foreign(sorted(blobs) + record_files),
                             unreadable=tuple(sorted(unreadable)),
-                            journal=tuple(root_files.get(name, RootFile(name))
-                                          for name in ROOT_FILES),
+                            journal=journal,
                             referenced=frozenset(known))
 
     def _root_file(self, name: str, unreadable: list[tuple[str, str]]) -> RootFile:
-        """A root file the listing found, by ``lstat`` relative to the root's descriptor:
-        never opened and never followed."""
+        """A root file's name, by one ``lstat`` relative to the root's descriptor: never
+        opened and never followed."""
         root = os.open(self.root, _DIR)
         try:
             info = os.stat(name, dir_fd=root, follow_symlinks=False)
-        except FileNotFoundError:  # removed since the listing
+        except FileNotFoundError:
             return RootFile(name)
         except OSError as error:
             unreadable.append((name, _reason(error)))
