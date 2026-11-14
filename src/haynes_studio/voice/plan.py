@@ -4,20 +4,31 @@ can be reused, and whether a voice job is needed at all.
 :func:`plan_board_voice` is the one function that answers "what speech calls does this
 edit need":
 
-- ``current``: the board's current voice version already is this input; nothing to do.
-- ``existing``: another version of this board's voice already is this input (an edit
-  was undone, or a stale result has become right again); no call and no new version,
-  the board only points at it again.
+- ``current``: the board's current voice version already is this input, with an
+  assembled track; nothing to do.
+- ``existing``: another version of this board's voice already is this input, with a
+  track (an edit was undone, or a stale result has become right again); no call and no
+  new version, the board only points at it again.
 - ``assemble``: every take is reusable (a lead or gap edit, a reorder of lines, a cast
   voice version with the same stock voice); the track is re-assembled with no speech
   call.
 - ``synthesize``: the take signatures no version of this board holds go to the speech
   client, and only those, each once (two lines with one new signature cost one call).
 
+A version without an assembled track (a legacy import, which kept one WAV per line) is
+never ``current`` or ``existing``: the picture's envelope and the mix read the track, so
+it is not current for a build (story 857, the contract owner's decision). Its board gets
+a new version with a track; the legacy version stays as it is.
+
 A take is reusable when any version of this board's voice holds a take with the same
 signature (VOICE-3), newest version first; :func:`take_sources` is that rule, and the
-worker applies the same function. A version "is" an input when its input signature and
-its lines (ID, speaker, cast voice version) are the input's. Stock voices only
+worker applies the same function. The plan takes every recorded take as held. The
+worker reads each take of a version without a track before it plans its calls: one the
+store does not hold is left out of the pool (``unheld``), so its line is spoken again,
+once per signature; a held one is reused after its hash is checked (story 857).
+
+A version "is" an input when its input signature and its lines (ID, speaker, cast
+voice version) are the input's. Stock voices only
 (VOICE-1): a cast voice that is not a recorded stock voice of the engine's model is
 refused (``voice.not_stock``), and so are a line the speech client would refuse
 (``voice.request_invalid``) and a lead or gap over its bound (``schema.invalid``),
@@ -26,7 +37,7 @@ before any job is queued.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -80,6 +91,12 @@ def _identity(lines) -> list[tuple[str, str, str]]:
 def same_lines(a: VoiceInput, b: VoiceInput) -> bool:
     """The same input: signature, and the same lines, speakers and cast voice versions."""
     return a.input_signature == b.input_signature and _identity(a.lines) == _identity(b.lines)
+
+
+def has_track(version: AssetVersion) -> bool:
+    """Does this board voice version hold an assembled track? A legacy import does not
+    (``track: null``); a build needs one (story 857)."""
+    return version.voice is not None and version.voice.track is not None
 
 
 def same_input(version: AssetVersion, voice: VoiceInput) -> bool:
@@ -161,13 +178,16 @@ def _stock_voice(library: Library, version_id: str, model: str, at: str) -> str:
     return voice_id
 
 
-def reusable_takes(versions: Iterable[AssetVersion]) -> dict[str, tuple[Take, str]]:
+def reusable_takes(versions: Iterable[AssetVersion],
+                   unheld: Collection[str] = ()) -> dict[str, tuple[Take, str]]:
     """Take signature to the first take (and its version ID) that holds it, in the
-    order given."""
+    order given, leaving out a take whose SHA-256 is in ``unheld`` (bytes the store does
+    not hold, story 857)."""
     pool: dict[str, tuple[Take, str]] = {}
     for version in versions:
         for take in version.voice.takes if version.voice is not None else ():
-            pool.setdefault(take.signature, (take, version.id))
+            if take.sha256 not in unheld:
+                pool.setdefault(take.signature, (take, version.id))
     return pool
 
 
@@ -188,11 +208,13 @@ class TakePlan:
         return self.reuse is None and self.same_as is None
 
 
-def take_sources(voice: VoiceInput, versions: Iterable[AssetVersion]) -> tuple[TakePlan, ...]:
+def take_sources(voice: VoiceInput, versions: Iterable[AssetVersion],
+                 unheld: Collection[str] = ()) -> tuple[TakePlan, ...]:
     """For each line of ``voice``: a take of ``versions`` (newest first, as
-    :func:`board_voice_versions` orders them) with its signature, else the first line
-    of this input with that signature, else a speech call."""
-    pool = reusable_takes(versions)
+    :func:`board_voice_versions` orders them) with its signature, unless its SHA-256 is
+    in ``unheld``, else the first line of this input with that signature, else a speech
+    call."""
+    pool = reusable_takes(versions, unheld)
     first: dict[str, str] = {}
     out = []
     for line in voice.lines:
@@ -235,9 +257,9 @@ def plan_board_voice(story: Mapping[str, Any], board_id: str, library: Library, 
     takes = take_sources(voice, versions)
     current_id = _current_version_id(story, board_id)
     current = next((v for v in versions if v.id == current_id), None)
-    if current is not None and same_input(current, voice):
+    if current is not None and same_input(current, voice) and has_track(current):
         return VoicePlan(board_id, voice, CURRENT, current.id, takes)
-    existing = next((v for v in versions if same_input(v, voice)), None)
+    existing = next((v for v in versions if same_input(v, voice) and has_track(v)), None)
     if existing is not None:
         return VoicePlan(board_id, voice, EXISTING, existing.id, takes)
     action = SYNTHESIZE if any(take.synthesize for take in takes) else ASSEMBLE
@@ -289,6 +311,6 @@ def request_voice(story: Mapping[str, Any], board_id: str, library: Library, *,
 __all__ = [
     "ACTIONS", "ASSEMBLE", "CURRENT", "EXISTING", "NOT_NEEDED", "REQUEST_INVALID",
     "SOURCE_KEY_PREFIX", "SYNTHESIZE", "TakePlan", "VoicePlan", "VoiceRequest", "board_voice_key",
-    "board_voice_versions", "drafted_input", "plan_board_voice", "request_voice",
+    "board_voice_versions", "drafted_input", "has_track", "plan_board_voice", "request_voice",
     "reusable_takes", "same_input", "same_lines", "take_sources",
 ]

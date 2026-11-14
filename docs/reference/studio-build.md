@@ -512,12 +512,12 @@ tests there would never run in `uv run pytest` or CI).
 | (usage, exit 2) | (no run) | `studio build` or `--phase service` without a valid `--wan-story`; `--dry-run` without `--phase service` | `tests/cli/test_cli_build.py::test_the_service_phase_and_a_full_build_need_a_wan_story_and_make_no_run`, `test_live_sources.py::test_the_cli_needs_a_wan_story_and_a_dry_run_only_of_the_service_phase` |
 | `asset.unresolved`, `ref.unknown`, `store.*` | (no run) | a reference the library or the store cannot give; nothing can be pinned | `test_failures.py::test_a_story_whose_assets_do_not_resolve_makes_no_run` |
 | `voice.absent` | `prebuild` | a spoken board without a current voice | `test_failures.py::test_a_missing_voice_fails_the_run` |
-| `voice.stale` | `prebuild` | a board voice that is not the board's lines, or signed with another engine (VOICE-9) | `test_a_stale_voice_fails_the_run`, `test_a_voice_signed_with_another_engine_is_stale` |
+| `voice.stale` | `prebuild` | a board voice that is not the board's lines, signed with another engine (VOICE-9), or with no assembled track (a legacy import's; story 857) | `test_a_stale_voice_fails_the_run`, `test_a_voice_signed_with_another_engine_is_stale`, `test_failures.py::test_a_board_voice_without_a_track_fails_the_run` |
 | `method.unavailable` | `prebuild` | whole-frame speech-to-video | `test_a_refused_method_fails_the_run_before_any_clip` |
 | `wholeframe.*`, `layered.*` | `prebuild` | an adapter's own check refuses the board (a camera cue on a whole-frame board, a layout that does not place a slot, ...) | `test_an_adapter_refusal_fails_the_run_before_any_clip` |
 | `motion.clip_absent` and the resolver's other codes | `prebuild` | a cast still without a loop, an ambiguous or corrupt pin | `test_a_cast_still_without_a_loop_fails_the_run` |
 | `photo.absent` | `prebuild` | a whole-frame board without a current photo | the pre-build check's own tests (story 379, 427) |
-| `build.voice_track_missing` | `voice` | a current board voice that records no assembled track (a legacy import's), which the picture's envelope and the mix read | `test_failures.py::test_a_board_voice_without_a_track_fails_the_run` |
+| `build.voice_track_missing` | `voice` | a current board voice that records no assembled track, which the picture's envelope and the mix read: a second guard, since story 857's pre-build check refuses such a voice first (`voice.stale`) | none reaches it now |
 | `cache.key_input_invalid` (a missing seed, ...), `motion.*` and `store.*` (a library timed clip that is damaged, ambiguous or cannot be played), `layered.*`, `wholeframe.*` (a clip request's inputs) | `plan`, `s2v_clip`, `s2v_drive_track`, `whole_frame_clip`, ... | the local pass finds it anywhere in the story, before any clip of any board is asked for; no clip source is asked, and the message ends "(found before any clip was requested)" | `test_local_pass.py::test_a_damaged_timed_clip_of_a_later_speaker_stops_the_run_before_any_clip`, `test_a_later_boards_missing_seed_stops_the_run_before_an_earlier_boards_clip` |
 | `mix.input_invalid`, `cue.out_of_range`, `store.*`, `time.conservation`; `build.check_failed` (a mix check) | `mix`; `checks` | the mix, made after the local pass in a full build or the service phase, is refused (a `true_peak_dbtp` of -30 the schema accepts and the limiter cannot reach, a cue outside its board, a sound blob) or fails one of its own checks (a `master_lufs` the limited speech cannot reach); no clip source is asked, and the message ends "(found before any clip was requested)" | `test_local_pass.py::test_a_mix_the_limiter_refuses_stops_the_service_phase_before_any_clip`, `test_a_mix_the_limiter_refuses_stops_a_full_build_before_any_clip` (1 and 2 workers), `test_a_mix_that_fails_its_own_checks_stops_before_any_clip` |
 | `adapter.request_invalid`, `build.live_unsupported` | `s2v_clip`, `whole_frame_clip` | a live source's check of a request the local pass recorded: the Wan client would refuse it, or does not make its profile; before the mix and any clip, "(found before any clip was requested)" | `test_live_sources.py::test_a_request_the_client_would_refuse_fails_the_run_before_any_clip`, `test_a_profile_the_client_does_not_make_fails_the_run_before_any_clip` |
@@ -569,8 +569,9 @@ decision are marked **(428 decides)**.
 4. **Voices.**
    `uv run studio voice --store ROOT --story draft.json --library library.json
    --operator-iss <iss> --operator-sub <sub> --out voiced/`. Expect `made` for every
-   spoken board (or `current` where the legacy takes are current). Kokoro is called once
-   per new take signature.
+   spoken board: a legacy board voice has no track, so it is stale (story 857). Kokoro
+   is called once per new take signature, and once per legacy take the store does not
+   hold.
 5. **The pre-build check, offline.** `uv run studio build --store ROOT --story
    voiced/story.json --library voiced/library.json --operator-iss ... --operator-sub ...
    --toolchain toolchain.json --studio-commit $(git rev-parse HEAD) --offline`. With no
@@ -667,11 +668,14 @@ get past a blocked one. A chain held part way keeps the clips it collected
 (`collected_before_stop` names each with its `kept` key): the next service phase asks
 only for the rest, and its board stage lists each chain clip as made or reused.
 
-Known blockers with r4 as imported, both observations in the PR: O-406-1, the phone
-proxy of a film whose frame count is not a multiple of 3 fails `delivery.proxy_invalid`
-(r4 is 1087 frames); O-406-2, a legacy board voice records no track, so a build of the
-imported r4 stops at `build.voice_track_missing` until each spoken board is voiced again,
-and `studio voice` reports those boards `current` (story 405's planner).
+The two blockers story 406 found with r4 as imported are fixed by story
+[857](https://work.haynesnetwork.com/work_packages/857). O-406-1: the phone proxy now
+records its audio length exactly at any frame count, so a 1087-frame film delivers
+([studio-delivery.md](studio-delivery.md#the-proxy)). O-406-2: a legacy board voice
+records no track, so the imported r4 is refused at the pre-build check with
+`voice.stale` on each spoken board (no longer `build.voice_track_missing` at a board)
+until step 4 has run once; `studio voice` then makes one version per spoken board with a
+track, from the held takes ([studio-voice.md](studio-voice.md#legacy-board-voices)).
 
 ## Proposals beyond the contract
 

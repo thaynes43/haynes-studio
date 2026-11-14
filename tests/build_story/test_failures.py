@@ -214,10 +214,9 @@ def test_a_story_whose_assets_do_not_resolve_makes_no_run(world, voiced, first):
     assert len(f.local_run_ids(world.store, f.PRODUCTION)) == before
 
 
-@pytest.mark.xfail(strict=True, reason="observation O-406-1: deliver's proxy is refused "
-                   "(delivery.proxy_invalid, audio a few samples short) when the film's frame "
-                   "count is not a multiple of 3; story 381's package, not changed here")
 def test_a_film_of_43_frames_delivers(world, voiced, first):
+    # Observation O-406-1, fixed by story 857: the proxy records its audio exactly at a
+    # frame count that is not a multiple of 3 (the fixture film is 42 frames).
     document, library = voiced
     edited = copy.deepcopy(document)
     f.board_of(edited, f.B3)["timing"]["hold_ms"] = 540  # 13 frames: 43 in all
@@ -251,7 +250,9 @@ def test_a_cast_still_without_a_loop_fails_the_run(world, voiced, first):
 
 def test_a_board_voice_without_a_track_fails_the_run(world, voiced, first):
     # A legacy import's board voice keeps one WAV per line and no assembled track
-    # (observation O-406-2); the picture's envelope and the mix read the track.
+    # (observation O-406-2); the picture's envelope and the mix read the track. Since
+    # story 857 such a voice is stale, so the pre-build check refuses the board before
+    # any clip (``build.voice_track_missing`` stays the build's own second guard).
     document, library = voiced
     version_id = f.board_of(document, f.B1)["voice"]["current_version_id"]
     docs = []
@@ -263,7 +264,7 @@ def test_a_board_voice_without_a_track_fails_the_run(world, voiced, first):
         docs.append(doc)
     sources = f.sources()
     result = f.build(world, document, f.Library.from_version_documents(docs), source=sources)
-    assert_failed(world, result, "build.voice_track_missing", board=f.B1, stage="voice")
+    assert_failed(world, result, "voice.stale", board=f.B1, stage="prebuild")
     assert sources.s2v.calls == []
 
 
