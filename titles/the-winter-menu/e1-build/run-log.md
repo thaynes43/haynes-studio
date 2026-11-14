@@ -20,6 +20,13 @@ on [372](https://work.haynesnetwork.com/work_packages/372)).
   --operator-sub agent-session:haynes-studio-1114-013021`. The operator field names an
   agent session, not a person: the command line has no agent-session operator yet
   (observation O-428-1).
+- **The drivers are not on `main`** (the coordinator's edit, 2026-11-14). The six one-off
+  drivers this log names under `tools/` ran as recorded here, and the links to them go to
+  the worker's commit `bd16777`. They are held in
+  [PR 70](https://github.com/thaynes43/haynes-studio/pull/70), not merged with these
+  records: `private_view.py` writes to the shared Wan volume, and such code needs an
+  adversarial review by another model family before it merges. That reviewer could not
+  run on 2026-11-14 (its provider's weekly usage limit was reached).
 - **State:** source and records in this folder; tested (every check below); **delivered privately** (ledger `d009d61541774a429fcabfeedadd8b51`, <https://video.haynesops.com/videos/d009d61541774a429fcabfeedadd8b51/file>, home network only); **accepted: no**. **Tom's verdict: pending** (recorded below when he gives it).
 
 Status markers: **Proven** (it produced its result, with the evidence named), **Expected**
@@ -125,7 +132,7 @@ seed 701, 12 s, 8 steps.
   `timeline.json` records). The sound model is deterministic for the same prompt, seed,
   steps and length. The audio service also still lists the original job
   `c81dc201bdb043c1ba19b719dc19d40a` with that hash; per D54 it was not fetched.
-- **Imported as a new sound version** by [`tools/draft.py`](tools/draft.py), a one-off
+- **Imported as a new sound version** by [`tools/draft.py`](https://github.com/thaynes43/haynes-studio/blob/bd1677753e549196055b4b9a109b42b27fbb8584/titles/the-winter-menu/e1-build/tools/draft.py), a one-off
   driver over the package's own `LocalStore.publish` and `library.import_version` (no
   package code changed): the blob published create-only at
   `productions/prd_01M79V9FC00000000000000001/sha256/0b/0b33af45...wav` with the job's hash
@@ -223,7 +230,7 @@ uses (this branch adds only records and the one-off driver).
   whole story's phase will find it cached. **Changed:** the references' checklist (item
   6) puts one `ImageToVideo` first; this story has no whole-frame board, so the first job
   is the single-chunk speech clip the work order names (step h).
-- **Probe** ([`probe-gate.json`](probe-gate.json), [`tools/probe.py`](tools/probe.py),
+- **Probe** ([`probe-gate.json`](probe-gate.json), [`tools/probe.py`](https://github.com/thaynes43/haynes-studio/blob/bd1677753e549196055b4b9a109b42b27fbb8584/titles/the-winter-menu/e1-build/tools/probe.py),
   01:47:00 UTC): one `WanClipClient.probe()` with the store's own `FileJournal`. `api ok`,
   `accepting_jobs: true`, `active_job: null`; `queue_running: []`, `queue_pending: []`;
   exactly the two approved GPUs, `GPU-d8a856f1...` 50 C, 0 %, 266 MiB, 25.1 W and
@@ -307,7 +314,7 @@ trimmed), **16 fps**, 576x1024, clip `e8d18705...56b0`, 6 039 663 bytes; `render
 0, poll misses 0, no foreign work; peak **88 C** on `GPU-d8a856f1` (the other 51 C),
 21 662 MiB; ledger `succeeded`, bytes and graph hash as the record; journal `settle
 collected` 02:08:28. Not above 88 C, so part 2 followed without another note, as the go
-says. Records: `clips/153f-seed510.*` ([`tools/clips.py`](tools/clips.py) reads each clip
+says. Records: `clips/153f-seed510.*` ([`tools/clips.py`](https://github.com/thaynes43/haynes-studio/blob/bd1677753e549196055b4b9a109b42b27fbb8584/titles/the-winter-menu/e1-build/tools/clips.py) reads each clip
 record from the store and its ledger by `GET /videos/<job>` in the API pod, read-only).
 
 ### Part 2: the remaining nine in one command
@@ -456,7 +463,7 @@ Note `op428-blocker-1` (`message.799ebd692122b42d74861742ebacd5a1...`, kind `blo
 5. If the ready PR and handoff are not started by 06:00 UTC, stop at a safe point and hand
    off what is done.
 
-[`tools/redraft.py`](tools/redraft.py) `$J/voiced $J/voiced2` wrote the new draft version
+[`tools/redraft.py`](https://github.com/thaynes43/haynes-studio/blob/bd1677753e549196055b4b9a109b42b27fbb8584/titles/the-winter-menu/e1-build/tools/redraft.py) `$J/voiced $J/voiced2` wrote the new draft version
 `voiced2/story.json` (04:02 UTC): those three edits, the story's `revision` 1 -> 2 and
 boards 1 and 9 `revision` 1 -> 2, nothing else (checked by a JSON diff). The weak clips
 stay in the store (create-only); the voices and the library are unchanged.
@@ -479,7 +486,7 @@ stay in the store (create-only); the voices and the library are unchanged.
   (min ECC 0.9889); **board 1 still weak**, 0.6827 over the frames it shows (0.6517 over
   the whole clip), 22.9 s.
 - **Re-roll 2**, the 14th and last job, as the go allows for exactly one weak board:
-  [`tools/redraft.py`](tools/redraft.py) `$J/voiced2 $J/voiced3 --no-layout --seed 1:a:611`
+  [`tools/redraft.py`](https://github.com/thaynes43/haynes-studio/blob/bd1677753e549196055b4b9a109b42b27fbb8584/titles/the-winter-menu/e1-build/tools/redraft.py) `$J/voiced2 $J/voiced3 --no-layout --seed 1:a:611`
   (story revision 3, board 1 revision 3); its dry run (`run_01M7C4GPQFCZR5TXQGDVD6G0KX`)
   listed exactly board 1 a seed 611. One command, 04:20:39 to 04:28:35 UTC (7 min 56 s), run
   `run_01M7C4JEJ2PQ5KR9HS6M2BQ4WH` `cancelled`: job `bdb9e41bfe494aa3a996c135e6348101`,
@@ -547,7 +554,7 @@ uv run python titles/the-winter-menu/e1-build/tools/private_view.py $J/store \
 ```
 
 The runbook's delivery route (stage 7) as story 840 used it:
-[`tools/private_view.py`](tools/private_view.py) imports `poc/deliver.py` unchanged for its
+[`tools/private_view.py`](https://github.com/thaynes43/haynes-studio/blob/bd1677753e549196055b4b9a109b42b27fbb8584/titles/the-winter-menu/e1-build/tools/private_view.py) imports `poc/deliver.py` unchanged for its
 `REMOTE`, `WRITE` (create-only, temp file, hash check, hard link), `PUBLISH`, `READ`,
 `SPACE` and `check_ledger`; only the file list differs, since a studio delivery is not a
 PoC job folder (**Changed**: the PoC script itself needs a manifest and `edit/` files).
@@ -608,7 +615,8 @@ This folder: the run log, [`import-report.json`](import-report.json) (and its dr
 in `runs/`, [`offline-per-board.json`](offline-per-board.json), the dry runs, the probe,
 the journal before and after, [`delivery-readback.json`](delivery-readback.json),
 [`production.json`](production.json), the Wan volume's hashes before and after, and the
-one-off drivers in `tools/` (none changes package code). No media.
+one-off drivers (none changes package code; held in PR 70, see the top of this log). No
+media.
 
 ## The Wan volume after the run
 
@@ -665,7 +673,7 @@ space at the end: 26 G.
 
 ## Known defects in `tools/`
 
-The drivers are kept as they ran. `draft.py` stamps the new bed version `created_at`
+The drivers are kept as they ran, in PR 70. `draft.py` stamps the new bed version `created_at`
 2026-11-14T01:45:00Z, a fixed value, although it ran at 01:44 (before `studio voice` at
 01:44:36). `decal.py` would raise on a clip with two or more unscored frames (no clip here
 has one). `clips.py` looked for the reference's names of the job's times (O-428-4).
