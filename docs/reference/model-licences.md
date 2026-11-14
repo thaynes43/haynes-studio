@@ -30,7 +30,7 @@ most restrictive of its files.
 | Kokoro-82M v1.0 (stock voices) | voice takes | Apache-2.0 | allowed | none on outputs | nothing |
 | Stable Audio 3 Small-SFX (audio-authoring, CPU) | sound effects, beds | Stability AI Community License Agreement; Gemma Terms of Use for its text encoder | **conditional** | hobby use is free; commercial use needs registration with Stability AI, and every licence ends above USD 1,000,000 annual revenue (Tom and his affiliates); Acceptable Use Policy; no training a foundational model on outputs; Gemma Prohibited Use Policy | Q-809-2 |
 | Wan2.2 TI2V-5B | image-to-video clips | Apache-2.0 | allowed | the card's use restrictions (no content that breaks the law, harms people, spreads misinformation or targets vulnerable groups) | nothing |
-| Wan2.2 S2V-14B with its wav2vec2 audio encoder and the lightx2v 4-step LoRA | speech-to-video clips | Apache-2.0 (every file) | allowed | as TI2V | nothing |
+| Wan2.2 S2V-14B with its wav2vec2 audio encoder, the umT5 text encoder and the lightx2v 4-step LoRA | speech-to-video clips | Apache-2.0 (every file) | allowed | as TI2V | nothing |
 | Whisper service: Parakeet TDT 0.6B v2 (ONNX) | transcripts that check a video's words | CC-BY-4.0 | allowed | attribution when sharing the model; transcripts are never published | nothing |
 | ControlFoley (Foley sidecar) | Foley sound from a clip; in no delivered video | CC-BY-NC-4.0 weights; Apple research-only CLIP encoder; MIT vocoder | **non-commercial**, and research only for the CLIP encoder | weights CC BY-NC 4.0; the CLIP encoder is licensed "exclusively for Research Purposes" (scientific research) | Q-809-3 |
 
@@ -74,6 +74,7 @@ The session's reading, not legal advice. Nothing here is decided.
 | `wav2vec2_large_english_fp16.safetensors` | S2V | Apache-2.0 | allowed | sha256 |
 | `wan_2.1_vae.safetensors` | S2V | Apache-2.0 | allowed | sha256 |
 | `wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors` | S2V | Apache-2.0 | allowed | sha256 |
+| `umt5_xxl_fp8_e4m3fn_scaled.safetensors` | S2V | Apache-2.0 | allowed | sha256 |
 | Parakeet TDT 0.6B v2 (ONNX) | Whisper service | CC-BY-4.0 | allowed | no |
 | `weights/controlfoley.pth` | ControlFoley | CC-BY-NC-4.0 | non-commercial | sha256 |
 | `ext_weights/` (`v1-44.pth`, `synchformer_state_dict.pth`, `cav_mae_st.pth`) | ControlFoley | CC-BY-NC-4.0 (its repository's licence) | non-commercial | sha256 |
@@ -82,6 +83,17 @@ The session's reading, not legal advice. Nothing here is decided.
 
 "Pinned" says whether haynes-ops pins the file by hash; the JSON gives each source,
 revision and hash.
+
+The umT5 text encoder is listed twice, once per engine, because the JSON gives each file
+one engine: `umt5-xxl-fp8` for TI2V, as checked, and `umt5-xxl-fp8-s2v` for S2V (story
+[860](https://work.haynesnetwork.com/work_packages/860)), with the same source, hash,
+evidence and licence. The S2V graph loads it: every speech-to-video clip record of story
+[428](https://work.haynesnetwork.com/work_packages/428) names it with that hash
+(`titles/the-winter-menu/e1-build/clips/*.s2v-clip-record.json`, `files_sha256`), and
+`tests/library/test_register_clip_files.py` checks that every file such a record names is
+a file of its engine here. Before story 860 a run listed it under S2V with an `unknown`
+licence ("the licence register does not name it"), which made the S2V engine `unknown`;
+the run records of story 428 keep that, as recorded.
 
 ## Limits of this check
 
@@ -127,5 +139,6 @@ revision and hash.
   model}` (P-24, in the schema since story 849); these entries are left as recorded.
 - To add a model or change a term: read the publisher's page and licence, add or edit the
   file and engine entries with the URL, the quoted words, the date and the checker, and
-  run `uv run pytest tests/library`. Never accept terms, log in or register to read a
+  run `uv run pytest tests/library`. A file two engines load gets one entry per engine
+  (each engine's `files` lists its own entries, in order). Never accept terms, log in or register to read a
   page; record that as a condition and leave the entry `unknown`.

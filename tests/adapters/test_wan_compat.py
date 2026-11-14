@@ -326,8 +326,8 @@ def test_model_files_are_the_registers():
     i2v = wan.model_files(json.loads(pinned.load("wan_ti2v_workflow.json").data))
     s2v = wan.model_files(wan.s2v_graph("p", "n", "i", "a", 576, 1024, 65, 1, "video/x", True))
     engines = {e["key"]: e["files"] for e in register["engines"]}
-    keys = {f["name"]: f["key"] for f in register["files"]}
-    assert sorted(keys[n] for n in i2v) == sorted(engines["wan-ti2v"])
-    # The S2V graph also loads the shared umt5 text encoder, which the register lists once,
-    # under wan-ti2v (an observation for the register's owner, story 842).
-    assert sorted(keys[n] for n in s2v) == sorted(engines["wan-s2v"] + ["umt5-xxl-fp8"])
+    keys = {(f["engine"], f["name"]): f["key"] for f in register["files"]}
+    assert sorted(keys["wan-ti2v", n] for n in i2v) == sorted(engines["wan-ti2v"])
+    # The S2V graph also loads the shared umt5 text encoder, which the register lists for
+    # both engines since story 860 (story 842's observation for the register's owner).
+    assert sorted(keys["wan-s2v", n] for n in s2v) == sorted(engines["wan-s2v"])
