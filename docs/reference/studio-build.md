@@ -479,7 +479,7 @@ problems).
 
 | Field | Holds |
 |---|---|
-| `stages[]` | one per board in film order: `board_id`, `board_number`, `method`, `frames`, `film_start_frame`, `clips[]` (role, slot, hash, key, `made`, and from the clip's own record its frames, fps, requested length, seed, engine, engine job, model files and trim; a library clip's version ID; a whole-frame chain's `clips[]`, each with `kept: {key, made}` when a live source kept it), `segment_sha256`, `segment_key`, `compositor`, `artifacts[]` (every planned artifact of the board: name, kind, key, hash, `made`, `seconds`; and each kept chain clip, `wan_chain_clip/<index>` of kind `wan_chain_clip`, `made` when this run collected it, else reused from the run that did), `report` (the renderer's report of a segment rendered in this run), `checks[]` (the renderer's decal checks), `render_s` |
+| `stages[]` | one per board in film order: `board_id`, `board_number`, `method`, `frames`, `film_start_frame`, `clips[]` (role, slot, hash, key, `made`, and from the clip's own record its frames, fps, requested length, seed, engine, engine job, model files and trim; a library clip's version ID; a whole-frame chain's `clips[]`, each with `kept: {key, made}` when a live source kept it), `segment_sha256`, `segment_key`, `compositor`, `artifacts[]` (every planned artifact of the board: name, kind, key, hash, `made`, `seconds`; and each kept chain clip, `wan_chain_clip/<index>` of kind `wan_chain_clip`, `made` when this run collected it, else reused from the run that did), `report` (the renderer's report of a segment rendered in this run), `checks[]` (each layer's decal gate result, with its `slot`: the renderer's for a segment rendered in this run, else read from the cache, below), `render_s` |
 | `checks[]` | the seven sound checks, `master.transcript` (with what was heard, the tolerances used and the result), and `frame_count` from the verified delivery |
 | `outputs` | frames, fps, picture, mix, master and proxy hashes, their keys, and the placement record with the story's IDs |
 | `provenance` | below |
@@ -487,6 +487,20 @@ problems).
 
 A reused segment has no report in this run (the run that rendered it has it). A run that
 stopped lists the board stages it completed ([above](#what-a-build-does), story 860).
+
+**A reused segment still lists its decal results** (proposal, story 860). The gate runs
+when a layered segment is rendered; a build that finds the segment in the cache renders
+nothing and does not run the gate again. Its board stage still lists, for each layer in
+draw order, `{check: layered.decal_gate, slot, result, artifact, key, version, thresholds:
+{min_ecc}, measured: {min_ecc, failed_frames, frames_gated, ...}}`: the lowest score over
+the source frames the board shows, the floor and the result. They are read from the
+keyed-frames record the cache holds (re-hashed) with the renderer's own arithmetic
+(`layered.renderer._Layer.index` for the frames shown, `decal_check`) at the floor the
+segment key holds, so they equal what the rendering run recorded. A reused result is
+reported, never a reason to stop: only a segment rendered in this run is gated. `slot` is
+a new optional property of a run check (`studio.run.v1.schema.json`); every stored run
+record and the contract examples still validate. Tests:
+`tests/build_story/test_reused_checks.py`.
 
 ### Provenance (section 7, D44)
 

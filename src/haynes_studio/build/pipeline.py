@@ -134,7 +134,8 @@ from haynes_studio.delivery.publish import RECORD as DELIVERY_DOCUMENT, STAGE as
 from haynes_studio.jsonio import thaw
 from haynes_studio.layered import COMPOSITOR as LAYERED_COMPOSITOR
 from haynes_studio.layered import LayeredRenderer, LayeredStages, reader
-from haynes_studio.layered.keyed import keyer_build
+from haynes_studio.layered.keyed import keyer_build, read_record, read_verified
+from haynes_studio.layered.renderer import _Layer, decal_check
 from haynes_studio.layered.s2v import read_provenance, record_stage
 from haynes_studio.library import Library
 from haynes_studio.mix import SoundBuilder, film_sound, sound_toolchain
@@ -448,8 +449,10 @@ def _voices(story: Any, document: Mapping[str, Any], prepared: Prepared) -> dict
 
 
 def _check_entry(check: Mapping[str, Any]) -> dict[str, Any]:
-    """A renderer's decal check as a run check."""
-    return {"check": check["check"], "result": "pass" if check["passed"] else "fail",
+    """A renderer's decal check as a run check, with the layer's slot (proposal, story
+    860)."""
+    slot = {"slot": check["slot"]} if check.get("slot") is not None else {}
+    return {"check": check["check"], **slot, "result": "pass" if check["passed"] else "fail",
             "artifact": check["artifact"], "key": check["key"], "version": str(check["version"]),
             "thresholds": check["thresholds"], "measured": check["result"]}
 
@@ -609,6 +612,8 @@ class _Recorder:
             report, checks = self.report(segment.key.value)
             seg_record = self.records.get(segment.key.value)
             deferred = seg_record is not None and seg_record.deferred
+            if report is None and not deferred:  # reused: its gate's results, as recorded
+                checks = self.reused_checks(segment.key)
             out.append({"board_id": board.id, "board_number": board.number,
                         "method": {"layer": board.method.layer, "motion": board.method.motion},
                         "frames": board_plan.frames, "film_start_frame": board_plan.film_start_frame,
@@ -630,6 +635,30 @@ class _Recorder:
                 checks = getattr(renderer, "checks", {}).get(key, [])
                 return renderer.reports[key].to_document(), [_check_entry(c) for c in checks]
         return None, []
+
+
+    def reused_checks(self, key: CacheKey) -> list[dict[str, Any]]:
+        """The decal gate's results of a layered segment this run did not render (story
+        860): for each layer in draw order, its keyed-frames record read from the cache
+        (re-hashed) and the renderer's own arithmetic over the source frames the board
+        shows (``_Layer.index``, ``decal_check``), at the floor the segment key holds. So
+        they are the results the run that rendered it recorded. The gate is not applied:
+        nothing is refused here, and a result is reported, never a reason to stop."""
+        document = key.document
+        if document.get("compositor") != LAYERED_COMPOSITOR:
+            return []
+        out = []
+        for item in document.get("layers") or ():
+            if item.get("keyed") is None:
+                continue
+            record = read_record(read_verified(self.build.read, item["keyed"],
+                                               f"layer {item['slot']}'s keyed frames"))
+            layer = _Layer(item=item, record=record, pngs=[], slot=None, puppet=None)
+            shown = {layer.index(n) for n in range(document["frames"])}
+            check = decal_check(item["keyed"], record, item["decal_min_ecc"], shown)
+            if check is not None:
+                out.append(_check_entry({"slot": item["slot"], **check}))
+        return out
 
 
 def _check_entries(results: Any) -> list[dict[str, Any]]:
@@ -850,9 +879,9 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
             recorder = _Recorder(build, plan, chain.records, register)
             stages = recorder.stages()
             failed = [c["check"] for c in checks if c["result"] == "fail"]
-            for stage in stages:
+            for stage in stages:  # a reused segment's results are reported, never re-gated
                 failed += [f"{c['check']} ({stage['board_id']})" for c in stage["checks"]
-                           if c["result"] == "fail"]
+                           if c["result"] == "fail" and stage["report"] is not None]
             if failed:
                 raise BuildError(CHECK_FAILED, "checks did not pass, so nothing was delivered: "
                                  + ", ".join(failed), stage="checks")
