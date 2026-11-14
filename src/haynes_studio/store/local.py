@@ -84,6 +84,7 @@ from haynes_studio.store.errors import (
 from haynes_studio.store.layout import (
     PART,
     PROBE,
+    ROOT_FILES,
     SHA256_DIR,
     STAGING,
     extension,
@@ -143,6 +144,23 @@ class _Staged:
 
 
 @dataclass(frozen=True)
+class RootFile:
+    """A file another writer keeps at the store root (:data:`~.layout.ROOT_FILES`: the
+    Wan journal and its lock file, story 851), as ``store doctor`` saw it from the root's
+    listing: ``present``, its ``kind`` (``file``, ``link`` or ``other``; None when absent)
+    and a regular file's size in ``bytes``. The doctor never opens it."""
+
+    path: str
+    present: bool = False
+    kind: str | None = None
+    bytes: int | None = None
+
+    def to_document(self) -> dict[str, Any]:
+        return {"path": self.path, "present": self.present, "kind": self.kind,
+                "bytes": self.bytes}
+
+
+@dataclass(frozen=True)
 class DoctorReport:
     """What ``store doctor`` found. It reads only: it removes, moves and repairs
     nothing (D17); removing a leftover is a user action. It re-hashes every blob.
@@ -164,6 +182,10 @@ class DoctorReport:
       tool, say). Publishing the same bytes there again is ``store.collision``.
     - ``unreadable``: ``(path, reason)`` for a folder the doctor could not list or a
       blob it could not read.
+    - ``journal``: the files another writer keeps at the root, present or absent, one
+      :class:`RootFile` per name of :data:`~.layout.ROOT_FILES` (the Wan journal and its
+      lock file, story 851). They are part of a store that made live clips, so they are
+      never ``unexpected`` and do not make the report unclean (proposal, story 860).
 
     Only files and links are listed; an empty folder outside the layout is not.
     """
@@ -179,6 +201,7 @@ class DoctorReport:
     mismatched: tuple[tuple[str, str], ...] = ()
     foreign: tuple[str, ...] = ()
     unreadable: tuple[tuple[str, str], ...] = ()
+    journal: tuple[RootFile, ...] = tuple(RootFile(name) for name in ROOT_FILES)
     referenced: frozenset[str] = field(default=frozenset(), repr=False)
 
     @property
@@ -195,7 +218,8 @@ class DoctorReport:
                 "damaged": list(self.damaged),
                 "mismatched": [list(item) for item in self.mismatched],
                 "foreign": list(self.foreign),
-                "unreadable": [list(item) for item in self.unreadable]}
+                "unreadable": [list(item) for item in self.unreadable],
+                "journal": [item.to_document() for item in self.journal]}
 
 
 class LocalStore(Store, StageLedger):
@@ -386,11 +410,14 @@ class LocalStore(Store, StageLedger):
         unreadable: list[tuple[str, str]] = []
         records: dict[str, StageRecord] = {}
         record_files: list[str] = []
+        root_files: dict[str, RootFile] = {}
         for rel, regular in self._walk(unreadable):
             if rel.startswith(STAGING + "/"):
                 staging.append(rel)
             elif rel.startswith(PROBE + "/"):
                 continue  # the NFS adapter's start-up probe area (story 434)
+            elif rel in ROOT_FILES:  # at the root only: a name with no folder
+                root_files[rel] = self._root_file(rel, unreadable)
             elif not regular:
                 unexpected.append(rel)  # a symbolic link or other special file
             elif is_locator(rel):
@@ -437,7 +464,28 @@ class LocalStore(Store, StageLedger):
                             dangling=tuple(sorted(dangling)), damaged=tuple(sorted(damaged)),
                             mismatched=tuple(sorted(mismatched)),
                             foreign=self._foreign(sorted(blobs) + record_files),
-                            unreadable=tuple(sorted(unreadable)), referenced=frozenset(known))
+                            unreadable=tuple(sorted(unreadable)),
+                            journal=tuple(root_files.get(name, RootFile(name))
+                                          for name in ROOT_FILES),
+                            referenced=frozenset(known))
+
+    def _root_file(self, name: str, unreadable: list[tuple[str, str]]) -> RootFile:
+        """A root file the listing found, by ``lstat`` relative to the root's descriptor:
+        never opened and never followed."""
+        root = os.open(self.root, _DIR)
+        try:
+            info = os.stat(name, dir_fd=root, follow_symlinks=False)
+        except FileNotFoundError:  # removed since the listing
+            return RootFile(name)
+        except OSError as error:
+            unreadable.append((name, _reason(error)))
+            return RootFile(name, present=True)
+        finally:
+            os.close(root)
+        if stat.S_ISREG(info.st_mode):
+            return RootFile(name, present=True, kind="file", bytes=info.st_size)
+        return RootFile(name, present=True,
+                        kind="link" if stat.S_ISLNK(info.st_mode) else "other")
 
     def _foreign(self, finals: list[str]) -> tuple[str, ...]:
         """The final files a publication of the same bytes would refuse (see
@@ -984,4 +1032,4 @@ def _close(chunks: _Chunks) -> None:
     chunks.close()
 
 
-__all__ = ["DoctorReport", "LocalStore", "StagingLeftoverWarning"]
+__all__ = ["DoctorReport", "LocalStore", "RootFile", "StagingLeftoverWarning"]

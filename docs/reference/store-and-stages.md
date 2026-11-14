@@ -37,7 +37,14 @@ file modes and hard links, with `/proc` mounted.
 <root>/productions/<production_id>/records/<run_id>/<stage>.json   (local adapter only)
 <root>/.staging/<random>.part
 <root>/.probe/                                                       (NFS adapter, story 434)
+<root>/wan-journal.jsonl, <root>/wan-journal.jsonl.lock             (the Wan client's, story 851)
 ```
+
+The last two are the Wan clip client's one journal of the store and its lock file
+(`build.live.journal_path`, `adapters.wan.FileJournal`). The store never opens, locks,
+moves or rewrites them; `store.layout.ROOT_FILES` names them, since the build imports
+the store and the store cannot import the build, and a test holds the names equal
+(proposal, story [860](https://work.haynesnetwork.com/work_packages/860)).
 
 A locator is a blob's relative path, matched whole: `library` or
 `productions/prd_<ULID>`, then `sha256/`, the hash's first two hex digits, the
@@ -290,6 +297,14 @@ name outside `.staging`: publishing it again is `store.collision`) and `unreadab
 (folders it could not list, blobs it could not read). It walks the tree through descriptors without following a link, and
 reads every blob in full. It removes, moves and repairs nothing; removing a leftover
 is a user action (D17).
+
+`journal` (proposal, story 860) lists the Wan journal and its lock file at the root, each
+`{path, present, kind, bytes}`: `kind` is `file`, `link` or `other` (null when absent),
+`bytes` a regular file's size. They are never `unexpected` and never make the report
+unclean. The doctor reads them only from the root's listing and an `lstat` relative to
+the root's descriptor: it never opens, locks, moves or rewrites them, so they stay
+byte-identical with the same modification times, and it reports the same while the
+client holds the journal (`tests/store/test_doctor.py`).
 
 ## Pre-build check
 
