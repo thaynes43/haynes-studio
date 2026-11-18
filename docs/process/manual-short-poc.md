@@ -136,7 +136,9 @@ target lock. The PoC scripts are unchanged and will use that environment too.
    REMOTE='/studio/jobs/<new-job-id>'
    kubectl exec -n ai "$POD" -c app -- mkdir -p /studio/jobs
    kubectl exec -n ai "$POD" -c app -- mkdir "$REMOTE"  # fails if already used
-   kubectl cp "$JOB/." "ai/$POD:$REMOTE" -c app
+   kubectl cp "$JOB/source" "ai/$POD:$REMOTE/source" -c app
+   kubectl cp "$JOB/store" "ai/$POD:$REMOTE/store" -c app
+   kubectl cp "$JOB/voiced" "ai/$POD:$REMOTE/voiced" -c app
    ```
 
 3. Use the worker's ready venv (`python` on its `PATH`) and run under `nice -n 10`.
