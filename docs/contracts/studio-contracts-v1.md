@@ -244,10 +244,10 @@ Crockford base32 (first character `0` to `7`; no `I`, `L`, `O` or `U`).
   reading stands for the E1 records already written: the stand-in issuer, which no
   sign-in can issue, marks each of them as an agent session's work. Such a record is
   never presented as a person's act. Story
-  [864](https://work.haynesnetwork.com/work_packages/864) proposes an `agent_session`
-  operator below (P-50), pending the contract owner's review.
-- **Proposed amendment P-50, story [864](https://work.haynesnetwork.com/work_packages/864),
-  for the contract owner's review; not yet ratified.** A CLI `operator` may be exactly
+  [864](https://work.haynesnetwork.com/work_packages/864) adds an `agent_session`
+  operator below (P-50).
+- **Amendment P-50, story [864](https://work.haynesnetwork.com/work_packages/864) (the
+  contract owner's decision of 2026-11-18, a proposal Tom may overrule).** A CLI `operator` may be exactly
   a `human` or an `agent_session`, never another CLI, a worker or a studio key. Choose
   `--operator-iss ISS --operator-sub SUB` or the complete
   `--operator-session SESSION --operator-harness HARNESS --operator-model MODEL` set.
@@ -2079,7 +2079,7 @@ each waits on its story.
 | P-47 | Six small fixes as built (story 860): a stopped run (`failed`, `cancelled`, `held`) keeps the board stages it completed; a reused layered segment lists its decal gate results, reported and never a second gate, and a run check may name its `slot`; `store doctor` reports the journal's two root files under `journal`; one register file entry per engine for a file two engines load; the import's summary reads voices as the library does, while its stored story and map keep their own derived values (O-860-1, the contract owner) | `stages: []` on a stopped run (its work in no record); running the gate again on a reused segment; an `engines` list on a register file entry (changes the register's shape and its readers); rewriting what `studio legacy import --out` stores |
 | P-48 | The command line's operator when an agent session runs it (O-428-1, the contract owner): the E1 records written as `{kind: human}` under the stand-in issuer `https://agent-session.invalid/dev-env` are kept as they are: that issuer marks them, and they are never presented as a person's act; an `agent_session` operator comes later (story 864) | rewriting the records already written; letting an agent session sign in as a person |
 | P-49 | GPU heat (the contract owner's practice): no temperature stop line of the coordinator's own in GPU work orders; each job's peak recorded; the API's lease, the client's cool-idle start check and the unknown-work checks as the guards. Its recorded reason is a relayed, unverified message (story 428, comment 8409), not Tom's ruling; Q-428-6 asks him to confirm it | a fixed stop line such as story 428's 88 C (taken from E0's 84 to 88 C range, not a platform limit) |
-| P-50 (unratified; proposed by story [864](https://work.haynesnetwork.com/work_packages/864)) | CLI operator `human` or `agent_session`; exclusive complete flag sets; existing actor fields preserved; private-view ledger `provenance.created_by`; people-only promotion and Wan clears require a human | a stand-in human issuer for new agent work; treating attribution as authentication or permission |
+| P-50 (the contract owner, 2026-11-18; story [864](https://work.haynesnetwork.com/work_packages/864)) | CLI operator `human` or `agent_session`; exclusive complete flag sets; existing actor fields preserved; private-view ledger `provenance.created_by`; people-only promotion and Wan clears require a human | a stand-in human issuer for new agent work; treating attribution as authentication or permission |
 
 ## 18. Decisions and dissent
 
