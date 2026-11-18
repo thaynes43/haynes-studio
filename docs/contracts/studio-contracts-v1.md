@@ -1383,7 +1383,12 @@ link or a folder under either name makes the report unclean (P-47). User deletio
 and every asset version their snapshots reference, cannot be tombstoned. Removing bytes is
 out of scope for E1 to E3 (P-11). On the Wan PVC (`ai/wan-video`), legacy delivery
 ledgers (`edited_production`) and `/workspace/output/productions/` are never written
-(review H5). Engine jobs run through the Wan API's own `generate()` create their own
+(review H5). **Proposed exception, story
+https://work.haynesnetwork.com/work_packages/863:** `studio private-view` puts a
+verified delivery on private viewing, create-only, with the phone proxy selected
+unless `--master` is given; [command and safety boundary](../reference/studio-private-view.md).
+This awaits the contract owner's review; it changes no legacy reader's authority.
+Engine jobs run through the Wan API's own `generate()` create their own
 ledgers and outputs, and the clip client creates its inputs once under
 `/workspace/input/studio-e0/` (story 842). The private import only reads the volume
 (story 846).
@@ -1990,8 +1995,9 @@ each waits on its story.
 - The render worker at the package's lock (haynes-ops): story
   [862](https://work.haynesnetwork.com/work_packages/862), waits for Tom.
 - The six one-off drivers of story 428: PR 70, held for the same review.
-- A studio command for private viewing (today a one-off driver over `poc/deliver.py`; it
-  writes to the shared Wan volume, so it needs that review too): story
+- Proposed `studio private-view` ([reference](../reference/studio-private-view.md)),
+  replacing the one-off driver over `poc/deliver.py`; writes to the shared Wan volume
+  and awaits the coordinator's other-family review on the final head: story
   [863](https://work.haynesnetwork.com/work_packages/863).
 - An `agent_session` operator on the command line (P-48): story
   [864](https://work.haynesnetwork.com/work_packages/864), contract text and schema first.
