@@ -5,12 +5,14 @@ import hashlib
 import io
 import json
 import os
+import stat
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
+from haynes_studio import _private_view_remote as remote
 from haynes_studio.adapters.runner import WAN_API, Completed
 from haynes_studio.build.validate import validate_run
 from haynes_studio.cli import Clients, main
@@ -633,3 +635,185 @@ def test_corrupted_own_ledger_is_withdrawn_by_identity(setup):
     assert withdrawn.stat().st_ino == own_inode[0]
     assert withdrawn.read_bytes() == b"corrupted own ledger"
     no_served(args)
+
+
+@pytest.mark.parametrize("replacement", ["file", "symlink"])
+def test_withdraw_restores_replacement_swapped_at_rename(setup, monkeypatch, replacement):
+    result = put_private_view(**setup)
+    root = setup["runner"].root
+    served = root / "jobs" / (result["ledger"]["id"] + ".json")
+    recovery = root / "jobs" / (".private-view-" + result["ledger"]["id"])
+    request = json.loads(next(c.argv[-1] for c in setup["runner"].calls
+                              if c.label == "private_view.link"))
+    original = remote.rename_only
+    swapped, restored = [], []
+
+    def swap_then_rename(source_dir, source, target_dir, target):
+        # Inside perform(), after its last name stat, at the actual rename call.
+        if target == "withdrawn":
+            served.rename(served.with_suffix(".original"))
+            if replacement == "file":
+                served.write_bytes(b"another writer's ledger")
+            else:
+                served.symlink_to("another-writers-ledger")
+            swapped.append(served.lstat())
+        else:
+            restored.append((source, target))
+        original(source_dir, source, target_dir, target)
+
+    monkeypatch.setattr(remote, "rename_only", swap_then_rename)
+    with pytest.raises(ValueError, match="restored.*served name"):
+        remote.perform("withdraw", str(root), request)
+    assert len(swapped) == 1 and restored == [("withdrawn", served.name)]
+    assert served.lstat().st_ino == swapped[0].st_ino
+    if replacement == "file":
+        assert served.read_bytes() == b"another writer's ledger"
+    else:
+        assert served.is_symlink() and os.readlink(served) == "another-writers-ledger"
+    assert not os.path.lexists(recovery / "withdrawn")
+    assert served.with_suffix(".original").stat().st_ino == request["receipt"]["inode"][1]
+
+
+@pytest.mark.parametrize("action", ["reserve", "prepare"])
+def test_new_directory_swap_between_mkdir_and_open_is_refused(setup, monkeypatch, action):
+    root = setup["runner"].root
+    request = {"job": JOB, "id": "a" * 32, "need": 1,
+               "ledger_file": {"bytes": 2, "sha256": sha(b"{}")}}
+    if action == "reserve":
+        target = folder(setup)
+    else:
+        folder(setup).mkdir()
+        target = root / "jobs" / (".private-view-" + request["id"])
+    foreign = target.with_name("foreign-directory")
+    foreign.mkdir()
+    (foreign / "kept").write_bytes(b"another writer's file")
+    before = snapshot(foreign)
+    foreign_inode = foreign.stat().st_ino
+    original = remote.os.mkdir
+    swapped = []
+
+    def swap_after_mkdir(path, mode=0o777, *, dir_fd=None):
+        original(path, mode, dir_fd=dir_fd)
+        if path == target.name:
+            # perform() has not yet opened the name it just created.
+            target.rename(target.with_name("original-empty-directory"))
+            foreign.rename(target)
+            swapped.append(True)
+
+    monkeypatch.setattr(remote.os, "mkdir", swap_after_mkdir)
+    monkeypatch.setattr(remote.sys, "stdin", io.TextIOWrapper(io.BytesIO(b"{}")))
+    with pytest.raises(ValueError, match="empty.*effective uid"):
+        remote.perform(action, str(root), request)
+    assert swapped and target.stat().st_ino == foreign_inode
+    assert snapshot(target) == before
+    no_served(setup)
+
+
+@pytest.mark.parametrize("action", ["reserve", "prepare"])
+def test_new_directory_requires_effective_uid(setup, monkeypatch, action):
+    root = setup["runner"].root
+    request = {"job": JOB, "id": "a" * 32, "need": 1,
+               "ledger_file": {"bytes": 2, "sha256": sha(b"{}")}}
+    if action == "prepare":
+        folder(setup).mkdir()
+    monkeypatch.setattr(remote.os, "geteuid", lambda: os.getuid() + 1)
+    monkeypatch.setattr(remote.sys, "stdin", io.TextIOWrapper(io.BytesIO(b"{}")))
+    with pytest.raises(ValueError, match="empty.*effective uid"):
+        remote.perform(action, str(root), request)
+    target = folder(setup) if action == "reserve" else root / "jobs" / (".private-view-" + request["id"])
+    assert list(target.iterdir()) == []
+    no_served(setup)
+
+
+@pytest.mark.parametrize("change", ["output-path", "output-json", "output-bytes", "output-sha256",
+                                    "asset-path", "asset-bytes", "asset-sha256"])
+def test_link_rejects_ledger_not_bound_to_this_jobs_verified_files(setup, change):
+    # Leave a valid prepared ledger, but stop the local route before linking it.
+    setup["runner"].bad = "link"
+    with pytest.raises(PrivateViewError):
+        put_private_view(**setup)
+    request = json.loads(next(c.argv[-1] for c in setup["runner"].calls
+                              if c.label == "private_view.link"))
+    ledger = request["ledger"]
+    if change == "output-path":
+        ledger["output"] = "productions/another-job/proxy.mp4"
+    elif change == "output-json":
+        ledger["output"] = "productions/" + JOB + "/run.json"
+    elif change.startswith("output-"):
+        key = change.split("-", 1)[1]
+        ledger[key] = ledger[key] + 1 if key == "bytes" else "0" * 64
+    elif change == "asset-path":
+        ledger["assets"][0]["path"] = "/workspace/output/productions/another-job/final.mp4"
+    else:
+        key = change.split("-", 1)[1]
+        asset = ledger["assets"][0]
+        asset[key] = asset[key] + 1 if key == "bytes" else "0" * 64
+    data = canonical_json(ledger)
+    request["ledger_file"] = {"bytes": len(data), "sha256": sha(data)}
+    root = setup["runner"].root
+    staged = root / "jobs" / (".private-view-" + request["id"]) / request["receipt"]["temp"]
+    staged.write_bytes(data)  # Preserve the receipt's inode, match request and digest.
+    assert staged.stat().st_ino == request["receipt"]["inode"][1]
+    with pytest.raises(ValueError, match="ledger (output|asset)"):
+        remote.perform("link", str(root), request)
+    no_served(setup)
+
+
+def test_remote_file_and_recovery_modes_ignore_restrictive_umask(setup):
+    old_umask = os.umask(0o077)
+    try:
+        result = put_private_view(**setup)
+    finally:
+        os.umask(old_umask)
+    for name in remote.NAMES:
+        assert stat.S_IMODE((folder(setup) / name).stat().st_mode) == 0o644
+    jobs = setup["runner"].root / "jobs"
+    assert stat.S_IMODE((jobs / (result["ledger"]["id"] + ".json")).stat().st_mode) == 0o644
+    assert stat.S_IMODE((jobs / (".private-view-" + result["ledger"]["id"])).stat().st_mode) == 0o700
+
+
+def test_recovery_mode_is_private_after_empty_owned_directory_swap(setup, monkeypatch):
+    root = setup["runner"].root
+    folder(setup).mkdir()
+    request = {"job": JOB, "id": "a" * 32,
+               "ledger_file": {"bytes": 2, "sha256": sha(b"{}")}}
+    target = root / "jobs" / (".private-view-" + request["id"])
+    foreign = target.with_name("empty-owned-directory")
+    foreign.mkdir()
+    foreign.chmod(0o755)
+    original = remote.os.mkdir
+
+    def swap_after_mkdir(path, mode=0o777, *, dir_fd=None):
+        original(path, mode, dir_fd=dir_fd)
+        if path == target.name:
+            target.rename(target.with_name("original-recovery"))
+            foreign.rename(target)
+
+    monkeypatch.setattr(remote.os, "mkdir", swap_after_mkdir)
+    monkeypatch.setattr(remote.sys, "stdin", io.TextIOWrapper(io.BytesIO(b"{}")))
+    remote.perform("prepare", str(root), request)
+    assert stat.S_IMODE(target.stat().st_mode) == 0o700
+
+
+def test_withdraw_reports_replacement_retained_when_restore_name_is_occupied(setup, monkeypatch):
+    result = put_private_view(**setup)
+    root = setup["runner"].root
+    served = root / "jobs" / (result["ledger"]["id"] + ".json")
+    recovery = root / "jobs" / (".private-view-" + result["ledger"]["id"])
+    request = json.loads(next(c.argv[-1] for c in setup["runner"].calls
+                              if c.label == "private_view.link"))
+    original = remote.rename_only
+
+    def swap_then_occupy(source_dir, source, target_dir, target):
+        if target == "withdrawn":
+            served.rename(served.with_suffix(".original"))
+            served.write_bytes(b"replacement at withdrawal")
+        else:
+            served.write_bytes(b"new owner of served name")
+        original(source_dir, source, target_dir, target)
+
+    monkeypatch.setattr(remote, "rename_only", swap_then_occupy)
+    with pytest.raises(ValueError, match="could not restore served name; retained at .*withdrawn"):
+        remote.perform("withdraw", str(root), request)
+    assert served.read_bytes() == b"new owner of served name"
+    assert (recovery / "withdrawn").read_bytes() == b"replacement at withdrawal"

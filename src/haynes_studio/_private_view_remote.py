@@ -45,6 +45,11 @@ def identity(fd):
     return [info.st_dev, info.st_ino]
 
 
+def check_new_folder(fd):
+    if os.fstat(fd).st_uid != os.geteuid() or os.listdir(fd):
+        raise ValueError("new directory must be empty and owned by the effective uid")
+
+
 def digest_file(fd):
     before = os.fstat(fd)
     if not stat.S_ISREG(before.st_mode):
@@ -105,6 +110,17 @@ def verify_files(folder, files):
                 raise ValueError("final file does not match: " + name)
         finally:
             os.close(fd)
+
+
+def check_ledger_files(ledger, job, files):
+    outputs = {"productions/" + job + "/" + name: files[name] for name in NAMES[:2]}
+    if outputs.get(ledger["output"]) != {k: ledger[k] for k in ("bytes", "sha256")}:
+        raise ValueError("ledger output does not match this job's verified media")
+    assets = {"/workspace/output/productions/" + job + "/" + name: files[name]
+              for name in NAMES}
+    for asset in ledger["assets"]:
+        if assets.get(asset["path"]) != {k: asset[k] for k in ("bytes", "sha256")}:
+            raise ValueError("ledger asset does not match this job's verified files")
 
 
 def fill_temp(fd, source, expected):
@@ -181,6 +197,7 @@ def perform(action, root, request):
                 os.mkdir(request["job"], 0o755, dir_fd=fds["productions"])
                 fds["job"] = os.open(request["job"], DIR, dir_fd=fds["productions"])
                 stack.callback(os.close, fds["job"])
+                check_new_folder(fds["job"])
             return {"free": free, "identities": {k: identity(v) for k, v in fds.items()}}
         if action == "copy":
             name = request["name"]
@@ -190,6 +207,7 @@ def perform(action, root, request):
             fd = os.open(".", os.O_TMPFILE | os.O_RDWR | os.O_NOFOLLOW, 0o600,
                          dir_fd=fds["job"])
             try:
+                os.fchmod(fd, 0o644)
                 fill_temp(fd, sys.stdin.buffer, request["files"][name])
                 check_namespace(root, request)
                 link_fd(fd, fds["job"], name)
@@ -206,6 +224,8 @@ def perform(action, root, request):
             os.mkdir(recovery, 0o700, dir_fd=jobs)
             folder = os.open(recovery, DIR, dir_fd=jobs)
             stack.callback(os.close, folder)
+            check_new_folder(folder)
+            os.fchmod(folder, 0o700)
             expected = request["ledger_file"]
             temp, inode = write_temp(folder, sys.stdin.buffer, expected)
             return {"folder": identity(folder), "temp": temp, "inode": inode, **expected}
@@ -226,6 +246,8 @@ def perform(action, root, request):
                 if ledger != request["ledger"]:
                     raise ValueError("staged ledger is another document")
                 verify_files(fds["job"], request["files"])
+                check_ledger_files(ledger, request["job"], request["files"])
+                os.fchmod(fd, 0o644)
                 check_namespace(root, request)
                 link_fd(fd, jobs, served)
             finally:
@@ -249,6 +271,15 @@ def perform(action, root, request):
             if [named.st_dev, named.st_ino] != receipt["inode"]:
                 raise ValueError("served ledger identity changed; left untouched")
             rename_only(jobs, served, folder, "withdrawn")
+            moved = os.stat("withdrawn", dir_fd=folder, follow_symlinks=False)
+            if [moved.st_dev, moved.st_ino] != receipt["inode"]:
+                try:
+                    rename_only(folder, "withdrawn", jobs, served)
+                except OSError as error:
+                    raise ValueError("withdrawal moved a replacement ledger; could not restore "
+                                     "served name; retained at " + recovery + "/withdrawn: "
+                                     + str(error)) from error
+                raise ValueError("withdrawal moved a replacement ledger; restored to served name")
             return {"withdrawn": True, "path": "/workspace/jobs/" + recovery + "/withdrawn"}
         raise ValueError("unknown action")
 
