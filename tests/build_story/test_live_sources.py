@@ -100,7 +100,7 @@ class Ids:
 
 def toolchain(**changes) -> Toolchain:
     tools = Toolchain()
-    out = replace(tools, s2v_profile={**f.S2V_PROFILE, "size": [W, H]}, s2v_negative_prompt=wan.NEGATIVE,
+    out = replace(tools, s2v_profile={**f.S2V_PROFILE, "size": [W, H]},
                   i2v_profile={**tools.i2v_profile, "size": [W, H]})
     return replace(out, **changes)
 
@@ -245,6 +245,25 @@ def test_the_service_phase_requests_exactly_the_missing_clips_once_each_in_order
     # The journal is the store's, and every job in it is settled.
     state = served["state"]
     assert state.job is None and state.halt is None and len(state.named) == 2
+
+
+def test_default_toolchain_negative_prompts_are_accepted_by_the_client_and_fake_pod(served):
+    assert toolchain().s2v_negative_prompt == toolchain().i2v_negative_prompt == wan.NEGATIVE
+    for source in (served["first_sources"].s2v, served["first_sources"].i2v):
+        (request,) = source.calls
+        assert request.negative_prompt == wan.NEGATIVE
+    assert len(served["pod"].jobs) == 2
+
+
+def test_custom_negative_prompts_reach_the_client_and_fake_pod(prepared, tmp_path):
+    phase = Phase(copy_world(prepared, tmp_path), prepared[1], prepared[2], FakeWan())
+    result = phase.run(tools=toolchain(s2v_negative_prompt="speech blur", i2v_negative_prompt="frame blur"))
+    assert result.run["status"] == "cancelled", result.run["error"]
+    assert "service phase complete" in result.run["transitions"][-1]["reason"]
+    for payload, negative in zip(phase.pod.payloads, ("speech blur", "frame blur"), strict=True):
+        # Both graphs carry the negative text in a CLIPTextEncode node.
+        assert any(node.get("inputs", {}).get("text") == negative
+                   for node in payload["graph"].values())
 
 
 def test_a_second_service_phase_requests_none_and_reads_no_journal(served):
@@ -443,11 +462,14 @@ def test_a_journal_job_made_for_another_request_stops_the_phase_held(prepared, t
 # Checked before any clip ----------------------------------------------------------------------------
 
 
-def test_a_request_the_client_would_refuse_fails_the_run_before_any_clip(prepared, tmp_path):
+@pytest.mark.parametrize("negative_field, board", [("s2v_negative_prompt", f.B1),
+                                                   ("i2v_negative_prompt", f.B3)])
+def test_a_request_the_client_would_refuse_fails_the_run_before_any_clip(
+        prepared, tmp_path, negative_field, board):
     phase = Phase(copy_world(prepared, tmp_path), prepared[1], prepared[2], FakeWan())
-    run = phase.run(tools=toolchain(s2v_negative_prompt="")).run  # the Wan graph needs one
+    run = phase.run(tools=toolchain(**{negative_field: ""})).run  # the Wan graph needs one
     assert run["status"] == "failed" and run["error"]["code"] == REQUEST_INVALID
-    assert run["error"]["board_id"] == f.B1
+    assert run["error"]["board_id"] == board
     assert run["error"]["message"].endswith("(found before any clip was requested)")
     assert phase.pod.probes == 0 and phase.clips.client is None
     assert not journal_path(phase.world.root).exists()

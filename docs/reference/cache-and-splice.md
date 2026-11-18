@@ -44,10 +44,11 @@ round-trip form. Before a document is encoded, `make_key` checks and normalizes 
 - Nothing else can enter a key: no bytes, paths, sets or objects.
 
 Every document carries `kind` and `scheme` (`studio.cache-key/v1`, a proposal; changing
-how any key is made bumps it). The key's 64 hex digits are also the SHA-256 of
-`CacheKey.canonical`. Inputs are content hashes and parameters, never identifiers or
-paths. `make_key` enforces this, and a test also checks that no key document in the
-fixture plan holds an ID.
+the shared normalization or hashing bumps it). Adding an artifact input changes that
+artifact's keys without invalidating unrelated artifacts. The key's 64 hex digits are
+also the SHA-256 of `CacheKey.canonical`. Inputs are content hashes and parameters,
+never identifiers or paths. `make_key` enforces this, and a test also checks that no
+key document in the fixture plan holds an ID.
 
 ### Inventory
 
@@ -63,7 +64,7 @@ To add an artifact, add a function and an `ArtifactSpec` row to `INVENTORY`.
 | S2V drive track | `s2v_drive_track` | board | `s2v_drive_track_key` | `speaker`, `lines` (the speaker's take hashes with their start in ms), `frames`, `fps`, `rate`, `assembler` (proposal, below) |
 | S2V clip | `s2v_clip` | source | `s2v_clip_key` | `drive_track`, `start_still`, `prompt`, `negative_prompt`, `seed`, `profile`, `adapter` |
 | Doll clip or set loop | `motion_clip` | source | `motion_clip_key` | `still`, `prompt`, `seed`, `profile` (names the adapter) |
-| Whole-frame I2V clip(s) | `whole_frame_clip` | source | `whole_frame_clip_key` | `photo`, `prompt`, `seed`, `profile`, `clip_lengths` |
+| Whole-frame I2V clip(s) | `whole_frame_clip` | source | `whole_frame_clip_key` | `photo`, `prompt`, `negative_prompt`, `seed`, `profile`, `clip_lengths` |
 | Keyed and decal frames | `keyed_frames` | source | `keyed_frames_key` | `clip`, `still`, `key_thresholds`, `protect_boxes`, `decal_box`, `decal_version`, `keyer` |
 | Board picture segment | `segment` | board | `segment_key` | `method`, `frames`, `width`, `height`, `fps`, `layout` (preset values), `layers` (per cast slot in draw order: still, clip, keyed, phase), `set_layer`, `whole_frame_clip`, `motion_style`, `voice_envelope`, `talk` (each line's speaker and span), `cues` (move and camera, resolved to ms), `foreground`, `procedural_stream`, `compositor`, `encoder` |
 | Film picture | `film_picture` | film | `film_picture_key` | `segments` (ordered hashes with frames), `splicer` |
@@ -91,8 +92,9 @@ The plan's inputs are resolved beforehand:
 - `blobs` (asset version to content hash);
 - `voice_ids` (voice version to stock voice name);
 - the `Toolchain`, which holds every adapter, profile, prompt and tool digest; its
-  defaults are placeholders, and the default mux and proxy profile name the encoder
-  build, as segments do;
+  model/tool defaults are placeholders, its negative prompts default to the Wan
+  client's `NEGATIVE` (E0's text), and the default mux and proxy profile name the
+  encoder build, as segments do;
 - the `MediaFormat`: an even frame size, and 24 fps only (both media kinds deliver at
   24 fps and TIME-3 counts board frames at 24, so another fps is refused rather than
   half applied).

@@ -1,8 +1,8 @@
 """Whole-frame clips as cached artifacts (story 427).
 
-One whole-frame clip key (``whole_frame_clip_key``: photo, prompt, seed, profile and
-the requested clip lengths) names one artifact: the **clip set**, a JSON record
-(``studio.whole-frame-clips/v1``, **proposal**) that lists each clip of the chain by
+One whole-frame clip key (``whole_frame_clip_key``: photo, prompt, negative prompt,
+seed, profile and the requested clip lengths) names one artifact: the **clip set**, a
+JSON record (``studio.whole-frame-clips/v1``, **proposal**) that lists each clip of the chain by
 hash with its provenance. It is committed once as a completed stage through
 :class:`~haynes_studio.cache.artifacts.ArtifactCache` (outputs ``whole_frame_clip`` and
 ``inputs``), so the cache's rules hold: create-only, found again by the key, never
@@ -216,7 +216,8 @@ class WholeFrameClips:
         specs = tuple(ClipSpec(index=i, frames=n, seed=chain_seed(seed, i))
                       for i, n in enumerate(document["clip_lengths"]))
         request = ClipRequest(key=key.value, photo=photo, photo_sha256=document["photo"],
-                              prompt=document["prompt"], seed=seed, profile=profile, clips=specs)
+                              prompt=document["prompt"], negative_prompt=document["negative_prompt"],
+                              seed=seed, profile=profile, clips=specs)
         clips = list(self.source.generate(request))
         self.made.append(key.value)
         records, starts = self._check_clips(request, clips)
@@ -225,6 +226,7 @@ class WholeFrameClips:
                 "schema": SCHEMA, "key": key.value, "adapter": self.adapter,
                 "source": _text(getattr(self.source, "name", None), "the source's name"),
                 "photo": {"sha256": document["photo"]}, "prompt": document["prompt"],
+                "negative_prompt": document["negative_prompt"],
                 "seed": seed, "profile": profile, "clip_lengths": list(document["clip_lengths"]),
                 "source_fps": profile["source_fps"], "clips": records})
         except (TypeError, ValueError) as error:

@@ -60,6 +60,7 @@ def test_a_miss_makes_the_chain_once_and_records_each_clips_provenance(store):
     record = completed_stage(store, production_id=PRODUCTION, run_id=h.RUN1, stage=stage_name(key))
     assert set(record.blobs) == {WHOLE_FRAME_CLIP, "inputs"}
     document = clip_set(store, made.sha256)
+    assert request.negative_prompt == document["negative_prompt"] == key.document["negative_prompt"]
     photo = hashlib.sha256(h.PHOTOS[PHOTO_3]).hexdigest()
     assert document["key"] == key.value and document["photo"] == {"sha256": photo}
     assert document["clip_lengths"] == [25, 25] and document["source_fps"] == 24
@@ -101,6 +102,16 @@ def test_another_seed_or_length_is_another_artifact(store):
     b = clips.clips(h.clip_key(lengths=(25,), seed=32))
     c = clips.clips(h.clip_key(lengths=(25, 25)))
     assert len({a.sha256, b.sha256, c.sha256}) == 3 and len(clips.made) == 3
+
+
+def test_another_negative_prompt_misses_the_cache_and_reaches_the_source(store):
+    source = FakeClipSource()
+    clips, _ = stage(store, source)
+    a = clips.clips(h.clip_key(lengths=(25,)))
+    b = clips.clips(h.clip_key(lengths=(25,), negative_prompt="blur"))
+    assert a.key != b.key and a.sha256 != b.sha256 and not b.hit
+    assert len(source.calls) == 2 and source.calls[1].negative_prompt == "blur"
+    assert clip_set(store, b.sha256)["negative_prompt"] == "blur"
 
 
 @pytest.mark.parametrize(("source", "code"), [

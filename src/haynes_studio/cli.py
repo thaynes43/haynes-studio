@@ -676,7 +676,7 @@ def _toolchain(path: str | None):
         return tools
     document = read_json(path).document
     allowed = {"s2v_profile", "i2v_profile", "i2v_clip_frames", "s2v_prompt",
-               "s2v_negative_prompt", "i2v_prompt", "procedural_seed"}
+               "s2v_negative_prompt", "i2v_prompt", "i2v_negative_prompt", "procedural_seed"}
     names = {f.name for f in fields(Toolchain)}
     if not isinstance(document, dict) or not set(document) <= (allowed & names):
         raise ContractError(path, [Violation("schema.invalid", "", "a toolchain file is an "

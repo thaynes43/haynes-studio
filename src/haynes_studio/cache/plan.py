@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any
 
+from haynes_studio.adapters.wan import NEGATIVE
 from haynes_studio.cache.errors import KEY_INPUT_INVALID, CacheError
 from haynes_studio.cache.keys import (
     CacheKey,
@@ -123,7 +124,8 @@ class BoardVoice:
 @dataclass(frozen=True)
 class Toolchain:
     """Every tool, profile and setting a key names (P-07). The defaults are
-    placeholders a build replaces with the pinned digests of its run's toolchain."""
+    model/tool placeholders a build replaces with its run's pinned digests; the
+    negative prompts are the Wan client's defaults (E0's text)."""
 
     tts_model: str = "kokoro-82m-v1.0"
     take_rate: int = 24_000
@@ -137,7 +139,7 @@ class Toolchain:
         "model": "wan2.2-s2v-14b-fp8", "lora": "lightx2v-4step", "steps": 4, "cfg": 1,
         "size": [576, 1024], "chunk": 77, "source_fps": 16}))
     s2v_prompt: str = "a felt doll talking, stop-motion"
-    s2v_negative_prompt: str = ""
+    s2v_negative_prompt: str = NEGATIVE
     motion_profile: Mapping[str, Any] = field(default_factory=lambda: _frozen({
         "model": "wan2.2-ti2v-5b", "frames": 121, "source_fps": 24, "size": [576, 1024],
         "adapter": "studio.motion/1"}))
@@ -147,6 +149,7 @@ class Toolchain:
         "model": "wan2.2-ti2v-5b", "source_fps": 24, "size": [576, 1024],
         "adapter": "studio.i2v/1"}))
     i2v_prompt: str = "stop-motion felt dolls, gentle motion"
+    i2v_negative_prompt: str = NEGATIVE
     i2v_clip_frames: int = 121
     keyer: str = "studio.keyer/1"
     key_thresholds: Mapping[str, Any] = field(default_factory=lambda: _frozen({"green": 0.4}))
@@ -553,7 +556,7 @@ class _Planner:
             except ValueError as error:
                 raise _bad(f"whole-frame chain limit: {error}", board.id) from error
             whole_clip = self.add(f"{board.id}/whole_frame_clip", whole_frame_clip_key(
-                photo=photo, prompt=tools.i2v_prompt, seed=seed,
+                photo=photo, prompt=tools.i2v_prompt, negative_prompt=tools.i2v_negative_prompt, seed=seed,
                 profile=self.profile(tools.i2v_profile), clip_lengths=lengths), board.id)
         segment = segment_key(
             method=method, frames=clock.frames, width=media.width, height=media.height,

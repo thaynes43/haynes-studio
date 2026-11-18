@@ -65,8 +65,10 @@ build.run_unrecorded: <message>` (below).
 - `--register` defaults to `docs/reference/model-licences.json` (run from the checkout).
 - `--toolchain` is a JSON object of the profiles a build uses: `s2v_profile`,
   `i2v_profile`, `i2v_clip_frames`, `s2v_prompt`, `s2v_negative_prompt`, `i2v_prompt`,
-  `procedural_seed` (proposal). Without it the toolchain's defaults apply (E0's
-  576x1024 profiles).
+  `i2v_negative_prompt`, `procedural_seed` (proposal). Without it the toolchain's
+  defaults apply (E0's 576x1024 profiles). Both negative prompts default to the Wan
+  client's `NEGATIVE` (E0's text); an explicit empty string is still refused by the
+  client before any clip is requested. Each negative prompt is a clip-key input.
 - `--studio-commit` is recorded as `git:<SHA>` in the snapshot and the provenance.
 - `--wan-story` (story 851): the full `https://work.haynesnetwork.com/work_packages/<id>`
   URL the Wan ledger records each clip job under. Every phase but `--offline` needs it
@@ -446,9 +448,15 @@ jobs)`, `total: 2 Wan job(s), GPU 259-355.2 s, at most 623 s with cool-down`.
   the dry run lists every clip of a chain the cache lacks, kept ones included (an upper
   bound: the phase asks fewer). With the default 121-frame clips a chain is one clip for
   a board of up to 5 s.
-- **No negative prompt is invented.** The toolchain's default `s2v_negative_prompt` is
-  empty, which the Wan graph refuses (`adapter.request_invalid`, before any clip): story
-  428 sets it in `--toolchain` (E0's is the client's `NEGATIVE`).
+
+**Changed (story [861](https://work.haynesnetwork.com/work_packages/861)).** The
+toolchain's `s2v_negative_prompt` now defaults to the client's `NEGATIVE`, the same text
+story 428 set explicitly in `--toolchain`. Speech keys made with the empty default
+change; story 428's recorded speech keys do not. Whole-frame keys now include
+`i2v_negative_prompt` (also `NEGATIVE` by default), so old whole-frame keys change.
+Voice, drive tracks, library motion and mix keys stay unchanged; changed clips
+invalidate their picture dependents. These are source and offline-test changes, with
+no live run in story 861.
 
 ## The run
 
@@ -625,9 +633,9 @@ decision are marked **(428 decides)**.
    first `uv run studio build ... --phase service --dry-run --wan-story
    https://work.haynesnetwork.com/work_packages/428`, which lists every clip job, in
    order, with its length, seed and E0 GPU time, and asks nothing; put that list in
-   front of the coordinator. The toolchain file must set `s2v_negative_prompt` (the
-   default is empty, which the Wan graph refuses before any clip; E0's is the client's
-   `NEGATIVE`). Then work through the [checklist](#before-the-first-live-job) and run
+   front of the coordinator. The default negative prompts are the client's `NEGATIVE`
+   (E0's); a toolchain file may override them, and the client refuses an empty value
+   before any clip. Then work through the [checklist](#before-the-first-live-job) and run
    the same command without `--dry-run`. The local pass, the check of every request
    and the mix run first, so no Wan job is submitted for a story they refuse anywhere.
    Otherwise the run ends `cancelled` with "service phase complete"; the mix and every

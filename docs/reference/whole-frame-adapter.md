@@ -78,7 +78,7 @@ A source gets one `ClipRequest` and returns one `SourceClip` per `ClipSpec`, in 
 |---|---|
 | `key` | the whole-frame clip key's value (for naming or deduplicating jobs) |
 | `photo`, `photo_sha256` | the board photo's bytes and hash, as the key names it (PNG, JPEG or WebP; the bytes' signature says which) |
-| `prompt`, `seed` | the key's prompt and the board's `i2v:frame` seed |
+| `prompt`, `negative_prompt`, `seed` | the key's prompt, negative prompt and the board's `i2v:frame` seed; the Wan source sends both prompts as keyed |
 | `profile` | the key's profile: `model`, `source_fps`, `size` `[width, height]`, `adapter`, `delivery` |
 | `clips` | `ClipSpec(index, frames, seed)` per clip: the requested length and `chain_seed(seed, index) = seed + index` (proposal) |
 
@@ -127,7 +127,7 @@ two commits makes a new pair and never collides with the first.
 | Bad answer | a missing or short clip is `time.source_short`; extra frames, an undecodable clip, another size, seed, length or start image, or incomplete provenance is `wholeframe.clip_invalid`. Nothing is published or committed |
 
 The clip set (`studio.whole-frame-clips/v1`) holds `key`, `adapter`, `source` (the
-source's name), `photo` (the first photo's hash), `prompt`, `seed`, `profile`,
+source's name), `photo` (the first photo's hash), `prompt`, `negative_prompt`, `seed`, `profile`,
 `clip_lengths`, `source_fps` and one provenance record per clip:
 
 | Field | What |
