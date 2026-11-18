@@ -27,9 +27,15 @@ both findings as requirements, is story
 [863](https://work.haynesnetwork.com/work_packages/863). The driver as it ran stays
 readable at the commit the run log links to.
 
-## Known limits of `clips.py`
+## Known limits
 
-Found by the same review, and left as they are because the script is a record:
+Left as they are because the scripts are records. The run log lists the others it
+found under "Known defects in `tools/`".
+
+`decal.py`: its sort raises on a clip with two or more unscored frames. No clip of the
+2026-11-14 build had one.
+
+`clips.py`, found by the same review:
 
 - Two clips with the same frame count and seed share their output file names. The
   second is skipped without a word, while the summary still names it. The 2026-11-14
@@ -37,4 +43,4 @@ Found by the same review, and left as they are because the script is a record:
 - If its output folder is inside the store it reads, it adds its files there. It never
   replaces a file.
 
-Do not reuse it without fixing both.
+Do not reuse either script without fixing these.
