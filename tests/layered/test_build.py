@@ -8,6 +8,7 @@ from __future__ import annotations
 import copy
 from dataclasses import replace
 import hashlib
+import json
 
 import numpy as np
 import pytest
@@ -23,6 +24,68 @@ from tests.motion import fixtures as mf
 
 def names(plan, *parts):
     return {name for name in plan.artifacts if all(p in name for p in parts)}
+
+
+def frame_inputs(plan, board):
+    """Hashes at each stage, plus the segment's layer order and board-clock inputs."""
+    return {
+        "artifacts": {name: {"key": artifact.key.value, "content": artifact.content}
+                      for name, artifact in sorted(plan.artifacts.items())
+                      if name.startswith(f"{board}/")},
+        "segment_inputs": plan.artifacts[f"{board}/segment"].key.inputs(),
+    }
+
+
+def assert_same_frames(board, ours, theirs, inputs):
+    """Exact equality, with zero-based board frames and input hashes on a mismatch."""
+    if len(ours) != len(theirs):
+        pytest.fail(f"board={board} frame counts differ: {len(ours)} != {len(theirs)}\n{inputs()}",
+                    pytrace=False)
+    first = None
+    largest, largest_frame = 0, None
+    for n, (a, b) in enumerate(zip(ours, theirs)):
+        if np.array_equal(a, b):
+            continue
+        if a.shape != b.shape:
+            pytest.fail(f"board={board} frame={n} shapes differ: {a.shape} != {b.shape}\n{inputs()}",
+                        pytrace=False)
+        if first is None:
+            first = n
+        difference = int(np.abs(a.astype(np.int16) - b.astype(np.int16)).max())
+        if difference > largest:
+            largest, largest_frame = difference, n
+    if first is not None:
+        pytest.fail(f"board={board} first differing frame={first} max_abs_diff={largest} "
+                    f"at frame={largest_frame}\n{inputs()}", pytrace=False)
+
+
+def test_frame_mismatch_reports_board_frame_and_largest_unsigned_pixel_difference():
+    black = np.zeros((1, 1, 3), dtype=np.uint8)
+    ours = [black, np.full_like(black, 255)]
+    theirs = [np.full_like(black, 1), black]
+    with pytest.raises(pytest.fail.Exception) as error:
+        assert_same_frames("B4", ours, theirs, lambda: "input-layer-hashes")
+    assert str(error.value) == ("board=B4 first differing frame=0 max_abs_diff=255 at frame=1\n"
+                                "input-layer-hashes")
+
+
+def test_frame_mismatch_reports_every_input_layers_hash(world, first):
+    black = np.zeros((1, 1, 3), dtype=np.uint8)
+    with pytest.raises(pytest.fail.Exception) as error:
+        assert_same_frames(h.B4, [black], [np.ones_like(black)], lambda: json.dumps(
+            frame_inputs(first.plan, h.B4), sort_keys=True))
+    diagnostic = json.loads(str(error.value).split("\n", 1)[1])
+    inputs, artifacts = diagnostic["segment_inputs"], diagnostic["artifacts"]
+    assert [layer["slot"] for layer in inputs["layers"]] == list("abc")
+    for layer, slot, role in zip(inputs["layers"], "abc", ("doll_clip", "s2v_clip", "s2v_clip")):
+        assert layer["still"] == world.blobs[h.STILL[slot]]
+        for field, stage in (("clip", role), ("keyed", "keyed")):
+            name = f"{h.B4}/{stage}/{slot}"
+            assert layer[field] == first.plan.artifacts[name].content == artifacts[name]["content"]
+            assert artifacts[name]["key"] == first.plan.artifacts[name].key.value
+    assert inputs["set_layer"]["plate"] == world.blobs[h.PLATE]
+    assert inputs["set_layer"]["loop"] == world.library().version(h.SET_LOOP).content.sha256
+    assert inputs["voice_envelope"] == first.plan.artifacts[f"{h.B4}/voice_track"].content
 
 
 def test_a_first_build_makes_every_layer_and_renders_every_board(first):
@@ -65,7 +128,9 @@ def test_an_earlier_boards_length_changes_no_frame_of_a_later_board(world, first
     assert len(alone.builder.rendered) == 3
     for board in (h.B2, h.B4):
         ours, theirs = h.segment_frames(world, first.plan, board), h.segment_frames(fresh, alone.plan, board)
-        assert len(ours) == len(theirs) and all(np.array_equal(a, b) for a, b in zip(ours, theirs))
+        assert_same_frames(board, ours, theirs, lambda: json.dumps({
+            "first": frame_inputs(first.plan, board), "fresh": frame_inputs(alone.plan, board),
+        }, sort_keys=True))
 
 
 def test_the_film_holds_every_boards_frames_in_order(world, first):
