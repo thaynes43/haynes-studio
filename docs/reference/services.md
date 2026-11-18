@@ -15,7 +15,7 @@ any of it.
 | Stage | Service | Where | Route from an agent | Status for the doll format |
 |---|---|---|---|---|
 | Cast and set images | ComfyUI with Qwen-Image 2.1 (text-to-image and edit) | `ai/comfyui-0` (StatefulSet), RTX 2000 Ada 16 GB on `talosm03` | `kubectl exec -n ai comfyui-0 -c app --` to `127.0.0.1:8188` (`poc/comfy.py`) | **Proven** for cast and set images (The Winter Menu, [run log](../../titles/the-winter-menu/run-log.md)) |
-| CPU render (decals, keying, compositing) | `ai/studio-render`, up to 24 vCPUs, low priority, gasha01 NFS at `/studio`; python 3.12 with pinned requirements as read on 2026-11-03, **Python 3.13 with media libraries outside the package's lock as observed on 2026-11-14** ([below](#studio-render-cpu-work)) | `ai/deploy/studio-render` on `talosw01` | `kubectl cp` in and out, `kubectl exec -n ai deploy/studio-render -c app -- nice -n 10 python ...` | **Proven** for the PoC's layered compositing (The Winter Menu layered v2: 7 keyed clips and the 45 s film in 408 s, [findings](../../titles/the-winter-menu/video-e0/findings-layered.md)); the `haynes_studio` package cannot run there (2026-11-14) |
+| CPU render (decals, keying, compositing) | `ai/studio-render`, up to 24 vCPUs, low priority, gasha01 NFS at `/studio`; Python 3.12.16 and the package's locked runtime dependencies, as read inside the worker on 2026-11-18 ([below](#studio-render-cpu-work)) | `ai/deploy/studio-render` on `talosw01` | `kubectl cp` in and out, `kubectl exec -n ai deploy/studio-render -c app -- nice -n 10 python ...` | **Proven** for the PoC's layered compositing (The Winter Menu layered v2: 7 keyed clips and the 45 s film in 408 s, [findings](../../titles/the-winter-menu/video-e0/findings-layered.md)); package execution there remains **Expected**: an offline phase and the comparison of its keys and hashes are still to run |
 | Voices | Kokoro-82M v1.0 (Wyoming TTS) | `ai/deploy/kokoro`, container `app` | `kubectl exec -i -n ai deploy/kokoro -c app -- python -c ...` to Wyoming `127.0.0.1:10210` | **Proven** (OP341, OP345) |
 | Transcript check | Whisper service, configured `nemo-parakeet-tdt-0.6b-v2` (Wyoming ASR) | `ai/deploy/whisper`, container `app` | `kubectl exec -i -n ai deploy/whisper -c app -- python -c ...` to Wyoming `127.0.0.1:10300` | **Proven** (OP345) |
 | Sound effects from text | `audio-authoring`, Stable Audio 3 Small-SFX on CPU | namespace `dev` | MCP `http://audio-authoring.dev.svc.cluster.local:8000/mcp` (`generate_sound`, `get_generation`) | **Proven** (OP343) |
@@ -144,10 +144,30 @@ The `haynes_studio` package's lock needs Python 3.11 or 3.12 (`requires-python =
 ">=3.11,<3.13"`), jsonschema and referencing, and av below 19, numpy below 2.5, scipy
 below 1.17, OpenCV below 5 and imageio-ffmpeg below 0.8 (`pyproject.toml`). The keyer's
 and the encoder's library builds are cache-key inputs, so a picture keyed there would not
-match a session pod's keys either. **The package cannot run on the worker until
-haynes-ops pins its image to the lock**; story 428's offline phase ran in the session
-pod at two threads instead. The 2026-11-03 reading above ("python 3.12, pinned
-requirements") no longer matches; whether the image changed since then was not checked.
+match a session pod's keys either. Story 428's offline phase ran in the session pod
+at two threads instead. The earlier 2026-11-03 description ("python 3.12, pinned
+requirements") did not match that observation; the intervening image history was not checked.
+
+**Installed on 2026-11-18, story [862](https://work.haynesnetwork.com/work_packages/862)**
+(haynes-ops `166c16e6`): the worker configuration pins `python:3.12-slim-bookworm` by
+registry digest and exports the runtime dependencies from this repo's `uv.lock` at
+`f431c2402fa21819ee739f4e34e31b2c59e56091`, for Python 3.12 on linux x86_64. The
+generated `kubernetes/main/apps/ai/studio-render/app/requirements.txt` records the
+export command; it excludes this project and all development groups. The start script
+keys its venv on Python's major/minor version and the requirements hash. Read inside the
+worker after the roll-out: Python 3.12.16, the environment `py312-51d95b693bf4`, and all
+twelve pinned packages at the lock's versions. Renovate is held off both pins in
+haynes-ops (`.renovate/holds.json5`): the list changes only by exporting it again from
+the lock. **Not yet run:** an offline phase on the worker and the comparison of its keys
+and hashes with a session pod's; that belongs to a later story. Tom's acceptance is
+separate.
+
+The worker supplies dependencies, not a published `haynes-studio` distribution.
+Copy a source snapshot at the same commit as the lock into a new job directory and
+use its `src/` on `PYTHONPATH` with the worker's `python -m haynes_studio`; this also
+keeps the shipped schemas and licence register with the run. See the
+[worker procedure](../process/manual-short-poc.md#package-builds-on-the-cpu-worker).
+Existing `poc/` scripts will use this new environment too; they are unchanged.
 
 ## What an agent pod needs
 

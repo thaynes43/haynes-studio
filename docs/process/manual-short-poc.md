@@ -108,6 +108,65 @@ backlog is written from these notes.
    An earlier success is not a readiness check. If a queue is busy with someone
    else's work, wait; never cancel it.
 
+### Package builds on the CPU worker
+
+**Expected** (story [862](https://work.haynesnetwork.com/work_packages/862)): no
+build has been run on the worker yet. Its environment is installed: Python 3.12.16 and
+the lock's runtime versions were read inside it on 2026-11-18. Run heavy offline phases
+on `ai/studio-render` (D18). An offline run's keys and hashes are separate evidence, not
+yet made.
+The [service reference](../reference/services.md#studio-render-cpu-work) records the
+target lock. The PoC scripts are unchanged and will use that environment too.
+
+1. Check the worker is idle and has enough disk space. Prepare a **new**, private job
+   directory outside git with `store/` (the service phase's inputs and cache) and
+   `voiced/story.json`, `voiced/library.json`. Keep one writer to the store; do not
+   resume an archived production or copy over a finished job. Record input hashes.
+2. Copy the package source at the worker requirements' lock commit, with its schemas
+   and licence register. Dependencies alone do not provide the package; use the
+   snapshot's `src/` on `PYTHONPATH`, without installing or resolving other versions:
+
+   ```bash
+   # Run in a haynes-studio checkout. JOB is the new local job directory above.
+   STUDIO_COMMIT=f431c2402fa21819ee739f4e34e31b2c59e56091
+   mkdir "$JOB/source"
+   git archive "$STUDIO_COMMIT" | tar -x -C "$JOB/source"
+   sha256sum "$JOB/source/uv.lock"   # record with the source commit
+   POD='<current-studio-render-pod>'
+   REMOTE='/studio/jobs/<new-job-id>'
+   kubectl exec -n ai "$POD" -c app -- mkdir -p /studio/jobs
+   kubectl exec -n ai "$POD" -c app -- mkdir "$REMOTE"  # fails if already used
+   kubectl cp "$JOB/source" "ai/$POD:$REMOTE/source" -c app
+   kubectl cp "$JOB/store" "ai/$POD:$REMOTE/store" -c app
+   kubectl cp "$JOB/voiced" "ai/$POD:$REMOTE/voiced" -c app
+   ```
+
+3. Use the worker's ready venv (`python` on its `PATH`) and run under `nice -n 10`.
+   `OPERATOR_ISS` and `OPERATOR_SUB` are the existing operator's issuer and subject;
+   do not invent an identity. The example starts one process; `--workers` may be
+   increased up to 22 within the worker's 24-vCPU limit. Keep per-process library
+   threads bounded:
+
+   ```bash
+   kubectl exec -n ai "$POD" -c app -- env \
+     PYTHONPATH="$REMOTE/source/src" STUDIO_THREADS=2 \
+     OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+     nice -n 10 python -m haynes_studio build \
+     --store "$REMOTE/store" --story "$REMOTE/voiced/story.json" \
+     --library "$REMOTE/voiced/library.json" \
+     --register "$REMOTE/source/docs/reference/model-licences.json" \
+     --studio-commit "$STUDIO_COMMIT" \
+     --operator-iss "$OPERATOR_ISS" --operator-sub "$OPERATOR_SUB" \
+     --offline --workers 1 --json
+   ```
+
+   Offline calls no service. A missing clip or transcript check stops with
+   `build.offline_missing`; a new master needs a subsequent service phase to cache
+   its transcript check before the next offline phase delivers. See
+   [build phases](../reference/studio-build.md#phases). Copy the store/results back
+   to a **new** local directory with `kubectl cp`, record commands, timings, versions,
+   failures and hashes, then deliver create-only to private storage (stage 7).
+
 ## Stage 1: brief and script
 
 Write `titles/<slug>/brief.md` (copy the shape of the Winter Menu brief):
