@@ -5,6 +5,14 @@ https://work.haynesnetwork.com/work_packages/863. **Expected, not installed:** t
 coordinator's first authorized use after merge. **Accepted:** Tom's verdict is
 separate. The worker made no cluster call or live run.
 
+**Merged, 2026-11-18:** PR
+[75](https://github.com/thaynes43/haynes-studio/pull/75), source and fake-route tested,
+including the other-family review's fix round (story 863, comment 8950). First live
+use needs a store with a verified delivery; story 428's store is on its suspended
+worker's volume and is not reachable by the coordinator. That volume may be archived
+from about 2026-11-21 (story 428, comment 8952). Installed use remains not done.
+The retired one-off `private_view.py` was dropped from PR 70 and is not on `main`.
+
 From a session with the established Wan API exec route:
 
 ```sh
@@ -15,7 +23,10 @@ uv run studio private-view RUN_ID --store /path/to/store --production PRD_ID \
 ```
 
 Remove `--check-only` for an authorized attempt. The link plays the **phone proxy**;
-add `--master` to play the master. The result prints the selection, both file hashes,
+add `--master` to play the master. This default is the contract owner's decision
+of 2026-11-18 (P-52; story 863, comment 8950), a proposal Tom may overrule. Story 428's
+existing link still plays the first run's master, not its proxy or the gavel edit
+(story 428, comment 8823). The result prints the selection, both file hashes,
 the proposed or linked ledger, and the private URL. No account, public platform,
 schedule or inference is involved. This command does not imply go-live approval.
 
@@ -110,14 +121,17 @@ hidden temporary hard link is retained. Successful attempts retain the staged
 ledger as recovery evidence too. Unnamed unfinished temporary inodes close without
 a served name; existing volume files are never cleaned up.
 
-Proposed new error codes: `private_view.invalid`, `private_view.remote_failed`,
+Error codes accepted as proposals by the contract owner (P-52; story 863, comment
+8950): `private_view.invalid`, `private_view.remote_failed`,
 `private_view.readback_failed`, `private_view.withdraw_failed`. Store and delivery
 validation also retain their existing codes. CLI failures return 1; local OS/usage
 errors use the CLI's existing status 2.
 
 The remote runtime requires Linux, procfs, libc `linkat`/`renameat2`, and a filesystem
-supporting `O_TMPFILE`, hard links and `RENAME_NOREPLACE`. This is **locally tested,
-remote support unverified**. Unsupported operations fail without a fallback. The
+supporting `O_TMPFILE`, hard links and `RENAME_NOREPLACE`. This is **locally tested**.
+The coordinator read the real volume as ext4 on a block device, with API uid 1000
+and Python 3.14.8 (story 863, comment 8950); the command has not exercised those
+primitives there. Unsupported operations fail without a fallback. The
 [Linux open](https://man7.org/linux/man-pages/man2/open.2.html),
 [link](https://man7.org/linux/man-pages/man2/linkat.2.html), and
 [rename](https://man7.org/linux/man-pages/man2/rename.2.html) manuals describe these
@@ -147,5 +161,6 @@ The cases cover both playback choices, named run selection, mismatched and unfin
 runs, changed local media, all three PR 70 folder substitutions, parent/file symlinks,
 changed final bytes, create-only conflicts, read-back errors, unreadable listing,
 lost link replies, identity-bound withdrawal, no-overwrite quarantine, bad names,
-argument/code separation and read-only check-only output. The coordinator supplies
-the separate adversarial review on the final PR head before merge.
+argument/code separation and read-only check-only output. The coordinator's separate
+review by another model family and its fix round completed before merge (comment
+8950); this is still fake-route evidence, not first live use or Tom's acceptance.

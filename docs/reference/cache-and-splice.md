@@ -45,7 +45,9 @@ round-trip form. Before a document is encoded, `make_key` checks and normalizes 
 
 Every document carries `kind` and `scheme` (`studio.cache-key/v1`, a proposal; changing
 the shared normalization or hashing bumps it). Adding an artifact input changes that
-artifact's keys without invalidating unrelated artifacts. The key's 64 hex digits are
+artifact's keys without bumping the scheme or invalidating unrelated artifacts
+(P-51, the contract owner's decision of 2026-11-18; story
+[861](https://work.haynesnetwork.com/work_packages/861)). The key's 64 hex digits are
 also the SHA-256 of `CacheKey.canonical`. Inputs are content hashes and parameters,
 never identifiers or paths. `make_key` enforces this, and a test also checks that no
 key document in the fixture plan holds an ID.

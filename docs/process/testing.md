@@ -214,6 +214,20 @@ pinned by commit SHA. The checks, by exact name:
 The coordinator chooses which checks are required; the Claude review
 (`claude-code-review.yml`) is advisory and never required.
 
+The `source` jobs each have a **20-minute** limit to catch a hang (PR
+[78](https://github.com/thaynes43/haynes-studio/pull/78), 2026-11-18; story 424,
+comment 8965). The suite had reached the old 10-minute limit; speeding it up or
+splitting it is not done. The limits for `db` (10 minutes) and `browser` (15) are
+unchanged. The thread and serial-execution limits above still apply.
+
+**Open defect:** story [888](https://work.haynesnetwork.com/work_packages/888), PR
+[76](https://github.com/thaynes43/haynes-studio/pull/76), added diagnostics for the
+intermittent fresh-store frame mismatch on board B4. Its cause was not found.
+`tests/layered/test_build.py` keeps exact frame equality, with no tolerance, retry or
+skip; a mismatch reports the board, first differing frame, largest absolute RGB
+channel difference and its frame, and both builds' input hashes and keys. See the
+[contract's evidence and limits](../contracts/studio-contracts-v1.md#cache-keys).
+
 The Postgres image is `postgres:16@sha256:<digest>`. To refresh it, read the
 `docker-content-digest` header of
 `https://registry-1.docker.io/v2/library/postgres/manifests/16` (with an anonymous pull

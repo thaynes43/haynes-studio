@@ -345,7 +345,7 @@ first clip request, so a phase whose clips are all cached never reads the journa
 | Adapter request | Wan request field | From |
 |---|---|---|
 | `S2VRequest` (story 426) | `SpeechToVideo.image_png`, `drive_wav`, `board_frames`, `prompt`, `negative`, `seed`, `width`/`height` | `start_image`, `drive_track`, `board_frames`, `prompt`, `negative_prompt`, `seed`, `profile.size`; `story` is `--wan-story`. The client's `length` must equal the request's `frames` (both TIME-9). |
-| `ClipRequest` (story 427), clip *k* | `ImageToVideo.image_png`, `prompt`, `seed`, `length`, `width`/`height` | the photo (*k* = 0) or clip *k - 1*'s last frame; `prompt`; `clips[k].seed`; `clips[k].frames`; `profile.size`. The chain names no negative prompt: the client's own (E0's) is used and recorded. |
+| `ClipRequest` (story 427), clip *k* | `ImageToVideo.image_png`, `prompt`, `negative`, `seed`, `length`, `width`/`height` | the photo (*k* = 0) or clip *k - 1*'s last frame; `prompt`; `negative_prompt` from `i2v_negative_prompt` (story 861); `clips[k].seed`; `clips[k].frames`; `profile.size`. Both prompts are keyed, sent and recorded. |
 | profile | | speech-to-video: `model` `wan2.2-s2v-14b-fp8`, `lora` `lightx2v-4step`, `steps` 4, `cfg` 1, `chunk` 77, `source_fps` 16, plus `size` and `delivery`; image-to-video: `model` `wan2.2-ti2v-5b`, `source_fps` 24, plus `size`, `adapter`, `delivery`. Any other value or key is `build.live_unsupported`. |
 
 ### Clip record mapping
@@ -461,7 +461,8 @@ change; story 428's recorded speech keys do not. Whole-frame keys now include
 `i2v_negative_prompt` (also `NEGATIVE` by default), so old whole-frame keys change.
 Voice, drive tracks, library motion and mix keys stay unchanged; changed clips
 invalidate their picture dependents. These are source and offline-test changes, with
-no live run in story 861.
+no live run in story 861. O-851-2 is closed; the artifact input addition does not bump
+`studio.cache-key/v1` (P-51, the contract owner's decision of 2026-11-18).
 
 ## The run
 
@@ -601,9 +602,13 @@ tests there would never run in `uv run pytest` or CI).
 
 ## What story 428 runs
 
-The first live build: The Winter Menu r4 with live voices, clips and transcript. These
-steps use only what this story built; the two places that need story 428's own
-decision are marked **(428 decides)**.
+**Historical plan** for the first live build; the **(428 decides)** notes below were
+open at that time. Q-406-2 now puts service phases in the session pod and offline
+phases on the worker, copying the store between them. Story 428 actually ran offline
+in its session pod because the worker was outside the lock; story 862 installed the
+lock on 2026-11-18, but no offline phase has run there yet. Use the current
+[worker procedure](../process/manual-short-poc.md#package-builds-on-the-cpu-worker)
+for that Expected step; the planning commands below are kept unchanged.
 
 1. **Checkout and tools.** In a session pod, at `main`:
    `UV_PYTHON_DOWNLOADS=never uv sync --locked --python 3.11`.
