@@ -153,10 +153,11 @@ def i2v_request(request: ClipRequest, spec: ClipSpec, start_png: bytes, story: s
                 ) -> wan.ImageToVideo:
     """The Wan image-to-video request of clip ``spec`` of a whole-frame chain, starting
     on ``start_png`` (the photo for clip 0, else the previous clip's last frame). The
-    chain request names no negative prompt; the client's own (E0's) is used."""
+    negative prompt is the chain request's, as named in its cache key."""
     width, height = _profile(request.profile, I2V_MAKES, I2V_KEYS, "i2v")
     return wan.ImageToVideo(image_png=start_png, prompt=request.prompt, seed=spec.seed,
-                            story=story, width=width, height=height, length=spec.frames)
+                            story=story, width=width, height=height, length=spec.frames,
+                            negative=request.negative_prompt)
 
 
 def check_request(request: S2VRequest | ClipRequest, story: str) -> None:

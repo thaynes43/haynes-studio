@@ -1,0 +1,210 @@
+{
+  "run": {
+    "schema": "studio.run/v1",
+    "id": "run_01M7C3JVRA64QSP1434YWAXEXW",
+    "story_id": "sty_01M79V9FC00000000000000001",
+    "number": 22,
+    "status": "cancelled",
+    "wait_reason": null,
+    "phase": "service",
+    "snapshot": {
+      "sha256": "ca7ac2a5dd6b2036c22057d63559b568a6ce45d03686b1175a51c63d1fc59eff",
+      "story_revision": 2,
+      "board_count": 9,
+      "locator": "productions/prd_01M79V9FC00000000000000001/sha256/ca/ca7ac2a5dd6b2036c22057d63559b568a6ce45d03686b1175a51c63d1fc59eff.json"
+    },
+    "queued_by": {
+      "kind": "cli",
+      "command": "studio build",
+      "operator": {
+        "kind": "human",
+        "iss": "https://agent-session.invalid/dev-env",
+        "sub": "agent-session:haynes-studio-1114-013021"
+      }
+    },
+    "queued_at": "2026-11-14T04:03:25Z",
+    "idempotency_key": null,
+    "estimate": null,
+    "progress": {
+      "percent": 100,
+      "stage": "dry_run"
+    },
+    "stages": [],
+    "outputs": null,
+    "checks": [
+      {
+        "check": "mix.length",
+        "result": "pass",
+        "key": "sha256:d84d8b423c8eceaad815585cb0379b2f9ad2da51e56cb32f6d3bd65df250d9fd",
+        "sha256": "54707b13edf8fce8501bf146102f4b7376b42289a6f67911f355e13dff475afb",
+        "version": "1/pyav-18.1.0/libavfilter-11.14.102/libswresample-6.3.102",
+        "thresholds": {
+          "bits": 24,
+          "channels": 2,
+          "rate": 48000,
+          "samples": 2174000
+        },
+        "measured": {
+          "bits": 24,
+          "channels": 2,
+          "rate": 48000,
+          "samples": 2174000
+        }
+      },
+      {
+        "check": "mix.loudness",
+        "result": "pass",
+        "key": "sha256:765fea5fc6c04eb2a03c90e05156f161e3f96e65e8051d16cdd529a3b09258b8",
+        "sha256": "79d9fd2aaa6037928381436494412106063b73e51c7ebf2d190a881d212f8b94",
+        "version": "1/pyav-18.1.0/libavfilter-11.14.102/libswresample-6.3.102",
+        "thresholds": {
+          "target_lufs": -20,
+          "tolerance_lu": 1.5
+        },
+        "measured": {
+          "integrated_lufs": -20.296
+        }
+      },
+      {
+        "check": "mix.true_peak",
+        "result": "pass",
+        "key": "sha256:9ff90e0f39f4344c4d8ef652fd4cf8f9aef96a30a1644fcff0d02b9ceb68d597",
+        "sha256": "0f426d57e78094829eb7188f8655adbeaa3f776c296e3f9dca41bcf3f488eb09",
+        "version": "1/pyav-18.1.0/libavfilter-11.14.102/libswresample-6.3.102",
+        "thresholds": {
+          "max_dbtp": -2.5
+        },
+        "measured": {
+          "true_peak_dbtp": -4.082
+        }
+      },
+      {
+        "check": "mix.clipping",
+        "result": "pass",
+        "key": "sha256:d591ac8c2dce7a7820094e2a327bc160c67ef2e7f0ca2a6645f9d62c2a335910",
+        "sha256": "e28d524065be8a0d109d87164cca49d155f8b44111eaead2ca9dd3bcd8dffc27",
+        "version": "1/pyav-18.1.0/libavfilter-11.14.102/libswresample-6.3.102",
+        "thresholds": {
+          "max_clipped_samples": 0
+        },
+        "measured": {
+          "clipped_samples": 0
+        }
+      }
+    ],
+    "provenance": null,
+    "delivery_id": null,
+    "legacy": null,
+    "started_at": "2026-11-14T04:03:25Z",
+    "finished_at": "2026-11-14T04:03:25Z",
+    "error": null,
+    "transitions": [
+      {
+        "from": null,
+        "to": "queued",
+        "at": "2026-11-14T04:03:25Z",
+        "by": {
+          "kind": "cli",
+          "command": "studio build",
+          "operator": {
+            "kind": "human",
+            "iss": "https://agent-session.invalid/dev-env",
+            "sub": "agent-session:haynes-studio-1114-013021"
+          }
+        },
+        "reason": "queued by the command line"
+      },
+      {
+        "from": "queued",
+        "to": "running",
+        "at": "2026-11-14T04:03:25Z",
+        "by": {
+          "kind": "cli",
+          "command": "studio build",
+          "operator": {
+            "kind": "human",
+            "iss": "https://agent-session.invalid/dev-env",
+            "sub": "agent-session:haynes-studio-1114-013021"
+          }
+        },
+        "reason": "build started (service phase)"
+      },
+      {
+        "from": "running",
+        "to": "cancelled",
+        "at": "2026-11-14T04:03:25Z",
+        "by": {
+          "kind": "cli",
+          "command": "studio build",
+          "operator": {
+            "kind": "human",
+            "iss": "https://agent-session.invalid/dev-env",
+            "sub": "agent-session:haynes-studio-1114-013021"
+          }
+        },
+        "reason": "dry run of the service phase: 2 clip jobs would be requested; the mix passed its 4 checks; nothing was asked of a service"
+      }
+    ]
+  },
+  "dry_run": {
+    "clips": [
+      {
+        "kind": "s2v",
+        "board_id": "brd_01M79V9FC00000000000000001",
+        "board_number": 1,
+        "slot": "a",
+        "index": null,
+        "frames": 154,
+        "seed": 610,
+        "size": [
+          576,
+          1024
+        ],
+        "chunks": 2,
+        "key": "sha256:17a26a820669577ed27a4e779bce168d14c4f158aee230d9fe623efbfe9fd525",
+        "estimate": {
+          "render_s": [
+            463.0,
+            466.6
+          ],
+          "wall_s_max": 582.2,
+          "records": 3,
+          "basis": "E0 speech-to-video jobs at 576x1024, 2 chunk(s), of 154 frames"
+        }
+      },
+      {
+        "kind": "s2v",
+        "board_id": "brd_01M79V9FC00000000000000009",
+        "board_number": 9,
+        "slot": "b",
+        "index": null,
+        "frames": 73,
+        "seed": 620,
+        "size": [
+          576,
+          1024
+        ],
+        "chunks": 1,
+        "key": "sha256:a54ed7d92da72414150cb1104d8ad5e036f1fc78e8f0ee7ba51fed2141bf1d88",
+        "estimate": {
+          "render_s": [
+            142.5,
+            203.1
+          ],
+          "wall_s_max": 328.9,
+          "records": 4,
+          "basis": "E0 speech-to-video jobs at 576x1024, 1 chunk(s), of 57, 65, 73 frames"
+        }
+      }
+    ],
+    "total": {
+      "jobs": 2,
+      "render_s": [
+        605.5,
+        669.7
+      ],
+      "wall_s_max": 911.1,
+      "basis": "the sum of each job's E0 range"
+    }
+  }
+}

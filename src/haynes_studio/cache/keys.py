@@ -39,8 +39,8 @@ from haynes_studio.canonical.jsonvalues import too_deep
 from haynes_studio.jsonio import freeze, thaw
 from haynes_studio.store import canonical_json, is_sha256
 
-# Proposal: the key scheme. Changing how any key is formed bumps it, so no key made
-# under an older scheme can match a new one.
+# Proposal: the shared key encoding scheme. Changing normalization or hashing bumps
+# it. Adding an artifact input changes that artifact's keys without invalidating others.
 SCHEME = "studio.cache-key/v1"
 
 VOICE_TAKE = "voice_take"
@@ -259,9 +259,10 @@ def motion_clip_key(*, still: str, prompt: str, seed: int, profile: Mapping[str,
         "seed": _int(seed, "seed", minimum=None), "profile": _mapping(profile, "profile")})
 
 
-def whole_frame_clip_key(*, photo: str, prompt: str, seed: int, profile: Mapping[str, Any],
+def whole_frame_clip_key(*, photo: str, prompt: str, negative_prompt: str,
+                         seed: int, profile: Mapping[str, Any],
                          clip_lengths: Sequence[int]) -> CacheKey:
-    """Whole-frame I2V clip(s) (source clock): the board photo, prompt, seed, profile
+    """Whole-frame I2V clip(s) (source clock): photo, prompt, negative prompt, seed, profile
     and the requested clip lengths (set by the frames needed and story 427's chain
     policy). A chain of clips is one artifact."""
     lengths = [_int(n, f"clip_lengths/{i}", minimum=1)
@@ -270,6 +271,7 @@ def whole_frame_clip_key(*, photo: str, prompt: str, seed: int, profile: Mapping
         raise _bad("/clip_lengths", "at least one clip is requested")
     return make_key(WHOLE_FRAME_CLIP, {
         "photo": _sha(photo, "photo"), "prompt": _text(prompt, "prompt"),
+        "negative_prompt": _opt_text(negative_prompt, "negative_prompt", empty=True),
         "seed": _int(seed, "seed", minimum=None), "profile": _mapping(profile, "profile"),
         "clip_lengths": lengths})
 
@@ -439,7 +441,7 @@ INVENTORY: tuple[ArtifactSpec, ...] = (
     ArtifactSpec(MOTION_CLIP, "Doll clip or set loop", SOURCE, motion_clip_key,
                  ("still", "prompt", "seed", "profile")),
     ArtifactSpec(WHOLE_FRAME_CLIP, "Whole-frame I2V clip(s)", SOURCE, whole_frame_clip_key,
-                 ("photo", "prompt", "seed", "profile", "clip_lengths")),
+                 ("photo", "prompt", "negative_prompt", "seed", "profile", "clip_lengths")),
     ArtifactSpec(KEYED_FRAMES, "Keyed and decal frames", SOURCE, keyed_frames_key,
                  ("clip", "still", "key_thresholds", "protect_boxes", "decal_box",
                   "decal_version", "keyer")),

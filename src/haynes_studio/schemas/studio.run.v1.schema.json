@@ -1009,6 +1009,9 @@
         "board_id": {
           "$ref": "studio.defs.v1.schema.json#/$defs/brd_id"
         },
+        "slot": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/slot"
+        },
         "key": {
           "type": "string",
           "pattern": "^sha256:[0-9a-f]{64}$"

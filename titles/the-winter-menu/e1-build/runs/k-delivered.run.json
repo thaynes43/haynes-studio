@@ -1,0 +1,2222 @@
+{
+  "checks": [
+    {
+      "check": "mix.length",
+      "key": "sha256:d84d8b423c8eceaad815585cb0379b2f9ad2da51e56cb32f6d3bd65df250d9fd",
+      "measured": {
+        "bits": 24,
+        "channels": 2,
+        "rate": 48000,
+        "samples": 2174000
+      },
+      "result": "pass",
+      "sha256": "54707b13edf8fce8501bf146102f4b7376b42289a6f67911f355e13dff475afb",
+      "thresholds": {
+        "bits": 24,
+        "channels": 2,
+        "rate": 48000,
+        "samples": 2174000
+      },
+      "version": "1/pyav-18.1.0/libavfilter-11.14.102/libswresample-6.3.102"
+    },
+    {
+      "check": "mix.loudness",
+      "key": "sha256:765fea5fc6c04eb2a03c90e05156f161e3f96e65e8051d16cdd529a3b09258b8",
+      "measured": {
+        "integrated_lufs": -20.296
+      },
+      "result": "pass",
+      "sha256": "79d9fd2aaa6037928381436494412106063b73e51c7ebf2d190a881d212f8b94",
+      "thresholds": {
+        "target_lufs": -20,
+        "tolerance_lu": 1.5
+      },
+      "version": "1/pyav-18.1.0/libavfilter-11.14.102/libswresample-6.3.102"
+    },
+    {
+      "check": "mix.true_peak",
+      "key": "sha256:9ff90e0f39f4344c4d8ef652fd4cf8f9aef96a30a1644fcff0d02b9ceb68d597",
+      "measured": {
+        "true_peak_dbtp": -4.082
+      },
+      "result": "pass",
+      "sha256": "0f426d57e78094829eb7188f8655adbeaa3f776c296e3f9dca41bcf3f488eb09",
+      "thresholds": {
+        "max_dbtp": -2.5
+      },
+      "version": "1/pyav-18.1.0/libavfilter-11.14.102/libswresample-6.3.102"
+    },
+    {
+      "check": "mix.clipping",
+      "key": "sha256:d591ac8c2dce7a7820094e2a327bc160c67ef2e7f0ca2a6645f9d62c2a335910",
+      "measured": {
+        "clipped_samples": 0
+      },
+      "result": "pass",
+      "sha256": "e28d524065be8a0d109d87164cca49d155f8b44111eaead2ca9dd3bcd8dffc27",
+      "thresholds": {
+        "max_clipped_samples": 0
+      },
+      "version": "1/pyav-18.1.0/libavfilter-11.14.102/libswresample-6.3.102"
+    },
+    {
+      "check": "master.loudness",
+      "key": "sha256:65a898bc7754747f6e6eff5445862cfc49581a555fd8bf06b1bb7f023e48dc0a",
+      "measured": {
+        "integrated_lufs": -20.322
+      },
+      "result": "pass",
+      "sha256": "e9e1142c6bf9c4a55ca8bc40212df41c110b1122cd504325e1e99bcc78f1497c",
+      "thresholds": {
+        "target_lufs": -20,
+        "tolerance_lu": 1.5
+      },
+      "version": "1/pyav-18.1.0/libavfilter-11.14.102/libswresample-6.3.102"
+    },
+    {
+      "check": "master.true_peak",
+      "key": "sha256:bf822da3a0ceaec97cfb8a7b4ec1fa903cbf29264a2aeb206315a0fb7eb74063",
+      "measured": {
+        "true_peak_dbtp": -3.728
+      },
+      "result": "pass",
+      "sha256": "ef25b45d2976492c48f9573bc49465b6c8e38985a0458bcf87409d6615d6b171",
+      "thresholds": {
+        "max_dbtp": -2.5
+      },
+      "version": "1/pyav-18.1.0/libavfilter-11.14.102/libswresample-6.3.102"
+    },
+    {
+      "check": "master.clipping",
+      "key": "sha256:16818614eec229f88871fe8282e561f1131952d883b030d5f31566c542160811",
+      "measured": {
+        "clipped_samples": 0
+      },
+      "result": "pass",
+      "sha256": "5069cf71224e88e69a66b2804b0c5ce8f4349cbcd34bb307150d3db5202423c5",
+      "thresholds": {
+        "max_clipped_samples": 0
+      },
+      "version": "1/pyav-18.1.0/libavfilter-11.14.102/libswresample-6.3.102"
+    },
+    {
+      "check": "master.transcript",
+      "key": "sha256:4c975df5ddd2980c00f9b2e49e1ad0f5eb58b527c6924b1c60381c59218aa5cb",
+      "measured": {
+        "exact_match": false,
+        "expected": "Day three hundred forty. I've mastered fire, shelter, and emotionally supportive moss. Winter's coming. We need to discuss the menu. I nominate whoever brought orange slices. They know what they did. Or we could just eat the crunchy butter squishies. Absolutely not. These are limited edition. If we can't eat the squishies, why don't we just eat her? All in favor? Aye. Aye. Nay! Motion carried. Bibs on, ladies. Needs salt.",
+        "heard": "Day 340. I've mastered fire, shelter, and emotionally supportive moss. Winter's coming. We need to discuss the menu. I nominate whoever brought orange slices. They know what they did. Or we could just eat the crunchy butter squishies. Absolutely not. These are limited edition. If we can't eat the squishies, why don't we just eat her? All in favor? Aye. Aye. Nay. Motion carried. Bibs on, ladies. Needs salt.",
+        "match_with_tolerances": true,
+        "recognizer": "whisper (ai/deploy/whisper, Wyoming ASR)",
+        "tolerances_used": [
+          "340"
+        ]
+      },
+      "result": "pass_with_tolerances",
+      "sha256": "2c8ad0bc89242d7b87942e88b5cb78125242b2e01a55cb97001cc6bb20e77cce",
+      "thresholds": {
+        "asr_tolerances": {
+          "340": "three hundred forty",
+          "mos": "moss"
+        },
+        "script_sha256": "1cad9f369001c69805016b643377a02189ddf019278d289dc35a24446d5b7d40"
+      },
+      "tolerances_used": [
+        "340"
+      ],
+      "version": "1"
+    },
+    {
+      "actual": 1087,
+      "check": "frame_count",
+      "expected": 1087,
+      "result": "pass"
+    }
+  ],
+  "delivery_id": "dlv_01M7C576EAX9NY1S0JHFYW2QQS",
+  "error": null,
+  "estimate": null,
+  "finished_at": "2026-11-14T04:32:00Z",
+  "id": "run_01M7C56SZ6TAHTJSW413RFZYQP",
+  "idempotency_key": null,
+  "legacy": null,
+  "number": 32,
+  "outputs": {
+    "fps": 24,
+    "frames": 1087,
+    "keys": {
+      "film_picture": "sha256:ed390fb9e60f3c2f3a5f108df8879a4b8b865278c671b917923719a82605a9e0",
+      "master": "sha256:c28f15f839d5f19716e5a6aed10c39a29999814107a09618673196bf9aa296a7",
+      "mix": "sha256:e3e041831622b28c3b639b2551ab4a14229ee110ad13e9243f151b36b1039c3b",
+      "proxy": "sha256:ac8bf54980be421ecaca85d6800b98a2ec1ce33db74f443824b0e3abcd77e0a2"
+    },
+    "master_sha256": "f6fd041afc837a3a050da4ad5a574e96798b4014b5e9b67ca1d9966039b0621e",
+    "mix_sha256": "5a13ee14690ce210a582e7f7311b52776b67fc52daa9f15f3afc0778f4fea01f",
+    "picture_sha256": "adb7b091d361b133d892fddc35b31c10b3cfbeb9364abfe1a450efe7238c8dcc",
+    "placement": {
+      "beds": [
+        {
+          "bed": 0,
+          "bed_id": "cue_01M7BVBVSBHA26B6V3F90A35NV",
+          "end_sample": 2174000,
+          "gain_db": 13.713333,
+          "level_rms_dbfs": -40,
+          "loops": 5,
+          "sha256": "0b33af45929b8cfb3859bf1511a2738eef22944d431ee44257c33a1de42da72a",
+          "source_samples": 576000,
+          "start_sample": 0
+        }
+      ],
+      "boards": [
+        {
+          "board_id": "brd_01M79V9FC00000000000000001",
+          "end_sample": 306000,
+          "frames": 153,
+          "start_frame": 0,
+          "start_sample": 0
+        },
+        {
+          "board_id": "brd_01M79V9FC00000000000000002",
+          "end_sample": 494000,
+          "frames": 94,
+          "start_frame": 153,
+          "start_sample": 306000
+        },
+        {
+          "board_id": "brd_01M79V9FC00000000000000003",
+          "end_sample": 786000,
+          "frames": 146,
+          "start_frame": 247,
+          "start_sample": 494000
+        },
+        {
+          "board_id": "brd_01M79V9FC00000000000000004",
+          "end_sample": 954000,
+          "frames": 84,
+          "start_frame": 393,
+          "start_sample": 786000
+        },
+        {
+          "board_id": "brd_01M79V9FC00000000000000005",
+          "end_sample": 1120000,
+          "frames": 83,
+          "start_frame": 477,
+          "start_sample": 954000
+        },
+        {
+          "board_id": "brd_01M79V9FC00000000000000006",
+          "end_sample": 1364000,
+          "frames": 122,
+          "start_frame": 560,
+          "start_sample": 1120000
+        },
+        {
+          "board_id": "brd_01M79V9FC00000000000000007",
+          "end_sample": 1456000,
+          "frames": 46,
+          "start_frame": 682,
+          "start_sample": 1364000
+        },
+        {
+          "board_id": "brd_01M79V9FC00000000000000008",
+          "end_sample": 1958000,
+          "frames": 251,
+          "start_frame": 728,
+          "start_sample": 1456000
+        },
+        {
+          "board_id": "brd_01M79V9FC00000000000000009",
+          "end_sample": 2174000,
+          "frames": 108,
+          "start_frame": 979,
+          "start_sample": 1958000
+        }
+      ],
+      "channels": 2,
+      "frames": 1087,
+      "headroom_db": -12.281365,
+      "limiter": {
+        "attack_ms": 2,
+        "latency": true,
+        "limit": 0.5957,
+        "release_ms": 60
+      },
+      "lines": [
+        {
+          "board_end_ms": 5663,
+          "board_id": "brd_01M79V9FC00000000000000001",
+          "board_start_ms": 500,
+          "end_sample": 271824,
+          "gain_db": 0.550635,
+          "level_rms_dbfs": -22,
+          "line": 0,
+          "line_id": "lin_01M79V9FC00000000000000001",
+          "start_frame": 0,
+          "start_sample": 24000,
+          "track": 0,
+          "track_sha256": "a4a41e87cb822401d904a4bf23fa025667f36643f2fe8a3bf4605759575df261"
+        },
+        {
+          "board_end_ms": 3188,
+          "board_id": "brd_01M79V9FC00000000000000002",
+          "board_start_ms": 500,
+          "end_sample": 459024,
+          "gain_db": 2.508822,
+          "level_rms_dbfs": -22,
+          "line": 0,
+          "line_id": "lin_01M79V9FC00000000000000002",
+          "start_frame": 153,
+          "start_sample": 330000,
+          "track": 1,
+          "track_sha256": "613770d8dcecfe6cff3202d7a6d08fdd8643718891ba43817bbfc7f92dd4347e"
+        },
+        {
+          "board_end_ms": 5364,
+          "board_id": "brd_01M79V9FC00000000000000003",
+          "board_start_ms": 500,
+          "end_sample": 751472,
+          "gain_db": 2.182149,
+          "level_rms_dbfs": -22,
+          "line": 0,
+          "line_id": "lin_01M79V9FC00000000000000003",
+          "start_frame": 247,
+          "start_sample": 518000,
+          "track": 2,
+          "track_sha256": "00f025f05c0c25ea6b4b6e05b1d4aeaa48023009d8c02c5bc2d51224b65be135"
+        },
+        {
+          "board_end_ms": 2975,
+          "board_id": "brd_01M79V9FC00000000000000004",
+          "board_start_ms": 500,
+          "end_sample": 928800,
+          "gain_db": 0.428581,
+          "level_rms_dbfs": -22,
+          "line": 0,
+          "line_id": "lin_01M79V9FC00000000000000004",
+          "start_frame": 393,
+          "start_sample": 810000,
+          "track": 3,
+          "track_sha256": "ce6013696258720b5fc7f8ddac6ffc7c4ba63de94176b3197b1f4a520d81e6ca"
+        },
+        {
+          "board_end_ms": 2832,
+          "board_id": "brd_01M79V9FC00000000000000005",
+          "board_start_ms": 400,
+          "end_sample": 1089936,
+          "gain_db": 2.569548,
+          "level_rms_dbfs": -22,
+          "line": 0,
+          "line_id": "lin_01M79V9FC00000000000000005",
+          "start_frame": 477,
+          "start_sample": 973200,
+          "track": 4,
+          "track_sha256": "f92bbc528636aedbaf89f1d9aeebc8f2ce6b87d65a85f076b3ae26bc46f8af68"
+        },
+        {
+          "board_end_ms": 4710,
+          "board_id": "brd_01M79V9FC00000000000000006",
+          "board_start_ms": 400,
+          "end_sample": 1346080,
+          "gain_db": 2.347744,
+          "level_rms_dbfs": -22,
+          "line": 0,
+          "line_id": "lin_01M79V9FC00000000000000006",
+          "start_frame": 560,
+          "start_sample": 1139200,
+          "track": 5,
+          "track_sha256": "ca836db6753cdf1b8c7c183574606272000b1cd03a2209a2e301a4dc1a006482"
+        },
+        {
+          "board_end_ms": 2903,
+          "board_id": "brd_01M79V9FC00000000000000008",
+          "board_start_ms": 1900,
+          "end_sample": 1595344,
+          "gain_db": 1.702697,
+          "level_rms_dbfs": -22,
+          "line": 0,
+          "line_id": "lin_01M79V9FC00000000000000007",
+          "start_frame": 728,
+          "start_sample": 1547200,
+          "track": 6,
+          "track_sha256": "00720fda182369f7e156f3cfe26d60e140c904aaa605e61dada2d4e6dcf14eed"
+        },
+        {
+          "board_end_ms": 4014,
+          "board_id": "brd_01M79V9FC00000000000000008",
+          "board_start_ms": 3203,
+          "end_sample": 1648672,
+          "gain_db": 1.750442,
+          "level_rms_dbfs": -22,
+          "line": 1,
+          "line_id": "lin_01M79V9FC00000000000000008",
+          "start_frame": 728,
+          "start_sample": 1609744,
+          "track": 6,
+          "track_sha256": "00720fda182369f7e156f3cfe26d60e140c904aaa605e61dada2d4e6dcf14eed"
+        },
+        {
+          "board_end_ms": 5089,
+          "board_id": "brd_01M79V9FC00000000000000008",
+          "board_start_ms": 4214,
+          "end_sample": 1700272,
+          "gain_db": 0.551037,
+          "level_rms_dbfs": -22,
+          "line": 2,
+          "line_id": "lin_01M79V9FC00000000000000009",
+          "start_frame": 728,
+          "start_sample": 1658272,
+          "track": 6,
+          "track_sha256": "00720fda182369f7e156f3cfe26d60e140c904aaa605e61dada2d4e6dcf14eed"
+        },
+        {
+          "board_end_ms": 5851,
+          "board_id": "brd_01M79V9FC00000000000000008",
+          "board_start_ms": 5339,
+          "end_sample": 1736848,
+          "gain_db": 1.905637,
+          "level_rms_dbfs": -22,
+          "line": 3,
+          "line_id": "lin_01M79V9FC0000000000000000A",
+          "start_frame": 728,
+          "start_sample": 1712272,
+          "track": 6,
+          "track_sha256": "00720fda182369f7e156f3cfe26d60e140c904aaa605e61dada2d4e6dcf14eed"
+        },
+        {
+          "board_end_ms": 7575,
+          "board_id": "brd_01M79V9FC00000000000000008",
+          "board_start_ms": 6551,
+          "end_sample": 1819600,
+          "gain_db": 1.699961,
+          "level_rms_dbfs": -22,
+          "line": 4,
+          "line_id": "lin_01M79V9FC0000000000000000B",
+          "start_frame": 728,
+          "start_sample": 1770448,
+          "track": 6,
+          "track_sha256": "00720fda182369f7e156f3cfe26d60e140c904aaa605e61dada2d4e6dcf14eed"
+        },
+        {
+          "board_end_ms": 9627,
+          "board_id": "brd_01M79V9FC00000000000000008",
+          "board_start_ms": 8475,
+          "end_sample": 1918096,
+          "gain_db": 2.115407,
+          "level_rms_dbfs": -22,
+          "line": 5,
+          "line_id": "lin_01M79V9FC0000000000000000C",
+          "start_frame": 728,
+          "start_sample": 1862800,
+          "track": 6,
+          "track_sha256": "00720fda182369f7e156f3cfe26d60e140c904aaa605e61dada2d4e6dcf14eed"
+        },
+        {
+          "board_end_ms": 2882,
+          "board_id": "brd_01M79V9FC00000000000000009",
+          "board_start_ms": 1900,
+          "end_sample": 2096336,
+          "gain_db": 1.466059,
+          "level_rms_dbfs": -22,
+          "line": 0,
+          "line_id": "lin_01M79V9FC0000000000000000D",
+          "start_frame": 979,
+          "start_sample": 2049200,
+          "track": 7,
+          "track_sha256": "d158fef54aa236b3f3483620ee0fa7357996a5dd040d142c60f0c4f10695c633"
+        }
+      ],
+      "master_gain_db": 11.172,
+      "mixer": "studio.mixer/1:74339957ebf46e78",
+      "premaster_lufs": -31.172,
+      "premaster_peak": 2.056071758,
+      "rate": 48000,
+      "samples": 2174000,
+      "schema": "studio.mix-placement/v1",
+      "sounds": [
+        {
+          "board_id": "brd_01M79V9FC00000000000000007",
+          "cue_id": "cue_01M7BVBVSBHA26B6V3F90A35N5",
+          "cut_at_film_end": false,
+          "cut_samples": 0,
+          "end_sample": 1462400,
+          "gain_db": -8.744295,
+          "level_rms_dbfs": -22,
+          "samples": 98400,
+          "sha256": "aadcc283d15fb7a067bc7517533dfccafb0d28ba5fe1c0ad8ddbae3d6ca1abe3",
+          "sound": 0,
+          "source_samples": 240000,
+          "start_sample": 1364000,
+          "trim_ms": [
+            550,
+            2600
+          ]
+        },
+        {
+          "board_id": "brd_01M79V9FC00000000000000008",
+          "cue_id": "cue_01M7BVBVSBHA26B6V3F90A35N8",
+          "cut_at_film_end": false,
+          "cut_samples": 0,
+          "end_sample": 1547200,
+          "gain_db": 8.92954,
+          "level_rms_dbfs": -26,
+          "samples": 55200,
+          "sha256": "78c5f69ff31758d2d78b0c5b249633039c7ce51ae850a64971591b5da79bd4b8",
+          "sound": 1,
+          "source_samples": 240000,
+          "start_sample": 1492000,
+          "trim_ms": [
+            450,
+            1600
+          ]
+        },
+        {
+          "board_id": "brd_01M79V9FC00000000000000008",
+          "cue_id": "cue_01M7BVBVSBHA26B6V3F90A35N9",
+          "cut_at_film_end": false,
+          "cut_samples": 0,
+          "end_sample": 1853200,
+          "gain_db": 4.035347,
+          "level_rms_dbfs": -20,
+          "samples": 31200,
+          "sha256": "a9c01ef381a0f0d0dd5df5e552e2cf8556a2a8f30caff04225017540669b7b5e",
+          "sound": 2,
+          "source_samples": 240000,
+          "start_sample": 1822000,
+          "trim_ms": [
+            1300,
+            1950
+          ]
+        },
+        {
+          "board_id": "brd_01M79V9FC00000000000000009",
+          "cue_id": "cue_01M7BVBVSBHA26B6V3F90A35NR",
+          "cut_at_film_end": false,
+          "cut_samples": 0,
+          "end_sample": 2102000,
+          "gain_db": 6.436757,
+          "level_rms_dbfs": -24,
+          "samples": 132000,
+          "sha256": "5515c7006ce09a1c5d0c21019ca11db7a445f9ce296b94f5c371aba8b7d6925f",
+          "sound": 3,
+          "source_samples": 240000,
+          "start_sample": 1970000,
+          "trim_ms": [
+            350,
+            3100
+          ]
+        }
+      ]
+    },
+    "proxy_sha256": "222873565e1df9f0e2ca61a7632b5c9c92be707e683173e4208eaabe7ea13c01"
+  },
+  "phase": "offline",
+  "progress": {
+    "percent": 100,
+    "stage": "delivered"
+  },
+  "provenance": {
+    "engines": [
+      {
+        "files": [
+          {
+            "licence": {
+              "attribution_required": false,
+              "checked_at": "2026-11-13T14:18:00Z",
+              "checked_by": {
+                "kind": "worker",
+                "worker_id": "dev-env agent session haynes-studio-1113-141004"
+              },
+              "commercial_use": "allowed",
+              "name": "CC-BY-4.0",
+              "note": "CC-BY-4.0; NVIDIA's card says the model 'is ready for commercial/non-commercial use'. Attribution applies to sharing the model; the studio only checks transcripts and never publishes them. The session's reading of the text, not legal advice.",
+              "url": "https://creativecommons.org/licenses/by/4.0/legalcode.en"
+            },
+            "name": "nemo-parakeet-tdt-0.6b-v2 (ONNX)",
+            "sha256": null
+          }
+        ],
+        "hardware": "ai/deploy/whisper (Wyoming ASR)",
+        "key": "asr",
+        "licence": {
+          "attribution_required": false,
+          "checked_at": "2026-11-13T14:18:00Z",
+          "checked_by": {
+            "kind": "worker",
+            "worker_id": "dev-env agent session haynes-studio-1113-141004"
+          },
+          "commercial_use": "allowed",
+          "name": "CC-BY-4.0",
+          "note": "Register entry asr; the most restrictive of its files. CC-BY-4.0, commercial use allowed; transcripts are only a check. The session's reading of the text, not legal advice.",
+          "url": "https://creativecommons.org/licenses/by/4.0/legalcode.en"
+        },
+        "name": "Whisper service transcript model: NVIDIA Parakeet TDT 0.6B v2 (ONNX)",
+        "profile": null,
+        "role": "check",
+        "used_by": [
+          "check/master.transcript"
+        ]
+      },
+      {
+        "files": [
+          {
+            "licence": {
+              "attribution_required": false,
+              "checked_at": "2026-11-13T14:18:00Z",
+              "checked_by": {
+                "kind": "worker",
+                "worker_id": "dev-env agent session haynes-studio-1113-141004"
+              },
+              "commercial_use": "allowed",
+              "name": "Apache-2.0",
+              "note": "Apache-2.0 weights; the model card says Kokoro 'can be deployed anywhere from production environments to personal projects'. Apache-2.0 places no condition on outputs; its notice terms apply to redistributing the weights, which the studio does not do. Stock voices only. The session's reading of the text, not legal advice.",
+              "url": "https://www.apache.org/licenses/LICENSE-2.0"
+            },
+            "name": "kokoro-v1_0.pth",
+            "sha256": null
+          }
+        ],
+        "hardware": "ai/deploy/kokoro",
+        "key": "kokoro",
+        "licence": {
+          "attribution_required": false,
+          "checked_at": "2026-11-13T14:18:00Z",
+          "checked_by": {
+            "kind": "worker",
+            "worker_id": "dev-env agent session haynes-studio-1113-141004"
+          },
+          "commercial_use": "allowed",
+          "name": "Apache-2.0",
+          "note": "Register entry kokoro; the most restrictive of its files. Apache-2.0; no condition on outputs. The session's reading of the text, not legal advice.",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0"
+        },
+        "name": "Kokoro-82M v1.0 (Wyoming TTS, stock voices)",
+        "profile": null,
+        "role": "voice",
+        "used_by": [
+          "asv_01M7BVBVSBHA26B6V3F90A35MV",
+          "asv_01M7BVBVSBHA26B6V3F90A35MW",
+          "asv_01M7BVBVSBHA26B6V3F90A35MX",
+          "asv_01M7BVBVSBHA26B6V3F90A35MY",
+          "asv_01M7BVMQADWKZKT5SNH52PABR8",
+          "asv_01M7BVMQC6C01AAGW4WJ80CSF8",
+          "asv_01M7BVMQEJVR7Y708JFBBJTQZ0",
+          "asv_01M7BVMQGHPV4QTS9YRSWG673F",
+          "asv_01M7BVMQM51C4MS5GYC55RX0DH",
+          "asv_01M7BVMQQ1PEXWKAWANYKRCVCS",
+          "asv_01M7BVMQXBFA4NM6KK5PDFPTHT",
+          "asv_01M7BVMR0JENY30SDM408W0KXG"
+        ]
+      },
+      {
+        "files": [
+          {
+            "licence": {
+              "attribution_required": false,
+              "checked_at": "2026-11-13T14:18:00Z",
+              "checked_by": {
+                "kind": "worker",
+                "worker_id": "dev-env agent session haynes-studio-1113-141004"
+              },
+              "commercial_use": "noncommercial",
+              "name": "Qwen Research License Agreement",
+              "note": "Research or evaluation only, narrower than non-commercial: the licence allows use 'FOR NON-COMMERCIAL PURPOSES ONLY' and defines Non-Commercial as 'research or evaluation purposes only'; commercial use needs a separate licence from the licensor (section 2b). Whether making shorts for fun counts as evaluation, the text does not say. The session's reading of the text, not legal advice.",
+              "url": "https://huggingface.co/Qwen/Qwen-Image-2.1/blob/d26bb61231c349cf6b7896fa83353113880e1ba3/LICENSE"
+            },
+            "name": "qwen_image_2.1_int8_convrot.safetensors",
+            "sha256": null
+          },
+          {
+            "licence": {
+              "attribution_required": false,
+              "checked_at": "2026-11-13T14:18:00Z",
+              "checked_by": {
+                "kind": "worker",
+                "worker_id": "dev-env agent session haynes-studio-1113-141004"
+              },
+              "commercial_use": "noncommercial",
+              "name": "Qwen Research License Agreement",
+              "note": "Recorded under the licence of the repository it is distributed in (qwen-research). Qwen3-VL-8B-Instruct is Apache-2.0, but the repository card does not say this file is that model unchanged, so the stricter terms are recorded. The session's reading of the text, not legal advice.",
+              "url": "https://huggingface.co/Qwen/Qwen-Image-2.1/blob/d26bb61231c349cf6b7896fa83353113880e1ba3/LICENSE"
+            },
+            "name": "qwen3vl_8b_int8_convrot.safetensors",
+            "sha256": null
+          },
+          {
+            "licence": {
+              "attribution_required": false,
+              "checked_at": "2026-11-13T14:18:00Z",
+              "checked_by": {
+                "kind": "worker",
+                "worker_id": "dev-env agent session haynes-studio-1113-141004"
+              },
+              "commercial_use": "noncommercial",
+              "name": "Qwen Research License Agreement",
+              "note": "Part of Qwen-Image 2.1; research or evaluation only, as the diffusion model. The session's reading of the text, not legal advice.",
+              "url": "https://huggingface.co/Qwen/Qwen-Image-2.1/blob/d26bb61231c349cf6b7896fa83353113880e1ba3/LICENSE"
+            },
+            "name": "qwen_image_2.1_vae_bf16.safetensors",
+            "sha256": null
+          }
+        ],
+        "hardware": "ai/comfyui-0 (ComfyUI 0.39.0, RTX 2000 Ada on talosm03); graphs qwen_image_2_1_t2i_API.json and qwen_image_2_1_edit_API.json in src/haynes_studio/adapters/pinned-inputs/",
+        "key": "qwen-image",
+        "licence": {
+          "attribution_required": false,
+          "checked_at": "2026-11-13T14:18:00Z",
+          "checked_by": {
+            "kind": "worker",
+            "worker_id": "dev-env agent session haynes-studio-1113-141004"
+          },
+          "commercial_use": "noncommercial",
+          "name": "Qwen Research License Agreement",
+          "note": "Register entry qwen-image; the most restrictive of its files. Research or evaluation only: Qwen-Image 2.1 is under the Qwen Research License Agreement, which allows use 'FOR NON-COMMERCIAL PURPOSES ONLY' and defines that as 'research or evaluation purposes only'; commercial use needs a separate licence from the licensor. The session's reading of the text, not legal advice.",
+          "url": "https://huggingface.co/Qwen/Qwen-Image-2.1/blob/d26bb61231c349cf6b7896fa83353113880e1ba3/LICENSE"
+        },
+        "name": "Qwen-Image 2.1 on ComfyUI (text-to-image and edit)",
+        "profile": null,
+        "role": "image",
+        "used_by": [
+          "asv_01M7BVBVSBHA26B6V3F90A35MF",
+          "asv_01M7BVBVSBHA26B6V3F90A35MG",
+          "asv_01M7BVBVSBHA26B6V3F90A35MH",
+          "asv_01M7BVBVSBHA26B6V3F90A35MJ",
+          "asv_01M7BVBVSBHA26B6V3F90A35MK",
+          "asv_01M7BVBVSBHA26B6V3F90A35MM",
+          "asv_01M7BVBVSBHA26B6V3F90A35MN"
+        ]
+      },
+      {
+        "files": [
+          {
+            "licence": {
+              "attribution_required": null,
+              "checked_at": "2026-11-13T14:18:00Z",
+              "checked_by": {
+                "kind": "worker",
+                "worker_id": "dev-env agent session haynes-studio-1113-141004"
+              },
+              "commercial_use": "unknown",
+              "name": "Stability AI Community License Agreement",
+              "note": "Conditional (recorded as unknown at the check, before the contract had a 'conditional' value). Hobby and other non-commercial use is free: 'personal use (i.e., hobbyist)' is a Non-Commercial Purpose. Commercial use needs registration with Stability AI, and every licence ends if Tom or his affiliates pass USD 1,000,000 annual revenue. Outputs belong to the user; they must follow the Acceptable Use Policy and must not train a foundational generative model. 'Powered by Stability AI' is required when distributing the model or a product that uses it; outputs are excluded from 'Derivative Work', so whether a published video needs it is left open (null). The session's reading of the text, not legal advice.",
+              "url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/da6edc54ddba10bfd79a077102ded687f80e882b/LICENSE.md"
+            },
+            "name": "Stable Audio 3 Small-SFX model and autoencoder (CPU LiteRT build)",
+            "sha256": null
+          },
+          {
+            "licence": {
+              "attribution_required": false,
+              "checked_at": "2026-11-13T14:18:00Z",
+              "checked_by": {
+                "kind": "worker",
+                "worker_id": "dev-env agent session haynes-studio-1113-141004"
+              },
+              "commercial_use": "allowed",
+              "name": "Gemma Terms of Use",
+              "note": "Gemma Terms of Use (last modified 2026-04-01): no term restricts commercial use, and Google claims no rights in outputs; use must follow the Gemma Prohibited Use Policy (section 3.2). 'Allowed' is inferred from the absence of a commercial restriction. The session's reading of the text, not legal advice.",
+              "url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/da6edc54ddba10bfd79a077102ded687f80e882b/LICENSE_GEMMA.md"
+            },
+            "name": "T5Gemma text encoder (t5gemma-b-b-ul2, redistributed by Stability AI)",
+            "sha256": null
+          }
+        ],
+        "hardware": "audio-authoring in namespace dev",
+        "key": "stable-audio",
+        "licence": {
+          "attribution_required": null,
+          "checked_at": "2026-11-13T14:18:00Z",
+          "checked_by": {
+            "kind": "worker",
+            "worker_id": "dev-env agent session haynes-studio-1113-141004"
+          },
+          "commercial_use": "unknown",
+          "name": "Stability AI Community License Agreement",
+          "note": "Conditional (recorded as unknown at the check, before the contract had a 'conditional' value). Hobby and other non-commercial use is free: 'personal use (i.e., hobbyist)' is a Non-Commercial Purpose. Commercial use needs registration with Stability AI, and every licence ends if Tom or his affiliates pass USD 1,000,000 annual revenue. Outputs belong to the user; they must follow the Acceptable Use Policy and must not train a foundational generative model. 'Powered by Stability AI' is required when distributing the model or a product that uses it; outputs are excluded from 'Derivative Work', so whether a published video needs it is left open (null). The session's reading of the text, not legal advice.",
+          "url": "https://huggingface.co/stabilityai/stable-audio-3-optimized/blob/da6edc54ddba10bfd79a077102ded687f80e882b/LICENSE.md"
+        },
+        "name": "Stable Audio 3 Small-SFX (audio-authoring, CPU)",
+        "profile": null,
+        "role": "sound",
+        "used_by": [
+          "asv_01M7BVM62CM89SV5SD0YVZPSZ4"
+        ]
+      },
+      {
+        "files": [],
+        "hardware": null,
+        "key": "unregistered-sound-unrecorded-sound-model",
+        "licence": {
+          "attribution_required": null,
+          "checked_at": null,
+          "checked_by": null,
+          "commercial_use": "unknown",
+          "name": null,
+          "note": "The licence register has no entry for the sound model 'unrecorded sound model'; terms not recorded.",
+          "url": null
+        },
+        "name": "unrecorded sound model",
+        "profile": null,
+        "role": "sound",
+        "used_by": [
+          "asv_01M7BVBVSBHA26B6V3F90A35MP",
+          "asv_01M7BVBVSBHA26B6V3F90A35MQ",
+          "asv_01M7BVBVSBHA26B6V3F90A35MR",
+          "asv_01M7BVBVSBHA26B6V3F90A35MS"
+        ]
+      },
+      {
+        "files": [
+          {
+            "licence": {
+              "attribution_required": false,
+              "checked_at": "2026-11-13T14:18:00Z",
+              "checked_by": {
+                "kind": "worker",
+                "worker_id": "dev-env agent session haynes-studio-1113-141004"
+              },
+              "commercial_use": "allowed",
+              "name": "Apache-2.0",
+              "note": "Apache-2.0; the Wan model card says 'We claim no rights over the your generated contents'. Wan model card: no shared content that violates applicable laws, causes harm, disseminates personal information intended for harm, spreads misinformation or targets vulnerable populations. The session's reading of the text, not legal advice.",
+              "url": "https://www.apache.org/licenses/LICENSE-2.0"
+            },
+            "name": "wan2.2_s2v_14B_fp8_scaled.safetensors",
+            "sha256": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216"
+          },
+          {
+            "licence": {
+              "attribution_required": false,
+              "checked_at": "2026-11-13T14:18:00Z",
+              "checked_by": {
+                "kind": "worker",
+                "worker_id": "dev-env agent session haynes-studio-1113-141004"
+              },
+              "commercial_use": "allowed",
+              "name": "Apache-2.0",
+              "note": "Apache-2.0 audio encoder; it conditions the video and makes no output of its own. The session's reading of the text, not legal advice.",
+              "url": "https://www.apache.org/licenses/LICENSE-2.0"
+            },
+            "name": "wav2vec2_large_english_fp16.safetensors",
+            "sha256": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+          },
+          {
+            "licence": {
+              "attribution_required": false,
+              "checked_at": "2026-11-13T14:18:00Z",
+              "checked_by": {
+                "kind": "worker",
+                "worker_id": "dev-env agent session haynes-studio-1113-141004"
+              },
+              "commercial_use": "allowed",
+              "name": "Apache-2.0",
+              "note": "Apache-2.0, as the S2V model. The session's reading of the text, not legal advice.",
+              "url": "https://www.apache.org/licenses/LICENSE-2.0"
+            },
+            "name": "wan_2.1_vae.safetensors",
+            "sha256": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b"
+          },
+          {
+            "licence": {
+              "attribution_required": false,
+              "checked_at": "2026-11-13T14:18:00Z",
+              "checked_by": {
+                "kind": "worker",
+                "worker_id": "dev-env agent session haynes-studio-1113-141004"
+              },
+              "commercial_use": "allowed",
+              "name": "Apache-2.0",
+              "note": "Apache-2.0, with the same 'We claim no rights over the your generated contents' sentence as Wan. The Wan2.2-Lightning card also says its evaluation prompts come from Movie Gen Bench (CC BY-NC 4.0); that concerns the prompts, not the weights. The session's reading of the text, not legal advice.",
+              "url": "https://www.apache.org/licenses/LICENSE-2.0"
+            },
+            "name": "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors",
+            "sha256": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41"
+          },
+          {
+            "licence": {
+              "attribution_required": null,
+              "checked_at": null,
+              "checked_by": null,
+              "commercial_use": "unknown",
+              "name": null,
+              "note": "The engine reported this file; the licence register does not name it.",
+              "url": null
+            },
+            "name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+            "sha256": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68"
+          }
+        ],
+        "hardware": "ai/deploy/wan-video (ComfyUI, RTX 3090 on talosw01)",
+        "key": "wan-s2v",
+        "licence": {
+          "attribution_required": null,
+          "checked_at": null,
+          "checked_by": null,
+          "commercial_use": "unknown",
+          "name": null,
+          "note": "The engine reported this file; the licence register does not name it.",
+          "url": null
+        },
+        "name": "Wan2.2 S2V-14B fp8 with wav2vec2 and the lightx2v 4-step LoRA",
+        "profile": {
+          "cfg": 1,
+          "chunk": 77,
+          "lora": "lightx2v-4step",
+          "model": "wan2.2-s2v-14b-fp8",
+          "size": [
+            576,
+            1024
+          ],
+          "source_fps": 16,
+          "steps": 4
+        },
+        "role": "video",
+        "used_by": [
+          "brd_01M79V9FC00000000000000001/s2v_clip/a",
+          "brd_01M79V9FC00000000000000002/s2v_clip/b",
+          "brd_01M79V9FC00000000000000003/s2v_clip/c",
+          "brd_01M79V9FC00000000000000004/s2v_clip/a",
+          "brd_01M79V9FC00000000000000005/s2v_clip/d",
+          "brd_01M79V9FC00000000000000006/s2v_clip/c",
+          "brd_01M79V9FC00000000000000008/s2v_clip/a",
+          "brd_01M79V9FC00000000000000008/s2v_clip/b",
+          "brd_01M79V9FC00000000000000008/s2v_clip/c",
+          "brd_01M79V9FC00000000000000008/s2v_clip/d",
+          "brd_01M79V9FC00000000000000009/s2v_clip/b"
+        ]
+      },
+      {
+        "files": [
+          {
+            "licence": {
+              "attribution_required": false,
+              "checked_at": "2026-11-13T14:18:00Z",
+              "checked_by": {
+                "kind": "worker",
+                "worker_id": "dev-env agent session haynes-studio-1113-141004"
+              },
+              "commercial_use": "allowed",
+              "name": "Apache-2.0",
+              "note": "Apache-2.0; the Wan model card says 'We claim no rights over the your generated contents'. Wan model card: no shared content that violates applicable laws, causes harm, disseminates personal information intended for harm, spreads misinformation or targets vulnerable populations. The session's reading of the text, not legal advice.",
+              "url": "https://www.apache.org/licenses/LICENSE-2.0"
+            },
+            "name": "wan2.2_ti2v_5B_fp16.safetensors",
+            "sha256": "456f901338bd9eadbded3828b819109a9b68e8a525ca5cf8d0049a69fcfeca1e"
+          },
+          {
+            "licence": {
+              "attribution_required": false,
+              "checked_at": "2026-11-13T14:18:00Z",
+              "checked_by": {
+                "kind": "worker",
+                "worker_id": "dev-env agent session haynes-studio-1113-141004"
+              },
+              "commercial_use": "allowed",
+              "name": "Apache-2.0",
+              "note": "Apache-2.0 (repackaged umT5-XXL encoder, shipped with the Wan models). The session's reading of the text, not legal advice.",
+              "url": "https://www.apache.org/licenses/LICENSE-2.0"
+            },
+            "name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+            "sha256": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68"
+          },
+          {
+            "licence": {
+              "attribution_required": false,
+              "checked_at": "2026-11-13T14:18:00Z",
+              "checked_by": {
+                "kind": "worker",
+                "worker_id": "dev-env agent session haynes-studio-1113-141004"
+              },
+              "commercial_use": "allowed",
+              "name": "Apache-2.0",
+              "note": "Apache-2.0, as the TI2V model. The session's reading of the text, not legal advice.",
+              "url": "https://www.apache.org/licenses/LICENSE-2.0"
+            },
+            "name": "wan2.2_vae.safetensors",
+            "sha256": "e40321bd36b9709991dae2530eb4ac303dd168276980d3e9bc4b6e2b75fed156"
+          }
+        ],
+        "hardware": "ai/deploy/wan-video (ComfyUI, two RTX 3090s on talosw01)",
+        "key": "wan-ti2v",
+        "licence": {
+          "attribution_required": false,
+          "checked_at": "2026-11-13T14:18:00Z",
+          "checked_by": {
+            "kind": "worker",
+            "worker_id": "dev-env agent session haynes-studio-1113-141004"
+          },
+          "commercial_use": "allowed",
+          "name": "Apache-2.0",
+          "note": "Register entry wan-ti2v; the most restrictive of its files. Apache-2.0 for every file; the Wan card claims no rights over generated content, within its use restrictions. The session's reading of the text, not legal advice.",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0"
+        },
+        "name": "Wan2.2 TI2V-5B",
+        "profile": null,
+        "role": "video",
+        "used_by": [
+          "asv_01M7BVCF7QZG0E27A6CQZ458AA",
+          "asv_01M7BVCF7SGWGWH3WYR8AEQA1S",
+          "asv_01M7BVCF7Y1NJ5X15A484F9J79",
+          "asv_01M7BVCF86G8BD4VYH39FDDYK3"
+        ]
+      }
+    ],
+    "inputs_externally_generated": [],
+    "public": {
+      "ai_generated": true,
+      "credits": [
+        {
+          "engine_key": "kokoro",
+          "text": "Voices: Kokoro-82M v1.0 (Wyoming TTS, stock voices)"
+        },
+        {
+          "engine_key": "stable-audio",
+          "text": "Sound: Stable Audio 3 Small-SFX (audio-authoring, CPU)"
+        },
+        {
+          "engine_key": "unregistered-sound-unrecorded-sound-model",
+          "text": "Sound: unrecorded sound model"
+        },
+        {
+          "engine_key": "wan-s2v",
+          "text": "Video: Wan2.2 S2V-14B fp8 with wav2vec2 and the lightx2v 4-step LoRA"
+        },
+        {
+          "engine_key": "wan-ti2v",
+          "text": "Video: Wan2.2 TI2V-5B"
+        }
+      ],
+      "derived_from_roles": [
+        "video",
+        "voice",
+        "sound"
+      ]
+    },
+    "toolchain": {
+      "compositors": {
+        "layered": "studio.layered/1+pillow-13.0.0+numpy-2.4.6",
+        "whole_frame": "studio.wholeframe/1+pillow-13.0.0"
+      },
+      "drive_assembler": "studio.s2v.drive/1",
+      "encoder": {
+        "bframes": 0,
+        "build": "pyav-18.1.0/libavcodec-62.28.102",
+        "codec": "libx264",
+        "container": "mp4",
+        "crf": 18,
+        "gop": 48,
+        "pix_fmt": "yuv420p",
+        "preset": "fast",
+        "threading": "sliced",
+        "threads": 2
+      },
+      "ffmpeg": "pyav-18.1.0/libavcodec-62.28.102",
+      "i2v_profile": {
+        "adapter": "studio.i2v/1",
+        "model": "wan2.2-ti2v-5b",
+        "size": [
+          576,
+          1024
+        ],
+        "source_fps": 24
+      },
+      "image_digest": null,
+      "keyer_build": "decoder-pyav-18.1.0/libavcodec-62.28.102+numpy-2.4.6+opencv-4.14.0+pillow-13.0.0+scipy-1.16.3",
+      "mixer": "studio.mixer/1:74339957ebf46e78",
+      "mux": {
+        "audio": "aac",
+        "audio_bitrate": 192000,
+        "audio_layout": "stereo",
+        "audio_rate": 48000,
+        "build": "pyav-18.1.0/libavcodec-62.28.102",
+        "container": "mp4",
+        "faststart": true,
+        "movie_timescale": 48000,
+        "threads": 2,
+        "video": "copy"
+      },
+      "python": "3.11.2",
+      "s2v_adapter": "studio.s2v/1",
+      "s2v_profile": {
+        "cfg": 1,
+        "chunk": 77,
+        "lora": "lightx2v-4step",
+        "model": "wan2.2-s2v-14b-fp8",
+        "size": [
+          576,
+          1024
+        ],
+        "source_fps": 16,
+        "steps": 4
+      },
+      "service_snippets": {
+        "kokoro_tts.py": "7fcf8605f9713f66a110516606f8c2493fe851b986842015a746e9ef1f11fadf",
+        "whisper_asr.py": "6e2ce027609d4f1e071bccd5ff9d5b16fe8e19f2d303a651bb04687e415d0b57"
+      },
+      "splicer": "studio.splice/1",
+      "studio": "git:ec8c3869e8e699b4f7cf58bb3d1485f4cdb4af5e",
+      "track_assembler": "studio.voice.track/1",
+      "tts_model": "kokoro-82m-v1.0"
+    },
+    "usage": {
+      "basis": "not metered",
+      "frontier_tokens": null
+    }
+  },
+  "queued_at": "2026-11-14T04:31:47Z",
+  "queued_by": {
+    "command": "studio build",
+    "kind": "cli",
+    "operator": {
+      "iss": "https://agent-session.invalid/dev-env",
+      "kind": "human",
+      "sub": "agent-session:haynes-studio-1114-013021"
+    }
+  },
+  "schema": "studio.run/v1",
+  "snapshot": {
+    "board_count": 9,
+    "locator": "productions/prd_01M79V9FC00000000000000001/sha256/3b/3bf340d32d16f603465cbc095ec62d3ef338cfc814444707477d9489db41cb1b.json",
+    "sha256": "3bf340d32d16f603465cbc095ec62d3ef338cfc814444707477d9489db41cb1b",
+    "story_revision": 3
+  },
+  "stages": [
+    {
+      "artifacts": [
+        {
+          "key": "sha256:948004866105c88814758bb60cc1d09438b6bd4eb1f34b452081c57162d53eca",
+          "kind": "voice_take",
+          "made": false,
+          "name": "take/lin_01M79V9FC00000000000000001",
+          "seconds": null,
+          "sha256": "b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78"
+        },
+        {
+          "key": "sha256:5d7033633fea34f68c52204cd1217ef267c6988d48f8be2909c7c698f440ff4a",
+          "kind": "board_voice_track",
+          "made": false,
+          "name": "voice_track",
+          "seconds": null,
+          "sha256": "a4a41e87cb822401d904a4bf23fa025667f36643f2fe8a3bf4605759575df261"
+        },
+        {
+          "key": "sha256:f6a2c8d1a1ff20243ff7e211f765e4ca5051c979b746f9c1d627fc90304719ce",
+          "kind": "s2v_drive_track",
+          "made": false,
+          "name": "drive/a",
+          "seconds": null,
+          "sha256": "49231811f21290897f757e1a7a6676c8e96f9075e34f0076273f195c327446fa"
+        },
+        {
+          "key": "sha256:01e4f49770476739b4adad305e81674c08bc16d7ed7dc4daf2eff80aae787a99",
+          "kind": "s2v_clip",
+          "made": false,
+          "name": "s2v_clip/a",
+          "seconds": null,
+          "sha256": "7bfecdbef46de0f9e4dd203403221fd85e5ee21e5dfb03d9bdff9955e810dac0"
+        },
+        {
+          "key": "sha256:e75b79c191754ceda42c78e944fd2bb1d5cc0c85cb4862c4d4b3cb3fbbe8e572",
+          "kind": "keyed_frames",
+          "made": false,
+          "name": "keyed/a",
+          "seconds": null,
+          "sha256": "7a9506fa97b96e93df82736f6b65de867a3e82a2f31fc370654ac0d8da44d99c"
+        },
+        {
+          "key": "sha256:4e203ad19e2fce5eeb654dfdb85f82ef3853c9d0dfdfd1b9456f64c7840e9c38",
+          "kind": "segment",
+          "made": false,
+          "name": "segment",
+          "seconds": null,
+          "sha256": "68fbfe51c9c0e4ce2e981dbfa4f4e7777ecc80538f558f8062f64f8b1929ae3c"
+        }
+      ],
+      "board_id": "brd_01M79V9FC00000000000000001",
+      "board_number": 1,
+      "checks": [],
+      "clips": [
+        {
+          "engine": "wan-api/s2v-14b-lightning",
+          "engine_job_id": "bdb9e41bfe494aa3a996c135e6348101",
+          "files_sha256": {
+            "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+            "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+            "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+            "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+            "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+          },
+          "fps": 16,
+          "frames": 158,
+          "key": "sha256:01e4f49770476739b4adad305e81674c08bc16d7ed7dc4daf2eff80aae787a99",
+          "made": false,
+          "render_s": null,
+          "requested_length": 154,
+          "role": "s2v_clip",
+          "seed": 611,
+          "sha256": "7bfecdbef46de0f9e4dd203403221fd85e5ee21e5dfb03d9bdff9955e810dac0",
+          "slot": "a",
+          "trimmed": 56
+        },
+        {
+          "fps": 24,
+          "frames": 121,
+          "library_version_id": "asv_01M7BVCF7QZG0E27A6CQZ458AA",
+          "made": false,
+          "role": "set_loop",
+          "sha256": "d9992080f596d71119aaad39b6717bff898e8bc9ac40f93d079a4ffdc74298a1",
+          "slot": null
+        }
+      ],
+      "compositor": "studio.layered/1+pillow-13.0.0+numpy-2.4.6",
+      "film_start_frame": 0,
+      "frames": 153,
+      "method": {
+        "layer": "layered",
+        "motion": "s2v"
+      },
+      "render_s": null,
+      "report": null,
+      "segment_key": "sha256:4e203ad19e2fce5eeb654dfdb85f82ef3853c9d0dfdfd1b9456f64c7840e9c38",
+      "segment_sha256": "68fbfe51c9c0e4ce2e981dbfa4f4e7777ecc80538f558f8062f64f8b1929ae3c"
+    },
+    {
+      "artifacts": [
+        {
+          "key": "sha256:4cd6935490ca8e3ff2a9abd909a6e0d486ce276d4d14323934c935cc17451e3b",
+          "kind": "voice_take",
+          "made": false,
+          "name": "take/lin_01M79V9FC00000000000000002",
+          "seconds": null,
+          "sha256": "7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50"
+        },
+        {
+          "key": "sha256:a869c637a2fbe3aaaa82061f5475bee16668acda85b5b1dce7faa6bebd1c4b4e",
+          "kind": "board_voice_track",
+          "made": false,
+          "name": "voice_track",
+          "seconds": null,
+          "sha256": "613770d8dcecfe6cff3202d7a6d08fdd8643718891ba43817bbfc7f92dd4347e"
+        },
+        {
+          "key": "sha256:ecc8a4bdaaaa8f7c2cf49355cb0700ff38159db0e348a39b878e8d3b6eb7dcbb",
+          "kind": "s2v_drive_track",
+          "made": false,
+          "name": "drive/b",
+          "seconds": null,
+          "sha256": "d063c1b4e6868396212a7a65e31a8bb011a923539a06140dfcb0d45c0a80d3fe"
+        },
+        {
+          "key": "sha256:28d8580732065f60fcadbf01094e16aec59b13b741f4351f9056daaf205aac48",
+          "kind": "s2v_clip",
+          "made": false,
+          "name": "s2v_clip/b",
+          "seconds": null,
+          "sha256": "8f460514570af84b3abf4cf55514b0dd600a03febf137eee7ed0f50b099e4dee"
+        },
+        {
+          "key": "sha256:5db943a91d600984d5a112b54d9daa3cf88c4b8e087e50f31fcb76a6bc623af6",
+          "kind": "keyed_frames",
+          "made": false,
+          "name": "keyed/b",
+          "seconds": null,
+          "sha256": "27e29fdb10ca9217fc082a796b849c4588afd03c8c879438b8cb6a6b0fb4184a"
+        },
+        {
+          "key": "sha256:a1ca806bc2520f76cd443c0ebcc7aefc3d10aeec295bf48ba256e9dac3da4431",
+          "kind": "segment",
+          "made": false,
+          "name": "segment",
+          "seconds": null,
+          "sha256": "fb66bd389e29588fe78930cf0a8cf18bad0648e1ee2a046505aac957ec475a5e"
+        }
+      ],
+      "board_id": "brd_01M79V9FC00000000000000002",
+      "board_number": 2,
+      "checks": [],
+      "clips": [
+        {
+          "engine": "wan-api/s2v-14b-lightning",
+          "engine_job_id": "95372414266440f387298aeb282c921f",
+          "files_sha256": {
+            "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+            "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+            "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+            "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+            "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+          },
+          "fps": 16,
+          "frames": 66,
+          "key": "sha256:28d8580732065f60fcadbf01094e16aec59b13b741f4351f9056daaf205aac48",
+          "made": false,
+          "render_s": null,
+          "requested_length": 65,
+          "role": "s2v_clip",
+          "seed": 501,
+          "sha256": "8f460514570af84b3abf4cf55514b0dd600a03febf137eee7ed0f50b099e4dee",
+          "slot": "b",
+          "trimmed": 3
+        },
+        {
+          "fps": 24,
+          "frames": 121,
+          "library_version_id": "asv_01M7BVCF7QZG0E27A6CQZ458AA",
+          "made": false,
+          "role": "set_loop",
+          "sha256": "d9992080f596d71119aaad39b6717bff898e8bc9ac40f93d079a4ffdc74298a1",
+          "slot": null
+        }
+      ],
+      "compositor": "studio.layered/1+pillow-13.0.0+numpy-2.4.6",
+      "film_start_frame": 153,
+      "frames": 94,
+      "method": {
+        "layer": "layered",
+        "motion": "s2v"
+      },
+      "render_s": null,
+      "report": null,
+      "segment_key": "sha256:a1ca806bc2520f76cd443c0ebcc7aefc3d10aeec295bf48ba256e9dac3da4431",
+      "segment_sha256": "fb66bd389e29588fe78930cf0a8cf18bad0648e1ee2a046505aac957ec475a5e"
+    },
+    {
+      "artifacts": [
+        {
+          "key": "sha256:6737a320f3a3d1a2c7e4afb25deec542c03e6513a11adff97d5176280ce00086",
+          "kind": "voice_take",
+          "made": false,
+          "name": "take/lin_01M79V9FC00000000000000003",
+          "seconds": null,
+          "sha256": "6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36"
+        },
+        {
+          "key": "sha256:b3e613cc9036ccc3f0c0f8feb7b8dbd2c6df7847af7c1f2026b27da6df4c7e74",
+          "kind": "board_voice_track",
+          "made": false,
+          "name": "voice_track",
+          "seconds": null,
+          "sha256": "00f025f05c0c25ea6b4b6e05b1d4aeaa48023009d8c02c5bc2d51224b65be135"
+        },
+        {
+          "key": "sha256:857bff7088c0f49923d1e48d269fa2742c6143a457ecd435d14afb1f2a73350a",
+          "kind": "s2v_drive_track",
+          "made": false,
+          "name": "drive/c",
+          "seconds": null,
+          "sha256": "337d2c3f47010bd6c0e28b67f4aeae530444cef2221f41889d2a36990c779420"
+        },
+        {
+          "key": "sha256:20d75f007818dc99ddd8a4299d0262f6e0f8bcb88cb2e34a7b6b1b4213c8da0a",
+          "kind": "s2v_clip",
+          "made": false,
+          "name": "s2v_clip/c",
+          "seconds": null,
+          "sha256": "8f179557d45eea2abf4802b62fd12dc9e605ef32189201f740dee1c74c3c28d2"
+        },
+        {
+          "key": "sha256:8cc52670cce3687d78e193bad5d0e50a6e81fff0a83c176b896e076739a42daf",
+          "kind": "keyed_frames",
+          "made": false,
+          "name": "keyed/c",
+          "seconds": null,
+          "sha256": "9df7ab6fb54bb90a808b483032a156c927d32d391ae1c294429138b83d56f35a"
+        },
+        {
+          "key": "sha256:0f1f6a141f9de489a5b587a9e70b236433864912074e3331f9be0406849350de",
+          "kind": "segment",
+          "made": false,
+          "name": "segment",
+          "seconds": null,
+          "sha256": "c3684314c4cc2733fb39133d97793962455d4178c9ba22162a7924ce78a3bbbe"
+        }
+      ],
+      "board_id": "brd_01M79V9FC00000000000000003",
+      "board_number": 3,
+      "checks": [],
+      "clips": [
+        {
+          "engine": "wan-api/s2v-14b-lightning",
+          "engine_job_id": "44c425818c0644de8b883553ed247ca9",
+          "files_sha256": {
+            "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+            "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+            "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+            "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+            "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+          },
+          "fps": 16,
+          "frames": 158,
+          "key": "sha256:20d75f007818dc99ddd8a4299d0262f6e0f8bcb88cb2e34a7b6b1b4213c8da0a",
+          "made": false,
+          "render_s": null,
+          "requested_length": 154,
+          "role": "s2v_clip",
+          "seed": 512,
+          "sha256": "8f179557d45eea2abf4802b62fd12dc9e605ef32189201f740dee1c74c3c28d2",
+          "slot": "c",
+          "trimmed": 61
+        },
+        {
+          "fps": 24,
+          "frames": 121,
+          "library_version_id": "asv_01M7BVCF7QZG0E27A6CQZ458AA",
+          "made": false,
+          "role": "set_loop",
+          "sha256": "d9992080f596d71119aaad39b6717bff898e8bc9ac40f93d079a4ffdc74298a1",
+          "slot": null
+        }
+      ],
+      "compositor": "studio.layered/1+pillow-13.0.0+numpy-2.4.6",
+      "film_start_frame": 247,
+      "frames": 146,
+      "method": {
+        "layer": "layered",
+        "motion": "s2v"
+      },
+      "render_s": null,
+      "report": null,
+      "segment_key": "sha256:0f1f6a141f9de489a5b587a9e70b236433864912074e3331f9be0406849350de",
+      "segment_sha256": "c3684314c4cc2733fb39133d97793962455d4178c9ba22162a7924ce78a3bbbe"
+    },
+    {
+      "artifacts": [
+        {
+          "key": "sha256:44401bf36d342f84e9c2b764cf79dd108dc0e0f390fcd211526de3c31ad74b9b",
+          "kind": "voice_take",
+          "made": false,
+          "name": "take/lin_01M79V9FC00000000000000004",
+          "seconds": null,
+          "sha256": "0063d7e0e0d8a551fece4373ba1252d94339c00e10155bd08804b44c388773fd"
+        },
+        {
+          "key": "sha256:5f556e38d66a7eaff691ccdacb3980cbee0984717d7d39170b5362833ad6c0e9",
+          "kind": "board_voice_track",
+          "made": false,
+          "name": "voice_track",
+          "seconds": null,
+          "sha256": "ce6013696258720b5fc7f8ddac6ffc7c4ba63de94176b3197b1f4a520d81e6ca"
+        },
+        {
+          "key": "sha256:f594187e3b7dc9e1decd80c4d8af7e241ea3e4c224b821814efd4fd1b06bc8f4",
+          "kind": "s2v_drive_track",
+          "made": false,
+          "name": "drive/a",
+          "seconds": null,
+          "sha256": "4bfe3a15108adcfc2a2ea379b9a23bdd6e4b746f69f2461a74aecac90b26fd31"
+        },
+        {
+          "key": "sha256:5ec09776e1d3dce667bceb294e4676291e4e57a8aa9c427deb5a1bf228d1121a",
+          "kind": "s2v_clip",
+          "made": false,
+          "name": "s2v_clip/a",
+          "seconds": null,
+          "sha256": "87de868dd6c161c21f2a072f523afacb215713b20be5a683932fdfc903790976"
+        },
+        {
+          "key": "sha256:2086d708ac6b2ba10034da6c9b0bbdca7b8ff85258bb18e80ceb97b56ea469d5",
+          "kind": "keyed_frames",
+          "made": false,
+          "name": "keyed/a",
+          "seconds": null,
+          "sha256": "835a135c99529409c8748be488a8cb1a78136c71739ef2e26b9559a591099738"
+        },
+        {
+          "key": "sha256:82bc39d575cbcae7be341e42b909f180ec7649c83163ca198fa39b17aac61eb6",
+          "kind": "segment",
+          "made": false,
+          "name": "segment",
+          "seconds": null,
+          "sha256": "8dc7b84bfa79a37e388594de02bff7d86f06a7bb0ce12d5d4c8e65d24af6df09"
+        }
+      ],
+      "board_id": "brd_01M79V9FC00000000000000004",
+      "board_number": 4,
+      "checks": [],
+      "clips": [
+        {
+          "engine": "wan-api/s2v-14b-lightning",
+          "engine_job_id": "5a438d01ea624d0f830365b584c15edb",
+          "files_sha256": {
+            "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+            "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+            "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+            "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+            "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+          },
+          "fps": 16,
+          "frames": 58,
+          "key": "sha256:5ec09776e1d3dce667bceb294e4676291e4e57a8aa9c427deb5a1bf228d1121a",
+          "made": false,
+          "render_s": null,
+          "requested_length": 57,
+          "role": "s2v_clip",
+          "seed": 513,
+          "sha256": "87de868dd6c161c21f2a072f523afacb215713b20be5a683932fdfc903790976",
+          "slot": "a",
+          "trimmed": 2
+        },
+        {
+          "fps": 24,
+          "frames": 121,
+          "library_version_id": "asv_01M7BVCF7QZG0E27A6CQZ458AA",
+          "made": false,
+          "role": "set_loop",
+          "sha256": "d9992080f596d71119aaad39b6717bff898e8bc9ac40f93d079a4ffdc74298a1",
+          "slot": null
+        }
+      ],
+      "compositor": "studio.layered/1+pillow-13.0.0+numpy-2.4.6",
+      "film_start_frame": 393,
+      "frames": 84,
+      "method": {
+        "layer": "layered",
+        "motion": "s2v"
+      },
+      "render_s": null,
+      "report": null,
+      "segment_key": "sha256:82bc39d575cbcae7be341e42b909f180ec7649c83163ca198fa39b17aac61eb6",
+      "segment_sha256": "8dc7b84bfa79a37e388594de02bff7d86f06a7bb0ce12d5d4c8e65d24af6df09"
+    },
+    {
+      "artifacts": [
+        {
+          "key": "sha256:ff539d9fe3deaf9a47986c049fea8e3e6efb096961225ec8a8c1bea3010cdf48",
+          "kind": "voice_take",
+          "made": false,
+          "name": "take/lin_01M79V9FC00000000000000005",
+          "seconds": null,
+          "sha256": "f89e05a2c53e9be7edd35f3b31862da311ce2730cb330421cb93e25b20a3ab59"
+        },
+        {
+          "key": "sha256:3d9b8d06151de94cc4ea212ce3a48c172a1ba3e3051f353bc329b2a2d8608a9b",
+          "kind": "board_voice_track",
+          "made": false,
+          "name": "voice_track",
+          "seconds": null,
+          "sha256": "f92bbc528636aedbaf89f1d9aeebc8f2ce6b87d65a85f076b3ae26bc46f8af68"
+        },
+        {
+          "key": "sha256:7432fe4ee2b6f88301088416a8ec61f759bf6784d236e47d8fcf5590d70cd118",
+          "kind": "s2v_drive_track",
+          "made": false,
+          "name": "drive/d",
+          "seconds": null,
+          "sha256": "e707810105907e4e81e6f87f0997a92edcb34af34013908bbb05c8694fd2da6a"
+        },
+        {
+          "key": "sha256:2471c32d9e74482f233b73f7fb42cc023218f45fe93d5480f849e896a73faafc",
+          "kind": "s2v_clip",
+          "made": false,
+          "name": "s2v_clip/d",
+          "seconds": null,
+          "sha256": "d903ed0684ab75a9c806d99f92c53d843b2cb6b4423b53419c255e94c95dea8f"
+        },
+        {
+          "key": "sha256:78fd24b51bd177d17d199da57a4a47c326596c3b06c5fe8517976ddf3cb6736b",
+          "kind": "keyed_frames",
+          "made": false,
+          "name": "keyed/d",
+          "seconds": null,
+          "sha256": "cc5a6edb5cb350f19728ed83156d78ffffc6eb006411b3f8cf7f56565cc2deaa"
+        },
+        {
+          "key": "sha256:ce141bf12555c44d9963cb67c58edb91028d04e44fe37c2adc49cba345842647",
+          "kind": "segment",
+          "made": false,
+          "name": "segment",
+          "seconds": null,
+          "sha256": "b976478395efc8a32731e4f5c38b1476e00ad9ba9b4f20a9cbc5f720598f4393"
+        }
+      ],
+      "board_id": "brd_01M79V9FC00000000000000005",
+      "board_number": 5,
+      "checks": [],
+      "clips": [
+        {
+          "engine": "wan-api/s2v-14b-lightning",
+          "engine_job_id": "f742e3585fc5465d8984014480142f40",
+          "files_sha256": {
+            "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+            "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+            "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+            "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+            "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+          },
+          "fps": 16,
+          "frames": 58,
+          "key": "sha256:2471c32d9e74482f233b73f7fb42cc023218f45fe93d5480f849e896a73faafc",
+          "made": false,
+          "render_s": null,
+          "requested_length": 57,
+          "role": "s2v_clip",
+          "seed": 514,
+          "sha256": "d903ed0684ab75a9c806d99f92c53d843b2cb6b4423b53419c255e94c95dea8f",
+          "slot": "d",
+          "trimmed": 3
+        },
+        {
+          "fps": 24,
+          "frames": 121,
+          "library_version_id": "asv_01M7BVCF7QZG0E27A6CQZ458AA",
+          "made": false,
+          "role": "set_loop",
+          "sha256": "d9992080f596d71119aaad39b6717bff898e8bc9ac40f93d079a4ffdc74298a1",
+          "slot": null
+        }
+      ],
+      "compositor": "studio.layered/1+pillow-13.0.0+numpy-2.4.6",
+      "film_start_frame": 477,
+      "frames": 83,
+      "method": {
+        "layer": "layered",
+        "motion": "s2v"
+      },
+      "render_s": null,
+      "report": null,
+      "segment_key": "sha256:ce141bf12555c44d9963cb67c58edb91028d04e44fe37c2adc49cba345842647",
+      "segment_sha256": "b976478395efc8a32731e4f5c38b1476e00ad9ba9b4f20a9cbc5f720598f4393"
+    },
+    {
+      "artifacts": [
+        {
+          "key": "sha256:d48840436a4d23fc753d7e0f515307a3980161d7bd4275356d8b9d4e54c08041",
+          "kind": "voice_take",
+          "made": false,
+          "name": "take/lin_01M79V9FC00000000000000006",
+          "seconds": null,
+          "sha256": "46bf17ecaa3a9729b16fd45ba67c2f123b32756cf36eef133abf029c681a7395"
+        },
+        {
+          "key": "sha256:d97dd92e24d7aaca8ad00cc67f336656362d205b57a31494db2b88dfb0cd0f91",
+          "kind": "board_voice_track",
+          "made": false,
+          "name": "voice_track",
+          "seconds": null,
+          "sha256": "ca836db6753cdf1b8c7c183574606272000b1cd03a2209a2e301a4dc1a006482"
+        },
+        {
+          "key": "sha256:4fc4f036932cac66f09157baf39449c4851291a0d5bcd7eb9223d44f2fbc39b8",
+          "kind": "s2v_drive_track",
+          "made": false,
+          "name": "drive/c",
+          "seconds": null,
+          "sha256": "ea033bb40a51acfdb48e36c20624f888938ec9ab5d03f832ed11d4a162e77e69"
+        },
+        {
+          "key": "sha256:fe71d738cb0f6dfe5e2618e0ec97a96bfb4e8b1557232ceb6f933d2c9da44d82",
+          "kind": "s2v_clip",
+          "made": false,
+          "name": "s2v_clip/c",
+          "seconds": null,
+          "sha256": "2d9df1a748bfd1b026c1f7e99f315b880127c01d5372eed304c88d9c08bc8d1c"
+        },
+        {
+          "key": "sha256:ea1399bf7482b71c08f659c883da7aaf022febb3aa0054da90bfb916fd7b14f1",
+          "kind": "keyed_frames",
+          "made": false,
+          "name": "keyed/c",
+          "seconds": null,
+          "sha256": "2631dfd16094158dd44be71d431bcd5ae58dff870a41a844fcaaa95247f02fd7"
+        },
+        {
+          "key": "sha256:d515933e069c112a21329f4277d95de202f412472f6caac79a35e4985dace916",
+          "kind": "segment",
+          "made": false,
+          "name": "segment",
+          "seconds": null,
+          "sha256": "b24ba5e4a66b6e87957025a735829554efd4c08f14cbd2e743041bdcc82eb66a"
+        }
+      ],
+      "board_id": "brd_01M79V9FC00000000000000006",
+      "board_number": 6,
+      "checks": [],
+      "clips": [
+        {
+          "engine": "wan-api/s2v-14b-lightning",
+          "engine_job_id": "63c0a32c4ae440349328db6fbebda51e",
+          "files_sha256": {
+            "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+            "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+            "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+            "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+            "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+          },
+          "fps": 16,
+          "frames": 158,
+          "key": "sha256:fe71d738cb0f6dfe5e2618e0ec97a96bfb4e8b1557232ceb6f933d2c9da44d82",
+          "made": false,
+          "render_s": null,
+          "requested_length": 154,
+          "role": "s2v_clip",
+          "seed": 515,
+          "sha256": "2d9df1a748bfd1b026c1f7e99f315b880127c01d5372eed304c88d9c08bc8d1c",
+          "slot": "c",
+          "trimmed": 77
+        },
+        {
+          "fps": 24,
+          "frames": 121,
+          "library_version_id": "asv_01M7BVCF7QZG0E27A6CQZ458AA",
+          "made": false,
+          "role": "set_loop",
+          "sha256": "d9992080f596d71119aaad39b6717bff898e8bc9ac40f93d079a4ffdc74298a1",
+          "slot": null
+        }
+      ],
+      "compositor": "studio.layered/1+pillow-13.0.0+numpy-2.4.6",
+      "film_start_frame": 560,
+      "frames": 122,
+      "method": {
+        "layer": "layered",
+        "motion": "s2v"
+      },
+      "render_s": null,
+      "report": null,
+      "segment_key": "sha256:d515933e069c112a21329f4277d95de202f412472f6caac79a35e4985dace916",
+      "segment_sha256": "b24ba5e4a66b6e87957025a735829554efd4c08f14cbd2e743041bdcc82eb66a"
+    },
+    {
+      "artifacts": [
+        {
+          "key": "sha256:a9fa4514c5d31b6c819f42c998541759f2906a47a8bcabe8b9efa503cf5adaa0",
+          "kind": "motion_clip",
+          "made": false,
+          "name": "doll_clip/d",
+          "seconds": null,
+          "sha256": "7e33e2af4191305d9c6704ff32eb2f8acd7d3f52130ad927dfe6ea3ba721eb30"
+        },
+        {
+          "key": "sha256:33e53dc009570405cbedaa6c2d7bd65d16242512f0954c4181781bbce1b9d230",
+          "kind": "keyed_frames",
+          "made": false,
+          "name": "keyed/d",
+          "seconds": null,
+          "sha256": "6db624cb32c520d8fdcad2d4344a97bfcea05ef5d329440cb1a002a88c04efc9"
+        },
+        {
+          "key": "sha256:802f695bbdcfc2696456a9cbc971021331d0e0423f0a12a84d69b61fd570936b",
+          "kind": "segment",
+          "made": false,
+          "name": "segment",
+          "seconds": null,
+          "sha256": "eb7d72f7f07d73c4c73298e2bbb7588568ab218325550f23857c28bccb78a0e5"
+        }
+      ],
+      "board_id": "brd_01M79V9FC00000000000000007",
+      "board_number": 7,
+      "checks": [],
+      "clips": [
+        {
+          "fps": 24,
+          "frames": 121,
+          "key": "sha256:a9fa4514c5d31b6c819f42c998541759f2906a47a8bcabe8b9efa503cf5adaa0",
+          "library_version_id": "asv_01M7BVCF86G8BD4VYH39FDDYK3",
+          "made": false,
+          "role": "doll_clip",
+          "seed": 416,
+          "sha256": "7e33e2af4191305d9c6704ff32eb2f8acd7d3f52130ad927dfe6ea3ba721eb30",
+          "slot": "d"
+        },
+        {
+          "fps": 24,
+          "frames": 121,
+          "library_version_id": "asv_01M7BVCF7QZG0E27A6CQZ458AA",
+          "made": false,
+          "role": "set_loop",
+          "sha256": "d9992080f596d71119aaad39b6717bff898e8bc9ac40f93d079a4ffdc74298a1",
+          "slot": null
+        }
+      ],
+      "compositor": "studio.layered/1+pillow-13.0.0+numpy-2.4.6",
+      "film_start_frame": 682,
+      "frames": 46,
+      "method": {
+        "layer": "layered",
+        "motion": "i2v"
+      },
+      "render_s": null,
+      "report": null,
+      "segment_key": "sha256:802f695bbdcfc2696456a9cbc971021331d0e0423f0a12a84d69b61fd570936b",
+      "segment_sha256": "eb7d72f7f07d73c4c73298e2bbb7588568ab218325550f23857c28bccb78a0e5"
+    },
+    {
+      "artifacts": [
+        {
+          "key": "sha256:424a60e687a2356438a149fce7cb781e69eb0d3610d346f1383b710b20c26355",
+          "kind": "voice_take",
+          "made": false,
+          "name": "take/lin_01M79V9FC00000000000000007",
+          "seconds": null,
+          "sha256": "37e81c9db699303d9fbdef03479d9500d5514ae3f38fa103c4f481d6513350e6"
+        },
+        {
+          "key": "sha256:aa67e748b0b2a3a294b4a2efa6aee871a21d5769c6318a60132c1c5d73abdd24",
+          "kind": "voice_take",
+          "made": false,
+          "name": "take/lin_01M79V9FC00000000000000008",
+          "seconds": null,
+          "sha256": "1dadd22ef158db129f37ece9de63e0db871f4f72cd912fdc7a260126021aa6b2"
+        },
+        {
+          "key": "sha256:3dbe53c402bee473de69fa45bda7ef441f1635b8f090d06cadf74f383112698d",
+          "kind": "voice_take",
+          "made": false,
+          "name": "take/lin_01M79V9FC00000000000000009",
+          "seconds": null,
+          "sha256": "1e5206395dc510de18f1f2050485cd63b9bcba90411ea34bbee7a44a3298d00d"
+        },
+        {
+          "key": "sha256:7787167bd3bf0c1e0f2f594fdda61718e3eef46c7bcd347957e0b5cfde6fff9a",
+          "kind": "voice_take",
+          "made": false,
+          "name": "take/lin_01M79V9FC0000000000000000A",
+          "seconds": null,
+          "sha256": "5fc1718e8659568b2234544470bce9c23404b855b9c563ea90f4f75596773b35"
+        },
+        {
+          "key": "sha256:b396bb948a73a03243c74e3c2bb4a1204b0547cb3a31dc51c3c5f9539c9351cc",
+          "kind": "voice_take",
+          "made": false,
+          "name": "take/lin_01M79V9FC0000000000000000B",
+          "seconds": null,
+          "sha256": "9b3ba267baecf4407cb1ec7dfa66598566e83e615b009f307a47c4b3be4aaad9"
+        },
+        {
+          "key": "sha256:728931a638c4af44c07a3b3fa7cd9f73dd6588ecc1b2b175f216915413fc78d5",
+          "kind": "voice_take",
+          "made": false,
+          "name": "take/lin_01M79V9FC0000000000000000C",
+          "seconds": null,
+          "sha256": "1be02e6d7b243b572d6b6d61e0a629f35803b22b741fe13a97e907ff0d17ddab"
+        },
+        {
+          "key": "sha256:01001800a8a3932af934f417451af74339aa1c95c1ddbbeab9e927928ec4b2fb",
+          "kind": "board_voice_track",
+          "made": false,
+          "name": "voice_track",
+          "seconds": null,
+          "sha256": "00720fda182369f7e156f3cfe26d60e140c904aaa605e61dada2d4e6dcf14eed"
+        },
+        {
+          "key": "sha256:01566464233aa51e90ad92f7dad93df5c1de2ce25edc4a446a9f3569e4540850",
+          "kind": "s2v_drive_track",
+          "made": false,
+          "name": "drive/a",
+          "seconds": null,
+          "sha256": "28c62c803ed591c41a96a051a9f92300611eebf8d6004c9d06922a8bfdac16ea"
+        },
+        {
+          "key": "sha256:df9877ed81c146db8285a3b3433a341f432142815dcd461e734cb7e064c996c6",
+          "kind": "s2v_clip",
+          "made": false,
+          "name": "s2v_clip/a",
+          "seconds": null,
+          "sha256": "4e6df2f5c5107bd831825981ecb0b07bbf9a2b6ebac53b68c44237a5eac2b135"
+        },
+        {
+          "key": "sha256:1e79bbbbad14ac4910a3613194b3c36a90e6156caf9fc4cb25c61847059cffde",
+          "kind": "keyed_frames",
+          "made": false,
+          "name": "keyed/a",
+          "seconds": null,
+          "sha256": "448eae4f0237a5e412e244df2b264ff0ff8ce61049cf32f69998a63893c958c4"
+        },
+        {
+          "key": "sha256:91e5825f22b7c66e66e805f0900a56b10b29950d9ac24088fe6bd0a344819814",
+          "kind": "s2v_drive_track",
+          "made": false,
+          "name": "drive/c",
+          "seconds": null,
+          "sha256": "6a16f81deba5f89ef3cbad3170dbdadb868d8416c1ebe113cd291b062a746eae"
+        },
+        {
+          "key": "sha256:8cf6e77638f64b5cb36127f09612b83a59748d7f59fd6e60cf8e6b6261a831d5",
+          "kind": "s2v_clip",
+          "made": false,
+          "name": "s2v_clip/c",
+          "seconds": null,
+          "sha256": "563bc0ceb9f31897669dd147058a50dd74351aed8ecbc650dd146b746a3934d1"
+        },
+        {
+          "key": "sha256:bf65b31d35758066534a24340488ec1ce4f8298802b36e6cdcf441778432ebd7",
+          "kind": "keyed_frames",
+          "made": false,
+          "name": "keyed/c",
+          "seconds": null,
+          "sha256": "b51fa9c3e214f58b32d910114e75ff3ac81776eeb2d16f951d9f8f7b531d55f5"
+        },
+        {
+          "key": "sha256:f49aabc8d79c7a1cbbe3709b5a74dd8ec23d8b4d3b1cdefd76db0b1ce5d33fbc",
+          "kind": "s2v_drive_track",
+          "made": false,
+          "name": "drive/d",
+          "seconds": null,
+          "sha256": "0a3eff86857fee87e217e715fdb6c05cb990e3ec9732e97b80664396b843c900"
+        },
+        {
+          "key": "sha256:b002033649424d2be57b00f32eea3050ea3c6643da3adb19a911cf7c50dddf1e",
+          "kind": "s2v_clip",
+          "made": false,
+          "name": "s2v_clip/d",
+          "seconds": null,
+          "sha256": "c9b9acec029cd30652ae37835453708ed4d50500eb6234eda192b81e25985f29"
+        },
+        {
+          "key": "sha256:4c3b7a6120609824db130dad2a18b85f4b63ba91a3760def12b309fdbe218e3a",
+          "kind": "keyed_frames",
+          "made": false,
+          "name": "keyed/d",
+          "seconds": null,
+          "sha256": "7a30ed6e3388f5443355577ad89ce8d6d3574288249a54ee7bb326bfcf0cc57a"
+        },
+        {
+          "key": "sha256:0f9975b4befa0d1c520d6d338c7b58d7e9eb442758079edbee281b4713b781de",
+          "kind": "s2v_drive_track",
+          "made": false,
+          "name": "drive/b",
+          "seconds": null,
+          "sha256": "d47a091344c923b0d558dc9d4a8ea1348db4496cd514d1c84a290bef4efd7e38"
+        },
+        {
+          "key": "sha256:d4ce212d7baf48880902ed0726c450a2c3d3221ae18a461f251cd9851f0b5a03",
+          "kind": "s2v_clip",
+          "made": false,
+          "name": "s2v_clip/b",
+          "seconds": null,
+          "sha256": "b81b31c723c4c1aa913efa1d8eb5f7119f91fd66fac0bf901077f716e1c248ba"
+        },
+        {
+          "key": "sha256:2b6d971fdfbd8785c78a47e5eb00d277020a6845d556b540fbc23dba8c8e7e38",
+          "kind": "keyed_frames",
+          "made": false,
+          "name": "keyed/b",
+          "seconds": null,
+          "sha256": "b46baf4f2514eba7723314a32985e3c52605197e6b9f1d625cda75931e9d73da"
+        },
+        {
+          "key": "sha256:ac06ae69af5c6e305abf7fdb7ac72b428870172b73948b76a66ff526e924d1fc",
+          "kind": "segment",
+          "made": false,
+          "name": "segment",
+          "seconds": null,
+          "sha256": "5903efcf8cc57fc841cdb0855ffe3396886820052b13a28e8f6103a216701bce"
+        }
+      ],
+      "board_id": "brd_01M79V9FC00000000000000008",
+      "board_number": 8,
+      "checks": [],
+      "clips": [
+        {
+          "engine": "wan-api/s2v-14b-lightning",
+          "engine_job_id": "976dbb34b2844388a75805b14d00b504",
+          "files_sha256": {
+            "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+            "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+            "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+            "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+            "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+          },
+          "fps": 16,
+          "frames": 238,
+          "key": "sha256:df9877ed81c146db8285a3b3433a341f432142815dcd461e734cb7e064c996c6",
+          "made": false,
+          "render_s": null,
+          "requested_length": 231,
+          "role": "s2v_clip",
+          "seed": 516,
+          "sha256": "4e6df2f5c5107bd831825981ecb0b07bbf9a2b6ebac53b68c44237a5eac2b135",
+          "slot": "a",
+          "trimmed": 71
+        },
+        {
+          "engine": "wan-api/s2v-14b-lightning",
+          "engine_job_id": "3c114ac9683949efa4d180911a00b20e",
+          "files_sha256": {
+            "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+            "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+            "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+            "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+            "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+          },
+          "fps": 16,
+          "frames": 238,
+          "key": "sha256:8cf6e77638f64b5cb36127f09612b83a59748d7f59fd6e60cf8e6b6261a831d5",
+          "made": false,
+          "render_s": null,
+          "requested_length": 231,
+          "role": "s2v_clip",
+          "seed": 518,
+          "sha256": "563bc0ceb9f31897669dd147058a50dd74351aed8ecbc650dd146b746a3934d1",
+          "slot": "c",
+          "trimmed": 71
+        },
+        {
+          "engine": "wan-api/s2v-14b-lightning",
+          "engine_job_id": "412bf43461f8449d8367aff74ef82eb8",
+          "files_sha256": {
+            "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+            "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+            "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+            "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+            "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+          },
+          "fps": 16,
+          "frames": 238,
+          "key": "sha256:b002033649424d2be57b00f32eea3050ea3c6643da3adb19a911cf7c50dddf1e",
+          "made": false,
+          "render_s": null,
+          "requested_length": 231,
+          "role": "s2v_clip",
+          "seed": 519,
+          "sha256": "c9b9acec029cd30652ae37835453708ed4d50500eb6234eda192b81e25985f29",
+          "slot": "d",
+          "trimmed": 71
+        },
+        {
+          "engine": "wan-api/s2v-14b-lightning",
+          "engine_job_id": "3cec64eefe7d47e88e9d493b1d57e8d4",
+          "files_sha256": {
+            "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+            "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+            "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+            "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+            "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+          },
+          "fps": 16,
+          "frames": 238,
+          "key": "sha256:d4ce212d7baf48880902ed0726c450a2c3d3221ae18a461f251cd9851f0b5a03",
+          "made": false,
+          "render_s": null,
+          "requested_length": 231,
+          "role": "s2v_clip",
+          "seed": 517,
+          "sha256": "b81b31c723c4c1aa913efa1d8eb5f7119f91fd66fac0bf901077f716e1c248ba",
+          "slot": "b",
+          "trimmed": 71
+        },
+        {
+          "fps": 24,
+          "frames": 121,
+          "library_version_id": "asv_01M7BVCF7QZG0E27A6CQZ458AA",
+          "made": false,
+          "role": "set_loop",
+          "sha256": "d9992080f596d71119aaad39b6717bff898e8bc9ac40f93d079a4ffdc74298a1",
+          "slot": null
+        }
+      ],
+      "compositor": "studio.layered/1+pillow-13.0.0+numpy-2.4.6",
+      "film_start_frame": 728,
+      "frames": 251,
+      "method": {
+        "layer": "layered",
+        "motion": "s2v"
+      },
+      "render_s": null,
+      "report": null,
+      "segment_key": "sha256:ac06ae69af5c6e305abf7fdb7ac72b428870172b73948b76a66ff526e924d1fc",
+      "segment_sha256": "5903efcf8cc57fc841cdb0855ffe3396886820052b13a28e8f6103a216701bce"
+    },
+    {
+      "artifacts": [
+        {
+          "key": "sha256:64b7aa11a5e774b75ae853b3293bd283bf642a3d28c1ffcc7d015f2614660cdc",
+          "kind": "voice_take",
+          "made": false,
+          "name": "take/lin_01M79V9FC0000000000000000D",
+          "seconds": null,
+          "sha256": "4e12138ee373ac45b6fce8f9049680d5494892fcc13a511bc77dbf37afbb5d31"
+        },
+        {
+          "key": "sha256:e770135fe934ba2eeb53bb058baae98ee776c6a855c5e8f75935d443668d3238",
+          "kind": "board_voice_track",
+          "made": false,
+          "name": "voice_track",
+          "seconds": null,
+          "sha256": "d158fef54aa236b3f3483620ee0fa7357996a5dd040d142c60f0c4f10695c633"
+        },
+        {
+          "key": "sha256:a926b30e35797a920463a6bb4a6461290d8f7bc0b76f6903610eb3902be74d54",
+          "kind": "motion_clip",
+          "made": false,
+          "name": "doll_clip/c",
+          "seconds": null,
+          "sha256": "aa9259b21d9f833000ae272d8c5d81a94bfb544ec92e0a2440f49d078da34b0a"
+        },
+        {
+          "key": "sha256:ce9a76a7e9c849cdabf384d6914a1a27875fa3e1aaa0547190e8369a2bb73888",
+          "kind": "keyed_frames",
+          "made": false,
+          "name": "keyed/c",
+          "seconds": null,
+          "sha256": "7ea2c67fb57f697d3666387fb0d9a377f8bc25cdb81e23b2f5b0280699ac281e"
+        },
+        {
+          "key": "sha256:8d815a25f6ae3b3acf6a2bafd87bdbccedd2da47ed0b5b3d52b9abba5f29b1c0",
+          "kind": "motion_clip",
+          "made": false,
+          "name": "doll_clip/a",
+          "seconds": null,
+          "sha256": "f0a8e332f0729899d6b827c5f6130a043e2c9cd26bf89140eab76a06e91252fa"
+        },
+        {
+          "key": "sha256:c5cd61b8635b26f743b5fd808bc7ee4a82379a50bb7644bac01f419906dc21bc",
+          "kind": "keyed_frames",
+          "made": false,
+          "name": "keyed/a",
+          "seconds": null,
+          "sha256": "558bca8ace1a87d19a706f3b502e4108a8bfd3f5d0bc4bbdb43ad6c27a55d5f5"
+        },
+        {
+          "key": "sha256:d0d0398e27aad69fc975595a7e1f53f2ee4b3cffae80e2f924117289bbf6756a",
+          "kind": "s2v_drive_track",
+          "made": false,
+          "name": "drive/b",
+          "seconds": null,
+          "sha256": "4c1c437910d1c95983981d8290e10c1a0e346ad6c95fb8ebbcaecd9776bc8c9f"
+        },
+        {
+          "key": "sha256:a54ed7d92da72414150cb1104d8ad5e036f1fc78e8f0ee7ba51fed2141bf1d88",
+          "kind": "s2v_clip",
+          "made": false,
+          "name": "s2v_clip/b",
+          "seconds": null,
+          "sha256": "969002320052b83182fbece30a500bf9e4c2a44dc69db565eee0e550f47d5798"
+        },
+        {
+          "key": "sha256:75e5b05e8334a788c1eeaed8a41789353ad91b92b4ab23619b328e11d990c83e",
+          "kind": "keyed_frames",
+          "made": false,
+          "name": "keyed/b",
+          "seconds": null,
+          "sha256": "f6f77111c1b0bd8c64e140397100aa66a1a752549ea827dbb8819594bd7ce7cc"
+        },
+        {
+          "key": "sha256:1a5fadf9c86973d9a176996119267a552206f4ba13c7b5d407c80e3a222bb816",
+          "kind": "segment",
+          "made": false,
+          "name": "segment",
+          "seconds": null,
+          "sha256": "5a4eb7c105b63ec460f475f5b60fa3363c92ac4f4d3d87020d14897021e516ee"
+        }
+      ],
+      "board_id": "brd_01M79V9FC00000000000000009",
+      "board_number": 9,
+      "checks": [],
+      "clips": [
+        {
+          "fps": 24,
+          "frames": 121,
+          "key": "sha256:a926b30e35797a920463a6bb4a6461290d8f7bc0b76f6903610eb3902be74d54",
+          "library_version_id": "asv_01M7BVCF7Y1NJ5X15A484F9J79",
+          "made": false,
+          "role": "doll_clip",
+          "seed": 313,
+          "sha256": "aa9259b21d9f833000ae272d8c5d81a94bfb544ec92e0a2440f49d078da34b0a",
+          "slot": "c"
+        },
+        {
+          "fps": 24,
+          "frames": 121,
+          "key": "sha256:8d815a25f6ae3b3acf6a2bafd87bdbccedd2da47ed0b5b3d52b9abba5f29b1c0",
+          "library_version_id": "asv_01M7BVCF7SGWGWH3WYR8AEQA1S",
+          "made": false,
+          "role": "doll_clip",
+          "seed": 302,
+          "sha256": "f0a8e332f0729899d6b827c5f6130a043e2c9cd26bf89140eab76a06e91252fa",
+          "slot": "a"
+        },
+        {
+          "engine": "wan-api/s2v-14b-lightning",
+          "engine_job_id": "9d4ce7d33d5a4bc1828bad102be6f50a",
+          "files_sha256": {
+            "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+            "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+            "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+            "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+            "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+          },
+          "fps": 16,
+          "frames": 74,
+          "key": "sha256:a54ed7d92da72414150cb1104d8ad5e036f1fc78e8f0ee7ba51fed2141bf1d88",
+          "made": false,
+          "render_s": null,
+          "requested_length": 73,
+          "role": "s2v_clip",
+          "seed": 620,
+          "sha256": "969002320052b83182fbece30a500bf9e4c2a44dc69db565eee0e550f47d5798",
+          "slot": "b",
+          "trimmed": 2
+        },
+        {
+          "fps": 24,
+          "frames": 121,
+          "library_version_id": "asv_01M7BVCF7QZG0E27A6CQZ458AA",
+          "made": false,
+          "role": "set_loop",
+          "sha256": "d9992080f596d71119aaad39b6717bff898e8bc9ac40f93d079a4ffdc74298a1",
+          "slot": null
+        }
+      ],
+      "compositor": "studio.layered/1+pillow-13.0.0+numpy-2.4.6",
+      "film_start_frame": 979,
+      "frames": 108,
+      "method": {
+        "layer": "layered",
+        "motion": "s2v"
+      },
+      "render_s": null,
+      "report": null,
+      "segment_key": "sha256:1a5fadf9c86973d9a176996119267a552206f4ba13c7b5d407c80e3a222bb816",
+      "segment_sha256": "5a4eb7c105b63ec460f475f5b60fa3363c92ac4f4d3d87020d14897021e516ee"
+    }
+  ],
+  "started_at": "2026-11-14T04:31:47Z",
+  "status": "succeeded",
+  "story_id": "sty_01M79V9FC00000000000000001",
+  "transitions": [
+    {
+      "at": "2026-11-14T04:31:47Z",
+      "by": {
+        "command": "studio build",
+        "kind": "cli",
+        "operator": {
+          "iss": "https://agent-session.invalid/dev-env",
+          "kind": "human",
+          "sub": "agent-session:haynes-studio-1114-013021"
+        }
+      },
+      "from": null,
+      "reason": "queued by the command line",
+      "to": "queued"
+    },
+    {
+      "at": "2026-11-14T04:31:47Z",
+      "by": {
+        "command": "studio build",
+        "kind": "cli",
+        "operator": {
+          "iss": "https://agent-session.invalid/dev-env",
+          "kind": "human",
+          "sub": "agent-session:haynes-studio-1114-013021"
+        }
+      },
+      "from": "queued",
+      "reason": "build started (offline phase)",
+      "to": "running"
+    },
+    {
+      "at": "2026-11-14T04:32:00Z",
+      "by": {
+        "command": "studio build",
+        "kind": "cli",
+        "operator": {
+          "iss": "https://agent-session.invalid/dev-env",
+          "kind": "human",
+          "sub": "agent-session:haynes-studio-1114-013021"
+        }
+      },
+      "from": "running",
+      "reason": "delivered and verified",
+      "to": "succeeded"
+    }
+  ],
+  "wait_reason": null
+}

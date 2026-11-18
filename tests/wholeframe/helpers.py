@@ -15,6 +15,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+from haynes_studio.adapters.wan import NEGATIVE
 from haynes_studio.cache import ArtifactCache
 from haynes_studio.cache.build import PictureBuilder
 from haynes_studio.cache.keys import WHOLE_FRAME_CLIP, CacheKey, segment_key, whole_frame_clip_key
@@ -101,8 +102,9 @@ class Build:
 
 
 def clip_key(photo: bytes = PHOTOS[PHOTO_3], *, seed: int = 31, lengths: tuple[int, ...] = (CLIP, CLIP),
-             profile: dict[str, Any] | None = None) -> CacheKey:
+             profile: dict[str, Any] | None = None, negative_prompt: str = NEGATIVE) -> CacheKey:
     return whole_frame_clip_key(photo=hashlib.sha256(photo).hexdigest(), prompt="gentle motion",
+                                negative_prompt=negative_prompt,
                                 seed=seed, profile=profile or PROFILE, clip_lengths=lengths)
 
 

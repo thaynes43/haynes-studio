@@ -324,6 +324,19 @@ def test_board_photo_version_of_a_layered_board_is_reused():
     assert_only(d, set())  # Q-03: a layered board's photo is not a build input
 
 
+def test_speech_negative_prompt_changes_only_speech_clips_and_their_picture_dependents():
+    d, _, _ = edit(toolchain=replace(Toolchain(), s2v_negative_prompt="blur"))
+    clips_and_keyed = {f"{board}/{kind}/{slot}"
+                       for board, slots in ((B1, "abc"), (B4, "bc"))
+                       for slot in slots for kind in ("s2v_clip", "keyed")}
+    assert_only(d, clips_and_keyed | seg(B1, B4) | PICTURE_FILM)
+
+
+def test_whole_frame_negative_prompt_changes_only_whole_frame_clips_and_picture_dependents():
+    d, _, _ = edit(toolchain=replace(Toolchain(), i2v_negative_prompt="blur"))
+    assert_only(d, {f"{B3}/whole_frame_clip"} | seg(B3) | PICTURE_FILM)
+
+
 def test_layout_preset_values_rebuild_the_segments_using_it():
     def change(doc):
         doc["layouts"]["pair"]["slots"]["c"]["x"] = 0.75
@@ -485,6 +498,7 @@ MADE_BY = {
     "s2v_adapter": PICTURE, "s2v_profile": PICTURE, "s2v_prompt": PICTURE,
     "s2v_negative_prompt": PICTURE, "motion_profile": PICTURE, "motion_prompt": PICTURE,
     "motion_seed": PICTURE, "i2v_profile": PICTURE, "i2v_prompt": PICTURE,
+    "i2v_negative_prompt": PICTURE,
     "i2v_clip_frames": PICTURE, "keyer": PICTURE, "key_thresholds": PICTURE,
     "protect_boxes": PICTURE, "decal_box": PICTURE, "decal_version": PICTURE,
     "compositor": PICTURE, "encoder": PICTURE, "procedural_seed": PICTURE, "splicer": PICTURE,

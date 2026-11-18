@@ -47,8 +47,10 @@ SAMPLES = {
         {"still": h(1), "prompt": "idle", "seed": 0, "profile": {"frames": 121}},
         {"still": h(2), "prompt": "idle doll", "seed": 1, "profile": {"frames": 81}}),
     keys.WHOLE_FRAME_CLIP: (
-        {"photo": h(1), "prompt": "gentle", "seed": 3, "profile": {"fps": 24}, "clip_lengths": [121]},
-        {"photo": h(2), "prompt": "gentle motion", "seed": 4, "profile": {"fps": 16},
+        {"photo": h(1), "prompt": "gentle", "negative_prompt": "blur", "seed": 3,
+         "profile": {"fps": 24}, "clip_lengths": [121]},
+        {"photo": h(2), "prompt": "gentle motion", "negative_prompt": "cuts", "seed": 4,
+         "profile": {"fps": 16},
          "clip_lengths": [121, 121]}),
     keys.KEYED_FRAMES: (
         {"clip": h(1), "still": h(2), "key_thresholds": {"green": 0.4}, "protect_boxes": [],
@@ -163,6 +165,8 @@ def test_optional_texts_are_texts():
         keys.keyed_frames_key(**{**SAMPLES[keys.KEYED_FRAMES][0], "decal_version": 3})
     with pytest.raises(CacheError):
         keys.s2v_clip_key(**{**SAMPLES[keys.S2V_CLIP][0], "negative_prompt": None})
+    with pytest.raises(CacheError):
+        keys.whole_frame_clip_key(**{**SAMPLES[keys.WHOLE_FRAME_CLIP][0], "negative_prompt": None})
 
 
 def test_a_track_needs_one_gap_per_later_line():

@@ -1,0 +1,93 @@
+{
+  "schema": "studio.run/v1",
+  "id": "run_01M7C4CQ1YYEW9S2MPK6087W6M",
+  "story_id": "sty_01M79V9FC00000000000000001",
+  "number": 24,
+  "status": "failed",
+  "wait_reason": null,
+  "phase": "offline",
+  "snapshot": {
+    "sha256": "8da0319fb676c04093d5243333caa70fda8db574f09a4d6bbee857d8b6e539dd",
+    "story_revision": 2,
+    "board_count": 1,
+    "locator": "productions/prd_01M79V9FC00000000000000001/sha256/8d/8da0319fb676c04093d5243333caa70fda8db574f09a4d6bbee857d8b6e539dd.json"
+  },
+  "queued_by": {
+    "kind": "cli",
+    "command": "studio build",
+    "operator": {
+      "kind": "human",
+      "iss": "https://agent-session.invalid/dev-env",
+      "sub": "agent-session:haynes-studio-1114-013021"
+    }
+  },
+  "queued_at": "2026-11-14T04:17:32Z",
+  "idempotency_key": null,
+  "estimate": null,
+  "progress": {
+    "percent": 100,
+    "stage": "segment"
+  },
+  "stages": [],
+  "outputs": null,
+  "checks": null,
+  "provenance": null,
+  "delivery_id": null,
+  "legacy": null,
+  "started_at": "2026-11-14T04:17:33Z",
+  "finished_at": "2026-11-14T04:17:54Z",
+  "error": {
+    "code": "layered.decal_weak",
+    "message": "slot a: the decal track is too weak (min 0.6827, 0 failed; floor 0.8); re-roll the clip or record a lower decal_min_ecc",
+    "board_id": "brd_01M79V9FC00000000000000001",
+    "board_number": 1,
+    "stage": "segment"
+  },
+  "transitions": [
+    {
+      "from": null,
+      "to": "queued",
+      "at": "2026-11-14T04:17:32Z",
+      "by": {
+        "kind": "cli",
+        "command": "studio build",
+        "operator": {
+          "kind": "human",
+          "iss": "https://agent-session.invalid/dev-env",
+          "sub": "agent-session:haynes-studio-1114-013021"
+        }
+      },
+      "reason": "queued by the command line"
+    },
+    {
+      "from": "queued",
+      "to": "running",
+      "at": "2026-11-14T04:17:33Z",
+      "by": {
+        "kind": "cli",
+        "command": "studio build",
+        "operator": {
+          "kind": "human",
+          "iss": "https://agent-session.invalid/dev-env",
+          "sub": "agent-session:haynes-studio-1114-013021"
+        }
+      },
+      "reason": "build started (offline phase)"
+    },
+    {
+      "from": "running",
+      "to": "failed",
+      "at": "2026-11-14T04:17:54Z",
+      "by": {
+        "kind": "cli",
+        "command": "studio build",
+        "operator": {
+          "kind": "human",
+          "iss": "https://agent-session.invalid/dev-env",
+          "sub": "agent-session:haynes-studio-1114-013021"
+        }
+      },
+      "reason": "layered.decal_weak: slot a: the decal track is too weak (min 0.6827, 0 failed; floor 0.8); re-roll the clip or record a lower decal_min_ecc"
+    }
+  ]
+}

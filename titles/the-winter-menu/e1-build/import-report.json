@@ -1,0 +1,5241 @@
+{
+  "authorized_by": "https://work.haynesnetwork.com/work_packages/428",
+  "built_by": "https://work.haynesnetwork.com/work_packages/846",
+  "dry_run": false,
+  "elapsed_s": 23.391,
+  "finished_at": "2026-11-14T01:40:30Z",
+  "hashes": [
+    {
+      "attempts": [],
+      "bytes_published": 0,
+      "bytes_read": 0,
+      "locators": [],
+      "media_type": "image/png",
+      "published": [],
+      "read_from": null,
+      "reason": "not_read: a ComfyUI render; this import reads only the Wan volume (story 846 scope); a layered build does not need it",
+      "rows": [
+        "r1:render:a-base-s101.png"
+      ],
+      "sha256": "c71ba33b3e037a13fe4167722a1035fc401e24f187b051f37b5f0f81d5c9384f",
+      "status": "absent",
+      "versions": []
+    },
+    {
+      "attempts": [],
+      "bytes_published": 0,
+      "bytes_read": 0,
+      "locators": [],
+      "media_type": "image/png",
+      "published": [],
+      "read_from": null,
+      "reason": "not_read: a ComfyUI render; this import reads only the Wan volume (story 846 scope); a layered build does not need it",
+      "rows": [
+        "r1:render:b-base-s101.png"
+      ],
+      "sha256": "e8c238814ca74924306e59544de6194035fed5795c062fdc522d059979aa0988",
+      "status": "absent",
+      "versions": []
+    },
+    {
+      "attempts": [],
+      "bytes_published": 0,
+      "bytes_read": 0,
+      "locators": [],
+      "media_type": "image/png",
+      "published": [],
+      "read_from": null,
+      "reason": "not_read: a ComfyUI render; this import reads only the Wan volume (story 846 scope); a layered build does not need it",
+      "rows": [
+        "r1:render:c-base-s101.png"
+      ],
+      "sha256": "ff4713d78698b1d2e27c119e417de11e03048a0791f4240313afb782a21f8a6a",
+      "status": "absent",
+      "versions": []
+    },
+    {
+      "attempts": [],
+      "bytes_published": 0,
+      "bytes_read": 0,
+      "locators": [],
+      "media_type": "image/png",
+      "published": [],
+      "read_from": null,
+      "reason": "not_read: a ComfyUI render; this import reads only the Wan volume (story 846 scope); a layered build does not need it",
+      "rows": [
+        "r1:render:d-base-s101.png"
+      ],
+      "sha256": "ca15cbee044fdf4684a6330f48cfea1862fdaa15428bba1e22db02cff1abe584",
+      "status": "absent",
+      "versions": []
+    },
+    {
+      "attempts": [],
+      "bytes_published": 0,
+      "bytes_read": 0,
+      "locators": [],
+      "media_type": "image/png",
+      "published": [],
+      "read_from": null,
+      "reason": "not_read: a ComfyUI render; this import reads only the Wan volume (story 846 scope); a layered build does not need it",
+      "rows": [
+        "r1:render:a-staring-s301.png"
+      ],
+      "sha256": "4fb4f4572fb090bee12ab25baabfebdb2d73f11db65024d3229e17f49d030944",
+      "status": "absent",
+      "versions": []
+    },
+    {
+      "attempts": [],
+      "bytes_published": 0,
+      "bytes_read": 0,
+      "locators": [],
+      "media_type": "image/png",
+      "published": [],
+      "read_from": null,
+      "reason": "not_read: a ComfyUI render; this import reads only the Wan volume (story 846 scope); a layered build does not need it",
+      "rows": [
+        "r1:render:c-staring-s301.png"
+      ],
+      "sha256": "8e13cbdc905ff6d08233a3bafad04439d62d11cd1e508892eac114eafc3b71d6",
+      "status": "absent",
+      "versions": []
+    },
+    {
+      "attempts": [],
+      "bytes_published": 0,
+      "bytes_read": 0,
+      "locators": [],
+      "media_type": "image/png",
+      "published": [],
+      "read_from": null,
+      "reason": "not_read: a ComfyUI render; this import reads only the Wan volume (story 846 scope); a layered build does not need it",
+      "rows": [
+        "r1:render:d-shocked-s301.png"
+      ],
+      "sha256": "677b7a17adc90188f6a2f993e7657e7f244d8b67e4c9d864a2e14cd8334a61d3",
+      "status": "absent",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 2390590,
+          "outcome": "verified",
+          "seconds": 0.223,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+            "path": "/workspace/output/productions/the-winter-menu-r1/cutouts/set.png"
+          }
+        }
+      ],
+      "bytes_published": 2390590,
+      "bytes_read": 2390590,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/29/29ab6f47227cee7aa482e83f79cb4aad9949407b4a543f5a33f846119f3c5b58.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/29/29ab6f47227cee7aa482e83f79cb4aad9949407b4a543f5a33f846119f3c5b58.png"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+        "path": "/workspace/output/productions/the-winter-menu-r1/cutouts/set.png"
+      },
+      "reason": null,
+      "rows": [
+        "r1:render:set-left-s221.png",
+        "r1:set:cutouts/set.png",
+        "r2:set:cutouts/set.png",
+        "r3:set:cutouts/set.png",
+        "r4:set:cutouts/set.png"
+      ],
+      "sha256": "29ab6f47227cee7aa482e83f79cb4aad9949407b4a543f5a33f846119f3c5b58",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:the-winter-menu-r4:set:cutouts/set.png",
+          "version_id": "asv_01M7BVBVSBHA26B6V3F90A35MN"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 1850605,
+          "outcome": "verified",
+          "seconds": 0.228,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+            "path": "/workspace/output/productions/the-winter-menu-r1/cutouts/a-proud.png"
+          }
+        }
+      ],
+      "bytes_published": 1850605,
+      "bytes_read": 1850605,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/4e/4ea3005f4effebda7f4ce9b083da55e8529db4269c96104364e5dc74b25969de.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/4e/4ea3005f4effebda7f4ce9b083da55e8529db4269c96104364e5dc74b25969de.png"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+        "path": "/workspace/output/productions/the-winter-menu-r1/cutouts/a-proud.png"
+      },
+      "reason": null,
+      "rows": [
+        "r1:still:cutouts/a-proud.png",
+        "r2:still:cutouts/a-proud.png",
+        "r3:still:cutouts/a-proud.png",
+        "r4:still:cutouts/a-proud.png"
+      ],
+      "sha256": "4ea3005f4effebda7f4ce9b083da55e8529db4269c96104364e5dc74b25969de",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:the-winter-menu-r4:still:cutouts/a-proud.png",
+          "version_id": "asv_01M7BVBVSBHA26B6V3F90A35MF"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 1615055,
+          "outcome": "verified",
+          "seconds": 0.196,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+            "path": "/workspace/output/productions/the-winter-menu-r1/cutouts/b-deadpan.png"
+          }
+        }
+      ],
+      "bytes_published": 1615055,
+      "bytes_read": 1615055,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/d4/d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/d4/d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a.png"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+        "path": "/workspace/output/productions/the-winter-menu-r1/cutouts/b-deadpan.png"
+      },
+      "reason": null,
+      "rows": [
+        "r1:still:cutouts/b-deadpan.png",
+        "r2:still:cutouts/b-deadpan.png",
+        "r3:still:cutouts/b-deadpan.png",
+        "r4:still:cutouts/b-deadpan.png"
+      ],
+      "sha256": "d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:the-winter-menu-r4:still:cutouts/b-deadpan.png",
+          "version_id": "asv_01M7BVBVSBHA26B6V3F90A35MH"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 1775253,
+          "outcome": "verified",
+          "seconds": 0.211,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+            "path": "/workspace/output/productions/the-winter-menu-r1/cutouts/c-suspicious.png"
+          }
+        }
+      ],
+      "bytes_published": 1775253,
+      "bytes_read": 1775253,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/a4/a49b2c3046f385d4bb05fa369b3d21d218a4c63cf66d157d204a28b9be357f42.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/a4/a49b2c3046f385d4bb05fa369b3d21d218a4c63cf66d157d204a28b9be357f42.png"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+        "path": "/workspace/output/productions/the-winter-menu-r1/cutouts/c-suspicious.png"
+      },
+      "reason": null,
+      "rows": [
+        "r1:still:cutouts/c-suspicious.png",
+        "r2:still:cutouts/c-suspicious.png",
+        "r3:still:cutouts/c-suspicious.png",
+        "r4:still:cutouts/c-suspicious.png"
+      ],
+      "sha256": "a49b2c3046f385d4bb05fa369b3d21d218a4c63cf66d157d204a28b9be357f42",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:the-winter-menu-r4:still:cutouts/c-suspicious.png",
+          "version_id": "asv_01M7BVBVSBHA26B6V3F90A35MK"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 1846045,
+          "outcome": "verified",
+          "seconds": 0.209,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+            "path": "/workspace/output/productions/the-winter-menu-r1/cutouts/d-cheerful.png"
+          }
+        }
+      ],
+      "bytes_published": 1846045,
+      "bytes_read": 1846045,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/83/83bcdb10da26bb273d524848054297709c7dec22eadafa812fd23158a1b13e68.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/83/83bcdb10da26bb273d524848054297709c7dec22eadafa812fd23158a1b13e68.png"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+        "path": "/workspace/output/productions/the-winter-menu-r1/cutouts/d-cheerful.png"
+      },
+      "reason": null,
+      "rows": [
+        "r1:still:cutouts/d-cheerful.png"
+      ],
+      "sha256": "83bcdb10da26bb273d524848054297709c7dec22eadafa812fd23158a1b13e68",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 1616411,
+          "outcome": "verified",
+          "seconds": 0.209,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+            "path": "/workspace/output/productions/the-winter-menu-r1/cutouts/a-staring.png"
+          }
+        }
+      ],
+      "bytes_published": 1616411,
+      "bytes_read": 1616411,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/02/022ac97a623c88bf96405d92df0dcad0aed459641d5e78dfed17fae7931267b7.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/02/022ac97a623c88bf96405d92df0dcad0aed459641d5e78dfed17fae7931267b7.png"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+        "path": "/workspace/output/productions/the-winter-menu-r1/cutouts/a-staring.png"
+      },
+      "reason": null,
+      "rows": [
+        "r1:still:cutouts/a-staring.png",
+        "r2:still:cutouts/a-staring.png",
+        "r3:still:cutouts/a-staring.png",
+        "r4:still:cutouts/a-staring.png"
+      ],
+      "sha256": "022ac97a623c88bf96405d92df0dcad0aed459641d5e78dfed17fae7931267b7",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:the-winter-menu-r4:still:cutouts/a-staring.png",
+          "version_id": "asv_01M7BVBVSBHA26B6V3F90A35MG"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 1547710,
+          "outcome": "verified",
+          "seconds": 0.208,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+            "path": "/workspace/output/productions/the-winter-menu-r1/cutouts/c-staring.png"
+          }
+        }
+      ],
+      "bytes_published": 1547710,
+      "bytes_read": 1547710,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/b8/b816a4f225e160a6c6a8b26244434c96d2ea09a51ce9f7c5d7a2485a1de552af.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/b8/b816a4f225e160a6c6a8b26244434c96d2ea09a51ce9f7c5d7a2485a1de552af.png"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+        "path": "/workspace/output/productions/the-winter-menu-r1/cutouts/c-staring.png"
+      },
+      "reason": null,
+      "rows": [
+        "r1:still:cutouts/c-staring.png",
+        "r2:still:cutouts/c-staring.png",
+        "r3:still:cutouts/c-staring.png",
+        "r4:still:cutouts/c-staring.png"
+      ],
+      "sha256": "b816a4f225e160a6c6a8b26244434c96d2ea09a51ce9f7c5d7a2485a1de552af",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:the-winter-menu-r4:still:cutouts/c-staring.png",
+          "version_id": "asv_01M7BVBVSBHA26B6V3F90A35MJ"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 1649760,
+          "outcome": "verified",
+          "seconds": 0.205,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+            "path": "/workspace/output/productions/the-winter-menu-r1/cutouts/d-shocked.png"
+          }
+        }
+      ],
+      "bytes_published": 1649760,
+      "bytes_read": 1649760,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/3d/3d9c9d223ebc0137f0311a015dff08080acb4e8e413afe9087d7b452da54ef58.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/3d/3d9c9d223ebc0137f0311a015dff08080acb4e8e413afe9087d7b452da54ef58.png"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+        "path": "/workspace/output/productions/the-winter-menu-r1/cutouts/d-shocked.png"
+      },
+      "reason": null,
+      "rows": [
+        "r1:still:cutouts/d-shocked.png",
+        "r2:still:cutouts/d-shocked.png",
+        "r3:still:cutouts/d-shocked.png",
+        "r4:still:cutouts/d-shocked.png"
+      ],
+      "sha256": "3d9c9d223ebc0137f0311a015dff08080acb4e8e413afe9087d7b452da54ef58",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:the-winter-menu-r4:still:cutouts/d-shocked.png",
+          "version_id": "asv_01M7BVBVSBHA26B6V3F90A35MM"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 882044,
+          "outcome": "verified",
+          "seconds": 0.201,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+            "path": "/workspace/output/productions/the-winter-menu-r1/sfx/crow-s501.wav"
+          }
+        }
+      ],
+      "bytes_published": 882044,
+      "bytes_read": 882044,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/78/78c5f69ff31758d2d78b0c5b249633039c7ce51ae850a64971591b5da79bd4b8.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/78/78c5f69ff31758d2d78b0c5b249633039c7ce51ae850a64971591b5da79bd4b8.wav"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+        "path": "/workspace/output/productions/the-winter-menu-r1/sfx/crow-s501.wav"
+      },
+      "reason": null,
+      "rows": [
+        "r1:sfx:sfx/crow-s501.wav",
+        "r2:sfx:sfx/crow-s501.wav",
+        "r3:sfx:sfx/crow-s501.wav",
+        "r4:sfx:sfx/crow-s501.wav"
+      ],
+      "sha256": "78c5f69ff31758d2d78b0c5b249633039c7ce51ae850a64971591b5da79bd4b8",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:the-winter-menu-r4:sfx:crow",
+          "version_id": "asv_01M7BVBVSBHA26B6V3F90A35MP"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 247852,
+          "outcome": "verified",
+          "seconds": 0.206,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+            "path": "/workspace/output/productions/the-winter-menu-r1/voices/line-1.wav"
+          }
+        }
+      ],
+      "bytes_published": 247852,
+      "bytes_read": 247852,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/b9/b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/b9/b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78.wav"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+        "path": "/workspace/output/productions/the-winter-menu-r1/voices/line-1.wav"
+      },
+      "reason": null,
+      "rows": [
+        "r1:take:voices/line-1.wav",
+        "r2:take:voices/line-1.wav",
+        "r3:take:voices/line-1.wav",
+        "r4:take:voices/line-1.wav"
+      ],
+      "sha256": "b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 129068,
+          "outcome": "verified",
+          "seconds": 0.184,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+            "path": "/workspace/output/productions/the-winter-menu-r1/voices/line-2.wav"
+          }
+        }
+      ],
+      "bytes_published": 129068,
+      "bytes_read": 129068,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/7d/7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/7d/7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50.wav"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+        "path": "/workspace/output/productions/the-winter-menu-r1/voices/line-2.wav"
+      },
+      "reason": null,
+      "rows": [
+        "r1:take:voices/line-2.wav",
+        "r2:take:voices/line-2.wav",
+        "r3:take:voices/line-2.wav",
+        "r4:take:voices/line-2.wav"
+      ],
+      "sha256": "7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 233516,
+          "outcome": "verified",
+          "seconds": 0.195,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+            "path": "/workspace/output/productions/the-winter-menu-r1/voices/line-3.wav"
+          }
+        }
+      ],
+      "bytes_published": 233516,
+      "bytes_read": 233516,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/6e/6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/6e/6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36.wav"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+        "path": "/workspace/output/productions/the-winter-menu-r1/voices/line-3.wav"
+      },
+      "reason": null,
+      "rows": [
+        "r1:take:voices/line-3.wav",
+        "r2:take:voices/line-3.wav",
+        "r3:take:voices/line-3.wav",
+        "r4:take:voices/line-3.wav"
+      ],
+      "sha256": "6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 122924,
+          "outcome": "verified",
+          "seconds": 0.183,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+            "path": "/workspace/output/productions/the-winter-menu-r1/voices/line-4.wav"
+          }
+        }
+      ],
+      "bytes_published": 122924,
+      "bytes_read": 122924,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/24/24eb53ba095394e01fb83a5057e96ab456af07e5aaa0fe263765fcea8c614273.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/24/24eb53ba095394e01fb83a5057e96ab456af07e5aaa0fe263765fcea8c614273.wav"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+        "path": "/workspace/output/productions/the-winter-menu-r1/voices/line-4.wav"
+      },
+      "reason": null,
+      "rows": [
+        "r1:take:voices/line-4.wav"
+      ],
+      "sha256": "24eb53ba095394e01fb83a5057e96ab456af07e5aaa0fe263765fcea8c614273",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 119852,
+          "outcome": "verified",
+          "seconds": 0.189,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+            "path": "/workspace/output/productions/the-winter-menu-r1/voices/line-6.wav"
+          }
+        }
+      ],
+      "bytes_published": 119852,
+      "bytes_read": 119852,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/58/58f6812299d32034503825686e4aa476fbbee3881f82ceed3dc1680449b1ec9e.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/58/58f6812299d32034503825686e4aa476fbbee3881f82ceed3dc1680449b1ec9e.wav"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "00912e801c3c4ef3a3d7c9879faf5a32",
+        "path": "/workspace/output/productions/the-winter-menu-r1/voices/line-6.wav"
+      },
+      "reason": null,
+      "rows": [
+        "r1:take:voices/line-6.wav",
+        "r2:take:voices/line-7.wav"
+      ],
+      "sha256": "58f6812299d32034503825686e4aa476fbbee3881f82ceed3dc1680449b1ec9e",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 882044,
+          "outcome": "verified",
+          "seconds": 0.197,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+            "path": "/workspace/output/productions/the-winter-menu-r2/sfx/crunch-s601.wav"
+          }
+        }
+      ],
+      "bytes_published": 882044,
+      "bytes_read": 882044,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/55/5515c7006ce09a1c5d0c21019ca11db7a445f9ce296b94f5c371aba8b7d6925f.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/55/5515c7006ce09a1c5d0c21019ca11db7a445f9ce296b94f5c371aba8b7d6925f.wav"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+        "path": "/workspace/output/productions/the-winter-menu-r2/sfx/crunch-s601.wav"
+      },
+      "reason": null,
+      "rows": [
+        "r2:sfx:sfx/crunch-s601.wav",
+        "r3:sfx:sfx/crunch-s601.wav",
+        "r4:sfx:sfx/crunch-s601.wav"
+      ],
+      "sha256": "5515c7006ce09a1c5d0c21019ca11db7a445f9ce296b94f5c371aba8b7d6925f",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:the-winter-menu-r4:sfx:crunch",
+          "version_id": "asv_01M7BVBVSBHA26B6V3F90A35MQ"
+        }
+      ]
+    },
+    {
+      "attempts": [],
+      "bytes_published": 0,
+      "bytes_read": 0,
+      "locators": [],
+      "media_type": "audio/wav",
+      "published": [],
+      "read_from": null,
+      "reason": "never_delivered: poc/deliver.py copied no bed to the Wan volume; its only recorded copies were in earlier sessions' job folders, which this import does not read. Its replacement is a new sound version (story 428, D54), never a repointed old one",
+      "rows": [
+        "r2:bed:sfx/fire-s701.wav",
+        "r3:bed:sfx/fire-s701.wav",
+        "r4:bed:sfx/fire-s701.wav"
+      ],
+      "sha256": "0b33af45929b8cfb3859bf1511a2738eef22944d431ee44257c33a1de42da72a",
+      "status": "absent",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 118828,
+          "outcome": "verified",
+          "seconds": 0.197,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+            "path": "/workspace/output/productions/the-winter-menu-r2/voices/line-4.wav"
+          }
+        }
+      ],
+      "bytes_published": 118828,
+      "bytes_read": 118828,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/00/0063d7e0e0d8a551fece4373ba1252d94339c00e10155bd08804b44c388773fd.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/00/0063d7e0e0d8a551fece4373ba1252d94339c00e10155bd08804b44c388773fd.wav"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+        "path": "/workspace/output/productions/the-winter-menu-r2/voices/line-4.wav"
+      },
+      "reason": null,
+      "rows": [
+        "r2:take:voices/line-4.wav",
+        "r3:take:voices/line-4.wav",
+        "r4:take:voices/line-4.wav"
+      ],
+      "sha256": "0063d7e0e0d8a551fece4373ba1252d94339c00e10155bd08804b44c388773fd",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 116780,
+          "outcome": "verified",
+          "seconds": 0.192,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+            "path": "/workspace/output/productions/the-winter-menu-r2/voices/line-5.wav"
+          }
+        }
+      ],
+      "bytes_published": 116780,
+      "bytes_read": 116780,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/f8/f89e05a2c53e9be7edd35f3b31862da311ce2730cb330421cb93e25b20a3ab59.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/f8/f89e05a2c53e9be7edd35f3b31862da311ce2730cb330421cb93e25b20a3ab59.wav"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+        "path": "/workspace/output/productions/the-winter-menu-r2/voices/line-5.wav"
+      },
+      "reason": null,
+      "rows": [
+        "r2:take:voices/line-5.wav",
+        "r3:take:voices/line-5.wav",
+        "r4:take:voices/line-5.wav"
+      ],
+      "sha256": "f89e05a2c53e9be7edd35f3b31862da311ce2730cb330421cb93e25b20a3ab59",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 47148,
+          "outcome": "verified",
+          "seconds": 0.187,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+            "path": "/workspace/output/productions/the-winter-menu-r2/voices/line-8.wav"
+          }
+        }
+      ],
+      "bytes_published": 47148,
+      "bytes_read": 47148,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/4e/4e12138ee373ac45b6fce8f9049680d5494892fcc13a511bc77dbf37afbb5d31.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/4e/4e12138ee373ac45b6fce8f9049680d5494892fcc13a511bc77dbf37afbb5d31.wav"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "3fad3455774d4ee2a22b50f563c821be",
+        "path": "/workspace/output/productions/the-winter-menu-r2/voices/line-8.wav"
+      },
+      "reason": null,
+      "rows": [
+        "r2:take:voices/line-8.wav",
+        "r3:take:voices/line-9.wav",
+        "r4:take:voices/line-9.wav"
+      ],
+      "sha256": "4e12138ee373ac45b6fce8f9049680d5494892fcc13a511bc77dbf37afbb5d31",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 882044,
+          "outcome": "verified",
+          "seconds": 0.194,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "11d41839ef134a76abe46370105a99fe",
+            "path": "/workspace/output/productions/the-winter-menu-r3/sfx/gavel-s801.wav"
+          }
+        }
+      ],
+      "bytes_published": 882044,
+      "bytes_read": 882044,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/a9/a9c01ef381a0f0d0dd5df5e552e2cf8556a2a8f30caff04225017540669b7b5e.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/a9/a9c01ef381a0f0d0dd5df5e552e2cf8556a2a8f30caff04225017540669b7b5e.wav"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "11d41839ef134a76abe46370105a99fe",
+        "path": "/workspace/output/productions/the-winter-menu-r3/sfx/gavel-s801.wav"
+      },
+      "reason": null,
+      "rows": [
+        "r3:sfx:sfx/gavel-s801.wav",
+        "r4:sfx:sfx/gavel-s801.wav"
+      ],
+      "sha256": "a9c01ef381a0f0d0dd5df5e552e2cf8556a2a8f30caff04225017540669b7b5e",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:the-winter-menu-r4:sfx:gavel",
+          "version_id": "asv_01M7BVBVSBHA26B6V3F90A35MR"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 882044,
+          "outcome": "verified",
+          "seconds": 0.182,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "11d41839ef134a76abe46370105a99fe",
+            "path": "/workspace/output/productions/the-winter-menu-r3/sfx/sting-s901.wav"
+          }
+        }
+      ],
+      "bytes_published": 882044,
+      "bytes_read": 882044,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/aa/aadcc283d15fb7a067bc7517533dfccafb0d28ba5fe1c0ad8ddbae3d6ca1abe3.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/aa/aadcc283d15fb7a067bc7517533dfccafb0d28ba5fe1c0ad8ddbae3d6ca1abe3.wav"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "11d41839ef134a76abe46370105a99fe",
+        "path": "/workspace/output/productions/the-winter-menu-r3/sfx/sting-s901.wav"
+      },
+      "reason": null,
+      "rows": [
+        "r3:sfx:sfx/sting-s901.wav",
+        "r4:sfx:sfx/sting-s901.wav"
+      ],
+      "sha256": "aadcc283d15fb7a067bc7517533dfccafb0d28ba5fe1c0ad8ddbae3d6ca1abe3",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:the-winter-menu-r4:sfx:sting",
+          "version_id": "asv_01M7BVBVSBHA26B6V3F90A35MS"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 206892,
+          "outcome": "verified",
+          "seconds": 0.206,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "11d41839ef134a76abe46370105a99fe",
+            "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-6.wav"
+          }
+        }
+      ],
+      "bytes_published": 206892,
+      "bytes_read": 206892,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/46/46bf17ecaa3a9729b16fd45ba67c2f123b32756cf36eef133abf029c681a7395.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/46/46bf17ecaa3a9729b16fd45ba67c2f123b32756cf36eef133abf029c681a7395.wav"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "11d41839ef134a76abe46370105a99fe",
+        "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-6.wav"
+      },
+      "reason": null,
+      "rows": [
+        "r3:take:voices/line-6.wav",
+        "r4:take:voices/line-6.wav"
+      ],
+      "sha256": "46bf17ecaa3a9729b16fd45ba67c2f123b32756cf36eef133abf029c681a7395",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 48172,
+          "outcome": "verified",
+          "seconds": 0.185,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "11d41839ef134a76abe46370105a99fe",
+            "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-8.wav"
+          }
+        }
+      ],
+      "bytes_published": 48172,
+      "bytes_read": 48172,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/37/37e81c9db699303d9fbdef03479d9500d5514ae3f38fa103c4f481d6513350e6.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/37/37e81c9db699303d9fbdef03479d9500d5514ae3f38fa103c4f481d6513350e6.wav"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "11d41839ef134a76abe46370105a99fe",
+        "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-8.wav"
+      },
+      "reason": null,
+      "rows": [
+        "r3:take:voices/line-8.wav",
+        "r4:take:voices/line-8.wav"
+      ],
+      "sha256": "37e81c9db699303d9fbdef03479d9500d5514ae3f38fa103c4f481d6513350e6",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 38956,
+          "outcome": "verified",
+          "seconds": 0.198,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "11d41839ef134a76abe46370105a99fe",
+            "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-8-1.wav"
+          }
+        }
+      ],
+      "bytes_published": 38956,
+      "bytes_read": 38956,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/1d/1dadd22ef158db129f37ece9de63e0db871f4f72cd912fdc7a260126021aa6b2.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/1d/1dadd22ef158db129f37ece9de63e0db871f4f72cd912fdc7a260126021aa6b2.wav"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "11d41839ef134a76abe46370105a99fe",
+        "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-8-1.wav"
+      },
+      "reason": null,
+      "rows": [
+        "r3:take:voices/line-8-1.wav",
+        "r4:take:voices/line-8-1.wav"
+      ],
+      "sha256": "1dadd22ef158db129f37ece9de63e0db871f4f72cd912fdc7a260126021aa6b2",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 42028,
+          "outcome": "verified",
+          "seconds": 0.184,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "11d41839ef134a76abe46370105a99fe",
+            "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-8-2.wav"
+          }
+        }
+      ],
+      "bytes_published": 42028,
+      "bytes_read": 42028,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/1e/1e5206395dc510de18f1f2050485cd63b9bcba90411ea34bbee7a44a3298d00d.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/1e/1e5206395dc510de18f1f2050485cd63b9bcba90411ea34bbee7a44a3298d00d.wav"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "11d41839ef134a76abe46370105a99fe",
+        "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-8-2.wav"
+      },
+      "reason": null,
+      "rows": [
+        "r3:take:voices/line-8-2.wav",
+        "r4:take:voices/line-8-2.wav"
+      ],
+      "sha256": "1e5206395dc510de18f1f2050485cd63b9bcba90411ea34bbee7a44a3298d00d",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 24620,
+          "outcome": "verified",
+          "seconds": 0.187,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "11d41839ef134a76abe46370105a99fe",
+            "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-8-3.wav"
+          }
+        }
+      ],
+      "bytes_published": 24620,
+      "bytes_read": 24620,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/5f/5fc1718e8659568b2234544470bce9c23404b855b9c563ea90f4f75596773b35.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/5f/5fc1718e8659568b2234544470bce9c23404b855b9c563ea90f4f75596773b35.wav"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "11d41839ef134a76abe46370105a99fe",
+        "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-8-3.wav"
+      },
+      "reason": null,
+      "rows": [
+        "r3:take:voices/line-8-3.wav",
+        "r4:take:voices/line-8-3.wav"
+      ],
+      "sha256": "5fc1718e8659568b2234544470bce9c23404b855b9c563ea90f4f75596773b35",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 49196,
+          "outcome": "verified",
+          "seconds": 0.186,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "11d41839ef134a76abe46370105a99fe",
+            "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-8-4.wav"
+          }
+        }
+      ],
+      "bytes_published": 49196,
+      "bytes_read": 49196,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/9b/9b3ba267baecf4407cb1ec7dfa66598566e83e615b009f307a47c4b3be4aaad9.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/9b/9b3ba267baecf4407cb1ec7dfa66598566e83e615b009f307a47c4b3be4aaad9.wav"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "11d41839ef134a76abe46370105a99fe",
+        "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-8-4.wav"
+      },
+      "reason": null,
+      "rows": [
+        "r3:take:voices/line-8-4.wav",
+        "r4:take:voices/line-8-4.wav"
+      ],
+      "sha256": "9b3ba267baecf4407cb1ec7dfa66598566e83e615b009f307a47c4b3be4aaad9",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 70700,
+          "outcome": "verified",
+          "seconds": 0.192,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "11d41839ef134a76abe46370105a99fe",
+            "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-8-5.wav"
+          }
+        }
+      ],
+      "bytes_published": 70700,
+      "bytes_read": 70700,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/3c/3cd7c24827ff5c87cbd3f49959f23ab6afbf8974c621aae4b5cda8f4f04628ae.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/3c/3cd7c24827ff5c87cbd3f49959f23ab6afbf8974c621aae4b5cda8f4f04628ae.wav"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "11d41839ef134a76abe46370105a99fe",
+        "path": "/workspace/output/productions/the-winter-menu-r3/voices/line-8-5.wav"
+      },
+      "reason": null,
+      "rows": [
+        "r3:take:voices/line-8-5.wav"
+      ],
+      "sha256": "3cd7c24827ff5c87cbd3f49959f23ab6afbf8974c621aae4b5cda8f4f04628ae",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 55340,
+          "outcome": "verified",
+          "seconds": 0.184,
+          "source": {
+            "kind": "ledger_asset",
+            "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+            "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-8-5.wav"
+          }
+        }
+      ],
+      "bytes_published": 55340,
+      "bytes_read": 55340,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/1b/1be02e6d7b243b572d6b6d61e0a629f35803b22b741fe13a97e907ff0d17ddab.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/1b/1be02e6d7b243b572d6b6d61e0a629f35803b22b741fe13a97e907ff0d17ddab.wav"
+      ],
+      "read_from": {
+        "kind": "ledger_asset",
+        "ledger_id": "032f1bb230794aaf84dce9001181a7d7",
+        "path": "/workspace/output/productions/the-winter-menu-r4/voices/line-8-5.wav"
+      },
+      "reason": null,
+      "rows": [
+        "r4:take:voices/line-8-5.wav"
+      ],
+      "sha256": "1be02e6d7b243b572d6b6d61e0a629f35803b22b741fe13a97e907ff0d17ddab",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 929312,
+          "outcome": "verified",
+          "seconds": 0.162,
+          "source": {
+            "kind": "upload",
+            "name": "e4772edc3fe3f0f9.png",
+            "path": "/workspace/input/studio-e0/e4772edc3fe3f0f9.png"
+          }
+        }
+      ],
+      "bytes_published": 929312,
+      "bytes_read": 929312,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/e4/e4772edc3fe3f0f9012e089151a1f94a503ea145f08a5921e22d54ab7e0b898f.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/e4/e4772edc3fe3f0f9012e089151a1f94a503ea145f08a5921e22d54ab7e0b898f.png"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "e4772edc3fe3f0f9.png",
+        "path": "/workspace/input/studio-e0/e4772edc3fe3f0f9.png"
+      },
+      "reason": null,
+      "rows": [
+        "r4:keyframe:s1.png",
+        "r4:keyframe:s4.png"
+      ],
+      "sha256": "e4772edc3fe3f0f9012e089151a1f94a503ea145f08a5921e22d54ab7e0b898f",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 876973,
+          "outcome": "verified",
+          "seconds": 0.182,
+          "source": {
+            "kind": "upload",
+            "name": "c146760e9f500194.png",
+            "path": "/workspace/input/studio-e0/c146760e9f500194.png"
+          }
+        }
+      ],
+      "bytes_published": 876973,
+      "bytes_read": 876973,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/c1/c146760e9f500194a0b5909a0b1ac4ff28ea042130af9f9d3da1362174d8075b.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/c1/c146760e9f500194a0b5909a0b1ac4ff28ea042130af9f9d3da1362174d8075b.png"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "c146760e9f500194.png",
+        "path": "/workspace/input/studio-e0/c146760e9f500194.png"
+      },
+      "reason": null,
+      "rows": [
+        "r4:keyframe:s2.png"
+      ],
+      "sha256": "c146760e9f500194a0b5909a0b1ac4ff28ea042130af9f9d3da1362174d8075b",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 917541,
+          "outcome": "verified",
+          "seconds": 0.171,
+          "source": {
+            "kind": "upload",
+            "name": "ba88a2f9ecf4a543.png",
+            "path": "/workspace/input/studio-e0/ba88a2f9ecf4a543.png"
+          }
+        }
+      ],
+      "bytes_published": 917541,
+      "bytes_read": 917541,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/ba/ba88a2f9ecf4a543fa3dfefa1885bfe6274bbf3fad5ae0276530b23affd6e021.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/ba/ba88a2f9ecf4a543fa3dfefa1885bfe6274bbf3fad5ae0276530b23affd6e021.png"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "ba88a2f9ecf4a543.png",
+        "path": "/workspace/input/studio-e0/ba88a2f9ecf4a543.png"
+      },
+      "reason": null,
+      "rows": [
+        "r4:keyframe:s3.png",
+        "r4:keyframe:s6.png"
+      ],
+      "sha256": "ba88a2f9ecf4a543fa3dfefa1885bfe6274bbf3fad5ae0276530b23affd6e021",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 891392,
+          "outcome": "verified",
+          "seconds": 0.164,
+          "source": {
+            "kind": "upload",
+            "name": "47146e2c14a27387.png",
+            "path": "/workspace/input/studio-e0/47146e2c14a27387.png"
+          }
+        }
+      ],
+      "bytes_published": 891392,
+      "bytes_read": 891392,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/47/47146e2c14a2738798434fa35ffe0be432b2af967ca30ea18020dff471453e80.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/47/47146e2c14a2738798434fa35ffe0be432b2af967ca30ea18020dff471453e80.png"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "47146e2c14a27387.png",
+        "path": "/workspace/input/studio-e0/47146e2c14a27387.png"
+      },
+      "reason": null,
+      "rows": [
+        "r4:keyframe:s5.png"
+      ],
+      "sha256": "47146e2c14a2738798434fa35ffe0be432b2af967ca30ea18020dff471453e80",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 808120,
+          "outcome": "verified",
+          "seconds": 0.183,
+          "source": {
+            "kind": "upload",
+            "name": "6c270139b4beb523.png",
+            "path": "/workspace/input/studio-e0/6c270139b4beb523.png"
+          }
+        }
+      ],
+      "bytes_published": 808120,
+      "bytes_read": 808120,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/6c/6c270139b4beb523d45e9eb3262745874316193fb96ceb420252661f5ca72464.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/6c/6c270139b4beb523d45e9eb3262745874316193fb96ceb420252661f5ca72464.png"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "6c270139b4beb523.png",
+        "path": "/workspace/input/studio-e0/6c270139b4beb523.png"
+      },
+      "reason": null,
+      "rows": [
+        "r4:keyframe:s7.png"
+      ],
+      "sha256": "6c270139b4beb523d45e9eb3262745874316193fb96ceb420252661f5ca72464",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 888507,
+          "outcome": "verified",
+          "seconds": 0.162,
+          "source": {
+            "kind": "upload",
+            "name": "e66494d67f4cc0fd.png",
+            "path": "/workspace/input/studio-e0/e66494d67f4cc0fd.png"
+          }
+        }
+      ],
+      "bytes_published": 888507,
+      "bytes_read": 888507,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/e6/e66494d67f4cc0fd42c3d76f5900132f590b425321a5eba0f0769b9faf85dcdf.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/e6/e66494d67f4cc0fd42c3d76f5900132f590b425321a5eba0f0769b9faf85dcdf.png"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "e66494d67f4cc0fd.png",
+        "path": "/workspace/input/studio-e0/e66494d67f4cc0fd.png"
+      },
+      "reason": null,
+      "rows": [
+        "r4:keyframe:s8.png"
+      ],
+      "sha256": "e66494d67f4cc0fd42c3d76f5900132f590b425321a5eba0f0769b9faf85dcdf",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 891436,
+          "outcome": "verified",
+          "seconds": 0.177,
+          "source": {
+            "kind": "upload",
+            "name": "f10f0460ba764d09.png",
+            "path": "/workspace/input/studio-e0/f10f0460ba764d09.png"
+          }
+        }
+      ],
+      "bytes_published": 891436,
+      "bytes_read": 891436,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/f1/f10f0460ba764d093e679d4fc2ffcc6092be883d7c686255dcccc02b26b4e1c5.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/f1/f10f0460ba764d093e679d4fc2ffcc6092be883d7c686255dcccc02b26b4e1c5.png"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "f10f0460ba764d09.png",
+        "path": "/workspace/input/studio-e0/f10f0460ba764d09.png"
+      },
+      "reason": null,
+      "rows": [
+        "r4:keyframe:s9.png"
+      ],
+      "sha256": "f10f0460ba764d093e679d4fc2ffcc6092be883d7c686255dcccc02b26b4e1c5",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [],
+      "bytes_published": 0,
+      "bytes_read": 0,
+      "locators": [],
+      "media_type": "video/mp4",
+      "published": [],
+      "read_from": null,
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "rows": [
+        "e0:clip-records.jsonl:1:s1-wf-a"
+      ],
+      "sha256": "752adc5daa13f6bb325847c40ce97d1b2434d76c95054d9c0cc59a2166d30349",
+      "status": "absent",
+      "versions": []
+    },
+    {
+      "attempts": [],
+      "bytes_published": 0,
+      "bytes_read": 0,
+      "locators": [],
+      "media_type": "video/mp4",
+      "published": [],
+      "read_from": null,
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "rows": [
+        "e0:clip-records.jsonl:2:s1-wf-x1"
+      ],
+      "sha256": "230143c8a8e43a86359cfac6227b9293e51d98698a6c4a5e9969f22d5d32a8d1",
+      "status": "absent",
+      "versions": []
+    },
+    {
+      "attempts": [],
+      "bytes_published": 0,
+      "bytes_read": 0,
+      "locators": [],
+      "media_type": "video/mp4",
+      "published": [],
+      "read_from": null,
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "rows": [
+        "e0:clip-records.jsonl:3:s2-wf-a"
+      ],
+      "sha256": "471b01eae12e690bcaf3e1a3fd9fd7793b94ed73fa18988d884985bc52f644d4",
+      "status": "absent",
+      "versions": []
+    },
+    {
+      "attempts": [],
+      "bytes_published": 0,
+      "bytes_read": 0,
+      "locators": [],
+      "media_type": "video/mp4",
+      "published": [],
+      "read_from": null,
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "rows": [
+        "e0:clip-records.jsonl:4:s3-wf-a"
+      ],
+      "sha256": "62bf5d9613fe46a0339b42e5bceb750d03ce67dd34d082a7243050bcac0472bb",
+      "status": "absent",
+      "versions": []
+    },
+    {
+      "attempts": [],
+      "bytes_published": 0,
+      "bytes_read": 0,
+      "locators": [],
+      "media_type": "video/mp4",
+      "published": [],
+      "read_from": null,
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "rows": [
+        "e0:clip-records.jsonl:5:s3-wf-x1"
+      ],
+      "sha256": "b0aaf071e0461d3e67b794a58f1a9f9b9da544407a28f1a2021fec4cc0c707ac",
+      "status": "absent",
+      "versions": []
+    },
+    {
+      "attempts": [],
+      "bytes_published": 0,
+      "bytes_read": 0,
+      "locators": [],
+      "media_type": "video/mp4",
+      "published": [],
+      "read_from": null,
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "rows": [
+        "e0:clip-records.jsonl:6:s4-wf-a"
+      ],
+      "sha256": "479eed5d63b7c7ee10739024162531a9c72d4e7c1e30376671bc812f95d40417",
+      "status": "absent",
+      "versions": []
+    },
+    {
+      "attempts": [],
+      "bytes_published": 0,
+      "bytes_read": 0,
+      "locators": [],
+      "media_type": "video/mp4",
+      "published": [],
+      "read_from": null,
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "rows": [
+        "e0:clip-records.jsonl:7:s5-wf-a"
+      ],
+      "sha256": "7f043d1023286a2da2bc005d63710594073c697cb8f2bafe7765e98b58a52a33",
+      "status": "absent",
+      "versions": []
+    },
+    {
+      "attempts": [],
+      "bytes_published": 0,
+      "bytes_read": 0,
+      "locators": [],
+      "media_type": "video/mp4",
+      "published": [],
+      "read_from": null,
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "rows": [
+        "e0:clip-records.jsonl:8:s6-wf-a"
+      ],
+      "sha256": "55c8fa8c853ec396ea14de36fedb528a5986248d40821493055480919b375f2f",
+      "status": "absent",
+      "versions": []
+    },
+    {
+      "attempts": [],
+      "bytes_published": 0,
+      "bytes_read": 0,
+      "locators": [],
+      "media_type": "video/mp4",
+      "published": [],
+      "read_from": null,
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "rows": [
+        "e0:clip-records.jsonl:9:s7-wf-a"
+      ],
+      "sha256": "3b1b3d9255c62f427b627e49bea948eb462aa64b153b8eee4c9f84dec0a1f126",
+      "status": "absent",
+      "versions": []
+    },
+    {
+      "attempts": [],
+      "bytes_published": 0,
+      "bytes_read": 0,
+      "locators": [],
+      "media_type": "video/mp4",
+      "published": [],
+      "read_from": null,
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "rows": [
+        "e0:clip-records.jsonl:10:s8-wf-a"
+      ],
+      "sha256": "193177033bff9e2ac2de2180dac46eb27665e6488274e2210d6d087fe136dfbb",
+      "status": "absent",
+      "versions": []
+    },
+    {
+      "attempts": [],
+      "bytes_published": 0,
+      "bytes_read": 0,
+      "locators": [],
+      "media_type": "video/mp4",
+      "published": [],
+      "read_from": null,
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "rows": [
+        "e0:clip-records.jsonl:11:s8-wf-x1"
+      ],
+      "sha256": "fd9d8bae8f427d66f210b383743a1d323bb11cab2e7de372c85a9ef8e40a6897",
+      "status": "absent",
+      "versions": []
+    },
+    {
+      "attempts": [],
+      "bytes_published": 0,
+      "bytes_read": 0,
+      "locators": [],
+      "media_type": "video/mp4",
+      "published": [],
+      "read_from": null,
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "rows": [
+        "e0:clip-records.jsonl:12:s8-wf-x2"
+      ],
+      "sha256": "e57673a0f3714bf10e637b921c6e24ad32e980fe37d13a2cb145bfe3644f9d12",
+      "status": "absent",
+      "versions": []
+    },
+    {
+      "attempts": [],
+      "bytes_published": 0,
+      "bytes_read": 0,
+      "locators": [],
+      "media_type": "video/mp4",
+      "published": [],
+      "read_from": null,
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "rows": [
+        "e0:clip-records.jsonl:13:s9-wf-a"
+      ],
+      "sha256": "f0a8dbd0840f5b39dda3c8805d482656a2874f775adec77de5292826a2358d90",
+      "status": "absent",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 1299333,
+          "outcome": "verified",
+          "seconds": 0.201,
+          "source": {
+            "job_id": "54ca6526eb194d6d9332125121e2b671",
+            "kind": "job_output"
+          }
+        }
+      ],
+      "bytes_published": 1299333,
+      "bytes_read": 1299333,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/d9/d9992080f596d71119aaad39b6717bff898e8bc9ac40f93d079a4ffdc74298a1.mp4"
+      ],
+      "media_type": "video/mp4",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/d9/d9992080f596d71119aaad39b6717bff898e8bc9ac40f93d079a4ffdc74298a1.mp4"
+      ],
+      "read_from": {
+        "job_id": "54ca6526eb194d6d9332125121e2b671",
+        "kind": "job_output"
+      },
+      "reason": null,
+      "rows": [
+        "e0:clip-records.jsonl:14:layer-set-loop"
+      ],
+      "sha256": "d9992080f596d71119aaad39b6717bff898e8bc9ac40f93d079a4ffdc74298a1",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:winter-menu-video-e0:set-loop:set-plate.png",
+          "version_id": "asv_01M7BVCF7QZG0E27A6CQZ458AA"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 4391219,
+          "outcome": "verified",
+          "seconds": 0.201,
+          "source": {
+            "job_id": "37c7cdbc95ef42a5974f7bbaacf1b2a3",
+            "kind": "job_output"
+          }
+        }
+      ],
+      "bytes_published": 4391219,
+      "bytes_read": 4391219,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/f0/f0a8e332f0729899d6b827c5f6130a043e2c9cd26bf89140eab76a06e91252fa.mp4"
+      ],
+      "media_type": "video/mp4",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/f0/f0a8e332f0729899d6b827c5f6130a043e2c9cd26bf89140eab76a06e91252fa.mp4"
+      ],
+      "read_from": {
+        "job_id": "37c7cdbc95ef42a5974f7bbaacf1b2a3",
+        "kind": "job_output"
+      },
+      "reason": null,
+      "rows": [
+        "e0:clip-records.jsonl:15:layer-a-green"
+      ],
+      "sha256": "f0a8e332f0729899d6b827c5f6130a043e2c9cd26bf89140eab76a06e91252fa",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:winter-menu-video-e0:loop:cutouts/a-proud.png",
+          "version_id": "asv_01M7BVCF7SGWGWH3WYR8AEQA1S"
+        }
+      ]
+    },
+    {
+      "attempts": [],
+      "bytes_published": 0,
+      "bytes_read": 0,
+      "locators": [],
+      "media_type": "video/mp4",
+      "published": [],
+      "read_from": null,
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "rows": [
+        "e0:clip-records.jsonl:16:s2-s2v-b"
+      ],
+      "sha256": "78cca47e1acaa9d0551d19ece0dc9dd2916c1a9394d8dde7c2ce0223b0ae9956",
+      "status": "absent",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 3191801,
+          "outcome": "verified",
+          "seconds": 0.214,
+          "source": {
+            "job_id": "8b5a72ca7bf140b19a46e2850b857d8a",
+            "kind": "job_output"
+          }
+        }
+      ],
+      "bytes_published": 3191801,
+      "bytes_read": 3191801,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/0b/0b4deff131ec1312a07c5b2827db0b06e127cf661aaa15195996baff74c2748d.mp4"
+      ],
+      "media_type": "video/mp4",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/0b/0b4deff131ec1312a07c5b2827db0b06e127cf661aaa15195996baff74c2748d.mp4"
+      ],
+      "read_from": {
+        "job_id": "8b5a72ca7bf140b19a46e2850b857d8a",
+        "kind": "job_output"
+      },
+      "reason": null,
+      "rows": [
+        "e0:clip-records-layers.jsonl:1:layer-a-staring-green"
+      ],
+      "sha256": "0b4deff131ec1312a07c5b2827db0b06e127cf661aaa15195996baff74c2748d",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:winter-menu-video-e0:loop:cutouts/a-staring.png",
+          "version_id": "asv_01M7BVCF7T2C3KY9TZXBB45PYG"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 2282116,
+          "outcome": "verified",
+          "seconds": 0.214,
+          "source": {
+            "job_id": "702c5f3df25b4c7eb4a8f22a18a6951e",
+            "kind": "job_output"
+          }
+        }
+      ],
+      "bytes_published": 2282116,
+      "bytes_read": 2282116,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/92/926390f7bcc84db3c3e68a6cdf7675d8d8ee22245ab9ca1f147ebd5ea6487378.mp4"
+      ],
+      "media_type": "video/mp4",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/92/926390f7bcc84db3c3e68a6cdf7675d8d8ee22245ab9ca1f147ebd5ea6487378.mp4"
+      ],
+      "read_from": {
+        "job_id": "702c5f3df25b4c7eb4a8f22a18a6951e",
+        "kind": "job_output"
+      },
+      "reason": null,
+      "rows": [
+        "e0:clip-records-layers.jsonl:2:layer-b-deadpan-green"
+      ],
+      "sha256": "926390f7bcc84db3c3e68a6cdf7675d8d8ee22245ab9ca1f147ebd5ea6487378",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:winter-menu-video-e0:loop:cutouts/b-deadpan.png",
+          "version_id": "asv_01M7BVCF7WSBY30PKGHDG3BYJM"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 2674619,
+          "outcome": "verified",
+          "seconds": 0.205,
+          "source": {
+            "job_id": "9a2826f2c96b4dcf9fc575da4f5373ac",
+            "kind": "job_output"
+          }
+        }
+      ],
+      "bytes_published": 2674619,
+      "bytes_read": 2674619,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/aa/aa9259b21d9f833000ae272d8c5d81a94bfb544ec92e0a2440f49d078da34b0a.mp4"
+      ],
+      "media_type": "video/mp4",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/aa/aa9259b21d9f833000ae272d8c5d81a94bfb544ec92e0a2440f49d078da34b0a.mp4"
+      ],
+      "read_from": {
+        "job_id": "9a2826f2c96b4dcf9fc575da4f5373ac",
+        "kind": "job_output"
+      },
+      "reason": null,
+      "rows": [
+        "e0:clip-records-layers.jsonl:3:layer-c-suspicious-green"
+      ],
+      "sha256": "aa9259b21d9f833000ae272d8c5d81a94bfb544ec92e0a2440f49d078da34b0a",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:winter-menu-video-e0:loop:cutouts/c-suspicious.png",
+          "version_id": "asv_01M7BVCF7Y1NJ5X15A484F9J79"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 2445836,
+          "outcome": "verified",
+          "seconds": 0.193,
+          "source": {
+            "job_id": "0a367c98e816433db1932ecb66a7d5a9",
+            "kind": "job_output"
+          }
+        }
+      ],
+      "bytes_published": 2445836,
+      "bytes_read": 2445836,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/93/93bd81a9abc830479b8f853ae5d2fc16e7419d484f29a54694c904eaab75f3a0.mp4"
+      ],
+      "media_type": "video/mp4",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/93/93bd81a9abc830479b8f853ae5d2fc16e7419d484f29a54694c904eaab75f3a0.mp4"
+      ],
+      "read_from": {
+        "job_id": "0a367c98e816433db1932ecb66a7d5a9",
+        "kind": "job_output"
+      },
+      "reason": null,
+      "rows": [
+        "e0:clip-records-layers.jsonl:4:layer-c-staring-green"
+      ],
+      "sha256": "93bd81a9abc830479b8f853ae5d2fc16e7419d484f29a54694c904eaab75f3a0",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:winter-menu-video-e0:loop:cutouts/c-staring.png",
+          "version_id": "asv_01M7BVCF7ZNQV9R95V53YWNHMK"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 1863496,
+          "outcome": "verified",
+          "seconds": 0.204,
+          "source": {
+            "job_id": "9526880c665b410e98aaaffe41cf5cdc",
+            "kind": "job_output"
+          }
+        }
+      ],
+      "bytes_published": 1863496,
+      "bytes_read": 1863496,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/9d/9dbbb6fb64200abe11941a9510705cce9db5856924988614d258291d0788ec5f.mp4"
+      ],
+      "media_type": "video/mp4",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/9d/9dbbb6fb64200abe11941a9510705cce9db5856924988614d258291d0788ec5f.mp4"
+      ],
+      "read_from": {
+        "job_id": "9526880c665b410e98aaaffe41cf5cdc",
+        "kind": "job_output"
+      },
+      "reason": null,
+      "rows": [
+        "e0:clip-records-layers.jsonl:5:layer-d-cheerful-green"
+      ],
+      "sha256": "9dbbb6fb64200abe11941a9510705cce9db5856924988614d258291d0788ec5f",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:winter-menu-video-e0:loop:cutouts/d-cheerful.png",
+          "version_id": "asv_01M7BVCF81E1P2PRZFNZD9K15Y"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 2701489,
+          "outcome": "verified",
+          "seconds": 0.199,
+          "source": {
+            "job_id": "7e93087862964b0895f506e3b79ac17d",
+            "kind": "job_output"
+          }
+        }
+      ],
+      "bytes_published": 2701489,
+      "bytes_read": 2701489,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/fd/fd2970bd83442c0e9bdf475c290e801c46e8b6ffe5a522c87c644616c94f1aa2.mp4"
+      ],
+      "media_type": "video/mp4",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/fd/fd2970bd83442c0e9bdf475c290e801c46e8b6ffe5a522c87c644616c94f1aa2.mp4"
+      ],
+      "read_from": {
+        "job_id": "7e93087862964b0895f506e3b79ac17d",
+        "kind": "job_output"
+      },
+      "reason": null,
+      "rows": [
+        "e0:clip-records-layers.jsonl:6:layer-d-shocked-green"
+      ],
+      "sha256": "fd2970bd83442c0e9bdf475c290e801c46e8b6ffe5a522c87c644616c94f1aa2",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:winter-menu-video-e0:loop:cutouts/d-shocked.png",
+          "version_id": "asv_01M7BVCF827BG6Q0JRPBXYBFAT"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 2285905,
+          "outcome": "verified",
+          "seconds": 0.211,
+          "source": {
+            "job_id": "78ab024d7ef94c748c9cbc4852f53681",
+            "kind": "job_output"
+          }
+        }
+      ],
+      "bytes_published": 2285905,
+      "bytes_read": 2285905,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/a5/a5e78a06cb61d7a41ef9a3fd461cff6cc4f11cc854becf121792dd89e8cf595e.mp4"
+      ],
+      "media_type": "video/mp4",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/a5/a5e78a06cb61d7a41ef9a3fd461cff6cc4f11cc854becf121792dd89e8cf595e.mp4"
+      ],
+      "read_from": {
+        "job_id": "78ab024d7ef94c748c9cbc4852f53681",
+        "kind": "job_output"
+      },
+      "reason": null,
+      "rows": [
+        "e0:clip-records-layers.jsonl:7:layer-b-deadpan-v2-green"
+      ],
+      "sha256": "a5e78a06cb61d7a41ef9a3fd461cff6cc4f11cc854becf121792dd89e8cf595e",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:winter-menu-video-e0:loop:cutouts/b-deadpan.png",
+          "version_id": "asv_01M7BVCF83MQ1DW5G9XPQXNDF3"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 1725752,
+          "outcome": "verified",
+          "seconds": 0.192,
+          "source": {
+            "job_id": "1a18b5ffc74c4bbb90c3b0ab0c1a5826",
+            "kind": "job_output"
+          }
+        }
+      ],
+      "bytes_published": 1725752,
+      "bytes_read": 1725752,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/a6/a6b407c1524889d1e6a5b65e14df5f44d25680c747439227785de40f00009990.mp4"
+      ],
+      "media_type": "video/mp4",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/a6/a6b407c1524889d1e6a5b65e14df5f44d25680c747439227785de40f00009990.mp4"
+      ],
+      "read_from": {
+        "job_id": "1a18b5ffc74c4bbb90c3b0ab0c1a5826",
+        "kind": "job_output"
+      },
+      "reason": null,
+      "rows": [
+        "e0:clip-records-layers.jsonl:8:layer-d-cheerful-v2-green"
+      ],
+      "sha256": "a6b407c1524889d1e6a5b65e14df5f44d25680c747439227785de40f00009990",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:winter-menu-video-e0:loop:cutouts/d-cheerful.png",
+          "version_id": "asv_01M7BVCF85X89N4GWJ4RNQZ0VC"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 2564391,
+          "outcome": "verified",
+          "seconds": 0.202,
+          "source": {
+            "job_id": "470f752ba6a94b669285640e94f14839",
+            "kind": "job_output"
+          }
+        }
+      ],
+      "bytes_published": 2564391,
+      "bytes_read": 2564391,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/7e/7e33e2af4191305d9c6704ff32eb2f8acd7d3f52130ad927dfe6ea3ba721eb30.mp4"
+      ],
+      "media_type": "video/mp4",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/7e/7e33e2af4191305d9c6704ff32eb2f8acd7d3f52130ad927dfe6ea3ba721eb30.mp4"
+      ],
+      "read_from": {
+        "job_id": "470f752ba6a94b669285640e94f14839",
+        "kind": "job_output"
+      },
+      "reason": null,
+      "rows": [
+        "e0:clip-records-layers.jsonl:9:layer-d-shocked-v2-green"
+      ],
+      "sha256": "7e33e2af4191305d9c6704ff32eb2f8acd7d3f52130ad927dfe6ea3ba721eb30",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:winter-menu-video-e0:loop:cutouts/d-shocked.png",
+          "version_id": "asv_01M7BVCF86G8BD4VYH39FDDYK3"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 1243610,
+          "outcome": "verified",
+          "seconds": 0.18,
+          "source": {
+            "job_id": "168dedaaf3924b728561a1ac04692f27",
+            "kind": "job_output"
+          }
+        }
+      ],
+      "bytes_published": 1243610,
+      "bytes_read": 1243610,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/6f/6fe52ffe86cf89ca103ea4856fb7349fc407a7cf5519e56aa901a1b48637f532.mp4"
+      ],
+      "media_type": "video/mp4",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/6f/6fe52ffe86cf89ca103ea4856fb7349fc407a7cf5519e56aa901a1b48637f532.mp4"
+      ],
+      "read_from": {
+        "job_id": "168dedaaf3924b728561a1ac04692f27",
+        "kind": "job_output"
+      },
+      "reason": null,
+      "rows": [
+        "e0:clip-records-s2v.jsonl:1:s2-b-lightning"
+      ],
+      "sha256": "6fe52ffe86cf89ca103ea4856fb7349fc407a7cf5519e56aa901a1b48637f532",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:winter-menu-video-e0:s2v:shot-2:b",
+          "version_id": "asv_01M7BVCF887THCBS7VSYTEN5EN"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 5909745,
+          "outcome": "verified",
+          "seconds": 0.22,
+          "source": {
+            "job_id": "2538305ed890482ab4b3e9f34ed415d7",
+            "kind": "job_output"
+          }
+        }
+      ],
+      "bytes_published": 5909745,
+      "bytes_read": 5909745,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/82/826102130bf4d0f5d2f9383b150e17427572539fd3b680596b93e5f69cd827a2.mp4"
+      ],
+      "media_type": "video/mp4",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/82/826102130bf4d0f5d2f9383b150e17427572539fd3b680596b93e5f69cd827a2.mp4"
+      ],
+      "read_from": {
+        "job_id": "2538305ed890482ab4b3e9f34ed415d7",
+        "kind": "job_output"
+      },
+      "reason": null,
+      "rows": [
+        "e0:clip-records-s2v.jsonl:2:s1-a-lightning"
+      ],
+      "sha256": "826102130bf4d0f5d2f9383b150e17427572539fd3b680596b93e5f69cd827a2",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:winter-menu-video-e0:s2v:shot-1:a",
+          "version_id": "asv_01M7BVCF89PT16TY6HF300N7HH"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 4069437,
+          "outcome": "verified",
+          "seconds": 0.214,
+          "source": {
+            "job_id": "34497097d16c4399a52ef5b91e37d49e",
+            "kind": "job_output"
+          }
+        }
+      ],
+      "bytes_published": 4069437,
+      "bytes_read": 4069437,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/a8/a8b3c99398404bc07c8f5d106697d950fc44231d9406d5db82b08d59578cee74.mp4"
+      ],
+      "media_type": "video/mp4",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/a8/a8b3c99398404bc07c8f5d106697d950fc44231d9406d5db82b08d59578cee74.mp4"
+      ],
+      "read_from": {
+        "job_id": "34497097d16c4399a52ef5b91e37d49e",
+        "kind": "job_output"
+      },
+      "reason": null,
+      "rows": [
+        "e0:clip-records-s2v.jsonl:3:s3-c-lightning"
+      ],
+      "sha256": "a8b3c99398404bc07c8f5d106697d950fc44231d9406d5db82b08d59578cee74",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:winter-menu-video-e0:s2v:shot-3:c",
+          "version_id": "asv_01M7BVCF8B7YN349F0J7WV7F4E"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 1710450,
+          "outcome": "verified",
+          "seconds": 0.193,
+          "source": {
+            "job_id": "f5f5810b05624ff79184e2fda8d92a7c",
+            "kind": "job_output"
+          }
+        }
+      ],
+      "bytes_published": 1710450,
+      "bytes_read": 1710450,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/99/99bb233949e7a55e3ce721a2e1376e755864ade61485ef658c0293e3fbd18932.mp4"
+      ],
+      "media_type": "video/mp4",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/99/99bb233949e7a55e3ce721a2e1376e755864ade61485ef658c0293e3fbd18932.mp4"
+      ],
+      "read_from": {
+        "job_id": "f5f5810b05624ff79184e2fda8d92a7c",
+        "kind": "job_output"
+      },
+      "reason": null,
+      "rows": [
+        "e0:clip-records-s2v.jsonl:4:s4-a-lightning"
+      ],
+      "sha256": "99bb233949e7a55e3ce721a2e1376e755864ade61485ef658c0293e3fbd18932",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:winter-menu-video-e0:s2v:shot-4:a",
+          "version_id": "asv_01M7BVCF8CK3A7JTXCC5JEQ5HS"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 845001,
+          "outcome": "verified",
+          "seconds": 0.18,
+          "source": {
+            "job_id": "ff904c170a4c4297b77b034250873f41",
+            "kind": "job_output"
+          }
+        }
+      ],
+      "bytes_published": 845001,
+      "bytes_read": 845001,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/74/74f907176942d8d4c8cf82b6821d32d3d763313cd290aa73ad5c9d04a333adf5.mp4"
+      ],
+      "media_type": "video/mp4",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/74/74f907176942d8d4c8cf82b6821d32d3d763313cd290aa73ad5c9d04a333adf5.mp4"
+      ],
+      "read_from": {
+        "job_id": "ff904c170a4c4297b77b034250873f41",
+        "kind": "job_output"
+      },
+      "reason": null,
+      "rows": [
+        "e0:clip-records-s2v.jsonl:5:s5-d-lightning"
+      ],
+      "sha256": "74f907176942d8d4c8cf82b6821d32d3d763313cd290aa73ad5c9d04a333adf5",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:winter-menu-video-e0:s2v:shot-5:d",
+          "version_id": "asv_01M7BVCF8ECHA2A442SXKWJBGN"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 4060447,
+          "outcome": "verified",
+          "seconds": 0.221,
+          "source": {
+            "job_id": "f6e3382574194f0c9a924e79e8403d66",
+            "kind": "job_output"
+          }
+        }
+      ],
+      "bytes_published": 4060447,
+      "bytes_read": 4060447,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/21/212a367137c6c48a37076fa96aab1d374b2cc10fc1e2fd3d3a8e8832f5ee8f29.mp4"
+      ],
+      "media_type": "video/mp4",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/21/212a367137c6c48a37076fa96aab1d374b2cc10fc1e2fd3d3a8e8832f5ee8f29.mp4"
+      ],
+      "read_from": {
+        "job_id": "f6e3382574194f0c9a924e79e8403d66",
+        "kind": "job_output"
+      },
+      "reason": null,
+      "rows": [
+        "e0:clip-records-s2v.jsonl:6:s6-c-lightning"
+      ],
+      "sha256": "212a367137c6c48a37076fa96aab1d374b2cc10fc1e2fd3d3a8e8832f5ee8f29",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:winter-menu-video-e0:s2v:shot-6:c",
+          "version_id": "asv_01M7BVCF8FAV62GWYWXAVTFF3M"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 5898575,
+          "outcome": "verified",
+          "seconds": 0.22,
+          "source": {
+            "job_id": "05dc689efcf045f4a2d91a599bbd0783",
+            "kind": "job_output"
+          }
+        }
+      ],
+      "bytes_published": 5898575,
+      "bytes_read": 5898575,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/8e/8e52ab9757a89c1ae1a64d5e4bd7ff749b1381ec6177e9fc642e5ed11f422d16.mp4"
+      ],
+      "media_type": "video/mp4",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/8e/8e52ab9757a89c1ae1a64d5e4bd7ff749b1381ec6177e9fc642e5ed11f422d16.mp4"
+      ],
+      "read_from": {
+        "job_id": "05dc689efcf045f4a2d91a599bbd0783",
+        "kind": "job_output"
+      },
+      "reason": null,
+      "rows": [
+        "e0:clip-records-s2v.jsonl:7:s8-a-lightning"
+      ],
+      "sha256": "8e52ab9757a89c1ae1a64d5e4bd7ff749b1381ec6177e9fc642e5ed11f422d16",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:winter-menu-video-e0:s2v:shot-8:a",
+          "version_id": "asv_01M7BVCF8HDVT22FRV7J2609W9"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 3877415,
+          "outcome": "verified",
+          "seconds": 0.197,
+          "source": {
+            "job_id": "e78b578cb7854833925923d5eadc3ae8",
+            "kind": "job_output"
+          }
+        }
+      ],
+      "bytes_published": 3877415,
+      "bytes_read": 3877415,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/63/63e46a77e6d9893e0015c30657b51faf47dbd37523aa3bfed1bdaa9c226fb0a0.mp4"
+      ],
+      "media_type": "video/mp4",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/63/63e46a77e6d9893e0015c30657b51faf47dbd37523aa3bfed1bdaa9c226fb0a0.mp4"
+      ],
+      "read_from": {
+        "job_id": "e78b578cb7854833925923d5eadc3ae8",
+        "kind": "job_output"
+      },
+      "reason": null,
+      "rows": [
+        "e0:clip-records-s2v.jsonl:8:s8-b-lightning"
+      ],
+      "sha256": "63e46a77e6d9893e0015c30657b51faf47dbd37523aa3bfed1bdaa9c226fb0a0",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:winter-menu-video-e0:s2v:shot-8:b",
+          "version_id": "asv_01M7BVCF8J2RVKYHWDKDKA9MRQ"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 4666144,
+          "outcome": "verified",
+          "seconds": 0.218,
+          "source": {
+            "job_id": "16511c38febb4dce9685032e4fded5cf",
+            "kind": "job_output"
+          }
+        }
+      ],
+      "bytes_published": 4666144,
+      "bytes_read": 4666144,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/9b/9b7cf09be182f60eccaa21f6cad3726deb3515477b748979aa6cb9ec959131ec.mp4"
+      ],
+      "media_type": "video/mp4",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/9b/9b7cf09be182f60eccaa21f6cad3726deb3515477b748979aa6cb9ec959131ec.mp4"
+      ],
+      "read_from": {
+        "job_id": "16511c38febb4dce9685032e4fded5cf",
+        "kind": "job_output"
+      },
+      "reason": null,
+      "rows": [
+        "e0:clip-records-s2v.jsonl:9:s8-c-lightning"
+      ],
+      "sha256": "9b7cf09be182f60eccaa21f6cad3726deb3515477b748979aa6cb9ec959131ec",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:winter-menu-video-e0:s2v:shot-8:c",
+          "version_id": "asv_01M7BVCF8MRM5C2KHHF7AF7EYY"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 3673117,
+          "outcome": "verified",
+          "seconds": 0.208,
+          "source": {
+            "job_id": "45c99fea53194cbeb863e30000a2b102",
+            "kind": "job_output"
+          }
+        }
+      ],
+      "bytes_published": 3673117,
+      "bytes_read": 3673117,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/e3/e374d989cbf680d33a5a9914a7dd509c0f2bc46ef9e682672a6332899513d925.mp4"
+      ],
+      "media_type": "video/mp4",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/e3/e374d989cbf680d33a5a9914a7dd509c0f2bc46ef9e682672a6332899513d925.mp4"
+      ],
+      "read_from": {
+        "job_id": "45c99fea53194cbeb863e30000a2b102",
+        "kind": "job_output"
+      },
+      "reason": null,
+      "rows": [
+        "e0:clip-records-s2v.jsonl:10:s8-d-lightning"
+      ],
+      "sha256": "e374d989cbf680d33a5a9914a7dd509c0f2bc46ef9e682672a6332899513d925",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:winter-menu-video-e0:s2v:shot-8:d",
+          "version_id": "asv_01M7BVCF8NZVBFSPWY4QZWAM58"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 1438411,
+          "outcome": "verified",
+          "seconds": 0.208,
+          "source": {
+            "job_id": "6384aa908ee84be8ae25aacae1e00fb0",
+            "kind": "job_output"
+          }
+        }
+      ],
+      "bytes_published": 1438411,
+      "bytes_read": 1438411,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/43/43d23be5b2ba66316cf59d8b1cfd9acf69e29ef0ee655bc4828b069c34b1caea.mp4"
+      ],
+      "media_type": "video/mp4",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/43/43d23be5b2ba66316cf59d8b1cfd9acf69e29ef0ee655bc4828b069c34b1caea.mp4"
+      ],
+      "read_from": {
+        "job_id": "6384aa908ee84be8ae25aacae1e00fb0",
+        "kind": "job_output"
+      },
+      "reason": null,
+      "rows": [
+        "e0:clip-records-s2v.jsonl:11:s9-b-lightning"
+      ],
+      "sha256": "43d23be5b2ba66316cf59d8b1cfd9acf69e29ef0ee655bc4828b069c34b1caea",
+      "status": "verified",
+      "versions": [
+        {
+          "created": false,
+          "source_key": "legacy:winter-menu-video-e0:s2v:shot-9:b",
+          "version_id": "asv_01M7BVCF8QT7YHQF5MBFDVMQ3V"
+        }
+      ]
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 815503,
+          "outcome": "verified",
+          "seconds": 0.18,
+          "source": {
+            "kind": "upload",
+            "name": "c91aa9149458437a.png",
+            "path": "/workspace/input/studio-e0/c91aa9149458437a.png"
+          }
+        }
+      ],
+      "bytes_published": 815503,
+      "bytes_read": 815503,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/c9/c91aa9149458437a0877ddab5dcbc3b4f50b1a24d7cedecf15be60c43e4f7bd5.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/c9/c91aa9149458437a0877ddab5dcbc3b4f50b1a24d7cedecf15be60c43e4f7bd5.png"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "c91aa9149458437a.png",
+        "path": "/workspace/input/studio-e0/c91aa9149458437a.png"
+      },
+      "reason": null,
+      "rows": [
+        "e0:start_image:set-plate.png"
+      ],
+      "sha256": "c91aa9149458437a0877ddab5dcbc3b4f50b1a24d7cedecf15be60c43e4f7bd5",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 684819,
+          "outcome": "verified",
+          "seconds": 0.162,
+          "source": {
+            "kind": "upload",
+            "name": "54a0d03d68ee425a.png",
+            "path": "/workspace/input/studio-e0/54a0d03d68ee425a.png"
+          }
+        }
+      ],
+      "bytes_published": 684819,
+      "bytes_read": 684819,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/54/54a0d03d68ee425a003ee5b1ce6da862fccd0671bdb516af47e798afa392632c.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/54/54a0d03d68ee425a003ee5b1ce6da862fccd0671bdb516af47e798afa392632c.png"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "54a0d03d68ee425a.png",
+        "path": "/workspace/input/studio-e0/54a0d03d68ee425a.png"
+      },
+      "reason": null,
+      "rows": [
+        "e0:start_image:a-base-s101-green.png"
+      ],
+      "sha256": "54a0d03d68ee425a003ee5b1ce6da862fccd0671bdb516af47e798afa392632c",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 656888,
+          "outcome": "verified",
+          "seconds": 0.171,
+          "source": {
+            "kind": "upload",
+            "name": "1fcfaaa2ae65765c.png",
+            "path": "/workspace/input/studio-e0/1fcfaaa2ae65765c.png"
+          }
+        }
+      ],
+      "bytes_published": 656888,
+      "bytes_read": 656888,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/1f/1fcfaaa2ae65765c132aeaa35cca22fe56cd5fd831f04184bf1d7ba385c6b401.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/1f/1fcfaaa2ae65765c132aeaa35cca22fe56cd5fd831f04184bf1d7ba385c6b401.png"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "1fcfaaa2ae65765c.png",
+        "path": "/workspace/input/studio-e0/1fcfaaa2ae65765c.png"
+      },
+      "reason": null,
+      "rows": [
+        "e0:start_image:a-staring-s301-green.png"
+      ],
+      "sha256": "1fcfaaa2ae65765c132aeaa35cca22fe56cd5fd831f04184bf1d7ba385c6b401",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 598675,
+          "outcome": "verified",
+          "seconds": 0.167,
+          "source": {
+            "kind": "upload",
+            "name": "e98c2159c4ed8c50.png",
+            "path": "/workspace/input/studio-e0/e98c2159c4ed8c50.png"
+          }
+        }
+      ],
+      "bytes_published": 598675,
+      "bytes_read": 598675,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/e9/e98c2159c4ed8c507002c4f850e740b206339e0b17824ce28f3d795c0d1d0a74.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/e9/e98c2159c4ed8c507002c4f850e740b206339e0b17824ce28f3d795c0d1d0a74.png"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "e98c2159c4ed8c50.png",
+        "path": "/workspace/input/studio-e0/e98c2159c4ed8c50.png"
+      },
+      "reason": null,
+      "rows": [
+        "e0:start_image:b-base-s101-green.png"
+      ],
+      "sha256": "e98c2159c4ed8c507002c4f850e740b206339e0b17824ce28f3d795c0d1d0a74",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 643987,
+          "outcome": "verified",
+          "seconds": 0.185,
+          "source": {
+            "kind": "upload",
+            "name": "68fc2cdadb852aaf.png",
+            "path": "/workspace/input/studio-e0/68fc2cdadb852aaf.png"
+          }
+        }
+      ],
+      "bytes_published": 643987,
+      "bytes_read": 643987,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/68/68fc2cdadb852aafb71472ab151505790df68dde481cf17003df4bf5a39e2d60.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/68/68fc2cdadb852aafb71472ab151505790df68dde481cf17003df4bf5a39e2d60.png"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "68fc2cdadb852aaf.png",
+        "path": "/workspace/input/studio-e0/68fc2cdadb852aaf.png"
+      },
+      "reason": null,
+      "rows": [
+        "e0:start_image:c-base-s101-green.png"
+      ],
+      "sha256": "68fc2cdadb852aafb71472ab151505790df68dde481cf17003df4bf5a39e2d60",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 618133,
+          "outcome": "verified",
+          "seconds": 0.171,
+          "source": {
+            "kind": "upload",
+            "name": "5db01682a9006aa6.png",
+            "path": "/workspace/input/studio-e0/5db01682a9006aa6.png"
+          }
+        }
+      ],
+      "bytes_published": 618133,
+      "bytes_read": 618133,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/5d/5db01682a9006aa66f6ddefca98787dcc4f68a733fc9696538ccaff2da2c461e.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/5d/5db01682a9006aa66f6ddefca98787dcc4f68a733fc9696538ccaff2da2c461e.png"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "5db01682a9006aa6.png",
+        "path": "/workspace/input/studio-e0/5db01682a9006aa6.png"
+      },
+      "reason": null,
+      "rows": [
+        "e0:start_image:c-staring-s301-green.png"
+      ],
+      "sha256": "5db01682a9006aa66f6ddefca98787dcc4f68a733fc9696538ccaff2da2c461e",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 631886,
+          "outcome": "verified",
+          "seconds": 0.186,
+          "source": {
+            "kind": "upload",
+            "name": "5f73a7281e03d0cc.png",
+            "path": "/workspace/input/studio-e0/5f73a7281e03d0cc.png"
+          }
+        }
+      ],
+      "bytes_published": 631886,
+      "bytes_read": 631886,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/5f/5f73a7281e03d0ccabd34c20189b5a665a3c28c252bb8aea641044d9059f6a81.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/5f/5f73a7281e03d0ccabd34c20189b5a665a3c28c252bb8aea641044d9059f6a81.png"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "5f73a7281e03d0cc.png",
+        "path": "/workspace/input/studio-e0/5f73a7281e03d0cc.png"
+      },
+      "reason": null,
+      "rows": [
+        "e0:start_image:d-base-s101-green.png"
+      ],
+      "sha256": "5f73a7281e03d0ccabd34c20189b5a665a3c28c252bb8aea641044d9059f6a81",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 612292,
+          "outcome": "verified",
+          "seconds": 0.178,
+          "source": {
+            "kind": "upload",
+            "name": "b9d32ef9a66171c0.png",
+            "path": "/workspace/input/studio-e0/b9d32ef9a66171c0.png"
+          }
+        }
+      ],
+      "bytes_published": 612292,
+      "bytes_read": 612292,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/b9/b9d32ef9a66171c081cb8f5e9a05f81d475e81fa9904c8636b5f19a27d8a389e.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/b9/b9d32ef9a66171c081cb8f5e9a05f81d475e81fa9904c8636b5f19a27d8a389e.png"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "b9d32ef9a66171c0.png",
+        "path": "/workspace/input/studio-e0/b9d32ef9a66171c0.png"
+      },
+      "reason": null,
+      "rows": [
+        "e0:start_image:d-shocked-s301-green.png"
+      ],
+      "sha256": "b9d32ef9a66171c081cb8f5e9a05f81d475e81fa9904c8636b5f19a27d8a389e",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 669402,
+          "outcome": "verified",
+          "seconds": 0.176,
+          "source": {
+            "kind": "upload",
+            "name": "342960b60079923d.png",
+            "path": "/workspace/input/studio-e0/342960b60079923d.png"
+          }
+        }
+      ],
+      "bytes_published": 669402,
+      "bytes_read": 669402,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/34/342960b60079923da08ed15d25ae3344d33ee128148371047e752843f06a16fc.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/34/342960b60079923da08ed15d25ae3344d33ee128148371047e752843f06a16fc.png"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "342960b60079923d.png",
+        "path": "/workspace/input/studio-e0/342960b60079923d.png"
+      },
+      "reason": null,
+      "rows": [
+        "e0:start_image:b-base-s101-sleeves-s401-green.png"
+      ],
+      "sha256": "342960b60079923da08ed15d25ae3344d33ee128148371047e752843f06a16fc",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 720939,
+          "outcome": "verified",
+          "seconds": 0.17,
+          "source": {
+            "kind": "upload",
+            "name": "2a5ba2bef5a5179f.png",
+            "path": "/workspace/input/studio-e0/2a5ba2bef5a5179f.png"
+          }
+        }
+      ],
+      "bytes_published": 720939,
+      "bytes_read": 720939,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/2a/2a5ba2bef5a5179f3e2e54832d5fbbd94b793d1efee7576b9b74529119d91ee3.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/2a/2a5ba2bef5a5179f3e2e54832d5fbbd94b793d1efee7576b9b74529119d91ee3.png"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "2a5ba2bef5a5179f.png",
+        "path": "/workspace/input/studio-e0/2a5ba2bef5a5179f.png"
+      },
+      "reason": null,
+      "rows": [
+        "e0:start_image:d-base-s101-sleeves-s401-green.png"
+      ],
+      "sha256": "2a5ba2bef5a5179f3e2e54832d5fbbd94b793d1efee7576b9b74529119d91ee3",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 707269,
+          "outcome": "verified",
+          "seconds": 0.196,
+          "source": {
+            "kind": "upload",
+            "name": "c1f316d5fa321b73.png",
+            "path": "/workspace/input/studio-e0/c1f316d5fa321b73.png"
+          }
+        }
+      ],
+      "bytes_published": 707269,
+      "bytes_read": 707269,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/c1/c1f316d5fa321b73e1e90552c57259a72e37574d0fdfb0cce24d400c85241adf.png"
+      ],
+      "media_type": "image/png",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/c1/c1f316d5fa321b73e1e90552c57259a72e37574d0fdfb0cce24d400c85241adf.png"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "c1f316d5fa321b73.png",
+        "path": "/workspace/input/studio-e0/c1f316d5fa321b73.png"
+      },
+      "reason": null,
+      "rows": [
+        "e0:start_image:d-shocked-s301-sleeves-s401-green.png"
+      ],
+      "sha256": "c1f316d5fa321b73e1e90552c57259a72e37574d0fdfb0cce24d400c85241adf",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 376048,
+          "outcome": "verified",
+          "seconds": 0.16,
+          "source": {
+            "kind": "upload",
+            "name": "8063d3e5480530ce.wav",
+            "path": "/workspace/input/studio-e0/8063d3e5480530ce.wav"
+          }
+        }
+      ],
+      "bytes_published": 376048,
+      "bytes_read": 376048,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/80/8063d3e5480530ce93a71370d001f7c294ae7982ca3d595f90df1c5dab4dbf62.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/80/8063d3e5480530ce93a71370d001f7c294ae7982ca3d595f90df1c5dab4dbf62.wav"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "8063d3e5480530ce.wav",
+        "path": "/workspace/input/studio-e0/8063d3e5480530ce.wav"
+      },
+      "reason": null,
+      "rows": [
+        "e0:drive_track:s2-b-lightning-drive.wav"
+      ],
+      "sha256": "8063d3e5480530ce93a71370d001f7c294ae7982ca3d595f90df1c5dab4dbf62",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 612044,
+          "outcome": "verified",
+          "seconds": 0.167,
+          "source": {
+            "kind": "upload",
+            "name": "6eccbef0d224eaf6.wav",
+            "path": "/workspace/input/studio-e0/6eccbef0d224eaf6.wav"
+          }
+        }
+      ],
+      "bytes_published": 612044,
+      "bytes_read": 612044,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/6e/6eccbef0d224eaf63f0ec2df6db09b206ea6d99dc8d654e5de7bb97ecbc22b69.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/6e/6eccbef0d224eaf63f0ec2df6db09b206ea6d99dc8d654e5de7bb97ecbc22b69.wav"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "6eccbef0d224eaf6.wav",
+        "path": "/workspace/input/studio-e0/6eccbef0d224eaf6.wav"
+      },
+      "reason": null,
+      "rows": [
+        "e0:drive_track:s1-a-lightning-drive.wav"
+      ],
+      "sha256": "6eccbef0d224eaf63f0ec2df6db09b206ea6d99dc8d654e5de7bb97ecbc22b69",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 584040,
+          "outcome": "verified",
+          "seconds": 0.182,
+          "source": {
+            "kind": "upload",
+            "name": "33a742bf8f2c10e7.wav",
+            "path": "/workspace/input/studio-e0/33a742bf8f2c10e7.wav"
+          }
+        }
+      ],
+      "bytes_published": 584040,
+      "bytes_read": 584040,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/33/33a742bf8f2c10e7cf3d385c147080c09480f5452212ec27b3025870fa58cbd4.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/33/33a742bf8f2c10e7cf3d385c147080c09480f5452212ec27b3025870fa58cbd4.wav"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "33a742bf8f2c10e7.wav",
+        "path": "/workspace/input/studio-e0/33a742bf8f2c10e7.wav"
+      },
+      "reason": null,
+      "rows": [
+        "e0:drive_track:s3-c-lightning-drive.wav"
+      ],
+      "sha256": "33a742bf8f2c10e7cf3d385c147080c09480f5452212ec27b3025870fa58cbd4",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 336044,
+          "outcome": "verified",
+          "seconds": 0.171,
+          "source": {
+            "kind": "upload",
+            "name": "e81f866a4c559fc4.wav",
+            "path": "/workspace/input/studio-e0/e81f866a4c559fc4.wav"
+          }
+        }
+      ],
+      "bytes_published": 336044,
+      "bytes_read": 336044,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/e8/e81f866a4c559fc4b9c20ec96a7ce8f744c0417b97b2765b56e6883b30247ad8.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/e8/e81f866a4c559fc4b9c20ec96a7ce8f744c0417b97b2765b56e6883b30247ad8.wav"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "e81f866a4c559fc4.wav",
+        "path": "/workspace/input/studio-e0/e81f866a4c559fc4.wav"
+      },
+      "reason": null,
+      "rows": [
+        "e0:drive_track:s4-a-lightning-drive.wav"
+      ],
+      "sha256": "e81f866a4c559fc4b9c20ec96a7ce8f744c0417b97b2765b56e6883b30247ad8",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 332040,
+          "outcome": "verified",
+          "seconds": 0.192,
+          "source": {
+            "kind": "upload",
+            "name": "81eb9ef2759aa45c.wav",
+            "path": "/workspace/input/studio-e0/81eb9ef2759aa45c.wav"
+          }
+        }
+      ],
+      "bytes_published": 332040,
+      "bytes_read": 332040,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/81/81eb9ef2759aa45cb6b65904c22b42a0031051e267c1716b5b6cf7351e2c6142.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/81/81eb9ef2759aa45cb6b65904c22b42a0031051e267c1716b5b6cf7351e2c6142.wav"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "81eb9ef2759aa45c.wav",
+        "path": "/workspace/input/studio-e0/81eb9ef2759aa45c.wav"
+      },
+      "reason": null,
+      "rows": [
+        "e0:drive_track:s5-d-lightning-drive.wav"
+      ],
+      "sha256": "81eb9ef2759aa45cb6b65904c22b42a0031051e267c1716b5b6cf7351e2c6142",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 488050,
+          "outcome": "verified",
+          "seconds": 0.175,
+          "source": {
+            "kind": "upload",
+            "name": "81ed4db341597da2.wav",
+            "path": "/workspace/input/studio-e0/81ed4db341597da2.wav"
+          }
+        }
+      ],
+      "bytes_published": 488050,
+      "bytes_read": 488050,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/81/81ed4db341597da2b49efe6d5e2eedc8526c7449b6be73421edf34be89dd06dc.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/81/81ed4db341597da2b49efe6d5e2eedc8526c7449b6be73421edf34be89dd06dc.wav"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "81ed4db341597da2.wav",
+        "path": "/workspace/input/studio-e0/81ed4db341597da2.wav"
+      },
+      "reason": null,
+      "rows": [
+        "e0:drive_track:s6-c-lightning-drive.wav"
+      ],
+      "sha256": "81ed4db341597da2b49efe6d5e2eedc8526c7449b6be73421edf34be89dd06dc",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 1004050,
+          "outcome": "verified",
+          "seconds": 0.188,
+          "source": {
+            "kind": "upload",
+            "name": "b5ecdd2d49194c19.wav",
+            "path": "/workspace/input/studio-e0/b5ecdd2d49194c19.wav"
+          }
+        }
+      ],
+      "bytes_published": 1004050,
+      "bytes_read": 1004050,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/b5/b5ecdd2d49194c195f15d223181fcddc02199de5ee52b7cd6953fa38cd261d02.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/b5/b5ecdd2d49194c195f15d223181fcddc02199de5ee52b7cd6953fa38cd261d02.wav"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "b5ecdd2d49194c19.wav",
+        "path": "/workspace/input/studio-e0/b5ecdd2d49194c19.wav"
+      },
+      "reason": null,
+      "rows": [
+        "e0:drive_track:s8-a-lightning-drive.wav"
+      ],
+      "sha256": "b5ecdd2d49194c195f15d223181fcddc02199de5ee52b7cd6953fa38cd261d02",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 1004050,
+          "outcome": "verified",
+          "seconds": 0.179,
+          "source": {
+            "kind": "upload",
+            "name": "147af63f7cfd246a.wav",
+            "path": "/workspace/input/studio-e0/147af63f7cfd246a.wav"
+          }
+        }
+      ],
+      "bytes_published": 1004050,
+      "bytes_read": 1004050,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/14/147af63f7cfd246ac03b8daa26da2b94033f20a6641bb13e2e4a3512d54af5a5.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/14/147af63f7cfd246ac03b8daa26da2b94033f20a6641bb13e2e4a3512d54af5a5.wav"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "147af63f7cfd246a.wav",
+        "path": "/workspace/input/studio-e0/147af63f7cfd246a.wav"
+      },
+      "reason": null,
+      "rows": [
+        "e0:drive_track:s8-b-lightning-drive.wav"
+      ],
+      "sha256": "147af63f7cfd246ac03b8daa26da2b94033f20a6641bb13e2e4a3512d54af5a5",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 1004050,
+          "outcome": "verified",
+          "seconds": 0.178,
+          "source": {
+            "kind": "upload",
+            "name": "1ef2c983c3647ab7.wav",
+            "path": "/workspace/input/studio-e0/1ef2c983c3647ab7.wav"
+          }
+        }
+      ],
+      "bytes_published": 1004050,
+      "bytes_read": 1004050,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/1e/1ef2c983c3647ab7fca6de567a2e4d62282db603de3f2084af2725a4063b87ed.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/1e/1ef2c983c3647ab7fca6de567a2e4d62282db603de3f2084af2725a4063b87ed.wav"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "1ef2c983c3647ab7.wav",
+        "path": "/workspace/input/studio-e0/1ef2c983c3647ab7.wav"
+      },
+      "reason": null,
+      "rows": [
+        "e0:drive_track:s8-c-lightning-drive.wav"
+      ],
+      "sha256": "1ef2c983c3647ab7fca6de567a2e4d62282db603de3f2084af2725a4063b87ed",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 1004050,
+          "outcome": "verified",
+          "seconds": 0.179,
+          "source": {
+            "kind": "upload",
+            "name": "6c1eedbd43cad8c5.wav",
+            "path": "/workspace/input/studio-e0/6c1eedbd43cad8c5.wav"
+          }
+        }
+      ],
+      "bytes_published": 1004050,
+      "bytes_read": 1004050,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/6c/6c1eedbd43cad8c5dd0713faf25d92e167246f2f11637ed3dfcaa730cba6bf38.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/6c/6c1eedbd43cad8c5dd0713faf25d92e167246f2f11637ed3dfcaa730cba6bf38.wav"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "6c1eedbd43cad8c5.wav",
+        "path": "/workspace/input/studio-e0/6c1eedbd43cad8c5.wav"
+      },
+      "reason": null,
+      "rows": [
+        "e0:drive_track:s8-d-lightning-drive.wav"
+      ],
+      "sha256": "6c1eedbd43cad8c5dd0713faf25d92e167246f2f11637ed3dfcaa730cba6bf38",
+      "status": "verified",
+      "versions": []
+    },
+    {
+      "attempts": [
+        {
+          "bytes": 432044,
+          "outcome": "verified",
+          "seconds": 0.163,
+          "source": {
+            "kind": "upload",
+            "name": "4329c68a7a142b54.wav",
+            "path": "/workspace/input/studio-e0/4329c68a7a142b54.wav"
+          }
+        }
+      ],
+      "bytes_published": 432044,
+      "bytes_read": 432044,
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/43/4329c68a7a142b54ce1e2807c4d066ddff22e7d73ddf0494f62dd94a615c8641.wav"
+      ],
+      "media_type": "audio/wav",
+      "published": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/43/4329c68a7a142b54ce1e2807c4d066ddff22e7d73ddf0494f62dd94a615c8641.wav"
+      ],
+      "read_from": {
+        "kind": "upload",
+        "name": "4329c68a7a142b54.wav",
+        "path": "/workspace/input/studio-e0/4329c68a7a142b54.wav"
+      },
+      "reason": null,
+      "rows": [
+        "e0:drive_track:s9-b-lightning-drive.wav"
+      ],
+      "sha256": "4329c68a7a142b54ce1e2807c4d066ddff22e7d73ddf0494f62dd94a615c8641",
+      "status": "verified",
+      "versions": []
+    }
+  ],
+  "kind": "private-input-import",
+  "lacks": {
+    "layered_loops": [],
+    "story": [
+      {
+        "message": "the store does not hold productions/prd_01M79V9FC00000000000000001/sha256/0b/0b33af45929b8cfb3859bf1511a2738eef22944d431ee44257c33a1de42da72a.wav",
+        "path": "/beds/0/asset_version_id",
+        "rule": "asset.bytes_missing"
+      }
+    ],
+    "versions_not_held": [
+      {
+        "kind": "sound",
+        "locator": "productions/prd_01M79V9FC00000000000000001/sha256/0b/0b33af45929b8cfb3859bf1511a2738eef22944d431ee44257c33a1de42da72a.wav",
+        "source_key": "legacy:the-winter-menu-r4:bed:fire",
+        "state": "promoted",
+        "version_id": "asv_01M7BVBVSBHA26B6V3F90A35MT"
+      }
+    ]
+  },
+  "library": {
+    "created_now": {
+      "e0_motion": 22,
+      "winter_menu": 24
+    },
+    "versions": 46
+  },
+  "production_id": "prd_01M79V9FC00000000000000001",
+  "rows": [
+    {
+      "key": "r1:render:a-base-s101.png",
+      "locators": [],
+      "reason": "not_read: a ComfyUI render; this import reads only the Wan volume (story 846 scope); a layered build does not need it",
+      "role": "render",
+      "sha256": "c71ba33b3e037a13fe4167722a1035fc401e24f187b051f37b5f0f81d5c9384f",
+      "status": "absent",
+      "version_ids": []
+    },
+    {
+      "key": "r1:render:b-base-s101.png",
+      "locators": [],
+      "reason": "not_read: a ComfyUI render; this import reads only the Wan volume (story 846 scope); a layered build does not need it",
+      "role": "render",
+      "sha256": "e8c238814ca74924306e59544de6194035fed5795c062fdc522d059979aa0988",
+      "status": "absent",
+      "version_ids": []
+    },
+    {
+      "key": "r1:render:c-base-s101.png",
+      "locators": [],
+      "reason": "not_read: a ComfyUI render; this import reads only the Wan volume (story 846 scope); a layered build does not need it",
+      "role": "render",
+      "sha256": "ff4713d78698b1d2e27c119e417de11e03048a0791f4240313afb782a21f8a6a",
+      "status": "absent",
+      "version_ids": []
+    },
+    {
+      "key": "r1:render:d-base-s101.png",
+      "locators": [],
+      "reason": "not_read: a ComfyUI render; this import reads only the Wan volume (story 846 scope); a layered build does not need it",
+      "role": "render",
+      "sha256": "ca15cbee044fdf4684a6330f48cfea1862fdaa15428bba1e22db02cff1abe584",
+      "status": "absent",
+      "version_ids": []
+    },
+    {
+      "key": "r1:render:a-staring-s301.png",
+      "locators": [],
+      "reason": "not_read: a ComfyUI render; this import reads only the Wan volume (story 846 scope); a layered build does not need it",
+      "role": "render",
+      "sha256": "4fb4f4572fb090bee12ab25baabfebdb2d73f11db65024d3229e17f49d030944",
+      "status": "absent",
+      "version_ids": []
+    },
+    {
+      "key": "r1:render:c-staring-s301.png",
+      "locators": [],
+      "reason": "not_read: a ComfyUI render; this import reads only the Wan volume (story 846 scope); a layered build does not need it",
+      "role": "render",
+      "sha256": "8e13cbdc905ff6d08233a3bafad04439d62d11cd1e508892eac114eafc3b71d6",
+      "status": "absent",
+      "version_ids": []
+    },
+    {
+      "key": "r1:render:d-shocked-s301.png",
+      "locators": [],
+      "reason": "not_read: a ComfyUI render; this import reads only the Wan volume (story 846 scope); a layered build does not need it",
+      "role": "render",
+      "sha256": "677b7a17adc90188f6a2f993e7657e7f244d8b67e4c9d864a2e14cd8334a61d3",
+      "status": "absent",
+      "version_ids": []
+    },
+    {
+      "key": "r1:render:set-left-s221.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/29/29ab6f47227cee7aa482e83f79cb4aad9949407b4a543f5a33f846119f3c5b58.png"
+      ],
+      "reason": null,
+      "role": "render",
+      "sha256": "29ab6f47227cee7aa482e83f79cb4aad9949407b4a543f5a33f846119f3c5b58",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MN"
+      ]
+    },
+    {
+      "key": "r1:still:cutouts/a-proud.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/4e/4ea3005f4effebda7f4ce9b083da55e8529db4269c96104364e5dc74b25969de.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "4ea3005f4effebda7f4ce9b083da55e8529db4269c96104364e5dc74b25969de",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MF"
+      ]
+    },
+    {
+      "key": "r1:still:cutouts/b-deadpan.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/d4/d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MH"
+      ]
+    },
+    {
+      "key": "r1:still:cutouts/c-suspicious.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/a4/a49b2c3046f385d4bb05fa369b3d21d218a4c63cf66d157d204a28b9be357f42.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "a49b2c3046f385d4bb05fa369b3d21d218a4c63cf66d157d204a28b9be357f42",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MK"
+      ]
+    },
+    {
+      "key": "r1:still:cutouts/d-cheerful.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/83/83bcdb10da26bb273d524848054297709c7dec22eadafa812fd23158a1b13e68.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "83bcdb10da26bb273d524848054297709c7dec22eadafa812fd23158a1b13e68",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r1:still:cutouts/a-staring.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/02/022ac97a623c88bf96405d92df0dcad0aed459641d5e78dfed17fae7931267b7.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "022ac97a623c88bf96405d92df0dcad0aed459641d5e78dfed17fae7931267b7",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MG"
+      ]
+    },
+    {
+      "key": "r1:still:cutouts/c-staring.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/b8/b816a4f225e160a6c6a8b26244434c96d2ea09a51ce9f7c5d7a2485a1de552af.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "b816a4f225e160a6c6a8b26244434c96d2ea09a51ce9f7c5d7a2485a1de552af",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MJ"
+      ]
+    },
+    {
+      "key": "r1:still:cutouts/d-shocked.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/3d/3d9c9d223ebc0137f0311a015dff08080acb4e8e413afe9087d7b452da54ef58.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "3d9c9d223ebc0137f0311a015dff08080acb4e8e413afe9087d7b452da54ef58",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MM"
+      ]
+    },
+    {
+      "key": "r1:set:cutouts/set.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/29/29ab6f47227cee7aa482e83f79cb4aad9949407b4a543f5a33f846119f3c5b58.png"
+      ],
+      "reason": null,
+      "role": "set",
+      "sha256": "29ab6f47227cee7aa482e83f79cb4aad9949407b4a543f5a33f846119f3c5b58",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MN"
+      ]
+    },
+    {
+      "key": "r1:sfx:sfx/crow-s501.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/78/78c5f69ff31758d2d78b0c5b249633039c7ce51ae850a64971591b5da79bd4b8.wav"
+      ],
+      "reason": null,
+      "role": "sfx",
+      "sha256": "78c5f69ff31758d2d78b0c5b249633039c7ce51ae850a64971591b5da79bd4b8",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MP"
+      ]
+    },
+    {
+      "key": "r1:take:voices/line-1.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/b9/b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r1:take:voices/line-2.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/7d/7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r1:take:voices/line-3.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/6e/6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r1:take:voices/line-4.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/24/24eb53ba095394e01fb83a5057e96ab456af07e5aaa0fe263765fcea8c614273.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "24eb53ba095394e01fb83a5057e96ab456af07e5aaa0fe263765fcea8c614273",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r1:take:voices/line-6.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/58/58f6812299d32034503825686e4aa476fbbee3881f82ceed3dc1680449b1ec9e.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "58f6812299d32034503825686e4aa476fbbee3881f82ceed3dc1680449b1ec9e",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r2:still:cutouts/a-proud.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/4e/4ea3005f4effebda7f4ce9b083da55e8529db4269c96104364e5dc74b25969de.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "4ea3005f4effebda7f4ce9b083da55e8529db4269c96104364e5dc74b25969de",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MF"
+      ]
+    },
+    {
+      "key": "r2:still:cutouts/b-deadpan.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/d4/d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MH"
+      ]
+    },
+    {
+      "key": "r2:still:cutouts/c-suspicious.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/a4/a49b2c3046f385d4bb05fa369b3d21d218a4c63cf66d157d204a28b9be357f42.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "a49b2c3046f385d4bb05fa369b3d21d218a4c63cf66d157d204a28b9be357f42",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MK"
+      ]
+    },
+    {
+      "key": "r2:still:cutouts/d-shocked.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/3d/3d9c9d223ebc0137f0311a015dff08080acb4e8e413afe9087d7b452da54ef58.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "3d9c9d223ebc0137f0311a015dff08080acb4e8e413afe9087d7b452da54ef58",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MM"
+      ]
+    },
+    {
+      "key": "r2:still:cutouts/a-staring.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/02/022ac97a623c88bf96405d92df0dcad0aed459641d5e78dfed17fae7931267b7.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "022ac97a623c88bf96405d92df0dcad0aed459641d5e78dfed17fae7931267b7",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MG"
+      ]
+    },
+    {
+      "key": "r2:still:cutouts/c-staring.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/b8/b816a4f225e160a6c6a8b26244434c96d2ea09a51ce9f7c5d7a2485a1de552af.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "b816a4f225e160a6c6a8b26244434c96d2ea09a51ce9f7c5d7a2485a1de552af",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MJ"
+      ]
+    },
+    {
+      "key": "r2:set:cutouts/set.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/29/29ab6f47227cee7aa482e83f79cb4aad9949407b4a543f5a33f846119f3c5b58.png"
+      ],
+      "reason": null,
+      "role": "set",
+      "sha256": "29ab6f47227cee7aa482e83f79cb4aad9949407b4a543f5a33f846119f3c5b58",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MN"
+      ]
+    },
+    {
+      "key": "r2:sfx:sfx/crow-s501.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/78/78c5f69ff31758d2d78b0c5b249633039c7ce51ae850a64971591b5da79bd4b8.wav"
+      ],
+      "reason": null,
+      "role": "sfx",
+      "sha256": "78c5f69ff31758d2d78b0c5b249633039c7ce51ae850a64971591b5da79bd4b8",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MP"
+      ]
+    },
+    {
+      "key": "r2:sfx:sfx/crunch-s601.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/55/5515c7006ce09a1c5d0c21019ca11db7a445f9ce296b94f5c371aba8b7d6925f.wav"
+      ],
+      "reason": null,
+      "role": "sfx",
+      "sha256": "5515c7006ce09a1c5d0c21019ca11db7a445f9ce296b94f5c371aba8b7d6925f",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MQ"
+      ]
+    },
+    {
+      "key": "r2:bed:sfx/fire-s701.wav",
+      "locators": [],
+      "reason": "never_delivered: poc/deliver.py copied no bed to the Wan volume; its only recorded copies were in earlier sessions' job folders, which this import does not read. Its replacement is a new sound version (story 428, D54), never a repointed old one",
+      "role": "bed",
+      "sha256": "0b33af45929b8cfb3859bf1511a2738eef22944d431ee44257c33a1de42da72a",
+      "status": "absent",
+      "version_ids": []
+    },
+    {
+      "key": "r2:take:voices/line-1.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/b9/b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r2:take:voices/line-2.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/7d/7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r2:take:voices/line-3.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/6e/6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r2:take:voices/line-4.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/00/0063d7e0e0d8a551fece4373ba1252d94339c00e10155bd08804b44c388773fd.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "0063d7e0e0d8a551fece4373ba1252d94339c00e10155bd08804b44c388773fd",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r2:take:voices/line-5.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/f8/f89e05a2c53e9be7edd35f3b31862da311ce2730cb330421cb93e25b20a3ab59.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "f89e05a2c53e9be7edd35f3b31862da311ce2730cb330421cb93e25b20a3ab59",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r2:take:voices/line-7.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/58/58f6812299d32034503825686e4aa476fbbee3881f82ceed3dc1680449b1ec9e.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "58f6812299d32034503825686e4aa476fbbee3881f82ceed3dc1680449b1ec9e",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r2:take:voices/line-8.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/4e/4e12138ee373ac45b6fce8f9049680d5494892fcc13a511bc77dbf37afbb5d31.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "4e12138ee373ac45b6fce8f9049680d5494892fcc13a511bc77dbf37afbb5d31",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r3:still:cutouts/a-proud.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/4e/4ea3005f4effebda7f4ce9b083da55e8529db4269c96104364e5dc74b25969de.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "4ea3005f4effebda7f4ce9b083da55e8529db4269c96104364e5dc74b25969de",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MF"
+      ]
+    },
+    {
+      "key": "r3:still:cutouts/b-deadpan.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/d4/d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MH"
+      ]
+    },
+    {
+      "key": "r3:still:cutouts/c-suspicious.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/a4/a49b2c3046f385d4bb05fa369b3d21d218a4c63cf66d157d204a28b9be357f42.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "a49b2c3046f385d4bb05fa369b3d21d218a4c63cf66d157d204a28b9be357f42",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MK"
+      ]
+    },
+    {
+      "key": "r3:still:cutouts/d-shocked.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/3d/3d9c9d223ebc0137f0311a015dff08080acb4e8e413afe9087d7b452da54ef58.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "3d9c9d223ebc0137f0311a015dff08080acb4e8e413afe9087d7b452da54ef58",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MM"
+      ]
+    },
+    {
+      "key": "r3:still:cutouts/a-staring.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/02/022ac97a623c88bf96405d92df0dcad0aed459641d5e78dfed17fae7931267b7.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "022ac97a623c88bf96405d92df0dcad0aed459641d5e78dfed17fae7931267b7",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MG"
+      ]
+    },
+    {
+      "key": "r3:still:cutouts/c-staring.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/b8/b816a4f225e160a6c6a8b26244434c96d2ea09a51ce9f7c5d7a2485a1de552af.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "b816a4f225e160a6c6a8b26244434c96d2ea09a51ce9f7c5d7a2485a1de552af",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MJ"
+      ]
+    },
+    {
+      "key": "r3:set:cutouts/set.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/29/29ab6f47227cee7aa482e83f79cb4aad9949407b4a543f5a33f846119f3c5b58.png"
+      ],
+      "reason": null,
+      "role": "set",
+      "sha256": "29ab6f47227cee7aa482e83f79cb4aad9949407b4a543f5a33f846119f3c5b58",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MN"
+      ]
+    },
+    {
+      "key": "r3:sfx:sfx/crow-s501.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/78/78c5f69ff31758d2d78b0c5b249633039c7ce51ae850a64971591b5da79bd4b8.wav"
+      ],
+      "reason": null,
+      "role": "sfx",
+      "sha256": "78c5f69ff31758d2d78b0c5b249633039c7ce51ae850a64971591b5da79bd4b8",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MP"
+      ]
+    },
+    {
+      "key": "r3:sfx:sfx/crunch-s601.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/55/5515c7006ce09a1c5d0c21019ca11db7a445f9ce296b94f5c371aba8b7d6925f.wav"
+      ],
+      "reason": null,
+      "role": "sfx",
+      "sha256": "5515c7006ce09a1c5d0c21019ca11db7a445f9ce296b94f5c371aba8b7d6925f",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MQ"
+      ]
+    },
+    {
+      "key": "r3:sfx:sfx/gavel-s801.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/a9/a9c01ef381a0f0d0dd5df5e552e2cf8556a2a8f30caff04225017540669b7b5e.wav"
+      ],
+      "reason": null,
+      "role": "sfx",
+      "sha256": "a9c01ef381a0f0d0dd5df5e552e2cf8556a2a8f30caff04225017540669b7b5e",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MR"
+      ]
+    },
+    {
+      "key": "r3:sfx:sfx/sting-s901.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/aa/aadcc283d15fb7a067bc7517533dfccafb0d28ba5fe1c0ad8ddbae3d6ca1abe3.wav"
+      ],
+      "reason": null,
+      "role": "sfx",
+      "sha256": "aadcc283d15fb7a067bc7517533dfccafb0d28ba5fe1c0ad8ddbae3d6ca1abe3",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MS"
+      ]
+    },
+    {
+      "key": "r3:bed:sfx/fire-s701.wav",
+      "locators": [],
+      "reason": "never_delivered: poc/deliver.py copied no bed to the Wan volume; its only recorded copies were in earlier sessions' job folders, which this import does not read. Its replacement is a new sound version (story 428, D54), never a repointed old one",
+      "role": "bed",
+      "sha256": "0b33af45929b8cfb3859bf1511a2738eef22944d431ee44257c33a1de42da72a",
+      "status": "absent",
+      "version_ids": []
+    },
+    {
+      "key": "r3:take:voices/line-1.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/b9/b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r3:take:voices/line-2.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/7d/7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r3:take:voices/line-3.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/6e/6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r3:take:voices/line-4.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/00/0063d7e0e0d8a551fece4373ba1252d94339c00e10155bd08804b44c388773fd.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "0063d7e0e0d8a551fece4373ba1252d94339c00e10155bd08804b44c388773fd",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r3:take:voices/line-5.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/f8/f89e05a2c53e9be7edd35f3b31862da311ce2730cb330421cb93e25b20a3ab59.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "f89e05a2c53e9be7edd35f3b31862da311ce2730cb330421cb93e25b20a3ab59",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r3:take:voices/line-6.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/46/46bf17ecaa3a9729b16fd45ba67c2f123b32756cf36eef133abf029c681a7395.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "46bf17ecaa3a9729b16fd45ba67c2f123b32756cf36eef133abf029c681a7395",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r3:take:voices/line-8.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/37/37e81c9db699303d9fbdef03479d9500d5514ae3f38fa103c4f481d6513350e6.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "37e81c9db699303d9fbdef03479d9500d5514ae3f38fa103c4f481d6513350e6",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r3:take:voices/line-8-1.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/1d/1dadd22ef158db129f37ece9de63e0db871f4f72cd912fdc7a260126021aa6b2.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "1dadd22ef158db129f37ece9de63e0db871f4f72cd912fdc7a260126021aa6b2",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r3:take:voices/line-8-2.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/1e/1e5206395dc510de18f1f2050485cd63b9bcba90411ea34bbee7a44a3298d00d.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "1e5206395dc510de18f1f2050485cd63b9bcba90411ea34bbee7a44a3298d00d",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r3:take:voices/line-8-3.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/5f/5fc1718e8659568b2234544470bce9c23404b855b9c563ea90f4f75596773b35.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "5fc1718e8659568b2234544470bce9c23404b855b9c563ea90f4f75596773b35",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r3:take:voices/line-8-4.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/9b/9b3ba267baecf4407cb1ec7dfa66598566e83e615b009f307a47c4b3be4aaad9.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "9b3ba267baecf4407cb1ec7dfa66598566e83e615b009f307a47c4b3be4aaad9",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r3:take:voices/line-8-5.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/3c/3cd7c24827ff5c87cbd3f49959f23ab6afbf8974c621aae4b5cda8f4f04628ae.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "3cd7c24827ff5c87cbd3f49959f23ab6afbf8974c621aae4b5cda8f4f04628ae",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r3:take:voices/line-9.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/4e/4e12138ee373ac45b6fce8f9049680d5494892fcc13a511bc77dbf37afbb5d31.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "4e12138ee373ac45b6fce8f9049680d5494892fcc13a511bc77dbf37afbb5d31",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r4:still:cutouts/a-proud.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/4e/4ea3005f4effebda7f4ce9b083da55e8529db4269c96104364e5dc74b25969de.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "4ea3005f4effebda7f4ce9b083da55e8529db4269c96104364e5dc74b25969de",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MF"
+      ]
+    },
+    {
+      "key": "r4:still:cutouts/b-deadpan.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/d4/d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MH"
+      ]
+    },
+    {
+      "key": "r4:still:cutouts/c-suspicious.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/a4/a49b2c3046f385d4bb05fa369b3d21d218a4c63cf66d157d204a28b9be357f42.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "a49b2c3046f385d4bb05fa369b3d21d218a4c63cf66d157d204a28b9be357f42",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MK"
+      ]
+    },
+    {
+      "key": "r4:still:cutouts/d-shocked.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/3d/3d9c9d223ebc0137f0311a015dff08080acb4e8e413afe9087d7b452da54ef58.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "3d9c9d223ebc0137f0311a015dff08080acb4e8e413afe9087d7b452da54ef58",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MM"
+      ]
+    },
+    {
+      "key": "r4:still:cutouts/a-staring.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/02/022ac97a623c88bf96405d92df0dcad0aed459641d5e78dfed17fae7931267b7.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "022ac97a623c88bf96405d92df0dcad0aed459641d5e78dfed17fae7931267b7",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MG"
+      ]
+    },
+    {
+      "key": "r4:still:cutouts/c-staring.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/b8/b816a4f225e160a6c6a8b26244434c96d2ea09a51ce9f7c5d7a2485a1de552af.png"
+      ],
+      "reason": null,
+      "role": "still",
+      "sha256": "b816a4f225e160a6c6a8b26244434c96d2ea09a51ce9f7c5d7a2485a1de552af",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MJ"
+      ]
+    },
+    {
+      "key": "r4:set:cutouts/set.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/29/29ab6f47227cee7aa482e83f79cb4aad9949407b4a543f5a33f846119f3c5b58.png"
+      ],
+      "reason": null,
+      "role": "set",
+      "sha256": "29ab6f47227cee7aa482e83f79cb4aad9949407b4a543f5a33f846119f3c5b58",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MN"
+      ]
+    },
+    {
+      "key": "r4:sfx:sfx/crow-s501.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/78/78c5f69ff31758d2d78b0c5b249633039c7ce51ae850a64971591b5da79bd4b8.wav"
+      ],
+      "reason": null,
+      "role": "sfx",
+      "sha256": "78c5f69ff31758d2d78b0c5b249633039c7ce51ae850a64971591b5da79bd4b8",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MP"
+      ]
+    },
+    {
+      "key": "r4:sfx:sfx/crunch-s601.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/55/5515c7006ce09a1c5d0c21019ca11db7a445f9ce296b94f5c371aba8b7d6925f.wav"
+      ],
+      "reason": null,
+      "role": "sfx",
+      "sha256": "5515c7006ce09a1c5d0c21019ca11db7a445f9ce296b94f5c371aba8b7d6925f",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MQ"
+      ]
+    },
+    {
+      "key": "r4:sfx:sfx/gavel-s801.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/a9/a9c01ef381a0f0d0dd5df5e552e2cf8556a2a8f30caff04225017540669b7b5e.wav"
+      ],
+      "reason": null,
+      "role": "sfx",
+      "sha256": "a9c01ef381a0f0d0dd5df5e552e2cf8556a2a8f30caff04225017540669b7b5e",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MR"
+      ]
+    },
+    {
+      "key": "r4:sfx:sfx/sting-s901.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/aa/aadcc283d15fb7a067bc7517533dfccafb0d28ba5fe1c0ad8ddbae3d6ca1abe3.wav"
+      ],
+      "reason": null,
+      "role": "sfx",
+      "sha256": "aadcc283d15fb7a067bc7517533dfccafb0d28ba5fe1c0ad8ddbae3d6ca1abe3",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVBVSBHA26B6V3F90A35MS"
+      ]
+    },
+    {
+      "key": "r4:bed:sfx/fire-s701.wav",
+      "locators": [],
+      "reason": "never_delivered: poc/deliver.py copied no bed to the Wan volume; its only recorded copies were in earlier sessions' job folders, which this import does not read. Its replacement is a new sound version (story 428, D54), never a repointed old one",
+      "role": "bed",
+      "sha256": "0b33af45929b8cfb3859bf1511a2738eef22944d431ee44257c33a1de42da72a",
+      "status": "absent",
+      "version_ids": []
+    },
+    {
+      "key": "r4:take:voices/line-1.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/b9/b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "b9fa04b49038c15c0407e387d15495b30005853b652b7498fc25bba9e47b8c78",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r4:take:voices/line-2.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/7d/7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "7d5d2d890c1072a28bf8c26bd92d266c7d5e4cbd3bf48bb998ccf4019e870a50",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r4:take:voices/line-3.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/6e/6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "6efd27569ac328e143daa64d6f4740653f270786f297687c687eae45a414ee36",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r4:take:voices/line-4.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/00/0063d7e0e0d8a551fece4373ba1252d94339c00e10155bd08804b44c388773fd.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "0063d7e0e0d8a551fece4373ba1252d94339c00e10155bd08804b44c388773fd",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r4:take:voices/line-5.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/f8/f89e05a2c53e9be7edd35f3b31862da311ce2730cb330421cb93e25b20a3ab59.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "f89e05a2c53e9be7edd35f3b31862da311ce2730cb330421cb93e25b20a3ab59",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r4:take:voices/line-6.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/46/46bf17ecaa3a9729b16fd45ba67c2f123b32756cf36eef133abf029c681a7395.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "46bf17ecaa3a9729b16fd45ba67c2f123b32756cf36eef133abf029c681a7395",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r4:take:voices/line-8.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/37/37e81c9db699303d9fbdef03479d9500d5514ae3f38fa103c4f481d6513350e6.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "37e81c9db699303d9fbdef03479d9500d5514ae3f38fa103c4f481d6513350e6",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r4:take:voices/line-8-1.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/1d/1dadd22ef158db129f37ece9de63e0db871f4f72cd912fdc7a260126021aa6b2.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "1dadd22ef158db129f37ece9de63e0db871f4f72cd912fdc7a260126021aa6b2",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r4:take:voices/line-8-2.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/1e/1e5206395dc510de18f1f2050485cd63b9bcba90411ea34bbee7a44a3298d00d.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "1e5206395dc510de18f1f2050485cd63b9bcba90411ea34bbee7a44a3298d00d",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r4:take:voices/line-8-3.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/5f/5fc1718e8659568b2234544470bce9c23404b855b9c563ea90f4f75596773b35.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "5fc1718e8659568b2234544470bce9c23404b855b9c563ea90f4f75596773b35",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r4:take:voices/line-8-4.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/9b/9b3ba267baecf4407cb1ec7dfa66598566e83e615b009f307a47c4b3be4aaad9.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "9b3ba267baecf4407cb1ec7dfa66598566e83e615b009f307a47c4b3be4aaad9",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r4:take:voices/line-8-5.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/1b/1be02e6d7b243b572d6b6d61e0a629f35803b22b741fe13a97e907ff0d17ddab.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "1be02e6d7b243b572d6b6d61e0a629f35803b22b741fe13a97e907ff0d17ddab",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r4:take:voices/line-9.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/4e/4e12138ee373ac45b6fce8f9049680d5494892fcc13a511bc77dbf37afbb5d31.wav"
+      ],
+      "reason": null,
+      "role": "take",
+      "sha256": "4e12138ee373ac45b6fce8f9049680d5494892fcc13a511bc77dbf37afbb5d31",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r4:keyframe:s1.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/e4/e4772edc3fe3f0f9012e089151a1f94a503ea145f08a5921e22d54ab7e0b898f.png"
+      ],
+      "reason": null,
+      "role": "keyframe",
+      "sha256": "e4772edc3fe3f0f9012e089151a1f94a503ea145f08a5921e22d54ab7e0b898f",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r4:keyframe:s2.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/c1/c146760e9f500194a0b5909a0b1ac4ff28ea042130af9f9d3da1362174d8075b.png"
+      ],
+      "reason": null,
+      "role": "keyframe",
+      "sha256": "c146760e9f500194a0b5909a0b1ac4ff28ea042130af9f9d3da1362174d8075b",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r4:keyframe:s3.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/ba/ba88a2f9ecf4a543fa3dfefa1885bfe6274bbf3fad5ae0276530b23affd6e021.png"
+      ],
+      "reason": null,
+      "role": "keyframe",
+      "sha256": "ba88a2f9ecf4a543fa3dfefa1885bfe6274bbf3fad5ae0276530b23affd6e021",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r4:keyframe:s4.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/e4/e4772edc3fe3f0f9012e089151a1f94a503ea145f08a5921e22d54ab7e0b898f.png"
+      ],
+      "reason": null,
+      "role": "keyframe",
+      "sha256": "e4772edc3fe3f0f9012e089151a1f94a503ea145f08a5921e22d54ab7e0b898f",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r4:keyframe:s5.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/47/47146e2c14a2738798434fa35ffe0be432b2af967ca30ea18020dff471453e80.png"
+      ],
+      "reason": null,
+      "role": "keyframe",
+      "sha256": "47146e2c14a2738798434fa35ffe0be432b2af967ca30ea18020dff471453e80",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r4:keyframe:s6.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/ba/ba88a2f9ecf4a543fa3dfefa1885bfe6274bbf3fad5ae0276530b23affd6e021.png"
+      ],
+      "reason": null,
+      "role": "keyframe",
+      "sha256": "ba88a2f9ecf4a543fa3dfefa1885bfe6274bbf3fad5ae0276530b23affd6e021",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r4:keyframe:s7.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/6c/6c270139b4beb523d45e9eb3262745874316193fb96ceb420252661f5ca72464.png"
+      ],
+      "reason": null,
+      "role": "keyframe",
+      "sha256": "6c270139b4beb523d45e9eb3262745874316193fb96ceb420252661f5ca72464",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r4:keyframe:s8.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/e6/e66494d67f4cc0fd42c3d76f5900132f590b425321a5eba0f0769b9faf85dcdf.png"
+      ],
+      "reason": null,
+      "role": "keyframe",
+      "sha256": "e66494d67f4cc0fd42c3d76f5900132f590b425321a5eba0f0769b9faf85dcdf",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "r4:keyframe:s9.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/f1/f10f0460ba764d093e679d4fc2ffcc6092be883d7c686255dcccc02b26b4e1c5.png"
+      ],
+      "reason": null,
+      "role": "keyframe",
+      "sha256": "f10f0460ba764d093e679d4fc2ffcc6092be883d7c686255dcccc02b26b4e1c5",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "e0:clip-records.jsonl:1:s1-wf-a",
+      "locators": [],
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "role": "not_motion",
+      "sha256": "752adc5daa13f6bb325847c40ce97d1b2434d76c95054d9c0cc59a2166d30349",
+      "status": "absent",
+      "version_ids": []
+    },
+    {
+      "key": "e0:clip-records.jsonl:2:s1-wf-x1",
+      "locators": [],
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "role": "not_motion",
+      "sha256": "230143c8a8e43a86359cfac6227b9293e51d98698a6c4a5e9969f22d5d32a8d1",
+      "status": "absent",
+      "version_ids": []
+    },
+    {
+      "key": "e0:clip-records.jsonl:3:s2-wf-a",
+      "locators": [],
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "role": "not_motion",
+      "sha256": "471b01eae12e690bcaf3e1a3fd9fd7793b94ed73fa18988d884985bc52f644d4",
+      "status": "absent",
+      "version_ids": []
+    },
+    {
+      "key": "e0:clip-records.jsonl:4:s3-wf-a",
+      "locators": [],
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "role": "not_motion",
+      "sha256": "62bf5d9613fe46a0339b42e5bceb750d03ce67dd34d082a7243050bcac0472bb",
+      "status": "absent",
+      "version_ids": []
+    },
+    {
+      "key": "e0:clip-records.jsonl:5:s3-wf-x1",
+      "locators": [],
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "role": "not_motion",
+      "sha256": "b0aaf071e0461d3e67b794a58f1a9f9b9da544407a28f1a2021fec4cc0c707ac",
+      "status": "absent",
+      "version_ids": []
+    },
+    {
+      "key": "e0:clip-records.jsonl:6:s4-wf-a",
+      "locators": [],
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "role": "not_motion",
+      "sha256": "479eed5d63b7c7ee10739024162531a9c72d4e7c1e30376671bc812f95d40417",
+      "status": "absent",
+      "version_ids": []
+    },
+    {
+      "key": "e0:clip-records.jsonl:7:s5-wf-a",
+      "locators": [],
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "role": "not_motion",
+      "sha256": "7f043d1023286a2da2bc005d63710594073c697cb8f2bafe7765e98b58a52a33",
+      "status": "absent",
+      "version_ids": []
+    },
+    {
+      "key": "e0:clip-records.jsonl:8:s6-wf-a",
+      "locators": [],
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "role": "not_motion",
+      "sha256": "55c8fa8c853ec396ea14de36fedb528a5986248d40821493055480919b375f2f",
+      "status": "absent",
+      "version_ids": []
+    },
+    {
+      "key": "e0:clip-records.jsonl:9:s7-wf-a",
+      "locators": [],
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "role": "not_motion",
+      "sha256": "3b1b3d9255c62f427b627e49bea948eb462aa64b153b8eee4c9f84dec0a1f126",
+      "status": "absent",
+      "version_ids": []
+    },
+    {
+      "key": "e0:clip-records.jsonl:10:s8-wf-a",
+      "locators": [],
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "role": "not_motion",
+      "sha256": "193177033bff9e2ac2de2180dac46eb27665e6488274e2210d6d087fe136dfbb",
+      "status": "absent",
+      "version_ids": []
+    },
+    {
+      "key": "e0:clip-records.jsonl:11:s8-wf-x1",
+      "locators": [],
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "role": "not_motion",
+      "sha256": "fd9d8bae8f427d66f210b383743a1d323bb11cab2e7de372c85a9ef8e40a6897",
+      "status": "absent",
+      "version_ids": []
+    },
+    {
+      "key": "e0:clip-records.jsonl:12:s8-wf-x2",
+      "locators": [],
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "role": "not_motion",
+      "sha256": "e57673a0f3714bf10e637b921c6e24ad32e980fe37d13a2cb145bfe3644f9d12",
+      "status": "absent",
+      "version_ids": []
+    },
+    {
+      "key": "e0:clip-records.jsonl:13:s9-wf-a",
+      "locators": [],
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "role": "not_motion",
+      "sha256": "f0a8dbd0840f5b39dda3c8805d482656a2874f775adec77de5292826a2358d90",
+      "status": "absent",
+      "version_ids": []
+    },
+    {
+      "key": "e0:clip-records.jsonl:14:layer-set-loop",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/d9/d9992080f596d71119aaad39b6717bff898e8bc9ac40f93d079a4ffdc74298a1.mp4"
+      ],
+      "reason": null,
+      "role": "set_loop",
+      "sha256": "d9992080f596d71119aaad39b6717bff898e8bc9ac40f93d079a4ffdc74298a1",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVCF7QZG0E27A6CQZ458AA"
+      ]
+    },
+    {
+      "key": "e0:clip-records.jsonl:15:layer-a-green",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/f0/f0a8e332f0729899d6b827c5f6130a043e2c9cd26bf89140eab76a06e91252fa.mp4"
+      ],
+      "reason": null,
+      "role": "doll_loop",
+      "sha256": "f0a8e332f0729899d6b827c5f6130a043e2c9cd26bf89140eab76a06e91252fa",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVCF7SGWGWH3WYR8AEQA1S"
+      ]
+    },
+    {
+      "key": "e0:clip-records.jsonl:16:s2-s2v-b",
+      "locators": [],
+      "reason": "not_read: not a motion clip (a whole-frame E0 clip, story 427's, or the whole-frame speech-to-video test); a layered build does not need it",
+      "role": "not_motion",
+      "sha256": "78cca47e1acaa9d0551d19ece0dc9dd2916c1a9394d8dde7c2ce0223b0ae9956",
+      "status": "absent",
+      "version_ids": []
+    },
+    {
+      "key": "e0:clip-records-layers.jsonl:1:layer-a-staring-green",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/0b/0b4deff131ec1312a07c5b2827db0b06e127cf661aaa15195996baff74c2748d.mp4"
+      ],
+      "reason": null,
+      "role": "doll_loop",
+      "sha256": "0b4deff131ec1312a07c5b2827db0b06e127cf661aaa15195996baff74c2748d",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVCF7T2C3KY9TZXBB45PYG"
+      ]
+    },
+    {
+      "key": "e0:clip-records-layers.jsonl:2:layer-b-deadpan-green",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/92/926390f7bcc84db3c3e68a6cdf7675d8d8ee22245ab9ca1f147ebd5ea6487378.mp4"
+      ],
+      "reason": null,
+      "role": "doll_loop",
+      "sha256": "926390f7bcc84db3c3e68a6cdf7675d8d8ee22245ab9ca1f147ebd5ea6487378",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVCF7WSBY30PKGHDG3BYJM"
+      ]
+    },
+    {
+      "key": "e0:clip-records-layers.jsonl:3:layer-c-suspicious-green",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/aa/aa9259b21d9f833000ae272d8c5d81a94bfb544ec92e0a2440f49d078da34b0a.mp4"
+      ],
+      "reason": null,
+      "role": "doll_loop",
+      "sha256": "aa9259b21d9f833000ae272d8c5d81a94bfb544ec92e0a2440f49d078da34b0a",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVCF7Y1NJ5X15A484F9J79"
+      ]
+    },
+    {
+      "key": "e0:clip-records-layers.jsonl:4:layer-c-staring-green",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/93/93bd81a9abc830479b8f853ae5d2fc16e7419d484f29a54694c904eaab75f3a0.mp4"
+      ],
+      "reason": null,
+      "role": "doll_loop",
+      "sha256": "93bd81a9abc830479b8f853ae5d2fc16e7419d484f29a54694c904eaab75f3a0",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVCF7ZNQV9R95V53YWNHMK"
+      ]
+    },
+    {
+      "key": "e0:clip-records-layers.jsonl:5:layer-d-cheerful-green",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/9d/9dbbb6fb64200abe11941a9510705cce9db5856924988614d258291d0788ec5f.mp4"
+      ],
+      "reason": null,
+      "role": "doll_loop",
+      "sha256": "9dbbb6fb64200abe11941a9510705cce9db5856924988614d258291d0788ec5f",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVCF81E1P2PRZFNZD9K15Y"
+      ]
+    },
+    {
+      "key": "e0:clip-records-layers.jsonl:6:layer-d-shocked-green",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/fd/fd2970bd83442c0e9bdf475c290e801c46e8b6ffe5a522c87c644616c94f1aa2.mp4"
+      ],
+      "reason": null,
+      "role": "doll_loop",
+      "sha256": "fd2970bd83442c0e9bdf475c290e801c46e8b6ffe5a522c87c644616c94f1aa2",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVCF827BG6Q0JRPBXYBFAT"
+      ]
+    },
+    {
+      "key": "e0:clip-records-layers.jsonl:7:layer-b-deadpan-v2-green",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/a5/a5e78a06cb61d7a41ef9a3fd461cff6cc4f11cc854becf121792dd89e8cf595e.mp4"
+      ],
+      "reason": null,
+      "role": "doll_loop",
+      "sha256": "a5e78a06cb61d7a41ef9a3fd461cff6cc4f11cc854becf121792dd89e8cf595e",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVCF83MQ1DW5G9XPQXNDF3"
+      ]
+    },
+    {
+      "key": "e0:clip-records-layers.jsonl:8:layer-d-cheerful-v2-green",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/a6/a6b407c1524889d1e6a5b65e14df5f44d25680c747439227785de40f00009990.mp4"
+      ],
+      "reason": null,
+      "role": "doll_loop",
+      "sha256": "a6b407c1524889d1e6a5b65e14df5f44d25680c747439227785de40f00009990",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVCF85X89N4GWJ4RNQZ0VC"
+      ]
+    },
+    {
+      "key": "e0:clip-records-layers.jsonl:9:layer-d-shocked-v2-green",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/7e/7e33e2af4191305d9c6704ff32eb2f8acd7d3f52130ad927dfe6ea3ba721eb30.mp4"
+      ],
+      "reason": null,
+      "role": "doll_loop",
+      "sha256": "7e33e2af4191305d9c6704ff32eb2f8acd7d3f52130ad927dfe6ea3ba721eb30",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVCF86G8BD4VYH39FDDYK3"
+      ]
+    },
+    {
+      "key": "e0:clip-records-s2v.jsonl:1:s2-b-lightning",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/6f/6fe52ffe86cf89ca103ea4856fb7349fc407a7cf5519e56aa901a1b48637f532.mp4"
+      ],
+      "reason": null,
+      "role": "timed_clip",
+      "sha256": "6fe52ffe86cf89ca103ea4856fb7349fc407a7cf5519e56aa901a1b48637f532",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVCF887THCBS7VSYTEN5EN"
+      ]
+    },
+    {
+      "key": "e0:clip-records-s2v.jsonl:2:s1-a-lightning",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/82/826102130bf4d0f5d2f9383b150e17427572539fd3b680596b93e5f69cd827a2.mp4"
+      ],
+      "reason": null,
+      "role": "timed_clip",
+      "sha256": "826102130bf4d0f5d2f9383b150e17427572539fd3b680596b93e5f69cd827a2",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVCF89PT16TY6HF300N7HH"
+      ]
+    },
+    {
+      "key": "e0:clip-records-s2v.jsonl:3:s3-c-lightning",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/a8/a8b3c99398404bc07c8f5d106697d950fc44231d9406d5db82b08d59578cee74.mp4"
+      ],
+      "reason": null,
+      "role": "timed_clip",
+      "sha256": "a8b3c99398404bc07c8f5d106697d950fc44231d9406d5db82b08d59578cee74",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVCF8B7YN349F0J7WV7F4E"
+      ]
+    },
+    {
+      "key": "e0:clip-records-s2v.jsonl:4:s4-a-lightning",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/99/99bb233949e7a55e3ce721a2e1376e755864ade61485ef658c0293e3fbd18932.mp4"
+      ],
+      "reason": null,
+      "role": "timed_clip",
+      "sha256": "99bb233949e7a55e3ce721a2e1376e755864ade61485ef658c0293e3fbd18932",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVCF8CK3A7JTXCC5JEQ5HS"
+      ]
+    },
+    {
+      "key": "e0:clip-records-s2v.jsonl:5:s5-d-lightning",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/74/74f907176942d8d4c8cf82b6821d32d3d763313cd290aa73ad5c9d04a333adf5.mp4"
+      ],
+      "reason": null,
+      "role": "timed_clip",
+      "sha256": "74f907176942d8d4c8cf82b6821d32d3d763313cd290aa73ad5c9d04a333adf5",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVCF8ECHA2A442SXKWJBGN"
+      ]
+    },
+    {
+      "key": "e0:clip-records-s2v.jsonl:6:s6-c-lightning",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/21/212a367137c6c48a37076fa96aab1d374b2cc10fc1e2fd3d3a8e8832f5ee8f29.mp4"
+      ],
+      "reason": null,
+      "role": "timed_clip",
+      "sha256": "212a367137c6c48a37076fa96aab1d374b2cc10fc1e2fd3d3a8e8832f5ee8f29",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVCF8FAV62GWYWXAVTFF3M"
+      ]
+    },
+    {
+      "key": "e0:clip-records-s2v.jsonl:7:s8-a-lightning",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/8e/8e52ab9757a89c1ae1a64d5e4bd7ff749b1381ec6177e9fc642e5ed11f422d16.mp4"
+      ],
+      "reason": null,
+      "role": "timed_clip",
+      "sha256": "8e52ab9757a89c1ae1a64d5e4bd7ff749b1381ec6177e9fc642e5ed11f422d16",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVCF8HDVT22FRV7J2609W9"
+      ]
+    },
+    {
+      "key": "e0:clip-records-s2v.jsonl:8:s8-b-lightning",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/63/63e46a77e6d9893e0015c30657b51faf47dbd37523aa3bfed1bdaa9c226fb0a0.mp4"
+      ],
+      "reason": null,
+      "role": "timed_clip",
+      "sha256": "63e46a77e6d9893e0015c30657b51faf47dbd37523aa3bfed1bdaa9c226fb0a0",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVCF8J2RVKYHWDKDKA9MRQ"
+      ]
+    },
+    {
+      "key": "e0:clip-records-s2v.jsonl:9:s8-c-lightning",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/9b/9b7cf09be182f60eccaa21f6cad3726deb3515477b748979aa6cb9ec959131ec.mp4"
+      ],
+      "reason": null,
+      "role": "timed_clip",
+      "sha256": "9b7cf09be182f60eccaa21f6cad3726deb3515477b748979aa6cb9ec959131ec",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVCF8MRM5C2KHHF7AF7EYY"
+      ]
+    },
+    {
+      "key": "e0:clip-records-s2v.jsonl:10:s8-d-lightning",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/e3/e374d989cbf680d33a5a9914a7dd509c0f2bc46ef9e682672a6332899513d925.mp4"
+      ],
+      "reason": null,
+      "role": "timed_clip",
+      "sha256": "e374d989cbf680d33a5a9914a7dd509c0f2bc46ef9e682672a6332899513d925",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVCF8NZVBFSPWY4QZWAM58"
+      ]
+    },
+    {
+      "key": "e0:clip-records-s2v.jsonl:11:s9-b-lightning",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/43/43d23be5b2ba66316cf59d8b1cfd9acf69e29ef0ee655bc4828b069c34b1caea.mp4"
+      ],
+      "reason": null,
+      "role": "timed_clip",
+      "sha256": "43d23be5b2ba66316cf59d8b1cfd9acf69e29ef0ee655bc4828b069c34b1caea",
+      "status": "verified",
+      "version_ids": [
+        "asv_01M7BVCF8QT7YHQF5MBFDVMQ3V"
+      ]
+    },
+    {
+      "key": "e0:start_image:set-plate.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/c9/c91aa9149458437a0877ddab5dcbc3b4f50b1a24d7cedecf15be60c43e4f7bd5.png"
+      ],
+      "reason": null,
+      "role": "start_image",
+      "sha256": "c91aa9149458437a0877ddab5dcbc3b4f50b1a24d7cedecf15be60c43e4f7bd5",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "e0:start_image:a-base-s101-green.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/54/54a0d03d68ee425a003ee5b1ce6da862fccd0671bdb516af47e798afa392632c.png"
+      ],
+      "reason": null,
+      "role": "start_image",
+      "sha256": "54a0d03d68ee425a003ee5b1ce6da862fccd0671bdb516af47e798afa392632c",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "e0:start_image:a-staring-s301-green.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/1f/1fcfaaa2ae65765c132aeaa35cca22fe56cd5fd831f04184bf1d7ba385c6b401.png"
+      ],
+      "reason": null,
+      "role": "start_image",
+      "sha256": "1fcfaaa2ae65765c132aeaa35cca22fe56cd5fd831f04184bf1d7ba385c6b401",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "e0:start_image:b-base-s101-green.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/e9/e98c2159c4ed8c507002c4f850e740b206339e0b17824ce28f3d795c0d1d0a74.png"
+      ],
+      "reason": null,
+      "role": "start_image",
+      "sha256": "e98c2159c4ed8c507002c4f850e740b206339e0b17824ce28f3d795c0d1d0a74",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "e0:start_image:c-base-s101-green.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/68/68fc2cdadb852aafb71472ab151505790df68dde481cf17003df4bf5a39e2d60.png"
+      ],
+      "reason": null,
+      "role": "start_image",
+      "sha256": "68fc2cdadb852aafb71472ab151505790df68dde481cf17003df4bf5a39e2d60",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "e0:start_image:c-staring-s301-green.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/5d/5db01682a9006aa66f6ddefca98787dcc4f68a733fc9696538ccaff2da2c461e.png"
+      ],
+      "reason": null,
+      "role": "start_image",
+      "sha256": "5db01682a9006aa66f6ddefca98787dcc4f68a733fc9696538ccaff2da2c461e",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "e0:start_image:d-base-s101-green.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/5f/5f73a7281e03d0ccabd34c20189b5a665a3c28c252bb8aea641044d9059f6a81.png"
+      ],
+      "reason": null,
+      "role": "start_image",
+      "sha256": "5f73a7281e03d0ccabd34c20189b5a665a3c28c252bb8aea641044d9059f6a81",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "e0:start_image:d-shocked-s301-green.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/b9/b9d32ef9a66171c081cb8f5e9a05f81d475e81fa9904c8636b5f19a27d8a389e.png"
+      ],
+      "reason": null,
+      "role": "start_image",
+      "sha256": "b9d32ef9a66171c081cb8f5e9a05f81d475e81fa9904c8636b5f19a27d8a389e",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "e0:start_image:b-base-s101-sleeves-s401-green.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/34/342960b60079923da08ed15d25ae3344d33ee128148371047e752843f06a16fc.png"
+      ],
+      "reason": null,
+      "role": "start_image",
+      "sha256": "342960b60079923da08ed15d25ae3344d33ee128148371047e752843f06a16fc",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "e0:start_image:d-base-s101-sleeves-s401-green.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/2a/2a5ba2bef5a5179f3e2e54832d5fbbd94b793d1efee7576b9b74529119d91ee3.png"
+      ],
+      "reason": null,
+      "role": "start_image",
+      "sha256": "2a5ba2bef5a5179f3e2e54832d5fbbd94b793d1efee7576b9b74529119d91ee3",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "e0:start_image:d-shocked-s301-sleeves-s401-green.png",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/c1/c1f316d5fa321b73e1e90552c57259a72e37574d0fdfb0cce24d400c85241adf.png"
+      ],
+      "reason": null,
+      "role": "start_image",
+      "sha256": "c1f316d5fa321b73e1e90552c57259a72e37574d0fdfb0cce24d400c85241adf",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "e0:drive_track:s2-b-lightning-drive.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/80/8063d3e5480530ce93a71370d001f7c294ae7982ca3d595f90df1c5dab4dbf62.wav"
+      ],
+      "reason": null,
+      "role": "drive_track",
+      "sha256": "8063d3e5480530ce93a71370d001f7c294ae7982ca3d595f90df1c5dab4dbf62",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "e0:drive_track:s1-a-lightning-drive.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/6e/6eccbef0d224eaf63f0ec2df6db09b206ea6d99dc8d654e5de7bb97ecbc22b69.wav"
+      ],
+      "reason": null,
+      "role": "drive_track",
+      "sha256": "6eccbef0d224eaf63f0ec2df6db09b206ea6d99dc8d654e5de7bb97ecbc22b69",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "e0:drive_track:s3-c-lightning-drive.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/33/33a742bf8f2c10e7cf3d385c147080c09480f5452212ec27b3025870fa58cbd4.wav"
+      ],
+      "reason": null,
+      "role": "drive_track",
+      "sha256": "33a742bf8f2c10e7cf3d385c147080c09480f5452212ec27b3025870fa58cbd4",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "e0:drive_track:s4-a-lightning-drive.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/e8/e81f866a4c559fc4b9c20ec96a7ce8f744c0417b97b2765b56e6883b30247ad8.wav"
+      ],
+      "reason": null,
+      "role": "drive_track",
+      "sha256": "e81f866a4c559fc4b9c20ec96a7ce8f744c0417b97b2765b56e6883b30247ad8",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "e0:drive_track:s5-d-lightning-drive.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/81/81eb9ef2759aa45cb6b65904c22b42a0031051e267c1716b5b6cf7351e2c6142.wav"
+      ],
+      "reason": null,
+      "role": "drive_track",
+      "sha256": "81eb9ef2759aa45cb6b65904c22b42a0031051e267c1716b5b6cf7351e2c6142",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "e0:drive_track:s6-c-lightning-drive.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/81/81ed4db341597da2b49efe6d5e2eedc8526c7449b6be73421edf34be89dd06dc.wav"
+      ],
+      "reason": null,
+      "role": "drive_track",
+      "sha256": "81ed4db341597da2b49efe6d5e2eedc8526c7449b6be73421edf34be89dd06dc",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "e0:drive_track:s8-a-lightning-drive.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/b5/b5ecdd2d49194c195f15d223181fcddc02199de5ee52b7cd6953fa38cd261d02.wav"
+      ],
+      "reason": null,
+      "role": "drive_track",
+      "sha256": "b5ecdd2d49194c195f15d223181fcddc02199de5ee52b7cd6953fa38cd261d02",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "e0:drive_track:s8-b-lightning-drive.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/14/147af63f7cfd246ac03b8daa26da2b94033f20a6641bb13e2e4a3512d54af5a5.wav"
+      ],
+      "reason": null,
+      "role": "drive_track",
+      "sha256": "147af63f7cfd246ac03b8daa26da2b94033f20a6641bb13e2e4a3512d54af5a5",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "e0:drive_track:s8-c-lightning-drive.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/1e/1ef2c983c3647ab7fca6de567a2e4d62282db603de3f2084af2725a4063b87ed.wav"
+      ],
+      "reason": null,
+      "role": "drive_track",
+      "sha256": "1ef2c983c3647ab7fca6de567a2e4d62282db603de3f2084af2725a4063b87ed",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "e0:drive_track:s8-d-lightning-drive.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/6c/6c1eedbd43cad8c5dd0713faf25d92e167246f2f11637ed3dfcaa730cba6bf38.wav"
+      ],
+      "reason": null,
+      "role": "drive_track",
+      "sha256": "6c1eedbd43cad8c5dd0713faf25d92e167246f2f11637ed3dfcaa730cba6bf38",
+      "status": "verified",
+      "version_ids": []
+    },
+    {
+      "key": "e0:drive_track:s9-b-lightning-drive.wav",
+      "locators": [
+        "productions/prd_01M79V9FC00000000000000001/sha256/43/4329c68a7a142b54ce1e2807c4d066ddff22e7d73ddf0494f62dd94a615c8641.wav"
+      ],
+      "reason": null,
+      "role": "drive_track",
+      "sha256": "4329c68a7a142b54ce1e2807c4d066ddff22e7d73ddf0494f62dd94a615c8641",
+      "status": "verified",
+      "version_ids": []
+    }
+  ],
+  "started_at": "2026-11-14T01:40:07Z",
+  "stopped": null,
+  "title": "The Winter Menu",
+  "totals": {
+    "absent": 24,
+    "by_role": {
+      "bed": {
+        "absent": 3,
+        "mismatch": 0,
+        "verified": 0
+      },
+      "doll_loop": {
+        "absent": 0,
+        "mismatch": 0,
+        "verified": 10
+      },
+      "drive_track": {
+        "absent": 0,
+        "mismatch": 0,
+        "verified": 11
+      },
+      "keyframe": {
+        "absent": 0,
+        "mismatch": 0,
+        "verified": 9
+      },
+      "not_motion": {
+        "absent": 14,
+        "mismatch": 0,
+        "verified": 0
+      },
+      "render": {
+        "absent": 7,
+        "mismatch": 0,
+        "verified": 1
+      },
+      "set": {
+        "absent": 0,
+        "mismatch": 0,
+        "verified": 4
+      },
+      "set_loop": {
+        "absent": 0,
+        "mismatch": 0,
+        "verified": 1
+      },
+      "sfx": {
+        "absent": 0,
+        "mismatch": 0,
+        "verified": 11
+      },
+      "start_image": {
+        "absent": 0,
+        "mismatch": 0,
+        "verified": 11
+      },
+      "still": {
+        "absent": 0,
+        "mismatch": 0,
+        "verified": 25
+      },
+      "take": {
+        "absent": 0,
+        "mismatch": 0,
+        "verified": 38
+      },
+      "timed_clip": {
+        "absent": 0,
+        "mismatch": 0,
+        "verified": 11
+      }
+    },
+    "bytes_published": 105049370,
+    "bytes_read": 105049370,
+    "hashes": 101,
+    "hashes_absent": 22,
+    "hashes_mismatch": 0,
+    "hashes_read": 79,
+    "hashes_verified": 79,
+    "mismatch": 0,
+    "rows": 156,
+    "verified": 132
+  },
+  "version": 1
+}

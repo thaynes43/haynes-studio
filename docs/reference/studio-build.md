@@ -65,8 +65,10 @@ build.run_unrecorded: <message>` (below).
 - `--register` defaults to `docs/reference/model-licences.json` (run from the checkout).
 - `--toolchain` is a JSON object of the profiles a build uses: `s2v_profile`,
   `i2v_profile`, `i2v_clip_frames`, `s2v_prompt`, `s2v_negative_prompt`, `i2v_prompt`,
-  `procedural_seed` (proposal). Without it the toolchain's defaults apply (E0's
-  576x1024 profiles).
+  `i2v_negative_prompt`, `procedural_seed` (proposal). Without it the toolchain's
+  defaults apply (E0's 576x1024 profiles). Both negative prompts default to the Wan
+  client's `NEGATIVE` (E0's text); an explicit empty string is still refused by the
+  client before any clip is requested. Each negative prompt is a clip-key input.
 - `--studio-commit` is recorded as `git:<SHA>` in the snapshot and the provenance.
 - `--wan-story` (story 851): the full `https://work.haynesnetwork.com/work_packages/<id>`
   URL the Wan ledger records each clip job under. Every phase but `--offline` needs it
@@ -216,6 +218,29 @@ workers=)`, in order:
 
 Any error stops the run as `failed` with its code, the board it was on and the stage.
 Every stage already completed stays in the store, and the next run reuses it.
+
+**A stopped run keeps its board stages** (proposal, story
+[860](https://work.haynesnetwork.com/work_packages/860), O-428-6). A run that stops while
+its plan runs (`failed` or `held`: `build.offline_missing` at a clip or at the transcript
+check, `layered.decal_weak` at a segment, a refusal of the Wan client) lists in
+`stages[]` every board it completed before the stop, exactly as a succeeded run lists
+it: its artifacts with `made` and `seconds`, its clips, its segment and the renderer's
+report and checks. A board is complete when the run rendered its segment or found it in
+the cache (in the service phase, also when it reached the segment it leaves to the
+offline phase, as that phase's own record lists it). A board it did not reach, or whose
+segment it did not finish, is not listed: the keyed frames of a board whose segment the
+decal gate refused are in the store but in no stage. With `--workers N`, a segment a
+worker rendered, or one the cache holds that the first pass deferred (looked up,
+read-only, also when that pass itself stopped), completes its board even when another
+worker's segment failed (every worker's result is kept before the first failure in
+board order is raised). How: the story is planned again with a chain that answers each
+key as the stopped run did and with a stand-in otherwise (`pipeline._Replay`), so the
+names and keys are the stopped plan's. The replay makes, writes and asks nothing (only a
+library timed clip is looked up again, read-only); the stages are then recorded as a
+succeeded run's are, which reads clip and keyed-frames records. If any of it raises the
+run keeps no stages rather than hide its failure. A failure after the plan finished (a failed check, the delivery) lists
+its stages as before, and a succeeded run's record is unchanged. A dry run ends before any
+board stage. Tests: `tests/build_story/test_stopped_runs.py`.
 
 **A failure that cannot be recorded** (**proposal**). If writing the failed run raises
 (a store error, or `run.transition` because another writer moved the run), the build
@@ -423,9 +448,15 @@ jobs)`, `total: 2 Wan job(s), GPU 259-355.2 s, at most 623 s with cool-down`.
   the dry run lists every clip of a chain the cache lacks, kept ones included (an upper
   bound: the phase asks fewer). With the default 121-frame clips a chain is one clip for
   a board of up to 5 s.
-- **No negative prompt is invented.** The toolchain's default `s2v_negative_prompt` is
-  empty, which the Wan graph refuses (`adapter.request_invalid`, before any clip): story
-  428 sets it in `--toolchain` (E0's is the client's `NEGATIVE`).
+
+**Changed (story [861](https://work.haynesnetwork.com/work_packages/861)).** The
+toolchain's `s2v_negative_prompt` now defaults to the client's `NEGATIVE`, the same text
+story 428 set explicitly in `--toolchain`. Speech keys made with the empty default
+change; story 428's recorded speech keys do not. Whole-frame keys now include
+`i2v_negative_prompt` (also `NEGATIVE` by default), so old whole-frame keys change.
+Voice, drive tracks, library motion and mix keys stay unchanged; changed clips
+invalidate their picture dependents. These are source and offline-test changes, with
+no live run in story 861.
 
 ## The run
 
@@ -458,13 +489,30 @@ problems).
 
 | Field | Holds |
 |---|---|
-| `stages[]` | one per board in film order: `board_id`, `board_number`, `method`, `frames`, `film_start_frame`, `clips[]` (role, slot, hash, key, `made`, and from the clip's own record its frames, fps, requested length, seed, engine, engine job, model files and trim; a library clip's version ID; a whole-frame chain's `clips[]`, each with `kept: {key, made}` when a live source kept it), `segment_sha256`, `segment_key`, `compositor`, `artifacts[]` (every planned artifact of the board: name, kind, key, hash, `made`, `seconds`; and each kept chain clip, `wan_chain_clip/<index>` of kind `wan_chain_clip`, `made` when this run collected it, else reused from the run that did), `report` (the renderer's report of a segment rendered in this run), `checks[]` (the renderer's decal checks), `render_s` |
+| `stages[]` | one per board in film order: `board_id`, `board_number`, `method`, `frames`, `film_start_frame`, `clips[]` (role, slot, hash, key, `made`, and from the clip's own record its frames, fps, requested length, seed, engine, engine job, model files and trim; a library clip's version ID; a whole-frame chain's `clips[]`, each with `kept: {key, made}` when a live source kept it), `segment_sha256`, `segment_key`, `compositor`, `artifacts[]` (every planned artifact of the board: name, kind, key, hash, `made`, `seconds`; and each kept chain clip, `wan_chain_clip/<index>` of kind `wan_chain_clip`, `made` when this run collected it, else reused from the run that did), `report` (the renderer's report of a segment rendered in this run), `checks[]` (each layer's decal gate result, with its `slot`: the renderer's for a segment rendered in this run, else read from the cache, below), `render_s` |
 | `checks[]` | the seven sound checks, `master.transcript` (with what was heard, the tolerances used and the result), and `frame_count` from the verified delivery |
 | `outputs` | frames, fps, picture, mix, master and proxy hashes, their keys, and the placement record with the story's IDs |
 | `provenance` | below |
 | `delivery_id` | the verified delivery |
 
-A reused segment has no report in this run (the run that rendered it has it).
+A reused segment has no report in this run (the run that rendered it has it). A run that
+stopped lists the board stages it completed ([above](#what-a-build-does), story 860).
+
+**A reused segment still lists its decal results** (proposal, story 860). The gate runs
+when a layered segment is rendered; a build that finds the segment in the cache renders
+nothing and does not run the gate again. Its board stage still lists, for each layer in
+draw order, `{check: layered.decal_gate, slot, result, artifact, key, version, thresholds:
+{min_ecc}, measured: {min_ecc, failed_frames, frames_gated, ...}}`: the lowest score over
+the source frames the board shows, the floor and the result. They are read from the
+keyed-frames record the cache holds (re-hashed) with the renderer's own arithmetic
+(`layered.renderer._Layer.index` for the frames shown, `decal_check`) at the floor the
+segment key holds, so they equal what the rendering run recorded. A reused result is
+reported, never a reason to stop: only a segment rendered in this run is gated. A layer
+whose keyed-frames record cannot be read (missing, not its bytes) has no result listed,
+and the build does not fail for it: the segment renders nothing. `slot` is
+a new optional property of a run check (`studio.run.v1.schema.json`); every stored run
+record and the contract examples still validate. Tests:
+`tests/build_story/test_reused_checks.py`.
 
 ### Provenance (section 7, D44)
 
@@ -585,9 +633,9 @@ decision are marked **(428 decides)**.
    first `uv run studio build ... --phase service --dry-run --wan-story
    https://work.haynesnetwork.com/work_packages/428`, which lists every clip job, in
    order, with its length, seed and E0 GPU time, and asks nothing; put that list in
-   front of the coordinator. The toolchain file must set `s2v_negative_prompt` (the
-   default is empty, which the Wan graph refuses before any clip; E0's is the client's
-   `NEGATIVE`). Then work through the [checklist](#before-the-first-live-job) and run
+   front of the coordinator. The default negative prompts are the client's `NEGATIVE`
+   (E0's); a toolchain file may override them, and the client refuses an empty value
+   before any clip. Then work through the [checklist](#before-the-first-live-job) and run
    the same command without `--dry-run`. The local pass, the check of every request
    and the mix run first, so no Wan job is submitted for a story they refuse anywhere.
    Otherwise the run ends `cancelled` with "service phase complete"; the mix and every

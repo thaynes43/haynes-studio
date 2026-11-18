@@ -1,0 +1,324 @@
+{
+  "first-clip": {
+    "dry_run": {
+      "clips": [
+        {
+          "board_id": "brd_01M79V9FC00000000000000002",
+          "board_number": 2,
+          "chunks": 1,
+          "estimate": {
+            "basis": "E0 speech-to-video jobs at 576x1024, 1 chunk(s), of 57, 65, 73 frames",
+            "records": 4,
+            "render_s": [
+              142.5,
+              203.1
+            ],
+            "wall_s_max": 328.9
+          },
+          "frames": 65,
+          "index": null,
+          "key": "sha256:28d8580732065f60fcadbf01094e16aec59b13b741f4351f9056daaf205aac48",
+          "kind": "s2v",
+          "seed": 501,
+          "size": [
+            576,
+            1024
+          ],
+          "slot": "b"
+        }
+      ],
+      "total": {
+        "basis": "the sum of each job's E0 range",
+        "jobs": 1,
+        "render_s": [
+          142.5,
+          203.1
+        ],
+        "wall_s_max": 328.9
+      }
+    },
+    "run_id": "run_01M7BVQV5GJRNJTSTAW2SF1K78",
+    "status": "cancelled"
+  },
+  "voiced": {
+    "dry_run": {
+      "clips": [
+        {
+          "board_id": "brd_01M79V9FC00000000000000001",
+          "board_number": 1,
+          "chunks": 2,
+          "estimate": {
+            "basis": "E0 speech-to-video jobs at 576x1024, 2 chunk(s), of 154 frames",
+            "records": 3,
+            "render_s": [
+              463.0,
+              466.6
+            ],
+            "wall_s_max": 582.2
+          },
+          "frames": 154,
+          "index": null,
+          "key": "sha256:dfefe5c8fab540fbd5a1c748ac30a5d0d9252bf3cd4d1d4c49d9806e70ad2fc9",
+          "kind": "s2v",
+          "seed": 510,
+          "size": [
+            576,
+            1024
+          ],
+          "slot": "a"
+        },
+        {
+          "board_id": "brd_01M79V9FC00000000000000002",
+          "board_number": 2,
+          "chunks": 1,
+          "estimate": {
+            "basis": "E0 speech-to-video jobs at 576x1024, 1 chunk(s), of 57, 65, 73 frames",
+            "records": 4,
+            "render_s": [
+              142.5,
+              203.1
+            ],
+            "wall_s_max": 328.9
+          },
+          "frames": 65,
+          "index": null,
+          "key": "sha256:28d8580732065f60fcadbf01094e16aec59b13b741f4351f9056daaf205aac48",
+          "kind": "s2v",
+          "seed": 501,
+          "size": [
+            576,
+            1024
+          ],
+          "slot": "b"
+        },
+        {
+          "board_id": "brd_01M79V9FC00000000000000003",
+          "board_number": 3,
+          "chunks": 2,
+          "estimate": {
+            "basis": "E0 speech-to-video jobs at 576x1024, 2 chunk(s), of 154 frames",
+            "records": 3,
+            "render_s": [
+              463.0,
+              466.6
+            ],
+            "wall_s_max": 582.2
+          },
+          "frames": 154,
+          "index": null,
+          "key": "sha256:20d75f007818dc99ddd8a4299d0262f6e0f8bcb88cb2e34a7b6b1b4213c8da0a",
+          "kind": "s2v",
+          "seed": 512,
+          "size": [
+            576,
+            1024
+          ],
+          "slot": "c"
+        },
+        {
+          "board_id": "brd_01M79V9FC00000000000000004",
+          "board_number": 4,
+          "chunks": 1,
+          "estimate": {
+            "basis": "E0 speech-to-video jobs at 576x1024, 1 chunk(s), of 57, 65, 73 frames",
+            "records": 4,
+            "render_s": [
+              142.5,
+              203.1
+            ],
+            "wall_s_max": 328.9
+          },
+          "frames": 57,
+          "index": null,
+          "key": "sha256:5ec09776e1d3dce667bceb294e4676291e4e57a8aa9c427deb5a1bf228d1121a",
+          "kind": "s2v",
+          "seed": 513,
+          "size": [
+            576,
+            1024
+          ],
+          "slot": "a"
+        },
+        {
+          "board_id": "brd_01M79V9FC00000000000000005",
+          "board_number": 5,
+          "chunks": 1,
+          "estimate": {
+            "basis": "E0 speech-to-video jobs at 576x1024, 1 chunk(s), of 57, 65, 73 frames",
+            "records": 4,
+            "render_s": [
+              142.5,
+              203.1
+            ],
+            "wall_s_max": 328.9
+          },
+          "frames": 57,
+          "index": null,
+          "key": "sha256:2471c32d9e74482f233b73f7fb42cc023218f45fe93d5480f849e896a73faafc",
+          "kind": "s2v",
+          "seed": 514,
+          "size": [
+            576,
+            1024
+          ],
+          "slot": "d"
+        },
+        {
+          "board_id": "brd_01M79V9FC00000000000000006",
+          "board_number": 6,
+          "chunks": 2,
+          "estimate": {
+            "basis": "E0 speech-to-video jobs at 576x1024, 2 chunk(s), of 154 frames",
+            "records": 3,
+            "render_s": [
+              463.0,
+              466.6
+            ],
+            "wall_s_max": 582.2
+          },
+          "frames": 154,
+          "index": null,
+          "key": "sha256:fe71d738cb0f6dfe5e2618e0ec97a96bfb4e8b1557232ceb6f933d2c9da44d82",
+          "kind": "s2v",
+          "seed": 515,
+          "size": [
+            576,
+            1024
+          ],
+          "slot": "c"
+        },
+        {
+          "board_id": "brd_01M79V9FC00000000000000008",
+          "board_number": 8,
+          "chunks": 3,
+          "estimate": {
+            "basis": "E0 speech-to-video jobs at 576x1024, 3 chunk(s), of 231 frames",
+            "records": 4,
+            "render_s": [
+              269.5,
+              716.3
+            ],
+            "wall_s_max": 842.3
+          },
+          "frames": 231,
+          "index": null,
+          "key": "sha256:df9877ed81c146db8285a3b3433a341f432142815dcd461e734cb7e064c996c6",
+          "kind": "s2v",
+          "seed": 516,
+          "size": [
+            576,
+            1024
+          ],
+          "slot": "a"
+        },
+        {
+          "board_id": "brd_01M79V9FC00000000000000008",
+          "board_number": 8,
+          "chunks": 3,
+          "estimate": {
+            "basis": "E0 speech-to-video jobs at 576x1024, 3 chunk(s), of 231 frames",
+            "records": 4,
+            "render_s": [
+              269.5,
+              716.3
+            ],
+            "wall_s_max": 842.3
+          },
+          "frames": 231,
+          "index": null,
+          "key": "sha256:8cf6e77638f64b5cb36127f09612b83a59748d7f59fd6e60cf8e6b6261a831d5",
+          "kind": "s2v",
+          "seed": 518,
+          "size": [
+            576,
+            1024
+          ],
+          "slot": "c"
+        },
+        {
+          "board_id": "brd_01M79V9FC00000000000000008",
+          "board_number": 8,
+          "chunks": 3,
+          "estimate": {
+            "basis": "E0 speech-to-video jobs at 576x1024, 3 chunk(s), of 231 frames",
+            "records": 4,
+            "render_s": [
+              269.5,
+              716.3
+            ],
+            "wall_s_max": 842.3
+          },
+          "frames": 231,
+          "index": null,
+          "key": "sha256:b002033649424d2be57b00f32eea3050ea3c6643da3adb19a911cf7c50dddf1e",
+          "kind": "s2v",
+          "seed": 519,
+          "size": [
+            576,
+            1024
+          ],
+          "slot": "d"
+        },
+        {
+          "board_id": "brd_01M79V9FC00000000000000008",
+          "board_number": 8,
+          "chunks": 3,
+          "estimate": {
+            "basis": "E0 speech-to-video jobs at 576x1024, 3 chunk(s), of 231 frames",
+            "records": 4,
+            "render_s": [
+              269.5,
+              716.3
+            ],
+            "wall_s_max": 842.3
+          },
+          "frames": 231,
+          "index": null,
+          "key": "sha256:d4ce212d7baf48880902ed0726c450a2c3d3221ae18a461f251cd9851f0b5a03",
+          "kind": "s2v",
+          "seed": 517,
+          "size": [
+            576,
+            1024
+          ],
+          "slot": "b"
+        },
+        {
+          "board_id": "brd_01M79V9FC00000000000000009",
+          "board_number": 9,
+          "chunks": 1,
+          "estimate": {
+            "basis": "E0 speech-to-video jobs at 576x1024, 1 chunk(s), of 57, 65, 73 frames",
+            "records": 4,
+            "render_s": [
+              142.5,
+              203.1
+            ],
+            "wall_s_max": 328.9
+          },
+          "frames": 73,
+          "index": null,
+          "key": "sha256:295b2cbd8d51dd9db4f13d40ae7db435c6afd412ac18afec89f681532ab4a915",
+          "kind": "s2v",
+          "seed": 520,
+          "size": [
+            576,
+            1024
+          ],
+          "slot": "b"
+        }
+      ],
+      "total": {
+        "basis": "the sum of each job's E0 range",
+        "jobs": 11,
+        "render_s": [
+          3037.0,
+          5077.4
+        ],
+        "wall_s_max": 6431.4
+      }
+    },
+    "run_id": "run_01M7BVQTHHXBG4FDC186NFNKNE",
+    "status": "cancelled"
+  }
+}

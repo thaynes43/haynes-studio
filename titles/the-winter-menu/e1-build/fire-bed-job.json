@@ -1,0 +1,18 @@
+{
+  "service": "audio MCP server (audio-authoring, Stable Audio 3 Small SFX)",
+  "id": "ebe4a478d4cf44e3974fea1da6a179cb",
+  "status": "completed",
+  "prompt": "A small campfire crackling and popping softly outdoors in a quiet forest, steady gentle crackle, no wind, no music, no voices",
+  "seconds": 12.0,
+  "steps": 8,
+  "seed": 701,
+  "created_at": "2026-11-14T01:41:47.358572Z",
+  "started_at": "2026-11-14T01:41:47.376849Z",
+  "finished_at": "2026-11-14T01:41:55.515089Z",
+  "elapsed_seconds": 8.138,
+  "peak_subprocess_rss_bytes": 4182495232,
+  "model": {"name": "Stable Audio 3 Small SFX", "source_repository": "Stability-AI/stable-audio-3", "source_revision": "779434a908193105335fd8d833418603625b2859", "weights_repository": "stabilityai/stable-audio-3-optimized", "weights_revision": "da6edc54ddba10bfd79a077102ded687f80e882b", "device": "cpu", "runtime": "LiteRT/XNNPACK", "dit": "sm-sfx", "decoder": "same-s", "dit_precision": "fp32", "decoder_precision": "w8a8", "threads": 4},
+  "audio": {"codec": "pcm_s16le", "sample_rate": 44100, "channels": 2, "duration_seconds": 12.0, "size_bytes": 2116844, "sha256": "0b33af45929b8cfb3859bf1511a2738eef22944d431ee44257c33a1de42da72a"},
+  "the_r4_bed": {"job": "c81dc201bdb043c1ba19b719dc19d40a", "sha256": "0b33af45929b8cfb3859bf1511a2738eef22944d431ee44257c33a1de42da72a", "note": "listed by the service with the same hash; not fetched (D54)"},
+  "imported_as": {"version_id": "asv_01M7BVM62CM89SV5SD0YVZPSZ4", "source_key": "audio-authoring:job:ebe4a478d4cf44e3974fea1da6a179cb"}
+}

@@ -1,0 +1,8 @@
+run run_01M7BVQD15TMV6RN3VZYT9TDBD (service phase): cancelled
+  check mix.length: pass
+  check mix.loudness: pass
+  check mix.true_peak: pass
+  check mix.clipping: pass
+dry run: 1 clip job(s) would be requested, in this order (nothing was asked of a service):
+  s2v board 2 brd_01M79V9FC00000000000000002 slot b: 65 frames at 576x1024, 1 chunk(s), seed 501; GPU 142.5-203.1 s, at most 328.9 s with cool-down (4 E0 jobs)
+  total: 1 Wan job(s), GPU 142.5-203.1 s, at most 328.9 s with cool-down

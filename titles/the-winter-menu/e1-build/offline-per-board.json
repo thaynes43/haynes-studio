@@ -1,0 +1,147 @@
+[
+  {
+    "board": 1,
+    "scope": "the whole story, stopped at board 1",
+    "run_id": "run_01M7C2FS3G1YMAVKMSBES6N6YY",
+    "status": "failed",
+    "code": "layered.decal_weak",
+    "stage": "segment",
+    "message": "slot a: the decal track is too weak (min 0.7167, 0 failed; floor 0.8); re-roll the clip or record a lower decal_min_ecc",
+    "command_wall_s": 24.4,
+    "stages_committed": {
+      "keyed_frames": 1
+    }
+  },
+  {
+    "board": 2,
+    "scope": "a one-board copy of the draft",
+    "run_id": "run_01M7C2J1F357EF5GHJDWRK5MXJ",
+    "status": "failed",
+    "code": "build.offline_missing",
+    "stage": "check_result",
+    "message": "the transcript check sha256:adef994f5acc2b3913cb198703def4bb65a66b482bbbaf313c3ed8543bff7da7 of master 9f2ac80de6e4... is not in the cache; the offline phase calls no service: run `studio build --phase service` (which checks a cached master) or a full build",
+    "command_wall_s": 54.3,
+    "stages_committed": {
+      "film_picture": 1,
+      "keyed_frames": 1,
+      "master": 1,
+      "segment": 1
+    }
+  },
+  {
+    "board": 3,
+    "scope": "a one-board copy of the draft",
+    "run_id": "run_01M7C2KPETYBZ86QBZM62ZAX8Z",
+    "status": "failed",
+    "code": "build.offline_missing",
+    "stage": "check_result",
+    "message": "the transcript check sha256:2d8f0bfb40a8962ca621427715248785a0d9c1a7a9a35d86f5b01a275afc5d60 of master 2f9b9e66b38a... is not in the cache; the offline phase calls no service: run `studio build --phase service` (which checks a cached master) or a full build",
+    "command_wall_s": 82.5,
+    "stages_committed": {
+      "film_picture": 1,
+      "keyed_frames": 1,
+      "master": 1,
+      "mix": 1,
+      "mix_placement": 1,
+      "segment": 1
+    }
+  },
+  {
+    "board": 4,
+    "scope": "a one-board copy of the draft",
+    "run_id": "run_01M7C2P7135CKYB5TB5BPM0BFE",
+    "status": "failed",
+    "code": "build.offline_missing",
+    "stage": "check_result",
+    "message": "the transcript check sha256:43df40f69d4c0254cbd94ad1bea289ac22baeaca125707b42b6f38a2cf0dd431 of master 2408f323958f... is not in the cache; the offline phase calls no service: run `studio build --phase service` (which checks a cached master) or a full build",
+    "command_wall_s": 48.6,
+    "stages_committed": {
+      "film_picture": 1,
+      "keyed_frames": 1,
+      "master": 1,
+      "mix": 1,
+      "mix_placement": 1,
+      "segment": 1
+    }
+  },
+  {
+    "board": 5,
+    "scope": "a one-board copy of the draft",
+    "run_id": "run_01M7C2QPHYTZRA2G574SKVBXW2",
+    "status": "failed",
+    "code": "build.offline_missing",
+    "stage": "check_result",
+    "message": "the transcript check sha256:6cc45ddbdd5ec35a1e50106c59e580b614e4c342dd85f0af840a48413f96c9ff of master 281c6230a20e... is not in the cache; the offline phase calls no service: run `studio build --phase service` (which checks a cached master) or a full build",
+    "command_wall_s": 36.5,
+    "stages_committed": {
+      "film_picture": 1,
+      "keyed_frames": 1,
+      "master": 1,
+      "mix": 1,
+      "mix_placement": 1,
+      "segment": 1
+    }
+  },
+  {
+    "board": 6,
+    "scope": "a one-board copy of the draft",
+    "run_id": "run_01M7C2RT70BMWBHE07PPQ86V7G",
+    "status": "failed",
+    "code": "build.offline_missing",
+    "stage": "check_result",
+    "message": "the transcript check sha256:d54608756f84933a223d6fb9b1a7701a8fb333f73cb61213f30ac1a90c4a6fc0 of master 689870d20cec... is not in the cache; the offline phase calls no service: run `studio build --phase service` (which checks a cached master) or a full build",
+    "command_wall_s": 61.7,
+    "stages_committed": {
+      "film_picture": 1,
+      "keyed_frames": 1,
+      "master": 1,
+      "mix": 1,
+      "mix_placement": 1,
+      "segment": 1
+    }
+  },
+  {
+    "board": 7,
+    "scope": "a one-board copy of the draft",
+    "run_id": "run_01M7C2TPGEKW0F5RDYG4D6KTGT",
+    "status": "failed",
+    "code": "layered.layout_invalid",
+    "stage": "segment",
+    "message": "slot 'd' puts the doll more than 240 px off the frame",
+    "command_wall_s": 17.7,
+    "stages_committed": {
+      "keyed_frames": 1
+    }
+  },
+  {
+    "board": 8,
+    "scope": "a one-board copy of the draft",
+    "run_id": "run_01M7C2V7TWF4S9MFACXW0TB0EZ",
+    "status": "failed",
+    "code": "build.offline_missing",
+    "stage": "check_result",
+    "message": "the transcript check sha256:527ddc8f367ab92b6e5b7937effccd0f614494fccce5cf3fe6fd99c67c0af38a of master 44b252270a25... is not in the cache; the offline phase calls no service: run `studio build --phase service` (which checks a cached master) or a full build",
+    "command_wall_s": 412.1,
+    "stages_committed": {
+      "film_picture": 1,
+      "keyed_frames": 4,
+      "master": 1,
+      "mix": 1,
+      "mix_placement": 1,
+      "segment": 1
+    }
+  },
+  {
+    "board": 9,
+    "scope": "a one-board copy of the draft",
+    "run_id": "run_01M7C37T8CGSDY4GR02SDY0XQ2",
+    "status": "failed",
+    "code": "layered.decal_weak",
+    "stage": "segment",
+    "message": "slot b: the decal track is too weak (min 0.6867, 0 failed; floor 0.8); re-roll the clip or record a lower decal_min_ecc",
+    "command_wall_s": 41.6,
+    "stages_committed": {
+      "keyed_frames": 3
+    }
+  }
+]

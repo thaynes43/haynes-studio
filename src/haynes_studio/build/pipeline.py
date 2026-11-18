@@ -37,7 +37,9 @@ In order:
    only then is the run ``succeeded``.
 
 Any error stops the run as ``failed`` with its code, the board it was on and the
-stage; every stage already completed stays in the store for the next run to reuse. A
+stage; every stage already completed stays in the store for the next run to reuse, and
+the run records the board stages it completed before it stopped, as a succeeded run
+records them (:func:`_stopped_stages`, story 860). A
 live clip source's stop (:class:`~.errors.RunHeld`, story 851: any refusal of the Wan
 client) records the run ``held`` instead, a safety stop a person reconciles, and nothing
 further is asked of any source. A
@@ -131,14 +133,15 @@ from haynes_studio.delivery.model import MASTER_SIZES
 from haynes_studio.delivery.publish import RECORD as DELIVERY_DOCUMENT, STAGE as DELIVERY_STAGE
 from haynes_studio.jsonio import thaw
 from haynes_studio.layered import COMPOSITOR as LAYERED_COMPOSITOR
-from haynes_studio.layered import LayeredRenderer, LayeredStages, reader
-from haynes_studio.layered.keyed import keyer_build
+from haynes_studio.layered import LayeredError, LayeredRenderer, LayeredStages, reader
+from haynes_studio.layered.keyed import keyer_build, read_record, read_verified
+from haynes_studio.layered.renderer import _Layer, decal_check
 from haynes_studio.layered.s2v import read_provenance, record_stage
 from haynes_studio.library import Library
 from haynes_studio.mix import SoundBuilder, film_sound, sound_toolchain
 from haynes_studio.stages import completed_stage
 from haynes_studio.stages.preflight import PreflightError
-from haynes_studio.store import LocalStore, Store, blob_locator, is_sha256
+from haynes_studio.store import LocalStore, Store, StoreError, blob_locator, is_sha256
 from haynes_studio.voice import Engine
 from haynes_studio.wholeframe import COMPOSITOR as WHOLE_FRAME_COMPOSITOR
 from haynes_studio.wholeframe import WholeFrameClips, WholeFrameRenderer
@@ -241,6 +244,10 @@ class _Chain:
         self.segment_board: dict[str, str] = {}
         self.segment_keys: dict[str, CacheKey] = {}
         self.stand_ins: set[str] = set()
+        if local:  # what a stop records keeps what this pass made (story 860)
+            build.local_records = self.records
+        else:  # a pass of the phase's plan: a stop records what it answered
+            build.passes.append(self)
 
     def _local_answer(self, key: CacheKey) -> str | None:
         """The local pass's answer, or ``None`` for a stand-in."""
@@ -346,6 +353,9 @@ class _Build:
         self.transcript = TranscriptChecks(self.cache, transcriber, story)
         self.worker_reports: dict[str, dict[str, Any]] = {}
         self.worker_made: list[str] = []  # segment keys worker processes made
+        self.passes: list[_Chain] = []  # the phase's plan passes, in order (not the local pass)
+        self.local_records: dict[str, Made] = {}  # the local pass's answers
+        self.cached_segments: dict[str, str] = {}  # the workers' pass: segment key to hash, cached
 
     def route(self, key: CacheKey) -> str:
         kind = key.kind
@@ -442,8 +452,10 @@ def _voices(story: Any, document: Mapping[str, Any], prepared: Prepared) -> dict
 
 
 def _check_entry(check: Mapping[str, Any]) -> dict[str, Any]:
-    """A renderer's decal check as a run check."""
-    return {"check": check["check"], "result": "pass" if check["passed"] else "fail",
+    """A renderer's decal check as a run check, with the layer's slot (proposal, story
+    860)."""
+    slot = {"slot": check["slot"]} if check.get("slot") is not None else {}
+    return {"check": check["check"], **slot, "result": "pass" if check["passed"] else "fail",
             "artifact": check["artifact"], "key": check["key"], "version": str(check["version"]),
             "thresholds": check["thresholds"], "measured": check["result"]}
 
@@ -550,7 +562,8 @@ class _Recorder:
             return {}
         return {"kept": {"key": kept["key"], "made": kept.get("run_id") == self.build.run_id}}
 
-    def stages(self) -> list[dict[str, Any]]:
+    def stages(self, boards: frozenset[str] | set[str] | None = None) -> list[dict[str, Any]]:
+        """One stage per board of the plan in film order; with ``boards``, only those."""
         build, plan = self.build, self.plan
         motion = build.prepared.motion
         by_board: dict[str, list[tuple[str, Any]]] = {}
@@ -560,6 +573,8 @@ class _Recorder:
         story_boards = {board.id: board for board in build.story.ordered_boards()}
         out = []
         for board_plan in plan.boards:
+            if boards is not None and board_plan.board_id not in boards:
+                continue
             board = story_boards[board_plan.board_id]
             artifacts, clips = [], []
             pinned = None if motion is None else motion.boards.get(board.id)
@@ -600,6 +615,8 @@ class _Recorder:
             report, checks = self.report(segment.key.value)
             seg_record = self.records.get(segment.key.value)
             deferred = seg_record is not None and seg_record.deferred
+            if report is None and not deferred:  # reused: its gate's results, as recorded
+                checks = self.reused_checks(segment.key)
             out.append({"board_id": board.id, "board_number": board.number,
                         "method": {"layer": board.method.layer, "motion": board.method.motion},
                         "frames": board_plan.frames, "film_start_frame": board_plan.film_start_frame,
@@ -622,6 +639,35 @@ class _Recorder:
                 return renderer.reports[key].to_document(), [_check_entry(c) for c in checks]
         return None, []
 
+    def reused_checks(self, key: CacheKey) -> list[dict[str, Any]]:
+        """The decal gate's results of a layered segment this run did not render (story
+        860): for each layer in draw order, its keyed-frames record read from the cache
+        (re-hashed) and the renderer's own arithmetic over the source frames the board
+        shows (``_Layer.index``, ``decal_check``), at the floor the segment key holds. So
+        they are the results the run that rendered it recorded. The gate is not applied:
+        nothing is refused here, and a result is reported, never a reason to stop. A layer
+        whose keyed-frames record cannot be read (missing, not its bytes, not a record) has
+        no result listed: the segment renders nothing, so the build does not fail for it,
+        and nothing is invented in its place."""
+        document = key.document
+        if document.get("compositor") != LAYERED_COMPOSITOR:
+            return []
+        out = []
+        for item in document.get("layers") or ():
+            if item.get("keyed") is None:
+                continue
+            try:
+                record = read_record(read_verified(self.build.read, item["keyed"],
+                                                   f"layer {item['slot']}'s keyed frames"))
+            except (LayeredError, StoreError, OSError):
+                continue
+            layer = _Layer(item=item, record=record, pngs=[], slot=None, puppet=None)
+            shown = {layer.index(n) for n in range(document["frames"])}
+            check = decal_check(item["keyed"], record, item["decal_min_ecc"], shown)
+            if check is not None:
+                out.append(_check_entry({"slot": item["slot"], **check}))
+        return out
+
 
 def _check_entries(results: Any) -> list[dict[str, Any]]:
     """Sound check results (story 841's ``CheckResult``) as run checks."""
@@ -640,6 +686,76 @@ def _transcript_entry(result: Mapping[str, Any], key: str, sha256: str) -> dict[
     return {"check": TRANSCRIPT, "result": result["result"], "key": key, "sha256": sha256,
             "version": str(result["version"]), "thresholds": result["thresholds"],
             "measured": measured, "tolerances_used": list(measured.get("tolerances_used", []))}
+
+
+# A stopped run's stages (story 860) ------------------------------------------------------
+
+
+class _Replay:
+    """A content chain that makes, reads and asks nothing: each key is answered as the
+    stopped run's passes answered it (a segment a worker rendered or the workers' pass
+    found cached, as then), every other key with a stand-in. The plan is a function of
+    its answers, so planning the story again on it gives the stopped plan's names and
+    keys for every board it reached."""
+
+    def __init__(self, build: _Build):
+        self.build = build
+        self.answers: dict[str, Made] = {}
+        for chain in build.passes:  # in order: the last pass's answer is the one kept,
+            self.answers.update(chain.records)
+        # with what an earlier pass made (as a succeeded run keeps it, _keep_made)
+        _keep_made(self.answers, build.local_records, *(c.records for c in build.passes[:-1]))
+        for value, sha in build.cached_segments.items():  # deferred by that pass, found cached
+            if value not in self.answers or self.answers[value].deferred:
+                self.answers[value] = Made(value, SEGMENT, sha, False, 0.0, None)
+        for value, found in build.worker_reports.items():
+            self.answers[value] = Made(value, SEGMENT, found["sha256"], True, found["seconds"], None)
+        self.records: dict[str, Made] = {}
+
+    def __call__(self, key: CacheKey) -> str:
+        found = self.answers.get(key.value)
+        if found is None:
+            found = Made(key.value, key.kind, _stand_in(key), False, 0.0, None, deferred=True)
+        self.records[key.value] = found
+        return found.sha256
+
+
+def _stopped_stages(build: _Build, register: Register) -> list[dict[str, Any]]:
+    """The board stages a run completed before it stopped (story 860, O-428-6), as a
+    succeeded run records them: a board is listed when this run answered its segment
+    (rendered it, or found it in the cache; in the service phase, also the segment it
+    leaves to the offline phase, as that phase's own record lists it) and every artifact
+    before it. A board the run did not reach, or whose segment did not complete (a decal
+    track below its floor, a clip it lacks), is not listed. With workers, a segment the
+    first pass deferred counts when the cache holds it (looked up, read-only, as that pass
+    does once its plan returns). Planning again is pure (only a library timed clip is
+    looked up, read-only); the stages are then recorded as a succeeded run's are (which
+    reads clip records and keyed-frames records, read-only). Any error gives no stages:
+    what stopped the run is never hidden by its record."""
+    if not build.passes:
+        return []
+    service = any(chain.service for chain in build.passes)
+    try:
+        for chain in build.passes:  # the workers' first pass defers every segment it reaches
+            if SEGMENT not in chain.defer:
+                continue
+            for value, key in chain.segment_keys.items():
+                if value not in build.cached_segments and value not in build.worker_reports:
+                    found = build.cache.lookup(key, MP4)  # read-only, as that pass does next
+                    if found is not None:
+                        build.cached_segments[value] = found.sha256
+        replay = _Replay(build)
+        plan = build.plan(replay)
+        done = set()
+        for board_plan in plan.boards:
+            found = replay.answers.get(board_plan.segment.key.value)
+            if found is not None and (service or not found.deferred):
+                done.add(board_plan.board_id)
+        if not done:
+            return []
+        return _Recorder(build, plan, replay.records, register).stages(boards=done)
+    except Exception:  # noqa: BLE001 - the stop is the run's failure; its stages are extra
+        return []
 
 
 # The build ------------------------------------------------------------------------------
@@ -717,6 +833,7 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
     checked_locally = False
     delivered: Delivery | None = None
     planned: tuple[PlannedClip, ...] = ()
+    register: Register | None = None
     try:
         prepared.ensure_buildable()
         scratch = tempfile.TemporaryDirectory(prefix="studio-build-", dir=workdir)
@@ -784,9 +901,9 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
             recorder = _Recorder(build, plan, chain.records, register)
             stages = recorder.stages()
             failed = [c["check"] for c in checks if c["result"] == "fail"]
-            for stage in stages:
+            for stage in stages:  # a reused segment's results are reported, never re-gated
                 failed += [f"{c['check']} ({stage['board_id']})" for c in stage["checks"]
-                           if c["result"] == "fail"]
+                           if c["result"] == "fail" and stage["report"] is not None]
             if failed:
                 raise BuildError(CHECK_FAILED, "checks did not pass, so nothing was delivered: "
                                  + ", ".join(failed), stage="checks")
@@ -861,6 +978,8 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
                               "may exist but could not be read)")
         reason = f"{failure.code}: {failure.message}"[:500]
         progress = {"percent": 100, "stage": failure.stage}
+        if not stages and build is not None and register is not None and checked_locally:
+            stages = _stopped_stages(build, register)  # the plan stopped part way
         try:
             try:
                 run = records.write(advance(run, status, at=now(), by=actor, reason=reason,
@@ -1031,8 +1150,13 @@ def _render_in_workers(build: _Build, workers: int) -> dict[str, Made]:
     from haynes_studio.build.workers import render_segments
     chain = _Chain(build, defer=frozenset({SEGMENT}) | FILM_KINDS)
     build.plan(chain)
-    missing = [(key, chain.segment_board.get(value)) for value, key in chain.segment_keys.items()
-               if build.cache.lookup(key, MP4) is None]
+    missing = []
+    for value, key in chain.segment_keys.items():
+        found = build.cache.lookup(key, MP4)
+        if found is None:
+            missing.append((key, chain.segment_board.get(value)))
+        else:  # a stop in the workers keeps this board's stage (story 860)
+            build.cached_segments[value] = found.sha256
     build.where = (None, SEGMENT)
     build.worker_reports.update(render_segments(build, missing, workers))
     return chain.records

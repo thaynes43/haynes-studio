@@ -396,10 +396,13 @@ def _engine(key):
     return next(e for e in register_document()["engines"] if e["key"] == key)
 
 
-def _file(name):
-    """The register file whose recorded name is ``name`` (a contract example's file name)."""
-    found = [f for f in register_document()["files"] if name in f["recorded_as"]]
-    assert len(found) == 1, name
+def _file(name, engine):
+    """The register file of ``engine`` whose recorded name is ``name`` (a contract
+    example's file name). One file can belong to two engines (the umT5 text encoder of
+    both Wan graphs, story 860), each with its own entry."""
+    found = [f for f in register_document()["files"]
+             if f["engine"] == engine and name in f["recorded_as"]]
+    assert len(found) == 1, (engine, name)
     return found[0]
 
 
@@ -535,4 +538,5 @@ def test_the_contract_examples_take_their_licences_from_the_register():
                 continue
             assert engine["licence"] == _engine(engine["key"])["licence"], engine["key"]
             for item in engine.get("files", []):
-                assert item["licence"] == _file(item["name"])["licence"], item["name"]
+                assert item["licence"] == _file(item["name"], engine["key"])["licence"], \
+                    item["name"]

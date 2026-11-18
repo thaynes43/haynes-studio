@@ -153,7 +153,8 @@
         "wan2.2-s2v-14b-fp8",
         "wav2vec2-large-english-fp16",
         "wan2.1-vae",
-        "wan2.2-lightx2v-4step-lora"
+        "wan2.2-lightx2v-4step-lora",
+        "umt5-xxl-fp8-s2v"
       ],
       "licence": {
         "name": "Apache-2.0",
@@ -536,7 +537,7 @@
       "source": "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/123acf1cc74bccbb9bfff8ac1ee72edc08c2341d/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors",
       "source_revision": "123acf1cc74bccbb9bfff8ac1ee72edc08c2341d",
       "sha256": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
-      "pin_note": "Pinned in haynes-ops models.yaml. The repository now redirects to Comfy-Org/Wan-2.1. Whether the S2V graph also loads it was not checked.",
+      "pin_note": "Pinned in haynes-ops models.yaml. The repository now redirects to Comfy-Org/Wan-2.1. Whether the S2V graph also loads it was not checked here; story 428's clip records show it does, and the register lists it for wan-s2v too (umt5-xxl-fp8-s2v, story 860).",
       "upstream": "https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B",
       "outputs_commercial_use": "allowed",
       "evidence": [
@@ -761,6 +762,47 @@
           "worker_id": "dev-env agent session haynes-studio-1113-141004"
         },
         "note": "Apache-2.0, with the same 'We claim no rights over the your generated contents' sentence as Wan. The Wan2.2-Lightning card also says its evaluation prompts come from Movie Gen Bench (CC BY-NC 4.0); that concerns the prompts, not the weights. The session's reading of the text, not legal advice."
+      }
+    },
+    {
+      "key": "umt5-xxl-fp8-s2v",
+      "engine": "wan-s2v",
+      "name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "recorded_as": [
+        "umt5_xxl_fp8_e4m3fn_scaled"
+      ],
+      "kind": "text encoder",
+      "source": "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/123acf1cc74bccbb9bfff8ac1ee72edc08c2341d/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "source_revision": "123acf1cc74bccbb9bfff8ac1ee72edc08c2341d",
+      "sha256": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+      "pin_note": "The same file as umt5-xxl-fp8 (wan-ti2v), with its source, hash, evidence and licence as recorded there: the S2V graph loads it too. Every speech-to-video clip record of story 428 names it with this SHA-256 (titles/the-winter-menu/e1-build/clips/*.s2v-clip-record.json, files_sha256); added by story 860. Pinned in haynes-ops models.yaml. The repository now redirects to Comfy-Org/Wan-2.1.",
+      "upstream": "https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B",
+      "outputs_commercial_use": "allowed",
+      "evidence": [
+        {
+          "url": "https://www.apache.org/licenses/LICENSE-2.0",
+          "quote": "Subject to the terms and conditions of this License, each Contributor hereby grants to You a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable copyright license to reproduce, prepare Derivative Works of, publicly display, publicly perform, sublicense, and distribute the Work and such Derivative Works in Source or Object form."
+        },
+        {
+          "url": "https://huggingface.co/Comfy-Org/Wan-2.1/blob/123acf1cc74bccbb9bfff8ac1ee72edc08c2341d/README.md",
+          "quote": "license: apache-2.0"
+        },
+        {
+          "url": "https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B/blob/921dbaf3f1674a56f47e83fb80a34bac8a8f203e/README.md",
+          "quote": "The models in this repository are licensed under the Apache 2.0 License. We claim no rights over the your generated contents, granting you the freedom to use them while ensuring that your usage complies with the provisions of this license. You are fully accountable for your use of the models, which must not involve sharing any content that violates applicable laws, causes harm to individuals or groups, disseminates personal information intended for harm, spreads misinformation, or targets vulnerable populations."
+        }
+      ],
+      "licence": {
+        "name": "Apache-2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0",
+        "commercial_use": "allowed",
+        "attribution_required": false,
+        "checked_at": "2026-11-13T14:18:00Z",
+        "checked_by": {
+          "kind": "worker",
+          "worker_id": "dev-env agent session haynes-studio-1113-141004"
+        },
+        "note": "Apache-2.0 (repackaged umT5-XXL encoder, shipped with the Wan models). The session's reading of the text, not legal advice."
       }
     },
     {

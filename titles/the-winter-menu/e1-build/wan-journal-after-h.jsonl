@@ -1,0 +1,4 @@
+{"v": 1, "event": "created", "at": "2026-11-14T01:54:46Z"}
+{"v": 1, "event": "remember", "job_id": "95372414266440f387298aeb282c921f", "state": "in_flight", "graph_sha256": "9f4e7c0e513a0fe2cc8e4f12df89fa50658f890a1f2235d80c0088de81385c30", "at": "2026-11-14T01:54:46Z"}
+{"v": 1, "event": "remember", "job_id": "95372414266440f387298aeb282c921f", "state": "uncollected", "graph_sha256": "9f4e7c0e513a0fe2cc8e4f12df89fa50658f890a1f2235d80c0088de81385c30", "at": "2026-11-14T01:57:55Z"}
+{"v": 1, "event": "settle", "job_id": "95372414266440f387298aeb282c921f", "outcome": "collected", "at": "2026-11-14T01:57:56Z"}
