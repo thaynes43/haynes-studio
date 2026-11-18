@@ -176,11 +176,11 @@ def check_request(request: S2VRequest | ClipRequest, story: str) -> None:
 _CHECKS = {
     WAN_UNSETTLED: "the journal holds a Wan job made for another request: read the journal "
                    "and /videos/<job_id>; collect it with recover(<its own request>, job_id) "
-                   "or, once a person has checked it, WanClipClient.clear_in_flight(); never "
+                   "or, once a person has checked it, WanClipClient.clear_in_flight(by=<human principal>); never "
                    "resubmit to get past it",
     COMPETING_WORK: "foreign work was seen on the Wan engine: inspect the prompt IDs the halt "
                     "names on the engine queue and history; only a person calls "
-                    "WanClipClient.clear_halt(), and only after that",
+                    "WanClipClient.clear_halt(by=<human principal>), and only after that",
     JOURNAL_FAILED: "read the journal file and the Wan service (its engine queue and the "
                     "ledger of every job the journal names); never delete, move, empty or "
                     "replace the journal or its .lock file to get past it",
@@ -188,7 +188,7 @@ _CHECKS = {
                 "If the held record's in_flight names the job (its prompt was accepted), the "
                 "build keeps asking recover, which refuses, so only a person settles it: once "
                 "the ledger reads failed and the queue holds nothing of it, "
-                "WanClipClient.clear_in_flight(); otherwise the client settled it and the next "
+                "WanClipClient.clear_in_flight(by=<human principal>); otherwise the client settled it and the next "
                 "service phase asks for the clip again",
     PIN_MISMATCH: "a pinned snippet or template does not hash to its pin; nothing was sent: "
                   "check the checkout",
@@ -199,7 +199,7 @@ _BUSY = ("read the journal (FileJournal(path).read_state()) and /videos/<job_id>
          "it names, then the API's /health, its compute lease and the engine queue; a job "
          "whose ledger reads succeeded is collected by the next service phase with recover, "
          "never rendered again; a job with no ledger needs a person to check the api "
-         "container before WanClipClient.clear_in_flight(); a journal held by another "
+         "container before WanClipClient.clear_in_flight(by=<human principal>); a journal held by another "
          "process means finding that process, never pointing a run at another file")
 _LOST = ("the command failed or its answer was lost: read the journal; if it names a job "
          "(in_flight), read /videos/<job_id>: a finished job is collected by the next service "
@@ -211,7 +211,7 @@ _CHECKS[RESPONSE_INVALID] = (
     "seed or input). Read the journal and /videos/<job_id>: a cut transfer is collected by "
     "the next service phase of the same draft and --wan-story with recover; a clip that "
     "fails its checks, or a ledger of another request, stays held until a person inspects "
-    "it and calls WanClipClient.clear_in_flight()")
+    "it and calls WanClipClient.clear_in_flight(by=<human principal>)")
 _CHECKS[TIMEOUT] = _CHECKS[COMMAND_FAILED] = _LOST
 
 
@@ -220,7 +220,7 @@ def _check_for(code: str) -> str:
         return _BUSY
     if code == NOT_FOUND:
         return ("the job has no ledger (it may never have started): check the api container, "
-                "then a person may call WanClipClient.clear_in_flight()")
+                "then a person may call WanClipClient.clear_in_flight(by=<human principal>)")
     return _CHECKS.get(code, _LOST)
 
 
