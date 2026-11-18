@@ -26,7 +26,7 @@ normative form; the contract's examples are their fixtures.
 A principal is `human`, `agent`, `worker`, `cli` or, since story 849, `agent_session`
 (`{kind, session, harness, model}`, P-24): an agent working in its own dev-env session
 without a studio key. Every place that takes a principal accepts it; it records who did
-the work and grants nothing. **Proposed amendment for the contract owner, story
+the work and grants nothing. **The contract's P-50, story
 [864](https://work.haynesnetwork.com/work_packages/864):** a CLI's `operator` accepts
 exactly a human or an agent session. The shared schema adds `cli_operator` as the union
 of the unchanged human shape and the existing agent-session shape, now a named `$defs`

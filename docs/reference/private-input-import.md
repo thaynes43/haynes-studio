@@ -38,7 +38,7 @@ uv run python -m haynes_studio.importer --story DIR/story.json --map DIR/legacy-
   --authorized-by https://work.haynesnetwork.com/work_packages/428 [--library OLD/library.json]
 ```
 
-**Proposed amendment for the contract owner, story
+**The contract's P-50, story
 [864](https://work.haynesnetwork.com/work_packages/864):** the human pair above may be
 replaced by `--operator-session SESSION --operator-harness HARNESS --operator-model MODEL`.
 The [same complete, exclusive sets](studio-cli.md#operator-flags)

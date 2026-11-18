@@ -11,7 +11,7 @@ adapter is story [379](https://work.haynesnetwork.com/work_packages/379), the AP
 the [canonical model](studio-model.md) (contexts, normalized integral floats, sorted
 violations, a malformed document never raises).
 
-**Proposed people-only guard for the contract owner, story
+**People-only guard (the contract's P-50), story
 [864](https://work.haynesnetwork.com/work_packages/864):** `promote(..., by=...)`
 requires a human principal, direct or inside one CLI principal. An agent session is
 refused with `ValueError` before lookup or an idempotent return; no library changes.

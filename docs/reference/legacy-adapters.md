@@ -15,7 +15,7 @@ service. The Wan clip clients (image-to-video and speech-to-video, story
 [427](https://work.haynesnetwork.com/work_packages/427) own the clip-source interfaces
 they plug into. Foley has no client.
 
-**Proposed people-only guard for the contract owner, story
+**People-only guard (the contract's P-50), story
 [864](https://work.haynesnetwork.com/work_packages/864):** Wan's manual reset functions
 now require `WanClipClient.clear_in_flight(by=human)` and
 `WanClipClient.clear_halt(by=human)`. A human may be wrapped in one CLI principal.

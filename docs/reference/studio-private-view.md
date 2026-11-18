@@ -19,7 +19,7 @@ add `--master` to play the master. The result prints the selection, both file ha
 the proposed or linked ledger, and the private URL. No account, public platform,
 schedule or inference is involved. This command does not imply go-live approval.
 
-**Proposed attribution amendment for the contract owner, story
+**Attribution (the contract's P-50), story
 [864](https://work.haynesnetwork.com/work_packages/864):** require the same complete
 [operator flag set](studio-cli.md#operator-flags)
 as builds (the human pair may replace the agent triple above). Both the viewer's ledger
