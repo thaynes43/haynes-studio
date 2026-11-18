@@ -25,7 +25,9 @@ jobs:
   source:
     name: source (${{ matrix.python }})
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # The suite took 8 to 10 minutes on 2026-11-18 (about 3,000 tests) and was cut off at
+    # the old limit of 10. The limit catches a hang; it is not a speed target.
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
