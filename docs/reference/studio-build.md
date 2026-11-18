@@ -602,9 +602,13 @@ tests there would never run in `uv run pytest` or CI).
 
 ## What story 428 runs
 
-The first live build: The Winter Menu r4 with live voices, clips and transcript. These
-steps use only what this story built; the two places that need story 428's own
-decision are marked **(428 decides)**.
+**Historical plan** for the first live build; the **(428 decides)** notes below were
+open at that time. Q-406-2 now puts service phases in the session pod and offline
+phases on the worker, copying the store between them. Story 428 actually ran offline
+in its session pod because the worker was outside the lock; story 862 installed the
+lock on 2026-11-18, but no offline phase has run there yet. Use the current
+[worker procedure](../process/manual-short-poc.md#package-builds-on-the-cpu-worker)
+for that Expected step; the planning commands below are kept unchanged.
 
 1. **Checkout and tools.** In a session pod, at `main`:
    `UV_PYTHON_DOWNLOADS=never uv sync --locked --python 3.11`.
