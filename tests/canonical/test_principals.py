@@ -116,22 +116,35 @@ def test_a_nullable_principal_reports_any_malformed_kind_at_its_field():
         ("schema.invalid", "/licence/checked_by")]
 
 
-def test_an_agent_session_grants_nothing():
-    """It cannot stand in for the human a command line acts for, so it cannot reach
-    anything a human principal is needed for (P-24)."""
+@pytest.mark.parametrize("name, base, path, validate", PLACES, ids=[p[0] for p in PLACES])
+def test_a_cli_operator_can_be_an_agent_session(name, base, path, validate):
+    actor = {"kind": "cli", "command": "studio build", "operator": dict(SESSION)}
+    assert _found(validate, _put(base(), path, actor)) == []
+    assert to_document(Principal.from_document(actor)) == actor
+
+
+@pytest.mark.parametrize("operator", [
+    {"kind": "agent", "key_id": "key_01M79V9FC00000000000000001"},
+    {"kind": "worker", "worker_id": "worker"},
+    {"kind": "cli", "command": "nested", "operator": SESSION},
+    {**SESSION, "kind": "human"},
+    {**SESSION, "kind": "worker"},
+    [], None, "session",
+    {**SESSION, "model": ""},
+    {**SESSION, "iss": "https://example.invalid"},
+    {**OPERATOR, "session": "extra"},
+])
+def test_a_cli_operator_is_exactly_a_human_or_agent_session(operator):
     document = example("valid/asset-cast.json")
-    document["created_by"]["operator"] = dict(SESSION)
-    found = set(_found(lambda d: validate_asset(d, context="write"), document))
-    assert found == {("schema.invalid", "/created_by/operator"),
-                     ("schema.invalid", "/created_by/operator/kind"),
-                     *(("schema.unknown_field", f"/created_by/operator/{key}")
-                       for key in ("session", "harness", "model"))}
+    document["created_by"]["operator"] = operator
+    assert _found(lambda d: validate_asset(d, context="write"), document)
 
 
 @pytest.mark.parametrize("document", [
     SESSION, OPERATOR, {"kind": "agent", "key_id": "key_01M79V9FC00000000000000001"},
     {"kind": "worker", "worker_id": "dev-env agent session haynes-studio-1113-141004"},
     {"kind": "cli", "command": "studio legacy import", "operator": OPERATOR},
-], ids=["agent_session", "human", "agent", "worker", "cli"])
+    {"kind": "cli", "command": "studio build", "operator": SESSION},
+], ids=["agent_session", "human", "agent", "worker", "cli-human", "cli-agent-session"])
 def test_every_kind_round_trips_through_the_model(document):
     assert to_document(Principal.from_document(document)) == document

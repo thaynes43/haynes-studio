@@ -638,7 +638,7 @@
                 "minLength": 1
               },
               "operator": {
-                "$ref": "#/$defs/human"
+                "$ref": "#/$defs/cli_operator"
               }
             },
             "additionalProperties": false
@@ -656,28 +656,7 @@
             ]
           },
           "then": {
-            "required": [
-              "kind",
-              "session",
-              "harness",
-              "model"
-            ],
-            "properties": {
-              "kind": true,
-              "session": {
-                "type": "string",
-                "minLength": 1
-              },
-              "harness": {
-                "type": "string",
-                "minLength": 1
-              },
-              "model": {
-                "type": "string",
-                "minLength": 1
-              }
-            },
-            "additionalProperties": false
+            "$ref": "#/$defs/agent_session"
           }
         }
       ]
@@ -1020,6 +999,44 @@
         }
       },
       "additionalProperties": false
+    },
+    "agent_session": {
+      "required": [
+        "kind",
+        "session",
+        "harness",
+        "model"
+      ],
+      "properties": {
+        "kind": {
+          "const": "agent_session"
+        },
+        "session": {
+          "type": "string",
+          "minLength": 1
+        },
+        "harness": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "cli_operator": {
+      "$comment": "Story 864 proposal: a self-reported human or agent session; grants nothing.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/human"
+        },
+        {
+          "$ref": "#/$defs/agent_session"
+        }
+      ]
     }
   }
 }

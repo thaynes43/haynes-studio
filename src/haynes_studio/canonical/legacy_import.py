@@ -154,12 +154,12 @@ def import_manifest(manifest: LegacyManifest, speech: LegacySpeech, *, manifest_
                     production_id: str | None = None, minter: Minter | None = None,
                     map_label: str = "<import map>") -> ImportResult:
     """Import one legacy manifest. ``manifest_label`` is the path recorded in
-    ``origin.manifest`` (repository-relative); ``operator`` is the human running the
-    CLI; ``now`` is the ISO time stamped on created records. Raises
+    ``origin.manifest`` (repository-relative); ``operator`` is the human or agent
+    session running the CLI; ``now`` is the ISO time stamped on created records. Raises
     :class:`ContractError` for a speech mismatch, a map that does not fit, or a result
     that breaks a canonical rule."""
-    if operator.kind != "human":
-        raise ValueError("the operator is a human principal (contract section 2)")
+    if operator.kind not in ("human", "agent_session"):
+        raise ValueError("the operator must be a human or agent_session principal (section 2)")
     if manifest.sha256 is None:
         raise ValueError("the manifest must be loaded from its file: the map records the "
                          "SHA-256 of its bytes (haynes_studio.legacy.load)")

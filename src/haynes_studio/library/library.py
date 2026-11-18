@@ -30,7 +30,7 @@ from typing import Any
 from haynes_studio.canonical.facts import Facts, PhotoVersionFacts, VoiceVersionFacts
 from haynes_studio.canonical.ids import Minter, is_id
 from haynes_studio.canonical.jsonvalues import normalize
-from haynes_studio.canonical.model import Principal, to_document
+from haynes_studio.canonical.model import Principal, require_human, to_document
 from haynes_studio.errors import ContractError, Violation, blocking, pointer
 from haynes_studio.library.model import (
     BOARD,
@@ -462,6 +462,7 @@ def promote(library: Library, version_id: str, *, by: Principal, now: str,
     the source key ``promote:<board version ID>`` (proposal), so a second promotion
     returns the same version. A board voice is board-scoped only
     (``asset.not_promotable``, proposal)."""
+    require_human(by, "promote_asset_version")
     version = library.versions.get(version_id)
     if version is None:
         raise _error(REF_UNKNOWN, "/id", f"no asset version {version_id}")

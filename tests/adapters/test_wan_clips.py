@@ -52,7 +52,10 @@ from haynes_studio.adapters.wan import (
     s2v_frames_needed,
     s2v_length,
 )
+from haynes_studio.canonical.model import Principal
 from tests.adapters.conftest import forget_wan_process_state
+
+HUMAN = Principal(kind="human", iss="https://auth.example.invalid", sub="wan-checker")
 
 STORY = "https://work.haynesnetwork.com/work_packages/428"
 COOL = ((45.0, 0.0), (44.0, 0.0))
@@ -490,7 +493,7 @@ def test_g5_foreign_work_keeps_the_output_and_stops_further_submissions():
     before = len(runner.calls)
     refused(pod, client, i2v(seed=8), COMPETING_WORK)
     assert len(runner.calls) == before  # refused before any command
-    assert WanClipClient.clear_halt() is not None
+    assert WanClipClient.clear_halt(by=HUMAN) is not None
     pod.foreign_during_job = []
     assert client.render(i2v(seed=8)).frames == 9
 
@@ -504,7 +507,7 @@ def test_g5_a_second_halt_extends_the_first_never_replaces_it():
     journal = MemoryJournal()
     client = client_for(runner, journal=journal)
     job_b = refused(pod, client, i2v(), RESPONSE_INVALID).job_id  # its answer lost: not read yet
-    WanClipClient.clear_in_flight()  # a person checked it; its ledger and clip stay on the API
+    WanClipClient.clear_in_flight(by=HUMAN)  # a person checked it; its ledger and clip stay on the API
     pod.lose, pod.foreign_during_job = None, ["foreign-1"]
     job_a = refused(pod, client, i2v(seed=8), COMPETING_WORK).job_id
     assert WanClipClient.halted() == wan.Halt(job_a, ("foreign-1",))
@@ -516,7 +519,7 @@ def test_g5_a_second_halt_extends_the_first_never_replaces_it():
     assert WanClipClient.halted() == wan.Halt(job_a, every) == journal.load_halt()
     error = refused(pod, client, i2v(seed=9), COMPETING_WORK)
     assert job_a in str(error) and all(prompt in str(error) for prompt in every)
-    assert WanClipClient.clear_halt() == wan.Halt(job_a, every)
+    assert WanClipClient.clear_halt(by=HUMAN) == wan.Halt(job_a, every)
     assert journal.load_halt() is None and runs(runner) == 2
 
 
@@ -525,7 +528,7 @@ def test_g5_clear_halt_hands_back_what_another_process_added():
     journal = MemoryJournal()
     job_a = refused(pod, client_for(FakeRunner(pod), journal=journal), i2v(), COMPETING_WORK).job_id
     journal.halt(job_a, ["foreign-1", "foreign-7"])  # another process on the journal extended it
-    assert WanClipClient.clear_halt() == wan.Halt(job_a, ("foreign-1", "foreign-7"))
+    assert WanClipClient.clear_halt(by=HUMAN) == wan.Halt(job_a, ("foreign-1", "foreign-7"))
 
 
 def test_g5_our_own_running_prompt_is_not_foreign_work():
@@ -606,7 +609,7 @@ def test_g7_a_job_with_no_ledger_stays_in_flight_until_cleared():
     assert "no ledger" in str(error)
     assert runs(runner) == 1
     pod.lose = None
-    assert WanClipClient.clear_in_flight() is not None
+    assert WanClipClient.clear_in_flight(by=HUMAN) is not None
     assert client.render(i2v()).frames == 9
 
 
@@ -794,7 +797,7 @@ def test_g7_a_clip_that_fails_its_checks_stays_uncollected_until_a_person_clears
     with pytest.raises(WanError):
         client.recover(i2v(), error.job_id)  # the same check fails again
     assert WanClipClient.in_flight().job_id == error.job_id and runs(runner) == 1
-    assert WanClipClient.clear_in_flight().job_id == error.job_id
+    assert WanClipClient.clear_in_flight(by=HUMAN).job_id == error.job_id
     pod.deliver_frames = None
     assert client.render(i2v(seed=8)).frames == 9
 
@@ -1231,7 +1234,7 @@ def test_g12_clear_in_flight_appends_a_cleared_line_a_new_process_reads(journal)
     client = client_for(runner, journal=reopen(journal), ids=Ids(100))
     assert "no ledger" in str(refused(pod, client, i2v(), BUSY))
     before = journal_bytes(journal)
-    assert WanClipClient.clear_in_flight().code == "journal"
+    assert WanClipClient.clear_in_flight(by=HUMAN).code == "journal"
     after = journal_bytes(journal)
     assert after.startswith(before) and json.loads(after[len(before):])["outcome"] == "cleared"
     restart()
@@ -1249,7 +1252,7 @@ def test_g12_the_halt_outlives_the_process(journal):
     assert WanClipClient.halted().unexpected_work_seen == ("foreign-1",)
     refused(pod, client, i2v(seed=8), COMPETING_WORK)
     assert runs(runner) == 1
-    WanClipClient.clear_halt()
+    WanClipClient.clear_halt(by=HUMAN)
     restart()
     assert client_for(runner, journal=reopen(journal), ids=Ids(200)).render(i2v(seed=8)).frames == 9
     assert "clear_halt " + "0" * 31 + "1" in events(journal)
@@ -1461,7 +1464,7 @@ def test_g13_the_clears_refuse_while_a_render_runs_in_another_thread(clear):
     assert paused.inside.wait(30)
     before = journal.data
     with pytest.raises(WanError) as caught:
-        getattr(WanClipClient, clear)()
+        getattr(WanClipClient, clear)(by=HUMAN)
     assert caught.value.code == BUSY and "clear after it returns" in str(caught.value)
     assert journal.data == before and WanClipClient.in_flight().state == IN_FLIGHT
     paused.go.set()
@@ -1482,7 +1485,7 @@ def test_g13_the_clears_refuse_when_called_from_inside_the_run(clear):
         def run(self, command):
             if snippets_of(command) == "wan_run.py":
                 try:
-                    getattr(WanClipClient, clear)()
+                    getattr(WanClipClient, clear)(by=HUMAN)
                 except WanError as error:
                     seen.append(error.code)
             return runner.run(command)
@@ -2001,7 +2004,7 @@ def test_g13_a_journal_that_no_longer_names_what_the_process_holds_is_refused(tm
     error = refused(pod, client, i2v(seed=8), JOURNAL_FAILED)
     assert "no longer names" in str(error) and runs(runner) == 1
     with pytest.raises(WanError) as caught:
-        (WanClipClient.clear_in_flight if what == "job" else WanClipClient.clear_halt)()
+        (WanClipClient.clear_in_flight if what == "job" else WanClipClient.clear_halt)(by=HUMAN)
     assert caught.value.code == JOURNAL_FAILED
 
 
@@ -2012,7 +2015,7 @@ def test_g13_a_clear_after_another_process_settled_the_job_writes_nothing(tmp_pa
     held = refused(pod, client_for(runner, journal=FileJournal(path)), i2v(), COMMAND_FAILED)
     FileJournal(path).settle(held.job_id, "cleared")  # another process
     before = path.read_bytes()
-    assert WanClipClient.clear_in_flight().job_id == held.job_id
+    assert WanClipClient.clear_in_flight(by=HUMAN).job_id == held.job_id
     assert path.read_bytes() == before and FileJournal(path).load() is None
 
 
@@ -2023,7 +2026,7 @@ def test_g13_a_clear_halt_after_another_process_cleared_it_writes_nothing(tmp_pa
     halt = WanClipClient.halted()
     FileJournal(path).clear_halt(halt.job_id)  # another process, after inspecting it
     before = path.read_bytes()
-    assert WanClipClient.clear_halt() == halt
+    assert WanClipClient.clear_halt(by=HUMAN) == halt
     assert path.read_bytes() == before and FileJournal(path).load_halt() is None
 
 

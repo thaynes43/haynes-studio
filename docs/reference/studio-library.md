@@ -11,6 +11,13 @@ adapter is story [379](https://work.haynesnetwork.com/work_packages/379), the AP
 the [canonical model](studio-model.md) (contexts, normalized integral floats, sorted
 violations, a malformed document never raises).
 
+**People-only guard (the contract's P-50), story
+[864](https://work.haynesnetwork.com/work_packages/864):** `promote(..., by=...)`
+requires a human principal, direct or inside one CLI principal. An agent session is
+refused with `ValueError` before lookup or an idempotent return; no library changes.
+This implements section 12's human-only `promote_asset_version`. No promotion CLI
+exists yet; this check does not authenticate the supplied principal.
+
 ## Schemas
 
 | Type | File | Validator |

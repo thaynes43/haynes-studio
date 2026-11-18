@@ -48,7 +48,12 @@ and are no longer pending.
 Every command takes the local store's root (`--store`), and the build commands take the
 draft (`--story`, a `studio.story/v1` file with its boards embedded), the library
 (`--library`, a JSON array of `studio.asset-version/v1` documents) and the operator
-(`--operator-iss`, `--operator-sub`, as `studio legacy import`). Exit status: `0` done,
+([operator flags](studio-cli.md#operator-flags),
+the contract's P-50, story 864). Both `queued_by.operator` and
+every `transitions[].by.operator` record the chosen human or agent session. Voice jobs'
+`created_by.operator`, newly created assets' `created_by.operator`, and asset versions'
+`provenance.created_by.operator` use the same selection. Earlier attribution on reused
+records stays as stored. Exit status: `0` done,
 `1` a rule failed or the run failed, `2` a usage error. Problems print on stderr, one per
 line: a failed or held run as `<story file>: rule <code> [at board <brd_id>] (stage
 <stage>): <message>` (a held run's message starts `held`); a pre-build problem of a story
@@ -268,7 +273,7 @@ store. Tests: two workers give the same decoded frames as one.
 `build.sources`; the code is `build.live`) fills the service phase's `ClipSources` with
 story 842's `WanClipClient` ([legacy-adapters.md](legacy-adapters.md#wan-clip-clients-story-842)).
 Glue only: every guard is the client's. Nothing here retries, waits, loops, catches a
-refusal to go on, or calls `clear_in_flight()` or `clear_halt()` (those are a person's).
+refusal to go on, or calls `clear_in_flight(by=human)` or `clear_halt(by=human)` (those are a person's).
 Making the sources contacts nothing and reads nothing; the one client is made on the
 first clip request, so a phase whose clips are all cached never reads the journal.
 
@@ -407,7 +412,7 @@ board stage lists it, made, then reused by the next run
 A held run stays held for the same request until its cause is gone: a job the journal
 still holds is asked of `recover` again by every later run, and `recover` refuses until
 its ledger reads `succeeded`. A failed job whose prompt the engine accepted is therefore
-settled only by a person (`clear_in_flight()` once its ledger reads failed and the queue
+settled only by a person (`clear_in_flight(by=human)` once its ledger reads failed and the queue
 holds nothing of it); the client's own settle on an empty queue (story 842's row 7)
 happens inside `render`, which the build does not call while a job is held.
 
@@ -709,9 +714,9 @@ PRD --json`, `error.problems[0]`), then the journal, then `/videos/<job_id>` for
 it names and the engine queue. A finished job whose answer was lost is collected by the
 next service phase of the same draft (and `--wan-story`) with `recover`, never rendered
 again; a failed job whose prompt was accepted is a person's to settle
-(`clear_in_flight()` once its ledger reads failed and the engine queue holds nothing of
+(`clear_in_flight(by=human)` once its ledger reads failed and the engine queue holds nothing of
 it); anything else is a person's too: never resubmit to recover, never call
-`clear_in_flight()` or `clear_halt()` without checking, and never start a new journal to
+`clear_in_flight(by=human)` or `clear_halt(by=human)` without checking, and never start a new journal to
 get past a blocked one. A chain held part way keeps the clips it collected
 (`collected_before_stop` names each with its `kept` key): the next service phase asks
 only for the rest, and its board stage lists each chain clip as made or reused.

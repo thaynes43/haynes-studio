@@ -86,6 +86,7 @@ from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
+from haynes_studio.canonical.model import Principal, require_human
 from haynes_studio.adapters import pinned
 from haynes_studio.adapters.errors import (
     BUSY,
@@ -1211,7 +1212,7 @@ class WanClipClient:
         return WanClipClient._unsettled
 
     @classmethod
-    def clear_in_flight(cls) -> InFlightJob | None:
+    def clear_in_flight(cls, *, by: Principal) -> InFlightJob | None:
         """Forget the blocking job, once a person has checked it: that it is not running
         (for example: its ledger is missing and no snippet process is left in the ``api``
         container), or that its uncollected clip has been inspected. Refused
@@ -1220,6 +1221,7 @@ class WanClipClient:
         with outcome ``cleared`` to its journal first (unless another process already
         settled it there); if that write fails, the job stays. Returns what it forgot.
         Touches nothing on the Wan service."""
+        require_human(by, "WanClipClient.clear_in_flight")
         with _process_lock("a Wan job is running in this process; clear after it returns"):
             cleared, journal = WanClipClient._unsettled, WanClipClient._unsettled_journal
             if cleared is not None and journal is not None:
@@ -1241,12 +1243,13 @@ class WanClipClient:
         return WanClipClient._halt
 
     @classmethod
-    def clear_halt(cls) -> Halt | None:
+    def clear_halt(cls, *, by: Principal) -> Halt | None:
         """Allow submissions again after a person has inspected the foreign work. Refused
         (``adapter.busy``, nothing changed) while a :meth:`render` or :meth:`recover` runs
         in this process or another process holds its journal. Appends a ``clear_halt``
         line to the halt's journal first (unless the journal no longer has that halt); if
         that write fails, the halt stays."""
+        require_human(by, "WanClipClient.clear_halt")
         with _process_lock("a Wan job is running in this process; clear after it returns"):
             cleared, journal = WanClipClient._halt, WanClipClient._halt_journal
             if cleared is not None and journal is not None:
@@ -1416,7 +1419,7 @@ class WanClipClient:
         if foreign:
             raise WanError(COMPETING_WORK, LABEL, f"competing engine work seen during job {job_id} "
                            f"({', '.join(foreign)}); output kept, no further submissions until "
-                           "WanClipClient.clear_halt()", job_id=job_id, clip=clip)
+                           "WanClipClient.clear_halt(by=<human principal>)", job_id=job_id, clip=clip)
         return clip
 
     def recover(self, request: WanRequest, job_id: str) -> WanClip:
@@ -1483,7 +1486,7 @@ class WanClipClient:
         if foreign:
             raise WanError(COMPETING_WORK, LABEL, f"competing engine work was seen during job {job_id} "
                            f"({', '.join(foreign)}); output kept, no further submissions until "
-                           "WanClipClient.clear_halt()", job_id=job_id, clip=clip)
+                           "WanClipClient.clear_halt(by=<human principal>)", job_id=job_id, clip=clip)
         return clip
 
     @contextlib.contextmanager
@@ -1507,7 +1510,7 @@ class WanClipClient:
         if halt is not None:
             raise WanError(COMPETING_WORK, LABEL, f"competing engine work was seen during job "
                            f"{halt.job_id} ({', '.join(halt.unexpected_work_seen)}); no further "
-                           "submissions until WanClipClient.clear_halt()", job_id=halt.job_id)
+                           "submissions until WanClipClient.clear_halt(by=<human principal>)", job_id=halt.job_id)
 
     def _adopt(self) -> None:
         """One read of this client's journal (``adapter.journal_failed`` unless it reads
@@ -1556,7 +1559,7 @@ class WanClipClient:
             job = self.read_job(unsettled.job_id)  # read-only; any failure keeps the state
         except AdapterError as error:
             hint = ("it has no ledger: it may never have started, or its process may still be "
-                    "starting; check the api container, then WanClipClient.clear_in_flight()"
+                    "starting; check the api container, then WanClipClient.clear_in_flight(by=<human principal>)"
                     if error.code == "adapter.not_found" else f"its ledger could not be read ({error.code})")
             raise WanError(BUSY, LABEL, f"an earlier Wan job may still be running; {hint}",
                            job_id=unsettled.job_id, in_flight=True) from None
@@ -1572,7 +1575,7 @@ class WanClipClient:
             if foreign:
                 raise WanError(COMPETING_WORK, LABEL, f"competing engine work was seen during the "
                                f"earlier job {unsettled.job_id} ({', '.join(foreign)}); no further "
-                               f"submissions until WanClipClient.clear_halt(); "
+                               f"submissions until WanClipClient.clear_halt(by=<human principal>); "
                                f"{_uncollected(unsettled.job_id)}",
                                job_id=unsettled.job_id)
             raise WanError(BUSY, LABEL, _uncollected(unsettled.job_id), job_id=unsettled.job_id)
@@ -1583,7 +1586,7 @@ class WanClipClient:
         if foreign:
             raise WanError(COMPETING_WORK, LABEL, f"competing engine work was seen during the earlier "
                            f"job {unsettled.job_id} ({', '.join(foreign)}); its output stays on the Wan "
-                           "API; no further submissions until WanClipClient.clear_halt()",
+                           "API; no further submissions until WanClipClient.clear_halt(by=<human principal>)",
                            job_id=unsettled.job_id)
 
     # The process's memory and the journal: every change to a blocking job or the halt is
@@ -1711,7 +1714,7 @@ class WanClipClient:
         speech-to-video :func:`s2v_frames_delivered` frames at 16 fps. Anything else is
         an error, and the job stays uncollected, its clip on the Wan API to inspect."""
         kept = (f"; job {job_id} stays uncollected and its clip stays on the Wan API at "
-                f"/videos/{job_id}/file: inspect it, then WanClipClient.clear_in_flight()")
+                f"/videos/{job_id}/file: inspect it, then WanClipClient.clear_in_flight(by=<human principal>)")
         try:
             measured = measure_clip(body)
         except ValueError as problem:
@@ -1825,7 +1828,7 @@ def _uncollected(job_id: str) -> str:
     return (f"Wan job {job_id} succeeded but its clip has not been collected: call "
             f"WanClipClient.recover(request, {job_id!r}) with the request it was made for; no "
             "further render until its clip is fetched and checked, or until a person has "
-            "inspected it and called WanClipClient.clear_in_flight()")
+            "inspected it and called WanClipClient.clear_in_flight(by=<human principal>)")
 
 
 def _json(stdout: bytes, label: str) -> Any:

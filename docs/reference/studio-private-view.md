@@ -10,13 +10,23 @@ From a session with the established Wan API exec route:
 ```sh
 uv run studio private-view RUN_ID --store /path/to/store --production PRD_ID \
   --job a-new-production-name --out /path/to/new-result-folder \
-  --title 'A private viewing' --check-only
+  --title 'A private viewing' --operator-session SESSION \
+  --operator-harness Codex --operator-model gpt-6.1-sol --check-only
 ```
 
 Remove `--check-only` for an authorized attempt. The link plays the **phone proxy**;
 add `--master` to play the master. The result prints the selection, both file hashes,
 the proposed or linked ledger, and the private URL. No account, public platform,
 schedule or inference is involved. This command does not imply go-live approval.
+
+**Attribution (the contract's P-50), story
+[864](https://work.haynesnetwork.com/work_packages/864):** require the same complete
+[operator flag set](studio-cli.md#operator-flags)
+as builds (the human pair may replace the agent triple above). Both the viewer's ledger
+and the local `production.json`'s embedded ledger record the CLI actor under
+`provenance.created_by`. This identifies who placed the private viewing independently
+of who queued the build. It grants no access and is not an approval; the original run
+and delivery are unchanged. The function `put_private_view` requires `by: Principal`.
 
 `JOB` is 3–64 ASCII lowercase letters, digits or hyphens, beginning with a letter or
 digit. `OUT` must be a new folder outside the store, with an existing parent. An
