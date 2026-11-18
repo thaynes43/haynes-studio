@@ -106,6 +106,19 @@ def _parser() -> argparse.ArgumentParser:
                      help="print {story, legacy_import} as JSON instead of a summary")
     imp.set_defaults(handler=_import)
     _build_parsers(commands)
+    view = commands.add_parser(
+        "private-view", help="put a verified delivery on private viewing",
+        description="Copy a verified delivery create-only to the private Wan viewer. "
+                    "The link plays the phone proxy unless --master is given.")
+    view.add_argument("run_id", metavar="RUN_ID")
+    view.add_argument("--store", required=True, metavar="ROOT")
+    view.add_argument("--production", required=True, metavar="PRD_ID")
+    view.add_argument("--job", required=True, help="a new remote production folder name")
+    view.add_argument("--out", required=True, metavar="DIR", help="a new local output folder")
+    view.add_argument("--title", required=True, help="the private viewer's title")
+    view.add_argument("--master", action="store_true", help="play the master instead of the proxy")
+    view.add_argument("--check-only", action="store_true", help="read-only preflight and plan")
+    view.set_defaults(handler=_private_view)
     return parser
 
 
@@ -213,6 +226,28 @@ def main(argv: Sequence[str] | None = None, *, stdout: TextIO | None = None,
     except RecursionError:  # a legacy loader reading a pathologically nested file
         print("studio: an input file is nested too deeply to read", file=err)
         return USAGE
+
+
+# private-view -----------------------------------------------------------------------
+
+
+def _private_view(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
+    from haynes_studio.adapters.errors import AdapterError
+    from haynes_studio.private_view import PrivateViewError, put_private_view
+    from haynes_studio.store import StoreError
+    from haynes_studio.delivery.errors import DeliveryError
+
+    try:
+        result = put_private_view(
+            store=_store(args.store), production_id=args.production, run_id=args.run_id,
+            job=args.job, out=Path(args.out), runner=args.clients.wan_runner(),
+            title=args.title, master=args.master, check_only=args.check_only)
+    except (PrivateViewError, AdapterError, StoreError, DeliveryError, ValueError) as error:
+        print(error, file=err)
+        return FAILED
+    json.dump(result, out, indent=2)
+    out.write("\n")
+    return OK
 
 
 # legacy validate --------------------------------------------------------------------
