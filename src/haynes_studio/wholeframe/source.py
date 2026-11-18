@@ -1,7 +1,7 @@
 """The clip source interface of the whole-frame adapter (story 427).
 
-A clip source turns one request (the board photo, prompt, profile and one
-:class:`ClipSpec` per clip of the chain) into clips, each with the facts only the
+A clip source turns one request (the board photo, prompt, negative prompt, profile and
+one :class:`ClipSpec` per clip of the chain) into clips, each with the facts only the
 engine knows: its job ID, engine and model files. Everything else in a clip's
 provenance record (its hash, the frames it delivered, its start image) is measured
 by the adapter (:mod:`.clips`), never taken from the source on trust.
@@ -88,6 +88,7 @@ class ClipRequest:
     photo: bytes = field(repr=False)
     photo_sha256: str
     prompt: str
+    negative_prompt: str
     seed: int
     profile: Mapping[str, Any]
     clips: tuple[ClipSpec, ...]

@@ -62,6 +62,15 @@ def args(world, story, library, *extra):
             *OPERATOR, *extra]
 
 
+def test_a_toolchain_file_can_override_both_negative_prompts(tmp_path):
+    from haynes_studio.cli import _toolchain
+
+    path = tmp_path / "toolchain.json"
+    path.write_text(json.dumps({"s2v_negative_prompt": "speech blur", "i2v_negative_prompt": "frame blur"}))
+    tools = _toolchain(str(path))
+    assert tools.s2v_negative_prompt == "speech blur" and tools.i2v_negative_prompt == "frame blur"
+
+
 def test_voice_makes_the_board_voices_and_writes_new_files(setup):
     world, files = setup
     fakes = Fakes()
