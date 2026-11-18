@@ -115,6 +115,30 @@ but a dev-env session pod's egress does not allow it. Agents use the in-pod rout
 - Video presets: `preview` 832x480, 49 frames, 24 fps; `720p` 1280x704, 81 frames.
   One active compute lease, `409` when busy, 20 minute timeout. Do not resubmit
   blindly after a lost response; read the job first.
+- **Installed on 2026-11-18:** stories
+  [865](https://work.haynesnetwork.com/work_packages/865) and
+  [881](https://work.haynesnetwork.com/work_packages/881), haynes-ops PRs
+  [4931](https://github.com/thaynes43/haynes-ops/pull/4931) and
+  [4928](https://github.com/thaynes43/haynes-ops/pull/4928). The coordinator read the
+  deployed `/config/video/api.py` as equal to haynes-ops `2d4ece2e`'s file, SHA256
+  `8f576f6c5b4627515f62941d34daf3ff0771adf380b7a9d4e34cc093d16fea13`
+  (story 865, comment 8916). Historical run logs keep the hash read on their day.
+  - All five engine queue reads use `engine_queue()`: both queue fields must be
+    present lists, each entry a list of at least two items, with a text prompt ID
+    and object client data when present. Malformed or unreadable data is unknown
+    work. Startup recovery and failure cleanup set `UNSAFE` without guessed
+    cancellation; pre-submit fails without submitting; interrupt waits never take
+    a malformed answer for emptiness. Non-JSON startup data fails closed at once;
+    transport errors keep the existing retry window.
+  - `GET /videos/<id>/file` answers a single byte range with 206 and `Content-Range`;
+    200 and 206 advertise `Accept-Ranges: bytes`. An unsatisfiable range gives 416.
+    Unsupported ranges, or `Range` with `If-Range`, give the whole file with 200.
+    A player that disconnects gets no second response written into its stream.
+  - **Tested:** 27 unit tests; the real master played and sought in a local browser;
+    installed health and byte-range read-backs passed (stories 865 comment 8916 and
+    881 comment 8869). **Not exercised live:** malformed queue data or a GPU job on
+    the new API. The path through Traefik and Tom's player are unverified; his
+    viewing verdict is separate.
 - Edited (CPU-made) productions are saved create-only under
   `/workspace/output/productions/<id>/` on PVC `ai/wan-video`, with a ledger JSON in
   `/workspace/jobs/`. The API then serves them at
@@ -122,6 +146,14 @@ but a dev-env session pod's egress does not allow it. Agents use the in-pod rout
   Reference: haynes-ops `scripts/wan-video/preserve_doll_short.py`. Edited
   productions never copied their sound beds to the PVC (`poc/deliver.py` did not), so
   a bed cannot be recovered from there (story 425).
+- `studio private-view` ([reference](studio-private-view.md), story
+  [863](https://work.haynesnetwork.com/work_packages/863), PR 75) is source and tested,
+  not yet used live. It copies a new verified delivery create-only, reserves its
+  folder exclusively and verifies final hashes before linking a new ledger. The
+  contract owner chose the phone proxy as the link's default file, master by
+  `--master` (Tom may overrule). A failed read-back withdraws only this attempt's
+  own ledger by identity. Story 428's existing link still plays its first run's
+  master; its retired one-off driver was dropped from PR 70 and is not on `main`.
 - The API reads every ledger in `/workspace/jobs/` at startup with no error handling.
   A malformed ledger crashes the shared service on its next restart, so validate
   before linking one (required fields are in the runbook, stage 7).
@@ -158,7 +190,8 @@ keys its venv on Python's major/minor version and the requirements hash. Read in
 worker after the roll-out: Python 3.12.16, the environment `py312-51d95b693bf4`, and all
 twelve pinned packages at the lock's versions. Renovate is held off both pins in
 haynes-ops (`.renovate/holds.json5`): the list changes only by exporting it again from
-the lock. **Not yet run:** an offline phase on the worker and the comparison of its keys
+the lock. **O-428-7 is closed as installed** (story 862, comment 8932; studio PR 74).
+**Not yet run:** an offline phase on the worker and the comparison of its keys
 and hashes with a session pod's; that belongs to a later story. Tom's acceptance is
 separate.
 
