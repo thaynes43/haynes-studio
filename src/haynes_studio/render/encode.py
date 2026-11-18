@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import io
 from collections.abc import Iterable, Iterator, Mapping
+from contextlib import ExitStack
 from dataclasses import dataclass
 from fractions import Fraction
 from typing import Any, BinaryIO
@@ -82,16 +83,22 @@ def encode_segment(frames: Iterable[np.ndarray], *, frames_expected: int, width:
                    fps: int, settings: EncoderSettings) -> bytes:
     """Encode exactly ``frames_expected`` RGB frames (board clock order) as one
     segment. More or fewer frames is ``render.frame_count``; a frame of another shape
-    or type is ``render.frame_invalid``."""
+    or type is ``render.frame_invalid``. The consumed iterator is closed, when it
+    supports close(), on success or failure so a stopped renderer releases its inputs."""
     buffer = io.BytesIO()
     count = 0
-    with av.open(buffer, mode="w", format="mp4") as container:
+    with ExitStack() as cleanup:
+        iterator = iter(frames)
+        close = getattr(iterator, "close", None)
+        if close is not None:
+            cleanup.callback(close)
+        container = cleanup.enter_context(av.open(buffer, mode="w", format="mp4"))
         stream = container.add_stream(settings.codec, rate=fps)
         stream.width, stream.height, stream.pix_fmt = width, height, settings.pix_fmt
         stream.codec_context.time_base = Fraction(1, fps)
         stream.codec_context.thread_count = settings.threads
         stream.options = settings.options()
-        for frame in frames:
+        for frame in iterator:
             if count >= frames_expected:
                 raise CacheError(FRAME_COUNT, f"the renderer gave more than {frames_expected} frames")
             video = av.VideoFrame.from_ndarray(_check_frame(frame, count, width, height), format="rgb24")

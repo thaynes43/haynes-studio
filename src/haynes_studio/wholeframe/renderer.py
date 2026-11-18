@@ -25,6 +25,7 @@ film; contract section 5 names only the photo and the ``i2v:frame`` seed).
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
+from contextlib import closing
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -176,16 +177,17 @@ class WholeFrameRenderer(SegmentRenderer):
             cursor = iter(wanted)
             target = next(cursor)
             decoded = -1
-            for decoded, frame in _decoded(blob, index):
-                if frame.shape != (clip["height"], clip["width"], 3):
-                    raise WholeFrameError(CLIP_INVALID, f"clip {index} frame {decoded} is "
-                                          f"{frame.shape}, recorded {clip['width']}x{clip['height']}")
-                while target == decoded:  # TIME-8 may show one source frame twice (fs < 24)
-                    yield frame if fit is None else _scale(frame, size)
-                    produced += 1
-                    target = next(cursor, None)
-                if decoded >= last_needed:
-                    break
+            with closing(_decoded(blob, index)) as decoder:
+                for decoded, frame in decoder:
+                    if frame.shape != (clip["height"], clip["width"], 3):
+                        raise WholeFrameError(CLIP_INVALID, f"clip {index} frame {decoded} is "
+                                              f"{frame.shape}, recorded {clip['width']}x{clip['height']}")
+                    while target == decoded:  # TIME-8 may show one source frame twice (fs < 24)
+                        yield frame if fit is None else _scale(frame, size)
+                        produced += 1
+                        target = next(cursor, None)
+                    if decoded >= last_needed:
+                        break
             if decoded < last_needed:
                 raise WholeFrameError(SOURCE_SHORT, f"clip {index} decodes to {decoded + 1} frames; "
                                       f"frame {last_needed} is needed")
@@ -197,7 +199,9 @@ class WholeFrameRenderer(SegmentRenderer):
 def _decoded(blob: bytes, index: int) -> Iterator[tuple[int, np.ndarray]]:
     """A stored clip's frames, numbered; a clip that stops decoding is short."""
     try:
-        yield from enumerate(decode_frames(blob))
+        # enumerate does not forward close() to the native decoder it wraps.
+        with closing(decode_frames(blob)) as decoder:
+            yield from enumerate(decoder)
     except WholeFrameError:
         raise
     except Exception as error:  # PyAV raises its own error types for damaged media
