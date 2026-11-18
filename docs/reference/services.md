@@ -15,7 +15,7 @@ any of it.
 | Stage | Service | Where | Route from an agent | Status for the doll format |
 |---|---|---|---|---|
 | Cast and set images | ComfyUI with Qwen-Image 2.1 (text-to-image and edit) | `ai/comfyui-0` (StatefulSet), RTX 2000 Ada 16 GB on `talosm03` | `kubectl exec -n ai comfyui-0 -c app --` to `127.0.0.1:8188` (`poc/comfy.py`) | **Proven** for cast and set images (The Winter Menu, [run log](../../titles/the-winter-menu/run-log.md)) |
-| CPU render (decals, keying, compositing) | `ai/studio-render`, up to 24 vCPUs, low priority, gasha01 NFS at `/studio`; **Expected**: Python 3.12 and the package's locked runtime dependencies, pending the story 862 rollout ([below](#studio-render-cpu-work)) | `ai/deploy/studio-render` on `talosw01` | `kubectl cp` in and out, `kubectl exec -n ai deploy/studio-render -c app -- nice -n 10 python ...` | **Proven** for the PoC's layered compositing (The Winter Menu layered v2: 7 keyed clips and the 45 s film in 408 s, [findings](../../titles/the-winter-menu/video-e0/findings-layered.md)); package execution there remains **Expected**, with installed versions and an offline phase still to verify |
+| CPU render (decals, keying, compositing) | `ai/studio-render`, up to 24 vCPUs, low priority, gasha01 NFS at `/studio`; Python 3.12.16 and the package's locked runtime dependencies, as read inside the worker on 2026-11-18 ([below](#studio-render-cpu-work)) | `ai/deploy/studio-render` on `talosw01` | `kubectl cp` in and out, `kubectl exec -n ai deploy/studio-render -c app -- nice -n 10 python ...` | **Proven** for the PoC's layered compositing (The Winter Menu layered v2: 7 keyed clips and the 45 s film in 408 s, [findings](../../titles/the-winter-menu/video-e0/findings-layered.md)); package execution there remains **Expected**, with installed versions and an offline phase still to verify |
 | Voices | Kokoro-82M v1.0 (Wyoming TTS) | `ai/deploy/kokoro`, container `app` | `kubectl exec -i -n ai deploy/kokoro -c app -- python -c ...` to Wyoming `127.0.0.1:10210` | **Proven** (OP341, OP345) |
 | Transcript check | Whisper service, configured `nemo-parakeet-tdt-0.6b-v2` (Wyoming ASR) | `ai/deploy/whisper`, container `app` | `kubectl exec -i -n ai deploy/whisper -c app -- python -c ...` to Wyoming `127.0.0.1:10300` | **Proven** (OP345) |
 | Sound effects from text | `audio-authoring`, Stable Audio 3 Small-SFX on CPU | namespace `dev` | MCP `http://audio-authoring.dev.svc.cluster.local:8000/mcp` (`generate_sound`, `get_generation`) | **Proven** (OP343) |
@@ -148,18 +148,19 @@ match a session pod's keys either. Story 428's offline phase ran in the session 
 at two threads instead. The earlier 2026-11-03 description ("python 3.12, pinned
 requirements") did not match that observation; the intervening image history was not checked.
 
-**Expected, story [862](https://work.haynesnetwork.com/work_packages/862):** the
-haynes-ops worker configuration pins `python:3.12-slim-bookworm` by registry digest
-(Python 3.12.16) and exports the runtime dependencies from this repo's `uv.lock` at
+**Installed on 2026-11-18, story [862](https://work.haynesnetwork.com/work_packages/862)**
+(haynes-ops `166c16e6`): the worker configuration pins `python:3.12-slim-bookworm` by
+registry digest and exports the runtime dependencies from this repo's `uv.lock` at
 `f431c2402fa21819ee739f4e34e31b2c59e56091`, for Python 3.12 on linux x86_64. The
 generated `kubernetes/main/apps/ai/studio-render/app/requirements.txt` records the
-export command; it excludes this project and all development groups. The unchanged
-start script keys its venv on Python's major/minor version and the requirements hash.
-The image change restarts the worker and creates the new environment; the coordinator
-merges only while it is idle, then verifies Python and all installed runtime versions
-read-only. Source and a session-pod install check do not establish installed state;
-an offline phase and its key/hash comparison belong to a later story. Tom's acceptance
-is separate.
+export command; it excludes this project and all development groups. The start script
+keys its venv on Python's major/minor version and the requirements hash. Read inside the
+worker after the roll-out: Python 3.12.16, the environment `py312-51d95b693bf4`, and all
+twelve pinned packages at the lock's versions. Renovate is held off both pins in
+haynes-ops (`.renovate/holds.json5`): the list changes only by exporting it again from
+the lock. **Not yet run:** an offline phase on the worker and the comparison of its keys
+and hashes with a session pod's; that belongs to a later story. Tom's acceptance is
+separate.
 
 The worker supplies dependencies, not a published `haynes-studio` distribution.
 Copy a source snapshot at the same commit as the lock into a new job directory and

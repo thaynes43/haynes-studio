@@ -110,11 +110,11 @@ backlog is written from these notes.
 
 ### Package builds on the CPU worker
 
-**Expected** (story [862](https://work.haynesnetwork.com/work_packages/862)); not a
-worker run. After the coordinator merges the haynes-ops change while the worker is
-idle and verifies its Python 3.12 and runtime versions against the lock, run heavy
-offline phases on `ai/studio-render` (D18). The dependency install was checked in a
-session pod; installed state and an offline run's keys/hashes remain separate evidence.
+**Expected** (story [862](https://work.haynesnetwork.com/work_packages/862)): no
+build has been run on the worker yet. Its environment is installed: Python 3.12.16 and
+the lock's runtime versions were read inside it on 2026-11-18. Run heavy offline phases
+on `ai/studio-render` (D18). An offline run's keys and hashes are separate evidence, not
+yet made.
 The [service reference](../reference/services.md#studio-render-cpu-work) records the
 target lock. The PoC scripts are unchanged and will use that environment too.
 
