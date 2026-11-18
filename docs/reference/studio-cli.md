@@ -19,9 +19,9 @@ uv run studio --version                                    # studio 0.1.0.dev0
 
 `python -m haynes_studio` is the same command. Tests: [testing.md](../process/testing.md).
 
-## Operator flags (proposal for the contract owner, story 864)
+## Operator flags
 
-[Proposed P-50](../contracts/studio-contracts-v1.md#2-schema-versions-and-identifiers)
+[P-50](../contracts/studio-contracts-v1.md#2-schema-versions-and-identifiers)
 adds an agent-session operator to `legacy import`, `voice`, `build`, the private-input
 importer and `private-view`. Choose exactly one complete set:
 

@@ -41,7 +41,7 @@ uv run python -m haynes_studio.importer --story DIR/story.json --map DIR/legacy-
 **Proposed amendment for the contract owner, story
 [864](https://work.haynesnetwork.com/work_packages/864):** the human pair above may be
 replaced by `--operator-session SESSION --operator-harness HARNESS --operator-model MODEL`.
-The [same complete, exclusive sets](studio-cli.md#operator-flags-proposal-for-the-contract-owner-story-864)
+The [same complete, exclusive sets](studio-cli.md#operator-flags)
 apply. New versions' `provenance.created_by` in `library.json` holds
 `{kind: cli, command: "studio private import", operator: <chosen principal>}`. Reused
 records retain their original attribution. The report has no actor field today; its

@@ -48,8 +48,8 @@ and are no longer pending.
 Every command takes the local store's root (`--store`), and the build commands take the
 draft (`--story`, a `studio.story/v1` file with its boards embedded), the library
 (`--library`, a JSON array of `studio.asset-version/v1` documents) and the operator
-([operator flags](studio-cli.md#operator-flags-proposal-for-the-contract-owner-story-864),
-proposed for the contract owner's review in story 864). Both `queued_by.operator` and
+([operator flags](studio-cli.md#operator-flags),
+the contract's P-50, story 864). Both `queued_by.operator` and
 every `transitions[].by.operator` record the chosen human or agent session. Voice jobs'
 `created_by.operator`, newly created assets' `created_by.operator`, and asset versions'
 `provenance.created_by.operator` use the same selection. Earlier attribution on reused
