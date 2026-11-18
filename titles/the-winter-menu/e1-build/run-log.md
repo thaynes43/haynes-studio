@@ -20,13 +20,15 @@ on [372](https://work.haynesnetwork.com/work_packages/372)).
   --operator-sub agent-session:haynes-studio-1114-013021`. The operator field names an
   agent session, not a person: the command line has no agent-session operator yet
   (observation O-428-1).
-- **The drivers are not on `main`** (the coordinator's edit, 2026-11-14). The six one-off
-  drivers this log names under `tools/` ran as recorded here, and the links to them go to
-  the worker's commit `bd16777`. They are held in
-  [PR 70](https://github.com/thaynes43/haynes-studio/pull/70), not merged with these
-  records: `private_view.py` writes to the shared Wan volume, and such code needs an
-  adversarial review by another model family before it merges. That reviewer could not
-  run on 2026-11-14 (its provider's weekly usage limit was reached).
+- **Where the drivers are** (the coordinator's edits, 2026-11-14 and 2026-11-18). The six
+  one-off drivers this log names under `tools/` ran as recorded here, and the links to
+  them go to the worker's commit `bd16777`. They were held in
+  [PR 70](https://github.com/thaynes43/haynes-studio/pull/70) until a reviewer from another
+  model family could run, because `private_view.py` writes to the shared Wan volume. That
+  review ran on 2026-11-18. Five drivers are now in [`tools/`](tools/README.md) as records.
+  `private_view.py` is not on `main`: the review found that its unused-folder check does
+  not hold through the later copies and the link. The command of story
+  [863](https://work.haynesnetwork.com/work_packages/863) replaces it.
 - **State:** source and records in this folder; tested (every check below); **delivered privately** (ledger `d009d61541774a429fcabfeedadd8b51`, <https://video.haynesops.com/videos/d009d61541774a429fcabfeedadd8b51/file>, home network only); **accepted: no**. **Tom's verdict: pending** (recorded below when he gives it).
 
 Status markers: **Proven** (it produced its result, with the evidence named), **Expected**
@@ -677,7 +679,7 @@ space at the end: 26 G.
 
 ## Known defects in `tools/`
 
-The drivers are kept as they ran, in PR 70. `draft.py` stamps the new bed version `created_at`
+The drivers are kept as they ran (five in `tools/`, `private_view.py` only at commit `bd16777`). `draft.py` stamps the new bed version `created_at`
 2026-11-14T01:45:00Z, a fixed value, although it ran at 01:44 (before `studio voice` at
 01:44:36). `decal.py` would raise on a clip with two or more unscored frames (no clip here
 has one). `clips.py` looked for the reference's names of the job's times (O-428-4).
