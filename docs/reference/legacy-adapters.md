@@ -15,6 +15,16 @@ service. The Wan clip clients (image-to-video and speech-to-video, story
 [427](https://work.haynesnetwork.com/work_packages/427) own the clip-source interfaces
 they plug into. Foley has no client.
 
+**Proposed people-only guard for the contract owner, story
+[864](https://work.haynesnetwork.com/work_packages/864):** Wan's manual reset functions
+now require `WanClipClient.clear_in_flight(by=human)` and
+`WanClipClient.clear_halt(by=human)`. A human may be wrapped in one CLI principal.
+Both reject an agent session with `ValueError` before locks, journal reads/writes or
+process-state changes. Journal event primitives remain internal storage mechanics;
+use the guarded client methods for manual resets. ComfyUI's `clear_in_flight()` is
+unchanged: its contract permits a caller with proof the prompt finished (not a
+people-only judgement). No manual-reset CLI exists. Attribution is self-reported.
+
 ## How a call works
 
 A service call is data. A client builds a `Command` (argument vector, stdin bytes,

@@ -38,6 +38,15 @@ uv run python -m haynes_studio.importer --story DIR/story.json --map DIR/legacy-
   --authorized-by https://work.haynesnetwork.com/work_packages/428 [--library OLD/library.json]
 ```
 
+**Proposed amendment for the contract owner, story
+[864](https://work.haynesnetwork.com/work_packages/864):** the human pair above may be
+replaced by `--operator-session SESSION --operator-harness HARNESS --operator-model MODEL`.
+The [same complete, exclusive sets](studio-cli.md#operator-flags-proposal-for-the-contract-owner-story-864)
+apply. New versions' `provenance.created_by` in `library.json` holds
+`{kind: cli, command: "studio private import", operator: <chosen principal>}`. Reused
+records retain their original attribution. The report has no actor field today; its
+`authorized_by` remains the authorizing work-package URL.
+
 - `--dry-run` lists every row and hash, its sources in order and its store locators, and
   with `--store` whether the store already holds it. It makes no runner, reads nothing
   from the Wan volume and writes nothing.

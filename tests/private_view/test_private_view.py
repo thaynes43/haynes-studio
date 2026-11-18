@@ -15,6 +15,7 @@ import pytest
 from haynes_studio import _private_view_remote as remote
 from haynes_studio.adapters.runner import WAN_API, Completed
 from haynes_studio.build.validate import validate_run
+from haynes_studio.canonical.model import Principal
 from haynes_studio.cli import Clients, main
 from haynes_studio.private_view import CODE, PrivateViewError, put_private_view
 from haynes_studio.stages import StageOutput, commit_stage
@@ -23,6 +24,8 @@ from tests.store.helpers import PRD, RUN
 
 EXAMPLES = Path(__file__).parents[2] / "docs/contracts/examples/valid"
 JOB = "test-private-view"
+HUMAN_FLAGS = ["--operator-iss", "https://auth.example.invalid", "--operator-sub", "viewer"]
+BY = Principal.cli("studio private-view", HUMAN_FLAGS[1], HUMAN_FLAGS[3])
 
 
 def sha(data):
@@ -110,7 +113,7 @@ def setup(tmp_path):
     (remote / "jobs").mkdir()
     route = LocalRoute(remote)
     return dict(store=store, production_id=PRD, run_id=RUN, job=JOB,
-                out=tmp_path / "result", runner=route, title="Synthetic private viewing")
+                out=tmp_path / "result", runner=route, title="Synthetic private viewing", by=BY)
 
 
 def record_run(store, run, *, extra=False, stage="run-0001"):
@@ -291,15 +294,23 @@ def test_untrusted_title_stays_json_data_not_shell_or_python_code(setup):
             assert command.argv[11] == CODE and args["title"] not in CODE
 
 
-def test_cli_check_only_uses_injected_route_and_prints_selected_file(setup):
+@pytest.mark.parametrize("agent_session", [False, True], ids=["human", "agent-session"])
+def test_cli_check_only_uses_injected_route_and_prints_selected_file(setup, agent_session):
     args = setup
     out, err = io.StringIO(), io.StringIO()
-    status = main(["private-view", RUN, "--store", str(args["store"].root),
+    from tests.cli.test_operators import AGENT_FLAGS, SESSION
+    flags = AGENT_FLAGS if agent_session else HUMAN_FLAGS
+    status = main(["private-view", *flags, RUN, "--store", str(args["store"].root),
                    "--production", PRD, "--job", JOB, "--out", str(args["out"]),
                    "--title", args["title"], "--master", "--check-only"], stdout=out, stderr=err,
                   clients=Clients(lambda: None, lambda: None, lambda: args["runner"]))
     assert status == 0 and err.getvalue() == ""
-    assert json.loads(out.getvalue())["plays"] == "master"
+    result = json.loads(out.getvalue())
+    assert result["plays"] == "master"
+    assert result["ledger"]["provenance"]["created_by"] == {
+        "kind": "cli", "command": "studio private-view",
+        "operator": SESSION if agent_session else {"kind": "human", "iss": HUMAN_FLAGS[1],
+                                                   "sub": HUMAN_FLAGS[3]}}
     assert not args["out"].exists()
 
 
@@ -610,7 +621,7 @@ def test_both_local_ledger_validators_run_before_any_write_and_again_before_link
 def test_invalid_cli_job_prints_a_failure_without_route_call(setup):
     args = setup
     out, err = io.StringIO(), io.StringIO()
-    result = main(["private-view", RUN, "--store", str(args["store"].root), "--production", PRD,
+    result = main(["private-view", *HUMAN_FLAGS, RUN, "--store", str(args["store"].root), "--production", PRD,
                    "--job", "../bad", "--out", str(args["out"]), "--title", "Test"],
                   stdout=out, stderr=err,
                   clients=Clients(lambda: None, lambda: None, lambda: args["runner"]))
@@ -817,3 +828,21 @@ def test_withdraw_reports_replacement_retained_when_restore_name_is_occupied(set
         remote.perform("withdraw", str(root), request)
     assert served.read_bytes() == b"new owner of served name"
     assert (recovery / "withdrawn").read_bytes() == b"replacement at withdrawal"
+
+
+def test_agent_private_view_records_the_actor_in_local_and_remote_records(setup):
+    from tests.cli.test_operators import AGENT_FLAGS, SESSION
+    args = setup
+    out, err = io.StringIO(), io.StringIO()
+    code = main(["private-view", RUN, *AGENT_FLAGS, "--store", str(args["store"].root),
+                 "--production", PRD, "--job", JOB, "--out", str(args["out"]),
+                 "--title", args["title"]], stdout=out, stderr=err,
+                clients=Clients(lambda: None, lambda: None, lambda: args["runner"]))
+    assert code == 0, err.getvalue()
+    document = json.loads(out.getvalue())
+    local = json.loads((args["out"] / "production.json").read_text())
+    ledger = json.loads((args["runner"].root / "jobs" / (document["ledger"]["id"] + ".json")).read_text())
+    assert document == local
+    assert local["ledger"] == ledger
+    assert ledger["provenance"]["created_by"] == {
+        "kind": "cli", "command": "studio private-view", "operator": SESSION}

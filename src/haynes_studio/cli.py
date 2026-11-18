@@ -11,14 +11,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TextIO
-from urllib.parse import urlsplit
 
 from haynes_studio import __version__
 from haynes_studio.canonical import with_derived
@@ -26,7 +24,7 @@ from haynes_studio.canonical.facts import Facts
 from haynes_studio.canonical.ids import is_id
 from haynes_studio.canonical.jsonvalues import MAX_DEPTH, too_deep
 from haynes_studio.canonical.legacy_import import import_manifest
-from haynes_studio.canonical.model import Principal
+from haynes_studio.canonical.model import Principal, to_document
 from haynes_studio.errors import ContractError, Violation
 from haynes_studio.jsonio import read_json
 from haynes_studio.legacy import manifest as legacy_manifest
@@ -40,6 +38,7 @@ from haynes_studio.legacy.timeline import (
     load_recorded,
     ms_text,
 )
+from haynes_studio.operators import add_operator_arguments, operator_from_args
 from haynes_studio.timebase import SAMPLES_PER_MS, display_seconds
 
 OK, FAILED, USAGE = 0, 1, 2
@@ -95,10 +94,7 @@ def _parser() -> argparse.ArgumentParser:
     imp.add_argument("--production", metavar="PRD_ID",
                      help="the production to import into (prd_...); minted when absent and "
                           "no --map names one")
-    imp.add_argument("--operator-iss", required=True, metavar="ISS",
-                     help="the OIDC issuer of the person running the import")
-    imp.add_argument("--operator-sub", required=True, metavar="SUB",
-                     help="that person's OIDC subject (never an email or display name)")
+    add_operator_arguments(imp)
     imp.add_argument("--out", metavar="DIR",
                      help="write story.json and legacy-import.json into DIR (created if "
                           "needed); an existing file is never overwritten")
@@ -118,6 +114,7 @@ def _parser() -> argparse.ArgumentParser:
     view.add_argument("--title", required=True, help="the private viewer's title")
     view.add_argument("--master", action="store_true", help="play the master instead of the proxy")
     view.add_argument("--check-only", action="store_true", help="read-only preflight and plan")
+    add_operator_arguments(view)
     view.set_defaults(handler=_private_view)
     return parser
 
@@ -129,10 +126,7 @@ def _store_and_story(command: argparse.ArgumentParser) -> None:
                          help="the draft: a studio.story/v1 file with its boards embedded")
     command.add_argument("--library", required=True, metavar="LIBRARY",
                          help="a JSON array of studio.asset-version/v1 documents")
-    command.add_argument("--operator-iss", required=True, metavar="ISS",
-                         help="the OIDC issuer of the person running the command")
-    command.add_argument("--operator-sub", required=True, metavar="SUB",
-                         help="that person's OIDC subject (never an email or display name)")
+    add_operator_arguments(command)
     command.add_argument("--json", action="store_true", help="print the result as JSON")
 
 
@@ -237,11 +231,15 @@ def _private_view(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
     from haynes_studio.store import StoreError
     from haynes_studio.delivery.errors import DeliveryError
 
+    actor = _operator(args, "studio private-view", err)
+    if actor is None:
+        return USAGE
     try:
         result = put_private_view(
             store=_store(args.store), production_id=args.production, run_id=args.run_id,
             job=args.job, out=Path(args.out), runner=args.clients.wan_runner(),
-            title=args.title, master=args.master, check_only=args.check_only)
+            title=args.title, master=args.master, check_only=args.check_only,
+            by=Principal.from_document(actor))
     except (PrivateViewError, AdapterError, StoreError, DeliveryError, ValueError) as error:
         print(error, file=err)
         return FAILED
@@ -293,8 +291,6 @@ def _count(number: int, noun: str) -> str:
 # legacy import ----------------------------------------------------------------------
 
 STORY_FILE, MAP_FILE = "story.json", "legacy-import.json"
-_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
-_SUBJECT_MAX = 255  # OpenID Connect Core 1.0, section 2: sub is at most 255 ASCII characters
 
 
 def _now() -> str:
@@ -310,26 +306,6 @@ def _label(path: str) -> str:
         if (folder / ".git").exists():
             return resolved.relative_to(folder).as_posix()
     return resolved.name
-
-
-def _bad_text(value: str) -> bool:
-    return not value or bool(_CONTROL.search(value)) or any(c.isspace() for c in value)
-
-
-def _operator_problem(iss: str, sub: str) -> str | None:
-    """Why the operator's OIDC issuer or subject is unusable, or None."""
-    try:
-        parts = urlsplit(iss)
-        issuer_ok = parts.scheme in ("https", "http") and bool(parts.hostname)
-    except ValueError:
-        issuer_ok = False
-    if _bad_text(iss) or not issuer_ok:
-        return (f"--operator-iss {iss!r} is not an OIDC issuer (an http or https URL with "
-                "a host, no spaces)")
-    if _bad_text(sub) or len(sub) > _SUBJECT_MAX:
-        return (f"--operator-sub {sub!r} is not an OIDC subject (1 to {_SUBJECT_MAX} "
-                "characters, no spaces or control characters)")
-    return None
 
 
 def _nested_too_deeply(path: str) -> bool:
@@ -359,9 +335,8 @@ def _import(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
     if args.production is not None and not is_id(args.production, "prd"):
         print(f"studio: --production {args.production!r} is not a prd_ ID", file=err)
         return USAGE
-    problem = _operator_problem(args.operator_iss, args.operator_sub)
-    if problem:
-        print(f"studio: {problem}", file=err)
+    actor = _operator(args, "studio legacy import", err)
+    if actor is None:
         return USAGE
     out_dir = Path(args.out) if args.out is not None else None
     if out_dir is not None:
@@ -382,7 +357,7 @@ def _import(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
     manifest = legacy_manifest.load(args.manifest)
     result = import_manifest(
         manifest, load_speech(args.speech), manifest_label=_label(args.manifest),
-        operator=Principal(kind="human", iss=args.operator_iss, sub=args.operator_sub),
+        operator=Principal.from_document(actor["operator"]),
         now=_now(), existing=existing_map, production_id=args.production,
         map_label=args.map or "<import map>")
     if out_dir is not None:
@@ -634,12 +609,12 @@ LIVE = Clients(speech=_live_speech, transcriber=_live_transcriber, wan_runner=_l
 
 
 def _operator(args: argparse.Namespace, command: str, err: TextIO) -> dict | None:
-    problem = _operator_problem(args.operator_iss, args.operator_sub)
-    if problem:
-        print(f"studio: {problem}", file=err)
+    try:
+        operator = operator_from_args(args)
+    except ValueError as error:
+        print(f"studio: {error}", file=err)
         return None
-    return {"kind": "cli", "command": command,
-            "operator": {"kind": "human", "iss": args.operator_iss, "sub": args.operator_sub}}
+    return to_document(Principal(kind="cli", command=command, operator=operator))
 
 
 def _read_inputs(args: argparse.Namespace):

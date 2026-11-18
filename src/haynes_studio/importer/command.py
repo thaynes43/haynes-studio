@@ -29,7 +29,6 @@ from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TextIO
-from urllib.parse import urlsplit
 
 from haynes_studio.adapters import recovery
 from haynes_studio.adapters.errors import AdapterError
@@ -49,6 +48,7 @@ from haynes_studio.library.winter_menu import (
     load_public_sources,
 )
 from haynes_studio.motion.winter_menu import build_e0_motion, load_e0_sources
+from haynes_studio.operators import add_operator_arguments, operator_from_args
 from haynes_studio.store.local import LocalStore
 
 PROG = "python -m haynes_studio.importer"
@@ -57,8 +57,6 @@ REPORT_FILE, LIBRARY_FILE = "import-report.json", "library.json"
 TITLE = "titles/the-winter-menu"
 MAP_FILE = "docs/reference/legacy-recovery-map.json"
 WORK_PACKAGE = re.compile(r"https://work\.haynesnetwork\.com/work_packages/[1-9][0-9]{0,8}")
-_CONTROL = re.compile(r"[\x00-\x1f\x7f]")
-_SUBJECT_MAX = 255
 
 
 class UsageError(Exception):
@@ -78,32 +76,13 @@ def _parser() -> argparse.ArgumentParser:
                    "into, such as an earlier run's library.json")
     p.add_argument("--store", help="the new store's root folder (it must exist)")
     p.add_argument("--out", help="a new folder for import-report.json and library.json")
-    p.add_argument("--operator-iss", required=True, help="the OIDC issuer of the person running it")
-    p.add_argument("--operator-sub", required=True, help="their OIDC subject (never an email)")
+    add_operator_arguments(p)
     p.add_argument("--authorized-by", help="the full work package URL that authorizes the live "
                    "read (required unless --dry-run)")
     p.add_argument("--dry-run", action="store_true", help="list what would be read; read "
                    "nothing from the Wan volume and write nothing")
     p.add_argument("--json", action="store_true", help="print the report as JSON")
     return p
-
-
-def _bad_text(value: str) -> bool:
-    return not value or bool(_CONTROL.search(value)) or any(c.isspace() for c in value)
-
-
-def _operator(iss: str, sub: str) -> Principal:
-    try:
-        parts = urlsplit(iss)
-        issuer_ok = parts.scheme in ("https", "http") and bool(parts.hostname)
-    except ValueError:
-        issuer_ok = False
-    if _bad_text(iss) or not issuer_ok:
-        raise UsageError("--operator-iss is not an OIDC issuer (an http or https URL with a host)")
-    if _bad_text(sub) or len(sub) > _SUBJECT_MAX or "@" in sub:
-        raise UsageError(f"--operator-sub is not an OIDC subject (1 to {_SUBJECT_MAX} characters, "
-                         "no spaces, control characters or @)")
-    return Principal.cli(COMMAND, iss, sub)
 
 
 def _check(args: argparse.Namespace) -> None:
@@ -200,7 +179,11 @@ def main(argv: Sequence[str] | None = None, *, stdout: TextIO | None = None,
     except SystemExit as exit_:
         return 2 if exit_.code else 0
     try:
-        by = _operator(args.operator_iss, args.operator_sub)
+        try:
+            operator = operator_from_args(args, private_import=True)
+        except ValueError as error:
+            raise UsageError(str(error)) from None
+        by = Principal(kind="cli", command=COMMAND, operator=operator)
         _check(args)
         started = now()
         story, import_map = _document(args.story), _document(args.map)

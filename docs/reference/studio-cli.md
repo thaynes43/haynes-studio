@@ -19,13 +19,37 @@ uv run studio --version                                    # studio 0.1.0.dev0
 
 `python -m haynes_studio` is the same command. Tests: [testing.md](../process/testing.md).
 
+## Operator flags (proposal for the contract owner, story 864)
+
+[Proposed P-50](../contracts/studio-contracts-v1.md#2-schema-versions-and-identifiers)
+adds an agent-session operator to `legacy import`, `voice`, `build`, the private-input
+importer and `private-view`. Choose exactly one complete set:
+
+```sh
+--operator-iss ISS --operator-sub SUB
+--operator-session SESSION --operator-harness HARNESS --operator-model MODEL
+```
+
+Both, neither, incomplete sets, and empty agent fields exit 2 before input reads or
+client construction. The three agent fields use the existing `agent_session` principal
+names and must be nonempty text. The human issuer/subject checks stay the same. These
+flags state who acted; they authenticate nobody and grant no access. The CLI records
+`{kind: cli, command, operator}` with the selected principal. Old records stay as stored.
+For example, replace the human pair in a build command with
+`--operator-session my-session --operator-harness Codex --operator-model gpt-6.1-sol`.
+
+There is no CLI for check overrides, approvals or other people-only operations yet.
+The implemented people-only functions (`promote`, Wan's `clear_in_flight` and
+`clear_halt`) reject direct and CLI-wrapped agent sessions; the Wan clears require
+`by=<human principal>`. They accept a self-reported human, not a verified login.
+
 ## Commands
 
 | Command | Does |
 |---|---|
 | `studio legacy validate <manifest> [--json]` | Validates a title manifest as `legacy.manifest/v1` and summarizes it: revision, shots (spoken and silent), lines, sound cues, beds. |
 | `studio legacy timeline <manifest> --speech <speech.json> [--compare <timeline.json>] [--json]` | Computes frames per shot, film start frames, and the placement of every line, sound cue and bed in mix samples (rules TIME-1 to TIME-4, TIME-7, TIME-10). With `--compare`, checks a recorded `timeline.json` under rule TIME-12. |
-| `studio legacy import <manifest> --speech <speech.json> --operator-iss <iss> --operator-sub <sub> [--map <legacy-import.json>] [--production <prd_id>] [--out <dir>] [--json]` | Maps the manifest to one canonical story (`studio.story/v1` with its boards, lines, cues, notes and layout references, and `derived` from the takes) and an import map (`studio.legacy-import/v1`). IDs come from `--map` when given, so a second import returns the same IDs; otherwise they are minted. The operator is the person running it: `--operator-iss` an http or https issuer URL with a host, `--operator-sub` its subject (1 to 255 characters, no spaces or control characters, never an email); anything else is a usage error. Prints a summary, or `{story, legacy_import}` with `--json`; `--out` writes `story.json` and `legacy-import.json` and refuses to overwrite either. |
+| `studio legacy import <manifest> --speech <speech.json> --operator-iss <iss> --operator-sub <sub> [--map <legacy-import.json>] [--production <prd_id>] [--out <dir>] [--json]` | Maps the manifest to one canonical story (`studio.story/v1` with its boards, lines, cues, notes and layout references, and `derived` from the takes) and an import map (`studio.legacy-import/v1`). IDs come from `--map` when given, so a second import returns the same IDs; otherwise they are minted. The operator is selected by one complete flag set above; for a human, `--operator-iss` an http or https issuer URL with a host, `--operator-sub` its subject (1 to 255 characters, no spaces or control characters, never an email); anything else is a usage error. Prints a summary, or `{story, legacy_import}` with `--json`; `--out` writes `story.json` and `legacy-import.json` and refuses to overwrite either. |
 
 Exit status: `0` valid, the timelines match, or the import succeeded; `1` a rule failed
 (a file that is not strict JSON is `legacy.invalid`; an import map that is not a JSON

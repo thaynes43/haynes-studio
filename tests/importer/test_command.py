@@ -34,10 +34,12 @@ def inputs(tmp_path):
     return folder
 
 
-def argv(tmp_path, inputs, *extra):
+def argv(tmp_path, inputs, *extra, operator_flags=None):
+    flags = (["--operator-iss", OPERATOR["iss"], "--operator-sub", OPERATOR["sub"]]
+             if operator_flags is None else operator_flags)
     return ["--repo", str(REPO_ROOT), "--story", str(inputs / "story.json"),
-            "--map", str(inputs / "legacy-import.json"), "--operator-iss", OPERATOR["iss"],
-            "--operator-sub", OPERATOR["sub"], "--store", str(tmp_path / "store"), *extra]
+            "--map", str(inputs / "legacy-import.json"), *flags,
+            "--store", str(tmp_path / "store"), *extra]
 
 
 class Factory:
@@ -99,11 +101,15 @@ def test_the_operator_must_be_an_oidc_identity(tmp_path, inputs, flag, value):
     assert code == 2 and flag in err
 
 
-def test_a_run_against_an_empty_volume_reports_every_row_absent_and_exits_1(tmp_path, inputs):
+@pytest.mark.parametrize("agent_session", [False, True], ids=["human", "agent-session"])
+def test_a_run_against_an_empty_volume_reports_every_row_absent_and_exits_1(tmp_path, inputs, agent_session):
     vol = FakeWanVolume(tmp_path / "pod" / "workspace")
     factory = Factory(FakeRunner(vol))
+    from tests.cli.test_operators import AGENT_FLAGS, SESSION
+    flags = AGENT_FLAGS if agent_session else None
     out_dir = tmp_path / "run-1"
-    code, out, err = call(argv(tmp_path, inputs, "--out", str(out_dir), "--authorized-by", URL), factory)
+    code, out, err = call(argv(tmp_path, inputs, "--out", str(out_dir), "--authorized-by", URL,
+                               operator_flags=flags), factory)
     assert code == 1 and "no read found its file" in err and factory.made == 1
     assert out.startswith("156 rows: 0 verified, 156 absent, 0 mismatch;")
     report = json.loads((out_dir / REPORT_FILE).read_text())
@@ -114,9 +120,13 @@ def test_a_run_against_an_empty_volume_reports_every_row_absent_and_exits_1(tmp_
         assert stat.S_IMODE(os.stat(out_dir / name).st_mode) == 0o444  # create-only, read-only
     library = Library.from_version_documents(json.loads((out_dir / LIBRARY_FILE).read_text()))
     assert len(library.versions) == 46 and report["library"]["created_now"]["e0_motion"] == 22
+    actor = {"kind": "cli", "command": "studio private import",
+             "operator": SESSION if agent_session else OPERATOR}
+    assert all(v.provenance["created_by"] == actor for v in library.versions.values())
     # A second run on the first run's library creates nothing.
     code, _, _ = call(argv(tmp_path, inputs, "--library", str(out_dir / LIBRARY_FILE), "--out",
-                           str(tmp_path / "run-2"), "--authorized-by", URL), Factory(FakeRunner(vol)))
+                           str(tmp_path / "run-2"), "--authorized-by", URL, operator_flags=flags),
+                       Factory(FakeRunner(vol)))
     second = json.loads((tmp_path / "run-2" / REPORT_FILE).read_text())
     assert code == 1 and second["library"]["created_now"] == {"winter_menu": 0, "e0_motion": 0}
     again = Library.from_version_documents(json.loads((tmp_path / "run-2" / LIBRARY_FILE).read_text()))

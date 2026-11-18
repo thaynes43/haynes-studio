@@ -86,6 +86,7 @@ from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
+from haynes_studio.canonical.model import Principal, require_human
 from haynes_studio.adapters import pinned
 from haynes_studio.adapters.errors import (
     BUSY,
@@ -1211,7 +1212,7 @@ class WanClipClient:
         return WanClipClient._unsettled
 
     @classmethod
-    def clear_in_flight(cls) -> InFlightJob | None:
+    def clear_in_flight(cls, *, by: Principal) -> InFlightJob | None:
         """Forget the blocking job, once a person has checked it: that it is not running
         (for example: its ledger is missing and no snippet process is left in the ``api``
         container), or that its uncollected clip has been inspected. Refused
@@ -1220,6 +1221,7 @@ class WanClipClient:
         with outcome ``cleared`` to its journal first (unless another process already
         settled it there); if that write fails, the job stays. Returns what it forgot.
         Touches nothing on the Wan service."""
+        require_human(by, "WanClipClient.clear_in_flight")
         with _process_lock("a Wan job is running in this process; clear after it returns"):
             cleared, journal = WanClipClient._unsettled, WanClipClient._unsettled_journal
             if cleared is not None and journal is not None:
@@ -1241,12 +1243,13 @@ class WanClipClient:
         return WanClipClient._halt
 
     @classmethod
-    def clear_halt(cls) -> Halt | None:
+    def clear_halt(cls, *, by: Principal) -> Halt | None:
         """Allow submissions again after a person has inspected the foreign work. Refused
         (``adapter.busy``, nothing changed) while a :meth:`render` or :meth:`recover` runs
         in this process or another process holds its journal. Appends a ``clear_halt``
         line to the halt's journal first (unless the journal no longer has that halt); if
         that write fails, the halt stays."""
+        require_human(by, "WanClipClient.clear_halt")
         with _process_lock("a Wan job is running in this process; clear after it returns"):
             cleared, journal = WanClipClient._halt, WanClipClient._halt_journal
             if cleared is not None and journal is not None:

@@ -18,7 +18,7 @@ from haynes_studio.adapters.runner import WAN_API, Command, Runner, run_checked
 from haynes_studio.adapters.wan_ledger import LedgerReader, record_from_document
 from haynes_studio.build.run import RUN_OUTPUT, RunRecords, version_stage
 from haynes_studio.build.validate import validate_run
-from haynes_studio.canonical.model import to_document
+from haynes_studio.canonical.model import Principal, to_document
 from haynes_studio.delivery.publish import read_delivery
 from haynes_studio.errors import blocking
 from haynes_studio.jsonio import parse_strict, thaw
@@ -119,7 +119,7 @@ def _record(out: Path, document: dict) -> None:
 
 def put_private_view(*, store: LocalStore, production_id: str, run_id: str, job: str,
                      out: Path, runner: Runner, title: str, master: bool = False,
-                     check_only: bool = False) -> dict[str, Any]:
+                     check_only: bool = False, by: Principal) -> dict[str, Any]:
     """Put a verified run on private viewing; check-only stops before the first write.
 
     OUT must be a new folder outside the store. No retries and no delete path.
@@ -154,7 +154,8 @@ def put_private_view(*, store: LocalStore, production_id: str, run_id: str, job:
         "telemetry": [], "preset": "studio-private-view",
         "output": "productions/" + job + "/" + selected, **files[selected],
         "assets": [{"path": base + name, **facts} for name, facts in files.items()],
-        "provenance": {"production_id": production_id, "run_id": run_id,
+        "provenance": {"created_by": to_document(by),
+                       "production_id": production_id, "run_id": run_id,
                        "delivery_id": delivery.id, "story_id": run["story_id"],
                        "studio_commit": run["provenance"]["toolchain"]["studio"],
                        "plays": choice, "master_sha256": delivery.master.sha256,

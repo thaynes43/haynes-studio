@@ -26,7 +26,13 @@ normative form; the contract's examples are their fixtures.
 A principal is `human`, `agent`, `worker`, `cli` or, since story 849, `agent_session`
 (`{kind, session, harness, model}`, P-24): an agent working in its own dev-env session
 without a studio key. Every place that takes a principal accepts it; it records who did
-the work and grants nothing (it cannot be a command line's human `operator`).
+the work and grants nothing. **Proposed amendment for the contract owner, story
+[864](https://work.haynesnetwork.com/work_packages/864):** a CLI's `operator` accepts
+exactly a human or an agent session. The shared schema adds `cli_operator` as the union
+of the unchanged human shape and the existing agent-session shape, now a named `$defs`
+entry. It accepts every old record unchanged; it permits neither nested CLI operators
+nor studio-key/worker operators. People-only functions check the effective actor
+separately with `require_human`; a valid attribution principal grants no permission.
 
 The files reference each other by `$id` (`https://haynes-studio.invalid/schemas/...`, a
 name that is never fetched); `haynes_studio.schemas` registers them together.

@@ -48,7 +48,12 @@ and are no longer pending.
 Every command takes the local store's root (`--store`), and the build commands take the
 draft (`--story`, a `studio.story/v1` file with its boards embedded), the library
 (`--library`, a JSON array of `studio.asset-version/v1` documents) and the operator
-(`--operator-iss`, `--operator-sub`, as `studio legacy import`). Exit status: `0` done,
+([operator flags](studio-cli.md#operator-flags-proposal-for-the-contract-owner-story-864),
+proposed for the contract owner's review in story 864). Both `queued_by.operator` and
+every `transitions[].by.operator` record the chosen human or agent session. Voice jobs'
+`created_by.operator`, newly created assets' `created_by.operator`, and asset versions'
+`provenance.created_by.operator` use the same selection. Earlier attribution on reused
+records stays as stored. Exit status: `0` done,
 `1` a rule failed or the run failed, `2` a usage error. Problems print on stderr, one per
 line: a failed or held run as `<story file>: rule <code> [at board <brd_id>] (stage
 <stage>): <message>` (a held run's message starts `held`); a pre-build problem of a story

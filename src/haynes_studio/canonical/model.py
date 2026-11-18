@@ -97,6 +97,16 @@ def _principal(doc: Any) -> Principal | None:
     return None if doc is None else Principal.from_document(doc)
 
 
+def require_human(by: Principal, action: str) -> None:
+    """Guard a people-only action, including its CLI operator. No authentication."""
+    actor = by.operator if isinstance(by, Principal) and by.kind == "cli" else by
+    if (not isinstance(actor, Principal) or actor.kind != "human"
+            or set(to_document(actor)) != {"kind", "iss", "sub"}
+            or not isinstance(actor.iss, str) or not actor.iss
+            or not isinstance(actor.sub, str) or not actor.sub):
+        raise ValueError(f"{action} requires a human operator; agent sessions cannot perform it")
+
+
 # Board --------------------------------------------------------------------------------
 
 
