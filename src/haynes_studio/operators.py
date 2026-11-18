@@ -8,6 +8,8 @@ from urllib.parse import urlsplit
 
 from haynes_studio.canonical.model import Principal
 
+_AGENT_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+
 
 def add_operator_arguments(parser: argparse.ArgumentParser) -> None:
     group = parser.add_argument_group("operator", "Give one complete set: human or agent session.")
@@ -29,8 +31,10 @@ def operator_from_args(args: argparse.Namespace, *, private_import: bool = False
                          "or --operator-session, --operator-harness and --operator-model")
     if has_session:
         for name, value in zip(("session", "harness", "model"), session):
-            if not isinstance(value, str) or not value.strip():
-                raise ValueError(f"--operator-{name} is required and must be nonempty text")
+            if (not isinstance(value, str) or not value or value != value.strip()
+                    or _AGENT_CONTROL.search(value)):
+                raise ValueError(f"--operator-{name} is required and must be nonempty text "
+                                 "without control characters or surrounding whitespace")
         return Principal(kind="agent_session", session=session[0], harness=session[1],
                          model=session[2])
     iss, sub = human

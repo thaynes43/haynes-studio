@@ -32,8 +32,10 @@ importer and `private-view`. Choose exactly one complete set:
 
 Both, neither, incomplete sets, and empty agent fields exit 2 before input reads or
 client construction. The three agent fields use the existing `agent_session` principal
-names and must be nonempty text. The human issuer/subject checks stay the same. These
-flags state who acted; they authenticate nobody and grant no access. The CLI records
+names. CLI values must be nonempty text without control characters or surrounding
+whitespace; internal spaces (for example `Claude Code`) are allowed. This CLI check
+does not narrow the stored principal schema. The human issuer/subject checks stay the
+same. These flags state who acted; they authenticate nobody and grant no access. The CLI records
 `{kind: cli, command, operator}` with the selected principal. Old records stay as stored.
 For example, replace the human pair in a build command with
 `--operator-session my-session --operator-harness Codex --operator-model gpt-6.1-sol`.

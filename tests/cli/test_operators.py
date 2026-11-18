@@ -48,6 +48,11 @@ BAD_FLAGS = [
     ([*AGENT_FLAGS[:2], "--operator-harness", " ", *AGENT_FLAGS[4:]], "--operator-harness"),
     ([*AGENT_FLAGS[:4], "--operator-model", ""], "--operator-model"),
 ]
+for field in ("session", "harness", "model"):
+    for value in (" leading", "trailing ", "embedded\nnewline", "embedded\ttab", "nul\x00byte", "c1\x85control"):
+        flags = list(AGENT_FLAGS)
+        flags[flags.index(f"--operator-{field}") + 1] = value
+        BAD_FLAGS.append((flags, f"--operator-{field}"))
 
 
 @pytest.mark.parametrize("command", COMMANDS, ids=["legacy-import", "voice", "build", "private-view"])
@@ -66,6 +71,15 @@ def test_private_import_uses_the_same_complete_exclusive_sets(flags, message):
                        stdout=out, stderr=err,
                        runner_factory=lambda: pytest.fail("no service"))
     assert code == 2 and not out.getvalue() and message in err.getvalue()
+
+
+def test_an_agent_harness_can_contain_internal_spaces():
+    from haynes_studio.cli import _parser
+    from haynes_studio.operators import operator_from_args
+    flags = list(AGENT_FLAGS)
+    flags[flags.index("--operator-harness") + 1] = "Claude Code"
+    operator = operator_from_args(_parser().parse_args(COMMANDS[2] + flags))
+    assert operator.harness == "Claude Code"
 
 
 @pytest.mark.parametrize("flags, operator", [(HUMAN_FLAGS, HUMAN), (AGENT_FLAGS, SESSION)],
