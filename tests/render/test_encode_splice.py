@@ -11,7 +11,9 @@ import pytest
 
 from haynes_studio.render.base import SegmentRequest
 from haynes_studio.render.encode import EncoderSettings, decode_frames, encode_segment, probe_segment
-from haynes_studio.render.errors import CONSERVATION, SPLICE_INCOMPATIBLE, CacheError
+from haynes_studio.render.errors import (
+    CONSERVATION, FRAME_COUNT, FRAME_INVALID, SPLICE_INCOMPATIBLE, CacheError,
+)
 from haynes_studio.render.splice import SpliceInput, splice
 from haynes_studio.render.synthetic import SyntheticRenderer, fingerprint, read_code
 
@@ -123,3 +125,41 @@ def test_splice_reads_a_lazy_segment_only_when_it_reaches_it():
 
     film = splice([SpliceInput(segment("1", 4), 4), SpliceInput(later, 3)])
     assert calls == ["read"] and probe_segment(film, fps=24).frames == 7
+
+
+@pytest.mark.parametrize(("shape", "expected", "code"), [
+    ((4, 4, 3), 1, FRAME_COUNT),
+    ((3, 4, 3), 2, FRAME_INVALID),
+])
+def test_a_rejected_frame_closes_the_render_iterator_before_the_error_returns(shape, expected, code):
+    closed = []
+
+    def render():
+        try:
+            yield np.zeros((4, 4, 3), dtype=np.uint8)
+            yield np.zeros(shape, dtype=np.uint8)
+        finally:
+            closed.append(True)
+
+    # Retain both iterator and traceback: resource cleanup must not depend on GC.
+    frames = render()
+    try:
+        with pytest.raises(CacheError) as error:
+            encode_segment(frames, frames_expected=expected, width=4, height=4, fps=24,
+                           settings=SETTINGS)
+        assert error.value.code == code
+        assert closed == [True]
+    finally:
+        frames.close()
+
+
+def test_an_encode_failure_closes_its_live_input_decoder():
+    frames = decode_frames(segment("1", 2, width=4, height=4))
+    try:
+        with pytest.raises(CacheError) as error:
+            encode_segment(frames, frames_expected=2, width=8, height=4, fps=24,
+                           settings=SETTINGS)
+        assert error.value.code == FRAME_INVALID
+        assert frames.gi_frame is None  # decode_frames has exited its av.open context
+    finally:
+        frames.close()

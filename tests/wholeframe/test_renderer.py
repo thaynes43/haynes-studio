@@ -18,6 +18,7 @@ from haynes_studio.render.synthetic import read_code
 from haynes_studio.stages import completed_stage
 from haynes_studio.store import canonical_json
 from haynes_studio.wholeframe import WholeFrameClips, WholeFrameRenderer, fit_rule, production_reader
+from haynes_studio.wholeframe import renderer as renderer_module
 from haynes_studio.wholeframe.errors import (
     CLIP_INVALID,
     METHOD_UNAVAILABLE,
@@ -254,3 +255,43 @@ def test_io_is_not_needed_for_a_refusal():
         WholeFrameRenderer().render(SegmentRequest(key="k", inputs=h.wf_segment(
             "5" * 64, 30, method={"layer": "layered", "motion": "s2v"}).document,
             open_input=lambda sha: io.BytesIO(b"")))
+
+
+@pytest.mark.parametrize("stop", ["trim", "cancel", "scale_failure"])
+def test_a_stopped_render_closes_its_native_decoder_even_when_referenced(store, monkeypatch, stop):
+    clip_set = make_clips(store, h.clip_key(
+        lengths=(25,), profile={**h.PROFILE, "size": [180, 320]}))
+    renderer = WholeFrameRenderer()
+    segment = h.wf_segment(clip_set, 5)
+    decoders = []
+    real_decode = renderer_module.decode_frames
+
+    def retained_decode(data):
+        decoder = real_decode(data)
+        decoders.append(decoder)
+        return decoder
+
+    monkeypatch.setattr(renderer_module, "decode_frames", retained_decode)
+    frames = renderer.render(request(store, segment))
+    try:
+        if stop == "scale_failure":
+            failure = RuntimeError("scaler failed")
+
+            def refuse_scale(*args):
+                raise failure
+
+            monkeypatch.setattr(renderer_module, "_scale", refuse_scale)
+            with pytest.raises(RuntimeError) as error:
+                next(frames)
+            assert error.value is failure
+        elif stop == "cancel":
+            next(frames)
+            frames.close()
+        else:
+            assert len(list(frames)) == 5  # stop before the clip's remaining 20 frames
+        assert len(decoders) == 1 and decoders[0].gi_frame is None
+        assert bool(renderer.reports) == (stop == "trim")
+    finally:
+        frames.close()
+        for decoder in decoders:
+            decoder.close()
