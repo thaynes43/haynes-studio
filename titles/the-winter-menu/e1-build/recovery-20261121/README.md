@@ -6,8 +6,13 @@ https://work.haynesnetwork.com/work_packages/428, comment 9467). Session
 hashes, the key documents and the three one-off scripts that ran.
 
 **States.** Source: no package code changed. Tested: every rebuilt artifact matches
-its committed hash (below). Installed: **not done.** No private link exists for this cut
-yet (see "Delivery"). Accepted: Tom's verdict is pending and separate.
+its committed hash (below). Installed: **done.** The phone proxy is on private viewing,
+and the link was read back serving `0212a7de...` (see "Delivery"). Accepted: Tom's
+verdict is pending and separate; a playable link is not approval.
+
+**The link (home network only):**
+<https://video.haynesops.com/videos/90cca7650779400ba6e3364e6741394a/file>. It plays the
+720x1280 phone proxy of the quieter-gavel cut.
 
 ## What was lost
 
@@ -56,17 +61,41 @@ transcript check needs the Whisper service, which runs on a GPU.
 Timings: copying the inputs took seconds (77 MB); each mix and master took under a
 minute; each proxy took 6.3 s of wall time.
 
-## Delivery — blocked, needs a decision
+## Delivery — Changed, then Proven
 
-- `studio private-view` (story 863) publishes only from a store that holds a
-  `studio build` run record and its verified delivery. These files have neither.
-- A new `studio build` in a fresh store cannot recreate that record without GPU work.
-  It would ask for 11 new Wan jobs, because there is no journal to collect the old
-  ones from, so its picture would be a new film. It would also make one Whisper request.
-- `poc/deliver.py` (runbook stage 7) takes a PoC job folder: a manifest,
-  `validation.json`, a transcript file, shot images and speech files. Feeding it means
-  hand-made PoC records for a studio cut. Its folder check is also the one the PR 70
-  review found weak against a second writer.
+**Changed:** the plan's route, `studio private-view` (story 863), publishes only from a
+store holding a `studio build` run record and its verified delivery. These files have
+neither. A new `studio build` in a fresh store could not recreate that record with the
+same picture: there is no journal to collect the old Wan jobs from, so it would ask for
+11 new ones and make a new film. `poc/deliver.py` needs a PoC job folder, and its folder
+check is the one the PR 70 review found weak. Writing a store or run record by hand
+would invent provenance.
 
-Writing a store and run record by hand to satisfy `studio private-view` would invent
-provenance, so it was not done. The options are on story 941.
+Tom's answer to Q-941-01 (2026-11-21, AskUserQuestion): "Why can't you use GPUs? Why
+can't you access what you need? You should be a superuser coordinator." This was read
+as: go ahead with the access I have. GPUs could not help, because a new Wan job makes a
+new picture.
+
+So [`tools/private_view_recovered.py`](tools/private_view_recovered.py) calls the merged
+`put_private_view` unchanged. It replaces only its store read (`_inputs`). It checks the
+rebuilt master and proxy against the committed run record
+[`../runs/m-edited.run.json`](../runs/m-edited.run.json), ships that record as `run.json`,
+and ships a `delivery.json` stating it is a recovery record and not the lost delivery
+document. The ledger's `story` names story 941, and `created_by` names this session.
+
+- **Check-only** (read-only): 27 584 245 760 bytes free; the folder
+  `the-winter-menu-e1-quieter-gavel-1` and the ledger name unused
+  ([`private-view-check-only.json`](private-view-check-only.json)). Its ledger ID
+  `63341fd3...` was never linked; the live run draws a new one.
+- **The delivery:** the route reserved the folder, copied the four files create-only,
+  verified them, and linked ledger **`90cca7650779400ba6e3364e6741394a`**. Its read-back:
+  the served ledger equals the staged bytes; `GET /videos/<id>/file` answers 200
+  `video/mp4`, 12 986 556 bytes, SHA-256 `0212a7de...`; 24 ledgers listed, none
+  unreadable. The record is [`production.json`](production.json).
+- **Checked again, separately,** inside the API container: a full GET hashes to
+  `0212a7de...`, and a `Range: bytes=6000000-6000099` request answers 206 with the same
+  bytes. The byte-range fix (haynes-ops PR 4928, merged 2026-11-18) is live, so the
+  phone player can seek; that missing fix caused the 2026-11-17 restarts. The LAN
+  hop from Tom's phone was not tested: a session pod cannot reach it.
+- Nothing on the Wan volume was changed or removed. The new production folder and one
+  ledger were added.

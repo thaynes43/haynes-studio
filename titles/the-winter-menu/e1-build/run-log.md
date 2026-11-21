@@ -613,6 +613,10 @@ All checks pass; the transcript check now reads `pass` (an exact match) where th
 build's read `pass_with_tolerances`. The edited build is in the store only: the story
 allows one new production on the Wan volume, so it was not delivered for viewing.
 
+**Later (2026-11-21):** the store was lost with its session. This cut was rebuilt byte for
+byte and put on private viewing: [recovery-20261121/](recovery-20261121/README.md) (story
+https://work.haynesnetwork.com/work_packages/941).
+
 ## n. The record — Proven
 
 This folder: the run log, [`import-report.json`](import-report.json) (and its dry run),

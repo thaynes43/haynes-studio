@@ -1,0 +1,99 @@
+{
+  "status": "check-only",
+  "ledger": {
+    "id": "63341fd3b9b147a5a03ff47019ba0590",
+    "kind": "edited_production",
+    "state": "succeeded",
+    "story": "https://work.haynesnetwork.com/work_packages/941",
+    "title": "The Winter Menu: quieter gavel (E1 edit, rebuilt byte-identical)",
+    "created_at": 1795277508.1257174,
+    "finished_at": 1795277508.1257174,
+    "telemetry": [],
+    "preset": "studio-private-view",
+    "output": "productions/the-winter-menu-e1-quieter-gavel-1/proxy.mp4",
+    "bytes": 12986556,
+    "sha256": "0212a7de9d6b7816c4c4d3c98bfd6d8e80fc112163944152e399b3e980a6748d",
+    "assets": [
+      {
+        "path": "/workspace/output/productions/the-winter-menu-e1-quieter-gavel-1/final.mp4",
+        "bytes": 60560455,
+        "sha256": "92d1efa3a30c4de10c62298cd25c20671f729ab1acf257ad7cdfaecd9edb09bc"
+      },
+      {
+        "path": "/workspace/output/productions/the-winter-menu-e1-quieter-gavel-1/proxy.mp4",
+        "bytes": 12986556,
+        "sha256": "0212a7de9d6b7816c4c4d3c98bfd6d8e80fc112163944152e399b3e980a6748d"
+      },
+      {
+        "path": "/workspace/output/productions/the-winter-menu-e1-quieter-gavel-1/run.json",
+        "bytes": 89164,
+        "sha256": "5200b35242bed019f7b6c3b107f3c9c47fdb06f94befdba46ba34cdcaea5a3aa"
+      },
+      {
+        "path": "/workspace/output/productions/the-winter-menu-e1-quieter-gavel-1/delivery.json",
+        "bytes": 814,
+        "sha256": "dff83032f8d6c528ab1d853022cfeaa4b5601cf6b62151b47ce8915d5d9b8c21"
+      }
+    ],
+    "provenance": {
+      "created_by": {
+        "kind": "cli",
+        "command": "recovery-20261121/tools/private_view_recovered.py",
+        "operator": {
+          "kind": "agent_session",
+          "session": "haynes-studio-1121-002318",
+          "harness": "Claude Code",
+          "model": "claude-opus-5-5"
+        }
+      },
+      "production_id": "prd_01M79V9FC00000000000000001",
+      "run_id": "run_01M7C5CJA7XKBCRPM0ZRP2P5RS",
+      "delivery_id": "dlv_01M7C5D3KFX3MFVWCXBCVJHMG7",
+      "story_id": "sty_01M79V9FC00000000000000001",
+      "studio_commit": "git:ec8c3869e8e699b4f7cf58bb3d1485f4cdb4af5e",
+      "plays": "proxy",
+      "master_sha256": "92d1efa3a30c4de10c62298cd25c20671f729ab1acf257ad7cdfaecd9edb09bc",
+      "proxy_sha256": "0212a7de9d6b7816c4c4d3c98bfd6d8e80fc112163944152e399b3e980a6748d",
+      "human_approval": "Pending: Tom; private viewing only."
+    }
+  },
+  "files": [
+    {
+      "path": "/workspace/output/productions/the-winter-menu-e1-quieter-gavel-1/final.mp4",
+      "bytes": 60560455,
+      "sha256": "92d1efa3a30c4de10c62298cd25c20671f729ab1acf257ad7cdfaecd9edb09bc"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-e1-quieter-gavel-1/proxy.mp4",
+      "bytes": 12986556,
+      "sha256": "0212a7de9d6b7816c4c4d3c98bfd6d8e80fc112163944152e399b3e980a6748d"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-e1-quieter-gavel-1/run.json",
+      "bytes": 89164,
+      "sha256": "5200b35242bed019f7b6c3b107f3c9c47fdb06f94befdba46ba34cdcaea5a3aa"
+    },
+    {
+      "path": "/workspace/output/productions/the-winter-menu-e1-quieter-gavel-1/delivery.json",
+      "bytes": 814,
+      "sha256": "dff83032f8d6c528ab1d853022cfeaa4b5601cf6b62151b47ce8915d5d9b8c21"
+    }
+  ],
+  "plays": "proxy",
+  "production_id": "prd_01M79V9FC00000000000000001",
+  "run_id": "run_01M7C5CJA7XKBCRPM0ZRP2P5RS",
+  "delivery_id": "dlv_01M7C5D3KFX3MFVWCXBCVJHMG7",
+  "url": "https://video.haynesops.com/videos/63341fd3b9b147a5a03ff47019ba0590/file",
+  "remote_folder": "/workspace/output/productions/the-winter-menu-e1-quieter-gavel-1",
+  "free_bytes": 27584245760,
+  "recovery_folder": "/workspace/jobs/.private-view-63341fd3b9b147a5a03ff47019ba0590",
+  "local_record": "/home/dev/studio-jobs/winter-menu-quieter-gavel-20261121/view-check/production.json",
+  "plan": [
+    "reserve folder",
+    "copy four files create-only",
+    "reopen and hash files",
+    "validate and link ledger create-only",
+    "read ledger, file bytes and list",
+    "write production.json create-only"
+  ]
+}
