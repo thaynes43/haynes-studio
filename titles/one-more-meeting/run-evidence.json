@@ -1,0 +1,361 @@
+{
+  "source_commit": "a01d0eeb6dcf78a072f66794e61beb310921a66a",
+  "source_manifest_sha256": "871ad13778cc0a34f26215cfe7ceff02ff7d01e96f175cc66821a839f0dcf108",
+  "prompt_sha256": "55f692ac764dbc7f335a9077d99ee0c36d7991ecab9518c272ac602124740e4c",
+  "studio_version": "0.1.0.dev0",
+  "uv_lock_sha256": "34a7604dc5a88f9632856fb580e41d6009e07583b70fc3c97ac85cd036cae73f",
+  "equal_keyer_and_toolchain_digests_sha256": "ab771328163f3fa193708174d7363a70082f94bfc981698e57fdf4db6f9cc960",
+  "python": {
+    "session": "3.11.2",
+    "render_worker": "3.12.16"
+  },
+  "input_readback": {
+    "files": [
+      {
+        "role": "chair_cutout",
+        "source_kind": "ledger_asset",
+        "sha256": "d44fc8299598c56e7577ea9e57f9c75587b201a2951b88ab24636c5878f8fb9a",
+        "bytes": 1615055,
+        "verification_seconds": 0.318
+      },
+      {
+        "role": "campsite_plate",
+        "source_kind": "ledger_asset",
+        "sha256": "29ab6f47227cee7aa482e83f79cb4aad9949407b4a543f5a33f846119f3c5b58",
+        "bytes": 2390590,
+        "verification_seconds": 0.274
+      },
+      {
+        "role": "chair_loop",
+        "source_kind": "job_output",
+        "sha256": "a5e78a06cb61d7a41ef9a3fd461cff6cc4f11cc854becf121792dd89e8cf595e",
+        "bytes": 2285905,
+        "verification_seconds": 0.233
+      },
+      {
+        "role": "campsite_loop",
+        "source_kind": "job_output",
+        "sha256": "d9992080f596d71119aaad39b6717bff898e8bc9ac40f93d079a4ffdc74298a1",
+        "bytes": 1299333,
+        "verification_seconds": 0.284
+      },
+      {
+        "role": "s2v_start_image",
+        "source_kind": "upload",
+        "sha256": "342960b60079923da08ed15d25ae3344d33ee128148371047e752843f06a16fc",
+        "bytes": 669402,
+        "verification_seconds": 0.196
+      }
+    ],
+    "import_seconds": 1.42
+  },
+  "voice": {
+    "stock_voice": "af_heart",
+    "seconds": 1.332,
+    "takes": [
+      {
+        "sha256": "e14ec1a06b55361476756d0c96e8067d6da8af87e9c888940e1fdaa7c35dd1cc",
+        "duration_ms": 2432
+      },
+      {
+        "sha256": "e373b139b5ef981f8f2cb97e202eb9510dcf7b3de94f0de9b342721b3f1c2444",
+        "duration_ms": 2816
+      }
+    ],
+    "board_track_sha256": "53a1873ccae253996653a9c3b8ffa39b077aa9e2deaa1048b89d90a6315d5983",
+    "lead_ms": 550,
+    "beat_ms": 1100,
+    "tail_ms": 1250
+  },
+  "wan": {
+    "api_gitops_commit": "2ab6a5550dc908a757c32a9b22878a14fda60319",
+    "api_sha256": "61fdb5314acd1db6a04f014d3b213f4215f14df52e9f1827cce68c216bc79c18",
+    "gate": {
+      "observed_at": "2026-11-21T17:04:39Z",
+      "accepting": true,
+      "active_jobs": 0,
+      "queue_running": 0,
+      "queue_pending": 0,
+      "temps_c": [
+        51,
+        49
+      ],
+      "utilization_pct": [
+        0,
+        0
+      ],
+      "new_journal": true
+    },
+    "dry_run_planned_jobs": 1,
+    "submissions": 1,
+    "job_settlement": "collected",
+    "ledger_readback": {
+      "state": "succeeded",
+      "bytes": 2434491,
+      "graph_sha256": "d2275ba04727d3d482238f5d599a21470a1990e42a0734c592acc86034649785"
+    },
+    "phase_seconds": 481.898,
+    "fps": 16,
+    "seed": 501,
+    "frames_requested": 154,
+    "frames_delivered": 158,
+    "frames_used": 131,
+    "chunks": 2,
+    "clip_sha256": "5c4f5df16aa35e55db5c44d28389f05a95723b1b200420ece61b684427bb14b1",
+    "model_files_sha256": {
+      "umt5_xxl_fp8_e4m3fn_scaled.safetensors": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
+      "wan2.2_s2v_14B_fp8_scaled.safetensors": "140e75af5534ac3d91e710d9df756f7032addd64b341ba2c1c70e3e6da9aa216",
+      "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors": "698321cb86bd30c4af06c9b84e656a1048c8cb54e06d50694536fb5de37fde41",
+      "wan_2.1_vae.safetensors": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+      "wav2vec2_large_english_fp16.safetensors": "f0017a43ea57ef6b3d4866be607844bbd8cada6d30966f7d70044ed0d63d3f9e"
+    },
+    "render_seconds": 478.9,
+    "client_wall_seconds": 480.8,
+    "cooldown_seconds": 0.4,
+    "fetch_seconds": 0.5,
+    "engine_read_retries": 0,
+    "recovered": false
+  },
+  "worker": {
+    "workers": 1,
+    "threads": 2,
+    "verified_clip_and_input_transfer": {
+      "files": 82,
+      "bytes": 16751231,
+      "seconds": 0.626
+    },
+    "offline_assembly_seconds": 106.46,
+    "offline_assembly_stop": {
+      "code": "build.offline_missing",
+      "stage": "check_result"
+    },
+    "keyed_frames_seconds": 22.655,
+    "composite_and_encode_seconds": 81.449,
+    "decal_check": {
+      "check": "layered.decal_gate",
+      "slot": "b",
+      "result": "pass",
+      "artifact": "f9fc8d2a7ebfc0ce3c931965085fe63d6f37bb5da359e1279bbff5efeebe43c1",
+      "key": "sha256:9d06a9797d48abd59daeec8617767de81cc4b588bb4e4335adc8ef6bdc1d4c92",
+      "version": "1",
+      "thresholds": {
+        "min_ecc": 0.8
+      },
+      "measured": {
+        "frames_tracked": 130,
+        "failed_frames": 0,
+        "min_ecc": 0.986,
+        "mean_ecc": 0.9912,
+        "frames_gated": 130
+      }
+    },
+    "verified_master_and_cache_transfer": {
+      "files": 18,
+      "bytes": 90574110,
+      "seconds": 1.739
+    },
+    "asr_phase_seconds": 1.044,
+    "asr_dry_run_planned_wan_jobs": 0,
+    "wan_journal_unchanged_across_asr": true,
+    "verified_asr_record_transfer": {
+      "files": 15,
+      "bytes": 20772,
+      "seconds": 0.335
+    },
+    "offline_delivery_seconds": 3.662
+  },
+  "delivery": {
+    "run_status": "succeeded",
+    "same_master_as_asr": true,
+    "duration_seconds": 8.166667,
+    "master": {
+      "sha256": "557a45be75bf29aa384c74405faeaadf53080f619fca8c77f7f5e907227f74d6",
+      "bytes": 8242309,
+      "media_type": "video/mp4",
+      "width": 1080,
+      "height": 1920,
+      "fps": 24,
+      "frames": 196,
+      "video_codec": "h264",
+      "audio_codec": "aac"
+    },
+    "proxy": {
+      "sha256": "63dbb1e26287360ed6c4a0422dbdbfa250ad981c74e9719133d4dfe72d809d1b",
+      "bytes": 1789344,
+      "media_type": "video/mp4",
+      "width": 720,
+      "height": 1280,
+      "fps": 24,
+      "frames": 196,
+      "video_codec": "h264",
+      "audio_codec": "aac"
+    },
+    "verification": {
+      "decoded_frames": 196,
+      "expected_frames": 196,
+      "sha256_verified": true,
+      "proxy_under_bytes": 25000000
+    },
+    "checks": [
+      {
+        "check": "mix.length",
+        "result": "pass",
+        "measured": {
+          "bits": 24,
+          "channels": 2,
+          "rate": 48000,
+          "samples": 392000
+        }
+      },
+      {
+        "check": "mix.loudness",
+        "result": "pass",
+        "measured": {
+          "integrated_lufs": -20.024
+        }
+      },
+      {
+        "check": "mix.true_peak",
+        "result": "pass",
+        "measured": {
+          "true_peak_dbtp": -4.495
+        }
+      },
+      {
+        "check": "mix.clipping",
+        "result": "pass",
+        "measured": {
+          "clipped_samples": 0
+        }
+      },
+      {
+        "check": "master.loudness",
+        "result": "pass",
+        "measured": {
+          "integrated_lufs": -20.033
+        }
+      },
+      {
+        "check": "master.true_peak",
+        "result": "pass",
+        "measured": {
+          "true_peak_dbtp": -4.524
+        }
+      },
+      {
+        "check": "master.clipping",
+        "result": "pass",
+        "measured": {
+          "clipped_samples": 0
+        }
+      },
+      {
+        "check": "master.transcript",
+        "result": "pass",
+        "measured": {
+          "exact_match": true,
+          "tolerances_used": []
+        }
+      },
+      {
+        "check": "frame_count",
+        "result": "pass"
+      }
+    ]
+  },
+  "archive": {
+    "filesystem": "read-write NFSv4.2",
+    "preflight_free_tib_reported": 103,
+    "one_more_meeting": {
+      "independent_readback": "matched",
+      "identity_readback": "matched",
+      "bytes": 10102482,
+      "files": {
+        "asset-versions.json": {
+          "bytes": 21067,
+          "sha256": "23489905b4429601a0c7ad987a779a68d39d05812d2d25d7691f14801dda8db3"
+        },
+        "delivery-stage.json": {
+          "bytes": 947,
+          "sha256": "42c31a3ee84d1044bc1408024abedf9fca36c783b3349701f7d64af2bf7ca779"
+        },
+        "delivery.json": {
+          "bytes": 1057,
+          "sha256": "94983d45b712c0222ad14e5691078fcf4c8a66ec6b4a151762fc302306bd69fb"
+        },
+        "final.mp4": {
+          "bytes": 8242309,
+          "sha256": "557a45be75bf29aa384c74405faeaadf53080f619fca8c77f7f5e907227f74d6"
+        },
+        "proxy.mp4": {
+          "bytes": 1789344,
+          "sha256": "63dbb1e26287360ed6c4a0422dbdbfa250ad981c74e9719133d4dfe72d809d1b"
+        },
+        "run.json": {
+          "bytes": 24333,
+          "sha256": "f414b7e14ebbe0c04fb0dfb0ffa6b419b669841cfac454bd8d535a18afee68ea"
+        },
+        "snapshot.json": {
+          "bytes": 3734,
+          "sha256": "d26331b8d7942991683c2dc8620b4a8ac1071c25a5d527bfb449ae42abf8fe45"
+        },
+        "transcript-run.json": {
+          "bytes": 7652,
+          "sha256": "d182b85b95973b479e4d66e0969ac5f2d481c3e48e860e8252218753862f0f44"
+        },
+        "wan-clip.json": {
+          "bytes": 6080,
+          "sha256": "d235e9802ea6ab3d8943d8bf9036d2de6f6d966fdce46bd9e75cd7e34516a72e"
+        },
+        "wan-service-run.json": {
+          "bytes": 5959,
+          "sha256": "9db9500cb2787440a16a2a5206c942fa87c0929e8eff7ef899b78875de949280"
+        }
+      }
+    },
+    "winter_menu_quieter_gavel": {
+      "independent_readback": "matched",
+      "identity_readback": "matched",
+      "bytes": 73638915,
+      "files": {
+        "delivery.json": {
+          "bytes": 814,
+          "sha256": "dff83032f8d6c528ab1d853022cfeaa4b5601cf6b62151b47ce8915d5d9b8c21"
+        },
+        "final.mp4": {
+          "bytes": 60560455,
+          "sha256": "92d1efa3a30c4de10c62298cd25c20671f729ab1acf257ad7cdfaecd9edb09bc"
+        },
+        "ledger.json": {
+          "bytes": 1926,
+          "sha256": "03aa28d455da87fa98c0d87b93237eb43f8a2fd7e682dc136be84aa7bb7d9e91"
+        },
+        "proxy.mp4": {
+          "bytes": 12986556,
+          "sha256": "0212a7de9d6b7816c4c4d3c98bfd6d8e80fc112163944152e399b3e980a6748d"
+        },
+        "run.json": {
+          "bytes": 89164,
+          "sha256": "5200b35242bed019f7b6c3b107f3c9c47fdb06f94befdba46ba34cdcaea5a3aa"
+        }
+      }
+    },
+    "total_file_bytes": 83741397
+  },
+  "inference": {
+    "wan_s2v_jobs": 1,
+    "kokoro_synthesis_requests": 2,
+    "asr_requests": 1,
+    "comfy_image_jobs": 0,
+    "foley_jobs": 0,
+    "other_model_jobs": 0,
+    "paid_usd": 0
+  },
+  "authenticated_phone_playback": {
+    "status": "blocked",
+    "new_playback_publication": false,
+    "signed_out_denial_evidence": false,
+    "signed_in_play_and_seek_evidence": false
+  },
+  "creative_review": "pending"
+}
