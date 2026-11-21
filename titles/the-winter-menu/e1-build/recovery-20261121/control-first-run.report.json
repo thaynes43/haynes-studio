@@ -1,0 +1,84 @@
+{
+ "run": "run_01M7C56SZ6TAHTJSW413RFZYQP",
+ "checks": [
+  {
+   "check": "voice_track/0",
+   "got": "a4a41e87cb822401d904a4bf23fa025667f36643f2fe8a3bf4605759575df261",
+   "want": "a4a41e87cb822401d904a4bf23fa025667f36643f2fe8a3bf4605759575df261",
+   "ok": true
+  },
+  {
+   "check": "voice_track/1",
+   "got": "613770d8dcecfe6cff3202d7a6d08fdd8643718891ba43817bbfc7f92dd4347e",
+   "want": "613770d8dcecfe6cff3202d7a6d08fdd8643718891ba43817bbfc7f92dd4347e",
+   "ok": true
+  },
+  {
+   "check": "voice_track/2",
+   "got": "00f025f05c0c25ea6b4b6e05b1d4aeaa48023009d8c02c5bc2d51224b65be135",
+   "want": "00f025f05c0c25ea6b4b6e05b1d4aeaa48023009d8c02c5bc2d51224b65be135",
+   "ok": true
+  },
+  {
+   "check": "voice_track/3",
+   "got": "ce6013696258720b5fc7f8ddac6ffc7c4ba63de94176b3197b1f4a520d81e6ca",
+   "want": "ce6013696258720b5fc7f8ddac6ffc7c4ba63de94176b3197b1f4a520d81e6ca",
+   "ok": true
+  },
+  {
+   "check": "voice_track/4",
+   "got": "f92bbc528636aedbaf89f1d9aeebc8f2ce6b87d65a85f076b3ae26bc46f8af68",
+   "want": "f92bbc528636aedbaf89f1d9aeebc8f2ce6b87d65a85f076b3ae26bc46f8af68",
+   "ok": true
+  },
+  {
+   "check": "voice_track/5",
+   "got": "ca836db6753cdf1b8c7c183574606272000b1cd03a2209a2e301a4dc1a006482",
+   "want": "ca836db6753cdf1b8c7c183574606272000b1cd03a2209a2e301a4dc1a006482",
+   "ok": true
+  },
+  {
+   "check": "voice_track/6",
+   "got": "00720fda182369f7e156f3cfe26d60e140c904aaa605e61dada2d4e6dcf14eed",
+   "want": "00720fda182369f7e156f3cfe26d60e140c904aaa605e61dada2d4e6dcf14eed",
+   "ok": true
+  },
+  {
+   "check": "voice_track/7",
+   "got": "d158fef54aa236b3f3483620ee0fa7357996a5dd040d142c60f0c4f10695c633",
+   "want": "d158fef54aa236b3f3483620ee0fa7357996a5dd040d142c60f0c4f10695c633",
+   "ok": true
+  },
+  {
+   "check": "mix_key",
+   "got": "sha256:e3e041831622b28c3b639b2551ab4a14229ee110ad13e9243f151b36b1039c3b",
+   "want": "sha256:e3e041831622b28c3b639b2551ab4a14229ee110ad13e9243f151b36b1039c3b",
+   "ok": true
+  },
+  {
+   "check": "mixer_version",
+   "got": "studio.mixer/1:74339957ebf46e78",
+   "want": "studio.mixer/1:74339957ebf46e78",
+   "ok": true
+  },
+  {
+   "check": "mix",
+   "got": "5a13ee14690ce210a582e7f7311b52776b67fc52daa9f15f3afc0778f4fea01f",
+   "want": "5a13ee14690ce210a582e7f7311b52776b67fc52daa9f15f3afc0778f4fea01f",
+   "ok": true
+  }
+ ],
+ "mix_key_document": [
+  "voice_tracks",
+  "sounds",
+  "beds",
+  "line_rms_dbfs",
+  "master_lufs",
+  "true_peak_dbtp",
+  "frames",
+  "rate",
+  "mixer",
+  "kind",
+  "scheme"
+ ]
+}
