@@ -19,7 +19,7 @@ both tags at the registry.
 
 ```sh
 revision=$(git rev-parse origin/main)
-for name in studio studio-web; do
+for name in haynes-studio haynes-studio-web; do
   repository="ghcr.io/thaynes43/$name"
   digest=$(docker buildx imagetools inspect "$repository:sha-$revision" \
     --format '{{.Manifest.Digest}}') || exit 1
