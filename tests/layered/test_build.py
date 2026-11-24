@@ -127,10 +127,14 @@ def test_an_earlier_boards_length_changes_no_frame_of_a_later_board(world, first
     alone = h.build(fresh, longer, h.RUN[1])
     assert len(alone.builder.rendered) == 3
     for board in (h.B2, h.B4):
+        name = f"{board}/segment"
+        original, rebuilt = first.plan.artifacts[name], alone.plan.artifacts[name]
         ours, theirs = h.segment_frames(world, first.plan, board), h.segment_frames(fresh, alone.plan, board)
         assert_same_frames(board, ours, theirs, lambda: json.dumps({
             "first": frame_inputs(first.plan, board), "fresh": frame_inputs(alone.plan, board),
         }, sort_keys=True))
+        assert original.key == rebuilt.key, board
+        assert original.content == rebuilt.content, board
 
 
 def test_the_film_holds_every_boards_frames_in_order(world, first):

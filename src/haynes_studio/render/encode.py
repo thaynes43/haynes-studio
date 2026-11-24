@@ -1,4 +1,4 @@
-"""Segment encoding and decoding (story 380), through PyAV at two threads.
+"""Segment encoding and decoding through PyAV.
 
 A segment is one board's picture: H.264 in MP4, video only, constant frame rate, every
 packet's decode time equal to its presentation time (no B-frames), first frame an IDR.
@@ -11,11 +11,11 @@ x264) are key inputs, so another build or setting never reuses a segment. Encode
 may still differ between builds and are never compared; decoded frames are, and H.264
 decoding is exact.
 
-x264 runs **sliced** threads (each frame cut into one slice per thread), which give the
-same bytes for the same frames every time. Its default frame threading, as the legacy
-``ffmpeg -threads 2`` used, does not: in this pod 25 encodes of one synthetic segment
-gave three different outputs. A full render must reproduce a cached segment exactly,
-so the cache uses sliced threads (**proposal**).
+Cached segments use one encoder thread (story 955). Two x264 slice threads sometimes
+produced different H.264 packets for identical frames, even with serial lookahead.
+An AVX-512 host also produced different packets with a single thread. Serial encoding
+with AVX2 or scalar x264 keeps the preset's lookahead and MB-tree while removing both
+paths that varied. Segment-level parallelism is handled by the caller.
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ from typing import Any, BinaryIO
 
 import av
 import numpy as np
+from numpy._core._multiarray_umath import __cpu_features__
 
 from haynes_studio.render.errors import (
     FRAME_COUNT,
@@ -37,7 +38,11 @@ from haynes_studio.render.errors import (
     CacheError,
 )
 
-THREADS = 2  # contract section 14: encoders at two threads
+ENCODE_THREADS = 1
+DECODE_THREADS = 2
+# x264's AVX2 mask also enables FMA3, BMI1/2 and LZCNT. The x86-64-v3 flag
+# covers all of these. Use scalar x264 on CPUs without that complete feature set.
+X264_ASM = "AVX2" if __cpu_features__.get("X86_V3", False) else "0"
 
 
 def encoder_build() -> str:
@@ -48,27 +53,25 @@ def encoder_build() -> str:
 
 @dataclass(frozen=True)
 class EncoderSettings:
-    """Segment encoder settings (**proposal**: the legacy per-shot settings, libx264
-    ``fast`` at CRF 18 in yuv420p on two threads, plus sliced threads, no B-frames and
-    a two-second keyframe interval)."""
+    """Segment encoder settings: libx264 ``fast`` at CRF 18 in yuv420p, with one
+    thread, no B-frames and a maximum two-second keyframe interval."""
 
     codec: str = "libx264"
     pix_fmt: str = "yuv420p"
     crf: int = 18
     preset: str = "fast"
     gop: int = 48
-    threads: int = THREADS
 
     def options(self) -> dict[str, str]:
         return {"crf": str(self.crf), "preset": self.preset, "g": str(self.gop), "bf": "0",
-                "threads": str(self.threads),
-                "x264-params": f"threads={self.threads}:sliced-threads=1:bframes=0"}
+                "x264-params": f"threads={ENCODE_THREADS}:sliced-threads=0:"
+                               f"lookahead-threads=1:sync-lookahead=0:bframes=0:asm={X264_ASM}"}
 
     def key_inputs(self) -> dict[str, Any]:
         """The settings as a segment key input, with the encoder build."""
         return {"codec": self.codec, "pix_fmt": self.pix_fmt, "crf": self.crf,
-                "preset": self.preset, "gop": self.gop, "bframes": 0, "threads": self.threads,
-                "threading": "sliced", "container": "mp4", "build": encoder_build()}
+                "preset": self.preset, "gop": self.gop, "bframes": 0, "threads": ENCODE_THREADS,
+                "threading": "single", "asm": X264_ASM, "container": "mp4", "build": encoder_build()}
 
 
 def _check_frame(frame: Any, index: int, width: int, height: int) -> np.ndarray:
@@ -96,7 +99,9 @@ def encode_segment(frames: Iterable[np.ndarray], *, frames_expected: int, width:
         stream = container.add_stream(settings.codec, rate=fps)
         stream.width, stream.height, stream.pix_fmt = width, height, settings.pix_fmt
         stream.codec_context.time_base = Fraction(1, fps)
-        stream.codec_context.thread_count = settings.threads
+        # PyAV also uses the context's count for its RGB-to-YUV conversion.
+        stream.codec_context.thread_count = ENCODE_THREADS
+        stream.codec_context.thread_type = "NONE"
         stream.options = settings.options()
         for frame in iterator:
             if count >= frames_expected:
@@ -121,7 +126,7 @@ def decode_frames(data: bytes | BinaryIO) -> Iterator[np.ndarray]:
     """Every frame of a video, decoded to RGB at two threads, in order."""
     with av.open(as_source(data)) as container:
         stream = container.streams.video[0]
-        stream.codec_context.thread_count = THREADS
+        stream.codec_context.thread_count = DECODE_THREADS
         for frame in container.decode(stream):
             yield frame.to_ndarray(format="rgb24")
 
