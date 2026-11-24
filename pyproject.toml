@@ -37,12 +37,15 @@ dependencies = [
     "alembic>=1.14,<2",
     "httpx>=0.28,<1",
     "pyjwt[crypto]>=2.10,<3",
+    "mcp>=1.30,<2",
 ]
 
 [project.scripts]
 studio = "haynes_studio.cli:main"
 studio-api = "haynes_studio.api.__main__:main"
 studio-api-migrate = "haynes_studio.db.migrate:main"
+studio-api-admin = "haynes_studio.api.key_admin:main"
+studio-mcp = "haynes_studio.mcp.__main__:main"
 
 [dependency-groups]
 # Test and development tools only. A story that needs a runtime library adds it to

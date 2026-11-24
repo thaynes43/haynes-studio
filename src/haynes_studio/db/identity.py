@@ -6,6 +6,8 @@ import re
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert
 
+from haynes_studio.agent_tokens import valid_agent_token
+
 from .problems import StaleRevision
 from .schema import agent_grants, agent_keys, login_attempts, selections, sessions, worker_tokens
 
@@ -59,14 +61,16 @@ def _active(table):
 
 
 def get_agent(conn, secret: str | None) -> tuple[str, dict[str, frozenset[str]]] | None:
+    if not valid_agent_token(secret):
+        return None
     key_id = conn.scalar(sa.select(agent_keys.c.id).where(
-        agent_keys.c.digest == token_digest(secret), _active(agent_keys),
+        agent_keys.c.digest == digest(secret), _active(agent_keys),
     ))
     if key_id is None:
         return None
     by_production: dict[str, set[str]] = {}
     for row in conn.execute(sa.select(agent_grants.c.production_id, agent_grants.c.scope).where(
-        agent_grants.c.key_id == key_id,
+        agent_grants.c.key_id == key_id, agent_grants.c.active,
     )):
         if row.scope in AGENT_SCOPES:
             by_production.setdefault(row.production_id, set()).add(row.scope)

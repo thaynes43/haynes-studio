@@ -33,7 +33,7 @@ or recover metadata to an isolated database for inspection.
 | Variable | Value |
 |---|---|
 | `STUDIO_DATABASE_URL` | Runtime libpq URL or connection string supplied by the app's secret. |
-| `STUDIO_MIGRATION_DATABASE_URL` | Migration identity's equivalent, mounted only in the migration Job. |
+| `STUDIO_MIGRATION_DATABASE_URL` | DSN for the migration or key administration command. Mount the migration identity in the migration Job, and the chosen provisioning identity in the key administration Job. |
 | `STUDIO_DATABASE_SCHEMA` | Precreated schema, default `studio`. Both commands must agree. |
 | `STUDIO_STORE_ROOT` | Root of the shared D39 store. Mount the same directory at every replica. |
 | `STUDIO_STORE_FRESHNESS_SECONDS` | Maximum age of a successful store readiness check, 5–300 seconds. Default 30. |
@@ -122,14 +122,35 @@ GRANT SELECT, INSERT, DELETE ON studio.login_attempts, studio.sessions,
 GRANT SELECT ON studio.agent_keys, studio.agent_grants, studio.worker_tokens TO studio_app;
 ```
 
-Credential provisioning uses a separate owner-managed identity. Agent keys
-have a canonical `key_` ID and grants represented by
-`(key_id, production_id, scope)` rows. Worker credentials have a
-`worker_id`. Both store a lowercase SHA-256 digest of a unique, random
-base64url bearer secret with at least 32 random bytes. Use `revoked_at` or
-`expires_at` to disable a credential. Runtime grants do not include DDL,
-schema ownership or credential-table writes. Workers call the internal API
-through the story 410 transport and need no database account.
+Agent key provisioning supports the migration role and a dedicated, non-owner
+`studio_key_admin` role. For a dedicated role, grant only the privileges below
+after migrating to head. The command checks these privileges and refuses the
+API runtime role.
+
+```sql
+GRANT CONNECT ON DATABASE studio TO studio_key_admin;
+GRANT USAGE ON SCHEMA studio TO studio_key_admin;
+GRANT SELECT (id) ON studio.productions TO studio_key_admin;
+GRANT SELECT, INSERT (id, digest, expires_at), UPDATE (expires_at, revoked_at)
+    ON studio.agent_keys TO studio_key_admin;
+GRANT SELECT, INSERT (key_id, production_id, scope), UPDATE (active)
+    ON studio.agent_grants TO studio_key_admin;
+```
+
+Agent keys have a canonical `key_` ID and one row per
+`(key_id, production_id, scope)` grant. Migration `0002_active_agent_grants`
+marks existing grants active. Run the upgraded API before replacing grants
+with the CLI. Replacement disables omitted rows and enables the requested
+ones in one transaction, with no DELETE privilege.
+
+Agent keys and worker credentials store a lowercase SHA-256 digest of a
+unique, random secret. The API and MCP accept 43-character unpadded base64url
+agent keys generated from 32 random bytes and externally generated keys of
+48–128 ASCII alphanumeric characters. Worker credentials retain their
+base64url format and have a `worker_id`. Use `revoked_at` or `expires_at` to
+disable a credential. See [agent key administration](studio-mcp.md#agent-key-administration)
+for the file-based CLI. Workers call the internal API through the story 410
+transport and need no database account.
 
 ## Browser, agent and worker requests
 
@@ -239,8 +260,9 @@ STUDIO_THREADS=2 OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 uv run --no-sync pytes
 ```
 
 The DB suite reads `STUDIO_TEST_DATABASE_URL` for a disposable PostgreSQL 16
-database. The fixture identity creates a schema and a temporary role. It
-upgrades, reverses and reapplies the migration, then applies the grants above.
-API and store operations run as the temporary role. The suite verifies refusal
+database. The fixture identity creates a schema and temporary roles. It
+upgrades, reverses and reapplies the migrations, then applies the grants above.
+API and store operations run as the runtime role. The suite verifies key
+administration with the dedicated role, runtime-role refusal, and refusal
 of an ownership-column update, exercises OIDC with a fake issuer, round-trips
 The Winter Menu's public metadata, and tests playback using a generated proxy.
