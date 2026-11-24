@@ -12,7 +12,7 @@ RUN corepack pnpm build
 
 FROM nginxinc/nginx-unprivileged:stable-alpine-slim@sha256:5d8bb9437d74a600ec5dbf90c035451c724dc33eac8d3a71078f6f8612c345f6 AS runtime
 USER 0:0
-RUN rm -rf /usr/share/nginx/html /docker-entrypoint.sh /docker-entrypoint.d \
+RUN rm -rf /usr/share/nginx/html /usr/share/man /docker-entrypoint.sh /docker-entrypoint.d \
         /etc/nginx/conf.d/default.conf /lib/apk/db/scripts.tar.gz \
         /etc/shadow* /etc/gshadow* /etc/ssl/cert.pem /etc/ssl1.1/cert.pem
 COPY docker/studio-web.nginx.conf /etc/nginx/nginx.conf

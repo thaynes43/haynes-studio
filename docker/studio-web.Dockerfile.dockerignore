@@ -1,13 +1,9 @@
 **
-!web/
 !web/package.json
 !web/pnpm-lock.yaml
 !web/index.html
 !web/tsconfig.json
 !web/vite.config.*
-!web/src/
 !web/src/**
-!web/public/
 !web/public/**
-!docker/
 !docker/studio-web.nginx.conf
