@@ -110,7 +110,8 @@ agent_keys = sa.Table("agent_keys", metadata, identifier(),
 agent_grants = sa.Table("agent_grants", metadata,
                         foreign("key_id", "agent_keys.id", primary_key=True),
                         foreign("production_id", "productions.id", primary_key=True),
-                        sa.Column("scope", sa.Text, primary_key=True))
+                        sa.Column("scope", sa.Text, primary_key=True),
+                        sa.Column("active", sa.Boolean, nullable=False, server_default=sa.true()))
 worker_tokens = sa.Table("worker_tokens", metadata, digest(),
                          sa.Column("worker_id", sa.Text, nullable=False),
                          sa.Column("expires_at", sa.DateTime(timezone=True)),

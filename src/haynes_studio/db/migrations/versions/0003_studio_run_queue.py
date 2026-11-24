@@ -2,10 +2,10 @@
 
 from alembic import op
 
-from haynes_studio.db.grants import METADATA_GRANTS, grant_runtime
+from haynes_studio.db.grants import RUNTIME_GRANTS, grant_runtime
 
-revision = "0002_studio_run_queue"
-down_revision = "0001_studio_metadata"
+revision = "0003_studio_run_queue"
+down_revision = "0002_active_agent_grants"
 branch_labels = None
 depends_on = None
 
@@ -79,15 +79,8 @@ def upgrade():
             PRIMARY KEY (run_id, artifact)
         )
     """)
-    grant_runtime(METADATA_GRANTS, schema_usage=True)
-    grant_runtime((
-        ("SELECT", ("run_lane",)),
-        ("UPDATE (next_position, worker_seen_at)", ("run_lane",)),
-        ("SELECT, INSERT", ("runs", "run_wan_attempts", "run_check_overrides")),
-        ("UPDATE (document, revision, worker_id, fence, claim_until, retry_at, cancel_requested, publishing)",
-         ("runs",)),
-        ("UPDATE (state, outcome)", ("run_wan_attempts",)),
-    ))
+    grant_runtime(RUNTIME_GRANTS, schema_usage=True)
+
 
 
 def downgrade():

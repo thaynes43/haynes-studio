@@ -1,7 +1,9 @@
 """Studio principal resolution and browser session endpoints."""
 
+import json
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from hashlib import sha256
 from secrets import compare_digest
 from typing import Annotated
 
@@ -15,11 +17,13 @@ from haynes_studio.canonical.model import Principal
 from haynes_studio.db import identity
 from haynes_studio.db.engine import snapshot
 
+from .config import OIDCSettings
 from .errors import APIError, ERROR_RESPONSES, forbidden, unauthenticated
 from .oidc import random_secret
 from .transport import MetadataRoute
 
 SESSION_COOKIE = "__Host-studio-session"
+GROUP_SESSION_PREFIX = "group."
 LOGIN_COOKIE = "__Host-studio-login"
 CSRF_HEADER = "X-Studio-CSRF"
 ATTEMPT_SECONDS = 300
@@ -89,6 +93,17 @@ def _clear_cookie(response: Response, name: str):
     response.delete_cookie(name, path="/", secure=True, httponly=True, samesite="lax")
 
 
+def _session_key(cookie: str | None, settings: OIDCSettings) -> str | None:
+    if cookie is None or not cookie.startswith(GROUP_SESSION_PREFIX):
+        return cookie
+    if not settings.allowed_groups:
+        return None
+    # Bind group-only sessions to the complete group policy without storing
+    # claims or altering the sessions table. Subject sessions keep their key.
+    policy_key = json.dumps([cookie, sorted(settings.allowed_groups)])
+    return sha256(policy_key.encode("ascii")).hexdigest()
+
+
 def build_router():
     """Create the authentication routes and the downstream actor dependency."""
     session_cookie = APIKeyCookie(name=SESSION_COOKIE, scheme_name="StudioSession", auto_error=False)
@@ -110,10 +125,12 @@ def build_router():
             return Actor(principal, grants)
         if not session:
             raise unauthenticated()
-        with snapshot(request.app.state.engine) as conn:
-            row = identity.get_session(conn, session)
         settings = request.app.state.oidc.settings
-        if row is None or row.iss != settings.issuer or row.sub not in settings.allowed_subjects:
+        with snapshot(request.app.state.engine) as conn:
+            row = identity.get_session(conn, _session_key(session, settings))
+        if row is None or row.iss != settings.issuer:
+            raise unauthenticated()
+        if not session.startswith(GROUP_SESSION_PREFIX) and row.sub not in settings.allowed_subjects:
             raise unauthenticated()
         principal = Principal(kind="human", iss=row.iss, sub=row.sub)
         request.state.principal = principal
@@ -179,15 +196,18 @@ def build_router():
             raise APIError(401, "auth.oidc_invalid", "OIDC did not return an authorization code")
         oidc = request.app.state.oidc
         claims = oidc.exchange(code, attempt.nonce, attempt.verifier)
+        settings = oidc.settings
         secret, csrf = random_secret(), random_secret()
+        if claims["sub"] not in settings.allowed_subjects:
+            secret = GROUP_SESSION_PREFIX + secret
         now = datetime.now(timezone.utc)
-        expires_at = now + timedelta(seconds=oidc.settings.session_seconds)
+        expires_at = now + timedelta(seconds=settings.session_seconds)
         name = claims.get("name")
         if not isinstance(name, str) or not name.isprintable() or len(name) > 200:
             name = None
         with engine.begin() as conn:
-            identity.delete_session(conn, request.cookies.get(SESSION_COOKIE))
-            identity.create_session(conn, secret, iss=claims["iss"], sub=claims["sub"],
+            identity.delete_session(conn, _session_key(request.cookies.get(SESSION_COOKIE), settings))
+            identity.create_session(conn, _session_key(secret, settings), iss=claims["iss"], sub=claims["sub"],
                                     display_name=name, csrf=csrf, expires_at=expires_at)
         request.state.principal = Principal(kind="human", iss=claims["iss"], sub=claims["sub"])
         response = RedirectResponse("/", status_code=303)
@@ -199,8 +219,9 @@ def build_router():
     @protected.post("/logout", status_code=204, response_class=Response, operation_id="logout")
     def logout(request: Request, actor: CurrentActor):
         actor.human()
+        settings = request.app.state.oidc.settings
         with request.app.state.engine.begin() as conn:
-            identity.delete_session(conn, request.cookies.get(SESSION_COOKIE))
+            identity.delete_session(conn, _session_key(request.cookies.get(SESSION_COOKIE), settings))
         response = Response(status_code=204)
         _clear_cookie(response, SESSION_COOKIE)
         _clear_cookie(response, LOGIN_COOKIE)

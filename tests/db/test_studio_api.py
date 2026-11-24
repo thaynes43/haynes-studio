@@ -56,6 +56,7 @@ pytestmark = pytest.mark.db
 ORIGIN = "https://studio.example.invalid"
 ISSUER = "https://issuer.example.invalid/provider/"
 CLIENT_ID = "studio-example"
+ALLOWED_GROUP = "Studio Test"
 
 
 class FakeIssuer:
@@ -69,6 +70,7 @@ class FakeIssuer:
         self.discoveries = 0
         self.key_requests = 0
         self.discovery_issuer = ISSUER
+        self.access_token_groups = None
 
     def rotate_key(self, kid, bits=2048):
         self.signer = rsa.generate_private_key(public_exponent=65537, key_size=bits)
@@ -117,7 +119,14 @@ class FakeIssuer:
                 computed = hashlib.sha256(form["code_verifier"][0].encode()).digest()
                 assert challenge == base64.urlsafe_b64encode(computed).decode().rstrip("=")
                 token = jwt.encode(claims, self.signer, algorithm="RS256", headers={"kid": self.token_kid})
-                return httpx.Response(200, json={"id_token": token, "access_token": random_secret()})
+                response = {"id_token": token, "access_token": random_secret()}
+                if self.access_token_groups is not None:
+                    response["groups"] = self.access_token_groups
+                    response["access_token"] = jwt.encode(
+                        {**claims, "groups": self.access_token_groups}, self.signer,
+                        algorithm="RS256", headers={"kid": self.token_kid},
+                    )
+                return httpx.Response(200, json=response)
             case _:
                 raise AssertionError("Unexpected fake issuer request")
 
@@ -142,7 +151,7 @@ def runtime_role(studio_db):
 def owner_engine(studio_db, runtime_role):
     engine = connect_engine(studio_db.url, studio_db.schema)
     try:
-        migrate(engine, target="0001_studio_metadata")
+        migrate(engine, target="0002_active_agent_grants")
         migrate(engine, runtime_role=runtime_role[0])
         migrate(engine, "downgrade", "base")
         with engine.connect() as conn:
@@ -156,10 +165,37 @@ def owner_engine(studio_db, runtime_role):
         engine.dispose()
 
 
+def documented_role(studio_db, documented_name, suffix):
+    reference = Path(__file__).resolve().parents[2] / "docs/reference/studio-api.md"
+    grants = next(block.split("```", 1)[0]
+                  for block in reference.read_text().split("```sql\n")[1:]
+                  if f"TO {documented_name};" in block.split("```", 1)[0])
+    role_name = f"{studio_db.schema}_{suffix}"
+    role = sql.Identifier(role_name)
+    password = random_secret()
+    with psycopg.connect(studio_db.url, autocommit=True) as admin:
+        admin.execute(sql.SQL("CREATE ROLE {} LOGIN NOINHERIT PASSWORD {}")
+                      .format(role, sql.Literal(password)))
+        try:
+            grants = grants.replace("DATABASE studio", "DATABASE " + sql.Identifier(studio_db.dbname).as_string())
+            grants = grants.replace("SCHEMA studio", "SCHEMA " + sql.Identifier(studio_db.schema).as_string())
+            grants = grants.replace("studio.", sql.Identifier(studio_db.schema).as_string() + ".")
+            grants = grants.replace(documented_name, role.as_string())
+            admin.execute(grants)
+            yield replace(studio_db, url=make_conninfo(studio_db.url, user=role_name, password=password))
+        finally:
+            admin.execute(sql.SQL("DROP OWNED BY {}; DROP ROLE {}").format(role, role))
+
+
 @pytest.fixture(scope="module")
 def runtime_db(studio_db, owner_engine, runtime_role):
     role_name, password = runtime_role
     return replace(studio_db, url=make_conninfo(studio_db.url, user=role_name, password=password))
+
+
+@pytest.fixture(scope="module")
+def key_admin_db(studio_db, owner_engine):
+    yield from documented_role(studio_db, "studio_key_admin", "key_admin")
 
 
 @pytest.fixture(scope="module")
@@ -194,9 +230,9 @@ def begin_login(browser):
     return parse_qs(urlsplit(response.headers["location"]).query)
 
 
-def sign_in(browser, issuer, subject="one"):
+def sign_in(browser, issuer, subject="one", **claims):
     query = begin_login(browser)
-    code = issuer.authorize(query, subject)
+    code = issuer.authorize(query, subject, **claims)
     response = browser.get("/auth/callback", params={"code": code, "state": query["state"][0]})
     assert response.status_code == 303
     assert response.headers["location"] == "/"
@@ -301,6 +337,78 @@ def test_oidc_rejects_wrong_identity_or_claims(service, subject, changes, status
     response = browser.get("/auth/callback", params={"code": code, "state": query["state"][0]})
     assert response.status_code == status
     assert browser.cookies.get(SESSION_COOKIE) is None
+
+
+def test_group_only_login_and_logout(service):
+    app, _, issuer = service
+    app.state.oidc.settings = replace(issuer.settings(), allowed_subjects=frozenset(),
+                                     allowed_groups=frozenset({ALLOWED_GROUP}))
+    with client(app) as browser:
+        csrf = sign_in(browser, issuer, "outside", groups=["Unrelated", ALLOWED_GROUP])
+        cookie = browser.cookies.get(SESSION_COOKIE)
+        assert browser.post("/auth/logout", headers=csrf).status_code == 204
+        assert browser.get("/v1/me", headers={"Cookie": f"{SESSION_COOKIE}={cookie}"}).status_code == 401
+
+
+@pytest.mark.parametrize("claims", [
+    {}, {"groups": ALLOWED_GROUP}, {"groups": [ALLOWED_GROUP, 0]},
+    {"groups": [ALLOWED_GROUP.lower(), ALLOWED_GROUP + " Extra"]},
+])
+def test_oidc_groups_must_match_exactly_in_the_id_token(service, claims):
+    app, _, issuer = service
+    issuer.access_token_groups = [ALLOWED_GROUP]
+    app.state.oidc.settings = replace(issuer.settings(), allowed_groups=frozenset({ALLOWED_GROUP}))
+    with client(app) as browser:
+        query = begin_login(browser)
+        code = issuer.authorize(query, "outside", **claims)
+        response = browser.get("/auth/callback", params={"code": code, "state": query["state"][0]},
+                               headers={"X-Authentik-Groups": ALLOWED_GROUP})
+        assert response.status_code == 403
+        error = response.json()["error"]
+        assert error["code"] == "auth.subject_forbidden"
+        assert error["message"] == "This OIDC subject is outside the Studio allowlist"
+        assert browser.cookies.get(SESSION_COOKIE) is None
+
+
+def test_oidc_refuses_groups_from_an_id_token_with_an_invalid_signature(service):
+    app, _, issuer = service
+    app.state.oidc.settings = replace(issuer.settings(), allowed_groups=frozenset({ALLOWED_GROUP}))
+    issuer.signer = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    with client(app) as browser:
+        query = begin_login(browser)
+        code = issuer.authorize(query, "outside", groups=[ALLOWED_GROUP])
+        response = browser.get("/auth/callback", params={"code": code, "state": query["state"][0]})
+        assert response.status_code == 401
+        assert response.json()["error"]["code"] == "auth.oidc_invalid"
+        assert browser.cookies.get(SESSION_COOKIE) is None
+
+
+@pytest.mark.parametrize("subject", ["", "nul\x00id", "café", "x" * 256])
+def test_oidc_groups_still_require_a_valid_subject(service, subject):
+    app, _, issuer = service
+    app.state.oidc.settings = replace(issuer.settings(), allowed_groups=frozenset({ALLOWED_GROUP}))
+    with client(app) as browser:
+        query = begin_login(browser)
+        code = issuer.authorize(query, subject, groups=[ALLOWED_GROUP])
+        response = browser.get("/auth/callback", params={"code": code, "state": query["state"][0]})
+        assert response.status_code == 401
+        assert response.json()["error"]["code"] == "auth.oidc_invalid"
+        assert browser.cookies.get(SESSION_COOKIE) is None
+
+
+def test_subject_and_group_sessions_follow_their_configured_allowlists(service):
+    app, _, issuer = service
+    settings = replace(issuer.settings(), allowed_groups=frozenset({ALLOWED_GROUP}))
+    app.state.oidc.settings = settings
+    with client(app) as subject, client(app) as group:
+        sign_in(subject, issuer, groups=ALLOWED_GROUP)
+        sign_in(group, issuer, "outside", groups=[ALLOWED_GROUP])
+        app.state.oidc.settings = replace(settings, allowed_groups=frozenset({"Other Group"}))
+        assert subject.get("/v1/me").status_code == 200
+        assert group.get("/v1/me").status_code == 401
+        app.state.oidc.settings = replace(settings, allowed_subjects=frozenset())
+        assert subject.get("/v1/me").status_code == 401
+        assert group.get("/v1/me").status_code == 200
 
 
 @pytest.mark.parametrize(("leeway", "status"), [(None, 303), (0, 401)])

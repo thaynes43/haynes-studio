@@ -1,6 +1,6 @@
 import type { BrowserContext, Route } from "@playwright/test";
 import type { components } from "../src/api/schema";
-import { treePath } from "../src/routes";
+import { treePath, type MediaKind } from "../src/routes";
 
 type Schemas = components["schemas"];
 
@@ -70,21 +70,38 @@ const selectedBoard = {
 } satisfies Schemas["Board"];
 
 const people = {
-  lena: { displayName: "Lena Park", production },
-  arden: { displayName: "Arden Rivera", production: secondProduction },
+  lena: { displayName: "Lena Park" },
+  arden: { displayName: "Arden Rivera" },
 };
 
 type User = keyof typeof people;
 type Selection = Schemas["Selections"];
-type Failure = { path: string; status: number; detail: Schemas["ErrorDetail"] };
+type Failure = { path: string; method?: string; status: number; detail: Schemas["ErrorDetail"] };
 
-export async function mockStudio(context: BrowserContext, baseURL: string) {
+function pageOf<T extends { id: string }>(items: T[], cursor: string | null) {
+  const remaining = cursor ? items.filter(({ id }) => id > cursor) : items;
+  return { items: remaining.slice(0, 1), next_cursor: remaining.length > 1 ? remaining[0].id : null };
+}
+
+function nextId(first: string, number: number) {
+  return first.slice(0, -6) + String(number).padStart(6, "0");
+}
+
+export async function mockStudio(context: BrowserContext, baseURL: string, { empty = false } = {}) {
   let current: User | null = "lena";
   let next: User = "lena";
   let failure: Failure | undefined;
   const violations: string[] = [];
   const calls: string[] = [];
   const writes: Array<{ user: User; values: Selection["values"]; revision: number }> = [];
+  const productions = new Map<string, Schemas["Production"]>([
+    [production.id, production], [secondProduction.id, secondProduction],
+  ]);
+  const visible = {
+    lena: new Set(empty ? [] : [production.id, secondProduction.id]),
+    arden: new Set([secondProduction.id]),
+  };
+  const stories: Schemas["Story"][] = [story];
   const selections: Record<User, Selection> = {
     lena: { revision: 0, values: {} },
     arden: { revision: 0, values: {
@@ -92,13 +109,30 @@ export async function mockStudio(context: BrowserContext, baseURL: string) {
     } },
   };
 
+  function enableMedia(id: string, kind: MediaKind) {
+    const current = productions.get(id);
+    if (!current) throw new Error(`Unknown fixture production ${id}`);
+    if (current.media_types.some((item) => item.kind === kind)) return current;
+    const profile: Schemas["Production"]["media_types"][number] = kind === "short"
+      ? production.media_types[0]
+      : { kind, aspect: "16:9", width: 1920, height: 1080, fps: 24, enabled_at: "2026-11-04T12:00:00Z" };
+    const updated = {
+      ...current,
+      revision: current.revision + 1,
+      media_types: [...current.media_types, profile].sort((a, b) => a.kind.localeCompare(b.kind)),
+    };
+    productions.set(id, updated);
+    return updated;
+  }
+
   function reject(
     route: Route, status: number, category: Schemas["ErrorDetail"]["status"], code: string,
+    detail?: Partial<Schemas["ErrorDetail"]>,
   ) {
     const error: Schemas["ErrorEnvelope"] = {
       error: {
         status: category, http_status: status, path: "",
-        message: code, code, request_id: `mock-request-${status}`,
+        message: code, code, request_id: `mock-request-${status}`, ...detail,
       },
     };
     return route.fulfill({ status, json: error });
@@ -138,7 +172,7 @@ export async function mockStudio(context: BrowserContext, baseURL: string) {
       return reject(route, 403, "forbidden", "auth.csrf");
     }
 
-    if (failure?.path === path) {
+    if (failure?.path === path && (!failure.method || failure.method === method)) {
       const { status, detail } = failure;
       failure = undefined;
       await route.fulfill({ status, json: { error: detail } satisfies Schemas["ErrorEnvelope"] });
@@ -176,36 +210,84 @@ export async function mockStudio(context: BrowserContext, baseURL: string) {
       return;
     }
 
-    const available = people[user].production;
-    if (path === "/v1/productions" && method === "GET") {
-      const cursor = url.searchParams.get("cursor");
-      const next_cursor = !cursor && user === "lena" ? available.id : null;
-      const items = cursor === available.id && user === "lena" ? [secondProduction] : [available];
-      await route.fulfill({ json: { items, next_cursor } satisfies Schemas["Page_Production_"] });
-      return;
+    const cursor = url.searchParams.get("cursor");
+    if (path === "/v1/productions") {
+      if (method === "GET") {
+        const available = [...productions.values()].filter(({ id }) => visible[user].has(id));
+        return route.fulfill({ json: pageOf(available, cursor) satisfies Schemas["Page_Production_"] });
+      }
+      if (method === "POST") {
+        if (headers["if-match"]) violations.push(`Unexpected If-Match on ${method} ${path}`);
+        const { name, labels = [] } = request.postDataJSON() as Schemas["ProductionCreate"];
+        if (typeof name !== "string" || !name || Array.from(name).length > 80) {
+          return reject(route, 422, "invalid", "schema.invalid", { path: "/name" });
+        }
+        const id = nextId(production.id, productions.size + 1);
+        const doc = { ...production, id, name, labels, media_types: [] } satisfies Schemas["Production"];
+        productions.set(id, doc);
+        visible[user].add(id);
+        return route.fulfill({ status: 201, headers: { etag: '"1"', location: `${path}/${id}` }, json: doc });
+      }
     }
-    if (path.startsWith("/v1/productions/") && method === "GET") {
+    if (path.startsWith("/v1/productions/")) {
       const [, , , id, types, kind, list] = path.split("/");
-      if (id !== available.id && (user !== "lena" || id !== secondProduction.id)) {
+      const doc = productions.get(id);
+      if (!doc || !visible[user].has(id)) {
         return reject(route, 404, "not_found", "not_found");
       }
-      if (!types) {
-        await route.fulfill({ json: id === production.id ? production : secondProduction });
-        return;
+      if (!types && method === "GET") {
+        return route.fulfill({ headers: { etag: `"${doc.revision}"` }, json: doc });
       }
-      if (types === "media-types" && kind === "short" && list === "stories") {
-        const items = id === production.id ? [story] : [];
-        await route.fulfill({ json: { items, next_cursor: null } satisfies Schemas["Page_Story_"] });
-        return;
+      if (types === "media-types" && (kind === "short" || kind === "video")) {
+        if (!list && method === "PUT") {
+          if (!headers["if-match"]) {
+            violations.push(`Missing If-Match on ${method} ${path}`);
+            return reject(route, 422, "invalid", "schema.invalid", { path: "/revision" });
+          }
+          if (headers["if-match"] !== `"${doc.revision}"`) {
+            return reject(route, 409, "conflict", "conflict.revision", {
+              path: "/revision", current_revision: doc.revision,
+            });
+          }
+          const updated = enableMedia(id, kind);
+          return route.fulfill({ headers: { etag: `"${updated.revision}"` }, json: updated });
+        }
+        if (list === "stories") {
+          if (!doc.media_types.some((item) => item.kind === kind)) {
+            return reject(route, 404, "not_found", "not_found");
+          }
+          if (method === "GET") {
+            const items = stories.filter((item) => item.production_id === id && item.media_kind === kind);
+            return route.fulfill({ json: pageOf(items, cursor) satisfies Schemas["Page_Story_"] });
+          }
+          if (method === "POST") {
+            if (headers["if-match"]) violations.push(`Unexpected If-Match on ${method} ${path}`);
+            const { title } = request.postDataJSON() as Schemas["StoryCreate"];
+            if (typeof title !== "string" || !title || Array.from(title).length > 80) {
+              return reject(route, 422, "invalid", "schema.invalid", { path: "/title" });
+            }
+            const draft = {
+              ...story,
+              id: nextId(story.id, stories.length + 1),
+              production_id: id, media_kind: kind, title, board_order: [],
+              layouts: { default: {} },
+              mix: { line_rms_dbfs: -22, master_lufs: -20, true_peak_dbtp: -3.5 },
+            } satisfies Schemas["Story"];
+            stories.push(draft);
+            return route.fulfill({
+              status: 201, headers: { etag: '"1"', location: `/v1/stories/${draft.id}` }, json: draft,
+            });
+          }
+        }
       }
     }
-    if (path === `/v1/stories/${story.id}` && method === "GET") {
-      if (user !== "lena") return reject(route, 404, "not_found", "not_found");
-      await route.fulfill({ json: story });
-      return;
+    if (path.startsWith("/v1/stories/") && method === "GET") {
+      const draft = stories.find(({ id }) => path === `/v1/stories/${id}`);
+      if (!draft || !visible[user].has(draft.production_id)) return reject(route, 404, "not_found", "not_found");
+      return route.fulfill({ headers: { etag: `"${draft.revision}"` }, json: draft });
     }
     if (path === `/v1/boards/${selectedBoard.id}` && method === "GET") {
-      if (user !== "lena") return reject(route, 404, "not_found", "not_found");
+      if (!visible[user].has(production.id)) return reject(route, 404, "not_found", "not_found");
       await route.fulfill({ json: selectedBoard });
       return;
     }
@@ -218,5 +300,6 @@ export async function mockStudio(context: BrowserContext, baseURL: string) {
     expire: () => { current = null; },
     signInAs: (user: User) => { next = user; },
     failNext: (value: Failure) => { failure = value; },
+    enableMedia,
   };
 }

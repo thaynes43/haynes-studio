@@ -1,0 +1,44 @@
+.editor-create {
+  max-width: 900px;
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.editor-create-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+}
+
+.editor-name-field {
+  display: grid;
+  flex: 1 1 224px;
+  gap: 6px;
+  min-width: 0;
+  max-width: 460px;
+}
+
+.editor-name-field input {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  background: var(--page);
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  color: var(--ink);
+  font: inherit;
+}
+
+.editor-create .problem { margin: 12px 0 0; }
+.editor-media-actions { margin-top: 16px; }
+.editor-create button:disabled, .editor-media-actions button:disabled {
+  opacity: .65;
+  cursor: default;
+}
+
+.editor-media-icon.short { width: 15px; height: 26px; margin-inline: 5px; }
+.editor-media-icon.video { width: 25px; height: 15px; }
