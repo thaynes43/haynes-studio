@@ -14,9 +14,15 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   reporter: [["list"]],
   use: {
+    baseURL: "http://127.0.0.1:4173",
     trace: "off",
     screenshot: "off",
     video: "off",
+  },
+  webServer: {
+    command: "pnpm build && pnpm preview --host 127.0.0.1 --port 4173 --strictPort",
+    url: "http://127.0.0.1:4173",
+    reuseExistingServer: false,
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 });

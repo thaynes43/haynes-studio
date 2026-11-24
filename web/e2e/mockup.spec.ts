@@ -1,12 +1,7 @@
-import * as path from "node:path";
-import { pathToFileURL } from "node:url";
-
 import { expect, test } from "@playwright/test";
 
-// The committed v6 storyboard mockup; no web app exists yet (contract section 14).
-const MOCKUP = pathToFileURL(
-  path.resolve(__dirname, "..", "..", "docs", "design", "studio-ui-mockup", "index.html"),
-).href;
+// Keep the standalone storyboard prototype covered alongside the production shell.
+const MOCKUP = new URL("../../docs/design/studio-ui-mockup/index.html", import.meta.url).href;
 
 test("the committed storyboard mockup renders", async ({ page }) => {
   const errors: string[] = [];
