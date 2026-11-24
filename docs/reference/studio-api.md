@@ -23,10 +23,10 @@ package's canonical schemas and also describes the partial write bodies.
 Run `studio-api-migrate upgrade head` as a one-shot Job with the migration
 identity before starting the API. The image must contain the installed Python
 package and its Alembic scripts. The initial migration is transactional, and
-concurrent Jobs serialize on a Postgres advisory lock. On an empty disposable
-database, test reversal with `studio-api-migrate downgrade base`. That command
-drops the API tables and their contents. Use a forward migration for production
-recovery, or recover metadata to an isolated database for inspection.
+concurrent Jobs serialize on a Postgres advisory lock. The CLI only exposes
+`upgrade head`. The DB test fixture exercises the destructive reversal on
+an empty disposable schema. Use a forward migration for production recovery,
+or recover metadata to an isolated database for inspection.
 
 ## Environment
 

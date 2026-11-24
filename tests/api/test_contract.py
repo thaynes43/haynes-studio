@@ -1,11 +1,14 @@
 """Source checks require no external credentials, database, or media."""
 
+import sys
+
 import pytest
 
 from haynes_studio.api.app import schema_app
 from haynes_studio.api.errors import APIError
 from haynes_studio.api.media import byte_range
 from haynes_studio.api.models import ExternalPhotoDeclaration
+from haynes_studio.db.migrate import main as migrate_main
 
 
 def test_openapi_has_resolved_canonical_shapes_errors_and_security():
@@ -70,3 +73,12 @@ def test_external_photo_declaration_does_not_accept_server_claims():
     assert ExternalPhotoDeclaration.model_validate(fields).source_asset_version_ids == []
     with pytest.raises(ValueError, match="Extra inputs"):
         ExternalPhotoDeclaration.model_validate({**fields, "externally_generated": True})
+
+
+def test_migration_cli_rejects_downgrade_before_database_configuration(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["studio-api-migrate", "downgrade", "base"])
+    monkeypatch.delenv("STUDIO_MIGRATION_DATABASE_URL", raising=False)
+    with pytest.raises(SystemExit) as result:
+        migrate_main()
+    assert result.value.code == 2
+    assert "invalid choice: 'downgrade'" in capsys.readouterr().err
