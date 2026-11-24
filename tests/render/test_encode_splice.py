@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
 import itertools
 
@@ -41,8 +42,38 @@ def test_a_segment_holds_its_frames_and_decodes_its_board_clock():
         (n, fingerprint("sha256:" + "a" * 64)) for n in range(30)]
 
 
-def test_the_same_frames_encode_to_the_same_bytes():
-    assert segment("b", 24) == segment("b", 24) == segment("b", 24)
+class _EncoderWithoutAssembly(EncoderSettings):
+    def options(self) -> dict[str, str]:
+        options = super().options()
+        # The old sliced encoder varied more often with x264's C implementations.
+        options["x264-params"] += ":asm=0"
+        return options
+
+
+@pytest.mark.parametrize("fixture", ["bars", "moving-texture"])
+def test_the_same_frames_encode_to_the_same_bytes(fixture):
+    if fixture == "bars":
+        frames = list(SyntheticRenderer().render(request("b", 24)))
+        settings = _EncoderWithoutAssembly()
+    else:
+        # The 360-pixel width exercises a partial block in x264's lookahead.
+        rng = np.random.default_rng(955)
+        texture = rng.integers(0, 256, (160, 90, 3), dtype=np.uint8)
+        texture = texture.repeat(4, axis=0).repeat(4, axis=1)
+        frames = [np.roll(texture, shift=(n, 3 * n), axis=(0, 1)) for n in range(48)]
+        settings = SETTINGS
+
+    def encode():
+        return encode_segment(frames, frames_expected=len(frames), width=360, height=640, fps=24,
+                              settings=settings)
+
+    expected = encode()
+    for run in range(2, 11):
+        actual = encode()
+        if actual != expected:
+            pytest.fail(f"encode {run} differs from encode 1: "
+                        f"{hashlib.sha256(actual).hexdigest()} != "
+                        f"{hashlib.sha256(expected).hexdigest()}", pytrace=False)
 
 
 def test_the_synthetic_renderer_draws_only_from_its_request():
@@ -85,8 +116,11 @@ def test_an_empty_film_is_refused():
 
 def test_encoder_settings_name_their_build_and_threading():
     inputs = SETTINGS.key_inputs()
-    assert inputs["threads"] == 2 and inputs["threading"] == "sliced" and inputs["bframes"] == 0
+    assert inputs["threads"] == 1 and inputs["threading"] == "single" and inputs["bframes"] == 0
     assert inputs["build"].startswith("pyav-")
+    assert inputs["asm"] in {"AVX2", "0"}
+    assert f"asm={inputs['asm']}" in SETTINGS.options()["x264-params"].split(":")
+    assert b"threads=1 lookahead_threads=1 sliced_threads=0 " in segment("b", 1)
 
 
 def _without_first_packet(data: bytes) -> bytes:

@@ -189,17 +189,41 @@ plugs in without touching the cache.
 
 Segments are H.264 in MP4 with video only and a constant frame rate. Every packet's
 decode time equals its presentation time (no B-frames), and the first frame is an IDR.
-Settings (a proposal) are the legacy per-shot ones: libx264 `fast` at CRF 18 in
-yuv420p on 2 threads, with a 2 s keyframe interval.
+Segments use libx264 `fast`, CRF 18, `yuv420p`, and a maximum 48-frame keyframe
+interval. Story [955](https://work.haynesnetwork.com/work_packages/955) pins one thread
+for the encoder and PyAV's RGB-to-YUV conversion. x264 uses one lookahead thread and
+zero asynchronous lookahead, with slice threading off. Its preset keeps lookahead
+and MB-tree. The build can still render different segments in parallel.
 
-x264 runs **sliced threads**. Its default frame threading, which legacy used through
-`ffmpeg -threads 2`, gave three different outputs in 25 encodes of one synthetic
-segment in a session pod. Sliced threads gave one. The encoder settings, the thread
-count and mode, and the encoder build (the PyAV and libavcodec versions) are segment
-key inputs. Encoded bytes may still differ between builds and are never compared
-across builds; tests compare decoded frames. One test checks that the same frames give
-the same bytes within one build. The build string covers the PyAV wheel, which bundles
-FFmpeg and x264; a PyAV built from source against another x264 is not supported.
+x264 uses `asm=AVX2` on x86-64-v3 CPUs and `asm=0` (scalar) elsewhere. The segment
+key's `encoder` object carries `threads: 1`, `threading: "single"`, the selected
+`asm` value and the encoder build (PyAV and libavcodec versions). The build identifies
+the locked PyAV wheel with its bundled FFmpeg and x264. Repeat tests compare exact
+bytes within each profile and build.
+
+Every board picture segment re-keys. Film picture keys follow changed segment hashes,
+master and proxy keys follow changed picture and master hashes, and check keys follow
+the hash of the artifact they check. Voice, upstream motion, keying and mix keys use
+their existing inputs. The key scheme stays `studio.cache-key/v1`. Existing artifacts
+remain addressable by their hashes in the create-only store.
+
+On 2026-11-24 the Python 3.12 CI failure changed the first H.264 sample even though
+its decoded pixels matched. The Python 3.11 layered failure in the follow-up to
+[story 888](https://work.haynesnetwork.com/work_packages/888) had matching input
+hashes and segment keys, different segment bytes, and a largest RGB difference of 45.
+Fixed frames reproduced varying packets before muxing with two x264 slice threads,
+even with serial lookahead and VBV explicitly off. A textured synthetic clip also
+varied on the render worker with one thread and automatic assembly dispatch.
+The new regression covers both fixtures, and the layered test checks the fresh
+segment hashes as well as exact decoded pixels.
+[Python 3.12 failure](https://github.com/thaynes43/haynes-studio/actions/runs/45506635786/job/138843424106),
+[Python 3.11 failure](https://github.com/thaynes43/haynes-studio/actions/runs/45499128023/job/138817388253).
+
+On `studio-render` with Python 3.12.16 and PyAV 18.1.0, the AVX2-capped serial profile
+produced one SHA-256 in 12 encodes each of two 360×640 clips. Median encode-plus-mux
+wall time went from 53.66 to 57.17 ms for the 24-frame bars (+6.5%) and from 262.21 to
+301.08 ms for the 48-frame moving texture (+14.8%). The measurement alternated the
+old and new encoder on precomputed frames, in one process at nice 19 on two CPUs.
 
 `splice` copies each segment's packets into one MP4, each shifted by the frames before
 it. Nothing is decoded or re-encoded, so the film decodes to exactly the segments'
@@ -306,8 +330,8 @@ All are **proposals** of story 380; TIME-11 names no code.
   change regenerates clips and a same-aspect size change does not.
 - **Stages and lookup:** stage names `<kind>-<key hex>` with outputs `<kind>` and
   `inputs`; lookups search the current run, then earlier runs.
-- **The encoder:** sliced x264 threads, no B-frames, a 48-frame keyframe interval; the
-  encoder build is in the key.
+- **The encoder:** serial x264 with AVX2 or scalar dispatch, no B-frames, and a
+  maximum 48-frame keyframe interval. The segment key names the profile and build.
 - **The key scheme:** `studio.cache-key/v1`, `make_key`'s normalization and its
   identifier refusal.
 - **24 fps only** in `MediaFormat`.

@@ -258,14 +258,13 @@ the run as done. `studio run show RUN_ID` shows what the store holds.
 ### Workers
 
 `--workers N` (default 1) renders boards in up to N processes. After the local pass, the
-plan runs once to make every clip and keyed frame and to collect the segments the cache
-lacks; those are rendered by N `spawn`ed processes, each opening the same store with its
-own cache for the same run and its own renderer (two threads each: the encoder's sliced
-threads, OpenCV's two); then the plan runs again and every segment is a hit. The stage
-commit is create-only, so two writers of one segment both succeed with the same record;
-no lock or delete is added. A worker sends back its renderer's report and checks, or the
-error's code, and the parent fails the run naming the board. Workers need the local
-store. Tests: two workers give the same decoded frames as one.
+plan runs once to make every clip and keyed frame and to collect the missing segments.
+Up to N spawned processes each open the local store with their own cache and renderer
+for the run. Segment encoding uses one thread and OpenCV uses two. The plan then runs
+again and reads the newly cached segments. The stage commit is create-only, so two
+writers of a segment can both succeed with the same record. A worker sends back its
+renderer report and checks, or the error code. The parent fails the run naming the
+board. The build test verifies that two workers give the same decoded frames as one.
 
 ## Live clip sources (story 851)
 
