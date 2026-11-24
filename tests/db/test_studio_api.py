@@ -132,14 +132,31 @@ class FakeIssuer:
 
 
 @pytest.fixture(scope="module")
-def owner_engine(studio_db):
+def runtime_role(studio_db):
+    role_name = f"{studio_db.schema}_app"
+    role = sql.Identifier(role_name)
+    password = random_secret()
+    with psycopg.connect(studio_db.url, autocommit=True) as admin:
+        admin.execute(sql.SQL("CREATE ROLE {} LOGIN NOINHERIT PASSWORD {}")
+                      .format(role, sql.Literal(password)))
+        admin.execute(sql.SQL("GRANT CONNECT ON DATABASE {} TO {}")
+                      .format(sql.Identifier(studio_db.dbname), role))
+        try:
+            yield role_name, password
+        finally:
+            admin.execute(sql.SQL("DROP OWNED BY {}; DROP ROLE {}").format(role, role))
+
+
+@pytest.fixture(scope="module")
+def owner_engine(studio_db, runtime_role):
     engine = connect_engine(studio_db.url, studio_db.schema)
     try:
-        migrate(engine)
+        migrate(engine, target="0002_active_agent_grants")
+        migrate(engine, runtime_role=runtime_role[0])
         migrate(engine, "downgrade", "base")
         with engine.connect() as conn:
             assert sa.inspect(conn).get_table_names(schema=studio_db.schema) == ["alembic_version"]
-        migrate(engine)
+        migrate(engine, runtime_role=runtime_role[0])
         with engine.connect() as conn:
             names = set(sa.inspect(conn).get_table_names(schema=studio_db.schema))
             assert names == {*metadata.tables, "alembic_version"}
@@ -171,8 +188,9 @@ def documented_role(studio_db, documented_name, suffix):
 
 
 @pytest.fixture(scope="module")
-def runtime_db(studio_db, owner_engine):
-    yield from documented_role(studio_db, "studio_app", "app")
+def runtime_db(studio_db, owner_engine, runtime_role):
+    role_name, password = runtime_role
+    return replace(studio_db, url=make_conninfo(studio_db.url, user=role_name, password=password))
 
 
 @pytest.fixture(scope="module")

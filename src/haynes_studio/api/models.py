@@ -113,12 +113,13 @@ class AssetDetail(TransportModel):
 
 
 @cache
-def build_models() -> None:
+def build_models(*additional: type[BaseModel]) -> None:
     """Build the deferred models before FastAPI attaches route-specific field metadata."""
     for model in (
         ProductionCreate, StoryCreate, StoryPatch, BoardWrite, BoardOrder, SelectionWrite,
         Selections, Me, ExternalPhotoDeclaration, Production, Story, Board, Timing,
         AssetVersion, Delivery, AssetDetail, Page[Production], Page[Story], Page[AssetVersion],
+        *additional,
     ):
         model.model_config["defer_build"] = False
         model.model_rebuild(force=True)

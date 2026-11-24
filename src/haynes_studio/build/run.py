@@ -40,8 +40,8 @@ TERMINAL = frozenset({SUCCEEDED, FAILED, CANCELLED, "imported"})
 ALLOWED: Mapping[str | None, frozenset[str]] = {
     None: frozenset({QUEUED}),
     QUEUED: frozenset({RUNNING, CANCELLED, HELD}),
-    RUNNING: frozenset({SUCCEEDED, FAILED, CANCELLED, HELD}),
-    HELD: frozenset({RUNNING, FAILED, CANCELLED}),  # after reconciliation only (story 410)
+    RUNNING: frozenset({SUCCEEDED, FAILED, CANCELLED, HELD, QUEUED}),
+    HELD: frozenset({RUNNING, FAILED, CANCELLED, QUEUED}),  # after reconciliation only (story 410)
 }
 RUN_SCHEMA = "studio.run/v1"
 JSON = "application/json"

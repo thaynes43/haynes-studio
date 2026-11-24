@@ -33,19 +33,22 @@ successful `main` publish. The `org.opencontainers.image.revision` label records
 the checkout SHA and `org.opencontainers.image.source` links the package to the
 repository.
 
-GHCR documents first publication with the publishing repository's `GITHUB_TOKEN`
-when the job grants `packages: write`. A new package starts private. As of
-2026-11-24, neither Studio package was visible to anonymous pulls, and the
-target `ai` namespace's default service account had no pull secret. The existing
-public `ghcr.io/thaynes43/dev-env` image is the cluster precedent. After the first
-successful `main` publish, the package owner needs to set both packages to
-**Public** in their GHCR package settings for the same anonymous pull path.
-If either name already belongs to an unlinked package and GHCR refuses the push,
-the package owner needs to grant `thaynes43/haynes-studio` **Write** under that
-package's **Manage Actions access**. Verify anonymous access to both published
-digests before story 434 uses them.
-[GitHub Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
-[GitHub package access settings](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility)
+### First publication
+
+The first `main` publish on 2026-11-24 used revision
+`fb69580ccd1f4e415390020a3a42d188738a72ca`. Anonymous registry requests for both
+`sha-<full commit>` tags returned 200. Both packages were public as published.
+This answered Q-433-01 without an owner visibility change.
+[Story 433](https://work.haynesnetwork.com/work_packages/433), comment 9788.
+
+| Package | First published registry digest |
+|---|---|
+| `ghcr.io/thaynes43/haynes-studio` | `sha256:284d97311e46f13a14da50bca20dbd786d522aa4c6e3e2d73f0fe2e687805f4a` |
+| `ghcr.io/thaynes43/haynes-studio-web` | `sha256:8ea1576f1efa6502cb4633a018cdd6dd631869d05fa5895dae7df58ef36aebfc` |
+
+These digests prove publication. No Studio app deployment was recorded in these
+waves. Story 434 selects and pull-checks the digests of the revision it deploys.
+The first publication predates the MCP and run queue implementations.
 
 ## Runtime configuration
 
@@ -56,7 +59,7 @@ and stderr. Its web root and configuration can stay read-only.
 
 | Process | Required environment | Optional environment | Probe or completion |
 | --- | --- | --- | --- |
-| API | `STUDIO_DATABASE_URL`, `STUDIO_STORE_ROOT`, `STUDIO_PUBLIC_ORIGIN`, `STUDIO_OIDC_ISSUER`, `STUDIO_OIDC_CLIENT_ID`, `STUDIO_OIDC_CLIENT_SECRET`, `STUDIO_OIDC_ALLOWED_SUBJECTS` | `STUDIO_DATABASE_SCHEMA`, `STUDIO_STORE_FRESHNESS_SECONDS`, `STUDIO_OIDC_LEEWAY_SECONDS`, `STUDIO_OIDC_CACHE_TTL_SECONDS`, `STUDIO_OIDC_FAILURE_TTL_SECONDS`, `STUDIO_SESSION_SECONDS` | `GET /healthz` returns 204. `GET /readyz` returns 204 when PostgreSQL and the store are ready. |
+| API | `STUDIO_DATABASE_URL`, `STUDIO_STORE_ROOT`, `STUDIO_PUBLIC_ORIGIN`, `STUDIO_OIDC_ISSUER`, `STUDIO_OIDC_CLIENT_ID`, `STUDIO_OIDC_CLIENT_SECRET`, at least one of `STUDIO_OIDC_ALLOWED_SUBJECTS` and `STUDIO_OIDC_ALLOWED_GROUPS` | `STUDIO_DATABASE_SCHEMA`, `STUDIO_STORE_FRESHNESS_SECONDS`, `STUDIO_OIDC_LEEWAY_SECONDS`, `STUDIO_OIDC_CACHE_TTL_SECONDS`, `STUDIO_OIDC_FAILURE_TTL_SECONDS`, `STUDIO_SESSION_SECONDS` | `GET /healthz` returns 204. `GET /readyz` returns 204 when PostgreSQL and the store are ready. |
 | Migration Job | `STUDIO_MIGRATION_DATABASE_URL` | `STUDIO_DATABASE_SCHEMA`, default `studio`. Match the API and precreate it. | Run `studio-api-migrate upgrade head`. Exit status 0 is success. |
 | Web | None | None | `GET /index.html` on port 8080 returns 200. |
 
@@ -69,9 +72,9 @@ on the same origin. The web container returns 404 for those paths and serves
 the SPA for UI routes. HTML is served with `Cache-Control: no-store`. Hashed Vite
 assets use a one-year immutable cache policy.
 
-Override the Python image's command for `studio` or the migration Job. MCP and
-queue worker commands can use the same image once their package entry points and
-runtime settings land. Run entry points directly from the installed environment.
+Override the Python image's command for `studio` or the migration Job. Revisions
+containing story 429 can use the same image for `studio-mcp`. The queue worker
+follows with story 410. Run entry points directly from the installed environment.
 The final filesystem contains the package, its migrations, runtime libraries and
 the bundled ffmpeg executable. Build tooling, wheel test media and the unused
 SciPy Sobol sample tables are excluded.

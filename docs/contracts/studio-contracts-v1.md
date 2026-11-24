@@ -49,7 +49,8 @@ for him.
 story [428](https://work.haynesnetwork.com/work_packages/428) (records, PR 69; its six
 one-off drivers were then held in PR 70), and its six small fixes, story
 [860](https://work.haynesnetwork.com/work_packages/860) (PR 71). The film was delivered
-privately; **Tom's verdict is pending**. The choices beyond this text are P-46 to P-49.
+privately. Tom's verdict was pending at that amendment. The choices beyond this
+text are P-46 to P-49.
 The contract owner decided Q-428-2 and Q-428-3, O-860-1, the reading of the command
 line's operator (O-428-1) and a practice on GPU heat, each a proposal Tom may overrule.
 Tom decided nothing in this batch. The heat practice rests on a relayed message that
@@ -66,14 +67,28 @@ the private-view command's first live use is **not done**. Stories
 [865](https://work.haynesnetwork.com/work_packages/865) (haynes-ops PR 4931),
 [881](https://work.haynesnetwork.com/work_packages/881) (haynes-ops PR 4928) and
 [862](https://work.haynesnetwork.com/work_packages/862) (haynes-ops PR 4932, studio PR
-74) are installed; no offline phase has run on the worker. PR 70 kept five drivers
-as records and dropped the private-view driver. Story
+74) are installed. At that amendment no offline phase had run on the worker.
+PR 70 kept five drivers as records and dropped the private-view driver. Story
 [888](https://work.haynesnetwork.com/work_packages/888) (PR 76) added diagnostics;
 the frame mismatch's cause stays open. PR 78 raised the source CI limit to 20 minutes.
 P-50 already records the contract owner's operator decision; P-51 and P-52 record the
 owner's cache-key and private-view decisions, each a proposal Tom may overrule.
 No new decision by Tom is recorded here. His open questions and verdict stay open;
 the private link's default file and the store's custody join them in section 16.
+
+**Sixth amendment, 2026-11-24**, story
+[954](https://work.haynesnetwork.com/work_packages/954). At base `fa52968`, the first
+two execution waves supply E1 archive evidence, board photos, delivery conversion,
+asset candidates, technical checks, the Studio API, browser shell and Editor, MCP,
+and image packaging. Studio PRs 82–93 and 95 and haynes-ops PRs 5020, 5021 and 5023
+are folded in. Studio PR 94 was open at pickup. Its run-queue implementation stays
+outside this amendment. The local-model profile is a proposal with a pilot choice.
+[Section 16](#16-held-owner-questions) records the owner questions and provisional
+rulings, and [section 13](#installed-and-published-state) records the dated install
+and publication evidence. The API, web and MCP source has tests. Installed Studio
+sign-in and authenticated phone playback still await story 434 and the story 944
+proof. Tom's November 21 verdict applies to the exact quieter-gavel cut. E1 acceptance
+and the verdict on One More Meeting remain open.
 
 Every rule carries its source:
 
@@ -350,6 +365,14 @@ its board changed. A job that finishes after its inputs changed is `succeeded` w
 [succeeded and stale](examples/valid/job-voice-succeeded-stale.json) (r4 board 8, its lead
 edited while the job ran).
 
+The `asset_candidate` job (story [408](https://work.haynesnetwork.com/work_packages/408))
+targets a reserved `ast_` ID. Freeze the normalized name, asset kind (cast, costume,
+set or prop), production ID or null for global scope, labels, requester, prompt, seed
+and request size. Its `input_signature` signs those inputs and the model in
+`studio.asset-candidate-inputs/v1`. Success points to the recorded `asv_` ID. The
+worker verifies the frozen signature and checks for an existing result before
+submitting. The operation and fencing boundary are in section 12.
+
 ### Mockup fields
 
 Every field of the [v6 mockup](../design/studio-ui-mockup/index.html) and where it lives.
@@ -502,6 +525,16 @@ display only.
   Winter Menu). Such cross-checks allow 1 ms for line, sound and bed times; frames are
   exact, and shot times are exact at the record's 4 decimals.
 
+**Delivery conversion (TIME-8, TIME-11, story
+[453](https://work.haynesnetwork.com/work_packages/453)).** The
+`studio.delivery-conversion/v1` profile uses the board clock. Board frame `n`
+selects source frame `trim_start + floor(n × source_fps / 24)` (at 16 fps,
+`trim_start + floor(2n / 3)`). Extra source frames are trimmed and a short source
+is refused. At 24 fps the 48 kHz mix clock holds 2,000 samples per frame or 48 per
+millisecond. A canonical 24 kHz S2V drive track holds 1,000 samples per board frame.
+TIME-7 line placement holds across conversion. See
+[Delivery conversion](../reference/delivery-conversion.md).
+
 ### Worked example: The Winter Menu r4
 
 From [`manifest-r4.json`](../../titles/the-winter-menu/manifest-r4.json),
@@ -600,11 +633,17 @@ normalization and hashing, not each artifact's input list.
 | Doll clip or set loop (library `motion`) | source | the image the engine animated (the record's `source.image_sha256`; for E0 the doll on green, not the cutout), prompt, seed, profile (which names the adapter). Made by an asset job, never by a build (Q-457-1); the build reads the key from the pinned record (`keys.clip`). It has no negative prompt; the record's identity carries it (P-37) |
 | Whole-frame I2V clip(s) | source | photo, prompt, negative prompt (story [861](https://work.haynesnetwork.com/work_packages/861)), seed, profile (which names the adapter, `studio.i2v/1`), requested clip lengths (set by the frames needed and the chain policy of TIME-8, story [427](https://work.haynesnetwork.com/work_packages/427)). A chain is one artifact |
 | Keyed and decal frames | source | clip, key thresholds, protect boxes, still (the clip's start image, as Legacy `DollClip.cache_dir` hashed it), decal box, decal version, keyer as `<record's keyer>@<build>` (the numpy, OpenCV, Pillow, scipy, PyAV and libavcodec versions). The keying inputs are the pinned loop record's; the decal floor is not an input (P-39) |
-| Board picture segment | board | method, layout preset values, cast stills, clip and keyed hashes, phases, how each layer plays (loop or timed, trim, source fps, decal floor), set plate and set loop with its phase, a whole-frame board's clip, motion style (every layered board), voice envelope when any line is spoken, who speaks when (each line's speaker and span), move and camera cues resolved to ms, frames, frame size, fps, foreground edge, procedural stream, compositor digest, encoder settings and build (P-26). A spoken whole-frame board's segment carries the voice envelope and who speaks when too, though its renderer draws nothing from them |
+| Board picture segment | board | method, layout preset values, cast stills, clip and keyed hashes, phases, how each layer plays (loop or timed, trim, source fps, decal floor), set plate and set loop with its phase, a whole-frame board's clip, motion style (every layered board), voice envelope when any line is spoken, who speaks when (each line's speaker and span), move and camera cues resolved to ms, frames, frame size, fps, foreground edge, procedural stream, compositor digest, `delivery_profile_sha256`, encoder settings and build (P-26). A spoken whole-frame board's segment carries the voice envelope and who speaks when too, though its renderer draws nothing from them |
 | Film picture | film | ordered segment hashes, each with its frame count, splicer |
 | Mix | film | ordered voice tracks with `F[k]` and line spans, sound cues resolved to samples (sound hash, trim, level), beds, line RMS, loudness and true-peak targets, frames, rate, mixer digest (every number of the mixer, its fades included, and the filter build: story 841). It has no board boundaries and no take sample counts |
 | Master / proxy | film | picture + mix + mux settings (container, video copy, codec, bit rate, layout, rate, faststart, movie timescale, threads, encoder build: story 841) / master + proxy profile; both name the encoder build |
 | Check result | none | artifact hash, check version, thresholds; a transcript check also the story's tolerances and the script's hash; a sound check's thresholds carry the story's targets and `frames x 2000`, its version the filter build (story 841) |
+
+`delivery_profile_sha256` is the 64-digit digest of the canonical versioned conversion
+profile (section 7). Older segment keys omit it. New plans re-key board segments and
+reuse the upstream source, keying and mix keys. Resolved content hashes still key the
+film picture, master, proxy and checks, so byte-identical inputs keep those keys. The
+shared key scheme is `studio.cache-key/v1` (P-51).
 
 **Negative prompts (story 861, P-51).** `s2v_negative_prompt` defaults to the Wan
 client's `NEGATIVE` (E0's text). The new `i2v_negative_prompt` toolchain setting
@@ -747,6 +786,22 @@ composite inputs are stories [426](https://work.haynesnetwork.com/work_packages/
 requirement, with no preview-only phase. Prompt-generated photos are for whole-frame
 boards, where the photo is the I2V start image.
 
+**Photo currency (story 407).** `generator.params.input_signature` is `sha256:`
+plus the SHA-256 of the canonical JSON document with `schema: studio.board-photo-inputs/v1`,
+`board_id`, `layer`, `size: [width, height]` at delivery dimensions, `prompt`
+(NFC or null), ordered `sources` as `{version_id, sha256}`, and `composite_signature`.
+Layered uses a null prompt, the set then cast stills in draw order, and the story
+426 composite signature. Whole-frame uses the selected reference versions in order
+and a null composite signature. A selected photo is current when its stored signature
+matches the current plan. An unsigned selection is stale.
+
+Record a completed version even if the draft changed, its selected photo differs,
+the board was removed, or the job lost its terminal compare-and-set. Select the
+result only after these checks pass in the same fenced write. Story 430 integrates
+`photo_facts` into API and preflight facts. Whole-frame Build requires a current photo.
+At this baseline, the canonical queue validator checks `photo.absent`. The stale
+selection refusal depends on that integration.
+
 The historical target "under two minutes on two threads" is not part of this contract.
 Layered v2 took 408 s on the 24-vCPU worker; story
 [428](https://work.haynesnetwork.com/work_packages/428) records real timings (review H3).
@@ -872,6 +927,24 @@ service was called, and no claim is made about picture quality.
   then a whole-frame board with a camera cue fails at render, after its clips were made,
   and they stay cached for the corrected board.
 
+### Delivery scaling and decal checks
+
+**Delivery scaling (story 453).** The conversion profile applies Pillow Lanczos
+to whole-frame clips and layered set loops at the same aspect. Equal sizes pass
+through. Another aspect yields `wholeframe.unsupported` or `layered.unsupported`,
+respectively. Still set plates use centred Lanczos cover fit. Either renderer
+refuses an unknown profile at `/delivery_profile_sha256`.
+
+**Decal drift (story [450](https://work.haynesnetwork.com/work_packages/450)).**
+`decal.drift` v1 uses `layered.decal_gate` on the shown source indices with the
+default floor 0.8 and frame 0 as the visual template. See the
+[jacket-relative bounds, region evidence and motion limits](../reference/wardrobe-decal-checks.md#decal-drift).
+Invalid ECC evidence goes to review. Invalid visual-region evidence retains any
+valid weak or lost ECC finding and its escalation. Weak and lost tracks carry
+`clip_id`, `check`, the one-based `attempt` and `max_rerolls: 2`. Guidance is
+`reroll` for attempts 1 and 2 and `stop_with_evidence` from attempt 3. Story
+[454](https://work.haynesnetwork.com/work_packages/454) owns the calling loop.
+
 ## 6. Direction and executable cues
 
 | | Note (direction) | Cue (executable) |
@@ -939,6 +1012,14 @@ Cue types (P-09):
 
 An upload without the external marker, agent, model or prompt fails
 (`prov.external_incomplete`). The studio holds no paid API key (D42).
+
+**Board photo provenance (story 407).** Each completed operation appends a version
+with its own provenance, even when bytes match an earlier version. All three origins
+record ordered source IDs and hashes in `generator.params.source_assets`. Uploads
+record the declared generation sources there. ComfyUI records the actual prompt,
+seed, configured model, filled workflow digest, engine job ID, timings and engine
+output SHA-256. A layered composite records `origin: derived`, generator role
+`composite` and the story 426 input document in `generator.params.composite`.
 
 ### Licences
 
@@ -1029,6 +1110,21 @@ which are reserved ([RIGHTS.md](../../RIGHTS.md)).
   which the register listed only under image-to-video, so story 428's records read the
   `wan-s2v` engine as `unknown`, as they were written; the next run reads it `allowed`.
 
+**Delivery profile (story 453).** `toolchain.delivery_profile` records the conversion
+version, timing, scaling, upscaler name, version and tool (the Pillow version),
+model SHA-256 (null for Lanczos) and the segment key's profile digest. Hash the
+canonical profile without its own digest or the `measured` block.
+`measured.tool_sha256` records the native Pillow core loaded by the process for
+provenance only. That lets the Python 3.11 planner and the Python 3.12 worker agree
+on the key under one lock. Generation model files stay in clip provenance.
+
+**Local-model evidence (story 442, expected at rollout).** Record the selected
+profile ID, weight and projector SHA-256s, backend image digest, card UUID, token
+limits and licence entries with any technical check or production plan that uses
+the model. Publish the validated profile and evidence in the
+[local-model reference](../reference/local-model-profile.md). D46 keeps frontier
+writing as the default until Tom's switch verdict.
+
 Media on NFS is not backed up (D47). Provenance in Postgres must therefore be complete
 enough to regenerate: inputs by hash, prompts, seeds, model digests and profiles. A
 regenerated artifact is a new version with a new hash (GPU output is not bit-exact);
@@ -1097,6 +1193,16 @@ version; its old hash stays as recorded (D54).
   are listed too (story 860). Neither the command line nor the API has the override yet,
   so a weak track on a clip the build made is re-rolled (Q-428-3, section 5).
 
+**Technical checks (story 450).** `wardrobe.attributes` and `decal.drift` emit
+`studio.check-result/v1` evidence with `check`, `version`, primary SHA-256 in
+`artifact`, role-to-hash `artifact_refs`, `result` (`pass`, `fail` or `uncertain`),
+`passed` (true only for pass), `confidence` (`high` or `low`), `thresholds`,
+`measured`, `issues` and `escalation` (null on pass). An incomplete result is
+`uncertain` unless the remaining evidence establishes failure. A run check keeps the
+full evidence as `actual` and maps `uncertain` to blocking `fail`. Only a person
+can override a named artifact check through `record_check_override`. Story 450
+supplies the check library. The product run and re-roll loop come later.
+
 ### Builds (as built, story 406)
 
 `studio build` ([reference](../reference/studio-build.md)) builds a story from its boards
@@ -1164,8 +1270,9 @@ on the local store. Story 428 ran the first live build
   packages exported from `uv.lock` at `f431c240`, environment `py312-51d95b693bf4`.
   Renovate holds the image at 3.12.x and does not update the generated list.
   [Versions and procedure](../reference/services.md#studio-render-cpu-work).
-  **Not done:** an offline phase there, and a comparison of its keys and hashes with
-  a session pod's. Tom's acceptance is separate.
+  Story 942 later ran the offline phase there with a hash-checked cache transfer.
+  A paired offline run comparing the worker's keys and outputs with a session pod's
+  remains open. Tom's acceptance is separate.
 - **Live clip sources (story 851).** The service phase's clips come from the Wan clip
   client below, one per store root on the journal `<store root>/wan-journal.jsonl`,
   made on the first clip request. A job the journal holds is settled first: `recover` for
@@ -1260,13 +1367,34 @@ and its story, preset, seed and input names and hashes must match. E0 ledgers ha
 `graph_sha256` and are refused; their clips come in through the private import
 (section 9). The record says `recovered: true`.
 
+### Wan product jobs (story 458)
+
+Product transport version `1.0.0` runs on the cluster Wan Service. Before a live
+use, record `GET /v1/profiles` and `GET /v1/ready` to verify the installed version,
+profile and readiness. Stage PNG and PCM WAV by digest. Submit
+`PUT /v1/jobs/{type}/{job_id}` for `i2v`, `s2v` or `foley` with a new lowercase
+32-character hex UUID per attempt. An equivalent retry at the same ID returns the
+existing job. Changed input at that ID conflicts. After a lost response, GET by ID
+before repeating only the same PUT if the ID is absent. Poll for the recorded prompt
+UUID and terminal result. A success gives a file URL, media type, byte count and
+SHA-256. Verify the downloaded bytes against that count and digest.
+
+Admission and cleanup use the shared lease and unknown-work checks. Early release
+for an unacknowledged submission requires 120 seconds of clean absence polls and
+readable idle GPU samples, with no latched hold. The conservative watchdog covers
+acknowledged or observed prompts and uncertain evidence. See the
+[Wan product job API](../reference/wan-product-api.md) for the bounds, error envelope
+and restart limits. Section 13 records installation. Story 842 remains the E1
+client record.
+
 ### The first live build (story 428)
 
 Story [428](https://work.haynesnetwork.com/work_packages/428) built The Winter Menu on
 2026-11-14 with the studio's own code, privately, from the command line, on the two
 3090s ([run log](../../titles/the-winter-menu/e1-build/run-log.md)). An agent session
 ran it for the coordinator, each GPU step after a written go. **State: delivered
-privately; not accepted; Tom's verdict is pending.**
+privately. Tom's verdict on the exact quieter-gavel cut is below. E1 acceptance
+remains open.**
 
 - **Inputs.** `studio legacy import` of r4, then the private import read-only: 132 rows
   verified, 24 absent, 0 mismatch; 79 hashes read from the Wan volume, 105 MB, each from
@@ -1317,6 +1445,28 @@ privately; not accepted; Tom's verdict is pending.**
   `haynes-ops-1111-144013` whose text says it relays Tom's word, through Meatball, that
   89 C is acceptable. The coordinator could not verify who sent it and did not hear Tom,
   so it is not Tom's ruling and has no D-number. Confirming it is Q-428-6, open for Tom.
+
+### Private build and archive evidence (story 942)
+
+Tom approved the exact quieter-gavel Winter Menu cut for private viewing on
+2026-11-21 (epic [372](https://work.haynesnetwork.com/work_packages/372), comment
+9487). Story [941](https://work.haynesnetwork.com/work_packages/941) recovered that
+cut byte for byte. Story [942](https://work.haynesnetwork.com/work_packages/942)
+proved a new bounded build, [One More Meeting](../../titles/one-more-meeting/run-log.md),
+through a session service phase and two offline passes on `ai/studio-render`. One
+staged Wan S2V clip produced a 196-frame vertical master and proxy at 24 fps. One
+ASR request matched the normalized script exactly. The
+[archive receipt](../../titles/one-more-meeting/run-evidence.json) records 15 files
+across both create-only copies on the canonical private Studio share. A separate
+read-back matched all sizes and hashes (story 942, comment 9516).
+
+The legacy LAN playback route lacked authentication when checked. The new proxy
+has no playback publication. Story [944](https://work.haynesnetwork.com/work_packages/944)
+takes signed-out denial and signed-in phone playback and seek on the installed
+range-capable Studio API, with Authentik and the app deployment of stories 432 and
+434. It uses the verified delivery's proxy hash at
+`GET /v1/media/{sha256}` under the authorization and range rules in section 12.
+Tom's creative verdict on One More Meeting and acceptance of E1 remain open.
 
 ### Mix, master and sound checks (as built, story 841)
 
@@ -1645,6 +1795,30 @@ are recorded. Source and tested against a temporary root through a fake exec rou
   around 2026-12-03 (Q-846-03, the contract owner); the fire bed is `absent` (D54).
   Story 428 ran it once, live: 132 rows verified, 24 absent, 0 mismatch (section 8).
 
+**Board-owned photos (story 407).** A `studio.asset-version/v1` uses kind `photo`,
+state `board`, capability `opaque_photo` and production/story/board scope. The
+board-owned asset uses `board-photo:<board_id>`. See
+[Board reference photos](../reference/studio-photo.md) for provenance and version
+writes. Promotion to a reusable production photo remains the library operation
+above.
+
+**Generated candidates (story 408).** One image job creates version 1 of one
+asset under `asset-candidate:<job_id>` with `origin: generated`. It stores a
+metadata-free RGB PNG create-only in the production or global library blob scope.
+The generator records the model, prompt, seed, filled workflow SHA-256, engine job
+ID, wait and render times, input signature and original PNG SHA-256. The canonical
+digest covers the stored PNG. Cast, costume and prop get `opaque_photo`, and set gets
+`opaque_plate`. These still capabilities assert opacity. Decline or regeneration
+keeps the prior version privately in `candidate`, outside normal pickers.
+Explicit human promotion changes only `state` to `promoted` and returns the same
+version on retry. See [Asset candidates](../reference/asset-candidates.md).
+
+**Costume evidence (story 450).** `wardrobe.attributes` v1 checks a keyed RGBA still
+with a hashed declaration of named costume attributes. An injected observer may
+supply evidence for other attributes. Missing, ambiguous or low-confidence
+observations go to review. See the
+[sleeve profile and thresholds](../reference/wardrobe-decal-checks.md#wardrobe-attributes).
+
 ## 10. Pre-build voice policy (D33)
 
 - **VOICE-1** Voices are stock TTS voices only, Kokoro-82M v1.0 stock IDs today (P-22;
@@ -1667,6 +1841,9 @@ are recorded. Source and tested against a temporary root through a fake exec rou
   speed or delivery per line needs another service (Q-840-02, open). The
   [desk review](../../titles/the-winter-menu/voice-audition/desk-review.md) recommends
   two local models to try next; that is the worker's recommendation, not a decision.
+  The working defaults are the cast voices in the quieter-gavel cut, with per-board
+  voice changes before Build ([ruling 04](#ruling-04)). Per-line speed and delivery
+  are requirements of the next engine ([ruling 05](#ruling-05)).
 - **VOICE-2** A board voice version holds one take per line (with `signature`, `sha256`,
   `samples`, `duration_ms`, `offset_ms`) and the assembled track. It is made while
   editing, before any Build, and can be played and regenerated. The track stays at the
@@ -1778,44 +1955,149 @@ does. Example: [`go-live-approval.json`](examples/valid/go-live-approval.json).
 
 ### Boundaries (D41)
 
-- **studio-api** is the only writer of records (Postgres `studio` database) and of store
-  blobs. It is stateless, with at least two replicas.
-- **Web UI** is a static app. All data goes through studio-api; it has no database or
-  store access. Media streams through authenticated `GET /v1/media/{sha256}` with Range
-  support; the server serves a hash only if a production in the caller's scope references
-  it, and answers `not_found` otherwise, so a known hash grants nothing. Per-user
-  selections persist through the API (D32).
-- **MCP server** is a separate process that calls studio-api with the agent's key. It
-  returns compact JSON and no media bytes by default. It has no approval, publication,
-  shell or raw-graph tool, and nothing that deletes media, asset versions or runs.
-  Tombstoning a draft board is an ordinary draft edit (`studio_remove_board`).
-- **Workers** (render, voice, photo) claim, heartbeat and complete work through internal
-  studio-api endpoints with a worker credential (P-14). Rejected: direct Postgres access
-  for workers, which puts a second authorization point next to the API.
-- **Every request is authenticated**, media included; `/healthz` and `/readyz` return no
-  data. People: Authentik OIDC, authorization code with PKCE, as a confidential client in
-  studio-api; the session row lives in Postgres and the browser holds only an HttpOnly,
-  Secure, SameSite=Lax `__Host-` cookie, with a CSRF header on unsafe methods (P-15).
-  Rejected: tokens in browser JavaScript. Agents: `Authorization: Bearer <key>`, stored
-  hashed, with scopes. Workers: service tokens.
+- **studio-api** is the only writer of product records (Postgres `studio` database)
+  and store blobs. The deployment is stateless with at least two replicas.
+- **Web UI** is a static SPA. All data goes through studio-api. The hosting serves
+  UI routes from `index.html` and forwards `/v1/` and `/auth/` on the same HTTPS
+  origin. The UI has no database or store access.
+- **MCP** runs as a separate process. `studio-mcp` v1 serves stateless Streamable
+  HTTP at `/mcp`. Each request verifies the caller's bearer with `GET /v1/me` and
+  forwards the unchanged Authorization header to its fixed Studio API origin.
+  The API resolves scopes and makes draft mutations. The listener configures Host
+  and Origin explicitly. Upstream TLS supports a private CA via `STUDIO_API_CA_FILE`. The client ignores ambient proxy and trust settings and disables redirects. Plain
+  HTTP is limited to loopback and Kubernetes Service DNS. The deployment uses a
+  fully qualified Service name. MCP returns compact metadata with no approval,
+  publication, shell, raw-graph or media-byte tool. Tombstoning a draft board is an
+  ordinary draft edit (`studio_remove_board`).
+- **Workers** claim, heartbeat and complete through internal studio-api routes
+  with a worker credential (P-14). Story 409 provides the worker principal
+  dependency. Story 410 owns the routes and authentication before body parsing.
+  Workers have no direct Postgres access.
+- Protected operations authenticate every request, including media and writes before
+  reading metadata bodies. Agents supply a hashed bearer key with production-specific
+  grants. Workers use service tokens. Browser auth uses the session below.
+
+### Browser authentication and private media
+
+- Authentik OIDC uses the authorization-code flow with S256 PKCE from a confidential
+  studio-api client. Login attempts are one-use, tied to a temporary Secure cookie
+  and stored in Postgres. The callback verifies issuer, RS256 signature, audience,
+  nonce, time and a valid subject. Default ID-token leeway is 60 seconds (0–300).
+  Per-process discovery and JWKS caches default to 300 seconds (1–3,600). An unknown
+  key prompts one refresh per lookup. An in-flight fetch or a cached failure returns
+  `503 service_unavailable` immediately. Failure cooldown defaults to 10 seconds
+  (1–60). Failed fetches cannot make an expired key valid. Story
+  [434](https://work.haynesnetwork.com/work_packages/434) owns ingress rate limits.
+- `STUDIO_OIDC_ALLOWED_SUBJECTS` and `STUDIO_OIDC_ALLOWED_GROUPS` are JSON arrays of
+  non-empty strings, default `[]`. At least one must have entries at startup.
+  A verified ID token passes with a listed subject or an exact case-sensitive
+  match in its string-array `groups` claim. Otherwise it gets HTTP 403
+  `auth.subject_forbidden`. Subject sessions keep the issuer and subject checks.
+  Group-only sessions bind the stored cookie digest to the configured group policy,
+  and group claims are discarded. Authentik membership is checked at sign-in.
+  Removal from the group leaves an existing session valid to expiry (8 hours by
+  default, 24 at most). Logout, deleting that subject's session rows or changing
+  the group policy can end access sooner. Authentik may allow child-group members
+  whom the API then refuses because the token lists direct memberships.
+- The API creates an absolute Postgres session and returns the HttpOnly, Secure,
+  SameSite=Lax `__Host-studio-session` cookie (P-15). The browser keeps no bearer token.
+  Read CSRF from `GET /v1/me` and send `X-Studio-CSRF` on unsafe requests, including
+  `POST /auth/logout`. Neither session form records `auth_time`. Story 412 owns
+  fresh sign-in and the separate issuer/subject go-live allowlist (section 11).
+- The installed Authentik application and confidential provider are `haynes-studio`.
+  They use the per-provider issuer
+  `https://authentik.haynesnetwork.com/application/o/haynes-studio/`, stable user UUID
+  subjects, one strict callback `https://studio.haynesops.com/auth/callback`, and
+  managed `openid profile` scopes with mapped claims in the ID token. Authentik binds
+  the app to `authentik Admins`. Story 434 configures that exact API group on the
+  LAN origin. The `99-studio-oidc.yaml` blueprint reads the generated Secret from an
+  optional worker mount. ESO projects `STUDIO_OIDC_CLIENT_SECRET` from `network` into
+  Secret `ai/studio-oidc-client`. Story 434 depends on Flux Kustomization
+  `ai/studio-oidc` and verifies the current successful import before enabling sign-in.
+  The installed provider and projection are recorded in section 13. A regenerated
+  secret requires reapplying the blueprint.
+- `GET` and `HEAD /v1/media/{sha256}` serve one bounded, open-ended or suffix range
+  from the canonical no-follow store. Return exact `Content-Range` on 206 and
+  `bytes */<size>` on 416 when a valid range starts at or beyond EOF. A malformed
+  range (including end before start), multiple ranges or a nonmatching `If-Range`
+  gets the full representation. The strong ETag is the hash. HEAD sends headers
+  only. Authorize before opening any file. A production-owned non-candidate version
+  or delivery grants access in scope. Shared-library media needs a pin in a current
+  draft of an allowed production. Unknown and inaccessible hashes return the same
+  404. Responses are private and never cached. Candidate previews need the authorized
+  result and media path of story 430.
+- `GET /healthz` is independent of the store and database. `GET /readyz` checks the
+  database and answers from the last completed store probe. A successful result
+  must be fresh (30 seconds by default, bounded 5–300). Start one background check
+  per process when no result exists or its age is over half the window, and keep
+  late completions. A hung store ages out of readiness. Both probes have empty bodies.
 
 ### Conventions
 
-- Writes send the entity's `revision` (`If-Match`); a stale one gets
-  `409 conflict.revision` with the current revision.
+- Entity and selection revisions return quoted integer ETags. Writes to existing
+  revisions use that ETag in `If-Match`. Creating a production or story mints an ID
+  without `If-Match`. The first enable of a media kind requires the production
+  revision and increments it. Board creation and reorder use the story revision.
+  Board patch and tombstone use the board revision and advance the story revision
+  in the same transaction. Refresh the story before the next story-level write.
+  `409 conflict.revision` carries `current_revision` and the current ETag.
+- Lists return `{items, next_cursor}`. The story summary carries the ordered board
+  IDs. Individual boards are read separately. PATCH replaces each supplied top-level
+  field. Omit IDs on new line, note and cue entries and keep returned IDs on edits.
+  Metadata bodies are strict UTF-8 JSON up to 2 MiB. Query names and values must be
+  UTF-8 without NUL. Selections are keyed by verified `(iss, sub)`, start at revision
+  0 and return `{revision, values}`. PUT takes `{values}` and replaces the selection.
 - `POST` that creates a job or run takes `Idempotency-Key`; the same key with a different
-  body gets `422 idempotency.mismatch`.
-- Errors: `{"error": {"code", "status", "http_status", "path", "message", ...}}` with
-  status `invalid` (422), `unavailable` (422), `conflict` (409), `forbidden` (403),
-  `unauthenticated` (401), `not_found` (404) or `too_large` (413)
-  ([example](examples/valid/error-method-unavailable.json)).
-- D42 upload: raw `image/png`, `image/jpeg` or `image/webp` bytes up to 20 MiB and
-  4096x4096 px, with provenance JSON; never a URL to fetch. The server reads the
-  dimensions from the header before decoding (oversize fails without a full decode),
-  decodes the image (undecodable fails), strips metadata (EXIF, GPS, XMP) and stores the
-  stripped bytes; `sha256` is over the stored bytes and the upload's own hash goes into
-  provenance (P-16).
-- Lists page by cursor.
+  body gets `422 idempotency.mismatch`. See Operations for the candidate job result fence.
+- JSON errors carry `error.code`, `status`, `http_status`, `path`, `message` and
+  `request_id`, with operation-specific details. `invalid` (422), `unavailable` (422
+  for a method that cannot be built), `conflict` (409), `forbidden` (403),
+  `unauthenticated` (401), `not_found` (404) and `too_large` (413) remain. Dependency
+  outages use `service_unavailable` (503), and unexpected failures use `internal`
+  (500). The server-generated ID matches `X-Request-ID` and the JSON access log,
+  whose path excludes the query string. The
+  [original example](examples/valid/error-method-unavailable.json) predates the
+  HTTP request ID.
+- MCP caps tool JSON arguments at 64 KiB and compact structured results at 128 KiB.
+  The outer HTTP body and upstream JSON caps are 256 KiB and 8 MiB. Tool errors use
+  `isError`. A valid API error envelope up to 64 KiB passes through with status and
+  details such as `board_id` and `current_revision`. Invalid arguments report JSON
+  Pointers and rule codes within the result cap.
+- D42 uses the authenticated agent key, model, actual prompt, session, harness,
+  ordered `source_asset_version_ids` (which may be empty) and a no-paid-API declaration
+  (`paid_api: false` in the photo operation). Story 409's OpenAPI declaration
+  describes the model, prompt, source IDs, session and harness. Story 430 owns the
+  upload transport and ties the declaration and verified key to the photo operation.
+  Resolve and scope-check source versions. Accept one PNG, JPEG or WebP still up to
+  20 MiB and 4096 px per side. Inspect header dimensions before decode, apply EXIF
+  orientation, flatten on white and store an RGB PNG without original metadata.
+  Compare an optional lowercase claimed SHA-256 to the original bytes. Record the
+  raw hash and MIME type in `generator.params.upload_sha256` and `upload_media_type`. The API metadata stores the server-computed raw digest as `received_sha256` when
+  registering it with the library version. The stored PNG supplies
+  `content.sha256`. The returned external block marks `externally_generated` and
+  `server_computed_sha256` true. No URL fetch (P-16).
+
+### Web UI
+
+The shell remembers same-origin UI paths with canonical IDs and scope in
+`values.web_shell` under `productions`, `board` and `assets`. Selection writes keep
+unrelated values, use the returned ETag and refetch and retry once on
+`409 conflict.revision`. Breadcrumbs drop deeper context. Backstage theme is a
+device preference with a Dark fallback. A 401 clears the shell's in-memory
+session and offers sign-in at the current URL. The merged callback redirects
+to `/`. The shell restores a validated same-origin path from tab storage if
+available. The API-side validated return path on the one-time login attempt and
+safe failure redirect remain follow-up work.
+
+`/editor` opens the Storyboard editor and Asset Library choices. The Storyboard
+route carries production ID, media kind and story ID. Production and story pickers
+read cursor pages within their scope. Enabled media kinds are destinations. Missing
+kinds have an add action. A successful story creation opens its board route. Before
+a create, the Editor compares trimmed, NFC-normalized, lowercased names using fresh
+list pages. Atomic uniqueness and a structured duplicate error remain schema work.
+On a stale enable, the Editor reloads the production and waits for user action
+before a new attempt. See [stories 413](https://work.haynesnetwork.com/work_packages/413)
+and [415](https://work.haynesnetwork.com/work_packages/415).
 
 ### Scopes (P-17)
 
@@ -1830,6 +2112,24 @@ does. Example: [`go-live-approval.json`](examples/valid/go-live-approval.json).
 
 A key lists its productions; anything else is `forbidden` (story
 [429](https://work.haynesnetwork.com/work_packages/429)).
+
+Provision keys with the migration identity or a dedicated key-admin role. Grant
+SELECT on credential tables and `productions.id`, INSERT on credential columns,
+and UPDATE on key expiry, revocation and grant activity as listed in the
+[API reference](../reference/studio-api.md#database-privileges). Migration
+`0002_active_agent_grants` adds grant activity. The CLI checks permissions and
+refuses the API runtime role. Deploy with `studio-api-admin register --key-file PATH`
+for a cluster-minted 48–128 character ASCII alphanumeric token. Identical grants
+and expiry return the existing key ID without change. `--replace-grants` updates
+active grants and expiry and preserves revocation. `create --out PATH` writes a
+43-character base64url secret to a new 0600 file. Without a path it requires an
+interactive terminal before connecting. Use an interactive exec for that mode,
+since pod output can be logged even with a TTY. Only digests go into the DB. List
+and revoke use key IDs. Actions emit secret-free audit events.
+
+Story 430 also owns reporting an already revoked key on registration, limiting
+plain HTTP to fully qualified Service DNS and loopback, and reconciling a key
+file created before a failed DB commit. See [Studio MCP](../reference/studio-mcp.md).
 
 ### Operations
 
@@ -1880,8 +2180,42 @@ Paths are under `/v1`. MCP tool names replace the old `patch_shot` and
 | `login`, `callback`, `logout` | `/auth/...` | | none | 409, [432](https://work.haynesnetwork.com/work_packages/432) |
 | `healthz`, `readyz` | `GET /healthz`, `/readyz` | | none | [434](https://work.haynesnetwork.com/work_packages/434) |
 
+Story [429](https://work.haynesnetwork.com/work_packages/429) serves the 15 core
+MCP operations backed by story 409. The [tool reference](../reference/studio-mcp.md#tools-and-revisions)
+names the implemented rows. Lists and ordered board and timing pages accept
+`cursor` and `limit` (10 by default, 20 maximum). Ordered cursors bind to the story
+revision and last board ID. The story summary includes a page of board IDs and
+story and board reads can select editable fields. Board creation, patch and
+tombstone advance the story revision. Patch and tombstone return the board
+revision. Asset pins reuse the existing draft-write fields and API checks.
+
+Story [430](https://work.haynesnetwork.com/work_packages/430) owns the candidate
+transport's human scope check, HTTP idempotency reservation, shared image queue
+claim and fenced asset, version and terminal job write after blob publication.
+A reused job ID with a different signature or prepared result is
+`idempotency.mismatch` with status `conflict`. Candidate previews go through
+authorized job results and media lookups. Normal library queries and new board
+reference writes use eligible versions in scope.
+
+**Local inference (story 441, proposed extension from story 442).** The starting
+proposal accepts one staged `image_sha256` and returns text. After the additive
+source is merged and tested, also accept an ordered `image_sha256s` array of one
+to four staged PNG hashes, mutually exclusive with `image_sha256`. A frame is at
+most 1080×1920 portrait or 1920×1080 landscape and 8 MiB. Revalidate every digest
+and image before inference. Count the full template and prepared visual tokens
+and reject inputs whose count plus the output cap exceeds context capacity.
+
+The proposed server-owned `mode` values are `text` (default), `frame_check_v1`,
+`plan_v1` and `plan_tool_v1`. Persist normalized mode and ordered hashes in the
+request fingerprint and dispatch receipt. Structured modes have versioned schemas
+or tool definitions in source and return validated JSON in `result.text` with the
+token counts. Tool mode returns a single validated name and argument object.
+Callers cannot supply URLs, schemas, grammar or tool definitions. The Studio
+caller validates before acting. Load, infer and unload take the same Wan lease.
+No local profile or inference service is installed by these waves.
+
 The legacy import is a CLI command (`studio legacy import <manifest>`), not an endpoint
-in v1. E1 ends with a private command-line build of The Winter Menu on the 3090s
+in v1. E1's private command-line build of The Winter Menu ran on the 3090s
 (story 428, D55); the API and its deployment stay in E3. The commands it uses are built:
 `studio voice`, `studio build` (`--phase service`, `--offline`, `--dry-run`,
 `--workers N`, `--wan-story`) and `studio run show` (story 406, section 8), and
@@ -1904,7 +2238,51 @@ pin installed nothing; story 862 has since installed the worker at the lock (sec
 | MCP | the official `mcp` Python SDK, streamable HTTP, as its own process | thin client over studio-api (story 429) | MCP inside the API process |
 | Database | PostgreSQL 16 (`database/postgres16`, D39) through **psycopg 3** and **SQLAlchemy 2.0 Core**; **Alembic** migrations | explicit SQL for claims and fencing (`FOR UPDATE SKIP LOCKED`); a migration graph; downgrades tested on an empty database, production rolls forward | the ORM's identity map; SQLModel (couples API and table models); SQLite in tests (different locking gives false confidence) |
 | Web | **TypeScript**, **React**, **Vite**, **pnpm**; static build served by an unprivileged nginx image; **Vitest** and **Playwright** | stateless static tier (D41); Node and pnpm are in session pods; component model for the v6 surfaces | Next.js (a server tier with its own auth); plain JavaScript like the mockup |
-| Images | built by GitHub Actions, deployed by digest from haynes-ops | proposal 0003 Infrastructure (Code); story [433](https://work.haynesnetwork.com/work_packages/433) | |
+| Images | GitHub Actions builds Linux amd64 from digest-pinned bases and the commit timestamp. `ghcr.io/thaynes43/haynes-studio` contains the locked CPython 3.12 package for API, migration, CLI and MCP (worker follows), UID:GID 10001:10001, port 8000. `ghcr.io/thaynes43/haynes-studio-web` serves Vite on port 8080 as 101:101. Both use read-only roots with writable `/tmp`. Deploy through haynes-ops by registry digest looked up using the full commit SHA. | [Studio images](../reference/studio-images.md), story [433](https://work.haynesnetwork.com/work_packages/433) | |
+
+**API commands (story 409).** `studio-api openapi` emits OpenAPI 3.1 from the canonical
+schemas with no database or secret. `studio-api serve` starts the app.
+`studio-api-migrate upgrade head` is the only migration CLI action. It uses the
+separate migration DSN and configured schema. The DB fixture tests reversal on an
+empty disposable schema.
+
+**Database provision (story 431).** CNPG `database/postgres16` retains the `studio`
+database owned by `postgres` and the `studio` schema owned by `studio_migrator`.
+Runtime role `studio_app` gets CONNECT, schema USAGE and explicit table and
+column grants matching the deployed migrations, with no DDL or credential-table
+writes. The [merged API grants](../reference/studio-api.md#database-privileges)
+supersede the initial haynes-ops table-grant recipe. Two distinct ESO Password
+generators use CreatedOnce and project the DSNs into `ai`. Inject
+`studio-runtime-db/STUDIO_DATABASE_URL` into the API and
+`studio-migrator-db/STUDIO_MIGRATION_DATABASE_URL` into the one-shot migration Job
+only. Set `STUDIO_DATABASE_SCHEMA=studio` for both. After the owner ACL bootstrap,
+story 434 runs `studio-api-migrate upgrade head` and applies the migration's specific
+runtime grants before API startup. Web, MCP and workers use the API. The existing
+postgres16 physical base backups and archived WAL cover metadata under D47.
+
+**Local runtime choice (story 442).** The pilot profile choice and admission rules
+are in [section 19](#19-coordinator-rulings-provisional) and the
+[profile reference](../reference/local-model-profile.md). The image, runtime,
+download, measured admission and model-quality proof are pending.
+
+### Installed and published state
+
+Read-backs from 2026-11-24. These are the component states from the first two waves.
+Story 434 owns Studio deployment to `ai`, including migrations and final grants,
+API, web, MCP, NFS and LAN ingress. Nothing in the table establishes an installed
+Studio app or a live user flow.
+
+| Component | Evidence | Still to verify |
+|---|---|---|
+| Wan product job API v1 | Installed by Flux at haynes-ops `1a5d2e08`. Seven deployed files matched source hashes. In-pod `/v1/ready` and `/v1/profiles` returned 200 for version `1.0.0` with `i2v`, `s2v` and `foley`, no active job. Legacy ranged playback passed. The ingress read-back excludes `/v1`. [Story 458](https://work.haynesnetwork.com/work_packages/458), comment 9749. | Live product job and post-S2V admission through the queue. |
+| CNPG database and roles | Installed at haynes-ops `f6c17236`: database, schema, both roles and projections applied. All three instances reloaded without restart, Portal rules stayed intact and owner bootstrap privileges were read back. [Story 431](https://work.haynesnetwork.com/work_packages/431), comment 9742. | TLS login and denial on another database or plaintext, then schema migration and runtime grants in story 434. |
+| Authentik application and projection | Installed at haynes-ops `e7e604d3`. Current `99-studio-oidc.yaml` import succeeded, group binding and public discovery were read back, and the `ai` projection was Ready. Worker roll left server pods untouched and public health at 200. [Story 432](https://work.haynesnetwork.com/work_packages/432), comment 9794. | Studio sign-in, non-member denial, logout, expiry and deep-route return need app deployment. |
+| Studio images | Built, scanned, smoked and published from `fb69580ccd1f4e415390020a3a42d188738a72ca`. Both tags resolved anonymously at first publication. [Story 433](https://work.haynesnetwork.com/work_packages/433), comment 9788. | No Studio container deployment. Story 434 pins digests of the commit it actually deploys. |
+
+First published [registry digests](../reference/studio-images.md#first-publication):
+
+- `ghcr.io/thaynes43/haynes-studio@sha256:284d97311e46f13a14da50bca20dbd786d522aa4c6e3e2d73f0fe2e687805f4a`
+- `ghcr.io/thaynes43/haynes-studio-web@sha256:8ea1576f1efa6502cb4633a018cdd6dd631869d05fa5895dae7df58ef36aebfc`
 
 ## 14. Test contract
 
@@ -1944,6 +2322,22 @@ What story 424 implements. Proposal P-19 for the names and commands.
   required checks; the Claude review stays advisory. Since PR 78 (2026-11-18), each
   `source` job has a 20-minute limit to catch a hang; `db` stays at 10 minutes and
   `browser` at 15. This changes no thread limit and does not make the suite faster.
+- **Browser (stories 413 and 415):** `pnpm typecheck`, `pnpm test` (at most two
+  Vitest workers) and `pnpm test:e2e` (one Playwright worker). Playwright builds
+  the SPA and checks the API and completed login against a contract mock at
+  400 × 860 and 1280 × 900, including create, reload and revision conflict.
+  The standalone v6 mockup has a separate smoke test. Rendered-page and live
+  sign-in review await deployment.
+- **DB (stories 409 and 429):** disposable PostgreSQL 16 covers the documented
+  least-privilege API role and separate provisioner. The SDK test exercises
+  Streamable HTTP against the real API, all 15 tools, expiry and revocation,
+  concurrent clients with different production grants, forbidden operations
+  and revision conflicts.
+- **Images (story 433):** PR and main jobs scan and smoke both images, with
+  Python package and OpenAPI checks, a disposable PostgreSQL 16 migration and
+  nginx SPA fallback, cache headers and reserved-path 404s. The main-only
+  publisher pushes the tested archives and records digests alongside the revision.
+
 - **Live runs** write to a new private job directory and stop at their story's caps; a
   GPU or service call needs that story's authorization.
 
@@ -1967,6 +2361,8 @@ What story 424 implements. Proposal P-19 for the names and commands.
 | `time.source_short` | failed stage | 3 | |
 | `time.conservation` | failed stage | 3, 4 | |
 | `format.length_exceeded` | warning | 3 | [story-timing-summary](examples/valid/story-timing-summary.json) (valid) |
+| `photo.too_large` | too_large | 5, 12 | |
+| `photo.image_invalid`, `photo.hash_mismatch`, `photo.method_invalid` | invalid | 5, 12 | |
 | `method.unknown` | invalid | 5 | [method-unknown-layer](examples/invalid/method-unknown-layer.json) |
 | `method.s2v_needs_line` | invalid | 5 | [method-s2v-needs-line](examples/invalid/method-s2v-needs-line.json) |
 | `method.s2v_needs_onscreen_speaker` | invalid | 5 | [method-s2v-needs-onscreen-speaker](examples/invalid/method-s2v-needs-onscreen-speaker.json) |
@@ -2001,7 +2397,11 @@ What story 424 implements. Proposal P-19 for the names and commands.
 | `job.transition` | conflict | 2 | |
 | `approval.approver_not_permitted` | forbidden | 11 | [approval-not-human](examples/invalid/approval-not-human.json) |
 | `approval.not_exact_run` | invalid | 11 | [approval-not-exact](examples/invalid/approval-not-exact.json) |
-| `conflict.revision`, `idempotency.mismatch` | conflict, invalid | 12 | |
+| `conflict.revision` | conflict (HTTP 409) | 12 | |
+| `idempotency.mismatch` | invalid for idempotency-key reuse, conflict for candidate job ID/result mismatch | 12 | |
+| `auth.subject_forbidden` | forbidden (HTTP 403) | 12 | |
+| `service_unavailable` | dependency outage (HTTP 503) | 12 | |
+| `internal` | unexpected failure (HTTP 500) | 12 | |
 | `legacy.duration_with_lines` | invalid | 1 | [legacy-duration-with-lines](examples/invalid/legacy-duration-with-lines.json) |
 | `legacy.invalid` | invalid | 1 | |
 | `legacy.reference` | invalid | 1 | |
@@ -2017,6 +2417,10 @@ What story 424 implements. Proposal P-19 for the names and commands.
 | `motion.identity_mismatch` | invalid | 4, 9 | |
 | `layered.unsupported`, `layered.layout_invalid`, `layered.drive_invalid` | invalid | 3, 5, 6 | |
 | `layered.clip_invalid`, `layered.decal_weak` | failed stage | 5, 7, 8 | |
+| `decal.offset_high`, `decal.ink_excess`, `decal.track_lost` | failed check | 5, 8 | |
+| `decal.track_weak`, `decal.track_unmeasured`, `decal.visual_unmeasured`, `decal.visual_invalid`, `decal.evidence_invalid` | incomplete check evidence | 5, 8 | |
+| `wardrobe.attribute_mismatch` | failed check | 8, 9 | |
+| `wardrobe.attribute_unmeasured`, `wardrobe.costume_unmeasured`, `wardrobe.evidence_invalid` | incomplete check evidence | 8, 9 | |
 | `mix.input_invalid`, `mix.master_invalid`, `mix.check_failed` | failed stage | 6, 8 | |
 | `build.offline_missing`, `build.check_failed`, `build.delivery_unverified`, `build.voice_track_missing`, `build.live_unsupported`, `build.internal` | failed run | 8 | |
 | `build.run_unrecorded` | failed run, not recorded (non-zero exit) | 8 | |
@@ -2099,8 +2503,8 @@ answer by the contract owner is a proposal Tom may overrule.
 | Q-457-1 A layered board's cast still has no motion loop: (a) an error, (b) Build makes a candidate, (c) Build makes and promotes one | (a): `motion.clip_absent`; a loop is made by an explicit asset job before Build, as voices are (P-12); Build never generates one (section 5) | the contract owner |
 | Q-426-1 Keying of a speech-to-video clip the build makes: (a) the loop's keying with its protect boxes, gate 0.8, (b) without protect boxes, (c) a separate speech keying on the record | (a) as built; the demo shows Tom the result (section 5) | the contract owner |
 | Q-426-2 Reuse of E0's speech-to-video clips: (a) make new clips, (b) pin a speaker's timed clip on the cast entry, (c) import E0's drive tracks | (a): the build makes new clips and reuses a library timed clip only when it was made from the board's own drive track with the board's seed; new voices change the drive tracks anyway; story 428 measures the GPU time (section 5) | the contract owner |
-| Q-840-01 The voice per cast slot, from story 840's Kokoro reels: (a) one candidate per slot, (b) keep the r4 voices, (c) wait for the next model trial | Open. The worker recommends (a) where a candidate is clearly better, else (c) | Tom, open |
-| Q-840-02 Per-line speed and delivery: (a) keep the service's one speed, 1.0, (b) a studio Kokoro with per-request speed (haynes-ops), (c) per-request speed and a delivery instruction as requirements of the next voice engine | Open. The worker recommends (c), adding (b) only if Tom keeps a Kokoro voice | Tom, open |
+| Q-840-01 The voice per cast slot, from story 840's Kokoro reels: (a) one candidate per slot, (b) keep the r4 voices, (c) wait for the next model trial | Open for review. Working choice in [ruling 04](#ruling-04). The audition reels stay available. | Tom, open |
+| Q-840-02 Per-line speed and delivery: (a) keep the service's one speed, 1.0, (b) a studio Kokoro with per-request speed (haynes-ops), (c) per-request speed and a delivery instruction as requirements of the next voice engine | Open for review. Working choice in [ruling 05](#ruling-05). | Tom, open |
 | Q-406-1 The terminal state of a service-phase run: (a) `cancelled` with reason "service phase complete", (b) a new state for a completed phase, (c) a phase that is not a run | (a), until E3's job queue gives phases their own records (section 8) | the contract owner |
 | Q-406-2 Where the live build runs: (a) all in a session pod at two threads, (b) the service phases in a session pod and the offline phase on `ai/studio-render`, the store copied between them, (c) let studio-render reach the services (haynes-ops) | (b), until the NFS store adapter of story 434 (section 8) | the contract owner |
 | Q-846-01 A row the private import does not read on purpose: (a) `absent` with a reason, keeping three statuses, (b) a fourth status `not_read` | (a) (section 9) | the contract owner |
@@ -2108,28 +2512,28 @@ answer by the contract owner is a proposal Tom may overrule.
 | Q-846-03 The r1 ComfyUI renders, which a CronJob may remove around 2026-12-03 | Not imported: they matter only to regenerate a cutout, and the layered build does not need them (section 9) | the contract owner |
 | Q-428-2 The off-frame limit on keyed frames: (a) keep the 240 px limit the port applies to still cutouts, (b) no limit for keyed frames, as E0's film had | (a) for E1; the demo's draft moved r4's `closeup` slot `x` from 0.56 to 0.55 (board 7 was 9 px over); revisited with the layout editor (section 5) | the contract owner |
 | Q-428-3 A weak lettering track on a clip the build made: (a) a re-roll by a draft seed edit, (b) a lower floor | (a): a new clip and key, the weak clip stays in the store; no agent lowers a floor, and a person's override stays `record_check_override` (stories 410, 450) (section 5) | the contract owner |
-| Q-428-4 The speech-clip prompt: the build sends one prompt for every doll, where E0 described each doll in her own. (a) Keep one prompt if the demo's dolls look right, (b) a per-cast description that the build puts into each speech prompt (a model and key change) | Open. Recommended: (a) until Tom has watched the demo | Tom, open |
-| Q-428-5 After a weak lettering track: (a) the build re-rolls by itself up to twice per clip, then stops; (b) it always stops for a person | Open. Recommended: (a); each re-roll is one GPU job of 3 to 15 min | Tom, open |
-| Q-428-6 Confirm the relayed word on GPU heat: a relayed message (story 428, comment 8409), not verified, says 89 C is acceptable; the coordinator's practice of no temperature stop line of its own rests on it (P-49) | Open | Tom, open |
-| Tom's verdict on the first live build (story 428, delivered privately) | Open. With it he weighs the differences from r4 and E0: one speech prompt for every doll (Q-428-4), board 7's close-up moved 11 px, board 1's clip from seed 611 and board 9's from seed 620 | Tom, open |
-| Q-841-01 A sound cut at the film's end: (a) hard cut at the last sample, (b) fade the last 50 ms before the cut (a new mixer version) | Open. Built as (a), the worker's recommendation; no Winter Menu sound is cut, and nothing waits on it | Tom, open |
-| The private link's default file: phone proxy or master | The contract owner chose the proxy, master by `--master` (P-52; story 863, comment 8950). Tom may overrule; the existing story 428 link still plays its first run's master | Tom, open |
+| Q-428-4 The speech-clip prompt: the build sends one prompt for every doll, where E0 described each doll in her own. (a) Keep one prompt if the demo's dolls look right, (b) a per-cast description that the build puts into each speech prompt (a model and key change) | Open for review. Working choice in [ruling 01](#ruling-01). | Tom, open |
+| Q-428-5 After a weak lettering track: (a) the build re-rolls by itself up to twice per clip, then stops; (b) it always stops for a person | Open for review. Working choice in [ruling 02](#ruling-02). Each re-roll is one GPU job of 3 to 15 min. | Tom, open |
+| Q-428-6 Confirm the relayed word on GPU heat. An unverified message (story 428, comment 8409) says 89 C is acceptable. P-49 records it as the reason cited at the time. | Open for review. The relay remains unverified. The working practice in [ruling 03](#ruling-03) stands on the existing guards. | Tom, open |
+| Private verdict and E1 acceptance (D56) | Tom approved the exact quieter-gavel Winter Menu cut on 2026-11-21 ([epic 372](https://work.haynesnetwork.com/work_packages/372), comment 9487). The record covers that cut. E1 acceptance and the creative verdict on One More Meeting are open. | Tom |
+| Q-841-01 A sound cut at the film's end: (a) hard cut at the last sample, (b) fade the last 50 ms before the cut (a new mixer version) | Open for review. Working choice in [ruling 06](#ruling-06). | Tom, open |
+| The private link's default file: phone proxy or master | Open for review. [Ruling 07](#ruling-07) keeps P-52. The first story 428 link still plays the master. | Tom, open |
 | Keep story 428's private store before its worker volume may be archived from about 2026-11-21? | Open (story 428, comment 8952). Keeping it needs a platform action by Tom, or the dev-env coordinator on his word; no such action is planned | Tom, open |
 
 Tom was told on 2026-11-14 that the r1 ComfyUI renders lapse around 2026-12-03;
 he has not asked for them to be kept.
 
-**Store custody (story 428, comment 8952, 2026-11-18).** The store is outside git on
-the suspended worker `haynes-studio-1114-013021`'s volume. Rescue keeps git work, not
-that store; archival would lose keyed frames, segments, mixes, the unserved gavel
+**Store custody (story 428, comment 8952, 2026-11-18, historical).** The store is outside git on
+the suspended worker `haynes-studio-1114-013021`'s volume. Rescue keeps git work only. Archival would lose keyed frames, segments, mixes, the then-unserved gavel
 edit and the Wan journal. The first delivery's four files and the 14 speech clips
 with their Wan ledgers remain on the Wan volume, and public records and hashes stay
 in git. The missing parts can be made again by CPU work after a fresh import, without
-a GPU job. The store is not reachable by the coordinator; this is why private-view's
-first live use has no store to read. The next build makes a new store unless custody
-is resolved separately; this amendment authorizes no platform action.
+a GPU job. The store was not reachable by the coordinator. Story 941 later recovered the exact quieter-gavel
+delivery and story 942 archived both films on the Studio share. Those archives do
+not establish custody of the original scratch store or first live use of
+`studio private-view`.
 
-**Follow-up states, 2026-11-18.** Source, tested, installed and accepted are separate.
+**Follow-up states as of 2026-11-18 (fifth amendment).** Source, tested, installed and accepted are separate.
 
 - **Source and tested, no live run:** story 861's negative prompts and keys
   (O-851-2 closed, PR 73); story 864's agent-session operators and people-only guards
@@ -2151,6 +2555,26 @@ is resolved separately; this amendment authorizes no platform action.
   is not done.
 - **Still a known limit:** a refused board's partial stage has no place in the run
   record (story 860); it gets a story only if a build needs that time.
+
+**Questions from the first two waves.** Working choices are linked below. They
+stay open for Tom's review, including those whose implementation already landed.
+
+| Question | Working record | By |
+|---|---|---|
+| Authenticated private phone playback proof (story 944) | [Ruling 08](#ruling-08). Installed evidence is still due. | Tom, open |
+| Q-409-01 Who may sign in? | [Ruling 09](#ruling-09) was replaced by [ruling 16](#ruling-16) | Tom, open |
+| Which namespace hosts the app? | [Ruling 10](#ruling-10) | Tom, open |
+| How is the database role provisioned? | [Ruling 11](#ruling-11) | Tom, open |
+| Where do deployment secrets come from? | [Ruling 12](#ruling-12) | Tom, open |
+| Which error statuses distinguish method refusal, outages and unexpected failures? | [Ruling 13](#ruling-13) | Tom, open |
+| Q-408-01 Does declining a preview need its own persistent disposition? | [Ruling 14](#ruling-14) | Tom, open |
+| Q-413-01 What restores a deep route after login with tab storage blocked? | [Ruling 15](#ruling-15). The merged callback still redirects to `/`. | Tom, open |
+| What LAN address serves Studio? | [Ruling 17](#ruling-17) | Tom, open |
+| Q-415-01 Must production names and story titles be unique at the API? | [Ruling 18](#ruling-18) | Tom, open |
+| Q-410-01 What follows an ambiguous queue PUT when Wan has no job at that ID? | [Ruling 19](#ruling-19). The queue PR was open at pickup. | Tom, open |
+| Q-442-01 Which local profile proceeds? Q-442-03 When may it remain resident for one-card S2V? | [Ruling 20](#ruling-20) selects the pilot and keeps unload before any Wan dispatch pending placement proof | Tom, open |
+| Q-442-02 When should structured output and multi-frame input be available? | Proposed extension in section 12. Story 441 owns admission source and evidence. | Tom, open |
+| Q-433-01 Does first image publication need a visibility change? | Answered by anonymous registry reads of both packages (section 13). | Observation, 2026-11-24 |
 
 ## 17. Proposals
 
@@ -2208,6 +2632,10 @@ is resolved separately; this amendment authorizes no platform action.
 | P-50 (the contract owner, 2026-11-18; story [864](https://work.haynesnetwork.com/work_packages/864)) | CLI operator `human` or `agent_session`; exclusive complete flag sets; existing actor fields preserved; private-view ledger `provenance.created_by`; people-only promotion and Wan clears require a human | a stand-in human issuer for new agent work; treating attribution as authentication or permission |
 | P-51 (the contract owner, 2026-11-18; story [861](https://work.haynesnetwork.com/work_packages/861)) | Speech negative prompt defaults to the client's `NEGATIVE`; `i2v_negative_prompt` in the whole-frame key, request and clip-set record; adding an artifact input changes that artifact's keys without bumping `studio.cache-key/v1`; story 428's speech keys stay unchanged (O-851-2 closed) | an empty speech default the client refuses; a whole-frame key missing the negative prompt; a shared scheme bump that invalidates unrelated keys |
 | P-52 (the contract owner, 2026-11-18; story [863](https://work.haynesnetwork.com/work_packages/863)) | `studio private-view` may create new files and a new ledger on the Wan volume, proxy by default, master by `--master`; exclusive folder reservation, no-follow identity checks, final hashes before the link, read-backs and withdrawal of only this attempt's own ledger; create-only local record; the four `private_view.*` codes of section 8 | reusing the retired one-off driver; master as the default link file; overwriting a production or deleting a ledger; leaving a known failed read-back served without attempting withdrawal |
+| P-53 (story 407) | Board photo signature per current plan, provenance and immutable version per operation, with a fenced pointer update (sections 4, 7, 9 and 12) | a stale or unsigned photo treated as current, or changing the draft for a late result |
+| P-54 (story 453) | Versioned delivery conversion changes segment keys only. The hashed profile names the Pillow version and the measured native core digest stays in provenance (sections 3–5 and 7) | hashing the interpreter-specific native core into the board segment key |
+| P-55 (stories 409, 429 and 432) | HTTP revision and error conventions, scoped single-range media, group or subject sign-in, and a stateless MCP over the API (section 12) | browser tokens, direct MCP database access, or sign-in membership granting go-live authority |
+| P-56 (story 450) | Versioned wardrobe and decal evidence. Uncertain blocks. Story 454 owns the calling loop for the bounded re-roll guidance (sections 5, 8 and 9) | treating missing evidence as a pass or weakening the gate for one clip |
 
 ## 18. Decisions and dissent
 
@@ -2245,5 +2673,39 @@ Where sources disagree, which this contract follows and why.
 | A legacy import's derived values | the import's own facts (every legacy voice current); the library's facts for a build (stale without a track) | stored documents keep the import's values; the summary and the library's facts speak for a build | O-860-1 (the contract owner) |
 | An artifact gains a key input | a shared `studio.cache-key/v1` bump would invalidate all stored motion identities | change only that artifact's keys; keep the scheme | P-51, the contract owner's decision; story 861 adds the whole-frame negative prompt |
 | CLI operator | old command line: human only, including agent sessions under a stand-in issuer | human or `agent_session` for new records; old records unchanged | P-50, the contract owner's decision; attribution grants no access and people-only guards remain |
-| Private link's file | story 428's one-off driver linked the master, leaving its phone proxy without a link | new command defaults to proxy; `--master` selects the master | P-52, the contract owner's decision, open for Tom to overrule; first live use not done |
-| Render worker | 2026-11-14 observation: Python 3.13 and media outside the lock; D18 and Q-406-2 put offline work there | Python 3.12.16 and the twelve locked runtime packages installed on 2026-11-18 | story 862, O-428-7 closed as installed; an offline phase and key/hash comparison still unrun |
+| Private link's file | story 428's one-off driver linked the master, leaving its phone proxy without a link | the command defaults to proxy, with `--master` for the master | P-52 and [ruling 07](#ruling-07). First live use of that command remains open |
+| Render worker | 2026-11-14 observation: Python 3.13 and media outside the lock; D18 and Q-406-2 put offline work there | Python 3.12.16 and the twelve locked runtime packages installed on 2026-11-18 | story 862, O-428-7 closed as installed. Story 942 later ran the offline phase, and a paired key/hash comparison remains open |
+| Delivery profile digest | story 453's initial text hashed the native Pillow core, which differs across Python wheels | hash the Pillow version and measure the core in provenance only | [PR 84 coordinator review](https://github.com/thaynes43/haynes-studio/pull/84#issuecomment-7143158345). This keeps one segment key across the planner and worker. |
+| Browser sign-in | story 409 started with a subject allowlist | verified exact group claim or a listed subject. Go-live has its own issuer/subject policy | [ruling 16](#ruling-16) replaces [ruling 09](#ruling-09) |
+| After sign-in | the sign-in handoff assigned an API return path to story 432 | merged callback still redirects to `/`. The browser's validated tab path is the available fallback | [ruling 15](#ruling-15) describes the requirement. Source and live proof remain open |
+| Image package names | PR 91 originally proposed `studio` and `studio-web` | `haynes-studio` and `haynes-studio-web` | coordinator review renamed them before first publication, verified in story 433 comment 9788 |
+| Local model operation | the initial story 441 proposal has one staged image and plain text | multi-frame and structured modes are proposed in section 12. The selected pilot has its own proof before use | story 442, [ruling 20](#ruling-20). D46 still governs a writer switch |
+
+## 19. Coordinator rulings (provisional)
+
+These are the coordinator's rulings, made under Tom's instruction of 2026-11-24
+that work must not wait on his approvals ([saga 362](https://work.haynesnetwork.com/work_packages/362),
+comment 9653). Tom has not seen or confirmed any of them.
+
+| Number | Date | Question | Option taken | Why | Recorded in | What it changed | Standing |
+|---|---|---|---|---|---|---|---|
+| <a name="ruling-01"></a>CR-01 | 2026-11-24 | Q-428-4, one speech prompt or per-cast descriptions? | (a) Keep one prompt. | The quieter-gavel cut built with it received Tom's private verdict (comment 9487). Per-cast text would change keys. | [Epic 372](https://work.haynesnetwork.com/work_packages/372), comment 9659 | Keeps story 428's prompt default. | Provisional |
+| <a name="ruling-02"></a>CR-02 | 2026-11-24 | Q-428-5, what follows a weak lettering track? | (a) Re-roll automatically at most twice per clip, then stop with evidence. | The recommended bound fits D9's unattended factory. | [Epic 372](https://work.haynesnetwork.com/work_packages/372), comment 9659 | Story 450 emits bounded guidance. Story 454 owns the loop. | Provisional |
+| <a name="ruling-03"></a>CR-03 | 2026-11-24 | Q-428-6, should the coordinator set a separate GPU temperature stop? | Keep the Wan cool-idle start gate, lease and unknown-work checks, and record each job's peak. No separate coordinator temperature line. | P-49's working practice is independent of the unverified relay. | [Epic 372](https://work.haynesnetwork.com/work_packages/372), comment 9659 | Continues the existing GPU work-order practice. | Provisional |
+| <a name="ruling-04"></a>CR-04 | 2026-11-24 | Q-840-01, which cast voices are defaults? | Keep the voices of the quieter-gavel cut, with the story 840 reels available and pre-build switching per board. | Tom chooses voices by ear. | [Epic 372](https://work.haynesnetwork.com/work_packages/372), comment 9659 | Keeps defaults while preserving D33 iteration. | Provisional |
+| <a name="ruling-05"></a>CR-05 | 2026-11-24 | Q-840-02, where do per-line speed and delivery belong? | (c) Require both of the next voice engine. Keep Kokoro at one speed. | The worker's recommendation avoids an immediate service change. | [Epic 372](https://work.haynesnetwork.com/work_packages/372), comment 9659 | Sets the next engine's requirements. | Provisional |
+| <a name="ruling-06"></a>CR-06 | 2026-11-24 | Q-841-01, hard cut or a 50 ms fade at film end? | (a) Hard cut at the last sample. | That's the built behaviour and neither film cuts a sound there. | [Epic 372](https://work.haynesnetwork.com/work_packages/372), comment 9659 | Keeps the mixer boundary in P-38. | Provisional |
+| <a name="ruling-07"></a>CR-07 | 2026-11-24 | What file should a private link choose by default? | Phone proxy by default, master by `--master` (P-52). | The command already defaults to the phone rendition prepared for both films. | [Epic 372](https://work.haynesnetwork.com/work_packages/372), comment 9659 | Keeps the default without changing historical links or claiming live command use. | Provisional |
+| <a name="ruling-08"></a>CR-08 | 2026-11-24 | Where should story 944 prove the authenticated viewer? | Fold the proof into E3. Use story 409's range-capable media endpoint with Authentik and stories 432 and 434. | An isolated loopback path would differ from what ships. | [Epic 372](https://work.haynesnetwork.com/work_packages/372), comment 9659 | Story 944 stays open for installed signed-out denial and signed-in play and seek. | Provisional |
+| <a name="ruling-09"></a>CR-09 | 2026-11-24 | Q-409-01, who may sign in? | Explicit verified subject allowlist in Studio and the Authentik `authentik Admins` application binding. | Conservative for the single human user in D5 and consistent with the subject-based go-live boundary. | [Epic 374](https://work.haynesnetwork.com/work_packages/374), comment 9700 | Initial sign-in plan for deployment. | Provisional, superseded by [ruling 16](#ruling-16) |
+| <a name="ruling-10"></a>CR-10 | 2026-11-24 | Where do API, web and MCP run? | Namespace `ai`, with Wan and studio-render. | Uses the existing Studio service namespace. | [Epic 374](https://work.haynesnetwork.com/work_packages/374), comment 9700 | Sets placement for the DB projections and the story 434 app. | Provisional |
+| <a name="ruling-11"></a>CR-11 | 2026-11-24 | How should Studio get database roles? | CNPG Database and managed runtime and schema-owner roles on `database/postgres16`, following the portal pattern. | Least privilege for story 431 without passing a superuser password to the app. | [Epic 374](https://work.haynesnetwork.com/work_packages/374), comment 9700 | Sets the installed two-role design and migration boundary. | Provisional |
+| <a name="ruling-12"></a>CR-12 | 2026-11-24 | Where should deployment secrets come from? | In-cluster External Secrets Password generator with CreatedOnce. | No dependency on an agent creating a 1Password item or seeing a value. | [Epic 374](https://work.haynesnetwork.com/work_packages/374), comment 9700 | Sets DB/SSO generation and projection and the MCP file registration path. | Provisional |
+| <a name="ruling-13"></a>CR-13 | 2026-11-24 | How does a client distinguish method refusal, outage and unexpected failure? | Keep `unavailable` at 422 and add `service_unavailable` 503 and `internal` 500. Carry `request_id` in every JSON error. | Clients can distinguish dependency failure from a method capability refusal. | [Epic 374](https://work.haynesnetwork.com/work_packages/374), comment 9765; [PR 86](https://github.com/thaynes43/haynes-studio/pull/86#issuecomment-7143412295) | Story 409 implements the statuses and correlation ID. | Provisional |
+| <a name="ruling-14"></a>CR-14 | 2026-11-24 | Q-408-01, persist a separate rejection when a person declines a preview? | (a) Keep `candidate`. Later explicit promotion remains possible. | The current state and picker exclusion already preserve a declined preview privately. | [Story 408](https://work.haynesnetwork.com/work_packages/408), comment 9709; [PR 87](https://github.com/thaynes43/haynes-studio/pull/87#issuecomment-7143441262) | Keeps the built candidate and promotion states. | Provisional |
+| <a name="ruling-15"></a>CR-15 | 2026-11-24 | Q-413-01, how should deep routes survive login without tab storage? | Record a validated same-origin return path on the one-time OIDC attempt and send a safe failure redirect. | API-side state works when browser tab storage is blocked. | [Story 413](https://work.haynesnetwork.com/work_packages/413), comment 9751; [PR 88](https://github.com/thaynes43/haynes-studio/pull/88#issuecomment-7144510993) | Sets the return-path requirement assigned to story 432. The source at pickup still redirects to `/`. | Provisional, implementation open |
+| <a name="ruling-16"></a>CR-16 | 2026-11-24 | Who may sign in after revisiting Q-409-01? | Bind Authentik to `authentik Admins`. The API accepts a verified exact group claim or an allowed subject. Go-live keeps its own subject allowlist that Tom fills in. | Follows Tom's 2026-10-26 preference for group-based portal access and needs no personal ID in configuration. | [Epic 374](https://work.haynesnetwork.com/work_packages/374), comment 9765 | Replaces [ruling 09](#ruling-09). Story 432 added the API group path and installed Authentik. | Provisional |
+| <a name="ruling-17"></a>CR-17 | 2026-11-24 | What is Studio's address? | LAN-only `https://studio.haynesops.com`. | Follows D3/D41 and the private video host convention. | [Epic 374](https://work.haynesnetwork.com/work_packages/374), comment 9765 | Pins the origin and exact OIDC callback. Story 434 supplies ingress. | Provisional |
+| <a name="ruling-18"></a>CR-18 | 2026-11-24 | Q-415-01, where is name and title uniqueness enforced? | Enforce atomically in the API with trimmed, NFC, case-insensitive comparison. Scope story titles to production and media type. Report existing duplicates and keep their names. New conflicts return a structured duplicate error. | Client checks cannot close a race between callers. | [Epic 374](https://work.haynesnetwork.com/work_packages/374), comment 9765; [PR 90](https://github.com/thaynes43/haynes-studio/pull/90#issuecomment-7145233048) | Next schema story after the queue implements enforcement. Current Editor checks are advisory. | Provisional, API work pending |
+| <a name="ruling-19"></a>CR-19 | 2026-11-24 | Q-410-01, what follows an ambiguous queue PUT? | Read the ID. If Wan does not know it, retry the same PUT with the same ID and body. | Product idempotency permits at most one submission and lets the queue recover when the first request never arrived. | [PR 94](https://github.com/thaynes43/haynes-studio/pull/94#issuecomment-7146496362), coordinator comment | Sets the queue fix. The PR was open at pickup. | Provisional |
+| <a name="ruling-20"></a>CR-20 | 2026-11-24 | Q-442-01 and Q-442-03, which pilot and when may it stay resident? | Qwen3.5-9B Q5_K_M first, Ministral 3 8B Instruct 2512 Q5_K_M fallback, pinned llama.cpp sidecar in the Wan pod on one card. Unload before any Wan dispatch until fixed S2V placement on the other card is proved. | Both fit the observed 26 GiB free on disk and leave card headroom for a bounded admission and handover proof. | [Story 442](https://work.haynesnetwork.com/work_packages/442), comment 9798; [PR 95](https://github.com/thaynes43/haynes-studio/pull/95#issuecomment-7146586727) | Chooses the pilot before hosting. The larger Qwen3.8-27B candidate goes to the E10 benchmark (455 and 463) and needs a volume change if selected. | Provisional, hosting pending |

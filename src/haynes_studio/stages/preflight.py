@@ -131,10 +131,10 @@ def ensure_buildable(story: Story, *, facts: Facts, resolved: Mapping[str, Resol
 
 
 def preflight(story: Story, *, facts: Facts, resolved: Mapping[str, ResolvedVersion],
-              store: Store) -> PreflightReport:
+              store: Store | None) -> PreflightReport:
     """Every problem that would stop a build of ``story``: story-level problems first,
     then by the board's place in ``board_order``, then field. Reads the store, never
-    writes it."""
+    writes it. Without a store, validate metadata and locators only."""
     boards = story.boards or ()
     raw: list[tuple[str, str, str, str | None, str | None]] = []  # rule, status, path, message, avid, locator
     if story.boards is None:
@@ -203,7 +203,7 @@ def references(story: Story) -> Iterable[tuple[str, str, bool]]:
 
 
 def _blob_problems(story: Story, resolved: Mapping[str, ResolvedVersion],
-                   store: Store) -> list[tuple[str, str, str, str, str | None, str | None]]:
+                   store: Store | None) -> list[tuple[str, str, str, str, str | None, str | None]]:
     found = []
     checked: dict[tuple[str, str], tuple[str, str] | None] = {}  # (locator, sha256) -> problem
     allowed = {LIBRARY, story.production_id}
@@ -230,7 +230,7 @@ def _blob_problems(story: Story, resolved: Mapping[str, ResolvedVersion],
     return found
 
 
-def _check_blob(ref: BlobRef, allowed: set[str], store: Store) -> tuple[str, str] | None:
+def _check_blob(ref: BlobRef, allowed: set[str], store: Store | None) -> tuple[str, str] | None:
     """``(rule, message)`` for a blob that is not usable, else ``None``."""
     if not is_sha256(ref.sha256):
         return SCHEMA_INVALID, f"the resolved hash {ref.sha256!r} is not 64 lower-case hex digits"
@@ -243,6 +243,8 @@ def _check_blob(ref: BlobRef, allowed: set[str], store: Store) -> tuple[str, str
     if locator.scope not in allowed:
         return LOCATOR_INVALID, (f"locator {ref.locator} is in another production's folder; "
                                  "a story reads the library and its own production")
+    if store is None:
+        return None
     try:
         state = store.verify(ref.locator, ref.sha256)
     except OSError as error:  # unreadable (a mode, a folder's mode, an I/O error): report it

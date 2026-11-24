@@ -25,7 +25,8 @@ from tests.library.fixtures import winter_menu
 from tests.mcp.client import API_URL, MCP_URL, call, connect, fail
 
 from .test_studio_api import (
-    client, engine, new_production, owner_engine, register_agent, runtime_db, service, sign_in,
+    client, engine, new_production, owner_engine, register_agent, runtime_db, runtime_role,
+    service, sign_in,
 )
 
 pytestmark = pytest.mark.db

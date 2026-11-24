@@ -20,6 +20,7 @@ _CANONICAL = {
     "studio.asset.v1.schema.json": "Asset",
     "studio.asset-version.v1.schema.json": "AssetVersion",
     "studio.delivery.v1.schema.json": "Delivery",
+    "studio.run.v1.schema.json": "RunView",
 }
 
 
@@ -94,6 +95,7 @@ def _write_schemas(schemas):
 
 
 _HUMAN_OPERATIONS = {"get_selections", "put_selections", "create_production", "enable_media_type", "logout"}
+_RUN_QUEUE_OPERATIONS = {"queue_run", "cancel_run", "record_check_override"}
 _DRAFT_OPERATIONS = {"create_story", "update_story", "create_board", "update_board",
                      "reorder_boards", "remove_board"}
 
@@ -107,6 +109,10 @@ def _document_access(document: dict) -> None:
             if name in _HUMAN_OPERATIONS:
                 operation["security"] = [{"StudioSession": []}]
                 operation["x-studio-scope"] = "human"
+            elif name in _RUN_QUEUE_OPERATIONS:
+                if name == "record_check_override":
+                    operation["security"] = [{"StudioSession": []}]
+                operation["x-studio-scope"] = "runs:queue"
             elif name in _DRAFT_OPERATIONS:
                 operation["x-studio-scope"] = "draft:write"
             elif name != "get_me":
@@ -145,6 +151,24 @@ def install_openapi(app: FastAPI):
         # representation remains in the canonical schema file.
         schemas["Story"]["properties"].pop("boards")
         schemas["AssetDetail"]["properties"]["asset"] = {"$ref": "#/components/schemas/Asset"}
+        run = schemas["RunView"]
+        run["required"].extend(["revision", "cancel_requested", "estimate_methods", "queue_wait"])
+        run["properties"].update({
+            "revision": {"type": "integer", "minimum": 1},
+            "cancel_requested": {"type": "boolean"},
+            "estimate_methods": {"type": "array", "items": {"$ref": "#/components/schemas/MethodEstimate"}},
+            "queue_wait": {"anyOf": [{"$ref": "#/components/schemas/QueueWait"}, {"type": "null"}]},
+            "wan_attempts": {"type": "array", "items": {
+                "type": "object", "required": ["job_id", "kind", "attempt", "state"],
+                "properties": {
+                    "job_id": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
+                    "kind": {"enum": ["i2v", "s2v"]},
+                    "attempt": {"type": "integer", "minimum": 1},
+                    "state": {"enum": ["reserved", "sent", "succeeded", "failed", "restart_failed", "busy"]},
+                },
+            }},
+            "check_overrides": {"type": "array", "items": {"$ref": "#/components/schemas/CheckOverrideView"}},
+        })
         _write_schemas(schemas)
         _document_access(document)
         _document_request_ids(document)

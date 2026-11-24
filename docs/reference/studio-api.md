@@ -1,17 +1,23 @@
 # Studio API
 
 The API stores canonical production, media type, story, board and asset records in
-PostgreSQL 16. It serves private media from the D39 content-addressed store. Any
+PostgreSQL 16. It also stores the run queue and its worker claims. It serves private media from the D39 content-addressed store. Any
 API replica can read a draft or continue a browser session created by another
 replica. Story [409](https://work.haynesnetwork.com/work_packages/409) covers
-source and test evidence. Installation and live verification are separate.
+source and test evidence for metadata and playback. See the [run queue reference](run-queue.md)
+for story [410](https://work.haynesnetwork.com/work_packages/410). The CNPG database,
+roles, Authentik application and credential projections are installed as of 2026-11-24,
+and so is the Studio API with its migration Job and table grants
+(story [434](https://work.haynesnetwork.com/work_packages/434), from an image built
+before the run queue). A person's live sign-in is not yet recorded.
+[Install evidence](../contracts/studio-contracts-v1.md#installed-and-published-state).
 
 ## Commands
 
 ```sh
 uv sync --locked
 uv run --no-sync studio-api openapi > studio-api.openapi.json
-uv run --no-sync studio-api-migrate upgrade head
+STUDIO_RUNTIME_ROLE=studio_app uv run --no-sync studio-api-migrate upgrade head
 uv run --no-sync studio-api serve --host 0.0.0.0 --port 8000
 ```
 
@@ -22,8 +28,8 @@ package's canonical schemas and also describes the partial write bodies.
 
 Run `studio-api-migrate upgrade head` as a one-shot Job with the migration
 identity before starting the API. The image must contain the installed Python
-package and its Alembic scripts. The initial migration is transactional, and
-concurrent Jobs serialize on a Postgres advisory lock. The CLI only exposes
+package and its Alembic scripts. The revisions and their runtime grants are transactional.
+Concurrent Jobs serialize on a Postgres advisory lock. The CLI only exposes
 `upgrade head`. The DB test fixture exercises the destructive reversal on
 an empty disposable schema. Use a forward migration for production recovery,
 or recover metadata to an isolated database for inspection.
@@ -35,6 +41,9 @@ or recover metadata to an isolated database for inspection.
 | `STUDIO_DATABASE_URL` | Runtime libpq URL or connection string supplied by the app's secret. |
 | `STUDIO_MIGRATION_DATABASE_URL` | DSN for the migration or key administration command. Mount the migration identity in the migration Job, and the chosen provisioning identity in the key administration Job. |
 | `STUDIO_DATABASE_SCHEMA` | Precreated schema, default `studio`. Both commands must agree. |
+| `STUDIO_RUNTIME_ROLE` | Existing runtime login, typically `studio_app`. Set on the migration Job. A lower-case PostgreSQL identifier. An unset variable skips grants. |
+| `STUDIO_BUILD_REVISION` | Build revision pinned in new snapshots. Use the same `git:<commit>` on the API and render workers. The local default is `git:unknown`. |
+| `STUDIO_BUILD_STAGE_ROOT` | Shared private build staging directory used by the API completion route and workers. Use a separate directory from the authoritative store. See the [worker configuration](run-queue.md#worker-configuration). |
 | `STUDIO_STORE_ROOT` | Root of the shared D39 store. Mount the same directory at every replica. |
 | `STUDIO_STORE_FRESHNESS_SECONDS` | Maximum age of a successful store readiness check, 5–300 seconds. Default 30. |
 | `STUDIO_PUBLIC_ORIGIN` | Browser HTTPS origin, without a trailing slash or path. The UI and API share it. |
@@ -81,7 +90,7 @@ Groups grant Studio sign-in only. Go-live approval uses its own issuer and
 subject allowlist under contract section 11.
 
 `GET /healthz` returns 204 independently of the database and store. `GET /readyz`
-returns 204 when the metadata database is reachable and the last completed store
+returns 204 when the metadata and run queue tables are reachable and the last completed store
 check succeeded within the freshness window. It returns 503 if there is no
 completed check, the last check failed, or its success is stale. A readiness
 request starts one background store check per process when there is no result
@@ -102,12 +111,19 @@ not buildable (HTTP 422). `service_unavailable` indicates a dependency outage
 
 Provide a dedicated migration identity that owns the Studio schema and its
 objects. It needs `CONNECT` on the Studio database and schema DDL rights.
-Grant the runtime identity the privileges below for the initial migration.
-Substitute the configured database, schema and runtime role. The app uses no
-sequences. Each later migration lists its own runtime grants.
+The database owner provisions both logins and database-level `CONNECT` in
+story [431](https://work.haynesnetwork.com/work_packages/431). The migration Job
+sets `STUDIO_RUNTIME_ROLE=studio_app` and runs one command. The schema owner
+applies the schema and table privileges transactionally during Alembic upgrade.
+Revision `0003_studio_run_queue` also applies the initial grants for a database
+already migrated through `0002_active_agent_grants`. The declarations below use the
+default names. The app uses no sequences.
 
 ```sql
-GRANT CONNECT ON DATABASE studio TO studio_app;
+-- Provisioned by the database owner in story 431.
+GRANT CONNECT ON DATABASE studio TO studio_app, studio_migrator;
+
+-- Applied by revisions 0001 and 0003 as the schema owner.
 GRANT USAGE ON SCHEMA studio TO studio_app;
 GRANT SELECT, INSERT ON studio.productions, studio.stories,
     studio.boards, studio.selections TO studio_app;
@@ -120,6 +136,14 @@ GRANT SELECT, INSERT ON studio.media_types, studio.draft_ids, studio.assets,
 GRANT SELECT, INSERT, DELETE ON studio.login_attempts, studio.sessions,
     studio.story_asset_refs TO studio_app;
 GRANT SELECT ON studio.agent_keys, studio.agent_grants, studio.worker_tokens TO studio_app;
+
+-- Applied by revision 0003.
+GRANT SELECT, UPDATE (next_position, worker_seen_at) ON studio.run_lane TO studio_app;
+GRANT SELECT, INSERT ON studio.runs, studio.run_wan_attempts,
+    studio.run_check_overrides TO studio_app;
+GRANT UPDATE (document, revision, worker_id, fence, claim_until, retry_at,
+    admission_refusals, cancel_requested, publishing) ON studio.runs TO studio_app;
+GRANT UPDATE (state, outcome) ON studio.run_wan_attempts TO studio_app;
 ```
 
 Agent key provisioning supports the migration role and a dedicated, non-owner
@@ -179,13 +203,13 @@ transport and need no database account.
 - Agents send `Authorization: Bearer <key>`. Grants apply per production and
   per scope. An Authorization header takes precedence over a session cookie.
   Agent keys can read productions in their `read` grants and edit drafts in
-  their `draft:write` grants.
-- The P-14 `worker_access` dependency is for internal routes. Worker tokens
-  provide a worker principal and cannot act as a browser or agent.
+  their `draft:write` grants. Keys with `runs:queue` may enqueue and cancel runs.
+- The P-14 `WorkerRoute` authenticates a worker bearer token before reading
+  the query or body of any `/internal/v1/work/*` route. A worker token provides
+  a worker principal here. Public Studio routes accept agent keys or sessions.
 
 Protected routes authenticate before reading metadata request bodies. Query
 parameter names and values must be UTF-8 text without NUL characters.
-Internal worker routes in story [410](https://work.haynesnetwork.com/work_packages/410) need their own authenticate-before-parsing route class because `AuthenticatedRoute` only handles agent keys and sessions.
 
 ## Records and revisions
 
@@ -261,8 +285,9 @@ STUDIO_THREADS=2 OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 uv run --no-sync pytes
 
 The DB suite reads `STUDIO_TEST_DATABASE_URL` for a disposable PostgreSQL 16
 database. The fixture identity creates a schema and temporary roles. It
-upgrades, reverses and reapplies the migrations, then applies the grants above.
-API and store operations run as the runtime role. The suite verifies key
-administration with the dedicated role, runtime-role refusal, and refusal
-of an ownership-column update, exercises OIDC with a fake issuer, round-trips
-The Winter Menu's public metadata, and tests playback using a generated proxy.
+upgrades from revision `0002_active_agent_grants`, downgrades to base and
+upgrades from an empty schema. API and store operations run with the executable
+Alembic grants. The suite checks key administration with the dedicated role,
+runtime-role refusal, and protection for ownership, snapshot and Wan attempt
+identity columns. It exercises OIDC with a fake issuer, round-trips The Winter
+Menu's public metadata, and builds and reads a generated proxy with fake Wan.
