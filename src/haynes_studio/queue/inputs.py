@@ -57,8 +57,10 @@ def estimate(prepared):
             chunks[f"{layer}/{motion}"] += len(i2v_clip_lengths(timing.frames))
         elif (layer, motion) == ("layered", "s2v"):
             speakers = {line.speaker for line in board.lines}
-            if timing.frames and speakers:
-                chunks[f"{layer}/{motion}"] += len(speakers) * ((s2v_request_frames(timing.frames) + S2V_CHUNK - 1) // S2V_CHUNK)
+            rendered_speakers = speakers.intersection(entry.slot for entry in board.cast)
+            if timing.frames and rendered_speakers:
+                requested = s2v_request_frames(timing.frames)
+                chunks[f"{layer}/{motion}"] += len(rendered_speakers) * ((requested + S2V_CHUNK - 1) // S2V_CHUNK)
         elif (layer, motion) == ("layered", "i2v"):
             chunks[f"{layer}/{motion}"] += 0  # existing loop pins are CPU work
         else:
