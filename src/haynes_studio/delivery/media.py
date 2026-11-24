@@ -57,10 +57,10 @@ from av.video.reformatter import VideoReformatter
 from haynes_studio.delivery.model import (
     AAC,
     AUDIO_RATE,
-    AUDIO_SAMPLES_PER_FRAME,
     FPS,
     H264,
 )
+from haynes_studio.timebase import frames_to_samples
 
 PIXEL_FORMAT = "yuv420p"
 AAC_FRAME = 1024  # samples in one AAC frame: the audio duration tolerance (proposal)
@@ -201,7 +201,7 @@ def _check(container: Any, problems: list[Problem], found: dict[str, Any], *, wi
         problems.append(Problem("video_codec", H264, "a codec with no decoder"))
     if audios and audio is None:
         problems.append(Problem("audio_codec", AAC, "a codec with no decoder"))
-    expected_samples = expected_frames * AUDIO_SAMPLES_PER_FRAME
+    expected_samples = frames_to_samples(expected_frames)
     if video is not None:
         _video_header(video, problems, found, width, height, Fraction(expected_frames, FPS))
     if audio is not None:
@@ -316,7 +316,7 @@ def make_proxy(source: str | os.PathLike[str], dest: str | os.PathLike[str], *, 
     ``dest``: H.264 ``width`` x ``height`` at 24 fps with the first ``frames`` frames,
     and AAC stereo at 48 000 Hz with exactly ``frames x 2000`` samples (trimmed, or
     padded with silence). ``dest`` must not exist."""
-    total = frames * AUDIO_SAMPLES_PER_FRAME
+    total = frames_to_samples(frames)
     fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)  # never an existing file
     os.close(fd)
     with av.open(os.fspath(source), "r") as master, \

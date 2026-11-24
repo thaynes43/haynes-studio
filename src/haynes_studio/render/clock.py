@@ -21,6 +21,7 @@ import hashlib
 from haynes_studio.timebase import DELIVERY_FPS, ceil_div
 
 SET_SLOT = "set"  # proposal: the slot name of the set loop in its phase
+S2V_SOURCE_FPS = 16  # TIME-8: the source clock for the canonical S2V profile
 S2V_CHUNK = 77  # TIME-9: speech-to-video chunks of 77 source frames
 I2V_CLIP_FRAMES = 121  # TI2V-5B: 121 frames at 24 fps (section 3)
 I2V_MAX_CLIPS = 3  # proposal (story 427): the longest whole-frame chain E0 delivered

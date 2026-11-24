@@ -139,6 +139,7 @@ from haynes_studio.layered.renderer import _Layer, decal_check
 from haynes_studio.layered.s2v import read_provenance, record_stage
 from haynes_studio.library import Library
 from haynes_studio.mix import SoundBuilder, film_sound, sound_toolchain
+from haynes_studio.render.delivery_profile import delivery_profile_record
 from haynes_studio.stages import completed_stage
 from haynes_studio.stages.preflight import PreflightError
 from haynes_studio.store import LocalStore, Store, StoreError, blob_locator, is_sha256
@@ -1140,6 +1141,7 @@ def _tools(toolchain: Toolchain) -> dict[str, Any]:
             "i2v_profile": thaw(toolchain.i2v_profile), "drive_assembler": toolchain.drive_assembler,
             "track_assembler": toolchain.track_assembler, "splicer": toolchain.splicer,
             "mixer": toolchain.mixer, "mux": thaw(toolchain.mux), "keyer_build": keyer_build(),
+            "delivery_profile": delivery_profile_record(),
             "tts_model": toolchain.tts_model}
 
 

@@ -116,6 +116,7 @@ def test_unsupported_segments_are_refused_never_ignored(world, first):
         UNSUPPORTED: [
             changed(method={"layer": "whole_frame", "motion": "i2v"}),
             changed(fps=25), changed(extra="input"), changed(layers=[]), changed(set_layer=None),
+            changed(delivery_profile_sha256="f" * 64),
             changed(whole_frame_clip="9" * 64), changed(layout=None),
             changed(cues=[{"type": "sound"}]), changed(motion_style={"talk_hopp": 3}),
             changed(motion_style={"talk_hop": "high"}),

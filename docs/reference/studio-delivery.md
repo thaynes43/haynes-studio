@@ -38,7 +38,10 @@ delivery = deliver(Path("job/edit/final.mp4"), store=LocalStore(root),
 ```
 
 `expected_frames` is the sum of the run's board frames (TIME-11). The caller needs no
-store detail beyond the store object. In order:
+store detail beyond the store object. The render stage sets the segment size and
+cadence. [Delivery conversion profile](delivery-conversion.md)
+
+The delivery steps are:
 
 1. Arguments are checked (IDs, media kind, frame count, `delivery_id`, `now`); then
    the master is opened once, read-only, and must be a regular file. It is hashed

@@ -296,12 +296,13 @@ def segment_key(*, method: Mapping[str, str], frames: int, width: int, height: i
                 motion_style: Mapping[str, Any] | None, voice_envelope: str | None,
                 talk: Sequence[Mapping[str, Any]], cues: Sequence[Mapping[str, Any]],
                 foreground: Mapping[str, Any] | None, procedural_stream: int, compositor: str,
-                encoder: Mapping[str, Any]) -> CacheKey:
+                encoder: Mapping[str, Any], delivery_profile_sha256: str | None = None) -> CacheKey:
     """Board picture segment (board clock): method, layout preset values, the cast
     stills with their clip and keyed hashes and loop phases (``layers``, draw order),
     motion style, the voice envelope when any line is spoken, move and camera cues
     resolved to ms from board start, frames, frame size, fps, foreground edge,
-    compositor digest and encoder settings.
+    compositor digest, encoder settings and delivery conversion profile digest. An
+    omitted profile reproduces a historical segment key.
 
     Beyond the table (**proposals**): ``talk`` (each line's speaker slot and span on
     the board clock: the envelope says how loud, ``talk`` says which doll it moves, so
@@ -330,6 +331,8 @@ def segment_key(*, method: Mapping[str, str], frames: int, width: int, height: i
         set_layer = _mapping(set_layer, "set_layer")
         set_layer = {**set_layer, "plate": _opt_sha(set_layer.get("plate"), "set_layer/plate"),
                      "loop": _opt_sha(set_layer.get("loop"), "set_layer/loop")}
+    conversion = {} if delivery_profile_sha256 is None else {
+        "delivery_profile_sha256": _sha(delivery_profile_sha256, "delivery_profile_sha256")}
     return make_key(SEGMENT, {
         "method": {"layer": _text(method.get("layer"), "method/layer"),
                    "motion": _text(method.get("motion"), "method/motion")},
@@ -343,7 +346,8 @@ def segment_key(*, method: Mapping[str, str], frames: int, width: int, height: i
         "cues": [_mapping(cue, f"cues/{i}") for i, cue in enumerate(_seq(cues, "cues"))],
         "foreground": None if foreground is None else _mapping(foreground, "foreground"),
         "procedural_stream": _int(procedural_stream, "procedural_stream"),
-        "compositor": _text(compositor, "compositor"), "encoder": _mapping(encoder, "encoder")})
+        "compositor": _text(compositor, "compositor"), "encoder": _mapping(encoder, "encoder"),
+        **conversion})
 
 
 def film_picture_key(*, segments: Sequence[tuple[str, int]], splicer: str) -> CacheKey:
@@ -448,7 +452,8 @@ INVENTORY: tuple[ArtifactSpec, ...] = (
     ArtifactSpec(SEGMENT, "Board picture segment", BOARD, segment_key,
                  ("method", "frames", "width", "height", "fps", "layout", "layers", "set_layer",
                   "whole_frame_clip", "motion_style", "voice_envelope", "talk", "cues", "foreground",
-                  "procedural_stream", "compositor", "encoder"), rendered_here=True),
+                  "procedural_stream", "compositor", "encoder", "delivery_profile_sha256"),
+                 rendered_here=True),
     ArtifactSpec(FILM_PICTURE, "Film picture", FILM, film_picture_key, ("segments", "splicer"),
                  rendered_here=True),
     ArtifactSpec(MIX, "Mix", FILM, mix_key,

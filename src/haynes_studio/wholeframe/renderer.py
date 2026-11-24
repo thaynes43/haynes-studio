@@ -34,6 +34,12 @@ import PIL
 import PIL.Image
 
 from haynes_studio.render.base import SegmentRenderer, SegmentRequest
+from haynes_studio.render.delivery_profile import (
+    LANCZOS,
+    DeliveryUpscalerProfile,
+    needs_scaling,
+    resolve_delivery_upscaler,
+)
 from haynes_studio.render.encode import decode_frames
 from haynes_studio.store import BLOB_MISSING, StoreError
 from haynes_studio.timebase import DELIVERY_FPS
@@ -50,7 +56,6 @@ from haynes_studio.wholeframe.errors import (
 # Proposal: the segment key's compositor digest. It names the Pillow build, whose Lanczos
 # scaling draws the pixels when a clip is resized (the encoder build is the encoder's).
 COMPOSITOR = f"studio.wholeframe/1+pillow-{PIL.__version__}"
-LANCZOS = "lanczos"
 
 # Every input of a segment key document (keys.INVENTORY), and what this renderer does
 # with it. "draw": used; "none": accepted, draws nothing on a whole-frame board;
@@ -58,7 +63,8 @@ LANCZOS = "lanczos"
 SEGMENT_INPUTS = {
     "kind": "draw", "scheme": "draw", "method": "draw", "frames": "draw", "width": "draw",
     "height": "draw", "fps": "draw", "whole_frame_clip": "draw", "compositor": "draw",
-    "encoder": "draw", "voice_envelope": "none", "talk": "none", "procedural_stream": "none",
+    "encoder": "draw", "delivery_profile_sha256": "draw",
+    "voice_envelope": "none", "talk": "none", "procedural_stream": "none",
     "layout": "absent", "layers": "absent", "set_layer": "absent", "motion_style": "absent",
     "cues": "absent", "foreground": "absent",
 }
@@ -95,12 +101,11 @@ def fit_rule(source: tuple[int, int], target: tuple[int, int]) -> str | None:
     ``None`` (as is) for the same size; :data:`LANCZOS` (scaled, E0's assembler) for
     the same aspect exactly; else ``wholeframe.unsupported``: no crop, no pad."""
     (sw, sh), (tw, th) = source, target
-    if (sw, sh) == (tw, th):
-        return None
-    if sw * th != sh * tw:
+    try:
+        return LANCZOS if needs_scaling(source, target) else None
+    except ValueError as error:
         raise WholeFrameError(UNSUPPORTED, f"a {sw}x{sh} clip is not the {tw}x{th} board's aspect; "
-                              "the adapter neither crops nor pads")
-    return LANCZOS
+                              "the adapter neither crops nor pads") from error
 
 
 @dataclass(frozen=True)
@@ -133,6 +138,10 @@ class WholeFrameRenderer(SegmentRenderer):
         a generator of exactly ``request.frames`` frames."""
         inputs = request.inputs
         check_segment(inputs)
+        try:
+            upscaler = resolve_delivery_upscaler(inputs.get("delivery_profile_sha256"))
+        except ValueError as error:
+            raise WholeFrameError(UNSUPPORTED, str(error), where="/delivery_profile_sha256") from error
         clip_set_sha = inputs["whole_frame_clip"]
         clip_set = read_clip_set(self._read(request, clip_set_sha, "the clip set"), clip_set_sha)
         check_clip_set(clip_set, where=clip_set_sha)
@@ -141,7 +150,7 @@ class WholeFrameRenderer(SegmentRenderer):
         if len(sizes) != 1:
             raise WholeFrameError(CLIP_INVALID, f"the chain's clips differ in size: {sorted(sizes)}")
         source_size = sizes.pop()
-        fit = fit_rule(source_size, (request.width, request.height))
+        fit = upscaler.name if fit_rule(source_size, (request.width, request.height)) else None
         assembly = assemble(request.frames, [clip["frames_delivered"] for clip in clips],
                             source_fps=clip_set.get("source_fps"), fps=request.fps)
         used = [clip for clip, use in zip(clips, assembly.clips) if use.used]
@@ -149,7 +158,7 @@ class WholeFrameRenderer(SegmentRenderer):
         report = WholeFrameReport(
             key=request.key, clip_set=clip_set_sha, clips=tuple(c["sha256"] for c in clips),
             assembly=assembly, fit=fit, source_size=source_size)
-        return self._frames(request, assembly, used, data, fit, report)
+        return self._frames(request, assembly, used, data, upscaler, report)
 
     @staticmethod
     def _read(request: SegmentRequest, sha256: str, what: str) -> bytes:
@@ -163,7 +172,8 @@ class WholeFrameRenderer(SegmentRenderer):
             raise WholeFrameError(SOURCE_SHORT, f"{what} cannot be read: {error}", where=sha256) from error
 
     def _frames(self, request: SegmentRequest, assembly: Assembly, used: list[dict[str, Any]],
-                data: list[bytes], fit: str | None, report: WholeFrameReport) -> Iterator[np.ndarray]:
+                data: list[bytes], upscaler: DeliveryUpscalerProfile,
+                report: WholeFrameReport) -> Iterator[np.ndarray]:
         """The board's frames; the report is kept only once every frame was made."""
         size = (request.width, request.height)
         picks = list(assembly.picks())
@@ -183,7 +193,8 @@ class WholeFrameRenderer(SegmentRenderer):
                         raise WholeFrameError(CLIP_INVALID, f"clip {index} frame {decoded} is "
                                               f"{frame.shape}, recorded {clip['width']}x{clip['height']}")
                     while target == decoded:  # TIME-8 may show one source frame twice (fs < 24)
-                        yield frame if fit is None else _scale(frame, size)
+                        yield frame if report.fit is None else np.asarray(
+                            upscaler.scale(PIL.Image.fromarray(frame), size))
                         produced += 1
                         target = next(cursor, None)
                     if decoded >= last_needed:
@@ -207,7 +218,3 @@ def _decoded(blob: bytes, index: int) -> Iterator[tuple[int, np.ndarray]]:
     except Exception as error:  # PyAV raises its own error types for damaged media
         raise WholeFrameError(SOURCE_SHORT, f"clip {index} does not decode: "
                               f"{type(error).__name__}") from error
-
-
-def _scale(frame: np.ndarray, size: tuple[int, int]) -> np.ndarray:
-    return np.asarray(PIL.Image.fromarray(frame).resize(size, PIL.Image.Resampling.LANCZOS))
