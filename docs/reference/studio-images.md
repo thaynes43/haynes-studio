@@ -10,8 +10,8 @@ same image archives that passed the smoke tests and pushes them to GHCR.
 
 | Package | Lookup tag | UID:GID | Port | Default command |
 | --- | --- | --- | --- | --- |
-| `ghcr.io/thaynes43/studio` | `sha-<full commit>` | `10001:10001` | `8000` | `studio-api serve --host 0.0.0.0 --port 8000` |
-| `ghcr.io/thaynes43/studio-web` | `sha-<full commit>` | `101:101` | `8080` | `/usr/sbin/nginx -g 'daemon off;'` |
+| `ghcr.io/thaynes43/haynes-studio` | `sha-<full commit>` | `10001:10001` | `8000` | `studio-api serve --host 0.0.0.0 --port 8000` |
+| `ghcr.io/thaynes43/haynes-studio-web` | `sha-<full commit>` | `101:101` | `8080` | `/usr/sbin/nginx -g 'daemon off;'` |
 
 Use the full merged commit SHA. The workflow summary under **Publish tested Studio
 images** records each registry digest alongside that revision. You can also resolve

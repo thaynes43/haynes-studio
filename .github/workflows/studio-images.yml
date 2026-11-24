@@ -49,7 +49,7 @@ jobs:
           test "$revision" = "$GITHUB_SHA"
           epoch=$(git show -s --format=%ct "$revision")
           for name in studio studio-web; do
-            image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/$name:sha-$revision"
+            image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/haynes-$name:sha-$revision"
             docker buildx build --platform linux/amd64 --provenance=false \
               --build-arg "SOURCE_DATE_EPOCH=$epoch" --build-arg "REVISION=$revision" \
               --file "docker/$name.Dockerfile" --tag "$image" \
@@ -74,7 +74,7 @@ jobs:
         env:
           STUDIO_MIGRATION_DATABASE_URL: postgresql://postgres@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/studio_image_test
         run: |
-          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/studio:sha-$GITHUB_SHA"
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/haynes-studio:sha-$GITHUB_SHA"
           run=(docker run --rm --cpus=2 --read-only --tmpfs /tmp:rw,nosuid,nodev,mode=1777)
           "${run[@]}" --network none "$image" studio --help >/dev/null
           "${run[@]}" --network none "$image" python -c '
@@ -93,7 +93,7 @@ jobs:
         shell: bash
         run: |
           IMAGE_DIR="$RUNNER_TEMP/studio-images"
-          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/studio-web:sha-$GITHUB_SHA"
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/haynes-studio-web:sha-$GITHUB_SHA"
           container=$(docker run --detach --cpus=2 --read-only --tmpfs /tmp:rw,nosuid,nodev,mode=1777 \
             --publish 127.0.0.1::8080 "$image")
           trap 'docker rm -f "$container" >/dev/null' EXIT
@@ -152,7 +152,7 @@ jobs:
         run: |
           IMAGE_DIR="$RUNNER_TEMP/studio-images"
           for name in studio studio-web; do
-            repository="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/$name"
+            repository="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/haynes-$name"
             image="$repository:sha-$GITHUB_SHA"
             docker load --input "$IMAGE_DIR/$name.tar"
             docker push "$image"
