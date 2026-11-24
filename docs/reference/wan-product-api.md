@@ -39,11 +39,19 @@ paths remain historical proof for the profiles.
 
 1. For I2V and S2V, upload the input bytes to `PUT /v1/inputs/{sha256}.png` and,
    for S2V, `PUT /v1/inputs/{sha256}.wav`. Use the lowercase, 64-digit SHA-256
-   of each body and a `Content-Length` of 1 to 19,999,999 bytes. PNG headers must
-   have dimensions between 1 and 4096 pixels per side. WAV input must be PCM
-   with all samples present. The API verifies the digest and publishes the file
-   create-only. HTTP 201 means created and 200 means identical bytes already
+   of each body and a `Content-Length` of 1 to 19,999,999 bytes. Each PNG side
+   must be 1 to 4096 pixels. The first `IDAT` must be within the first 4,096
+   chunks after `IHDR`. The server refuses animation with HTTP 400
+   `animated_png`. WAV input must be 16-bit PCM, mono or stereo, at 16000,
+   22050, 24000, 44100 or 48000 Hz. Other WAV formats return HTTP 400
+   `unsupported_wav_format`. Incomplete inputs return HTTP 400 `invalid_input`.
+   The Studio voice drive track is 24 kHz mono 16-bit PCM. [Studio voice](studio-voice.md)
+   The API verifies the digest and publishes the file create-only. HTTP 201 means
+   created and 200 means identical bytes already
    exist. HTTP 409 with `upload_busy` means an upload is active and can be retried.
+   Send the body within 30 seconds plus one second per 131,072 declared bytes
+   (just under 183 seconds at the maximum size) and avoid stalls of 15 seconds.
+   A timeout returns HTTP 408 `upload_timeout` and removes any temporary file.
    The staging directory is limited to 4 GiB and 4,096 entries, including
    abandoned temporary files. New content also requires 5 GiB free on the Wan
    volume after upload. HTTP 507 `input_storage_full` means a quota or reserve
@@ -67,14 +75,23 @@ paths remain historical proof for the profiles.
    `api_version`, `type`, `id`, `profile`, `status_url`,
    `request_sha256`, the story URL, and timestamps as the job progresses.
    Video jobs record the ComfyUI `prompt_id` and `graph_sha256` before the
-   engine POST. A lost engine acknowledgment is reconciled with read-only
-   queue and history polls for that UUID. Slow reads are retried within the
-   watchdog window, up to 12 consecutive misses or 90 seconds since the first
-   miss. Failure cleanup cancels confirmed owned prompts by ID. An unconfirmed submission or foreign work can hold the
-   worker for inspection. Treat a reported `unexpected_work_seen` as a
-   stop signal for the build even if its own clip finished. Restart recovery
-   settles interrupted work without replaying it. A failed job keeps its ID
-   and error for inspection.
+   engine POST. The API polls the queue and history for that UUID when the
+   engine acknowledgment is lost. If every poll is well formed and shows the
+   prompt absent for 120 seconds, the job fails with `PromptSubmissionLost`
+   in its error and releases the lease without a hold. A failed or malformed
+   poll disables that shortcut. Slow reads are retried within the watchdog
+   window, up to 12 consecutive misses or 90 seconds since the first miss.
+   Failure cleanup cancels confirmed owned prompts by ID. An unconfirmed
+   submission or foreign work can hold the worker for inspection. Treat a
+   reported `unexpected_work_seen` as a stop signal for the build even if its
+   own clip finished.
+
+   On API startup, recovery verifies queue ownership and holds the worker if it
+   sees foreign work. It interrupts owned running prompts, deletes owned pending
+   prompts and marks queued and running video jobs failed.
+   Recovery skips history lookup, so a render that finished while the API
+   container was down is discarded as a job result. A failed job keeps its
+   ID and error for inspection. Use a new job ID for a new attempt.
 5. On success, `result` gives `file_url`, `media_type`, `bytes` and
    `sha256`. Fetch the file with GET and verify both byte count and digest.
    Video results are MP4 and Foley results are WAV. The route supports a
@@ -110,3 +127,10 @@ at most 5% and memory use at most 22,000 MiB on each card before it submits.
 Foley keeps its idle, cooldown, memory and thermal watchdog checks. The product
 paths accept typed job fields and media digests. Steps, model selection, arbitrary
 graphs, URLs and filenames stay under server control.
+
+## Legacy cleanup
+
+The shared engine client now accepts ComfyUI's empty HTTP 200 responses to
+`/interrupt` and `/queue` deletion. These previously raised a JSON parse
+error and latched the hold. When cleanup confirms the queue has drained,
+the lease can be released and the next legacy job can proceed.
