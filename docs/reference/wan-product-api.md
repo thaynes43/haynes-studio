@@ -142,3 +142,58 @@ deletion. After the companion Wan rollout, the shared engine client accepts
 those replies. When cleanup confirms the running queue has drained, the
 lease can be released and the next legacy job can proceed.
 [Wan rollout PR](https://github.com/thaynes43/haynes-ops/pull/5020)
+
+## Local-model requests
+
+The additive v1 operations are defined in story 441. Hosting and activation are
+tracked separately in story 442. A Wan deployment without a local-model profile
+returns HTTP 503 `local_model_not_installed` from these routes. Use the same
+internal Service as for the video and Foley product jobs. [Story 441](https://work.haynesnetwork.com/work_packages/441) · [Story 442](https://work.haynesnetwork.com/work_packages/442)
+
+| Operation | Request |
+| --- | --- |
+| `GET /v1/local-model/profile` | Discover the configured model name, GPU UUID, context and output token limits, operation deadlines and memory bands. This reads configuration. Admission verifies the sidecar separately. |
+| `PUT /v1/local-model/requests/{request_id}` | Submit one `load`, `infer` or `unload` request under the Wan compute lease. |
+| `GET /v1/local-model/requests/{request_id}` | Read the request and, when compute is available, reconcile a lost reply. |
+
+Generate and persist a fresh lowercase 32-digit hex UUID and the typed request
+before sending it. Use a JSON body of 1 to 65,536 bytes with a
+`Content-Length`. All operations require `operation` and `profile`, where
+`profile` is the configured model name. Load and unload take only those fields.
+Inference also requires `prompt` (1 to 4,096 characters, trimmed and
+nonblank), and optionally takes `image_sha256` and `max_output_tokens`. Omit
+the image for text-only inference. For vision, upload one PNG through the
+existing digest staging route first. The server verifies the staged digest and
+applies the same PNG bounds before inference. The configured output limit
+applies by default. Input tokens include the model's template and image tokens,
+and the input plus requested output budget must fit the configured context.
+
+```json
+{"operation":"infer","profile":"configured-model","prompt":"Describe this panel.","max_output_tokens":128}
+```
+
+Load the profile before issuing inference. A load of a verified resident
+profile and an unload of a verified empty profile succeed without an engine
+call. HTTP 202 acknowledges a recorded request. HTTP 200 on an equivalent PUT
+returns the existing status. Changing a valid request at the same ID gives
+HTTP 409 `id_conflict`. A new request gets HTTP 409 `worker_busy` while
+another job owns compute or a render hold is active. A durable residency hold
+returns HTTP 503 `local_model_held`.
+
+Poll the original ID after a transport error. If GET returns
+`request_not_found`, repeat the identical PUT with that ID. The status is
+`queued`, `running`, `succeeded` or `failed`. A successful inference
+includes `result.text`, `input_tokens` and `output_tokens`. The result
+text is limited to 32 KiB UTF-8 and is returned in one response. A failed
+request retains the ID and its error. Use a new ID for an intentional new
+attempt after inspecting the failure.
+
+| Situation | Lease behavior |
+| --- | --- |
+| A one-card S2V job uses the other card | A verified idle model stays resident. Operators can declare the S2V GPU UUID after verifying fixed engine placement. With placement unverified, S2V reserves both cards for handover. |
+| A job needs the resident card | The Wan lease stays held across unload, memory verification and engine submission. Both-card jobs and Foley on the model card use this handover. Wan's `queued` acknowledgment records the request. ComfyUI submission waits for the configured card to reach the unloaded memory ceiling. |
+| Wan or Foley owns compute | The local request receives `worker_busy`. A replay or status read can still return its existing record. |
+| The API loses a sidecar reply or restarts | The sidecar keeps a copy of the same lease until work ends. Once the lease is available, the API matches the original request ID to the sidecar receipt and checks residency. A recorded request proved absent fails with `submission_lost`. |
+| The sidecar dies or hits its operation deadline | A replacement starts unloaded. A fresh idle card sample at or below the unloaded ceiling establishes that the previous instance is gone. A pending request then fails with `sidecar_restarted`. Unavailable status blocks new GPU work while residency is uncertain. |
+| Unload leaves memory allocated | The worker records a residency hold and preserves it across API restarts. Resolve the card state before admitting more work or disabling the profile. |
+| Engine work is unknown or the render hold is set | Load, inference, unload and handover stop. A transient queue read failure refuses the attempt. A malformed or nonempty queue requires inspection, and existing ComfyUI work is preserved. |
