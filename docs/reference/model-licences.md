@@ -142,3 +142,21 @@ the run records of story 428 keep that, as recorded.
   run `uv run pytest tests/library`. A file two engines load gets one entry per engine
   (each engine's `files` lists its own entries, in order). Never accept terms, log in or register to read a
   page; record that as a condition and leave the entry `unknown`.
+
+## Proposed local profiles
+
+Story [442](https://work.haynesnetwork.com/work_packages/442) adds these
+proposed rows. Checked 2026-11-24 by dev-env agent session
+`haynes-studio-1124-221436` (Codex). The file revisions, SHA-256s, source
+quotes and individual checker records are under `proposals` in the
+[JSON register](model-licences.json). See the [profile proposal](local-model-profile.md)
+for the runtime and activation evidence required.
+
+| Profile | Proposed files | Licence evidence | Generated-output terms |
+|---|---|---|---|
+| Qwen3.5-9B Q5_K_M | `Qwen3.5-9B-Q5_K_M.gguf`, `mmproj-BF16.gguf` | The quantizer's card says `license: apache-2.0` and links the upstream licence, which grants rights to “reproduce, prepare Derivative Works of, publicly display, publicly perform, sublicense, and distribute the Work”. [GGUF card](https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/blob/3885219b6810b007914f3a7950a8d1b469d598a5/README.md) · [Upstream licence](https://huggingface.co/Qwen/Qwen3.5-9B/blob/c202236235762e1c871ad0ccb60c8ee5ba337b9a/LICENSE) | Unknown |
+| Ministral 3 8B Instruct 2512 Q5_K_M | `Ministral-3-8B-Instruct-2512-Q5_K_M.gguf`, `Ministral-3-8B-Instruct-2512-BF16-mmproj.gguf` | Publisher's cards say `license: apache-2.0`. The base card says “allowing usage and modification for both commercial and non-commercial purposes”. [GGUF card](https://huggingface.co/mistralai/Ministral-3-8B-Instruct-2512-GGUF/blob/0102285ad796bd99af90f58de616092e5630e970/README.md) · [Base card](https://huggingface.co/mistralai/Ministral-3-8B-Instruct-2512/blob/d2ff65a33fc5f72d77a65a2bc366feefd44ca320/README.md#license) | Unknown |
+
+Both use the proposed llama.cpp b12679 runtime. Its code is MIT and its
+licence permits dealing “in the Software without restriction” subject to
+its notice terms. [Pinned runtime licence](https://github.com/ggml-org/llama.cpp/blob/b12679/LICENSE)

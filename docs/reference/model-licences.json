@@ -996,5 +996,257 @@
         "note": "MIT (the repository's LICENSE file); no condition on outputs. The card's licence link to nvidia/BigVGAN needs a login and was not read. The session's reading of the text, not legal advice."
       }
     }
-  ]
+  ],
+  "proposals": {
+    "story": "https://work.haynesnetwork.com/work_packages/442",
+    "status": "profile proposed, hosting not started",
+    "runtime": {
+      "name": "llama.cpp b12679",
+      "source": "https://github.com/ggml-org/llama.cpp/commit/af5c58347fdbc2cd19e65b278e81c8f528f8a175",
+      "evidence": [
+        {
+          "url": "https://github.com/ggml-org/llama.cpp/blob/b12679/LICENSE",
+          "quote": "to deal in the Software without restriction"
+        }
+      ],
+      "licence": {
+        "name": "MIT",
+        "url": "https://github.com/ggml-org/llama.cpp/blob/b12679/LICENSE",
+        "commercial_use": "unknown",
+        "attribution_required": null,
+        "checked_at": "2026-11-24T22:25:38Z",
+        "checked_by": {
+          "kind": "agent_session",
+          "session": "haynes-studio-1124-221436",
+          "harness": "Codex",
+          "model": "gpt-6.2-sol"
+        },
+        "note": "MIT covers the runtime code and requires retaining its notice in substantial copies. The code licence gives no separate generated-output terms."
+      }
+    },
+    "engines": [
+      {
+        "key": "qwen3.5-9b-q5_k_m",
+        "role": "writer",
+        "name": "Qwen3.5-9B Q5_K_M on llama.cpp b12679",
+        "recorded_as": [
+          "qwen3.5-9b-q5_k_m"
+        ],
+        "where": "Proposed for ai/deploy/wan-video on talosw01",
+        "makes": "structured production plans and technical frame checks",
+        "for_tom": null,
+        "outputs_commercial_use": "unknown",
+        "files": [
+          "qwen3.5-9b-q5_k_m-weights",
+          "qwen3.5-9b-q5_k_m-projector"
+        ],
+        "licence": {
+          "name": "Apache-2.0",
+          "url": "https://huggingface.co/Qwen/Qwen3.5-9B/blob/c202236235762e1c871ad0ccb60c8ee5ba337b9a/LICENSE",
+          "commercial_use": "unknown",
+          "attribution_required": null,
+          "checked_at": "2026-11-24T22:25:38Z",
+          "checked_by": {
+            "kind": "agent_session",
+            "session": "haynes-studio-1124-221436",
+            "harness": "Codex",
+            "model": "gpt-6.2-sol"
+          },
+          "note": "The GGUF card applies Apache-2.0 to the files. The redistribution notice conditions concern the licensed work. Generated-output commercial use and attribution were not specified in the checked text."
+        }
+      },
+      {
+        "key": "ministral-3-8b-instruct-2512-q5_k_m",
+        "role": "writer",
+        "name": "Ministral 3 8B Instruct 2512 Q5_K_M on llama.cpp b12679",
+        "recorded_as": [
+          "ministral-3-8b-instruct-2512-q5_k_m"
+        ],
+        "where": "Proposed for ai/deploy/wan-video on talosw01",
+        "makes": "structured production plans and technical frame checks",
+        "for_tom": null,
+        "outputs_commercial_use": "unknown",
+        "files": [
+          "ministral-3-8b-instruct-2512-q5_k_m-weights",
+          "ministral-3-8b-instruct-2512-q5_k_m-projector"
+        ],
+        "licence": {
+          "name": "Apache-2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+          "commercial_use": "unknown",
+          "attribution_required": null,
+          "checked_at": "2026-11-24T22:25:38Z",
+          "checked_by": {
+            "kind": "agent_session",
+            "session": "haynes-studio-1124-221436",
+            "harness": "Codex",
+            "model": "gpt-6.2-sol"
+          },
+          "note": "The GGUF card applies Apache-2.0 to the files. The redistribution notice conditions concern the licensed work. Generated-output commercial use and attribution were not specified in the checked text."
+        }
+      }
+    ],
+    "files": [
+      {
+        "key": "qwen3.5-9b-q5_k_m-weights",
+        "engine": "qwen3.5-9b-q5_k_m",
+        "name": "Qwen3.5-9B-Q5_K_M.gguf",
+        "recorded_as": [
+          "Qwen3.5-9B-Q5_K_M.gguf"
+        ],
+        "kind": "multimodal language model weights (Q5_K_M)",
+        "source": "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/3885219b6810b007914f3a7950a8d1b469d598a5/Qwen3.5-9B-Q5_K_M.gguf",
+        "source_revision": "3885219b6810b007914f3a7950a8d1b469d598a5",
+        "sha256": "dc2a39aef291f91a9116ad214058da0d86eb648743a124bd8c333787c4b9c91c",
+        "size_bytes": 6577841376,
+        "pin_note": "Hugging Face LFS metadata at the pinned revision. Verify again against the bytes provisioned for rollout.",
+        "upstream": "https://huggingface.co/Qwen/Qwen3.5-9B",
+        "outputs_commercial_use": "unknown",
+        "evidence": [
+          {
+            "url": "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/blob/3885219b6810b007914f3a7950a8d1b469d598a5/README.md",
+            "quote": "license: apache-2.0"
+          },
+          {
+            "url": "https://huggingface.co/Qwen/Qwen3.5-9B/blob/c202236235762e1c871ad0ccb60c8ee5ba337b9a/LICENSE",
+            "quote": "reproduce, prepare Derivative Works of, publicly display, publicly perform, sublicense, and distribute the Work"
+          }
+        ],
+        "licence": {
+          "name": "Apache-2.0",
+          "url": "https://huggingface.co/Qwen/Qwen3.5-9B/blob/c202236235762e1c871ad0ccb60c8ee5ba337b9a/LICENSE",
+          "commercial_use": "unknown",
+          "attribution_required": null,
+          "checked_at": "2026-11-24T22:25:38Z",
+          "checked_by": {
+            "kind": "agent_session",
+            "session": "haynes-studio-1124-221436",
+            "harness": "Codex",
+            "model": "gpt-6.2-sol"
+          },
+          "note": "The GGUF card applies Apache-2.0 to the files. The redistribution notice conditions concern the licensed work. Generated-output commercial use and attribution were not specified in the checked text."
+        }
+      },
+      {
+        "key": "qwen3.5-9b-q5_k_m-projector",
+        "engine": "qwen3.5-9b-q5_k_m",
+        "name": "mmproj-BF16.gguf",
+        "recorded_as": [
+          "mmproj-BF16.gguf"
+        ],
+        "kind": "vision projector (BF16)",
+        "source": "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/3885219b6810b007914f3a7950a8d1b469d598a5/mmproj-BF16.gguf",
+        "source_revision": "3885219b6810b007914f3a7950a8d1b469d598a5",
+        "sha256": "853698ce7aa6c7ba732478bad280240969ddf7b0fcbf93900046f63903a83383",
+        "size_bytes": 921705024,
+        "pin_note": "Hugging Face LFS metadata at the pinned revision. Verify again against the bytes provisioned for rollout.",
+        "upstream": "https://huggingface.co/Qwen/Qwen3.5-9B",
+        "outputs_commercial_use": "unknown",
+        "evidence": [
+          {
+            "url": "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/blob/3885219b6810b007914f3a7950a8d1b469d598a5/README.md",
+            "quote": "license: apache-2.0"
+          },
+          {
+            "url": "https://huggingface.co/Qwen/Qwen3.5-9B/blob/c202236235762e1c871ad0ccb60c8ee5ba337b9a/LICENSE",
+            "quote": "reproduce, prepare Derivative Works of, publicly display, publicly perform, sublicense, and distribute the Work"
+          }
+        ],
+        "licence": {
+          "name": "Apache-2.0",
+          "url": "https://huggingface.co/Qwen/Qwen3.5-9B/blob/c202236235762e1c871ad0ccb60c8ee5ba337b9a/LICENSE",
+          "commercial_use": "unknown",
+          "attribution_required": null,
+          "checked_at": "2026-11-24T22:25:38Z",
+          "checked_by": {
+            "kind": "agent_session",
+            "session": "haynes-studio-1124-221436",
+            "harness": "Codex",
+            "model": "gpt-6.2-sol"
+          },
+          "note": "The GGUF card applies Apache-2.0 to the files. The redistribution notice conditions concern the licensed work. Generated-output commercial use and attribution were not specified in the checked text."
+        }
+      },
+      {
+        "key": "ministral-3-8b-instruct-2512-q5_k_m-weights",
+        "engine": "ministral-3-8b-instruct-2512-q5_k_m",
+        "name": "Ministral-3-8B-Instruct-2512-Q5_K_M.gguf",
+        "recorded_as": [
+          "Ministral-3-8B-Instruct-2512-Q5_K_M.gguf"
+        ],
+        "kind": "multimodal language model weights (Q5_K_M)",
+        "source": "https://huggingface.co/mistralai/Ministral-3-8B-Instruct-2512-GGUF/resolve/0102285ad796bd99af90f58de616092e5630e970/Ministral-3-8B-Instruct-2512-Q5_K_M.gguf",
+        "source_revision": "0102285ad796bd99af90f58de616092e5630e970",
+        "sha256": "7a5454127ec772e2389f0e71a77fedb88b83d4366d8a69facd0cfd0898f04d35",
+        "size_bytes": 6059268512,
+        "pin_note": "Hugging Face LFS metadata at the pinned revision. Verify again against the bytes provisioned for rollout.",
+        "upstream": "https://huggingface.co/mistralai/Ministral-3-8B-Instruct-2512",
+        "outputs_commercial_use": "unknown",
+        "evidence": [
+          {
+            "url": "https://huggingface.co/mistralai/Ministral-3-8B-Instruct-2512-GGUF/blob/0102285ad796bd99af90f58de616092e5630e970/README.md",
+            "quote": "license: apache-2.0"
+          },
+          {
+            "url": "https://huggingface.co/mistralai/Ministral-3-8B-Instruct-2512/blob/d2ff65a33fc5f72d77a65a2bc366feefd44ca320/README.md",
+            "quote": "allowing usage and modification for both commercial and non-commercial purposes"
+          }
+        ],
+        "licence": {
+          "name": "Apache-2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+          "commercial_use": "unknown",
+          "attribution_required": null,
+          "checked_at": "2026-11-24T22:25:38Z",
+          "checked_by": {
+            "kind": "agent_session",
+            "session": "haynes-studio-1124-221436",
+            "harness": "Codex",
+            "model": "gpt-6.2-sol"
+          },
+          "note": "The GGUF card applies Apache-2.0 to the files. The redistribution notice conditions concern the licensed work. Generated-output commercial use and attribution were not specified in the checked text."
+        }
+      },
+      {
+        "key": "ministral-3-8b-instruct-2512-q5_k_m-projector",
+        "engine": "ministral-3-8b-instruct-2512-q5_k_m",
+        "name": "Ministral-3-8B-Instruct-2512-BF16-mmproj.gguf",
+        "recorded_as": [
+          "Ministral-3-8B-Instruct-2512-BF16-mmproj.gguf"
+        ],
+        "kind": "vision projector (BF16)",
+        "source": "https://huggingface.co/mistralai/Ministral-3-8B-Instruct-2512-GGUF/resolve/0102285ad796bd99af90f58de616092e5630e970/Ministral-3-8B-Instruct-2512-BF16-mmproj.gguf",
+        "source_revision": "0102285ad796bd99af90f58de616092e5630e970",
+        "sha256": "e799380f596d152ff4026a72d409ecc89c96cd437676804bc3f2ab3bd6b486ec",
+        "size_bytes": 858283168,
+        "pin_note": "Hugging Face LFS metadata at the pinned revision. Verify again against the bytes provisioned for rollout.",
+        "upstream": "https://huggingface.co/mistralai/Ministral-3-8B-Instruct-2512",
+        "outputs_commercial_use": "unknown",
+        "evidence": [
+          {
+            "url": "https://huggingface.co/mistralai/Ministral-3-8B-Instruct-2512-GGUF/blob/0102285ad796bd99af90f58de616092e5630e970/README.md",
+            "quote": "license: apache-2.0"
+          },
+          {
+            "url": "https://huggingface.co/mistralai/Ministral-3-8B-Instruct-2512/blob/d2ff65a33fc5f72d77a65a2bc366feefd44ca320/README.md",
+            "quote": "allowing usage and modification for both commercial and non-commercial purposes"
+          }
+        ],
+        "licence": {
+          "name": "Apache-2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+          "commercial_use": "unknown",
+          "attribution_required": null,
+          "checked_at": "2026-11-24T22:25:38Z",
+          "checked_by": {
+            "kind": "agent_session",
+            "session": "haynes-studio-1124-221436",
+            "harness": "Codex",
+            "model": "gpt-6.2-sol"
+          },
+          "note": "The GGUF card applies Apache-2.0 to the files. The redistribution notice conditions concern the licensed work. Generated-output commercial use and attribution were not specified in the checked text."
+        }
+      }
+    ]
+  }
 }
