@@ -146,7 +146,8 @@ lease can be released and the next legacy job can proceed.
 ## Local-model requests
 
 The additive v1 operations are defined in story 441. Hosting and activation are
-tracked separately in story 442. A Wan deployment without a local-model profile
+tracked separately in story 442. The routes become available after the companion
+Wan API rollout. A deployment of that version without a local-model profile
 returns HTTP 503 `local_model_not_installed` from these routes. Use the same
 internal Service as for the video and Foley product jobs. [Story 441](https://work.haynesnetwork.com/work_packages/441) · [Story 442](https://work.haynesnetwork.com/work_packages/442)
 
@@ -187,6 +188,11 @@ includes `result.text`, `input_tokens` and `output_tokens`. The result
 text is limited to 32 KiB UTF-8 and is returned in one response. A failed
 request retains the ID and its error. Use a new ID for an intentional new
 attempt after inspecting the failure.
+
+Wan admission still samples both GPUs against the existing utilization, memory
+and temperature limits for product video. S2V's placement determines whether
+handover needs to unload a model. An idle resident model on the other GPU can
+stay loaded while both cards meet the admission limits.
 
 | Situation | Lease behavior |
 | --- | --- |
