@@ -4,8 +4,10 @@
 Start with **Qwen3.5-9B Q5_K_M**. Use **Ministral 3 8B Instruct 2512 Q5_K_M** as the
 fallback if Qwen fails the model-specific vision, tool, or timing checks after a
 verified unload. Both use the same pinned llama.cpp backend on one RTX 3090. The
-coordinator makes the provisional profile decision. Hosting remains a later part
-of story 442.
+coordinator selected this pilot on 2026-11-24 and kept unload before any Wan
+dispatch until fixed S2V placement is proved. Hosting remains a later part of
+story 442. The larger Qwen3.8-27B candidate is for E10 measurement.
+[Provisional ruling](../contracts/studio-contracts-v1.md#ruling-20).
 
 The model checks whether faces are visible, lettering is readable and wardrobe
 matches the costume record. It turns approved material and a format recipe into a
