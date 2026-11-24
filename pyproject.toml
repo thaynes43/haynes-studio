@@ -29,6 +29,14 @@ dependencies = [
     # OpenCV for the tracked lettering decal (poc/decal.py: ECC, inpaint, warp).
     "scipy>=1.16,<1.17",
     "opencv-python-headless>=4.12,<5",
+    "fastapi>=0.115,<1",
+    "pydantic>=2.10,<3",
+    "uvicorn>=0.34,<1",
+    "psycopg[binary]>=3.3,<4",
+    "sqlalchemy>=2.0,<2.1",
+    "alembic>=1.14,<2",
+    "httpx>=0.28,<1",
+    "pyjwt[crypto]>=2.10,<3",
 ]
 
 [project.scripts]
@@ -39,7 +47,6 @@ studio = "haynes_studio.cli:main"
 # [project].dependencies and the lock (docs/process/testing.md).
 dev = [
     "pytest>=9.2,<10",
-    "psycopg[binary]>=3.3,<4",
 ]
 
 [tool.hatch.build.targets.wheel]
