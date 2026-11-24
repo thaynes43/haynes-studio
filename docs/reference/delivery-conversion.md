@@ -51,6 +51,10 @@ propagate through film picture, master, proxy and affected checks as the input c
 hashes change. The shared key scheme stays `studio.cache-key/v1`.
 [Cache contract](../contracts/studio-contracts-v1.md#4-cache-clocks-and-invalidation)
 
+Rebuilding Pillow or using a wheel for another platform or Python ABI can change its
+native core digest even under the same `uv.lock`. That change rekeys every segment.
+Processes rendering one plan must load the Pillow core named by its profile.
+
 ## Synthetic evidence
 
 `tests/delivery/test_delivery_profile.py` builds a 4-frame lead board and a 19-frame
