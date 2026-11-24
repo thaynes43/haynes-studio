@@ -82,9 +82,13 @@ def _document() -> dict[str, Any]:
         "scaling": {
             "target": "segment frame size", "same_size": "identity",
             "aspect_mismatch": "fail", "set_plate_fit": "centred Lanczos cover",
+            # Identity only. The key must be the same in every process that runs one
+            # plan: the session pod and the render worker load the same locked Pillow
+            # version from wheels for different Python ABIs, whose native cores differ
+            # byte for byte. The measured core digest is provenance, not a key input.
             "upscaler": {
                 "name": upscaler.name, "version": upscaler.version, "tool": upscaler.tool,
-                "tool_sha256": upscaler.tool_sha256, "model_sha256": upscaler.model_sha256,
+                "model_sha256": upscaler.model_sha256,
             },
         },
     }
@@ -96,7 +100,10 @@ def delivery_profile_sha256() -> str:
 
 
 def delivery_profile_record() -> dict[str, Any]:
-    return {**_document(), "sha256": delivery_profile_sha256()}
+    """The profile for run provenance: the hashed document, its digest, and what this
+    process measured. ``measured`` is outside the digest (see :func:`_document`)."""
+    return {**_document(), "sha256": delivery_profile_sha256(),
+            "measured": {"tool_sha256": _baseline().tool_sha256}}
 
 
 def resolve_delivery_upscaler(profile_sha256: str | None) -> DeliveryUpscalerProfile:

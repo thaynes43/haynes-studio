@@ -81,13 +81,17 @@ def test_s2v_cadence_and_samples_stay_aligned_through_delivery(tmp_path, record_
     profile = result.run["provenance"]["toolchain"]["delivery_profile"]
     digest = profile["sha256"]
     assert profile["version"] == "studio.delivery-conversion/v1"
-    payload = {key: value for key, value in profile.items() if key != "sha256"}
+    payload = {key: value for key, value in profile.items() if key not in ("sha256", "measured")}
     assert hashlib.sha256(canonical_json(payload)).hexdigest() == digest
     assert all(board.segment.key.document["delivery_profile_sha256"] == digest
                for board in result.plan.boards)
     backend = profile["scaling"]["upscaler"]
+    # The key names the tool by version. The native core's digest differs between the
+    # wheels of two Python ABIs under one lock, so it is measured provenance only: a
+    # plan made in the session pod must find segments the render worker rendered.
+    assert "tool_sha256" not in backend
     with open(Image.core.__file__, "rb") as core:
-        assert backend["tool_sha256"] == hashlib.file_digest(core, "sha256").hexdigest()
+        assert profile["measured"]["tool_sha256"] == hashlib.file_digest(core, "sha256").hexdigest()
     assert backend["name"] == "lanczos" and backend["model_sha256"] is None
 
     (request,) = sources.s2v.calls
@@ -128,7 +132,7 @@ def test_s2v_cadence_and_samples_stay_aligned_through_delivery(tmp_path, record_
         _check_delivered_clocks(world.root / asset.locator, size, read_mark)
 
     record_property("conversion_sha256", digest)
-    record_property("upscaler_tool_sha256", backend["tool_sha256"])
+    record_property("upscaler_tool_sha256", profile["measured"]["tool_sha256"])
     record_property("frames", 23)
     record_property("mix_samples", 46_000)
     record_property("line_start_sample", line["start_sample"])

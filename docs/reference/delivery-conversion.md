@@ -28,11 +28,12 @@ centred Lanczos cover fit. The phone proxy keeps its own area downscale from the
 [Delivery reference](studio-delivery.md)
 
 `render.delivery_profile` defines `studio.delivery-conversion/v1`. Its canonical JSON
-describes the timing and scaling policies, the resize backend version, the Pillow
-version, and the SHA-256 of the loaded native Pillow core that resamples the frames.
-Lanczos records a null `model_sha256`. The normal build writes the profile and its
-digest to `provenance.toolchain.delivery_profile`. The separate S2V clip provenance
-still records the generation model files.
+describes the timing and scaling policies, the resize backend version and the Pillow
+version. Lanczos records a null `model_sha256`. The normal build writes the profile and
+its digest to `provenance.toolchain.delivery_profile`, with a `measured.tool_sha256`
+beside them: the SHA-256 of the native Pillow core this process loaded. `measured` is
+provenance and is not part of the digest. The separate S2V clip provenance still
+records the generation model files.
 
 `DeliveryUpscalerProfile` and `resolve_delivery_upscaler` are the extension point for
 an installed scaler with a distinct profile, tool digest and weight digest. Only
@@ -51,9 +52,15 @@ propagate through film picture, master, proxy and affected checks as the input c
 hashes change. The shared key scheme stays `studio.cache-key/v1`.
 [Cache contract](../contracts/studio-contracts-v1.md#4-cache-clocks-and-invalidation)
 
-Rebuilding Pillow or using a wheel for another platform or Python ABI can change its
-native core digest even under the same `uv.lock`. That change rekeys every segment.
-Processes rendering one plan must load the Pillow core named by its profile.
+The digest names the scaler by Pillow version, as the keyer's build text does
+(`keyer_build`), not by the bytes of its native core. A build runs in two
+environments: the session pod (Python 3.11) plans it and runs its service phases, and
+the render worker (Python 3.12) renders the segments
+([studio-build](studio-build.md)). Both install the same locked Pillow version, from
+wheels whose native cores differ byte for byte, so a core digest in the key would give
+the two a different key for the same segment. A change of the locked Pillow version
+rekeys every segment; a different wheel of the same version does not, and shows only
+in `measured.tool_sha256`.
 
 ## Synthetic evidence
 
