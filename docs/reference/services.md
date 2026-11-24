@@ -15,7 +15,7 @@ any of it.
 | Stage | Service | Where | Route from an agent | Status for the doll format |
 |---|---|---|---|---|
 | Cast and set images | ComfyUI with Qwen-Image 2.1 (text-to-image and edit) | `ai/comfyui-0` (StatefulSet), RTX 2000 Ada 16 GB on `talosm03` | `kubectl exec -n ai comfyui-0 -c app --` to `127.0.0.1:8188` (`poc/comfy.py`) | **Proven** for cast and set images (The Winter Menu, [run log](../../titles/the-winter-menu/run-log.md)) |
-| CPU render (decals, keying, compositing) | `ai/studio-render`, up to 24 vCPUs, low priority, gasha01 NFS at `/studio`; Python 3.12.16 and the package's locked runtime dependencies, as read inside the worker on 2026-11-18 ([below](#studio-render-cpu-work)) | `ai/deploy/studio-render` on `talosw01` | `kubectl cp` in and out, `kubectl exec -n ai deploy/studio-render -c app -- nice -n 10 python ...` | **Proven** for the PoC's layered compositing (The Winter Menu layered v2: 7 keyed clips and the 45 s film in 408 s, [findings](../../titles/the-winter-menu/video-e0/findings-layered.md)); package execution there remains **Expected**: an offline phase and the comparison of its keys and hashes are still to run |
+| CPU render (decals, keying, compositing) | `ai/studio-render`, up to 24 vCPUs, low priority, gasha01 NFS at `/studio`; Python 3.12.16 and the package's locked runtime dependencies, as read inside the worker on 2026-11-18 ([below](#studio-render-cpu-work)) | `ai/deploy/studio-render` on `talosw01` | `kubectl cp` in and out, `kubectl exec -n ai deploy/studio-render -c app -- nice -n 10 python ...` | **Proven** for the PoC's layered compositing (The Winter Menu layered v2: 7 keyed clips and the 45 s film in 408 s, [findings](../../titles/the-winter-menu/video-e0/findings-layered.md)). The package's offline phase was later **Proven** for [One More Meeting](../../titles/one-more-meeting/run-log.md). A paired key/hash comparison remains open. |
 | Voices | Kokoro-82M v1.0 (Wyoming TTS) | `ai/deploy/kokoro`, container `app` | `kubectl exec -i -n ai deploy/kokoro -c app -- python -c ...` to Wyoming `127.0.0.1:10210` | **Proven** (OP341, OP345) |
 | Transcript check | Whisper service, configured `nemo-parakeet-tdt-0.6b-v2` (Wyoming ASR) | `ai/deploy/whisper`, container `app` | `kubectl exec -i -n ai deploy/whisper -c app -- python -c ...` to Wyoming `127.0.0.1:10300` | **Proven** (OP345) |
 | Sound effects from text | `audio-authoring`, Stable Audio 3 Small-SFX on CPU | namespace `dev` | MCP `http://audio-authoring.dev.svc.cluster.local:8000/mcp` (`generate_sound`, `get_generation`) | **Proven** (OP343) |
@@ -139,6 +139,12 @@ but a dev-env session pod's egress does not allow it. Agents use the in-pod rout
     881 comment 8869). **Not exercised live:** malformed queue data or a GPU job on
     the new API. The path through Traefik and Tom's player are unverified; his
     viewing verdict is separate.
+- **Product API v1 installed on 2026-11-24** (story
+  [458](https://work.haynesnetwork.com/work_packages/458), comment 9749).
+  Flux applied haynes-ops `1a5d2e08`, and the deployed files matched the merged
+  hashes. In-pod version, readiness and profiles were read back. The legacy file
+  ranges still passed. The typed routes use the cluster Service. No live typed
+  GPU job was exercised. See [Wan product job API](wan-product-api.md#availability).
 - Edited (CPU-made) productions are saved create-only under
   `/workspace/output/productions/<id>/` on PVC `ai/wan-video`, with a ledger JSON in
   `/workspace/jobs/`. The API then serves them at
@@ -191,9 +197,10 @@ worker after the roll-out: Python 3.12.16, the environment `py312-51d95b693bf4`,
 twelve pinned packages at the lock's versions. Renovate is held off both pins in
 haynes-ops (`.renovate/holds.json5`): the list changes only by exporting it again from
 the lock. **O-428-7 is closed as installed** (story 862, comment 8932; studio PR 74).
-**Not yet run:** an offline phase on the worker and the comparison of its keys
-and hashes with a session pod's; that belongs to a later story. Tom's acceptance is
-separate.
+**Proven later, story 942:** [One More Meeting](../../titles/one-more-meeting/run-log.md)
+ran offline on the worker with hash-checked cache transfers. The paired offline
+comparison of keys and hashes with a session pod remains open. Tom's acceptance
+is separate.
 
 The worker supplies dependencies, not a published `haynes-studio` distribution.
 Copy a source snapshot at the same commit as the lock into a new job directory and

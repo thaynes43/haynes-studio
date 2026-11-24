@@ -606,9 +606,11 @@ tests there would never run in `uv run pytest` or CI).
 open at that time. Q-406-2 now puts service phases in the session pod and offline
 phases on the worker, copying the store between them. Story 428 actually ran offline
 in its session pod because the worker was outside the lock; story 862 installed the
-lock on 2026-11-18, but no offline phase has run there yet. Use the current
+lock on 2026-11-18. Story 942 later ran offline on the worker for
+[One More Meeting](../../titles/one-more-meeting/run-log.md) with a hash-checked
+cache transfer. Use the current
 [worker procedure](../process/manual-short-poc.md#package-builds-on-the-cpu-worker)
-for that Expected step; the planning commands below are kept unchanged.
+for another build. The planning commands below are historical.
 
 1. **Checkout and tools.** In a session pod, at `main`:
    `UV_PYTHON_DOWNLOADS=never uv sync --locked --python 3.11`.

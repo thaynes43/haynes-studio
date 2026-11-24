@@ -5,7 +5,12 @@ PostgreSQL 16. It also stores the run queue and its worker claims. It serves pri
 API replica can read a draft or continue a browser session created by another
 replica. Story [409](https://work.haynesnetwork.com/work_packages/409) covers
 source and test evidence for metadata and playback. See the [run queue reference](run-queue.md)
-for story [410](https://work.haynesnetwork.com/work_packages/410).
+for story [410](https://work.haynesnetwork.com/work_packages/410). The CNPG database,
+roles, Authentik application and credential projections are installed as of 2026-11-24,
+and so is the Studio API with its migration Job and table grants
+(story [434](https://work.haynesnetwork.com/work_packages/434), from an image built
+before the run queue). A person's live sign-in is not yet recorded.
+[Install evidence](../contracts/studio-contracts-v1.md#installed-and-published-state).
 
 ## Commands
 

@@ -11,7 +11,7 @@ https://work.haynesnetwork.com/work_packages/422 and
 |---|---|
 | OpenProject project `haynes-studio` (ID 11), saga https://work.haynesnetwork.com/work_packages/362 | Canonical scope, current holds, owner, budget, state and human verdict. Read current history; the review's export is a snapshot. |
 | [AGENTS.md](../../AGENTS.md) and current work order | Authorization, hard rules, resource/stop limits. A review proposal grants no execution permission. |
-| [Proposal 0003](../proposals/0003-studio-plan.md), D1–D44 | Product decisions. D29 supersedes creative approval gates; D39/D41 supersede old RBD/no-login/storage text; D40 frontier writer; D42 image lane/uploads; D43/D44 release labels/credits. Later rulings beat older prose. |
+| [Proposal 0003](../proposals/0003-studio-plan.md), D1–D57 | Product decisions. D29 supersedes creative approval gates; D39/D41 supersede old RBD/no-login/storage text; D40 frontier writer; D42 image lane/uploads; D43/D44 release labels/credits. Later rulings beat older prose. |
 | [Implementation map](../design/studio-ui-mockup/implementation-backlog.md), [review edits](review-2026-11-05.md#tracker-edits--existing-work-packages) | Mockup-to-story ownership and proposed field repairs. R01–R39 are now tracker items 423–461 (R*n* = 422 + *n*); see the [label table](review-2026-11-05.md#review-labels-in-the-tracker). |
 | [v6 mockup](../design/studio-ui-mockup/index.html) and [review.md](../design/studio-ui-mockup/review.md) | Interaction reference, not real generation/auth/storage. Old question defaults are history. |
 | [E0 findings](../../titles/the-winter-menu/video-e0/findings.md), [layered](../../titles/the-winter-menu/video-e0/findings-layered.md), [S2V](../../titles/the-winter-menu/video-e0/findings-s2v.md) | Measured inputs/limits. D24/latest S2V addendum wins over early premium-only recommendation. Not fresh service health. |
@@ -43,10 +43,19 @@ start from E1 source contracts; E1 live acceptance can use partial E3 installati
 
 ## Order and parallel work
 
-Apply/reconcile the review first; Tom/Meatball grooms and explicitly starts each story.
-All execution items in the supplied export are Ungroomed. No dispatch from that snapshot.
-The story blocks are the detailed edge list; the following groups are not whole epics
-assigned to one worker.
+**2026-11-05 review snapshot:** its execution items were Ungroomed. It supplied
+no dispatch authority and expected Tom or Meatball to groom and explicitly start each
+story.
+
+**Since 2026-11-24:** Tom started execution of the remaining saga (E1 close-out and
+E2 to E10). The saga coordinator grooms, starts and dispatches one ready story
+per worker, reviews and merges, and carries out scoped GitOps rollouts with their
+checks. Routine choices that would have gone to Tom get dated provisional rulings
+for his later review. Accepted and go-live stay with Tom, and explicit holds and
+hard rules still apply. Check actual story readiness and state in the tracker.
+[Saga 362](https://work.haynesnetwork.com/work_packages/362), comment 9653.
+
+The story blocks are the detailed edge list. Assign a bounded story to one worker.
 
 1. R01 contracts (merged 2026-11-13: [docs/contracts](../contracts/README.md)) -> R02 test foundation -> [378](https://work.haynesnetwork.com/work_packages/378) legacy core -> [404](https://work.haynesnetwork.com/work_packages/404) canonical boards.
    R03 adapters follows [378](https://work.haynesnetwork.com/work_packages/378). After [404](https://work.haynesnetwork.com/work_packages/404), [379](https://work.haynesnetwork.com/work_packages/379) atomic stages and [382](https://work.haynesnetwork.com/work_packages/382) library can run
@@ -85,9 +94,11 @@ readiness. No same-file parallel edits disguised as independent stories.
 **Potential parallel groups:** after contracts, source photo client versus API CRUD;
 after API, UI shell versus isolated approval backend; after prerequisites, separate
 method adapter files with fixed shared interfaces. GitOps DB/OIDC tasks are best run
-serially due to shared configuration/identity. Propose at most two workers total,
-one per story, only after combined quota/time and isolated paths/resources are known;
-unknown quota is not capacity. No dispatch merely because slots exist.
+serially due to shared configuration/identity. The 2026-11-05 review proposed two
+workers. The 2026-11-24 charter permits up to four, one per story, once combined
+quota/time and isolated paths/resources are known. Keep one Wan-lane job, one
+schema or migration writer and one haynes-ops app change at a time. Unknown quota
+is not capacity. No dispatch merely because slots exist.
 
 ## Work type, tier and review
 
@@ -178,9 +189,9 @@ is verified; Sonnet is the recommended already-described alternative if authoriz
 
 | Gate | Matching work / stop |
 |---|---|
-| Groom/start and Accepted | Every item: Tom/Meatball handles Ungroomed transition; authorized accepter handles Accepted. Preserve explicit holds. |
+| Groom/start and Accepted | Since 2026-11-24, the saga coordinator handles grooming and starts. Workers hand off at In review. Tom owns Accepted. Preserve explicit holds. |
 | GPU/worker allocation, model profile/download, capacity | R06/R20/R28/R31/R32/R37–R39/[421](https://work.haynesnetwork.com/work_packages/421) and any real generation: explicit bounded window/job count/bytes/lease time; busy/unknown work stops. D2/D18 placement is already decided; no need to re-ask placement. |
-| DB role/credentials, OIDC approver identity, ingress/network/NFS access | R09/R10/R12: Tom-authorized action and owner-managed secrets, all config through haynes-ops. No new login, grant or bypass after denial. |
+| DB, OIDC, ingress and storage | R09/R10/R12: scoped provisioning and rollout go through haynes-ops under the saga charter. The contract records in-cluster generation for the DB and sign-in credentials. Tom supplies the separate go-live approver identity. No new login, grant or bypass after denial. |
 | Backup coverage and isolated restore | D47: NFS media is not backed up; only CNPG (existing postgres16 backups) and small PVCs (shared VolSync component, plus Gatus). R13/R14: Tom authorizes the restore target; never overwrite originals. |
 | Subtitle source | R22: named sanctioned read-only path and one scene; no source text in public git. |
 | Responder launch, MCP reachability and usage cap | R23/R24: external dev-env owner verifies path; one launch only after its authorization. No fake route or borrowed credentials. |
@@ -194,13 +205,17 @@ Do not re-ask D39 storage, D41 login or D42 image placement.
 
 ## Tracker and dispatch mechanics
 
-Use `opwork --project haynes-studio search ...`, `show ID --history`, then claim only
-a started, artifact-ready bounded story. Default project is wrong. Agents cannot
-move out of Ungroomed (HTTP 422); report the hold, do not change grants. The R-label stories already exist (423–461); Tom/Meatball grooms them like any other item. Keep full
-`https://work.haynesnetwork.com/work_packages/ID` links and record progress/handoff on
-the canonical item. This review session is expressly forbidden tracker writes.
+Use `opwork --project haynes-studio search ...` and
+`opwork --project haynes-studio show ID --history --full`, then claim the dispatched,
+artifact-ready bounded story. The R-label stories already exist (423–461).
+Keep full `https://work.haynesnetwork.com/work_packages/ID` links and record progress
+and handoff on the canonical item. The 2026-11-05 review was read-only and recorded
+an HTTP 422 on leaving Ungroomed. Under the 2026-11-24 charter, use the authorized
+groom, claim and status operations. Report an actual refusal and stop that step.
 
-Dispatch shapes supplied by the work order (verify current supported CLI before use):
+The 2026-11-24 charter dispatches Codex workers as `gpt-6.2-sol` at `xhigh`.
+Historical dispatch shapes from the review work order (verify current supported CLI
+before use):
 
 ```bash
 agent-run --project haynes-studio --agent claude --model claude-opus-5-5 --effort xhigh --prompt-file /path/to/work-order.md
