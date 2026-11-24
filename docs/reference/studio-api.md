@@ -41,7 +41,8 @@ or recover metadata to an isolated database for inspection.
 | `STUDIO_OIDC_ISSUER` | Exact HTTPS issuer from Authentik discovery, including any final slash. |
 | `STUDIO_OIDC_CLIENT_ID` | Client ID of the confidential OIDC application. |
 | `STUDIO_OIDC_CLIENT_SECRET` | Secret supplied to the API process. |
-| `STUDIO_OIDC_ALLOWED_SUBJECTS` | JSON array of allowed OIDC `sub` values scoped to the configured issuer. |
+| `STUDIO_OIDC_ALLOWED_SUBJECTS` | JSON array of allowed OIDC `sub` values scoped to the configured issuer. Defaults to `[]`. |
+| `STUDIO_OIDC_ALLOWED_GROUPS` | JSON array of exact, case-sensitive group names. Defaults to `[]`. |
 | `STUDIO_OIDC_LEEWAY_SECONDS` | Clock skew allowance for ID-token timestamps, 0–300 seconds. Default 60. |
 | `STUDIO_OIDC_CACHE_TTL_SECONDS` | Cache lifetime for OIDC discovery and signing keys, 1–3600 seconds. Default 300. |
 | `STUDIO_OIDC_FAILURE_TTL_SECONDS` | Cooldown after a failed discovery or signing key fetch, 1–60 seconds. Default 10. |
@@ -59,6 +60,25 @@ Rate limiting belongs to the ingress in story
 [434](https://work.haynesnetwork.com/work_packages/434).
 [OIDC Core](https://openid.net/specs/openid-connect-core-1_0.html)
 [RFC 7636](https://www.rfc-editor.org/rfc/rfc7636)
+
+For the [OP432](https://work.haynesnetwork.com/work_packages/432) provider, set
+`STUDIO_PUBLIC_ORIGIN=https://studio.haynesops.com`,
+`STUDIO_OIDC_CLIENT_ID=haynes-studio` and
+`STUDIO_OIDC_ALLOWED_GROUPS='["authentik Admins"]'`. Use the exact
+per-provider issuer from the `haynes-studio` discovery document. The Authentik
+application requires membership of the existing `authentik Admins` group.
+Authentik 2026.8.5 supplies the `groups` array through the managed `profile`
+mapping and includes it in the ID token. The API gets
+`STUDIO_OIDC_CLIENT_SECRET` from the identically named key in
+`ai/studio-oidc-client`.
+
+At least one API allowlist must be non-empty at startup. The API accepts a
+verified ID token when its subject matches the subject allowlist or its
+`groups` claim is an array of strings containing an exact group match.
+Subjects on the allowlist may sign in regardless of the group claim. A verified
+token that matches neither rule receives HTTP 403 `auth.subject_forbidden`.
+Groups grant Studio sign-in only. Go-live approval uses its own issuer and
+subject allowlist under contract section 11.
 
 `GET /healthz` returns 204 independently of the database and store. `GET /readyz`
 returns 204 when the metadata database is reachable and the last completed store
@@ -118,7 +138,19 @@ through the story 410 transport and need no database account.
   nonce and subject. It creates an API session with a Secure, HttpOnly,
   SameSite=Lax `__Host-studio-session` cookie and redirects to `/`.
   The database holds the cookie digest. Discovery, token exchange and claim
-  validation happen in the API process.
+  validation happen in the API process. Subject sessions require the subject
+  to remain on the configured allowlist. Group-only sessions bind their
+  cookie digest to the configured group allowlist at sign-in. The API
+  checks Authentik membership again on the next sign-in, after logout or
+  expiry. So a person removed from the group keeps a Studio
+  session they already hold until it expires: at most `STUDIO_SESSION_SECONDS`
+  (8 hours by default, 24 hours at most). To end it sooner, delete that
+  person's rows from the session table by subject, or change
+  `STUDIO_OIDC_ALLOWED_GROUPS`, which ends every group session. Authentik's
+  binding counts membership through a parent group, while the `groups` claim
+  lists direct memberships only, so a member of a child group of an allowed
+  group passes Authentik and is refused here. The session table has no claims document, so group names from the
+  token are discarded after the sign-in check.
 - `GET /v1/me` returns the principal and, for a browser session, a CSRF token.
   Send it in `X-Studio-CSRF` for unsafe methods, including `POST /auth/logout`.
   Logout deletes the database session row. The next media request will require

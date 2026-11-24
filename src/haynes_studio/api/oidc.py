@@ -176,6 +176,15 @@ class OIDC:
                 raise ValueError("OIDC authorized party mismatch")
         if not isinstance(claims["nonce"], str) or claims["nonce"] != nonce:
             raise ValueError("OIDC nonce mismatch")
-        if claims["sub"] not in self.settings.allowed_subjects:
+        subject = claims["sub"]
+        if not subject or not subject.isascii() or "\x00" in subject or len(subject) > 255:
+            raise ValueError("OIDC subject is invalid")
+        groups = claims.get("groups")
+        group_allowed = (
+            isinstance(groups, list)
+            and all(isinstance(group, str) for group in groups)
+            and not self.settings.allowed_groups.isdisjoint(groups)
+        )
+        if subject not in self.settings.allowed_subjects and not group_allowed:
             raise forbidden("auth.subject_forbidden", "This OIDC subject is outside the Studio allowlist")
         return claims

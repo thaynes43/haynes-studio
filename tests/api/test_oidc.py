@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from haynes_studio.api import oidc as oidc_module
-from haynes_studio.api.app import create_app
+from haynes_studio.api.app import create_app, from_env
 from haynes_studio.api.config import OIDCSettings, from_environment
 from haynes_studio.api.errors import APIError
 from haynes_studio.api.oidc import OIDC
@@ -148,3 +148,38 @@ def test_oidc_environment_enforces_setting_bounds(monkeypatch, name, field, mini
         monkeypatch.setenv(name, str(value))
         with pytest.raises(ValueError, match=name):
             from_environment()
+
+
+@pytest.fixture
+def oidc_environment(monkeypatch):
+    monkeypatch.setenv("STUDIO_OIDC_ISSUER", ISSUER)
+    monkeypatch.setenv("STUDIO_PUBLIC_ORIGIN", ORIGIN)
+    monkeypatch.setenv("STUDIO_OIDC_CLIENT_ID", "fixture")
+    monkeypatch.setenv("STUDIO_OIDC_CLIENT_SECRET", "fixture")
+    monkeypatch.delenv("STUDIO_OIDC_ALLOWED_SUBJECTS", raising=False)
+    monkeypatch.delenv("STUDIO_OIDC_ALLOWED_GROUPS", raising=False)
+    return monkeypatch
+
+
+def test_oidc_environment_accepts_groups_without_subjects(oidc_environment):
+    oidc_environment.setenv("STUDIO_OIDC_ALLOWED_GROUPS", '["Studio Test"]')
+    settings = from_environment()
+    assert settings.allowed_groups == frozenset({"Studio Test"})
+    assert not settings.allowed_subjects
+
+
+@pytest.mark.parametrize("explicit_empty", [False, True])
+def test_api_startup_requires_an_oidc_allowlist(oidc_environment, explicit_empty):
+    if explicit_empty:
+        oidc_environment.setenv("STUDIO_OIDC_ALLOWED_GROUPS", "[]")
+        oidc_environment.setenv("STUDIO_OIDC_ALLOWED_SUBJECTS", "[]")
+    with pytest.raises(ValueError, match="must be non-empty"):
+        from_env()
+
+
+@pytest.mark.parametrize("value", ['"Studio Test"', '{"group": "Studio Test"}', '[""]', '[1]', '['])
+def test_oidc_groups_setting_must_be_an_array_of_group_names(oidc_environment, value):
+    oidc_environment.setenv("STUDIO_OIDC_ALLOWED_SUBJECTS", '["one"]')
+    oidc_environment.setenv("STUDIO_OIDC_ALLOWED_GROUPS", value)
+    with pytest.raises(ValueError, match="STUDIO_OIDC_ALLOWED_GROUPS"):
+        from_environment()
