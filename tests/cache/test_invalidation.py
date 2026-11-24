@@ -16,6 +16,7 @@ from dataclasses import replace
 import pytest
 
 from haynes_studio.cache.plan import KeyDiff, MediaFormat, Toolchain, diff
+from haynes_studio.render.delivery_profile import delivery_profile_sha256
 from tests.cache import fixtures as fx
 from tests.cache.fixtures import B1, B2, B3, B4, B5, L1, L2, L3, L4, L5, L6, L7
 from tests.support.policy import REPO_ROOT
@@ -560,6 +561,34 @@ def test_frame_size_at_the_same_aspect_rebuilds_only_segments():
     the same aspect re-composites without regenerating a clip."""
     d, _, _ = edit(media=MediaFormat(width=720, height=1280))
     assert_only(d, seg(B1, B2, B3, B4) | PICTURE_FILM)
+
+
+@pytest.mark.parametrize("previous_profile", [None, "f" * 64])
+def test_delivery_profile_only_keys_segments_and_changed_picture_dependents(monkeypatch,
+                                                                        previous_profile):
+    document = fx.story_document()
+    baseline = fx.plan(document)
+    with monkeypatch.context() as patch:
+        patch.setattr("haynes_studio.cache.plan.delivery_profile_sha256", lambda: previous_profile)
+        before = fx.plan(document)
+    assert_only(diff(before, baseline), seg(B1, B2, B3, B4) | PICTURE_FILM)
+    for board in baseline.boards:
+        document = board.segment.key.document
+        assert document["delivery_profile_sha256"] == delivery_profile_sha256()
+        assert document["scheme"] == "studio.cache-key/v1"
+
+
+def test_byte_identical_segments_keep_their_picture_dependents_after_rekeying(monkeypatch):
+    document = fx.story_document()
+
+    def unchanged_segments(key):
+        return "e" * 64 if key.kind == "segment" else fx.stand_in(key)
+
+    after = fx.plan(document, content=unchanged_segments)
+    with monkeypatch.context() as patch:
+        patch.setattr("haynes_studio.cache.plan.delivery_profile_sha256", lambda: None)
+        before = fx.plan(document, content=unchanged_segments)
+    assert_only(diff(before, after), seg(B1, B2, B3, B4))
 
 
 # The table in the contract and the table tested are the same table ---------------------

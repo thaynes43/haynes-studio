@@ -39,7 +39,6 @@ from typing import Any
 import numpy as np
 import PIL
 import PIL.Image
-import PIL.ImageOps
 
 from haynes_studio.cache.keys import check_result_key
 from haynes_studio.layered import compose, keying
@@ -54,6 +53,12 @@ from haynes_studio.layered.errors import (
 from haynes_studio.layered.keyed import decode_png, frame_pngs, read_record, read_verified
 from haynes_studio.render.base import SegmentRenderer, SegmentRequest
 from haynes_studio.render.clock import loop_frame, source_frame
+from haynes_studio.render.delivery_profile import (
+    DeliveryUpscalerProfile,
+    fit_set_plate,
+    needs_scaling,
+    resolve_delivery_upscaler,
+)
 from haynes_studio.render.encode import decode_frames
 from haynes_studio.timebase import DELIVERY_FPS
 
@@ -68,7 +73,7 @@ SEGMENT_INPUTS = {
     "height": "draw", "fps": "draw", "layout": "draw", "layers": "draw", "set_layer": "draw",
     "motion_style": "draw", "voice_envelope": "draw", "talk": "draw", "cues": "draw",
     "foreground": "draw", "compositor": "draw", "encoder": "draw", "procedural_stream": "none",
-    "whole_frame_clip": "absent",
+    "whole_frame_clip": "absent", "delivery_profile_sha256": "draw",
 }
 LAYER_FIELDS = ("slot", "still", "clip", "keyed", "role", "phase", "play", "trim_start",
                 "trim_frames", "source_fps", "clip_frames", "decal_min_ecc")
@@ -216,6 +221,10 @@ class LayeredRenderer(SegmentRenderer):
         inputs = request.inputs
         check_segment(inputs)
         width, height, frames = request.width, request.height, request.frames
+        try:
+            upscaler = resolve_delivery_upscaler(inputs.get("delivery_profile_sha256"))
+        except ValueError as error:
+            raise LayeredError(UNSUPPORTED, str(error), where="/delivery_profile_sha256") from error
         layout = inputs["layout"]
         single = compose.is_single(layout)
         checks: list[dict[str, Any]] = []
@@ -250,7 +259,7 @@ class LayeredRenderer(SegmentRenderer):
                                        f"{check['thresholds']['min_ecc']}); re-roll the clip or "
                                        "record a lower decal_min_ecc", where=item["keyed"], check=check)
             layers.append(layer)
-        background = _Set(request, inputs["set_layer"], frames, width, height)
+        background = _Set(request, inputs["set_layer"], (width, height), upscaler)
         talks: tuple[compose.Talk, ...] = ()
         if inputs.get("voice_envelope") and inputs.get("talk"):
             talks = _talks(_read(request, inputs["voice_envelope"], "the board voice track"),
@@ -333,9 +342,9 @@ def _talks(data: bytes, talk: list[Mapping[str, Any]]) -> tuple[compose.Talk, ..
 class _Set:
     """The board's set: a set loop on the board clock (TIME-8a), else the plate."""
 
-    def __init__(self, request: SegmentRequest, layer: Mapping[str, Any], frames: int,
-                 width: int, height: int):
-        self.layer, self.size = layer, (width, height)
+    def __init__(self, request: SegmentRequest, layer: Mapping[str, Any], size: tuple[int, int],
+                 upscaler: DeliveryUpscalerProfile):
+        self.layer, self.size, self.upscaler = layer, size, upscaler
         self.loop: list[np.ndarray] | None = None
         self.plate: PIL.Image.Image | None = None
         if layer.get("loop"):
@@ -354,15 +363,17 @@ class _Set:
                 raise LayeredError(CLIP_INVALID, f"the set loop decodes to {have} frames, its record "
                                    f"says {expected}", where=layer["loop"])
             sh, sw = self.loop[0].shape[:2]
-            if sw * height != sh * width:
+            try:
+                needs_scaling((sw, sh), size)
+            except ValueError as error:
+                width, height = size
                 raise LayeredError(UNSUPPORTED, f"a {sw}x{sh} set loop is not the {width}x{height} "
-                                   "board's aspect; it is neither cropped nor padded")
+                                   "board's aspect; it is neither cropped nor padded") from error
         else:
             data = _read(request, layer["plate"], "the set plate")
             try:
                 with PIL.Image.open(io.BytesIO(data)) as image:
-                    self.plate = PIL.ImageOps.fit(image.convert("RGB"), self.size,
-                                                  method=PIL.Image.Resampling.LANCZOS)
+                    self.plate = fit_set_plate(image.convert("RGB"), self.size)
             except Exception as error:
                 raise LayeredError(CLIP_INVALID, f"the set plate does not decode: "
                                    f"{type(error).__name__}") from error
@@ -378,8 +389,7 @@ class _Set:
             return self.plate
         index = self.index(n)
         self.used.add(index)
-        image = PIL.Image.fromarray(self.loop[index])
-        return image if image.size == self.size else image.resize(self.size, PIL.Image.Resampling.LANCZOS)
+        return self.upscaler.scale(PIL.Image.fromarray(self.loop[index]), self.size)
 
     def report(self) -> dict[str, Any]:
         if self.loop is None:

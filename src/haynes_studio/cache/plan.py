@@ -13,6 +13,7 @@ embedded, each spoken board's current voice (take hashes and durations, and its
 track's hash), every asset version's content hash, each voice version's stock voice,
 the toolchain and the media format. Identifiers name artifacts in the plan; they are
 never key inputs. Board timing is story 404's (:func:`~haynes_studio.canonical.derive.board_clock`).
+The local delivery conversion profile is pinned by digest on each segment key.
 
 The layered path (story 426) plans from **pinned motion records** when ``motion`` is
 given (:class:`LayeredMotion`, made by :func:`haynes_studio.layered.pin.pin_story` with
@@ -56,12 +57,14 @@ from haynes_studio.canonical.model import NARRATOR, Board, CameraCue, MoveCue, S
 from haynes_studio.jsonio import thaw
 from haynes_studio.render.clock import (
     SET_SLOT,
+    S2V_SOURCE_FPS,
     board_stream,
     i2v_clip_lengths,
     loop_period,
     loop_phase,
     source_frames_needed,
 )
+from haynes_studio.render.delivery_profile import delivery_profile_sha256
 from haynes_studio.render.encode import EncoderSettings, encoder_build
 from haynes_studio.timebase import DELIVERY_FPS, MIX_RATE, mix_sample
 
@@ -137,7 +140,7 @@ class Toolchain:
     s2v_adapter: str = "studio.s2v/1"
     s2v_profile: Mapping[str, Any] = field(default_factory=lambda: _frozen({
         "model": "wan2.2-s2v-14b-fp8", "lora": "lightx2v-4step", "steps": 4, "cfg": 1,
-        "size": [576, 1024], "chunk": 77, "source_fps": 16}))
+        "size": [576, 1024], "chunk": 77, "source_fps": S2V_SOURCE_FPS}))
     s2v_prompt: str = "a felt doll talking, stop-motion"
     s2v_negative_prompt: str = NEGATIVE
     motion_profile: Mapping[str, Any] = field(default_factory=lambda: _frozen({
@@ -566,7 +569,8 @@ class _Planner:
                    "end_ms": clock.spans[line.id].end_ms} for line in board.lines],
             cues=_picture_cues(board, clock), foreground=foreground,
             procedural_stream=board_stream(tools.procedural_seed, board.id),
-            compositor=self.compositor(board), encoder=tools.encoder)
+            compositor=self.compositor(board), encoder=tools.encoder,
+            delivery_profile_sha256=delivery_profile_sha256())
         self.add(f"{board.id}/segment", segment, board.id)
         voice_track = None if track is None else {
             "track": track, "start_frame": film_start,

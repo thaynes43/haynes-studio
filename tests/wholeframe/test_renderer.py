@@ -13,6 +13,7 @@ import pytest
 from haynes_studio.cache import ArtifactCache, stage_name
 from haynes_studio.cache.build import PictureBuilder
 from haynes_studio.render.base import SegmentRequest
+from haynes_studio.render.delivery_profile import DeliveryUpscalerProfile, delivery_profile_sha256
 from haynes_studio.render.encode import EncoderSettings, decode_frames, encode_segment
 from haynes_studio.render.synthetic import read_code
 from haynes_studio.stages import completed_stage
@@ -98,7 +99,7 @@ def test_through_the_cache_the_segment_decodes_to_the_boards_frames(store):
 def test_a_same_aspect_clip_is_scaled_with_lanczos_and_another_aspect_refused(store):
     clip_set = make_clips(store, h.clip_key(profile={**h.PROFILE, "size": [180, 320]}))
     renderer = WholeFrameRenderer()
-    segment = h.wf_segment(clip_set, 30)
+    segment = h.wf_segment(clip_set, 30, delivery_profile_sha256=delivery_profile_sha256())
     frames = list(renderer.render(request(store, segment)))
     assert len(frames) == 30 and frames[0].shape == (640, 360, 3) and frames[0].dtype == np.uint8
     assert [read_code(f) for f in frames] == expected_codes(30, 25, 31)
@@ -118,6 +119,7 @@ def test_121_frame_clips_chain_for_a_board_past_one_clip(store):
 
 
 @pytest.mark.parametrize(("override", "code"), [
+    ({"delivery_profile_sha256": "f" * 64}, UNSUPPORTED),
     ({"method": {"layer": "whole_frame", "motion": "s2v"}}, METHOD_UNAVAILABLE),
     ({"method": {"layer": "layered", "motion": "i2v"}}, UNSUPPORTED),
     ({"cues": [{"type": "camera", "start_ms": 0, "duration_ms": 350, "zoom_from": 1.0,
@@ -280,7 +282,7 @@ def test_a_stopped_render_closes_its_native_decoder_even_when_referenced(store, 
             def refuse_scale(*args):
                 raise failure
 
-            monkeypatch.setattr(renderer_module, "_scale", refuse_scale)
+            monkeypatch.setattr(DeliveryUpscalerProfile, "scale", refuse_scale)
             with pytest.raises(RuntimeError) as error:
                 next(frames)
             assert error.value is failure
