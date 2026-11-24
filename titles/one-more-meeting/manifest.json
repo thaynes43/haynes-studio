@@ -1,0 +1,162 @@
+{
+  "schema": "studio.story/v1",
+  "id": "sty_01M7ZGYNHFET1GKR4304FVD4PF",
+  "production_id": "prd_01M7ZGYNHFET1GKR4304FVD4PE",
+  "media_kind": "short",
+  "title": "One More Meeting",
+  "revision": 3,
+  "format_version_id": null,
+  "cast": [
+    {
+      "slot": "b",
+      "name": "chair",
+      "voice_version_id": "asv_01M7ZGYP42TJVX0SBZYCV4B8PD"
+    }
+  ],
+  "narrator_voice_version_id": null,
+  "set": {
+    "asset_version_id": "asv_01M7ZGYP41RN5K51K473MCJHC5",
+    "motion_asset_version_id": "asv_01M7ZGYPMBQNNBZ784SNQ8KM01",
+    "foreground_edge_px": [
+      [
+        0,
+        1310
+      ],
+      [
+        180,
+        1340
+      ],
+      [
+        360,
+        1390
+      ],
+      [
+        540,
+        1425
+      ],
+      [
+        720,
+        1455
+      ],
+      [
+        900,
+        1470
+      ],
+      [
+        1080,
+        1480
+      ]
+    ],
+    "foreground_feather_px": 20,
+    "legacy_fire": null,
+    "note": "top edge of the mossy log in set-left-s221 after fitting to 1080x1920, read off a ruler overlay (poc scratch set-ruler.jpg); the log curves down to the right"
+  },
+  "layouts": {
+    "single": {
+      "height": 1240,
+      "x": 0.62,
+      "bottom": 1560
+    }
+  },
+  "motion_style": {
+    "idle_scale": 0.3,
+    "talk_hop": 34,
+    "talk_tilt": 3.2,
+    "talk_shuffle": 7
+  },
+  "mix": {
+    "line_rms_dbfs": -22,
+    "master_lufs": -20,
+    "true_peak_dbtp": -3.5
+  },
+  "checks": {
+    "asr_tolerances": {
+      "alright": "all right",
+      "canceling": "cancelling"
+    },
+    "asr_tolerances_note": "Accept the two equivalent spellings from the recognizer."
+  },
+  "beds": [],
+  "board_order": [
+    "brd_01M7ZGYNHFET1GKR4304FVD4PG"
+  ],
+  "boards": [
+    {
+      "schema": "studio.board/v1",
+      "id": "brd_01M7ZGYNHFET1GKR4304FVD4PG",
+      "story_id": "sty_01M7ZGYNHFET1GKR4304FVD4PF",
+      "number": 1,
+      "revision": 3,
+      "title": "Any objections?",
+      "lines": [
+        {
+          "id": "lin_01M7ZGYNHFET1GKR4304FVD4PH",
+          "speaker": "b",
+          "text": "Any objections to cancelling the next meeting?",
+          "gap_before_ms": null
+        },
+        {
+          "id": "lin_01M7ZGYNHFET1GKR4304FVD4PJ",
+          "speaker": "b",
+          "text": "All right. I’ll schedule a meeting to discuss it.",
+          "gap_before_ms": 1100
+        }
+      ],
+      "timing": {
+        "lead_ms": 550,
+        "tail_ms": 1250,
+        "hold_ms": null
+      },
+      "voice": {
+        "style": "cast",
+        "current_version_id": null
+      },
+      "photo": {
+        "current_version_id": null,
+        "prompt": null,
+        "input_asset_version_ids": [
+          "asv_01M7ZGYNVDFZETY5N3GYFJJ5W9",
+          "asv_01M7ZGYP41RN5K51K473MCJHC5"
+        ]
+      },
+      "cast": [
+        {
+          "slot": "b",
+          "asset_version_id": "asv_01M7ZGYNVDFZETY5N3GYFJJ5W9",
+          "motion_asset_version_id": "asv_01M7ZGYPBDYSMT2WQATN5N2N9S"
+        }
+      ],
+      "layout": {
+        "preset": "single",
+        "foreground": true
+      },
+      "method": {
+        "layer": "layered",
+        "motion": "s2v"
+      },
+      "seeds": {
+        "s2v:b": 501
+      },
+      "cues": [],
+      "notes": [],
+      "drafted_by": {
+        "kind": "agent_session",
+        "session": "haynes-studio-1121-165700",
+        "harness": "Codex",
+        "model": "gpt-6.2-sol"
+      },
+      "origin": null,
+      "created_at": "2026-11-21T17:02:37Z",
+      "updated_at": "2026-11-21T17:04:21Z"
+    }
+  ],
+  "origin": null,
+  "created_at": "2026-11-21T17:02:37Z",
+  "updated_at": "2026-11-21T17:04:21Z",
+  "created_by": {
+    "kind": "agent_session",
+    "session": "haynes-studio-1121-165700",
+    "harness": "Codex",
+    "model": "gpt-6.2-sol"
+  }
+}
