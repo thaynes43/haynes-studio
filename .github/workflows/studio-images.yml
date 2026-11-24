@@ -1,0 +1,162 @@
+name: Studio images
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and smoke Studio images
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16@sha256:63e83b5a3dc36a917dccb76fe1bd2ac51f1ec9c1deb47ff20d4f04233bf6eae9
+        env:
+          POSTGRES_DB: studio_image_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U postgres -d studio_image_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Set up the image builder
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          driver-opts: image=moby/buildkit:v0.25.2@sha256:0f63d66f8d2de0bd16438284831a3e9ee6ca7cd57b6eb3ed6e38a7a456590fa7
+          buildkitd-config-inline: |
+            [worker.oci]
+              max-parallelism = 2
+
+      - name: Build and scan both images
+        shell: bash
+        run: |
+          IMAGE_DIR="$RUNNER_TEMP/studio-images"
+          mkdir -p "$IMAGE_DIR"
+          revision=$(git rev-parse HEAD)
+          test "$revision" = "$GITHUB_SHA"
+          epoch=$(git show -s --format=%ct "$revision")
+          for name in studio studio-web; do
+            image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/haynes-$name:sha-$revision"
+            docker buildx build --platform linux/amd64 --provenance=false \
+              --build-arg "SOURCE_DATE_EPOCH=$epoch" --build-arg "REVISION=$revision" \
+              --file "docker/$name.Dockerfile" --tag "$image" \
+              --output "type=docker,dest=$IMAGE_DIR/$name.tar,rewrite-timestamp=true" \
+              --metadata-file "$IMAGE_DIR/$name.json" .
+            docker load --input "$IMAGE_DIR/$name.tar"
+            test "$(docker image inspect "$image" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$revision"
+            test "$(docker image inspect "$image" --format '{{.Config.User}}')" = "$([[ $name = studio ]] && echo 10001:10001 || echo 101:101)"
+
+            container=$(docker create "$image")
+            trap 'docker rm "$container" >/dev/null' EXIT
+            docker export "$container" | python3 -B docker/check-image.py
+            docker rm "$container" >/dev/null
+            trap - EXIT
+
+            digest=$(jq -er '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' "$IMAGE_DIR/$name.json")
+            printf 'Built `%s` with local manifest digest `%s`.\n' "$image" "$digest" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Smoke the Studio CLI, OpenAPI and migration
+        shell: bash
+        env:
+          STUDIO_MIGRATION_DATABASE_URL: postgresql://postgres@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/studio_image_test
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/haynes-studio:sha-$GITHUB_SHA"
+          run=(docker run --rm --cpus=2 --read-only --tmpfs /tmp:rw,nosuid,nodev,mode=1777)
+          "${run[@]}" --network none "$image" studio --help >/dev/null
+          "${run[@]}" --network none "$image" python -c '
+          import ssl
+          import haynes_studio, av, cv2, httpx, imageio_ffmpeg, numpy, scipy.ndimage
+          assert ssl.create_default_context().get_ca_certs()
+          httpx.create_ssl_context(verify=True)
+          assert imageio_ffmpeg.get_ffmpeg_version()
+          '
+          "${run[@]}" --network none "$image" studio-api openapi \
+            | jq -e '(.openapi | startswith("3.1.")) and (.paths["/v1/me"] != null)' >/dev/null
+          "${run[@]}" --network host --env STUDIO_MIGRATION_DATABASE_URL \
+            --env STUDIO_DATABASE_SCHEMA=public "$image" studio-api-migrate upgrade head
+
+      - name: Smoke the web image on a read-only root filesystem
+        shell: bash
+        run: |
+          IMAGE_DIR="$RUNNER_TEMP/studio-images"
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/haynes-studio-web:sha-$GITHUB_SHA"
+          container=$(docker run --detach --cpus=2 --read-only --tmpfs /tmp:rw,nosuid,nodev,mode=1777 \
+            --publish 127.0.0.1::8080 "$image")
+          trap 'docker rm -f "$container" >/dev/null' EXIT
+          base="http://$(docker port "$container" 8080/tcp)"
+          curl -fsS --retry 10 --retry-connrefused --retry-delay 1 \
+            -D "$IMAGE_DIR/index.headers" "$base/index.html" -o "$IMAGE_DIR/index.html"
+          curl -fsS -D "$IMAGE_DIR/deep.headers" "$base/productions/example/shorts" \
+            -o "$IMAGE_DIR/deep.html"
+          cmp "$IMAGE_DIR/index.html" "$IMAGE_DIR/deep.html"
+          curl -fsS "$base/" | cmp "$IMAGE_DIR/index.html" -
+          for page in index deep; do
+            tr -d '\r' < "$IMAGE_DIR/$page.headers" | grep -Fxi 'Cache-Control: no-store'
+          done
+          asset=$(sed -nE 's|.*<script [^>]*src="(/assets/[^"]+)".*|\1|p' "$IMAGE_DIR/index.html")
+          test -n "$asset"
+          curl -fsSI "$base$asset" | tr -d '\r' | grep -Fxi 'Cache-Control: public, max-age=31536000, immutable'
+          for path in /v1 /v1/x /auth /auth/x /assets/missing.js; do
+            test "$(curl -sS -o /dev/null -w '%{http_code}' "$base$path")" = 404
+          done
+
+      - name: Save the tested images for the publish job
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: studio-images-${{ github.sha }}
+          path: ${{ runner.temp }}/studio-images/*.tar
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+          overwrite: true
+
+  publish:
+    name: Publish tested Studio images
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      packages: write
+    steps:
+      - name: Retrieve the tested images
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: studio-images-${{ github.sha }}
+          path: ${{ runner.temp }}/studio-images
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push the commit images and read back their digests
+        shell: bash
+        run: |
+          IMAGE_DIR="$RUNNER_TEMP/studio-images"
+          for name in studio studio-web; do
+            repository="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/haynes-$name"
+            image="$repository:sha-$GITHUB_SHA"
+            docker load --input "$IMAGE_DIR/$name.tar"
+            docker push "$image"
+            digest=$(docker buildx imagetools inspect "$image" --format '{{.Manifest.Digest}}')
+            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            printf 'Revision `%s` → `%s@%s`\n' "$GITHUB_SHA" "$repository" "$digest" >> "$GITHUB_STEP_SUMMARY"
+          done
