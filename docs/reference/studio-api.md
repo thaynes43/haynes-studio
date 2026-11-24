@@ -142,7 +142,14 @@ through the story 410 transport and need no database account.
   to remain on the configured allowlist. Group-only sessions bind their
   cookie digest to the configured group allowlist at sign-in. The API
   checks Authentik membership again on the next sign-in, after logout or
-  expiry. The session table has no claims document, so group names from the
+  expiry. So a person removed from the group keeps a Studio
+  session they already hold until it expires: at most `STUDIO_SESSION_SECONDS`
+  (8 hours by default, 24 hours at most). To end it sooner, delete that
+  person's rows from the session table by subject, or change
+  `STUDIO_OIDC_ALLOWED_GROUPS`, which ends every group session. Authentik's
+  binding counts membership through a parent group, while the `groups` claim
+  lists direct memberships only, so a member of a child group of an allowed
+  group passes Authentik and is refused here. The session table has no claims document, so group names from the
   token are discarded after the sign-in check.
 - `GET /v1/me` returns the principal and, for a browser session, a CSRF token.
   Send it in `X-Studio-CSRF` for unsafe methods, including `POST /auth/logout`.
