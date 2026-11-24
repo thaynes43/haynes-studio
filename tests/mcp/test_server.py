@@ -268,7 +268,7 @@ async def test_api_error_envelopes_bound_invalid_and_oversize_errors(api):
 
 
 @pytest.mark.parametrize("url", [
-    "http://studio-api.studio.svc.cluster.local:8000", "http://studio-api.studio.svc",
+    "http://studio-api.studio.svc.cluster.local:8000", "http://studio-api.studio.svc.cluster.local.",
     "http://localhost", "http://127.1.2.3:8000", "http://[::1]:8000", "https://example.invalid",
 ])
 def test_accepts_https_and_local_http_origins(url):
@@ -277,6 +277,7 @@ def test_accepts_https_and_local_http_origins(url):
 
 @pytest.mark.parametrize("url", [
     "http://example.invalid", "http://studio-api", "http://10.0.0.1",
+    "http://studio-api.studio.svc", "http://studio-api.studio.svc.",
     "http://studio-api.studio.svc.cluster.local.example.invalid",
     "https://example.invalid/api", "https://user:pass@example.invalid", "https://example.invalid/?token=fixture",
 ])

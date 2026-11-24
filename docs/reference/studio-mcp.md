@@ -19,7 +19,7 @@ reaches MCP, including any port. Native clients can omit Origin. Set repeatable
 `--allowed-origin` values to permit specific browser origins. Use TLS for the
 agent transport outside loopback. The upstream `STUDIO_API_URL` must be a fixed
 HTTPS origin, except that HTTP is allowed for loopback or Kubernetes Service DNS
-(`service.namespace.svc.cluster.local` or `service.namespace.svc`). Set
+(`service.namespace.svc.cluster.local`, with an optional trailing dot). Set
 `STUDIO_API_CA_FILE` to a mounted PEM CA bundle when verifying an API certificate
 issued by a private CA. The upstream client ignores proxy and trust environment
 variables and disables redirects.
@@ -108,12 +108,15 @@ and `runs:queue`. Go-live approval is reserved for people. Expiry is optional
 and must include a timezone when supplied. Registering the same key with
 the same productions, scopes and expiry returns its existing key ID.
 Changed grants or expiry require `--replace-grants`, which replaces the full
-set without clearing revocation. The database stores only the SHA-256 digest.
+set. Registration of a revoked key returns `key_admin.key_revoked`. The database
+stores only the SHA-256 digest.
 
 Register and `create --out` print the key ID. Create requires a new output
-path and opens it exclusively with mode `0600`. With no output path, create
-prints the secret only on a terminal and refuses before connecting when
-stdout is redirected. List returns IDs, grants, expiry and revocation dates.
+path and opens it exclusively with mode `0600` after the database commits.
+Use `create` without `--out` only from an interactive `kubectl exec`. A pod's
+main process output can be logged by Kubernetes even with a TTY. The command
+refuses before connecting when stdout is redirected. List returns IDs, grants,
+expiry and revocation dates.
 Revoke is idempotent. Each command writes a secret-free JSON access log event
 to stderr with the action, status and available database role and key ID.
 

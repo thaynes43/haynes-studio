@@ -40,23 +40,28 @@ when no worker has checked in or renewed a claim within 90 seconds. Every estima
 
 Cancellation clears any admission cooldown. If Wan may have received a job,
 the worker checks its recorded ID. It drains an active job under the existing
-lease and settles an absent, refused or terminal job immediately. The run
-becomes cancelled and releases the FIFO lane. A PUT whose final fence check
-passed before cancellation can still reach Wan afterward. Wan controls
-admission and deduplicates that ID. The fenced delivery publication step is the
-cancellation cutoff. Terminal canonical documents are immutable.
+lease and settles a refused or terminal job immediately. If Wan returns
+`404 job_not_found` for a `sent` ID, the worker holds the run and records the
+first absence. A second clean absence must be at least one claim lease plus the
+Wan PUT timeout later (90 + 20 seconds) before cancellation releases the FIFO
+lane. Inconclusive or active status reads restart the absence check. The original
+claim can cancel immediately when it catches cancellation before its first PUT.
+A PUT whose final fence check passed before cancellation can still reach Wan
+afterward. Wan controls admission and deduplicates that ID. The fenced delivery
+publication step is the cancellation cutoff. Terminal canonical documents are immutable.
 A check override is a separate immutable record with a person, reason and
 timestamp. The release checks are outside the override route's scope.
 
 ## Worker configuration
 
-Run `python -m haynes_studio.queue.worker`. Each process uses one claim at a
-time and the serial build pipeline. Use `--once` to process at most one claim.
+Run `studio-worker` or `python -m haynes_studio.queue.worker`. Each process uses
+one claim at a time and the serial build pipeline. Use `--once` to process at
+most one claim.
 
 | Environment | Value |
 | --- | --- |
 | `STUDIO_API_URL` | Internal origin of studio-api. Keep `/internal/v1/work/*` reachable by workers. |
-| `STUDIO_WORKER_TOKEN` | Owner-provisioned worker bearer secret. Use distinct worker IDs and tokens for separate worker identities. Workers use Studio HTTP for all metadata. |
+| `STUDIO_WORKER_TOKEN` | The same generated secret registered from a file in [worker token administration](studio-api.md#worker-token-administration). Use distinct IDs and secrets for separate workers. |
 | `STUDIO_WAN_URL` | Internal origin of the [Wan product API](wan-product-api.md). |
 | `STUDIO_WAN_STORY_URL` | Full OpenProject work package URL recorded in Wan's job ledger. |
 | `STUDIO_STORE_ROOT` | The canonical Studio store. Mount read-only on the worker. |
@@ -129,7 +134,9 @@ flowchart TD
     D -->|Absent, sent marker and no cancel| P
     D -->|Absent, reserved and no cancel| C
     D -->|Queued or running| D
-    D -->|Absent or terminal with cancel pending| X[Settle attempt and cancel run]
+    D -->|Terminal with cancel pending| X[Settle attempt and cancel run]
+    D -->|Absent with cancel pending| A[Hold until a second clean absence after lease plus PUT timeout]
+    A --> X
     D -->|Terminal pre-admission refusal| Y[Mark busy and defer the head]
     Y --> A
     D -->|Definite restart failure| C
@@ -166,6 +173,7 @@ restart failure allows one fresh attempt per claim before yielding.
 | --- | --- |
 | `wan.submit_not_sent` | The connection failed before the PUT could be written. Recheck the saved ID and readiness after the wait. |
 | `wan.ambiguous_submit` | Reconciliation still found no record after a same-ID replay. Keep the head and retry reconciliation. |
+| `wan.cancel_waiting_for_absence` | Cancellation is pending for a sent ID. Hold the FIFO head and check the same ID for a second absence after the safety window. |
 | `wan.foreign_engine_queue`, `wan.busy` | Honor the admission cooldown. Use a new ID only after a recorded terminal refusal. |
 | `wan.id_conflict`, `wan.submit_rejected` | Fail the attempt and run on a conflicting ID or another definite PUT client error. |
 | `wan.graph_mismatch`, `wan.result_invalid`, `wan.clip_invalid` | Fail the attempt and run with expected and actual evidence for the terminal result. Verification covers the graph pin, byte count, SHA-256, decode, dimensions, frame count and rate. |
