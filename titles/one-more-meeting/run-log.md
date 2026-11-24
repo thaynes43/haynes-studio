@@ -18,7 +18,8 @@ The committed recovery receipt supplied the expected sizes and full hashes for a
 files before the copy. An independent process reopened every file on the canonical NFS
 share and matched all five SHA-256 hashes and sizes, 73,638,915 bytes in total. Its JSON
 read-back matched the original run, delivery and recovery ledger. The preserved delivery
-record is the recovery record described in story 941.
+record is the recovery record described in
+[story 941](https://work.haynesnetwork.com/work_packages/941).
 
 The archive used an exclusive new directory and fsynced each file before making its
 final name with an exclusive hard link. The production location, identities and
