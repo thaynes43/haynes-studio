@@ -41,6 +41,8 @@ dependencies = [
 
 [project.scripts]
 studio = "haynes_studio.cli:main"
+studio-api = "haynes_studio.api.__main__:main"
+studio-api-migrate = "haynes_studio.db.migrate:main"
 
 [dependency-groups]
 # Test and development tools only. A story that needs a runtime library adds it to
