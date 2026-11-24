@@ -38,12 +38,13 @@ unavailable queue can give a null wait range. The API shows `gpu_unavailable`
 when no worker has checked in or renewed a claim within 90 seconds. Every estimate has
 `uncertain: true` and a basis.
 
-Cancelling stops new work for the run and clears any admission cooldown. If
-Wan may have received a job, the worker checks its recorded ID. It drains an
-active job under the existing lease and settles an absent, refused or terminal
-job immediately. The run becomes cancelled and releases the FIFO lane. The
-fenced delivery publication step is the cancellation cutoff. Terminal canonical
-documents are immutable.
+Cancellation clears any admission cooldown. If Wan may have received a job,
+the worker checks its recorded ID. It drains an active job under the existing
+lease and settles an absent, refused or terminal job immediately. The run
+becomes cancelled and releases the FIFO lane. A PUT whose final fence check
+passed before cancellation can still reach Wan afterward. Wan controls
+admission and deduplicates that ID. The fenced delivery publication step is the
+cancellation cutoff. Terminal canonical documents are immutable.
 A check override is a separate immutable record with a person, reason and
 timestamp. The release checks are outside the override route's scope.
 
