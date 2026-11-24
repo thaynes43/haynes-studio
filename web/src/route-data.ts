@@ -1,8 +1,8 @@
 import { ApiError, type StudioClient } from "./api/client";
 import type { components } from "./api/schema";
-import type { Context } from "./routes";
+import type { Context, MediaKind } from "./routes";
 
-type Production = Pick<components["schemas"]["Production"], "id" | "name" | "media_types">;
+export type Production = Pick<components["schemas"]["Production"], "id" | "name" | "media_types" | "revision">;
 type Story = Pick<components["schemas"]["Story"], "id" | "title" | "production_id" | "media_kind" | "board_order">;
 type Board = Pick<components["schemas"]["Board"], "id" | "story_id" | "number">;
 // These are the data needed to draw the shell and its route controls.
@@ -13,6 +13,14 @@ export type RouteData = {
   stories?: Story[];
   board?: Board;
 };
+
+export async function loadProduction(api: StudioClient, id: string, signal: AbortSignal) {
+  const { data } = await api.GET("/v1/productions/{id}", {
+    signal, params: { path: { id } },
+  });
+  if (!data || data.id !== id) throw new ApiError(404);
+  return data;
+}
 
 async function collectPages<T>(
   read: (cursor?: string) => Promise<{ items: T[]; next_cursor: string | null } | undefined>,
@@ -33,6 +41,20 @@ async function collectPages<T>(
   return items;
 }
 
+export function listProductions(api: StudioClient, signal: AbortSignal) {
+  return collectPages<Production>((cursor) =>
+    api.GET("/v1/productions", { signal, params: { query: { cursor } } }).then(({ data }) => data)
+  );
+}
+
+export function listStories(api: StudioClient, id: string, kind: MediaKind, signal: AbortSignal) {
+  return collectPages<Story>((cursor) =>
+    api.GET("/v1/productions/{id}/media-types/{kind}/stories", {
+      signal, params: { path: { id, kind }, query: { cursor } },
+    }).then(({ data }) => data)
+  );
+}
+
 export async function loadRoute(
   api: StudioClient,
   context: Context,
@@ -42,29 +64,16 @@ export async function loadRoute(
   const { production: id, media, story: storyId, board: boardId } = context;
   if (!id) {
     if (area === "assets") return {};
-    const productions = await collectPages<Production>((cursor) =>
-      api.GET("/v1/productions", { signal, params: { query: { cursor } } }).then(({ data }) => data)
-    );
-    return { productions };
+    return { productions: await listProductions(api, signal) };
   }
 
-  const { data: production } = await api.GET("/v1/productions/{id}", {
-    signal, params: { path: { id } },
-  });
-  if (!production || production.id !== id ||
-      (media && !production.media_types.some(({ kind }) => kind === media))) {
+  const production = await loadProduction(api, id, signal);
+  if (media && !production.media_types.some(({ kind }) => kind === media)) {
     throw new ApiError(404);
   }
 
   if (!media) return { production };
-  if (!storyId) {
-    const stories = await collectPages<Story>((cursor) =>
-      api.GET("/v1/productions/{id}/media-types/{kind}/stories", {
-        signal, params: { path: { id, kind: media }, query: { cursor } },
-      }).then(({ data }) => data)
-    );
-    return { production, stories };
-  }
+  if (!storyId) return { production, stories: await listStories(api, id, media, signal) };
 
   const { data: story } = await api.GET("/v1/stories/{id}", {
     signal, params: { path: { id: storyId } },

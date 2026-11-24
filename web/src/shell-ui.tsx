@@ -12,6 +12,29 @@ export function PageHeading({ children }: { children: ReactNode }) {
   return <h1 id="page-heading" tabIndex={-1} ref={heading}>{children}</h1>;
 }
 
+export function Empty({ children }: { children: ReactNode }) {
+  return <p className="empty">{children}</p>;
+}
+
+export function Rows({ items }: { items: Array<{ to: string; label: string; detail?: string }> }) {
+  return (
+    <ul className="tree">
+      {items.map(({ to, label, detail }) => (
+        <li key={to}>
+          <Link to={to}>
+            <span className="folder-mark" aria-hidden="true" />
+            <span className="tree-label">
+              <strong>{label}</strong>
+              {detail && <small>{detail}</small>}
+            </span>
+            <span className="arrow" aria-hidden="true">→</span>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function problemText(error: unknown) {
   if (!(error instanceof ApiError)) return "Studio returned an unexpected response.";
   switch (error.status) {
@@ -29,13 +52,13 @@ function problemText(error: unknown) {
 }
 
 export function Problem({
-  error, retry, saving = false,
-}: { error: unknown; retry?: () => void; saving?: boolean }) {
+  error, retry, saving = false, message, id,
+}: { error: unknown; retry?: () => void; saving?: boolean; message?: string; id?: string }) {
   const requestId = error instanceof ApiError ? error.requestId : undefined;
   return (
     <div className="problem">
-      <div role="alert">
-        <p>{saving && "Selection couldn’t be saved. "}{problemText(error)}</p>
+      <div role="alert" id={id}>
+        <p>{saving && "Selection couldn’t be saved. "}{message ?? problemText(error)}</p>
         {requestId && <p className="request-id">Request ID {requestId}</p>}
       </div>
       {retry && (

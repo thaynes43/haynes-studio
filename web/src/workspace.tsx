@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useSyncExternalStore, type ReactNode }
 import { Link, useLocation } from "react-router";
 
 import type { StudioClient } from "./api/client";
+import { EditorLanding, EditorPicker } from "./editor-entry";
 import { boardLabel, loadRoute, type RouteData } from "./route-data";
 import { assetsPath, mediaKinds, parseRoute, routePath, treePath, type Route } from "./routes";
 import type { SelectionStore } from "./selections";
-import { AccountMenu, Brand, Breadcrumbs, PageHeading, Problem, ThemeOptions, type Crumb } from "./shell-ui";
+import { AccountMenu, Brand, Breadcrumbs, Empty, PageHeading, Problem, Rows, ThemeOptions, type Crumb } from "./shell-ui";
 import type { ThemeSettings } from "./theme";
 import { useRequest } from "./use-request";
 
@@ -48,46 +49,6 @@ function trailFor(route: ContextRoute, data: RouteData): Crumb[] {
   return trail;
 }
 
-function Empty({ children }: { children: ReactNode }) {
-  return <p className="empty">{children}</p>;
-}
-
-function Rows({ items }: { items: Array<{ to: string; label: string; detail?: string }> }) {
-  return (
-    <ul className="tree">
-      {items.map(({ to, label, detail }) => (
-        <li key={to}>
-          <Link to={to}>
-            <span className="folder-mark" aria-hidden="true" />
-            <span className="tree-label">
-              <strong>{label}</strong>
-              {detail && <small>{detail}</small>}
-            </span>
-            <span className="arrow" aria-hidden="true">→</span>
-          </Link>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function EditorLanding({ assets }: { assets: string }) {
-  return (
-    <div className="launch-grid">
-      <Link to={treePath("board")} className="launch">
-        <span className="launch-icon mark-board" aria-hidden="true" />
-        <span><strong>Storyboard editor</strong><small>Script, voice and reference photos.</small></span>
-        <span className="arrow" aria-hidden="true">→</span>
-      </Link>
-      <Link to={assets} className="launch">
-        <span className="launch-icon mark-assets" aria-hidden="true" />
-        <span><strong>Asset library</strong><small>Cast, costumes, sets and props.</small></span>
-        <span className="arrow" aria-hidden="true">→</span>
-      </Link>
-    </div>
-  );
-}
-
 function treeHeading(route: ContextRoute, data: RouteData) {
   if (route.area === "assets") return route.generate ? "Generate asset" : "Asset library";
   const { production, media, story, board } = route.context;
@@ -97,7 +58,7 @@ function treeHeading(route: ContextRoute, data: RouteData) {
   if (board) return boardLabel(data.board);
   if (story) return data.story?.title ?? "Story";
   if (media) return route.area === "board" ? "Choose a story" : mediaKinds[media].plural;
-  if (production) return route.area === "board" ? "Choose a media type" : data.production?.name ?? "Production";
+  if (production) return route.area === "board" ? "Media types" : data.production?.name ?? "Production";
   return route.area === "board" ? "Choose a production" : "Productions";
 }
 
@@ -148,7 +109,7 @@ function RouteContents({ route, data }: { route: ContextRoute; data: RouteData }
     return data.production.media_types.length
       ? <Rows items={data.production.media_types.map(({ kind, aspect }) => ({
           to: treePath(area, { production, media: kind }),
-          label: area === "board" ? mediaKinds[kind].label : mediaKinds[kind].plural,
+          label: mediaKinds[kind].plural,
           detail: aspect,
         }))} />
       : <Empty>No media types yet.</Empty>;
@@ -191,7 +152,9 @@ function ContextPage({
     <ShellPage title={treeHeading(route, data)} trail={trailFor(route, data)} current={routePath(route)} before={before}>
       {result.status === "loading" && <p role="status" className="muted">Loading…</p>}
       {result.status === "failure" && <Problem error={result.error} retry={retry} />}
-      {result.status === "success" && <RouteContents route={route} data={data} />}
+      {result.status === "success" && (area === "board" && !context.story
+        ? <EditorPicker api={api} context={context} data={data} />
+        : <RouteContents route={route} data={data} />)}
     </ShellPage>
   );
 }
