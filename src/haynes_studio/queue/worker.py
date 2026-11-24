@@ -159,13 +159,28 @@ class BuildWorker:
             elif active.cancelled.is_set():
                 claim.fail(status="cancelled", reason="Cancelled after reconciling Wan work")
             elif result["status"] == "succeeded":
-                claim.complete({key: result[key] for key in ("stages", "outputs", "checks",
-                                                             "provenance", "delivery_id")})
+                self._complete(claim, result)
             else:
                 error = result["error"]
                 claim.fail(status="failed", reason=error["message"][:500], error=error,
                            stages=result["stages"], checks=result["checks"])
         return True
+
+    @staticmethod
+    def _complete(claim, result):
+        evidence = {key: result[key] for key in ("stages", "outputs", "checks", "provenance", "delivery_id")}
+        try:
+            claim.complete(evidence)
+        except WorkerAPIError as error:
+            # These replies came from the API before committing success. A
+            # lost reply or a database outage still leaves an ambiguous result.
+            if error.status not in (413, 422) and error.code != "work.delivery_unverified":
+                raise
+            message = "Studio API refused the staged delivery"
+            claim.fail(status="failed", reason=message, error={
+                "code": "work.delivery_rejected", "message": message,
+                "board_id": None, "stage": "delivery",
+            })
 
     @staticmethod
     def _pause(claim, error, evidence=None):

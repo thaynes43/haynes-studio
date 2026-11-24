@@ -391,7 +391,8 @@ def test_only_a_person_can_append_an_override_without_mutating_the_run(queue):
     assert result.json()["by"]["kind"] == "human"
 
 
-def test_worker_recovers_staged_delivery_then_registers_private_playback(queue, tmp_path):
+@pytest.mark.parametrize("refused", [False, True], ids=["lost-reply", "definite-refusal"])
+def test_worker_recovers_or_fails_staged_delivery(queue, tmp_path, refused):
     from tests.delivery.media import write_master
     from tests.support.synthetic import write_sine_wav
 
@@ -429,7 +430,8 @@ def test_worker_recovers_staged_delivery_then_registers_private_playback(queue, 
                 sha = kwargs["json"]["outputs"]["proxy_sha256"]
                 locator = blob_locator(q.production_id, sha, "video/mp4")
                 assert q.store.verify(locator, sha) == MISSING
-                raise httpx.ReadTimeout("worker disappeared before the API received completion")
+                if not refused:
+                    raise httpx.ReadTimeout("worker disappeared before the API received completion")
             return super().post(url, **kwargs)
 
     with fake.client() as wan_http:
@@ -438,6 +440,15 @@ def test_worker_recovers_staged_delivery_then_registers_private_playback(queue, 
                        clock=q.clock.monotonic, pause=q.clock.advance)
         before = WorkerAPI(StopBeforeCompletion(q.app, worker_credentials(q.owner)))
         worker = BuildWorker(before, ProductWan(wan_http), **options)
+        if refused:
+            q.app.state.build_stage_root = None
+            second = queue_run(q, "next", rev=4).json()["id"]
+            assert worker.tick()
+            failed, _ = read_run(q, run_id)
+            assert failed["status"] == "failed" and failed["error"]["code"] == "work.delivery_rejected"
+            assert len(fake.puts()) == 1
+            assert worker_api(q).claim().identity["run_id"] == second
+            return
         with pytest.raises(WorkerAPIError, match="work.transport"):
             worker.tick()
         assert read_run(q, run_id)[0]["status"] == "running"

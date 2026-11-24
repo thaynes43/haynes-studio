@@ -68,8 +68,10 @@ The worker writes intermediate artifacts, cache entries and the candidate
 delivery create-only in the staging directory. A replacement worker can use the
 same staged artifacts. The API verifies and publishes only the delivery stage
 and its blobs into the canonical store, then records the delivery, playback
-index and run success in one transaction. If the transaction is interrupted,
-a retry verifies the same create-only files. Staging is retained for inspection.
+index and run success in one transaction. After an interrupted transaction or
+lost completion reply, a replacement verifies the same create-only files.
+A definite verification refusal fails the run and releases the head.
+Staging is retained for inspection.
 
 ## Claims and reconciliation
 
