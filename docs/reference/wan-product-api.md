@@ -130,7 +130,9 @@ graphs, URLs and filenames stay under server control.
 
 ## Legacy cleanup
 
-The shared engine client now accepts ComfyUI's empty HTTP 200 responses to
-`/interrupt` and `/queue` deletion. These previously raised a JSON parse
-error and latched the hold. When cleanup confirms the queue has drained,
-the lease can be released and the next legacy job can proceed.
+The installed legacy worker raises a JSON parse error and latches the hold
+when ComfyUI returns an empty HTTP 200 response to `/interrupt` or `/queue`
+deletion. After the companion Wan rollout, the shared engine client accepts
+those replies. When cleanup confirms the running queue has drained, the
+lease can be released and the next legacy job can proceed.
+[Wan rollout PR](https://github.com/thaynes43/haynes-ops/pull/5020)
