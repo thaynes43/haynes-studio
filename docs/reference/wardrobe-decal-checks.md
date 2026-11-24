@@ -43,7 +43,8 @@ turns, occlusion and props in the ink color can invalidate the region hints. Use
 an isolated region or escalate if one is unavailable.
 
 With weak or lost ECC, the returned escalation contains the clip ID, check, attempt
-and maximum of two re-rolls (CR-02). Attempt 1 denotes the original clip. Attempts 1
+and maximum of two re-rolls (CR-02). Invalid visual regions are recorded alongside
+that track evidence. Attempt 1 denotes the original clip. Attempts 1
 and 2 can return `reroll`. Attempt 3 and later return `stop_with_evidence`. Other
 failures and uncertain cases go to `review`. [Story 454](https://work.haynesnetwork.com/work_packages/454)
 owns scheduling and persistence. A person's per-artifact override goes through

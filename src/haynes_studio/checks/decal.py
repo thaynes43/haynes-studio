@@ -110,7 +110,7 @@ def check_decal(keyed: bytes, *, clip_id: str, clip_sha256: str, attempt: int,
                                  "shown_frames": None, "template_frame": 0,
                                  "lost_frames": [], "visual": visual,
                                  "regions": asdict(regions) if regions is not None else None}
-    weak = lost = invalid = False
+    weak = lost = False
     try:
         record = read_record(keyed)
         count = record["frames"]
@@ -139,11 +139,14 @@ def check_decal(keyed: bytes, *, clip_id: str, clip_sha256: str, attempt: int,
             if gate["result"]["min_ecc"] is not None and gate["result"]["min_ecc"] < keying.MIN_ECC:
                 issues.append("decal.track_weak")
 
-        if regions is not None and frames:
-            _measure_visual(keyed, record, regions, frames, visual)
-    except (LayeredError, KeyError, ValueError, TypeError, IndexError, struct.error):
-        invalid = True
+    except (LayeredError, KeyError, ValueError, TypeError):
         issues.append("decal.evidence_invalid")
+    else:
+        if regions is not None and frames:
+            try:
+                _measure_visual(keyed, record, regions, frames, visual)
+            except (LayeredError, KeyError, ValueError, TypeError, IndexError, struct.error):
+                issues.append("decal.visual_invalid")
 
     offset = visual["offset_peak"]
     ratio = visual["ink_ratio_peak"]
@@ -156,16 +159,14 @@ def check_decal(keyed: bytes, *, clip_id: str, clip_sha256: str, attempt: int,
     if not visual["frames_measured"] or visual["unmeasured_frames"]:
         issues.append("decal.visual_unmeasured")
     verdict: Verdict = "pass"
-    if invalid:
-        verdict = "uncertain"
-    elif slides or extra_ink or lost:
+    if slides or extra_ink or lost:
         verdict = "fail"
     elif issues:
         verdict = "uncertain"
     escalation = None
     if verdict != "pass":
         action = "review"
-        if weak and not invalid:
+        if weak:
             action = "reroll" if attempt <= MAX_REROLLS else "stop_with_evidence"
         escalation = {"action": action, "clip_id": clip_id, "check": CHECK,
                       "attempt": attempt, "max_rerolls": MAX_REROLLS}

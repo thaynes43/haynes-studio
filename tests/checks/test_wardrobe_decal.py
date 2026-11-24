@@ -120,6 +120,18 @@ def test_stable_pixels_with_weak_ecc_escalate_without_lowering_floor(tmp_path):
     assert validate_run(run) == []
 
 
+@pytest.mark.parametrize("score, verdict", [(None, "fail"), (0.71, "uncertain")])
+def test_bad_visual_regions_preserve_the_ecc_finding(tmp_path, score, verdict):
+    data = write_keyed(tmp_path, [decal_frame(), decal_frame()], [score])
+    bad_regions = replace(DECAL_REGIONS, jacket=(0, 0, 999, 999))
+    result = check(data, regions=bad_regions)
+    assert result["result"] == verdict
+    assert "decal.visual_invalid" in result["issues"]
+    assert result["measured"]["lost_frames"] == ([1] if score is None else [])
+    assert result["escalation"]["action"] == "reroll"
+    assert check(data, regions=bad_regions, attempt=3)["escalation"]["action"] == "stop_with_evidence"
+
+
 def test_gate_and_pixels_use_the_same_shown_frames(tmp_path):
     data = write_keyed(tmp_path, [decal_frame(), decal_frame(slide=9), decal_frame(body_x=6)], [None, 0.8])
     passing = check(data, shown={2})
