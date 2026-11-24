@@ -6,7 +6,7 @@ the splice.
 - :mod:`.base`: :class:`~.base.SegmentRenderer` and :class:`~.base.SegmentRequest`.
 - :mod:`.synthetic`: :class:`~.synthetic.SyntheticRenderer`, a deterministic test
   renderer.
-- :mod:`.encode`: H.264 segment encoding and decoding at two threads.
+- :mod:`.encode`: single-threaded H.264 segment encoding and two-thread decoding.
 - :mod:`.splice`: the film picture from ordered segments by stream copy (TIME-11).
 - :mod:`.errors`: the codes of stories 380's cache, render and splice.
 
