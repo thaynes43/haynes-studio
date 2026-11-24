@@ -92,6 +92,7 @@ from haynes_studio.build.errors import (
     DELIVERY_UNVERIFIED,
     VOICE_TRACK_MISSING,
     BuildError,
+    BuildInterrupted,
     RunHeld,
     RunUnrecorded,
     failure_of,
@@ -175,6 +176,14 @@ class BuildInputs:
     toolchain: Toolchain = field(default_factory=Toolchain)
     studio: str = "git:unknown"
     image_digest: str | None = None
+
+
+@dataclass(frozen=True)
+class QueuedBuild:
+    """The API owns this run record. The worker may build and return evidence."""
+
+    run: Mapping[str, Any]
+    before_delivery: Callable[[], None]
 
 
 @dataclass(frozen=True)
@@ -768,7 +777,7 @@ def build_story(inputs: BuildInputs, *, store: Store, phase: str, sources: ClipS
                 timer: Callable[[], float] = time.perf_counter, minter: Minter | None = None,
                 workers: int = 1, run_number: int = 1, idempotency_key: str | None = None,
                 workdir: str | None = None, delivery_id: str | None = None,
-                dry_run: bool = False) -> BuildResult:
+                dry_run: bool = False, queued: QueuedBuild | None = None) -> BuildResult:
     """Build ``inputs.story`` as one new run (see the module docstring). ``sources``
     are the clip sources of this phase (the offline ones refuse); ``transcriber`` is
     the recognizer of the transcript check, a service: the offline phase never uses it
@@ -782,6 +791,8 @@ def build_story(inputs: BuildInputs, *, store: Store, phase: str, sources: ClipS
         raise ValueError("a dry run is of the service phase")
     if isinstance(workers, bool) or not isinstance(workers, int) or workers < 1:
         raise ValueError(f"workers is a positive integer, got {workers!r}")
+    if queued is not None and (phase != ALL or dry_run):
+        raise ValueError("a queued build runs the complete pipeline")
     minter = minter or Minter()
     library = inputs.library
     media_kind = inputs.story.get("media_kind")
@@ -798,7 +809,7 @@ def build_story(inputs: BuildInputs, *, store: Store, phase: str, sources: ClipS
                   transcriber=transcriber, actor=actor, earlier_runs=earlier_runs, now=now,
                   timer=timer, minter=minter, workers=workers, run_number=run_number,
                   idempotency_key=idempotency_key, workdir=workdir, media=media,
-                  toolchain=toolchain, delivery_id=delivery_id, dry_run=dry_run)
+                  toolchain=toolchain, delivery_id=delivery_id, dry_run=dry_run, queued=queued)
 
 
 def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
@@ -806,27 +817,38 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
            earlier_runs: Sequence[str], now: Callable[[], str], timer: Callable[[], float],
            minter: Minter, workers: int, run_number: int, idempotency_key: str | None,
            workdir: str | None, media: MediaFormat, toolchain: Toolchain,
-           delivery_id: str | None, dry_run: bool = False) -> BuildResult:
+           delivery_id: str | None, dry_run: bool = False,
+           queued: QueuedBuild | None = None) -> BuildResult:
     library = inputs.library
     if prepared.story is None:  # a draft that breaks a write rule cannot be snapshotted
         raise PreflightError("<story>", prepared.report)
-    try:
-        snapshot = make_snapshot(prepared, library, studio=inputs.studio)
-    except AssertionError as error:  # a reference the library does not hold
-        if not prepared.report.ok:
-            raise PreflightError("<story>", prepared.report) from error
-        raise
-    data, sha = snapshot_bytes(snapshot)
     story = prepared.story
     production = story.production_id
-    run_id = minter.mint("run")
     records = RunRecords(store, production)
-    run = new_run(run_id=run_id, story_id=story.id, number=run_number, phase=phase, snapshot={
-        "sha256": sha, "story_revision": story.revision, "board_count": len(story.boards or ()),
-        "locator": blob_locator(production, sha, JSON)}, queued_by=actor, queued_at=now(),
-        idempotency_key=idempotency_key)
-    records.create(run, data)
-    run = records.write(advance(run, RUNNING, at=now(), by=actor, reason=f"build started ({phase} phase)"))
+    if queued is None:
+        try:
+            snapshot = make_snapshot(prepared, library, studio=inputs.studio)
+        except AssertionError as error:  # a reference the library does not hold
+            if not prepared.report.ok:
+                raise PreflightError("<story>", prepared.report) from error
+            raise
+        data, sha = snapshot_bytes(snapshot)
+        run_id = minter.mint("run")
+        run = new_run(run_id=run_id, story_id=story.id, number=run_number, phase=phase, snapshot={
+            "sha256": sha, "story_revision": story.revision, "board_count": len(story.boards or ()),
+            "locator": blob_locator(production, sha, JSON)}, queued_by=actor, queued_at=now(),
+            idempotency_key=idempotency_key)
+        records.create(run, data)
+        run = records.write(advance(run, RUNNING, at=now(), by=actor, reason=f"build started ({phase} phase)"))
+        write_record = records.write
+    else:
+        run = dict(queued.run)
+        run_id = run["id"]
+
+        def write_record(document):
+            records.check(document)
+            return document
+
     build: _Build | None = None
     plan: StoryPlan | None = None
     checks: list[dict[str, Any]] | None = None
@@ -855,7 +877,7 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
                                      + ", ".join(failed), stage="checks")
             checked_locally = True
             if dry_run:  # everything the service phase does before its first clip, and no more
-                run = records.write(advance(
+                run = write_record(advance(
                     run, CANCELLED, at=now(), by=actor, checks=checks or None,
                     progress={"percent": 100, "stage": "dry_run"},
                     reason=f"dry run of the service phase: {len(planned)} clip jobs would be "
@@ -877,7 +899,7 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
                                      "it will not be delivered: " + ", ".join(failed), stage="checks")
                 made = sum(1 for m in chain.records.values() if m.made and m.kind in (S2V_CLIP, WHOLE_FRAME_CLIP))
                 checked = sum(1 for m in chain.records.values() if m.made and m.kind == CHECK_RESULT)
-                run = records.write(advance(
+                run = write_record(advance(
                     run, CANCELLED, at=now(), by=actor, stages=stages, checks=checks,
                     progress={"percent": 100, "stage": "service_phase_complete"},
                     reason=f"service phase complete: the mix passed its {len(mix_checks)} checks; "
@@ -934,6 +956,8 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
             # could not be written never leaves a delivery behind a failed run.
             records.check(succeeded(PLACEHOLDER_DELIVERY, "0" * 64, plan.frames))
             build.where = (None, "delivery")
+            if queued is not None:
+                queued.before_delivery()
             master_path, cleanup = _master_file(store, production, plan.master.content, scratch_dir)
             # Once deliver returns, its stage exists: a failure after this names it.
             delivered = deliver(master_path, store=store, production_id=production, run_id=run_id,
@@ -950,10 +974,12 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
             if decoded != plan.frames:
                 raise BuildError(DELIVERY_UNVERIFIED, f"the delivery decoded {decoded} frames, the "
                                  f"plan holds {plan.frames} (TIME-11)", stage="delivery")
-            run = records.write(succeeded(verified.id, verified.proxy.sha256, decoded))
+            run = write_record(succeeded(verified.id, verified.proxy.sha256, decoded))
             return BuildResult(run, plan, (*build.cache.stats.made, *build.worker_made),
                                build.source_calls(), tuple(build.worker_made), planned)
-    except Exception as error:  # every failure is recorded on the run, then reported
+    except BuildInterrupted:
+        raise
+    except Exception as error:  # every build failure is recorded on the run, then reported
         board_id, stage = (None, "prebuild") if build is None else build.where
         stop = error if isinstance(error, RunHeld) else \
             (None if sources.stopped is None else sources.stopped())
@@ -966,6 +992,8 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
         if failure.board_id is not None:
             number = next((b.number for b in story.boards or () if b.id == failure.board_id), None)
         failure = replace(failure, board_number=failure.board_number or number)
+        if queued is not None and isinstance(error, LayeredError) and error.check is not None:
+            checks = [*(checks or []), _check_entry(error.check)]
         if build is not None and not checked_locally:  # the local pass: nothing was asked
             failure = replace(failure, message=f"{failure.message} (found before any clip was "
                               "requested)")
@@ -983,12 +1011,12 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
             stages = _stopped_stages(build, register)  # the plan stopped part way
         try:
             try:
-                run = records.write(advance(run, status, at=now(), by=actor, reason=reason,
+                run = write_record(advance(run, status, at=now(), by=actor, reason=reason,
                                             error=failure.to_document(), stages=stages,
                                             checks=checks, progress=progress,
                                             delivery_id=published))
             except AssertionError:  # detail that does not validate never hides the failure
-                run = records.write(advance(run, status, at=now(), by=actor, reason=reason,
+                run = write_record(advance(run, status, at=now(), by=actor, reason=reason,
                                             error=failure.to_document(), progress=progress,
                                             delivery_id=published))
         except Exception as unrecorded:  # a store or transition error: never a quiet return

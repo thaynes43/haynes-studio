@@ -67,6 +67,19 @@ def worker_access(request: Request) -> Principal:
     return principal
 
 
+class WorkerRoute(MetadataRoute):
+    """Authenticate a service token before routing through strict request parsing."""
+
+    def get_route_handler(self):
+        handler = super().get_route_handler()
+
+        async def authenticated(request):
+            await run_in_threadpool(worker_access, request)
+            return await handler(request)
+
+        return authenticated
+
+
 def _set_cookie(response: Response, name: str, value: str, age: int):
     response.set_cookie(name, value, max_age=age, secure=True, httponly=True,
                         samesite="lax", path="/")

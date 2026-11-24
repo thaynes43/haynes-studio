@@ -123,14 +123,31 @@ class FakeIssuer:
 
 
 @pytest.fixture(scope="module")
-def owner_engine(studio_db):
+def runtime_role(studio_db):
+    role_name = f"{studio_db.schema}_app"
+    role = sql.Identifier(role_name)
+    password = random_secret()
+    with psycopg.connect(studio_db.url, autocommit=True) as admin:
+        admin.execute(sql.SQL("CREATE ROLE {} LOGIN NOINHERIT PASSWORD {}")
+                      .format(role, sql.Literal(password)))
+        admin.execute(sql.SQL("GRANT CONNECT ON DATABASE {} TO {}")
+                      .format(sql.Identifier(studio_db.dbname), role))
+        try:
+            yield role_name, password
+        finally:
+            admin.execute(sql.SQL("DROP OWNED BY {}; DROP ROLE {}").format(role, role))
+
+
+@pytest.fixture(scope="module")
+def owner_engine(studio_db, runtime_role):
     engine = connect_engine(studio_db.url, studio_db.schema)
     try:
-        migrate(engine)
+        migrate(engine, target="0001_studio_metadata")
+        migrate(engine, runtime_role=runtime_role[0])
         migrate(engine, "downgrade", "base")
         with engine.connect() as conn:
             assert sa.inspect(conn).get_table_names(schema=studio_db.schema) == ["alembic_version"]
-        migrate(engine)
+        migrate(engine, runtime_role=runtime_role[0])
         with engine.connect() as conn:
             names = set(sa.inspect(conn).get_table_names(schema=studio_db.schema))
             assert names == {*metadata.tables, "alembic_version"}
@@ -140,25 +157,9 @@ def owner_engine(studio_db):
 
 
 @pytest.fixture(scope="module")
-def runtime_db(studio_db, owner_engine):
-    # Use the executable grants from the provisioning page so the proof tracks its SQL.
-    reference = Path(__file__).resolve().parents[2] / "docs/reference/studio-api.md"
-    grants = reference.read_text().split("```sql\n", 1)[1].split("```", 1)[0]
-    role_name = f"{studio_db.schema}_app"
-    role = sql.Identifier(role_name)
-    password = random_secret()
-    with psycopg.connect(studio_db.url, autocommit=True) as admin:
-        admin.execute(sql.SQL("CREATE ROLE {} LOGIN NOINHERIT PASSWORD {}")
-                      .format(role, sql.Literal(password)))
-        try:
-            grants = grants.replace("DATABASE studio", "DATABASE " + sql.Identifier(studio_db.dbname).as_string())
-            grants = grants.replace("SCHEMA studio", "SCHEMA " + sql.Identifier(studio_db.schema).as_string())
-            grants = grants.replace("studio.", sql.Identifier(studio_db.schema).as_string() + ".")
-            grants = grants.replace("studio_app", role.as_string())
-            admin.execute(grants)
-            yield replace(studio_db, url=make_conninfo(studio_db.url, user=role_name, password=password))
-        finally:
-            admin.execute(sql.SQL("DROP OWNED BY {}; DROP ROLE {}").format(role, role))
+def runtime_db(studio_db, owner_engine, runtime_role):
+    role_name, password = runtime_role
+    return replace(studio_db, url=make_conninfo(studio_db.url, user=role_name, password=password))
 
 
 @pytest.fixture(scope="module")
