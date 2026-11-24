@@ -6,10 +6,11 @@ Instructions for any agent (Claude Code, Codex or others) working in
 ## What this repo is
 
 Haynes Studio makes short-form comedy videos (currently the **doll short** format)
-on in-cluster GPU, TTS and ASR services. The project is in its **manual proof of
-concept phase**: one short is being made by hand, and every step goes into the
-runbook. Tooling (a renderer, a cast library, then an API and a storyboard web UI)
-comes later, one epic at a time, each with a usable demo at the end.
+on in-cluster GPU, TTS and ASR services. The manual proof of concept is complete.
+E1 built and archived two shorts privately. Its acceptance is open. The saga has
+been in execution since 2026-11-24. E2 asset work and E3 API, web and MCP source
+have landed. The installed Studio app and authenticated phone playback are still
+due at the sixth contract amendment. Each epic ends with a usable demo.
 
 Start with:
 
@@ -25,8 +26,13 @@ Start with:
 - OpenProject project `haynes-studio` (ID 11) is the work queue. Use
   `opwork --project haynes-studio ...`; the bare `opwork` default is a different
   project (`haynes-engineering`).
-- Saga [#362](https://work.haynesnetwork.com/work_packages/362) holds the roadmap.
-  Epic [#366](https://work.haynesnetwork.com/work_packages/366) is the manual PoC.
+- Saga [362](https://work.haynesnetwork.com/work_packages/362) holds the roadmap.
+  Its comment 9653 records Tom's start of execution on 2026-11-24. The saga coordinator
+  grooms and starts bounded stories as dependencies are ready. Tom reviews
+  provisional rulings and owns acceptance.
+- Epic [366](https://work.haynesnetwork.com/work_packages/366) is the completed manual
+  PoC. See [proposal 0003](docs/proposals/0003-studio-plan.md#epics-revised) for the
+  execution snapshot and the other epics.
 - Earlier proofs OP339 to OP345 live in `haynes-engineering` under Epic 124. Link them
   as history; do not move, reopen or change their holds.
 - Always write full `https://work.haynesnetwork.com/work_packages/<id>` links. A bare

@@ -4,7 +4,10 @@ The API stores canonical production, media type, story, board and asset records 
 PostgreSQL 16. It serves private media from the D39 content-addressed store. Any
 API replica can read a draft or continue a browser session created by another
 replica. Story [409](https://work.haynesnetwork.com/work_packages/409) covers
-source and test evidence. Installation and live verification are separate.
+source and test evidence. The CNPG database, roles, Authentik application and
+credential projections are installed as of 2026-11-24. The Studio API deployment,
+migration Job, table grants and live sign-in are still due in story 434.
+[Install evidence](../contracts/studio-contracts-v1.md#installed-and-published-state).
 
 ## Commands
 

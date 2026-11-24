@@ -8,9 +8,12 @@ separate. The worker made no cluster call or live run.
 **Merged, 2026-11-18:** PR
 [75](https://github.com/thaynes43/haynes-studio/pull/75), source and fake-route tested,
 including the other-family review's fix round (story 863, comment 8950). First live
-use needs a store with a verified delivery; story 428's store is on its suspended
-worker's volume and is not reachable by the coordinator. That volume may be archived
-from about 2026-11-21 (story 428, comment 8952). Installed use remains not done.
+use needs a store with a verified delivery. In the November 18 record story
+428's store was on its suspended worker's volume and inaccessible to the coordinator
+(story 428, comment 8952). Story 942 later verified durable private archives of both
+films. The product's authenticated phone playback proof now belongs to story
+[944](https://work.haynesnetwork.com/work_packages/944) and awaits the installed
+Studio API. The first live use of this CLI command remains open.
 The retired one-off `private_view.py` was dropped from PR 70 and is not on `main`.
 
 From a session with the established Wan API exec route:
@@ -25,8 +28,10 @@ uv run studio private-view RUN_ID --store /path/to/store --production PRD_ID \
 Remove `--check-only` for an authorized attempt. The link plays the **phone proxy**;
 add `--master` to play the master. This default is the contract owner's decision
 of 2026-11-18 (P-52; story 863, comment 8950), a proposal Tom may overrule. Story 428's
-existing link still plays the first run's master, not its proxy or the gavel edit
-(story 428, comment 8823). The result prints the selection, both file hashes,
+first link plays the first run's master (story 428, comment 8823). The exact
+quieter-gavel delivery was later recovered and privately reviewed (story
+[941](https://work.haynesnetwork.com/work_packages/941) and epic
+[372](https://work.haynesnetwork.com/work_packages/372), comment 9487). The result prints the selection, both file hashes,
 the proposed or linked ledger, and the private URL. No account, public platform,
 schedule or inference is involved. This command does not imply go-live approval.
 
