@@ -135,8 +135,8 @@ flowchart TD
     D -->|Absent, reserved and no cancel| C
     D -->|Queued or running| D
     D -->|Terminal with cancel pending| X[Settle attempt and cancel run]
-    D -->|Absent with cancel pending| A[Hold until a second clean absence after lease plus PUT timeout]
-    A --> X
+    D -->|Absent with cancel pending| H[Hold until a second clean absence after lease plus PUT timeout]
+    H --> X
     D -->|Terminal pre-admission refusal| Y[Mark busy and defer the head]
     Y --> A
     D -->|Definite restart failure| C
