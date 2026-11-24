@@ -8,6 +8,7 @@ from haynes_studio.db.drafts import BOARD_FIELDS, STORY_FIELDS
 from haynes_studio.schemas import load_schema
 
 from .models import ExternalPhotoDeclaration
+from .transport import REQUEST_ID_HEADER
 
 _CANONICAL = {
     "studio.defs.v1.schema.json": "StudioDefs",
@@ -108,6 +109,18 @@ def _document_access(document: dict) -> None:
                 ]
 
 
+def _document_request_ids(document: dict) -> None:
+    for methods in document["paths"].values():
+        for method, operation in methods.items():
+            for response in operation["responses"].values():
+                response.setdefault("headers", {})[REQUEST_ID_HEADER] = {
+                    "description": "Server-generated request ID, also used in errors and access logs",
+                    "schema": {"type": "string"},
+                }
+                if method == "head":
+                    response.pop("content", None)
+
+
 def install_openapi(app: FastAPI):
     generate = app.openapi
 
@@ -126,6 +139,7 @@ def install_openapi(app: FastAPI):
         schemas["AssetDetail"]["properties"]["asset"] = {"$ref": "#/components/schemas/Asset"}
         _write_schemas(schemas)
         _document_access(document)
+        _document_request_ids(document)
         schemas["ExternalPhotoDeclaration"] = ExternalPhotoDeclaration.model_json_schema()
         return document
 

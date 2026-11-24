@@ -41,6 +41,8 @@ or recover metadata to an isolated database for inspection.
 | `STUDIO_OIDC_CLIENT_ID` | Client ID of the confidential OIDC application. |
 | `STUDIO_OIDC_CLIENT_SECRET` | Secret supplied to the API process. |
 | `STUDIO_OIDC_ALLOWED_SUBJECTS` | JSON array of allowed OIDC `sub` values scoped to the configured issuer. |
+| `STUDIO_OIDC_LEEWAY_SECONDS` | Nonnegative clock skew allowance for ID-token timestamps. Default 60 seconds. |
+| `STUDIO_OIDC_CACHE_TTL_SECONDS` | Positive cache lifetime for OIDC discovery and signing keys. Default 300 seconds. |
 | `STUDIO_SESSION_SECONDS` | Absolute lifetime of an API session, 60–86400 seconds. Default 28800. |
 
 Use TLS for browser requests. Configure Authentik with
@@ -48,23 +50,42 @@ Use TLS for browser requests. Configure Authentik with
 an RS256 signing key. The discovery document must identify the configured
 issuer and advertise HTTPS authorization, token and key endpoints. Route
 `/auth/*` and `/v1/*` to the API and the remaining UI paths to the static app.
-Access logging excludes the OIDC callback query string. [OIDC Core](https://openid.net/specs/openid-connect-core-1_0.html)
+Each API process caches discovery and JWKS independently and refreshes the key
+set once when it sees an unknown `kid`. Rate limiting belongs to the ingress
+in story [434](https://work.haynesnetwork.com/work_packages/434).
+[OIDC Core](https://openid.net/specs/openid-connect-core-1_0.html)
 [RFC 7636](https://www.rfc-editor.org/rfc/rfc7636)
 
 `GET /healthz` returns 204. `GET /readyz` checks the metadata database and
-store root, then returns 204 or 503. Both probes have empty bodies.
+store root, then returns 204 or 503. The store check allows 250 ms and shares
+one in-flight filesystem check per process. Both probes have empty bodies.
+
+The API writes one JSON access log line per request with `method`, `path`,
+`status`, `principal_kind`, `principal_id` and `request_id`. The path excludes
+the query string, including on the OIDC callback. Principal IDs are verified
+subject, agent key ID or worker ID. Anonymous requests have a null principal
+ID. The API sends the same ID in `X-Request-ID` and `error.request_id`.
+
+Under provisional coordinator ruling CR-13, `unavailable` means a method is
+not buildable (HTTP 422). `service_unavailable` indicates a dependency outage
+(HTTP 503), and `internal` indicates an unexpected failure (HTTP 500).
 
 ## Database privileges
 
 Provide a dedicated migration identity that owns the Studio schema and its
 objects. It needs `CONNECT` on the Studio database and schema DDL rights.
-Grant the runtime identity `CONNECT` on the database, `USAGE` on the schema
-and the grants below. Substitute the configured schema and the runtime role.
-The app uses no sequences.
+Grant the runtime identity the privileges below for the initial migration.
+Substitute the configured database, schema and runtime role. The app uses no
+sequences. Each later migration lists its own runtime grants.
 
 ```sql
-GRANT SELECT, INSERT, UPDATE ON studio.productions, studio.stories,
+GRANT CONNECT ON DATABASE studio TO studio_app;
+GRANT USAGE ON SCHEMA studio TO studio_app;
+GRANT SELECT, INSERT ON studio.productions, studio.stories,
     studio.boards, studio.selections TO studio_app;
+GRANT UPDATE (document) ON studio.productions, studio.stories TO studio_app;
+GRANT UPDATE (document, tombstone) ON studio.boards TO studio_app;
+GRANT UPDATE (document, revision) ON studio.selections TO studio_app;
 GRANT SELECT, INSERT ON studio.media_types, studio.draft_ids, studio.assets,
     studio.asset_versions, studio.asset_sources, studio.asset_media,
     studio.deliveries, studio.delivery_media TO studio_app;
@@ -100,6 +121,9 @@ through the story 410 transport and need no database account.
   their `draft:write` grants.
 - The P-14 `worker_access` dependency is for internal routes. Worker tokens
   provide a worker principal and cannot act as a browser or agent.
+
+Protected routes authenticate before reading metadata request bodies. Query
+parameter names and values must be UTF-8 text without NUL characters.
 
 ## Records and revisions
 
@@ -153,8 +177,9 @@ Use the delivery's `proxy.sha256` for the phone player's source at
 `/v1/media/{sha256}`. GET and HEAD support one byte range. The response carries
 `Accept-Ranges: bytes`, the content type and length, and on 206 the exact
 `Content-Range`. A range beyond EOF returns 416. A malformed or multiple
-range falls back to the complete representation. If-Range may use the strong
-hash ETag. Media responses use `Cache-Control: private, no-store`.
+range falls back to the complete representation, including a bounded range
+whose last byte precedes its first. If-Range may use the strong hash ETag.
+Media responses use `Cache-Control: private, no-store`.
 [RFC 9110 range requests](https://www.rfc-editor.org/rfc/rfc9110.html#name-range-requests)
 
 The API opens a blob only after looking up a reference attached to a
@@ -173,6 +198,8 @@ STUDIO_THREADS=2 OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 uv run --no-sync pytes
 ```
 
 The DB suite reads `STUDIO_TEST_DATABASE_URL` for a disposable PostgreSQL 16
-database. It upgrades, reverses and reapplies the migration in the fixture
-schema, exercises OIDC using a fake issuer and random signing key, round-trips
+database. The fixture identity creates a schema and a temporary role. It
+upgrades, reverses and reapplies the migration, then applies the grants above.
+API and store operations run as the temporary role. The suite verifies refusal
+of an ownership-column update, exercises OIDC with a fake issuer, round-trips
 The Winter Menu's public metadata, and tests playback using a generated proxy.

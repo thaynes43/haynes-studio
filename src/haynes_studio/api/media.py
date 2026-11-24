@@ -10,7 +10,7 @@ from starlette.responses import Response, StreamingResponse
 
 from haynes_studio.db.catalog import media_for_hash
 from haynes_studio.db.engine import snapshot
-from haynes_studio.store.errors import StoreError
+from haynes_studio.store.errors import BLOB_MISSING, LOCATOR_INVALID, StoreError
 from haynes_studio.store.layout import is_sha256, parse_locator
 
 from .errors import APIError, ERROR_RESPONSES, ErrorEnvelope, missing
@@ -38,9 +38,13 @@ def byte_range(header: str | None, size: int) -> tuple[int, int] | None:
         if suffix and size:
             return max(0, size - suffix), size - 1
     else:
+        start_digits = first.lstrip("0")
+        end_digits = last.lstrip("0")
+        if last and (len(end_digits), end_digits) < (len(start_digits), start_digits):
+            return None
         start = bounded(first)
         end = bounded(last) if last else size - 1
-        if start < size and end >= start:
+        if start < size:
             return start, min(size - 1, end)
     raise APIError(416, "media.range_unsatisfied", "The requested byte range is unavailable",
                    headers={"Accept-Ranges": "bytes", "Content-Range": f"bytes */{size}"})
@@ -79,8 +83,9 @@ RANGE_RESPONSES = {
 }
 
 
-def build_router(CurrentActor):
-    router = APIRouter(prefix="/v1", tags=["media"], responses=ERROR_RESPONSES)
+def build_router(CurrentActor, authenticated_route):
+    router = APIRouter(prefix="/v1", tags=["media"], responses=ERROR_RESPONSES,
+                       route_class=authenticated_route)
 
     @router.get("/media/{sha256}", operation_id="get_media", response_class=Response,
                 responses=RANGE_RESPONSES)
@@ -93,6 +98,7 @@ def build_router(CurrentActor):
             raise missing()
         with snapshot(request.app.state.engine) as conn:
             refs = media_for_hash(conn, sha256, actor.productions("read"))
+        store_failed = False
         for ref in refs:
             handle = None
             try:
@@ -118,11 +124,16 @@ def build_router(CurrentActor):
                 response = BlobStream(handle, start, count, status_code=status, headers=headers)
                 handle = None  # BlobStream now closes the open descriptor.
                 return response
-            except (StoreError, OSError):
-                continue
+            except StoreError as error:
+                if error.code not in (BLOB_MISSING, LOCATOR_INVALID):
+                    raise
+            except OSError:
+                store_failed = True
             finally:
                 if handle is not None:
                     handle.close()
+        if store_failed:
+            raise APIError(503, "store.failed", "The media store could not complete the request")
         raise missing()
 
     return router

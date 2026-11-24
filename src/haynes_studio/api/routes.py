@@ -18,8 +18,6 @@ from .models import (
     Production, ProductionCreate, Selections, SelectionWrite, Story, StoryCreate, StoryPatch, Timing,
 )
 
-from .transport import MetadataRoute
-
 Limit = Annotated[int, Query(ge=1, le=100)]
 Cursor = Annotated[str | None, Query(max_length=30,
     description="Pass next_cursor from the previous page under the same filters")]
@@ -69,8 +67,8 @@ def _board_access(conn, actor, scope, id) -> str:
     return story_id
 
 
-def build_router(CurrentActor):
-    router = APIRouter(prefix="/v1", responses=ERROR_RESPONSES, route_class=MetadataRoute)
+def build_router(CurrentActor, authenticated_route):
+    router = APIRouter(prefix="/v1", responses=ERROR_RESPONSES, route_class=authenticated_route)
 
     @router.get("/me", tags=["identity"], response_model=Me, response_model_exclude_none=True,
                 operation_id="get_me")

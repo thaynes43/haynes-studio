@@ -3,6 +3,8 @@
 import base64
 import hashlib
 import secrets
+from threading import Lock
+from time import monotonic
 from urllib.parse import parse_qsl, quote_plus, urlencode, urlsplit, urlunsplit
 
 import httpx
@@ -28,12 +30,30 @@ class OIDC:
     def __init__(self, settings: OIDCSettings, transport: httpx.BaseTransport | None = None):
         self.settings = settings
         self.transport = transport
+        self._metadata_cache: tuple[float, dict] | None = None
+        self._jwks_cache: tuple[str, float, list] | None = None
+        self._metadata_lock = Lock()
+        self._jwks_lock = Lock()
 
     def _client(self):
         return httpx.Client(transport=self.transport, timeout=5, trust_env=False,
                             follow_redirects=False)
 
-    def _metadata(self, client: httpx.Client) -> dict:
+    def _metadata(self) -> dict:
+        with self._metadata_lock:
+            if self._metadata_cache is not None:
+                expires, metadata = self._metadata_cache
+                if monotonic() < expires:
+                    return metadata
+            try:
+                with self._client() as client:
+                    metadata = self._discover(client)
+            except (httpx.HTTPError, ValueError) as error:
+                raise APIError(503, "auth.provider_unavailable", "OIDC discovery is unavailable") from error
+            self._metadata_cache = monotonic() + self.settings.cache_ttl_seconds, metadata
+            return metadata
+
+    def _discover(self, client: httpx.Client) -> dict:
         doc = client.get(self.settings.issuer.rstrip("/") + "/.well-known/openid-configuration")
         metadata = doc.raise_for_status().json()
         if not isinstance(metadata, dict) or metadata.get("issuer") != self.settings.issuer:
@@ -44,11 +64,32 @@ class OIDC:
                 raise ValueError("OIDC discovery requires HTTPS endpoints")
         return metadata
 
+    def _refresh_jwks(self, client: httpx.Client, uri: str) -> list:
+        try:
+            jwks = client.get(uri).raise_for_status().json()
+            if not isinstance(jwks, dict) or not isinstance(jwks.get("keys"), list):
+                raise ValueError("OIDC key set is malformed")
+        except (httpx.HTTPError, ValueError) as error:
+            raise APIError(503, "auth.provider_unavailable", "OIDC signing keys are unavailable") from error
+        keys = [key for key in jwks["keys"] if isinstance(key, dict)]
+        self._jwks_cache = uri, monotonic() + self.settings.cache_ttl_seconds, keys
+        return keys
+
+    def _signing_keys(self, client: httpx.Client, uri: str, kid: str) -> list:
+        with self._jwks_lock:
+            cached = self._jwks_cache
+            if cached is None or cached[0] != uri or monotonic() >= cached[1]:
+                keys = self._refresh_jwks(client, uri)
+            else:
+                keys = cached[2]
+            if not any(key.get("kid") == kid for key in keys):
+                keys = self._refresh_jwks(client, uri)
+            return keys
+
     def authorize(self, state: str, nonce: str, verifier: str) -> str:
         challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest())
+        metadata = self._metadata()
         try:
-            with self._client() as client:
-                metadata = self._metadata(client)
             return auth_url(metadata["authorization_endpoint"], {
                 "response_type": "code", "client_id": self.settings.client_id,
                 "redirect_uri": self.settings.redirect_uri, "scope": "openid profile",
@@ -56,13 +97,13 @@ class OIDC:
                 "code_challenge": challenge.decode("ascii").rstrip("="),
                 "code_challenge_method": "S256",
             })
-        except (httpx.HTTPError, ValueError) as error:
+        except ValueError as error:
             raise APIError(503, "auth.provider_unavailable", "OIDC discovery is unavailable") from error
 
     def exchange(self, code: str, nonce: str, verifier: str) -> dict:
+        metadata = self._metadata()
         try:
             with self._client() as client:
-                metadata = self._metadata(client)
                 auth = (quote_plus(self.settings.client_id), quote_plus(self.settings.client_secret))
                 response = client.post(metadata["token_endpoint"], auth=auth, data={
                     "grant_type": "authorization_code", "code": code,
@@ -71,19 +112,18 @@ class OIDC:
                 if response.status_code in (400, 401):
                     raise APIError(401, "auth.oidc_invalid", "OIDC refused the authorization code")
                 token = response.raise_for_status().json()["id_token"]
-                jwks = client.get(metadata["jwks_uri"]).raise_for_status().json()
-                return self._verified_claims(token, jwks, nonce)
+                return self._verified_claims(client, metadata["jwks_uri"], token, nonce)
         except httpx.HTTPError as error:
             raise APIError(503, "auth.provider_unavailable", "OIDC exchange is unavailable") from error
         except (KeyError, TypeError, ValueError, jwt.PyJWTError, OverflowError) as error:
             raise APIError(401, "auth.oidc_invalid", "OIDC returned an invalid ID token") from error
 
-    def _verified_claims(self, token: str, jwks: dict, nonce: str) -> dict:
+    def _verified_claims(self, client: httpx.Client, jwks_uri: str, token: str, nonce: str) -> dict:
         header = jwt.get_unverified_header(token)
         kid = header.get("kid")
         if header.get("alg") != "RS256" or not isinstance(kid, str) or not kid:
             raise ValueError("OIDC signing key ID and RS256 are required")
-        keys = [key for key in jwks["keys"] if isinstance(key, dict) and key.get("kid") == kid
+        keys = [key for key in self._signing_keys(client, jwks_uri, kid) if key.get("kid") == kid
                 and key.get("kty") == "RSA" and key.get("use", "sig") == "sig"
                 and key.get("alg", "RS256") == "RS256"]
         if len(keys) != 1:
@@ -92,7 +132,8 @@ class OIDC:
         if key.key_size < 2048:
             raise ValueError("OIDC signing key is too small")
         claims = jwt.decode(token, key, algorithms=["RS256"],
-                            audience=self.settings.client_id, issuer=self.settings.issuer, options={
+                            audience=self.settings.client_id, issuer=self.settings.issuer,
+                            leeway=self.settings.leeway_seconds, options={
                                 "require": ["iss", "sub", "aud", "exp", "iat", "nonce"],
                             })
         audience = claims["aud"]

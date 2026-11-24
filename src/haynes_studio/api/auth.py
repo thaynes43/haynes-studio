@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Header, Query, Request, Security
 from fastapi.responses import RedirectResponse, Response
 from fastapi.security import APIKeyCookie, HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.security.utils import get_authorization_scheme_param
+from starlette.concurrency import run_in_threadpool
 
 from haynes_studio.canonical.model import Principal
 from haynes_studio.db import identity
@@ -16,6 +17,7 @@ from haynes_studio.db.engine import snapshot
 
 from .errors import APIError, ERROR_RESPONSES, forbidden, unauthenticated
 from .oidc import random_secret
+from .transport import MetadataRoute
 
 SESSION_COOKIE = "__Host-studio-session"
 LOGIN_COOKIE = "__Host-studio-login"
@@ -60,7 +62,9 @@ def worker_access(request: Request) -> Principal:
         worker_id = identity.get_worker(conn, token)
     if worker_id is None:
         raise unauthenticated()
-    return Principal(kind="worker", worker_id=worker_id)
+    principal = Principal(kind="worker", worker_id=worker_id)
+    request.state.principal = principal
+    return principal
 
 
 def _set_cookie(response: Response, name: str, value: str, age: int):
@@ -77,35 +81,62 @@ def build_router():
     session_cookie = APIKeyCookie(name=SESSION_COOKIE, scheme_name="StudioSession", auto_error=False)
     bearer = HTTPBearer(scheme_name="StudioBearer", auto_error=False)
 
-    def access(request: Request,
-               authorization: Annotated[HTTPAuthorizationCredentials | None, Security(bearer)],
-               session: Annotated[str | None, Security(session_cookie)],
-               csrf: CSRF = None) -> Actor:
+    def resolve_actor(request: Request, authorization, session, csrf) -> Actor:
         # A supplied Authorization header takes precedence. An invalid bearer cannot
         # silently become a session-cookie request.
-        with snapshot(request.app.state.engine) as conn:
-            if "authorization" in request.headers:
-                if authorization is None or len(request.headers.getlist("authorization")) != 1:
-                    raise unauthenticated()
+        if "authorization" in request.headers:
+            if authorization is None or len(request.headers.getlist("authorization")) != 1:
+                raise unauthenticated()
+            with snapshot(request.app.state.engine) as conn:
                 agent = identity.get_agent(conn, authorization.credentials)
-                if agent is None:
-                    raise unauthenticated()
-                key, grants = agent
-                return Actor(Principal(kind="agent", key_id=key), grants)
+            if agent is None:
+                raise unauthenticated()
+            key, grants = agent
+            principal = Principal(kind="agent", key_id=key)
+            request.state.principal = principal
+            return Actor(principal, grants)
+        if not session:
+            raise unauthenticated()
+        with snapshot(request.app.state.engine) as conn:
             row = identity.get_session(conn, session)
         settings = request.app.state.oidc.settings
         if row is None or row.iss != settings.issuer or row.sub not in settings.allowed_subjects:
             raise unauthenticated()
+        principal = Principal(kind="human", iss=row.iss, sub=row.sub)
+        request.state.principal = principal
         if request.method not in SAFE_METHODS:
             if csrf is None or not csrf.isascii() or not compare_digest(csrf, row.csrf):
                 raise forbidden("auth.csrf", "The session requires a valid CSRF header")
-        return Actor(Principal(kind="human", iss=row.iss, sub=row.sub), csrf=row.csrf,
-                     display_name=row.display_name)
+        return Actor(principal, csrf=row.csrf, display_name=row.display_name)
 
+    async def access(request: Request,
+                     authorization: Annotated[HTTPAuthorizationCredentials | None, Security(bearer)],
+                     session: Annotated[str | None, Security(session_cookie)],
+                     csrf: CSRF = None) -> Actor:
+        actor = getattr(request.state, "actor", None)
+        if actor is None:
+            actor = await run_in_threadpool(resolve_actor, request, authorization, session, csrf)
+            request.state.actor = actor
+        return actor
+
+    class AuthenticatedRoute(MetadataRoute):
+        def get_route_handler(self):
+            handler = super().get_route_handler()
+
+            async def authenticated(request):
+                # FastAPI would otherwise parse the body before solving dependencies.
+                await access(request, await bearer(request), await session_cookie(request),
+                             request.headers.get(CSRF_HEADER))
+                return await handler(request)
+
+            return authenticated
 
     CurrentActor = Annotated[Actor, Depends(access)]
 
-    router = APIRouter(prefix="/auth", tags=["authentication"], responses=ERROR_RESPONSES)
+    router = APIRouter(prefix="/auth", tags=["authentication"], responses=ERROR_RESPONSES,
+                       route_class=MetadataRoute)
+    protected = APIRouter(prefix="/auth", tags=["authentication"], responses=ERROR_RESPONSES,
+                          route_class=AuthenticatedRoute)
 
 
     @router.get("/login", status_code=303, response_class=RedirectResponse, operation_id="login")
@@ -145,13 +176,14 @@ def build_router():
             identity.delete_session(conn, request.cookies.get(SESSION_COOKIE))
             identity.create_session(conn, secret, iss=claims["iss"], sub=claims["sub"],
                                     display_name=name, csrf=csrf, expires_at=expires_at)
+        request.state.principal = Principal(kind="human", iss=claims["iss"], sub=claims["sub"])
         response = RedirectResponse("/", status_code=303)
         _clear_cookie(response, LOGIN_COOKIE)
         _set_cookie(response, SESSION_COOKIE, secret, max(0, int((expires_at - now).total_seconds())))
         return response
 
 
-    @router.post("/logout", status_code=204, response_class=Response, operation_id="logout")
+    @protected.post("/logout", status_code=204, response_class=Response, operation_id="logout")
     def logout(request: Request, actor: CurrentActor):
         actor.human()
         with request.app.state.engine.begin() as conn:
@@ -161,4 +193,4 @@ def build_router():
         _clear_cookie(response, LOGIN_COOKIE)
         return response
 
-    return router, CurrentActor
+    return router, protected, CurrentActor, AuthenticatedRoute

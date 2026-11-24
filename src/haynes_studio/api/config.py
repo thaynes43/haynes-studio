@@ -25,6 +25,8 @@ class OIDCSettings:
     public_origin: str
     allowed_subjects: frozenset[str]
     session_seconds: int = 8 * 60 * 60
+    leeway_seconds: int = 60
+    cache_ttl_seconds: int = 5 * 60
 
     def __post_init__(self):
         if not https_url(self.issuer) or urlsplit(self.issuer).query:
@@ -40,6 +42,10 @@ class OIDCSettings:
             raise ValueError("STUDIO_OIDC_ALLOWED_SUBJECTS must list verified OIDC subjects")
         if not 60 <= self.session_seconds <= 86400:
             raise ValueError("STUDIO_SESSION_SECONDS must be between 60 and 86400")
+        if self.leeway_seconds < 0:
+            raise ValueError("STUDIO_OIDC_LEEWAY_SECONDS must be nonnegative")
+        if self.cache_ttl_seconds <= 0:
+            raise ValueError("STUDIO_OIDC_CACHE_TTL_SECONDS must be positive")
 
     @property
     def redirect_uri(self):
@@ -51,9 +57,11 @@ def from_environment() -> OIDCSettings:
         subjects = json.loads(os.environ["STUDIO_OIDC_ALLOWED_SUBJECTS"])
         if not isinstance(subjects, list) or not all(isinstance(s, str) for s in subjects):
             raise ValueError("STUDIO_OIDC_ALLOWED_SUBJECTS must be a JSON array of strings")
-        seconds = int(os.environ.get("STUDIO_SESSION_SECONDS", "28800"))
         return OIDCSettings(os.environ["STUDIO_OIDC_ISSUER"], os.environ["STUDIO_OIDC_CLIENT_ID"],
                             os.environ["STUDIO_OIDC_CLIENT_SECRET"], os.environ["STUDIO_PUBLIC_ORIGIN"],
-                            frozenset(subjects), seconds)
+                            frozenset(subjects),
+                            session_seconds=int(os.environ.get("STUDIO_SESSION_SECONDS", "28800")),
+                            leeway_seconds=int(os.environ.get("STUDIO_OIDC_LEEWAY_SECONDS", "60")),
+                            cache_ttl_seconds=int(os.environ.get("STUDIO_OIDC_CACHE_TTL_SECONDS", "300")))
     except KeyError as missing:
         raise ValueError(f"{missing.args[0]} is required") from None

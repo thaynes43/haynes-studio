@@ -2,8 +2,10 @@
 
 import argparse
 import json
+from copy import deepcopy
 
 import uvicorn
+from uvicorn.config import LOGGING_CONFIG
 
 
 def main() -> None:
@@ -18,10 +20,19 @@ def main() -> None:
         from .app import schema_app
         print(json.dumps(schema_app().openapi(), indent=2, sort_keys=True, allow_nan=False))
     else:
-        # Access logs could contain OIDC callback query strings (code and state).
+        from .transport import access_log
+
+        # The app emits one access line with the request ID and path, without the query.
+        log_config = deepcopy(LOGGING_CONFIG)
+        log_config["handlers"]["studio_access"] = {
+            "class": "logging.StreamHandler", "stream": "ext://sys.stdout",
+        }
+        log_config["loggers"][access_log.name] = {
+            "handlers": ["studio_access"], "level": "INFO", "propagate": False,
+        }
         uvicorn.run("haynes_studio.api.app:from_env", factory=True,
                     host=getattr(args, "host", "0.0.0.0"), port=getattr(args, "port", 8000),
-                    access_log=False)
+                    access_log=False, log_config=log_config)
 
 
 if __name__ == "__main__":

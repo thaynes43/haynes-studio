@@ -2,16 +2,17 @@
 
 from typing import Literal
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
+from starlette.responses import JSONResponse, Response
 
 from .models import TransportModel
 
 ErrorStatus = Literal["invalid", "unavailable", "conflict", "forbidden", "unauthenticated",
-                      "not_found", "too_large", "internal"]
+                      "not_found", "too_large", "service_unavailable", "internal"]
 STATUS = {
     400: "invalid", 401: "unauthenticated", 403: "forbidden", 404: "not_found",
     405: "invalid", 409: "conflict", 413: "too_large", 416: "invalid",
-    422: "invalid", 500: "internal", 503: "unavailable",
+    422: "invalid", 500: "internal", 503: "service_unavailable",
 }
 
 
@@ -21,6 +22,7 @@ class ErrorDetail(TransportModel):
     http_status: int
     path: str
     message: str
+    request_id: str
     current_revision: int | None = None
 
 
@@ -32,10 +34,18 @@ class APIError(HTTPException):
     def __init__(self, http_status: int, code: str, message: str, *, path: str = "",
                  headers: dict | None = None, status: ErrorStatus | None = None,
                  current_revision: int | None = None):
-        self.details = ErrorDetail(code=code, status=status or STATUS[http_status],
-                                   http_status=http_status, path=path, message=message,
-                                   current_revision=current_revision)
+        self.details = {"code": code, "status": status or STATUS[http_status],
+                        "http_status": http_status, "path": path, "message": message}
+        if current_revision is not None:
+            self.details["current_revision"] = current_revision
         super().__init__(http_status, detail=message, headers=headers)
+
+
+def error_response(request: Request, error: APIError) -> Response:
+    if request.method == "HEAD":
+        return Response(status_code=error.status_code, headers=error.headers)
+    details = {**error.details, "request_id": request.state.request_id}
+    return JSONResponse({"error": details}, status_code=error.status_code, headers=error.headers)
 
 
 def unauthenticated():
@@ -56,7 +66,7 @@ ERROR_RESPONSES = {
     for code, description in [
         (401, "Authentication required"), (403, "Credential, production or CSRF check failed"),
         (404, "Resource unavailable"), (409, "The current revision differs"),
-        (413, "Request exceeds its size limit"), (422, "The request violates the contract"),
-        (500, "Internal error"), (503, "A service dependency is unavailable"),
+        (413, "Request exceeds its size limit"), (422, "The request is invalid or the method is not buildable"),
+        (500, "Unexpected internal failure"), (503, "A service dependency is unavailable"),
     ]
 }

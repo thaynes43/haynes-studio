@@ -1,16 +1,21 @@
 """FastAPI assembly. Startup configuration is supplied by the process environment."""
 
+import asyncio
 import logging
 import os
+from concurrent.futures import Future
 from contextlib import asynccontextmanager
 from pathlib import Path
+from threading import Lock, Thread
+from time import monotonic
 
 import sqlalchemy as sa
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
-from sqlalchemy.exc import OperationalError, SQLAlchemyError, TimeoutError
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
+from sqlalchemy.exc import TimeoutError as DBTimeoutError
+from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
-from starlette.responses import JSONResponse
 
 from haynes_studio.db.engine import connect_engine
 from haynes_studio.db.problems import NotFound, StaleRevision
@@ -20,21 +25,58 @@ from haynes_studio.store.local import LocalStore
 
 from . import auth, media, routes
 from .config import from_environment
-from .errors import APIError, ErrorDetail, ErrorEnvelope, STATUS, missing
+from .errors import APIError, ErrorDetail, ErrorEnvelope, STATUS, error_response, missing
 from .models import build_models
 from .oidc import OIDC
 from .openapi import install_openapi
+from .transport import RequestContextMiddleware
 
 logger = logging.getLogger(__name__)
+STORE_CHECK_TIMEOUT = 0.25
+
+
+class StoreProbe:
+    """Share an in-flight filesystem check across readiness requests."""
+
+    def __init__(self, root):
+        self.root = Path(root)
+        self._lock = Lock()
+        self._result: Future[bool] | None = None
+        self._deadline = 0.0
+
+    def _check(self, result: Future[bool]) -> None:
+        try:
+            ready = self.root.is_dir()
+        except OSError:
+            ready = False
+        except Exception as error:
+            result.set_exception(error)
+            return
+        result.set_result(ready)
+
+    async def ready(self) -> bool:
+        with self._lock:
+            if self._result is None or self._result.done():
+                result = Future()
+                result.set_running_or_notify_cancel()
+                self._deadline = monotonic() + STORE_CHECK_TIMEOUT
+                # A stuck kernel call must not prevent process shutdown.
+                Thread(target=self._check, args=(result,), name="studio-store-probe",
+                       daemon=True).start()
+                self._result = result
+            result, remaining = self._result, self._deadline - monotonic()
+        if remaining <= 0:
+            return False
+        try:
+            return await asyncio.wait_for(asyncio.wrap_future(result), timeout=remaining)
+        except TimeoutError:
+            return False
 
 
 def _errors(app: FastAPI):
     @app.exception_handler(APIError)
     async def api_error(request: Request, error: APIError):
-        if request.method == "HEAD":
-            return Response(status_code=error.status_code, headers=error.headers)
-        return JSONResponse({"error": error.details.model_dump(exclude_none=True)},
-                            status_code=error.status_code, headers=error.headers)
+        return error_response(request, error)
 
     @app.exception_handler(HTTPException)
     async def http_error(request: Request, error: HTTPException):
@@ -75,8 +117,9 @@ def _errors(app: FastAPI):
 
     @app.exception_handler(SQLAlchemyError)
     async def database_error(request: Request, error: SQLAlchemyError):
-        transient = isinstance(error, (OperationalError, TimeoutError))
-        logger.error("Studio database operation failed (%s)", type(error).__name__)
+        transient = isinstance(error, (OperationalError, DBTimeoutError))
+        logger.error("Studio database operation failed (%s) request_id=%s",
+                     type(error).__name__, request.state.request_id)
         return await api_error(request, APIError(503 if transient else 500, "database.failed",
                                                  "The metadata store could not complete the request"))
 
@@ -92,38 +135,39 @@ def _application(engine, store, oidc) -> FastAPI:
                   docs_url=None, redoc_url=None, openapi_url=None, redirect_slashes=False)
     app.state.engine, app.state.store, app.state.oidc = engine, store, oidc
     _errors(app)
-
-    @app.middleware("http")
-    async def privacy(request, call_next):
-        response = await call_next(request)
-        response.headers["Cache-Control"] = "private, no-store"
-        response.headers["Referrer-Policy"] = "no-referrer"
-        return response
+    app.add_middleware(RequestContextMiddleware)
 
     build_models()
     for model in (ErrorDetail, ErrorEnvelope):
         model.model_config["defer_build"] = False
         model.model_rebuild()
-    auth_router, current_actor = auth.build_router()
+    auth_router, protected_auth, current_actor, authenticated_route = auth.build_router()
     app.include_router(auth_router)
-    app.include_router(routes.build_router(current_actor))
-    app.include_router(media.build_router(current_actor))
+    app.include_router(protected_auth)
+    app.include_router(routes.build_router(current_actor, authenticated_route))
+    app.include_router(media.build_router(current_actor, authenticated_route))
 
     @app.get("/healthz", status_code=204, response_class=Response, operation_id="healthz")
     def healthz():
         return Response(status_code=204)
 
-    @app.get("/readyz", status_code=204, response_class=Response, operation_id="readyz",
-             responses={503: {"description": "A dependency is unavailable"}})
-    def readyz():
+    store_probe = StoreProbe(store.root) if store is not None else None
+
+    def database_ready():
         try:
-            if not Path(store.root).is_dir():
-                return Response(status_code=503)
             with engine.connect() as conn:
                 conn.execute(sa.select(sa.literal(1)).select_from(sessions).limit(0))
         except (SQLAlchemyError, OSError):
-            return Response(status_code=503)
-        return Response(status_code=204)
+            return False
+        return True
+
+    @app.get("/readyz", status_code=204, response_class=Response, operation_id="readyz",
+             responses={503: {"description": "A dependency is unavailable"}})
+    async def readyz():
+        ready = store_probe is not None and await store_probe.ready()
+        if ready and await run_in_threadpool(database_ready):
+            return Response(status_code=204)
+        return Response(status_code=503)
 
     install_openapi(app)
     return app
