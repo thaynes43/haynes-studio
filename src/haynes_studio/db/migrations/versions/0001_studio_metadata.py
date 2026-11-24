@@ -2,6 +2,8 @@
 
 from alembic import op
 
+from haynes_studio.db.grants import METADATA_GRANTS, grant_runtime
+
 revision = "0001_studio_metadata"
 down_revision = None
 branch_labels = None
@@ -202,6 +204,7 @@ def upgrade():
         )
     """)
     op.execute('CREATE INDEX story_asset_refs_version ON story_asset_refs (version_id)')
+    grant_runtime(METADATA_GRANTS, schema_usage=True)
 
 
 def downgrade():

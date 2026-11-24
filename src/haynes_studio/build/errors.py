@@ -108,6 +108,10 @@ def failure_of(error: BaseException, *, board_id: str | None = None,
     return Failure(INTERNAL, _short(f"{type(error).__name__}: {error}"), board_id, None, stage)
 
 
+class BuildInterrupted(Exception):
+    """The worker lost authority to continue the build."""
+
+
 class RunHeld(BuildError):
     """A live clip source stopped the phase (story 851): the run is recorded ``held``,
     a safety stop that resumes only after a person reconciles it (contract section 8),

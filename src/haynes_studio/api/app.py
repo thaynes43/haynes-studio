@@ -15,13 +15,14 @@ from sqlalchemy.exc import TimeoutError as DBTimeoutError
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
 
+from haynes_studio.db import runs
 from haynes_studio.db.engine import connect_engine
 from haynes_studio.db.problems import NotFound, StaleRevision
-from haynes_studio.db.schema import sessions
+from haynes_studio.db.schema import run_lane, sessions
 from haynes_studio.errors import ContractError, pointer
 from haynes_studio.store.local import LocalStore
 
-from . import auth, media, routes
+from . import auth, media, routes, run_routes
 from .config import DEFAULT_STORE_FRESHNESS_SECONDS, from_environment, store_freshness_from_environment
 from .errors import APIError, ErrorDetail, ErrorEnvelope, STATUS, error_response, missing
 from .models import build_models
@@ -104,6 +105,15 @@ def _errors(app: FastAPI):
             current_revision=error.current, headers={"ETag": f'"{error.current}"'},
         ))
 
+    @app.exception_handler(runs.IdempotencyMismatch)
+    async def idempotency_mismatch(request: Request, error: runs.IdempotencyMismatch):
+        return await api_error(request, APIError(422, "idempotency.mismatch",
+                                                 "This key already queued a different story revision"))
+
+    @app.exception_handler(runs.QueueConflict)
+    async def queue_conflict(request: Request, error: runs.QueueConflict):
+        return await api_error(request, APIError(409, error.code, str(error)))
+
     @app.exception_handler(NotFound)
     async def not_found(request: Request, error: NotFound):
         return await api_error(request, missing())
@@ -117,7 +127,8 @@ def _errors(app: FastAPI):
                                                  "The metadata store could not complete the request"))
 
 
-def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STORE_FRESHNESS_SECONDS) -> FastAPI:
+def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STORE_FRESHNESS_SECONDS,
+                 build_stage_root: str | Path | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app):
         yield
@@ -127,10 +138,12 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
     app = FastAPI(title="Haynes Studio API", version="1.0.0", lifespan=lifespan,
                   docs_url=None, redoc_url=None, openapi_url=None, redirect_slashes=False)
     app.state.engine, app.state.store, app.state.oidc = engine, store, oidc
+    app.state.build_revision = run_routes.build_revision_from_environment()
+    app.state.build_stage_root = build_stage_root
     _errors(app)
     app.add_middleware(RequestContextMiddleware)
 
-    build_models()
+    build_models(*run_routes.transport_models())
     for model in (ErrorDetail, ErrorEnvelope):
         model.model_config["defer_build"] = False
         model.model_rebuild()
@@ -139,6 +152,8 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
     app.include_router(protected_auth)
     app.include_router(routes.build_router(current_actor, authenticated_route))
     app.include_router(media.build_router(current_actor, authenticated_route))
+    app.include_router(run_routes.build_router(current_actor, authenticated_route))
+    app.include_router(run_routes.worker_router())
 
     @app.get("/healthz", status_code=204, response_class=Response, operation_id="healthz")
     def healthz():
@@ -150,6 +165,7 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
         try:
             with engine.connect() as conn:
                 conn.execute(sa.select(sa.literal(1)).select_from(sessions).limit(0))
+                conn.execute(sa.select(run_lane.c.id).limit(0))
         except (SQLAlchemyError, OSError):
             return False
         return True
@@ -167,9 +183,10 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
 
 
 def create_app(engine, store: LocalStore, oidc: OIDC, *,
-               store_freshness_seconds: int = DEFAULT_STORE_FRESHNESS_SECONDS) -> FastAPI:
+               store_freshness_seconds: int = DEFAULT_STORE_FRESHNESS_SECONDS,
+               build_stage_root: str | Path | None = None) -> FastAPI:
     """Compose the service with explicit dependencies, including in isolated tests."""
-    return _application(engine, store, oidc, store_freshness_seconds)
+    return _application(engine, store, oidc, store_freshness_seconds, build_stage_root)
 
 
 def from_env() -> FastAPI:
@@ -180,7 +197,8 @@ def from_env() -> FastAPI:
     store_freshness_seconds = store_freshness_from_environment()
     store = LocalStore(root)
     engine = connect_engine(dsn, os.getenv("STUDIO_DATABASE_SCHEMA", "studio"))
-    return create_app(engine, store, oidc, store_freshness_seconds=store_freshness_seconds)
+    return create_app(engine, store, oidc, store_freshness_seconds=store_freshness_seconds,
+                      build_stage_root=os.getenv("STUDIO_BUILD_STAGE_ROOT"))
 
 
 def schema_app() -> FastAPI:

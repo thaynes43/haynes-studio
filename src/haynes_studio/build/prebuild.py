@@ -140,14 +140,21 @@ def _adapter_problems(story: Story, *, facts: Facts, motion: LayeredMotion | Non
     return found
 
 
-def prepare(document: Mapping[str, Any], *, library: Library, store: Store,
+def _metadata_present(_locator, _sha):
+    # Resolution during queueing pins the declaration. Full preflight checks bytes.
+    return PRESENT
+
+
+def prepare(document: Mapping[str, Any], *, library: Library, store: Store | None,
             toolchain: Toolchain, frame_size: tuple[int, int], current_engine: str,
             jobs: Iterable[Any] = ()) -> Prepared:
     """Run the pre-build check of a draft story (boards embedded). Never raises for a
-    story that cannot be built: every problem is in ``report``."""
+    story that cannot be built: every problem is in ``report``. With no store,
+    resolve declared content identities and require the worker to verify the bytes."""
     document = draft_document(document)
     facts = voice_facts(library, document, jobs, current_engine=current_engine)
-    resolution = resolve(document, library, lambda locator, sha: store.verify(locator, sha) == PRESENT)
+    verify = store.verify if store is not None else _metadata_present
+    resolution = resolve(document, library, lambda locator, sha: verify(locator, sha) == PRESENT)
     production = document.get("production_id")
     resolved = resolved_versions(resolution, library, production) if isinstance(production, str) else {}
     try:
@@ -162,7 +169,7 @@ def prepare(document: Mapping[str, Any], *, library: Library, store: Store,
     problems = list(report.problems)
     # The motion records every layered board plays (story 457's resolver); a board's
     # problems stay on its BoardMotion, and the layered check reports them.
-    motion = pin_story(document, library, store.verify, production_id=story.production_id)
+    motion = pin_story(document, library, verify, production_id=story.production_id)
     if story.boards is not None:
         problems += _adapter_problems(story, facts=facts, motion=motion, toolchain=toolchain,
                                       frame_size=frame_size)
