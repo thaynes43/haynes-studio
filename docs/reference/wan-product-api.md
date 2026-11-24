@@ -23,14 +23,17 @@ the legacy `/videos` routes. The `/v1` routes and typed results use the Service.
 **Installed baseline, 2026-11-24.** A read-only probe from the API container
 returned `/health` with `accepting_jobs: true` and `active_job: null`,
 `/ready` with `ready: true`, and OpenAPI `1.0.0` with only the legacy video
-paths. `/v1/profiles` returned 404. The installed API SHA-256 was
+paths. `/v1/profiles` returned 404. The installed `/config/video/api.py` SHA-256 was
 `61fdb5314acd1db6a04f014d3b213f4215f14df52e9f1827cce68c216bc79c18`.
-The Foley loopback worker reported models present and no active job. The Service
+It matches the November 24 source baseline with OP917's queue client-ID check.
+The services page records the earlier deployment read on November 18 and gives
+the loopback command used for current agent access. The Foley loopback worker reported models present and no active job. The Service
 health check succeeded from inside the Wan workload. Direct Service access from
 the task session timed out. The product interface has fake-engine source tests. A separate GitOps rollout and version
 read-back are required before a live client switches to it. The E0 and story 842
 paths remain historical proof for the profiles.
-[Service reference](services.md) · [Story 458](https://work.haynesnetwork.com/work_packages/458)
+[Service reference](services.md#wan-api-storage-and-delivery) ·
+[OP917 source](https://github.com/thaynes43/haynes-ops/commit/2ab6a5550dc908a757c32a9b22878a14fda60319) · [Story 458](https://work.haynesnetwork.com/work_packages/458)
 
 ## Submit and recover
 
@@ -41,6 +44,11 @@ paths remain historical proof for the profiles.
    with all samples present. The API verifies the digest and publishes the file
    create-only. HTTP 201 means created and 200 means identical bytes already
    exist. HTTP 409 with `upload_busy` means an upload is active and can be retried.
+   The staging directory is limited to 4 GiB and 4,096 entries, including
+   abandoned temporary files. New content also requires 5 GiB free on the Wan
+   volume after upload. HTTP 507 `input_storage_full` means a quota or reserve
+   has been reached. An identical upload can still return 200. Staged inputs
+   are retained without automatic deletion.
 2. Generate a new lowercase 32-digit hex UUID, without hyphens, for each
    intended attempt. Persist the job ID and request before sending
    `PUT /v1/jobs/{type}/{job_id}` with that JSON body and a `Content-Length`
