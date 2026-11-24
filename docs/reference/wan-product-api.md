@@ -40,11 +40,14 @@ paths remain historical proof for the profiles.
 1. For I2V and S2V, upload the input bytes to `PUT /v1/inputs/{sha256}.png` and,
    for S2V, `PUT /v1/inputs/{sha256}.wav`. Use the lowercase, 64-digit SHA-256
    of each body and a `Content-Length` of 1 to 19,999,999 bytes. Each PNG side
-   must be 1 to 4096 pixels. The first `IDAT` must be within the first 4,096
-   chunks after `IHDR`. The server refuses animation with HTTP 400
-   `animated_png`. WAV input must be 16-bit PCM, mono or stereo, at 16000,
-   22050, 24000, 44100 or 48000 Hz. Other WAV formats return HTTP 400
-   `unsupported_wav_format`. Incomplete inputs return HTTP 400 `invalid_input`.
+   must be 1 to 4096 pixels. The file must contain `IDAT` and end at `IEND`
+   within 4,096 chunks after `IHDR`. An `acTL` chunk returns HTTP 400
+   `animated_png`. WAV input must have one `data` chunk of 16-bit PCM, mono or
+   stereo, at 16000, 22050, 24000, 44100 or 48000 Hz. The API accepts `LIST` and
+   `fact` chunks before or after `data` and ignores bytes after the declared
+   RIFF boundary. A second `data` chunk returns HTTP 400 `invalid_input`.
+   Other WAV formats return HTTP 400 `unsupported_wav_format`. Incomplete inputs
+   return HTTP 400 `invalid_input`.
    The Studio voice drive track is 24 kHz mono 16-bit PCM. [Studio voice](studio-voice.md)
    The API verifies the digest and publishes the file create-only. HTTP 201 means
    created and 200 means identical bytes already
@@ -76,11 +79,14 @@ paths remain historical proof for the profiles.
    `request_sha256`, the story URL, and timestamps as the job progresses.
    Video jobs record the ComfyUI `prompt_id` and `graph_sha256` before the
    engine POST. The API polls the queue and history for that UUID when the
-   engine acknowledgment is lost. If every poll is well formed and shows the
-   prompt absent for 120 seconds, the job fails with `PromptSubmissionLost`
-   in its error and releases the lease without a hold. A failed or malformed
-   poll disables that shortcut. Slow reads are retried within the watchdog
-   window, up to 12 consecutive misses or 90 seconds since the first miss.
+   engine acknowledgment is lost. The job can fail with `PromptSubmissionLost`
+   and release the lease without a hold after 120 seconds if the prompt remains
+   unacknowledged, all queue and history polls are well formed and show it
+   absent, the hold stays clear, and every GPU sample meets the admission limits
+   of 5% utilization and 22,000 MiB of memory use per card. A busy or unreadable
+   GPU sample, or a failed or malformed poll, disables that shortcut.
+   Slow reads are retried within the watchdog window, up to 12 consecutive
+   misses or 90 seconds since the first miss.
    Failure cleanup cancels confirmed owned prompts by ID. An unconfirmed
    submission or foreign work can hold the worker for inspection. Treat a
    reported `unexpected_work_seen` as a stop signal for the build even if its
