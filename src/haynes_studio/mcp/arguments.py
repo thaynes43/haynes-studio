@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from haynes_studio.canonical.ids import ULID_PATTERN
+from haynes_studio.drafting.declaration import DraftDeclaration, RedraftDeclaration
 
 ProductionID = Annotated[str, StringConstraints(pattern=rf"^prd_{ULID_PATTERN}$")]
 StoryID = Annotated[str, StringConstraints(pattern=rf"^sty_{ULID_PATTERN}$")]
@@ -51,7 +52,7 @@ class NewStoryFields(StoryFields):
     title: StoryTitle
 
 
-class BoardFields(Arguments):
+class _BaseBoardFields(Arguments):
     title: Title | None = None
     lines: list[dict] | None = None
     timing: dict | None = None
@@ -63,6 +64,14 @@ class BoardFields(Arguments):
     seeds: dict | None = None
     cues: list[dict] | None = None
     notes: list[dict] | None = None
+
+
+class NewBoardFields(_BaseBoardFields):
+    draft_application: DraftDeclaration | None = None
+
+
+class BoardFields(_BaseBoardFields):
+    draft_application: RedraftDeclaration | None = None
 
 
 class Production(Arguments):
@@ -109,7 +118,7 @@ class PatchStory(Story):
 
 class AddBoard(Story):
     revision: Revision
-    fields: BoardFields
+    fields: NewBoardFields
 
 
 class Board(Arguments):

@@ -16,7 +16,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
 
 from haynes_studio.db.engine import connect_engine
-from haynes_studio.db.problems import NotFound, StaleRevision
+from haynes_studio.db.problems import DraftProtected, NotFound, StaleRevision
 from haynes_studio.db.schema import sessions
 from haynes_studio.errors import ContractError, pointer
 from haynes_studio.store.local import LocalStore
@@ -100,8 +100,15 @@ def _errors(app: FastAPI):
     @app.exception_handler(StaleRevision)
     async def stale(request: Request, error: StaleRevision):
         return await api_error(request, APIError(
-            409, "conflict.revision", "The record has changed", path="/revision",
+            409, "conflict.revision", "The record has changed", path=error.path,
             current_revision=error.current, headers={"ETag": f'"{error.current}"'},
+        ))
+
+    @app.exception_handler(DraftProtected)
+    async def draft_protected(request: Request, error: DraftProtected):
+        return await api_error(request, APIError(
+            409, "draft.protected", "The board no longer matches the agent draft baseline",
+            path="/draft_application",
         ))
 
     @app.exception_handler(NotFound)

@@ -315,6 +315,20 @@
     "drafted_by": {
       "$ref": "studio.defs.v1.schema.json#/$defs/principal"
     },
+    "draft_application": {
+      "type": "object",
+      "required": ["board_key", "draft_sha256", "model", "session", "applied_at", "board_revision"],
+      "properties": {
+        "board_key": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$"},
+        "draft_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "model": {"type": "string", "minLength": 1, "maxLength": 200},
+        "session": {"type": "string", "minLength": 1, "maxLength": 200},
+        "applied_at": {"$ref": "studio.defs.v1.schema.json#/$defs/timestamp"},
+        "board_revision": {"$ref": "studio.defs.v1.schema.json#/$defs/positive"},
+        "person_edit": {"enum": ["content", "reordered", "removed"]}
+      },
+      "additionalProperties": false
+    },
     "origin": {
       "type": [
         "object",

@@ -286,8 +286,9 @@ class Board:
     derived: BoardDerived | None = None
     created_at: str | None = None
     updated_at: str | None = None
+    draft_application: Mapping[str, Any] | None = None
 
-    _omit_none = ("derived", "created_at", "updated_at")
+    _omit_none = ("derived", "created_at", "updated_at", "draft_application")
 
     @property
     def spoken(self) -> bool:
@@ -320,6 +321,7 @@ class Board:
             origin=None if origin is None else BoardOrigin(**origin),
             derived=None if derived is None else BoardDerived(**derived),
             created_at=doc.get("created_at"), updated_at=doc.get("updated_at"),
+            draft_application=_verbatim(doc.get("draft_application")),
         )
 
 

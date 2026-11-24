@@ -5,6 +5,7 @@ from copy import deepcopy
 from fastapi import FastAPI
 
 from haynes_studio.db.drafts import BOARD_FIELDS, STORY_FIELDS
+from haynes_studio.drafting.declaration import DraftDeclaration, RedraftDeclaration
 from haynes_studio.schemas import load_schema
 
 from .models import ExternalPhotoDeclaration
@@ -75,7 +76,14 @@ def _write_schemas(schemas):
         schemas[shape]["properties"]["beds"]["items"] = ref
     line = schemas["BoardWrite"]["properties"]["lines"]["items"]
     line["required"].remove("id")
-    line["properties"]["id"]["description"] = "Omit for a new line. Preserve an existing line ID."
+    line["properties"]["id"]["description"] = (
+        "Omit for a new line or preserve an existing line ID. An agent draft declaration "
+        "also allows a fresh line ID to anchor a cue in the same write."
+    )
+    schemas["BoardWrite"]["properties"]["draft_application"] = {
+        "description": "Agent only. Use DraftDeclaration to create and RedraftDeclaration to patch.",
+        "oneOf": [DraftDeclaration.model_json_schema(), RedraftDeclaration.model_json_schema()],
+    }
     note = _child_input(schemas, "note", "NoteInput")
     schemas["BoardWrite"]["properties"]["notes"]["items"] = note
     cue = deepcopy(schemas["StudioDefs_board_cue"])

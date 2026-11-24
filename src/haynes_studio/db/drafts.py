@@ -9,19 +9,21 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
 import sqlalchemy as sa
+from pydantic import ValidationError
 from sqlalchemy.dialects.postgresql import insert
 
 from haynes_studio.canonical import (
     Story, boards_derived, story_derived, timing_summary, to_document, validate_production,
     validate_story,
 )
-from haynes_studio.canonical.ids import Minter
+from haynes_studio.canonical.ids import Minter, is_id
 from haynes_studio.canonical.jsonvalues import normalize
+from haynes_studio.drafting.declaration import DraftDeclaration, RedraftDeclaration
 from haynes_studio.errors import ContractError, Violation, pointer
 from haynes_studio.library.resolve import resolve, story_references
 
 from .catalog import ProductionScope, load_library, record_asset_version
-from .problems import NotFound, require_revision, require_valid
+from .problems import DraftProtected, NotFound, require_revision, require_valid
 from .schema import boards, draft_ids, media_types, productions, stories, story_asset_refs
 
 MEDIA_KINDS = {"short": ("9:16", 1080, 1920), "video": ("16:9", 1920, 1080)}
@@ -30,7 +32,7 @@ STORY_FIELDS = frozenset({
     "motion_style", "mix", "checks", "beds",
 })
 BOARD_FIELDS = frozenset({"title", "lines", "timing", "voice", "photo", "cast", "layout",
-                          "method", "seeds", "cues", "notes"})
+                          "method", "seeds", "cues", "notes", "draft_application"})
 BOARD_CHILDREN = {"lines": "lin", "cues": "cue", "notes": "nte"}
 
 
@@ -221,7 +223,8 @@ def _exact_fields(fields: dict, allowed: frozenset[str]) -> None:
         raise invalid("schema.unknown_field", pointer(min(extras)), "The field is not writable")
 
 
-def _with_child_ids(fields: dict, previous: dict, children: dict[str, str], minter: Minter) -> dict:
+def _with_child_ids(fields: dict, previous: dict, children: dict[str, str], minter: Minter,
+                    *, allow_new_line_ids: bool = False) -> dict:
     out = normalize(fields)
     for field, prefix in children.items():
         items = out.get(field)
@@ -233,6 +236,10 @@ def _with_child_ids(fields: dict, previous: dict, children: dict[str, str], mint
                 continue
             if "id" not in item:
                 item["id"] = minter.mint(prefix)
+            elif allow_new_line_ids and field == "lines" and is_id(item["id"], prefix):
+                # A cue may anchor to a new line in the same write. _reserve_ids
+                # still checks each new ID against the global registry.
+                continue
             elif not isinstance(item["id"], str) or item["id"] not in existing:
                 raise invalid("ref.unknown", pointer(field, index, "id"),
                               "Omit the ID to create an item, or use an existing item ID")
@@ -315,6 +322,34 @@ def _advance(draft: Draft, changes: dict, now: str) -> Draft:
                                  "updated_at": now})
 
 
+def _draft_declaration(fields: dict, by: dict, model: type[DraftDeclaration]):
+    if "draft_application" not in fields:
+        return fields, None
+    if by["kind"] != "agent":
+        raise invalid("draft.agent_required", "/draft_application",
+                      "Draft provenance requires an authenticated agent")
+    fields = dict(fields)
+    try:
+        declaration = model.model_validate(fields.pop("draft_application"))
+    except ValidationError as error:
+        first = error.errors(include_input=False)[0]
+        raise invalid("schema.invalid", pointer("draft_application", *first["loc"]),
+                      "Invalid agent draft declaration") from None
+    return fields, declaration
+
+
+def _draft_stamp(declaration: DraftDeclaration, revision: int, now: str) -> dict:
+    return {**declaration.model_dump(include=set(DraftDeclaration.model_fields)),
+            "board_revision": revision, "applied_at": now}
+
+
+def _board_changed(held: dict, by: dict, reason: str, now: str) -> dict:
+    updated = {**held, "revision": held["revision"] + 1, "updated_at": now}
+    if by["kind"] == "human" and "draft_application" in held:
+        updated["draft_application"] = {**held["draft_application"], "person_edit": reason}
+    return updated
+
+
 def edit_story(conn: sa.Connection, id_: str, revision: int, fields: dict) -> Draft:
     draft = get_draft(conn, id_, lock=True)
     require_revision(draft.story["revision"], revision)
@@ -331,6 +366,7 @@ def add_board(conn: sa.Connection, id_: str, revision: int, fields: dict, by: di
     draft = get_draft(conn, id_, lock=True)
     require_revision(draft.story["revision"], revision)
     _exact_fields(fields, BOARD_FIELDS)
+    fields, declaration = _draft_declaration(fields, by, DraftDeclaration)
     minter = Minter()
     id_board, now = minter.mint("brd"), timestamp()
     number = draft.highest_board + 1
@@ -340,10 +376,13 @@ def add_board(conn: sa.Connection, id_: str, revision: int, fields: dict, by: di
         "cast": [], "layout": {"preset": next(iter(sorted(draft.story["layouts"])), "default"),
                                "foreground": True},
         "seeds": {}, "cues": [], "notes": [],
-        **_with_child_ids(fields, {}, BOARD_CHILDREN, minter),
+        **_with_child_ids(fields, {}, BOARD_CHILDREN, minter,
+                          allow_new_line_ids=declaration is not None),
         "schema": "studio.board/v1", "id": id_board, "story_id": id_, "number": number,
         "revision": 1, "drafted_by": by, "origin": None, "created_at": now, "updated_at": now,
     }
+    if declaration is not None:
+        doc["draft_application"] = _draft_stamp(declaration, 1, now)
     spoken = bool(doc["lines"])
     doc.setdefault("timing", {"lead_ms": 0 if spoken else None, "tail_ms": 0 if spoken else None,
                               "hold_ms": None if spoken else 1000})
@@ -369,16 +408,31 @@ def add_board(conn: sa.Connection, id_: str, revision: int, fields: dict, by: di
     return updated, id_board
 
 
-def edit_board(conn: sa.Connection, story_id: str, id_: str, revision: int, fields: dict) -> Draft:
+def edit_board(conn: sa.Connection, story_id: str, id_: str, revision: int,
+               fields: dict, by: dict) -> Draft:
     draft = get_draft(conn, story_id, lock=True)
     held = draft.boards.get(id_)
     if held is None:
         raise NotFound
     require_revision(held["revision"], revision)
     _exact_fields(fields, BOARD_FIELDS)
-    fields = _with_child_ids(fields, held, BOARD_CHILDREN, Minter())
+    fields, declaration = _draft_declaration(fields, by, RedraftDeclaration)
+    if declaration is not None:
+        require_revision(draft.story["revision"], declaration.story_revision,
+                         "/draft_application/story_revision")
+        previous = held.get("draft_application", {})
+        if (previous.get("board_key") != declaration.board_key
+                or previous.get("draft_sha256") != declaration.previous_draft_sha256
+                or previous.get("board_revision") != revision
+                or "person_edit" in previous):
+            raise DraftProtected
+    fields = _with_child_ids(fields, held, BOARD_CHILDREN, Minter(),
+                             allow_new_line_ids=declaration is not None)
     now = timestamp()
-    doc = {**held, **fields, "revision": revision + 1, "updated_at": now}
+    doc = {**_board_changed(held, by, "content", now), **fields}
+    if declaration is not None:
+        doc["drafted_by"] = by
+        doc["draft_application"] = _draft_stamp(declaration, doc["revision"], now)
     updated = _advance(draft, {}, now)
     updated.boards = {**draft.boards, id_: doc}
     refs = updated.validate(conn)
@@ -388,17 +442,29 @@ def edit_board(conn: sa.Connection, story_id: str, id_: str, revision: int, fiel
     return updated
 
 
-def reorder(conn: sa.Connection, id_: str, revision: int, order: list[str]) -> Draft:
+def reorder(conn: sa.Connection, id_: str, revision: int, order: list[str], by: dict) -> Draft:
     draft = get_draft(conn, id_, lock=True)
     require_revision(draft.story["revision"], revision)
     if len(order) != len(draft.boards) or set(order) != draft.boards.keys():
         raise invalid("story.board_order", "/board_order", "List every active board exactly once")
-    updated = _advance(draft, {"board_order": order}, timestamp())
-    _save_story(conn, updated, updated.validate(conn))
+    now = timestamp()
+    updated = _advance(draft, {"board_order": order}, now)
+    updated.boards = dict(draft.boards)
+    moved = []
+    for old, new in zip(draft.story["board_order"], order, strict=True):
+        if old != new and "draft_application" in draft.boards[new]:
+            updated.boards[new] = _board_changed(draft.boards[new], by, "reordered", now)
+            moved.append(new)
+    refs = updated.validate(conn)
+    for id_board in moved:
+        conn.execute(boards.update().where(boards.c.id == id_board).values(
+            document=updated.boards[id_board],
+        ))
+    _save_story(conn, updated, refs)
     return updated
 
 
-def remove_board(conn: sa.Connection, story_id: str, id_: str, revision: int) -> None:
+def remove_board(conn: sa.Connection, story_id: str, id_: str, revision: int, by: dict) -> None:
     draft = get_draft(conn, story_id, lock=True)
     held = draft.boards.get(id_)
     if held is None:
@@ -410,7 +476,7 @@ def remove_board(conn: sa.Connection, story_id: str, id_: str, revision: int) ->
     updated.boards = {board_id: doc for board_id, doc in draft.boards.items() if board_id != id_}
     refs = updated.validate(conn)
     conn.execute(boards.update().where(boards.c.id == id_).values(
-        tombstone=True, document={**held, "revision": revision + 1, "updated_at": now},
+        tombstone=True, document=_board_changed(held, by, "removed", now),
     ))
     _save_story(conn, updated, refs)
 

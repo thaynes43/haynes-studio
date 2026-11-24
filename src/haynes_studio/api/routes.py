@@ -216,7 +216,8 @@ def build_router(CurrentActor, authenticated_route):
                      if_match: IfMatch):
         with request.app.state.engine.begin() as conn:
             story_id = _board_access(conn, actor, "draft:write", id)
-            doc = drafts.edit_board(conn, story_id, id, _revision(if_match), body.root).board(conn, id)
+            doc = drafts.edit_board(conn, story_id, id, _revision(if_match), body.root,
+                                    to_document(actor.principal)).board(conn, id)
         return _etag(response, doc)
 
 
@@ -227,7 +228,8 @@ def build_router(CurrentActor, authenticated_route):
         with request.app.state.engine.begin() as conn:
             _story_access(conn, actor, "draft:write", id)
             order = [_id(board, "brd", f"/board_order/{index}") for index, board in enumerate(body.board_order)]
-            doc = drafts.reorder(conn, id, _revision(if_match), order).summary(conn)
+            doc = drafts.reorder(conn, id, _revision(if_match), order,
+                                 to_document(actor.principal)).summary(conn)
         return _etag(response, doc)
 
 
@@ -236,7 +238,7 @@ def build_router(CurrentActor, authenticated_route):
     def remove_board(id: str, request: Request, actor: CurrentActor, if_match: IfMatch):
         with request.app.state.engine.begin() as conn:
             story_id = _board_access(conn, actor, "draft:write", id)
-            drafts.remove_board(conn, story_id, id, _revision(if_match))
+            drafts.remove_board(conn, story_id, id, _revision(if_match), to_document(actor.principal))
         return Response(status_code=204)
 
 

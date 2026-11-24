@@ -37,8 +37,9 @@ def story(record: dict) -> dict:
 
 
 def board(record: dict) -> dict:
+    provenance = pick(record, "drafted_by", "draft_application") if "draft_application" in record else {}
     return {
-        **pick(record, "schema", "number", "title"),
+        **pick(record, "schema", "number", "title"), **provenance,
         "id": record["id"], "story_id": record["story_id"], "revision": record["revision"],
     }
 
