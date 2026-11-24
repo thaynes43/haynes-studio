@@ -5,7 +5,7 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
 MCP_URL = "http://localhost/mcp"
-API_URL = "http://studio-api.example.invalid"
+API_URL = "http://studio-api.studio.svc.cluster.local"
 
 
 @asynccontextmanager

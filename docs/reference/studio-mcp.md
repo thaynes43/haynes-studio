@@ -17,9 +17,12 @@ The listener defaults to `127.0.0.1:8001`. For a private ingress, set
 `--host` and use repeatable `--allowed-host` values for the Host header that
 reaches MCP, including any port. Native clients can omit Origin. Set repeatable
 `--allowed-origin` values to permit specific browser origins. Use TLS for the
-agent transport outside loopback and on the API hop wherever the bearer crosses
-an untrusted network. The process uses a fixed upstream HTTP(S) origin and
-disables redirects.
+agent transport outside loopback. The upstream `STUDIO_API_URL` must be a fixed
+HTTPS origin, except that HTTP is allowed for loopback or Kubernetes Service DNS
+(`service.namespace.svc.cluster.local` or `service.namespace.svc`). Set
+`STUDIO_API_CA_FILE` to a mounted PEM CA bundle when verifying an API certificate
+issued by a private CA. The upstream client ignores proxy and trust environment
+variables and disables redirects.
 
 ## Tools and revisions
 
@@ -53,7 +56,9 @@ revision arguments as quoted HTTP `If-Match` values. A stale write returns
 `isError: true` with
 `structuredContent.error = { code, status, http_status, request_id, path, message, current_revision }`.
 Use `current_revision` with a fresh read to reconcile edits before trying
-again. The same envelope carries other API errors. Authentication and API
+again. Other API errors preserve the envelope's status and detail fields up to
+64 KiB. Invalid tool input reports `violations` with a JSON Pointer `path` and
+validation `rule` for each failing field. Authentication and API
 failures during the protocol request's key check return HTTP errors before tool
 dispatch. `service_unavailable` is 503, `internal` is 500, and `unavailable` at
 422 is a method capability error.
@@ -77,14 +82,22 @@ as run provenance, with no standalone usage-write operation.
 
 ## Agent key administration
 
-Run `studio-api-admin` with the existing migration identity in
-`STUDIO_MIGRATION_DATABASE_URL` and the provisioned `STUDIO_DATABASE_SCHEMA`
-(default `studio`). The connection's active role must own the credential
-tables. The command uses existing migrations.
+Run `studio-api-admin` after migrating to head. Set
+`STUDIO_MIGRATION_DATABASE_URL` to the DSN of the migration role or the
+dedicated key-admin role specified in [Database privileges](studio-api.md#database-privileges).
+Set `STUDIO_DATABASE_SCHEMA` to the provisioned schema (default `studio`).
+
+For deployment, mount the External Secrets Password generator's value as a file
+and use `register`. Configure the generator for 48–128 ASCII alphanumeric
+characters (`A–Z`, `a–z`, `0–9`). The file holds the token with an optional
+final newline. The CLI also accepts a file from `create --out`, which generates
+a 43-character unpadded base64url key.
 
 ```sh
-uv run --no-sync studio-api-admin create --production "$PRODUCTION_ID" \
-  --scope read --scope draft:write --expires-at "$ISO8601_EXPIRY"
+uv run --no-sync studio-api-admin register --key-file "$MOUNTED_KEY_FILE" \
+  --production "$PRODUCTION_ID" --scope read --scope draft:write
+uv run --no-sync studio-api-admin create --out "$NEW_KEY_FILE" \
+  --production "$PRODUCTION_ID" --scope read --expires-at "$ISO8601_EXPIRY"
 uv run --no-sync studio-api-admin list
 uv run --no-sync studio-api-admin revoke "$KEY_ID"
 ```
@@ -92,13 +105,17 @@ uv run --no-sync studio-api-admin revoke "$KEY_ID"
 Repeat flags to grant the specified scopes to each production ID. The
 agent scopes are `read`, `draft:write`, `assets:generate`, `assets:upload`
 and `runs:queue`. Go-live approval is reserved for people. Expiry is optional
-and must include a timezone when supplied. Create writes one JSON object
-containing the key ID and the secret to stdout after committing. Capture that
-output privately. The database stores only the secret's SHA-256 digest. List
-returns IDs, grants, expiry and revocation dates. Revoke is idempotent. If the
-creation output is lost, revoke that key by ID and issue a replacement. Each
-command writes a JSON access log event to stderr with the action, status and
-available owner role and key ID.
+and must include a timezone when supplied. Registering the same key with
+the same productions, scopes and expiry returns its existing key ID.
+Changed grants or expiry require `--replace-grants`, which replaces the full
+set without clearing revocation. The database stores only the SHA-256 digest.
+
+Register and `create --out` print the key ID. Create requires a new output
+path and opens it exclusively with mode `0600`. With no output path, create
+prints the secret only on a terminal and refuses before connecting when
+stdout is redirected. List returns IDs, grants, expiry and revocation dates.
+Revoke is idempotent. Each command writes a secret-free JSON access log event
+to stderr with the action, status and available database role and key ID.
 
 ## SDK example
 

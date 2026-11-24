@@ -1,13 +1,22 @@
+import asyncio
 import json
 import logging
 import secrets
+import ssl
+from datetime import UTC, datetime
+from ipaddress import ip_address
 
 import httpx
 import pytest
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
 from jsonschema import Draft202012Validator
 
 from haynes_studio.canonical.ids import Minter
-from haynes_studio.mcp.server import MAX_ARGUMENT_BYTES, MAX_REQUEST_BYTES, MAX_RESULT_BYTES, create_app
+from haynes_studio.mcp.server import MAX_ARGUMENT_BYTES, MAX_REQUEST_BYTES, MAX_RESULT_BYTES, _api_origin, create_app
+from haynes_studio.mcp.upstream import MAX_ERROR_BYTES
+from tests.canonical.fixtures import example
 
 from .client import API_URL, MCP_URL, call, connect, fail
 
@@ -55,7 +64,10 @@ class FakeStudio:
     def request(self, request):
         path = request.url.path
         if request.headers.get("authorization") != self.authorization:
-            return httpx.Response(401, json={"error": {"code": "auth.required", "request_id": "req-auth"}})
+            return httpx.Response(401, json={"error": {
+                "code": "auth.required", "status": "unauthenticated", "http_status": 401,
+                "path": "", "message": "Present a valid credential", "request_id": "req-auth",
+            }})
         assert "cookie" not in request.headers
         if path == "/v1/me":
             return httpx.Response(200, json={"principal": {"kind": "agent"}},
@@ -171,10 +183,16 @@ async def test_rejects_unknown_tools_malformed_and_oversize_arguments(api):
         oversized = await fail(session, "studio_patch_board", **args,
                                patch={"notes": [{"text": "x" * MAX_ARGUMENT_BYTES}]})
         assert oversized["status"] == "too_large"
-        for invalid in ({"patch": {"raw_graph": {}}}, {"patch": {}, "revision": True},
-                        {"patch": {}, "board_id": "../media/file"}):
-            result = await fail(session, "studio_patch_board", **{**args, **invalid})
-            assert result["status"] == "invalid"
+        invalid = await fail(session, "studio_patch_board", board_id="../media/file", revision=True,
+                             patch={"raw/~graph": "sensitive-fixture-value",
+                                    "notes": [{}, "sensitive-fixture-value"]})
+        assert invalid["status"] == "invalid"
+        assert invalid["path"] in {item["path"] for item in invalid["violations"]}
+        assert {(item["path"], item["rule"]) for item in invalid["violations"]} == {
+            ("/board_id", "string_pattern_mismatch"), ("/revision", "int_type"),
+            ("/patch/raw~1~0graph", "extra_forbidden"), ("/patch/notes/1", "dict_type"),
+        }
+        assert "sensitive-fixture-value" not in json.dumps(invalid) and "../media/file" not in json.dumps(invalid)
         assert not api.requests
 
 
@@ -189,6 +207,10 @@ async def test_transport_auth_host_origin_and_request_limit(api, caplog):
         invalid = await http.post(MCP_URL, json=body, headers={"Authorization": "Bearer " + secrets.token_urlsafe(32)})
         duplicate = await http.post(MCP_URL, json=body, headers=[("Authorization", api.authorization)] * 2)
         assert [response.status_code for response in (missing, invalid, duplicate)] == [401, 401, 401]
+        for token in ("A" * 42, "A" * 47, "_" * 48, "A" * 129):
+            response = await http.post(MCP_URL, json=body, headers={"Authorization": "Bearer " + token})
+            assert response.status_code == 401
+            assert response.json()["error"]["request_id"].startswith("mcp-")
         assert invalid.headers["www-authenticate"] == "Bearer"
         assert invalid.json()["error"]["request_id"] == "req-auth"
         assert (await http.post(MCP_URL, json=body, headers={"Host": "other.example.invalid"})).status_code == 421
@@ -204,30 +226,111 @@ async def test_transport_auth_host_origin_and_request_limit(api, caplog):
     assert api.authorization.split()[1] not in caplog.text
 
 
-@pytest.mark.parametrize(("status", "code", "studio_status", "expected"), [
-    (422, "method.unavailable", "unavailable", "unavailable"),
-    (409, "conflict.revision", "conflict", "conflict"),
-    (503, "database.failed", "service_unavailable", "service_unavailable"),
-    (500, "request.failed", "internal", "internal"),
-    (502, None, None, "service_unavailable"),
+@pytest.mark.parametrize(("transport_status", "envelope"), [
+    (422, example("valid/error-method-unavailable.json")),
+    (418, example("valid/error-method-unavailable.json")),
+    (400, {"error": {
+        "code": "conflict.revision", "status": "conflict", "http_status": 409, "path": "/revision",
+        "message": "Expected the current revision", "request_id": "req-api", "current_revision": 12,
+        "context": {"hints": ["Read the current draft"]},
+    }}),
+    (503, {"error": {
+        "code": "database.failed", "status": "service_unavailable", "http_status": 503,
+        "path": "", "message": "Database unavailable", "request_id": "req-api",
+    }}),
+    (500, {"error": {
+        "code": "request.failed", "status": "internal", "http_status": 500,
+        "path": "", "message": "The request could not be completed", "request_id": "req-api",
+    }}),
 ])
-async def test_api_error_envelopes(api, status, code, studio_status, expected):
-    def error(_):
-        if code is None:
-            return httpx.Response(status, text="upstream diagnostic")
-        return httpx.Response(status, json={"error": {
-            "code": code, "status": studio_status, "http_status": status,
-            "path": "/revision", "message": "Fixture", "request_id": "req-api", "current_revision": 12,
-        }})
-
-    api.override = error
+async def test_api_error_envelopes(api, transport_status, envelope):
+    api.override = lambda _: httpx.Response(transport_status, json=envelope)
     async with api.app.router.lifespan_context(api.app), connect(api.app, api.authorization) as session:
         result = await fail(session, "studio_patch_board", board_id=api.bid, revision=5, patch={})
-    assert result["status"] == expected
-    if code:
-        assert result["code"] == code and result["request_id"] == "req-api"
-    if status == 409:
-        assert result["current_revision"] == 12
+    assert result == envelope["error"]
+
+
+async def test_api_error_envelopes_bound_invalid_and_oversize_errors(api):
+    document = example("valid/error-method-unavailable.json")
+    async with api.app.router.lifespan_context(api.app), connect(api.app, api.authorization) as session:
+        api.override = lambda _: httpx.Response(418, text="upstream diagnostic")
+        assert (await fail(session, "studio_get_board", board_id=api.bid))["status"] == "internal"
+        api.override = lambda _: httpx.Response(502, text="upstream diagnostic")
+        assert (await fail(session, "studio_get_board", board_id=api.bid))["status"] == "service_unavailable"
+        api.override = lambda _: httpx.Response(422, json=document)
+        document["error"]["diagnostic"] = "x" * MAX_ERROR_BYTES
+        oversized = await fail(session, "studio_get_board", board_id=api.bid)
+        assert oversized["code"] == "internal" and "diagnostic" not in oversized
+        document["error"]["status"] = "unsupported"
+        document["error"].pop("diagnostic")
+        invalid = await fail(session, "studio_get_board", board_id=api.bid)
+        assert invalid["status"] == "invalid" and "board_id" not in invalid
+
+
+@pytest.mark.parametrize("url", [
+    "http://studio-api.studio.svc.cluster.local:8000", "http://studio-api.studio.svc",
+    "http://localhost", "http://127.1.2.3:8000", "http://[::1]:8000", "https://example.invalid",
+])
+def test_accepts_https_and_local_http_origins(url):
+    assert _api_origin(url) == httpx.URL(url)
+
+
+@pytest.mark.parametrize("url", [
+    "http://example.invalid", "http://studio-api", "http://10.0.0.1",
+    "http://studio-api.studio.svc.cluster.local.example.invalid",
+    "https://example.invalid/api", "https://user:pass@example.invalid", "https://example.invalid/?token=fixture",
+])
+def test_refuses_invalid_or_nonlocal_http_origins(url):
+    with pytest.raises(ValueError, match="STUDIO_API_URL"):
+        _api_origin(url)
+
+
+async def test_api_tls_uses_explicit_ca_and_ignores_environment(tmp_path, monkeypatch):
+    key = ec.generate_private_key(ec.SECP256R1())
+    name = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, "Studio test CA")])
+    cert = (
+        x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key())
+        .serial_number(1).not_valid_before(datetime(2020, 1, 1, tzinfo=UTC))
+        .not_valid_after(datetime(2099, 1, 1, tzinfo=UTC))
+        .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
+        .add_extension(x509.SubjectAlternativeName([x509.IPAddress(ip_address("127.0.0.1"))]), critical=False)
+        .sign(key, hashes.SHA256())
+    )
+    bundle, private_key = tmp_path / "ca.pem", tmp_path / "key.pem"
+    bundle.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+    private_key.write_bytes(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                                               serialization.NoEncryption()))
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(bundle, private_key)
+    body = b'{"principal":{"kind":"agent"}}'
+
+    async def upstream(reader, writer):
+        try:
+            assert (await reader.readuntil(b"\r\n\r\n")).startswith(b"GET /v1/me HTTP/1.1\r\n")
+            writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                         + f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n".encode() + body)
+            await writer.drain()
+        finally:
+            writer.close()
+            await writer.wait_closed()
+
+    async def discover(app):
+        async with app.router.lifespan_context(app), httpx.AsyncClient(transport=httpx.ASGITransport(app=app)) as client:
+            return await client.post(MCP_URL, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, headers={
+                "Authorization": "Bearer " + secrets.token_urlsafe(32),
+                "Accept": "application/json, text/event-stream",
+            })
+
+    monkeypatch.setenv("SSL_CERT_FILE", str(bundle))
+    monkeypatch.setenv("NO_PROXY", "*")
+    async with await asyncio.start_server(upstream, "127.0.0.1", 0, ssl=context) as server:
+        url = f"https://127.0.0.1:{server.sockets[0].getsockname()[1]}"
+        assert (await discover(create_app(url))).status_code == 503
+        monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:1")
+        monkeypatch.setenv("NO_PROXY", "")
+        response = await discover(create_app(url, api_ca_file=bundle))
+        assert response.status_code == 200
+        assert {tool["name"] for tool in response.json()["result"]["tools"]} == NAMES
 
 
 async def test_transport_failure_redirect_binary_and_bounded_results(api):

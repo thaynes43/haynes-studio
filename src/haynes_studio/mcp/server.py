@@ -2,8 +2,11 @@
 
 import logging
 import re
+import ssl
 from contextlib import asynccontextmanager
 from http.cookiejar import CookieJar, DefaultCookiePolicy
+from ipaddress import ip_address
+from pathlib import Path
 
 import httpx
 from mcp.server.lowlevel import Server
@@ -17,7 +20,9 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
+from haynes_studio.agent_tokens import AGENT_TOKEN_PATTERN
 from haynes_studio.canonical.jsonvalues import too_deep
+from haynes_studio.errors import pointer
 
 from .tools import OPERATIONS
 from .upstream import Problem, StudioAPI, auth_required, json_text
@@ -27,7 +32,9 @@ MAX_ARGUMENT_BYTES = 64 * 1024
 MAX_RESULT_BYTES = 128 * 1024
 MAX_REQUEST_BYTES = 256 * 1024
 LOCAL_HOSTS = ("127.0.0.1", "127.0.0.1:*", "localhost", "localhost:*", "[::1]", "[::1]:*")
-_BEARER = re.compile(r"(?i:Bearer) [A-Za-z0-9_-]{43,128}")
+_BEARER = re.compile(rf"(?i:Bearer) {AGENT_TOKEN_PATTERN}")
+_DNS_LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+_CLUSTER_SERVICE = re.compile(rf"{_DNS_LABEL}\.{_DNS_LABEL}\.svc(?:\.cluster\.local\.?)?")
 logger = logging.getLogger(__name__)
 
 
@@ -49,9 +56,15 @@ def _validate_arguments(model, values):
         raise Problem(413, "request.too_large", "Tool arguments are limited to 64 KiB")
     try:
         return model.model_validate(values)
-    except ValidationError:
-        # The SDK's default validation text can echo the caller's input.
-        raise Problem(422, "schema.invalid", "Arguments do not match the tool input schema") from None
+    except ValidationError as error:
+        # Pydantic's messages and context can contain input values.
+        violations = [{"path": pointer(*item["loc"]), "rule": item["type"]}
+                      for item in error.errors(include_url=False, include_context=False, include_input=False)]
+        problem = Problem(422, "schema.invalid", "Arguments do not match the tool input schema",
+                          path=violations[0]["path"], violations=violations)
+        if len(json_text({"error": problem.error}).encode("utf-8")) > MAX_RESULT_BYTES:
+            raise Problem(413, "result.too_large", "Too many argument violations to report within 128 KiB") from None
+        raise problem from None
 
 
 class Endpoint:
@@ -90,21 +103,35 @@ class Endpoint:
         await self.manager.handle_request(scope, receive, send_response)
 
 
+def _loopback(host: str) -> bool:
+    if host in {"localhost", "localhost."}:
+        return True
+    try:
+        return ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
 def _api_origin(url: str) -> httpx.URL:
     origin = httpx.URL(url)
     if (origin.scheme not in {"http", "https"} or not origin.host or origin.userinfo
             or origin.raw_path != b"/" or origin.fragment):
         raise ValueError("STUDIO_API_URL must be an HTTP(S) origin")
+    if origin.scheme == "http" and not (_loopback(origin.host) or _CLUSTER_SERVICE.fullmatch(origin.host)):
+        raise ValueError("STUDIO_API_URL requires HTTPS outside loopback and Kubernetes Service DNS")
     return origin
 
 
 def create_app(api_url: str, *, allowed_hosts: tuple[str, ...] = LOCAL_HOSTS,
                allowed_origins: tuple[str, ...] = (),
+               api_ca_file: str | Path | None = None,
                api_transport: httpx.AsyncBaseTransport | None = None) -> Starlette:
     """Configure the API origin and the streamable HTTP transport."""
     # Share connections, with no upstream cookie persistence or environment proxies.
+    origin = _api_origin(api_url)
+    verify = ssl.create_default_context(cafile=str(api_ca_file)) if api_ca_file is not None else True
     client = httpx.AsyncClient(
-        base_url=_api_origin(api_url), transport=api_transport, trust_env=False,
+        base_url=origin, transport=api_transport, trust_env=False, verify=verify,
         cookies=CookieJar(policy=DefaultCookiePolicy(allowed_domains=())),
         timeout=httpx.Timeout(30, connect=5),
     )

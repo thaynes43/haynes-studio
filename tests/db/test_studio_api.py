@@ -139,12 +139,12 @@ def owner_engine(studio_db):
         engine.dispose()
 
 
-@pytest.fixture(scope="module")
-def runtime_db(studio_db, owner_engine):
-    # Use the executable grants from the provisioning page so the proof tracks its SQL.
+def documented_role(studio_db, documented_name, suffix):
     reference = Path(__file__).resolve().parents[2] / "docs/reference/studio-api.md"
-    grants = reference.read_text().split("```sql\n", 1)[1].split("```", 1)[0]
-    role_name = f"{studio_db.schema}_app"
+    grants = next(block.split("```", 1)[0]
+                  for block in reference.read_text().split("```sql\n")[1:]
+                  if f"TO {documented_name};" in block.split("```", 1)[0])
+    role_name = f"{studio_db.schema}_{suffix}"
     role = sql.Identifier(role_name)
     password = random_secret()
     with psycopg.connect(studio_db.url, autocommit=True) as admin:
@@ -154,11 +154,21 @@ def runtime_db(studio_db, owner_engine):
             grants = grants.replace("DATABASE studio", "DATABASE " + sql.Identifier(studio_db.dbname).as_string())
             grants = grants.replace("SCHEMA studio", "SCHEMA " + sql.Identifier(studio_db.schema).as_string())
             grants = grants.replace("studio.", sql.Identifier(studio_db.schema).as_string() + ".")
-            grants = grants.replace("studio_app", role.as_string())
+            grants = grants.replace(documented_name, role.as_string())
             admin.execute(grants)
             yield replace(studio_db, url=make_conninfo(studio_db.url, user=role_name, password=password))
         finally:
             admin.execute(sql.SQL("DROP OWNED BY {}; DROP ROLE {}").format(role, role))
+
+
+@pytest.fixture(scope="module")
+def runtime_db(studio_db, owner_engine):
+    yield from documented_role(studio_db, "studio_app", "app")
+
+
+@pytest.fixture(scope="module")
+def key_admin_db(studio_db, owner_engine):
+    yield from documented_role(studio_db, "studio_key_admin", "key_admin")
 
 
 @pytest.fixture(scope="module")

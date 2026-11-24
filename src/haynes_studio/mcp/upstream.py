@@ -12,11 +12,13 @@ from haynes_studio.canonical.jsonvalues import too_deep
 from haynes_studio.jsonio import parse_strict
 
 MAX_API_BYTES = 8 * 1024 * 1024
+MAX_ERROR_BYTES = 64 * 1024
 STATUSES = {
     400: "invalid", 401: "unauthenticated", 403: "forbidden", 404: "not_found",
     409: "conflict", 413: "too_large", 422: "invalid", 500: "internal",
     503: "service_unavailable",
 }
+ERROR_STATUSES = frozenset(STATUSES.values()) | {"unavailable"}
 _CODE = re.compile(r"[a-z][a-z0-9_.-]{0,95}")
 _REQUEST_ID = re.compile(r"[A-Za-z0-9_-]{1,96}")
 
@@ -30,7 +32,7 @@ class Problem(Exception):
                  request_id: str | None = None, path: str = "", **detail):
         super().__init__(code)
         self.error = {
-            "http_status": http_status, "status": STATUSES[http_status], "code": code,
+            "http_status": http_status, "status": STATUSES.get(http_status, "internal"), "code": code,
             "request_id": request_id or f"mcp-{uuid4().hex}", "path": path,
             "message": message, **detail,
         }
@@ -55,27 +57,31 @@ def _checked(value, pattern):
 
 
 def _error(response: httpx.Response, document: object, request_id: str | None) -> Problem:
-    status = response.status_code
-    if status not in STATUSES:
-        if status in (502, 504):
-            return Problem.unavailable(request_id)
-        return Problem.internal(request_id)
     detail = document.get("error") if isinstance(document, dict) else None
-    detail = detail if isinstance(detail, dict) else {}
-    request_id = _checked(detail.get("request_id"), _REQUEST_ID) or request_id
-    code = _checked(detail.get("code"), _CODE) or STATUSES[status]
-    message, path = detail.get("message"), detail.get("path")
-    if not isinstance(message, str) or not 0 < len(message) <= 512:
-        message = HTTPStatus(status).phrase
-    if not isinstance(path, str) or len(path) > 256:
-        path = ""
-    problem = Problem(status, code, message, request_id=request_id, path=path)
-    if status == 422 and detail.get("status") == "unavailable":
-        problem.error["status"] = "unavailable"
-    revision = detail.get("current_revision")
-    if status == 409 and code == "conflict.revision" and type(revision) is int and revision >= 0:
-        problem.error["current_revision"] = revision
-    return problem
+    if isinstance(detail, dict):
+        request_id = _checked(detail.get("request_id"), _REQUEST_ID) or request_id
+        status, http_status = detail.get("status"), detail.get("http_status")
+        code, message, path = detail.get("code"), detail.get("message"), detail.get("path")
+        if (isinstance(status, str) and status in ERROR_STATUSES
+                and type(http_status) is int and 400 <= http_status < 600
+                and _checked(code, _CODE) and isinstance(message, str) and message
+                and isinstance(path, str)
+                and ("request_id" not in detail or _checked(detail["request_id"], _REQUEST_ID))):
+            problem = Problem(http_status, code, message, request_id=request_id, path=path)
+            problem.error.update(detail)
+            try:
+                if len(json_text({"error": problem.error}).encode("utf-8")) <= MAX_ERROR_BYTES:
+                    return problem
+            except (ValueError, RecursionError):
+                pass
+            return Problem.internal(request_id)
+
+    status = response.status_code
+    if status in STATUSES:
+        return Problem(status, STATUSES[status], HTTPStatus(status).phrase, request_id=request_id)
+    if status in (502, 504):
+        return Problem.unavailable(request_id)
+    return Problem.internal(request_id)
 
 
 async def _read_json(response: httpx.Response):

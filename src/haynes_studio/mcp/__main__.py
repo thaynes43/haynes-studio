@@ -23,9 +23,14 @@ def main() -> None:
         parser.error("STUDIO_API_URL is required")
     try:
         app = create_app(upstream, allowed_hosts=tuple(options.allowed_host or LOCAL_HOSTS),
-                         allowed_origins=tuple(options.allowed_origin or ()))
-    except (ValueError, httpx.InvalidURL):
+                         allowed_origins=tuple(options.allowed_origin or ()),
+                         api_ca_file=os.getenv("STUDIO_API_CA_FILE"))
+    except ValueError as error:
+        parser.error(str(error))
+    except httpx.InvalidURL:
         parser.error("STUDIO_API_URL must be an HTTP(S) origin")
+    except OSError:
+        parser.error("STUDIO_API_CA_FILE must be a readable PEM CA bundle")
     uvicorn.run(app, host=options.host, port=options.port, access_log=False)
 
 
