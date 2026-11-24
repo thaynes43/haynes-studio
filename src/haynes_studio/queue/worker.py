@@ -24,7 +24,7 @@ from .asr import WyomingTranscriber
 from .inputs import freeze, prepare_queue
 from .protocol import STORY_PATTERN
 from .staging import BuildStageStore
-from .wan import BuildCancelled, LanePaused, ProductClips, ProductWan
+from .wan import AttemptFailed, BuildCancelled, LanePaused, ProductClips, ProductWan
 from .worker_api import WorkerAPI, WorkerAPIError, service_url
 
 logger = logging.getLogger(__name__)
@@ -75,6 +75,7 @@ class ActiveClaim:
         self._beat({"percent": PERCENT[stage], "stage": stage})
         if self.cancelled.is_set() and not drain:
             raise BuildCancelled()
+        return self.cancelled.is_set()
 
     def before_delivery(self):
         self.progress("delivery")
@@ -100,7 +101,9 @@ class BuildWorker:
             raise BuildError("run.snapshot_changed", "The stored run snapshot does not match its pin",
                              stage="prebuild")
         if frozen["toolchain_request"]["studio"] != self.studio:
-            raise LanePaused("work.revision_mismatch", "The worker build revision differs from the snapshot")
+            raise BuildError("work.revision_mismatch",
+                             "The Studio toolchain changed. Queue a new run to capture the current revision.",
+                             stage="prebuild")
         library = Library.from_version_documents(claim.body["library"])
         story = frozen["story"]
         prepared = prepare_queue(story, library)
@@ -118,11 +121,13 @@ class BuildWorker:
                               stopped=lambda: clips.stopped, bind=i2v.bind)
         run = {key: value for key, value in claim.body["run"].items()
                if key not in ("revision", "cancel_requested", "estimate_methods")}
-        staging = BuildStageStore(self.stage_root, run["id"], self.store, create=True)
+        earlier_runs = claim.body.get("earlier_runs", ())
+        staging = BuildStageStore(self.stage_root, run["id"], self.store, create=True,
+                                  earlier_runs=earlier_runs)
         return build_story(
             inputs, store=staging, phase=ALL, sources=sources,
             transcriber=self.transcriber, actor=claim.body["actor"],
-            queued=QueuedBuild(run, active.before_delivery),
+            earlier_runs=earlier_runs, queued=QueuedBuild(run, active.before_delivery),
         ).run
 
     def tick(self):
@@ -135,15 +140,21 @@ class BuildWorker:
             try:
                 clips.reconcile()
                 active.progress("preflight")
-                self.wan.ready()
                 inputs = self._inputs(claim)
+                self.wan.ready()
                 claim.resume()
                 result = self._render(claim, active, clips, inputs)
             except LanePaused as error:
                 self._pause(claim, error)
                 return True
-            except BuildCancelled:
-                claim.fail(status="cancelled", reason="Cancelled after reconciling Wan work")
+            except BuildCancelled as error:
+                claim.fail(status="cancelled", reason="Cancelled after reconciling Wan work",
+                           wan_job_id=error.job_id)
+                return True
+            except AttemptFailed as error:
+                failure = failure_of(error.error)
+                claim.fail(status="failed", reason=failure.message[:500], error=failure.to_document(),
+                           wan_job_id=error.job_id)
                 return True
             except (WorkerAPIError, OSError):
                 # Ownership or the reply is ambiguous. Relinquish by expiry;
@@ -188,7 +199,7 @@ class BuildWorker:
         fields = {} if evidence is None else {key: evidence[key] for key in ("stages", "checks")}
         failure = (evidence or {}).get("error") or failure_of(error, stage="wan").to_document()
         claim.fail(status=status, reason=error.message[:500], wait_reason=error.wait_reason,
-                   error=failure, **fields)
+                   error=failure, admission_busy=error.admission_busy, **fields)
 
 
 def main():

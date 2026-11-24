@@ -7,7 +7,9 @@ from datetime import UTC, datetime, timedelta
 import httpx
 
 from haynes_studio.adapters.wan import graph_sha256
-from haynes_studio.queue.wan import EXPECTED_PROFILES, PROFILES, RESTART_ERROR, expected_graph
+from haynes_studio.queue.wan import (
+    EXPECTED_PROFILES, FOREIGN_ENGINE_QUEUE, PROFILES, RESTART_ERROR, expected_graph,
+)
 
 STORY = "https://work.haynesnetwork.com/work_packages/410"
 
@@ -34,15 +36,26 @@ class FakeWan:
         self.events = []
         self.outage = False
         self.held = False
+        self.ready = True
+        self.active_video_job = None
+        self.active_foley_job = None
         self.foreign_engine_queue = False
         self.foreign = False
         self.busy = False
+        self.gpu_refusal = None
+        self.submit_error = None
+        self.connect_error = None
         self.quota = False
         self.lose_reply = False
         self.disappear = False
         self.restart_failures = 0
         self.poll_misses = 0
         self.corrupt = None
+        self.corrupt_graph = None
+        self.put_bodies = []
+        self.submissions = []
+        self.before_put = None
+        self.before_get = None
 
     def client(self):
         return httpx.Client(transport=httpx.MockTransport(self.request),
@@ -56,8 +69,9 @@ class FakeWan:
         if path == "/v1/ready":
             if self.held:
                 return httpx.Response(503, json={"code": "worker_held"})
-            return httpx.Response(200, json={"ready": True, "api_version": "1.0.0",
-                                            "active_video_job": None, "active_foley_job": None})
+            return httpx.Response(200, json={"ready": self.ready, "api_version": "1.0.0",
+                                            "active_video_job": self.active_video_job,
+                                            "active_foley_job": self.active_foley_job})
         if path == "/v1/profiles":
             return httpx.Response(200, json={"api_version": "1.0.0", "profiles": {
                 kind: {"profile": name, **EXPECTED_PROFILES[kind]} for kind, name in PROFILES.items()
@@ -75,25 +89,44 @@ class FakeWan:
         _, v1, jobs, kind, job_id, *file_route = path.split("/")
         assert (v1, jobs) == ("v1", "jobs")
         if method == "PUT":
-            assert not file_route and job_id not in self.jobs
+            assert not file_route
+            self.put_bodies.append((job_id, request.content))
+            if self.before_put is not None:
+                callback, self.before_put = self.before_put, None
+                callback()
+            if self.connect_error is not None:
+                error, self.connect_error = self.connect_error, None
+                raise error("connection failed before send")
+            body = json.loads(request.content)
+            digest = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
+            if job_id in self.jobs:
+                status = self.jobs[job_id]
+                if status["request_sha256"] != digest or status["type"] != kind:
+                    return httpx.Response(409, json={"code": "id_conflict"})
+                return httpx.Response(200, json=status)
+            if self.submit_error is not None:
+                status_code, code = self.submit_error
+                return httpx.Response(status_code, json={"code": code})
             if self.busy:
                 return httpx.Response(409, json={"code": "worker_busy"})
             if self.disappear:
                 raise httpx.ReadTimeout("lost before acknowledgement")
-            body = json.loads(request.content)
             assert body["image_sha256"] in self.inputs
             if kind == "s2v":
                 assert body["audio_sha256"] in self.inputs
-            digest = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
             graph = graph_sha256(expected_graph({"job_id": job_id, "kind": kind, "request": body}))
             status = {"api_version": "1.0.0", "type": kind, "id": job_id,
-                      "request_sha256": digest, "profile": body["profile"], "graph_sha256": graph}
+                      "request_sha256": digest, "profile": body["profile"],
+                      "graph_sha256": self.corrupt_graph or graph}
             if self.restart_failures:
                 self.restart_failures -= 1
                 status.update(state="failed", error=RESTART_ERROR)
             elif self.foreign_engine_queue:
-                status.update(state="failed", error="RuntimeError: ComfyUI already has a job; refusing a competing request")
+                status.update(state="failed", error=FOREIGN_ENGINE_QUEUE)
+            elif self.gpu_refusal is not None:
+                status.update(state="failed", error=self.gpu_refusal)
             else:
+                self.submissions.append(job_id)
                 status.update(state="succeeded", result={
                     "file_url": path + "/file", "media_type": "video/mp4", "bytes": len(self.clip),
                     "sha256": hashlib.sha256(self.clip).hexdigest(),
@@ -106,6 +139,8 @@ class FakeWan:
                 raise httpx.ReadTimeout("lost after committing the job")
             return httpx.Response(202, json=status)
         assert method == "GET"
+        if not file_route and self.before_get is not None:
+            self.before_get(job_id)
         if not file_route and self.poll_misses:
             self.poll_misses -= 1
             raise httpx.ReadTimeout("slow poll")

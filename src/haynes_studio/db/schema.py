@@ -138,6 +138,7 @@ runs = sa.Table("runs", metadata, identifier(),
     sa.Column("fence", sa.BigInteger, nullable=False),
     sa.Column("claim_until", sa.DateTime(timezone=True)),
     sa.Column("retry_at", sa.DateTime(timezone=True)),
+    sa.Column("admission_refusals", sa.Integer, nullable=False, server_default=sa.text("0")),
     sa.Column("cancel_requested", sa.Boolean, nullable=False),
     sa.Column("publishing", sa.Boolean, nullable=False),
 )

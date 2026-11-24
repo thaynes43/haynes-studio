@@ -98,3 +98,5 @@ class WorkFailure(ClaimFence):
     stages: list[dict] | None = None
     checks: list[dict] | None = None
     error: dict | None = None
+    wan_job_id: JobId | None = None
+    admission_busy: bool = False

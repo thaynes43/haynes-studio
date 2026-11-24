@@ -37,6 +37,7 @@ def upgrade():
             fence BIGINT NOT NULL DEFAULT 0,
             claim_until TIMESTAMPTZ,
             retry_at TIMESTAMPTZ,
+            admission_refusals INTEGER NOT NULL DEFAULT 0,
             cancel_requested BOOLEAN NOT NULL DEFAULT false,
             publishing BOOLEAN NOT NULL DEFAULT false,
             UNIQUE (production_id, number),
@@ -61,7 +62,7 @@ def upgrade():
             request_sha256 VARCHAR(64) NOT NULL,
             created_at TIMESTAMPTZ NOT NULL,
             state TEXT NOT NULL CHECK (
-                state IN ('reserved', 'sent', 'succeeded', 'failed', 'restart_failed', 'busy')
+                state IN ('reserved', 'sent', 'succeeded', 'failed', 'restart_failed', 'busy', 'cancelled')
             ),
             outcome JSONB,
             UNIQUE (run_id, clip_key, attempt)

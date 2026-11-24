@@ -38,10 +38,12 @@ unavailable queue can give a null wait range. The API shows `gpu_unavailable`
 when no worker has checked in or renewed a claim within 90 seconds. Every estimate has
 `uncertain: true` and a basis.
 
-Cancelling stops new work for the run. If Wan may have received a job, the run
-stays at the head until the worker reconciles that job. The worker lets Wan
-settle it under the existing service lease. Cancellation closes at the fenced
-delivery publication boundary. Terminal canonical documents are immutable.
+Cancelling stops new work for the run and clears any admission cooldown. If
+Wan may have received a job, the worker checks its recorded ID. It drains an
+active job under the existing lease and settles an absent, refused or terminal
+job immediately. The run becomes cancelled and releases the FIFO lane. The
+fenced delivery publication step is the cancellation cutoff. Terminal canonical
+documents are immutable.
 A check override is a separate immutable record with a person, reason and
 timestamp. The release checks are outside the override route's scope.
 
@@ -90,13 +92,13 @@ stateDiagram-v2
     queued --> running: worker claims
     queued --> cancelled: cancel before sending a job
     running --> queued: dependency unavailable or admission refused
-    running --> held: ambiguous Wan attempt, foreign work or expired claim
+    running --> held: reconcile a pending Wan attempt or an expired claim
     held --> running: new fence and reconciled Wan state
     held --> queued: known lease or service wait
     held --> cancelled: cancel after settling any sent job
     held --> failed: settled job or preflight failed
     running --> cancelled: cancel after settling any sent job
-    running --> failed: build or required check failed
+    running --> failed: toolchain changed, Wan rejected or build failed
     running --> succeeded: API publishes and records verified delivery
     cancelled --> [*]
     failed --> [*]
@@ -107,50 +109,69 @@ The internal routes are POSTs under `/internal/v1/work`. All authenticate the
 worker before reading a request body or query. The worker begins with
 `/claim` (204 if there is no claimable head), renews with `/heartbeat` and
 uses `/resume` only after checking a held claim. `/attempts` reserves a job
-and `/attempts/{job_id}` authorizes one send or records its outcome. `/publish`
+and `/attempts/{job_id}` records the fenced send marker or a proven outcome. `/publish`
 fences publication. `/complete` verifies and registers the resulting delivery,
 and `/fail` records failure, cancellation, a hold or a wait. Losing a lease
 or a fence causes subsequent mutating operations to return 409.
 
 ```mermaid
 flowchart TD
-    A[Claim FIFO head] --> B{Recorded incomplete attempt?}
-    B -- No --> C[Check Wan readiness and profile]
-    B -- Yes --> D[GET recorded job ID]
-    D -- Reserved locally and absent --> C
-    D -- Running or queued --> D
-    D -- Result --> E[Read graph and download verified bytes]
-    D -- Explicit Wan restart failure --> F[Record failure and reserve a new ID]
-    D -- Sent but absent or unknown work --> H[Hold same FIFO head]
-    H --> D
-    C --> G[Record or reuse reservation and stage input digests]
-    F --> C
-    G --> I[Consume one fenced send permission]
-    I --> J[PUT recorded ID once]
-    J -- Explicit admission refusal --> K[Record refusal and wait at head]
-    J -- Result or reply lost --> D
-    K --> B
-    E --> L[Persist outcome and continue the build]
-    L --> B
+    A[Claim the FIFO head] --> B{Pending Wan attempt?}
+    B -- No --> C[Check snapshot revision and Wan readiness]
+    C --> R[Reserve ID and stage inputs]
+    R --> S[Record fenced sent marker]
+    S --> P[Recheck readiness, fence and cancellation before PUT]
+    B -- Yes --> D[GET the persisted ID]
+    P -->|Job PUT or ambiguous reply| D
+    P -->|Preconnection failure or worker busy| W[Wait and keep the same ID]
+    W --> A
+    D -->|Absent, sent marker and no cancel| P
+    D -->|Absent, reserved and no cancel| C
+    D -->|Queued or running| D
+    D -->|Absent or terminal with cancel pending| X[Settle attempt and cancel run]
+    D -->|Terminal pre-admission refusal| Y[Mark busy and defer the head]
+    Y --> A
+    D -->|Definite restart failure| C
+    D -->|Succeeded| V[Verify graph, bytes and decoded clip]
+    V -->|Verified| Z[Record result and continue build]
+    V -->|Mismatch| F[Settle attempt and fail run]
+    D -->|Other terminal failure| F
+    P -->|Definite client rejection| F
 ```
 
-The Wan API is the authority for GPU profiles, admission and its shared compute
-lease. Studio verifies the job identity and canonical request hash. It trusts
-the returned graph hash only when it matches the pinned I2V or S2V graph for
-the request. Model file hashes are the licence register's pins for that graph.
-The worker verifies the downloaded bytes against Wan's count and SHA-256, then checks the decoded
-frame count, dimensions and rate before giving the clip to the renderer.
+Provisional coordinator ruling CR-19 resolves Q-410-01. Wan's product API owns
+the compute lease and deduplicates by caller-selected job ID and request body.
+After a lost reply the worker reads the recorded ID. If Wan reports it absent,
+the worker can replay the exact same PUT with the original ID and stored body,
+including when an earlier worker's request arrives late. The worker makes at
+most one absent-ID replay per claim. A connection failure before any bytes were
+sent gets its own code. A replacement still reads the durable ID before any PUT.
+A lost reply to the Studio `sent` write triggers the same read on takeover. A
+lost reply to a `busy` write is resolved from the persisted outcome or Wan's
+terminal job record.
 
-A reserved attempt can be sent after reconciliation confirms the ID is absent.
-The fenced send permission authorizes one PUT per ID. After a lost reply or
-slow status read the worker queries the recorded ID. A missing sent ID leaves the run held, since the sender or Wan may still
-finish recording the request. Wan's explicit restart failure allows one new
-attempt for that clip. If Wan restarts again during the same claim, the worker
-waits before another replacement. Busy admissions use a new ID only after a
-known refusal and renewed readiness. The persisted queue head backs off for 15 seconds
-after a wait or hold. A reported render hold or foreign work pauses the lane.
-Unknown ComfyUI work with no authoritative clearance remains held for operator
-inspection. The lane stays held during that inspection.
+The worker checks `GET /v1/ready` for readiness and active video or Foley work
+before every PUT. When Wan records a terminal pre-admission refusal for foreign
+ComfyUI work, hot GPUs or busy GPUs, Studio marks the attempt `busy` and queues
+the same run at the head. Its next attempt uses a new ID because that job never
+reached the engine. A `worker_busy` HTTP response without a job record keeps
+the same ID. Admission refusals back off for 60, 120 and at most 240 seconds on
+the database clock. Success resets the refusal count. Other ordinary waits
+use 15 seconds. A reported render hold or unexpected work observed during
+inference can pause the build until Wan reports readiness. An explicit Wan
+restart failure allows one fresh attempt per claim before yielding.
+
+| Code | Queue behavior |
+| --- | --- |
+| `wan.submit_not_sent` | The connection failed before the PUT could be written. Recheck the saved ID and readiness after the wait. |
+| `wan.ambiguous_submit` | Reconciliation still found no record after a same-ID replay. Keep the head and retry reconciliation. |
+| `wan.foreign_engine_queue`, `wan.busy` | Honor the admission cooldown. Use a new ID only after a recorded terminal refusal. |
+| `wan.id_conflict`, `wan.submit_rejected` | Fail the attempt and run on a conflicting ID or another definite PUT client error. |
+| `wan.graph_mismatch`, `wan.result_invalid`, `wan.clip_invalid` | Fail the attempt and run with expected and actual evidence for the terminal result. Verification covers the graph pin, byte count, SHA-256, decode, dimensions, frame count and rate. |
+| `work.revision_mismatch` | Fail the run if its frozen Studio revision differs from the worker. Queue a new run to capture the current immutable snapshot. Earlier verified clips in the same production are reused through the cache when their input and profile keys still match. |
+
+The pinned I2V or S2V graph associates the recorded graph SHA-256 with the model
+file hashes in the licence register.
 
 ## Installed proof for story 437
 
@@ -168,7 +189,7 @@ evidence separately from source test results and creative acceptance.
   rejected, and an API or worker restart leaves every accepted run recoverable.
 - With an approved bounded fixture, observe lost submit acknowledgement, slow
   poll, expiry and Wan restart. Show recorded IDs, reads before any new
-  submission, and digests. Verify unknown work holds the lane and a lease
+  submission, and digests. Verify the head retries after foreign work clears, and observe that a lease
   refusal or loss of talosw01 pauses builds while draft CRUD stays up.
 - Verify a completed private delivery through the authenticated phone proxy,
   including a Range read, and verify access is refused outside the production.

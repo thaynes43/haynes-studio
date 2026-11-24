@@ -29,7 +29,7 @@ from tests.support.synthetic import write_sine_wav
 
 from .test_studio_api import (
     bearer, client, engine, key_admin_db, new_production, owner_engine, register_agent,
-    runtime_db, service, sign_in,
+    runtime_db, runtime_role, service, sign_in,
 )
 
 pytestmark = pytest.mark.db

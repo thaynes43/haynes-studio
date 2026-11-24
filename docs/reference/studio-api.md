@@ -137,7 +137,7 @@ GRANT SELECT, UPDATE (next_position, worker_seen_at) ON studio.run_lane TO studi
 GRANT SELECT, INSERT ON studio.runs, studio.run_wan_attempts,
     studio.run_check_overrides TO studio_app;
 GRANT UPDATE (document, revision, worker_id, fence, claim_until, retry_at,
-    cancel_requested, publishing) ON studio.runs TO studio_app;
+    admission_refusals, cancel_requested, publishing) ON studio.runs TO studio_app;
 GRANT UPDATE (state, outcome) ON studio.run_wan_attempts TO studio_app;
 ```
 

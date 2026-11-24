@@ -38,7 +38,8 @@ RUNTIME_GRANTS = METADATA_GRANTS + (
     ("SELECT", ("run_lane",)),
     ("UPDATE (next_position, worker_seen_at)", ("run_lane",)),
     ("SELECT, INSERT", ("runs", "run_wan_attempts", "run_check_overrides")),
-    ("UPDATE (document, revision, worker_id, fence, claim_until, retry_at, cancel_requested, publishing)",
+    ("UPDATE (document, revision, worker_id, fence, claim_until, retry_at, admission_refusals, "
+     "cancel_requested, publishing)",
      ("runs",)),
     ("UPDATE (state, outcome)", ("run_wan_attempts",)),
 )

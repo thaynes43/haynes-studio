@@ -165,7 +165,7 @@ def claim(conn, worker_id):
     if lane["worker_seen_at"] is None or lane["worker_seen_at"] <= now - BACKOFF:
         conn.execute(run_lane.update().values(worker_seen_at=now))
     head = sa.select(sa.func.min(runs.c.position)).where(STATUS.in_(ACTIVE)).scalar_subquery()
-    row = conn.execute(sa.select(runs).where(runs.c.position == head)
+    row = conn.execute(sa.select(runs).where(runs.c.position == head, STATUS.in_(ACTIVE))
                        .with_for_update(skip_locked=True)).mappings().one_or_none()
     if row is None:
         return None
@@ -182,8 +182,11 @@ def claim(conn, worker_id):
     row = _save(conn, row, document=doc, retry_at=None, worker_id=worker_id,
                 fence=runs.c.fence + 1, claim_until=now + LEASE)
     attempt = _unsettled(conn, row["id"])
+    earlier_runs = list(conn.scalars(sa.select(runs.c.id).where(
+        runs.c.production_id == row["production_id"], runs.c.number < row["number"],
+    ).order_by(runs.c.number.desc())))
     return {"run": view(conn, row, detail=False), "snapshot": row["snapshot"],
-            "library": row["frozen_library"], "fence": row["fence"],
+            "library": row["frozen_library"], "fence": row["fence"], "earlier_runs": earlier_runs,
             "claim_until": row["claim_until"], "actor": actor, "pending": None if attempt is None else dict(attempt)}
 
 
@@ -248,7 +251,13 @@ def reserve_attempt(conn, row, now, kind, request):
     return attempt
 
 
-def attempt_action(conn, row, job_id, state, outcome=None):
+def _admission_backoff(row, now):
+    refusals = min(row["admission_refusals"] + 1, 3)
+    return {"admission_refusals": refusals,
+            "retry_at": now + timedelta(seconds=60 * 2 ** (refusals - 1))}
+
+
+def attempt_action(conn, row, now, job_id, state, outcome=None):
     attempt = conn.execute(sa.select(run_wan_attempts).where(
         ATTEMPTS.run_id == row["id"], ATTEMPTS.job_id == job_id,
     )).mappings().one_or_none()
@@ -268,7 +277,12 @@ def attempt_action(conn, row, job_id, state, outcome=None):
     attempt = conn.execute(run_wan_attempts.update().where(ATTEMPTS.job_id == job_id)
                            .values(state=state, outcome=outcome)
                            .returning(run_wan_attempts)).mappings().one()
-    _save(conn, row)
+    if state == "busy":
+        _save(conn, row, **_admission_backoff(row, now))
+    elif state in ("succeeded", "restart_failed"):
+        _save(conn, row, admission_refusals=0)
+    else:
+        _save(conn, row)
     return attempt
 
 
@@ -279,13 +293,16 @@ def cancel(conn, row, revision, actor):
         return row
     if row["document"]["status"] not in ACTIVE or row["publishing"]:
         raise QueueConflict("run.transition", "The run cannot be cancelled after it finishes or starts publishing")
-    if ((pending := _unsettled(conn, row["id"])) is not None and pending["state"] == "sent"):
-        return _save(conn, row, cancel_requested=True)
+    pending = _unsettled(conn, row["id"])
+    if pending is not None and pending["state"] == "sent":
+        return _save(conn, row, cancel_requested=True, retry_at=None)
+    if pending is not None:
+        _settle(conn, pending, "cancelled")
     now = database_time(conn)
     doc = advance(row["document"], "cancelled", at=timestamp(now), by=actor,
-                  reason="Cancelled by a Studio user or scoped agent",
+                  reason="Cancelled by a Studio user or scoped agent", error=None,
                   progress={"percent": 100, "stage": "cancelled"})
-    return _save(conn, row, document=doc, cancel_requested=True, **_clear_claim())
+    return _save(conn, row, document=doc, cancel_requested=True, retry_at=None, **_clear_claim())
 
 
 def publish(conn, row):
@@ -297,22 +314,40 @@ def publish(conn, row):
         _save(conn, row, publishing=True)
 
 
-def finish(conn, row, now, actor, target, reason, fields, *, wait_reason=None):
+def _settle(conn, pending, state):
+    conn.execute(run_wan_attempts.update().where(ATTEMPTS.job_id == pending["job_id"])
+                 .values(state=state))
+
+
+def finish(conn, row, now, actor, target, reason, fields, *, wait_reason=None,
+           wan_job_id=None, admission_busy=False):
     pending = _unsettled(conn, row["id"])
-    if pending is not None and pending["state"] == "sent" and target != "held":
-        raise QueueConflict("wan.unsettled", "Reconcile the recorded Wan job before releasing the run")
+    if wan_job_id is not None and (pending is None or pending["job_id"] != wan_job_id):
+        raise QueueConflict("wan.attempt_state", "The outcome must settle the recorded Wan attempt")
+    sent = pending is not None and pending["state"] == "sent"
     if target == "cancelled" and not row["cancel_requested"]:
         raise QueueConflict("run.transition", "No cancellation is pending")
     if target == "succeeded" and (not row["publishing"] or row["cancel_requested"]):
         raise QueueConflict("run.transition", "The run requires a fenced, verified delivery to succeed")
+    if row["cancel_requested"] and (not sent or wan_job_id is not None):
+        target, reason, wait_reason = "cancelled", "Cancelled after reconciling Wan work", None
+        fields = {**fields, "error": None, "progress": {"percent": 100, "stage": "cancelled"}}
+    if sent and wan_job_id is None and target != "held":
+        raise QueueConflict("wan.unsettled", "Reconcile the recorded Wan job before releasing the run")
+    if pending is not None and target in ("cancelled", "failed"):
+        _settle(conn, pending, target)
     original = row["document"]
     if original["status"] == target:
         doc = update(original, **fields, wait_reason=wait_reason)
     else:
         doc = advance(original, target, at=timestamp(now), by=actor, reason=reason,
                       **fields, wait_reason=wait_reason)
-    retry_at = now + BACKOFF if target in ("held", "queued") else None
-    return _save(conn, row, document=doc, retry_at=retry_at, **_clear_claim())
+    defer = {"retry_at": None}
+    if target in ("held", "queued"):
+        defer["retry_at"] = max(now + BACKOFF, row["retry_at"] or now)
+        if admission_busy and not row["cancel_requested"]:
+            defer.update(_admission_backoff(row, now))
+    return _save(conn, row, document=doc, **defer, **_clear_claim())
 
 
 def record_override(conn, row, revision, *, artifact, reason, actor):

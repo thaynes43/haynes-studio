@@ -257,8 +257,8 @@ def worker_router():
         if (body.state == "succeeded") != (body.result is not None):
             raise APIError(422, "wan.result", "A verified result is required only for a successful attempt")
         with request.app.state.engine.begin() as conn:
-            row, _ = _lock(conn, request, body)
-            return dict(runs.attempt_action(conn, row, job_id, body.state,
+            row, now = _lock(conn, request, body)
+            return dict(runs.attempt_action(conn, row, now, job_id, body.state,
                                           body.result.model_dump() if body.result else None))
 
     @router.post("/publish", status_code=204, operation_id="publish_work")
@@ -287,6 +287,10 @@ def worker_router():
     def fail_work(body: WorkFailure, request: Request):
         if (body.status == "queued") != (body.wait_reason is not None):
             raise APIError(422, "work.wait_reason", "A queued run requires a wait reason")
+        if body.wan_job_id is not None and body.status not in ("failed", "cancelled"):
+            raise APIError(422, "wan.outcome", "Settling Wan work here requires a terminal run outcome")
+        if body.admission_busy and body.status != "held":
+            raise APIError(422, "wan.outcome", "An unrecorded admission refusal requires a held run")
         actor = to_document(request.state.principal)
         with request.app.state.engine.begin() as conn:
             row, now = _lock(conn, request, body)
@@ -294,7 +298,8 @@ def worker_router():
             if body.status in ("failed", "cancelled"):
                 fields["progress"] = {"percent": 100, "stage": body.status}
             row = runs.finish(conn, row, now, actor, body.status, body.reason, fields,
-                              wait_reason=body.wait_reason)
+                              wait_reason=body.wait_reason, wan_job_id=body.wan_job_id,
+                              admission_busy=body.admission_busy)
             require_valid(validate_run(row["document"]))
             return runs.view(conn, row, detail=False)
 
