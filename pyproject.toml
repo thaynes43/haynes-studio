@@ -44,6 +44,8 @@ dependencies = [
 studio = "haynes_studio.cli:main"
 studio-api = "haynes_studio.api.__main__:main"
 studio-api-migrate = "haynes_studio.db.migrate:main"
+studio-api-admin = "haynes_studio.api.key_admin:main"
+studio-mcp = "haynes_studio.mcp.__main__:main"
 
 [dependency-groups]
 # Test and development tools only. A story that needs a runtime library adds it to
