@@ -1,9 +1,7 @@
 """FastAPI assembly. Startup configuration is supplied by the process environment."""
 
-import asyncio
 import logging
 import os
-from concurrent.futures import Future
 from contextlib import asynccontextmanager
 from pathlib import Path
 from threading import Lock, Thread
@@ -24,7 +22,7 @@ from haynes_studio.errors import ContractError, pointer
 from haynes_studio.store.local import LocalStore
 
 from . import auth, media, routes
-from .config import from_environment
+from .config import DEFAULT_STORE_FRESHNESS_SECONDS, from_environment, store_freshness_from_environment
 from .errors import APIError, ErrorDetail, ErrorEnvelope, STATUS, error_response, missing
 from .models import build_models
 from .oidc import OIDC
@@ -32,45 +30,40 @@ from .openapi import install_openapi
 from .transport import RequestContextMiddleware
 
 logger = logging.getLogger(__name__)
-STORE_CHECK_TIMEOUT = 0.25
 
 
 class StoreProbe:
-    """Share an in-flight filesystem check across readiness requests."""
+    """Answer from the last completed filesystem check and refresh it in the background."""
 
-    def __init__(self, root):
+    def __init__(self, root, freshness_seconds: int):
         self.root = Path(root)
+        self.freshness_seconds = freshness_seconds
         self._lock = Lock()
-        self._result: Future[bool] | None = None
-        self._deadline = 0.0
+        self._result: tuple[float, bool] | None = None
+        self._checking = False
 
-    def _check(self, result: Future[bool]) -> None:
+    def _check(self) -> None:
         try:
             ready = self.root.is_dir()
         except OSError:
             ready = False
         except Exception as error:
-            result.set_exception(error)
-            return
-        result.set_result(ready)
-
-    async def ready(self) -> bool:
+            logger.warning("Studio store check failed (%s)", type(error).__name__)
+            ready = False
+        finished_at = monotonic()
         with self._lock:
-            if self._result is None or self._result.done():
-                result = Future()
-                result.set_running_or_notify_cancel()
-                self._deadline = monotonic() + STORE_CHECK_TIMEOUT
+            self._result = finished_at, ready
+            self._checking = False
+
+    def ready(self) -> bool:
+        with self._lock:
+            finished_at, ready = self._result or (float("-inf"), False)
+            age = monotonic() - finished_at
+            if age > self.freshness_seconds / 2 and not self._checking:
                 # A stuck kernel call must not prevent process shutdown.
-                Thread(target=self._check, args=(result,), name="studio-store-probe",
-                       daemon=True).start()
-                self._result = result
-            result, remaining = self._result, self._deadline - monotonic()
-        if remaining <= 0:
-            return False
-        try:
-            return await asyncio.wait_for(asyncio.wrap_future(result), timeout=remaining)
-        except TimeoutError:
-            return False
+                Thread(target=self._check, name="studio-store-probe", daemon=True).start()
+                self._checking = True
+            return ready and age <= self.freshness_seconds
 
 
 def _errors(app: FastAPI):
@@ -124,7 +117,7 @@ def _errors(app: FastAPI):
                                                  "The metadata store could not complete the request"))
 
 
-def _application(engine, store, oidc) -> FastAPI:
+def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STORE_FRESHNESS_SECONDS) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app):
         yield
@@ -151,7 +144,7 @@ def _application(engine, store, oidc) -> FastAPI:
     def healthz():
         return Response(status_code=204)
 
-    store_probe = StoreProbe(store.root) if store is not None else None
+    store_probe = StoreProbe(store.root, store_freshness_seconds) if store is not None else None
 
     def database_ready():
         try:
@@ -164,7 +157,7 @@ def _application(engine, store, oidc) -> FastAPI:
     @app.get("/readyz", status_code=204, response_class=Response, operation_id="readyz",
              responses={503: {"description": "A dependency is unavailable"}})
     async def readyz():
-        ready = store_probe is not None and await store_probe.ready()
+        ready = store_probe is not None and store_probe.ready()
         if ready and await run_in_threadpool(database_ready):
             return Response(status_code=204)
         return Response(status_code=503)
@@ -173,9 +166,10 @@ def _application(engine, store, oidc) -> FastAPI:
     return app
 
 
-def create_app(engine, store: LocalStore, oidc: OIDC) -> FastAPI:
+def create_app(engine, store: LocalStore, oidc: OIDC, *,
+               store_freshness_seconds: int = DEFAULT_STORE_FRESHNESS_SECONDS) -> FastAPI:
     """Compose the service with explicit dependencies, including in isolated tests."""
-    return _application(engine, store, oidc)
+    return _application(engine, store, oidc, store_freshness_seconds)
 
 
 def from_env() -> FastAPI:
@@ -183,9 +177,10 @@ def from_env() -> FastAPI:
     dsn, root = os.getenv("STUDIO_DATABASE_URL"), os.getenv("STUDIO_STORE_ROOT")
     if not dsn or not root:
         raise ValueError("STUDIO_DATABASE_URL and STUDIO_STORE_ROOT are required")
+    store_freshness_seconds = store_freshness_from_environment()
     store = LocalStore(root)
     engine = connect_engine(dsn, os.getenv("STUDIO_DATABASE_SCHEMA", "studio"))
-    return create_app(engine, store, oidc)
+    return create_app(engine, store, oidc, store_freshness_seconds=store_freshness_seconds)
 
 
 def schema_app() -> FastAPI:

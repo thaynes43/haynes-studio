@@ -1,6 +1,7 @@
 """Source checks require no external credentials, database, or media."""
 
 import sys
+from contextlib import nullcontext
 from pathlib import Path
 from threading import Event, current_thread
 from types import SimpleNamespace
@@ -9,7 +10,9 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
+from haynes_studio.api import app as app_module
 from haynes_studio.api.app import create_app, schema_app
+from haynes_studio.api.config import store_freshness_from_environment
 from haynes_studio.api.errors import APIError
 from haynes_studio.api.media import byte_range
 from haynes_studio.api.models import ExternalPhotoDeclaration
@@ -116,7 +119,10 @@ def test_error_envelopes_distinguish_method_availability_and_failures(error, htt
     assert "fixture exception detail" not in response.text
 
 
-def test_hung_store_readiness_uses_one_worker_and_recovers(monkeypatch, tmp_path):
+def test_slow_and_hung_store_readiness_uses_one_worker_and_recovers(monkeypatch, tmp_path):
+    now = 0.0
+    store_available = True
+    entered = Event()
     unblock = Event()
     workers = []
     is_dir = Path.is_dir
@@ -124,28 +130,73 @@ def test_hung_store_readiness_uses_one_worker_and_recovers(monkeypatch, tmp_path
     def blocked(path):
         if path == tmp_path:
             workers.append(current_thread())
-            unblock.wait(5)
+            entered.set()
+            unblock.wait()
+            return store_available
         return is_dir(path)
 
     class Engine:
         def connect(self):
-            from contextlib import nullcontext
             return nullcontext(SimpleNamespace(execute=lambda _: None))
 
-    app = create_app(Engine(), SimpleNamespace(root=tmp_path), None)
-    browser = TestClient(app)
+    browser = TestClient(create_app(Engine(), SimpleNamespace(root=tmp_path), None))
     monkeypatch.setattr(Path, "is_dir", blocked)
+    monkeypatch.setattr(app_module, "monotonic", lambda: now)
     try:
+        assert browser.get("/healthz").status_code == 204
+        assert not workers
+        assert browser.get("/readyz").status_code == 503
+        assert entered.wait(5)
+        now = 0.3
+        unblock.set()
+        workers[0].join(timeout=5)
+        assert not workers[0].is_alive()
+        assert browser.get("/readyz").status_code == 204
+        assert len(workers) == 1
+
+        entered.clear()
+        unblock.clear()
+        now = 16.0
+        assert browser.get("/readyz").status_code == 204
+        assert entered.wait(5)
+        now = 31.0
         for _ in range(3):
             response = browser.get("/readyz")
             assert response.status_code == 503 and response.content == b""
-            assert len(workers) == 1 and workers[0].is_alive()
+            assert len(workers) == 2 and workers[1].is_alive()
             assert browser.get("/healthz").status_code == 204
+        unblock.set()
+        workers[1].join(timeout=5)
+        assert not workers[1].is_alive()
+        assert browser.get("/readyz").status_code == 204
+
+        entered.clear()
+        store_available = False
+        now = 47.0
+        assert browser.get("/readyz").status_code == 204
+        assert entered.wait(5)
+        workers[2].join(timeout=5)
+        assert not workers[2].is_alive()
+        assert browser.get("/readyz").status_code == 503
+        assert len(workers) == 3
     finally:
         unblock.set()
         for worker in workers:
-            worker.join(timeout=2)
-    assert browser.get("/readyz").status_code == 204
+            worker.join(timeout=5)
+
+
+@pytest.mark.parametrize(("value", "expected"), [(None, 30), ("5", 5), ("300", 300), ("4", None), ("301", None)])
+def test_store_readiness_freshness_environment(monkeypatch, value, expected):
+    name = "STUDIO_STORE_FRESHNESS_SECONDS"
+    if value is None:
+        monkeypatch.delenv(name, raising=False)
+    else:
+        monkeypatch.setenv(name, value)
+    if expected is None:
+        with pytest.raises(ValueError, match=name):
+            store_freshness_from_environment()
+    else:
+        assert store_freshness_from_environment() == expected
 
 
 def test_migration_cli_rejects_downgrade_before_database_configuration(monkeypatch, capsys):

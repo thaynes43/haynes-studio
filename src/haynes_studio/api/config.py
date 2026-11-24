@@ -5,6 +5,8 @@ import os
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
+DEFAULT_STORE_FRESHNESS_SECONDS = 30
+
 
 def https_url(value: str) -> bool:
     try:
@@ -27,6 +29,7 @@ class OIDCSettings:
     session_seconds: int = 8 * 60 * 60
     leeway_seconds: int = 60
     cache_ttl_seconds: int = 5 * 60
+    failure_ttl_seconds: int = 10
 
     def __post_init__(self):
         if not https_url(self.issuer) or urlsplit(self.issuer).query:
@@ -42,10 +45,12 @@ class OIDCSettings:
             raise ValueError("STUDIO_OIDC_ALLOWED_SUBJECTS must list verified OIDC subjects")
         if not 60 <= self.session_seconds <= 86400:
             raise ValueError("STUDIO_SESSION_SECONDS must be between 60 and 86400")
-        if self.leeway_seconds < 0:
-            raise ValueError("STUDIO_OIDC_LEEWAY_SECONDS must be nonnegative")
-        if self.cache_ttl_seconds <= 0:
-            raise ValueError("STUDIO_OIDC_CACHE_TTL_SECONDS must be positive")
+        if not 0 <= self.leeway_seconds <= 300:
+            raise ValueError("STUDIO_OIDC_LEEWAY_SECONDS must be between 0 and 300")
+        if not 1 <= self.cache_ttl_seconds <= 3600:
+            raise ValueError("STUDIO_OIDC_CACHE_TTL_SECONDS must be between 1 and 3600")
+        if not 1 <= self.failure_ttl_seconds <= 60:
+            raise ValueError("STUDIO_OIDC_FAILURE_TTL_SECONDS must be between 1 and 60")
 
     @property
     def redirect_uri(self):
@@ -62,6 +67,15 @@ def from_environment() -> OIDCSettings:
                             frozenset(subjects),
                             session_seconds=int(os.environ.get("STUDIO_SESSION_SECONDS", "28800")),
                             leeway_seconds=int(os.environ.get("STUDIO_OIDC_LEEWAY_SECONDS", "60")),
-                            cache_ttl_seconds=int(os.environ.get("STUDIO_OIDC_CACHE_TTL_SECONDS", "300")))
+                            cache_ttl_seconds=int(os.environ.get("STUDIO_OIDC_CACHE_TTL_SECONDS", "300")),
+                            failure_ttl_seconds=int(os.environ.get("STUDIO_OIDC_FAILURE_TTL_SECONDS", "10")))
     except KeyError as missing:
         raise ValueError(f"{missing.args[0]} is required") from None
+
+
+def store_freshness_from_environment() -> int:
+    name = "STUDIO_STORE_FRESHNESS_SECONDS"
+    seconds = int(os.getenv(name, str(DEFAULT_STORE_FRESHNESS_SECONDS)))
+    if not 5 <= seconds <= 300:
+        raise ValueError(f"{name} must be between 5 and 300")
+    return seconds

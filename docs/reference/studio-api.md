@@ -36,13 +36,15 @@ or recover metadata to an isolated database for inspection.
 | `STUDIO_MIGRATION_DATABASE_URL` | Migration identity's equivalent, mounted only in the migration Job. |
 | `STUDIO_DATABASE_SCHEMA` | Precreated schema, default `studio`. Both commands must agree. |
 | `STUDIO_STORE_ROOT` | Root of the shared D39 store. Mount the same directory at every replica. |
+| `STUDIO_STORE_FRESHNESS_SECONDS` | Maximum age of a successful store readiness check, 5–300 seconds. Default 30. |
 | `STUDIO_PUBLIC_ORIGIN` | Browser HTTPS origin, without a trailing slash or path. The UI and API share it. |
 | `STUDIO_OIDC_ISSUER` | Exact HTTPS issuer from Authentik discovery, including any final slash. |
 | `STUDIO_OIDC_CLIENT_ID` | Client ID of the confidential OIDC application. |
 | `STUDIO_OIDC_CLIENT_SECRET` | Secret supplied to the API process. |
 | `STUDIO_OIDC_ALLOWED_SUBJECTS` | JSON array of allowed OIDC `sub` values scoped to the configured issuer. |
-| `STUDIO_OIDC_LEEWAY_SECONDS` | Nonnegative clock skew allowance for ID-token timestamps. Default 60 seconds. |
-| `STUDIO_OIDC_CACHE_TTL_SECONDS` | Positive cache lifetime for OIDC discovery and signing keys. Default 300 seconds. |
+| `STUDIO_OIDC_LEEWAY_SECONDS` | Clock skew allowance for ID-token timestamps, 0–300 seconds. Default 60. |
+| `STUDIO_OIDC_CACHE_TTL_SECONDS` | Cache lifetime for OIDC discovery and signing keys, 1–3600 seconds. Default 300. |
+| `STUDIO_OIDC_FAILURE_TTL_SECONDS` | Cooldown after a failed discovery or signing key fetch, 1–60 seconds. Default 10. |
 | `STUDIO_SESSION_SECONDS` | Absolute lifetime of an API session, 60–86400 seconds. Default 28800. |
 
 Use TLS for browser requests. Configure Authentik with
@@ -51,14 +53,20 @@ an RS256 signing key. The discovery document must identify the configured
 issuer and advertise HTTPS authorization, token and key endpoints. Route
 `/auth/*` and `/v1/*` to the API and the remaining UI paths to the static app.
 Each API process caches discovery and JWKS independently and refreshes the key
-set once when it sees an unknown `kid`. Rate limiting belongs to the ingress
-in story [434](https://work.haynesnetwork.com/work_packages/434).
+set once when it sees an unknown `kid`. Requests that need a fetch return 503
+while another fetch for the same cache is in flight or its cooldown is active.
+Rate limiting belongs to the ingress in story
+[434](https://work.haynesnetwork.com/work_packages/434).
 [OIDC Core](https://openid.net/specs/openid-connect-core-1_0.html)
 [RFC 7636](https://www.rfc-editor.org/rfc/rfc7636)
 
-`GET /healthz` returns 204. `GET /readyz` checks the metadata database and
-store root, then returns 204 or 503. The store check allows 250 ms and shares
-one in-flight filesystem check per process. Both probes have empty bodies.
+`GET /healthz` returns 204 independently of the database and store. `GET /readyz`
+returns 204 when the metadata database is reachable and the last completed store
+check succeeded within the freshness window. It returns 503 if there is no
+completed check, the last check failed, or its success is stale. A readiness
+request starts one background store check per process when there is no result
+or its age exceeds half the window, and answers from the last completed result.
+Both probes have empty bodies.
 
 The API writes one JSON access log line per request with `method`, `path`,
 `status`, `principal_kind`, `principal_id` and `request_id`. The path excludes
@@ -124,6 +132,7 @@ through the story 410 transport and need no database account.
 
 Protected routes authenticate before reading metadata request bodies. Query
 parameter names and values must be UTF-8 text without NUL characters.
+Internal worker routes in story [410](https://work.haynesnetwork.com/work_packages/410) need their own authenticate-before-parsing route class because `AuthenticatedRoute` only handles agent keys and sessions.
 
 ## Records and revisions
 

@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from threading import Thread
 from urllib.parse import parse_qs, urlsplit
 
 import av
@@ -25,6 +26,7 @@ from fastapi.testclient import TestClient
 from psycopg import sql
 from psycopg.conninfo import make_conninfo
 
+from haynes_studio.api import app as app_module
 from haynes_studio.api import oidc as oidc_module
 from haynes_studio.api.app import create_app
 from haynes_studio.api.auth import CSRF_HEADER, LOGIN_COOKIE, SESSION_COOKIE, worker_access
@@ -576,14 +578,27 @@ def test_winter_menu_metadata_round_trips_and_reimport_preserves_edits(service, 
     assert asset["versions"][0]["id"] == chosen["id"]
 
 
-def test_strict_ingress_health_and_worker_credential_boundary(service, owner_engine, caplog):
+def test_strict_ingress_health_and_worker_credential_boundary(service, owner_engine, caplog, monkeypatch):
     app, _, issuer = service
+    probe_workers = []
+
+    def track_probe_thread(**kwargs):
+        worker = Thread(**kwargs)
+        probe_workers.append(worker)
+        return worker
+
+    monkeypatch.setattr(app_module, "Thread", track_probe_thread)
+
     # Add the future queue's dependency to a test-only endpoint.
     @app.get("/internal/v1/work/test")
     def internal(worker=Depends(worker_access)):
         return to_document(worker)
 
     browser = client(app)
+    first_probe = browser.get("/readyz")
+    assert first_probe.status_code == 503 and first_probe.content == b""
+    probe_workers[0].join(timeout=5)
+    assert not probe_workers[0].is_alive()
     for path in ("/healthz", "/readyz"):
         probe = browser.get(path)
         assert probe.status_code == 204 and probe.content == b""

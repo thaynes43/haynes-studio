@@ -32,6 +32,8 @@ class OIDC:
         self.transport = transport
         self._metadata_cache: tuple[float, dict] | None = None
         self._jwks_cache: tuple[str, float, list] | None = None
+        self._metadata_retry_at = float("-inf")
+        self._jwks_retry_at = float("-inf")
         self._metadata_lock = Lock()
         self._jwks_lock = Lock()
 
@@ -39,19 +41,36 @@ class OIDC:
         return httpx.Client(transport=self.transport, timeout=5, trust_env=False,
                             follow_redirects=False)
 
+    def _cached_metadata(self) -> dict | None:
+        cached = self._metadata_cache
+        if cached is not None and monotonic() < cached[0]:
+            return cached[1]
+        return None
+
     def _metadata(self) -> dict:
-        with self._metadata_lock:
-            if self._metadata_cache is not None:
-                expires, metadata = self._metadata_cache
-                if monotonic() < expires:
-                    return metadata
+        metadata = self._cached_metadata()
+        if metadata is not None:
+            return metadata
+        unavailable = APIError(503, "auth.provider_unavailable", "OIDC discovery is unavailable")
+        if not self._metadata_lock.acquire(blocking=False):
+            raise unavailable
+        try:
+            metadata = self._cached_metadata()
+            if metadata is not None:
+                return metadata
+            if monotonic() < self._metadata_retry_at:
+                raise unavailable
             try:
                 with self._client() as client:
                     metadata = self._discover(client)
             except (httpx.HTTPError, ValueError) as error:
-                raise APIError(503, "auth.provider_unavailable", "OIDC discovery is unavailable") from error
+                self._metadata_retry_at = monotonic() + self.settings.failure_ttl_seconds
+                raise unavailable from error
             self._metadata_cache = monotonic() + self.settings.cache_ttl_seconds, metadata
+            self._metadata_retry_at = float("-inf")
             return metadata
+        finally:
+            self._metadata_lock.release()
 
     def _discover(self, client: httpx.Client) -> dict:
         doc = client.get(self.settings.issuer.rstrip("/") + "/.well-known/openid-configuration")
@@ -65,26 +84,41 @@ class OIDC:
         return metadata
 
     def _refresh_jwks(self, client: httpx.Client, uri: str) -> list:
-        try:
-            jwks = client.get(uri).raise_for_status().json()
-            if not isinstance(jwks, dict) or not isinstance(jwks.get("keys"), list):
-                raise ValueError("OIDC key set is malformed")
-        except (httpx.HTTPError, ValueError) as error:
-            raise APIError(503, "auth.provider_unavailable", "OIDC signing keys are unavailable") from error
-        keys = [key for key in jwks["keys"] if isinstance(key, dict)]
-        self._jwks_cache = uri, monotonic() + self.settings.cache_ttl_seconds, keys
-        return keys
+        jwks = client.get(uri).raise_for_status().json()
+        if not isinstance(jwks, dict) or not isinstance(jwks.get("keys"), list):
+            raise ValueError("OIDC key set is malformed")
+        return [key for key in jwks["keys"] if isinstance(key, dict)]
+
+    def _cached_signing_keys(self, uri: str, kid: str) -> list | None:
+        cached = self._jwks_cache
+        if cached is not None and cached[0] == uri and monotonic() < cached[1]:
+            if any(key.get("kid") == kid for key in cached[2]):
+                return cached[2]
+        return None
 
     def _signing_keys(self, client: httpx.Client, uri: str, kid: str) -> list:
-        with self._jwks_lock:
-            cached = self._jwks_cache
-            if cached is None or cached[0] != uri or monotonic() >= cached[1]:
-                keys = self._refresh_jwks(client, uri)
-            else:
-                keys = cached[2]
-            if not any(key.get("kid") == kid for key in keys):
-                keys = self._refresh_jwks(client, uri)
+        keys = self._cached_signing_keys(uri, kid)
+        if keys is not None:
             return keys
+        unavailable = APIError(503, "auth.provider_unavailable", "OIDC signing keys are unavailable")
+        if not self._jwks_lock.acquire(blocking=False):
+            raise unavailable
+        try:
+            keys = self._cached_signing_keys(uri, kid)
+            if keys is not None:
+                return keys
+            if monotonic() < self._jwks_retry_at:
+                raise unavailable
+            try:
+                keys = self._refresh_jwks(client, uri)
+            except (httpx.HTTPError, ValueError) as error:
+                self._jwks_retry_at = monotonic() + self.settings.failure_ttl_seconds
+                raise unavailable from error
+            self._jwks_cache = uri, monotonic() + self.settings.cache_ttl_seconds, keys
+            self._jwks_retry_at = float("-inf")
+            return keys
+        finally:
+            self._jwks_lock.release()
 
     def authorize(self, state: str, nonce: str, verifier: str) -> str:
         challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest())
