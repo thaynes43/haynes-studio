@@ -46,6 +46,7 @@ studio = "haynes_studio.cli:main"
 # Test and development tools only. A story that needs a runtime library adds it to
 # [project].dependencies and the lock (docs/process/testing.md).
 dev = [
+    "httpx2>=2,<3",
     "pytest>=9.2,<10",
 ]
 
