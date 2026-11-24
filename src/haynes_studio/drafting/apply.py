@@ -266,17 +266,24 @@ async def apply_draft(session: ToolSession, draft: Draft,
                       previous: dict[str, BoardState] | None = None) -> Result:
     """Apply through an initialized MCP session. Return a receipt even after partial writes."""
     result = Result(draft, dict(previous or {}))
+    await apply_into(session, result, first_apply=previous is None)
+    return result
+
+
+async def apply_into(session: ToolSession, result: Result, *, first_apply: bool) -> None:
+    """Keep confirmed writes in a caller-owned receipt across transport cancellation."""
+    draft = result.draft
     try:
         violations = [v for board in draft.boards for v in board.problems()]
         if violations:
             raise ContractError("<agent draft>", violations)
         story = await _story(session, draft)
-        if previous is None and story["derived"]["next_board_number"] != 1:
+        if first_apply and story["derived"]["next_board_number"] != 1:
             for id_ in story["board_order"]:
                 result.record("conflict", "baseline_required", board_id=id_)
             raise ToolFailure("draft.baseline_required")
         await _validate_context(session, draft, story, result.baseline)
-        eligible = ({b.key for b in draft.boards} if previous is None
+        eligible = ({b.key for b in draft.boards} if first_apply
                     else await _eligible(session, result, story["board_order"]))
         plan = [(board, *_operation(draft, board, story["revision"] + index, result.baseline.get(board.key)))
                 for index, board in enumerate(b for b in draft.boards if b.key in eligible)]
@@ -286,10 +293,10 @@ async def apply_draft(session: ToolSession, draft: Draft,
         result.abort({"code": "draft.invalid", "violations": [
             {"code": violation.rule, "path": violation.path} for violation in error.violations
         ]})
-        return result
+        return
     except ToolFailure as error:
         result.abort(error.detail)
-        return result
+        return
 
     stopped = False
     for board, tool, arguments in plan:
@@ -307,11 +314,15 @@ async def apply_draft(session: ToolSession, draft: Draft,
                        "failed" if status is not None and status < 500 else "uncertain")
             result.record(outcome, error.code, key=board.key, board_id=id_, error=error.detail)
             stopped = True
+        except BaseException:
+            # A transport task group or Ctrl-C can interrupt an awaited write.
+            # Preserve its unknown outcome and pass the interruption to the caller.
+            result.record("uncertain", "draft.write_interrupted", key=board.key, board_id=id_)
+            raise
         else:
             result.baseline[board.key] = BoardState(id_, revision, draft.sha256)
             result.record("applied", "created" if state is None else "updated", key=board.key,
                           board_id=id_, revision=revision, key_id=key_id, applied_at=applied_at)
-    return result
 
 
 def _confirmed_write(written: dict, draft: Draft, board: Proposal,

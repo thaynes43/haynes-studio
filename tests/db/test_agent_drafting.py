@@ -10,6 +10,7 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
+from mcp import ClientSession, types
 from PIL import Image
 
 from haynes_studio.canonical import to_document
@@ -112,7 +113,8 @@ async def first_draft(prepared, session):
     return result
 
 
-def test_cli_first_draft_records_provenance_pins_and_usage(prepared, tmp_path, monkeypatch, capsys):
+@pytest.fixture
+def draft_command(prepared, tmp_path, monkeypatch):
     @asynccontextmanager
     async def in_process_http(**kwargs):
         async with prepared.mcp.router.lifespan_context(prepared.mcp):
@@ -121,6 +123,7 @@ def test_cli_first_draft_records_provenance_pins_and_usage(prepared, tmp_path, m
 
     monkeypatch.setattr(draft_cli, "httpx", SimpleNamespace(
         AsyncClient=in_process_http, URL=httpx.URL, InvalidURL=httpx.InvalidURL,
+        HTTPError=httpx.HTTPError, HTTPStatusError=httpx.HTTPStatusError,
     ))
     monkeypatch.setenv("STUDIO_MCP_URL", MCP_URL)
     monkeypatch.delenv("STUDIO_AGENT_KEY", raising=False)
@@ -132,6 +135,11 @@ def test_cli_first_draft_records_provenance_pins_and_usage(prepared, tmp_path, m
     receipt_file = tmp_path / "receipt.json"
     args = ["draft", "apply", str(draft_file), "--story", prepared.story,
             "--out", str(receipt_file), "--key-file", str(key_file)]
+    return args, draft_file, receipt_file, secret
+
+
+def test_cli_first_draft_records_provenance_pins_and_usage(prepared, draft_command, capsys):
+    args, draft_file, receipt_file, secret = draft_command
     assert main(args) == 0
     receipt = json.loads(receipt_file.read_text())
     assert S_IMODE(receipt_file.stat().st_mode) == 0o600
@@ -160,6 +168,53 @@ def test_cli_first_draft_records_provenance_pins_and_usage(prepared, tmp_path, m
     assert json.loads(receipt_file.read_text()) == receipt
     output = capsys.readouterr()
     assert all(secret not in text for text in (output.out, output.err, receipt_file.read_text()))
+
+
+@pytest.mark.parametrize("fault", ["cancelled_write", "unexpected_response", "ctrl_c"])
+def test_cli_keeps_a_truthful_receipt_when_apply_is_interrupted(
+    prepared, draft_command, monkeypatch, capsys, fault,
+):
+    args, _, path, secret = draft_command
+    original = ClientSession.call_tool
+    writes = 0
+
+    async def call_tool(session, name, arguments=None, **kwargs):
+        nonlocal writes
+        if fault == "unexpected_response" and name == "studio_get_story_summary":
+            return types.CallToolResult(content=[], structuredContent={})
+        reply = await original(session, name, arguments, **kwargs)
+        if fault == "cancelled_write" and name == "studio_add_board":
+            assert not reply.isError
+            writes += 1
+            if writes == 2:
+                raise asyncio.CancelledError
+        return reply
+
+    def ctrl_c(coroutine):
+        coroutine.close()
+        raise BaseExceptionGroup("fixture task-group interruption", [KeyboardInterrupt()])
+
+    monkeypatch.setattr(ClientSession, "call_tool", call_tool)
+    if fault == "ctrl_c":
+        monkeypatch.setattr(draft_cli, "asyncio", SimpleNamespace(
+            run=ctrl_c, CancelledError=asyncio.CancelledError,
+        ))
+    assert main(args) == 1
+    receipt = json.loads(path.read_text())
+    assert secret not in path.read_text()
+    assert "Traceback" not in capsys.readouterr().err
+    if fault == "cancelled_write":
+        assert receipt["error"]["code"] == "draft.transport_failed"
+        assert [row["outcome"] for row in receipt["boards"]] == ["applied", "uncertain", "skipped"]
+        assert receipt["boards"][1]["reason"] == "draft.write_interrupted"
+        assert set(receipt["baseline"]) == {"arrival"}
+        committed = prepared.story_record()["board_order"]
+        assert len(committed) == 2 and committed[0] == receipt["baseline"]["arrival"]["board_id"]
+    else:
+        expected = "draft.interrupted" if fault == "ctrl_c" else "draft.unexpected_failure"
+        assert receipt["error"]["code"] == expected
+        assert [row["outcome"] for row in receipt["boards"]] == ["skipped"] * 3
+        assert prepared.story_record()["board_order"] == []
 
 
 def test_redraft_preserves_person_edit_tombstone_and_added_board(prepared):

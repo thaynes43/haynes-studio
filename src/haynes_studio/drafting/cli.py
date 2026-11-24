@@ -18,7 +18,7 @@ from haynes_studio.agent_tokens import MAX_AGENT_TOKEN_LENGTH, valid_agent_token
 from haynes_studio.errors import ContractError
 from haynes_studio.jsonio import parse_strict
 
-from .apply import BoardState, Result, apply_draft, read_baseline
+from .apply import Result, apply_into, read_baseline
 from .document import MAX_DOCUMENT_BYTES, Draft
 
 
@@ -67,35 +67,29 @@ def _key(path: Path | None) -> str:
     return secret
 
 
-def _transport_failure(error: BaseException) -> dict:
-    if isinstance(error, ExceptionGroup):
-        faults = [_transport_failure(item) for item in error.exceptions]
+def _apply_failure(error: BaseException) -> dict:
+    if isinstance(error, BaseExceptionGroup):
+        faults = [_apply_failure(item) for item in error.exceptions]
         return next((item for item in faults if item["http_status"] is not None), faults[0])
     if isinstance(error, httpx.HTTPStatusError):
         status = error.response.status_code
         code = {401: "auth.required", 403: "auth.forbidden"}.get(status, "draft.transport_failed")
         return {"code": code, "http_status": status}
-    return {"code": "draft.transport_failed", "http_status": None}
+    if isinstance(error, KeyboardInterrupt):
+        return {"code": "draft.interrupted", "http_status": None}
+    if isinstance(error, (asyncio.CancelledError, httpx.HTTPError, McpError, OSError)):
+        return {"code": "draft.transport_failed", "http_status": None}
+    return {"code": "draft.unexpected_failure", "http_status": None}
 
 
-async def _apply(endpoint: str, key: str, verify: ssl.SSLContext | bool, draft: Draft,
-                 previous: dict[str, BoardState] | None) -> Result:
-    result = None
-    try:
-        async with httpx.AsyncClient(headers={"Authorization": "Bearer " + key}, verify=verify,
-                                     trust_env=False, follow_redirects=False, timeout=30) as http:
-            async with streamable_http_client(endpoint, http_client=http) as (read, write, _):
-                async with ClientSession(read, write, read_timeout_seconds=timedelta(seconds=30)) as session:
-                    await session.initialize()
-                    result = await apply_draft(session, draft, previous)
-    except (httpx.HTTPError, McpError, OSError, ExceptionGroup) as error:
-        detail = _transport_failure(error)
-        if result is None:
-            result = Result(draft, dict(previous or {}))
-            result.abort(detail)
-        elif result.error is None:
-            result.error = detail
-    return result
+async def _apply(endpoint: str, key: str, verify: ssl.SSLContext | bool, result: Result,
+                 *, first_apply: bool) -> None:
+    async with httpx.AsyncClient(headers={"Authorization": "Bearer " + key}, verify=verify,
+                                 trust_env=False, follow_redirects=False, timeout=30) as http:
+        async with streamable_http_client(endpoint, http_client=http) as (read, write, _):
+            async with ClientSession(read, write, read_timeout_seconds=timedelta(seconds=30)) as session:
+                await session.initialize()
+                await apply_into(session, result, first_apply=first_apply)
 
 
 def _command(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
@@ -125,7 +119,12 @@ def _command(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
         print(f"studio draft: {text}", file=err)
         return 2
     with os.fdopen(fd, "w", encoding="utf-8") as receipt:
-        result = asyncio.run(_apply(endpoint, key, verify, draft, previous))
+        result = Result(draft, dict(previous or {}))
+        try:
+            asyncio.run(_apply(endpoint, key, verify, result, first_apply=previous is None))
+        except (Exception, BaseExceptionGroup, asyncio.CancelledError, KeyboardInterrupt) as error:
+            if result.error is None:
+                result.abort(_apply_failure(error))
         payload = json.dumps(result.document(), indent=2)
         try:
             receipt.write(payload + "\n")

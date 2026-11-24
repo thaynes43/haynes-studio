@@ -75,9 +75,10 @@ their last confirmed state. Already-applied document bytes are skipped. Each
 write also fences on the story revision under the API's story lock. A race
 stops further writes and reports the failed board, confirmed earlier writes and
 skipped later proposals. A missing response is `uncertain`. Inspect the boards
-before proceeding. Keep the receipt, even when the command exits with a
-conflict. A lost first-apply receipt plus a story with previous boards requires
-coordinator reconciliation.
+before proceeding. Transport cancellation keeps the confirmed writes in the
+receipt and marks any in-flight write `uncertain`. Keep the receipt even when
+the command exits with a conflict. A lost first-apply receipt plus a story
+with previous boards requires coordinator reconciliation.
 
 An invocation that reaches apply writes one create-only, mode-`0600` receipt.
 `studio.agent-draft-receipt/v1` includes the production and story IDs, draft
