@@ -2,19 +2,36 @@
   "name": "haynes-studio-web",
   "version": "0.0.0",
   "private": true,
-  "description": "Browser tests for Haynes Studio; the web app (E6) lands here later.",
+  "description": "Haynes Studio storyboard workspace.",
   "license": "MIT",
+  "type": "module",
   "packageManager": "pnpm@12.16.1",
   "engines": {
     "node": ">=24"
   },
   "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "generate:api": "node scripts/generate-api.mjs",
+    "test": "vitest run --maxWorkers=2",
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "openapi-fetch": "0.17.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "react-router": "8.5.2"
   },
   "devDependencies": {
     "@playwright/test": "1.65.0",
     "@types/node": "24.19.2",
-    "typescript": "7.0.2"
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3",
+    "vite": "8.3.8",
+    "vitest": "5.1.1"
   }
 }
