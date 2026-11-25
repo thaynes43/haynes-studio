@@ -80,7 +80,14 @@ export function assetFixtures(versions: Version[], media: TestMedia[], draft: Sc
   const promotions: string[] = [];
   let dropReply = false;
   let paused = false;
-  let waitForReply: Promise<void> | undefined;
+  type HeldReply = "submit" | "promote";
+  const heldReplies = new Map<HeldReply, Promise<void>>();
+
+  function replyAfterHold(operation: HeldReply, reply: () => Promise<void>) {
+    const held = heldReplies.get(operation);
+    heldReplies.delete(operation);
+    return held ? held.then(reply) : reply();
+  }
 
   const update = (id: string, patch: Partial<Job>) => Object.assign(jobs.get(id)!, patch);
 
@@ -167,10 +174,9 @@ export function assetFixtures(versions: Version[], media: TestMedia[], draft: Sc
         dropReply = false;
         return route.abort("failed");
       }
-      const reply = () => route.fulfill({ status: 202, json: jobStatus(job), headers: { location: `/v1/jobs/${id}` } });
-      const held = waitForReply;
-      waitForReply = undefined;
-      return held ? held.then(reply) : reply();
+      return replyAfterHold("submit", () => route.fulfill({
+        status: 202, json: jobStatus(job), headers: { location: `/v1/jobs/${id}` },
+      }));
     }
 
     if (path.startsWith("/v1/jobs/") && reads) {
@@ -211,7 +217,7 @@ export function assetFixtures(versions: Version[], media: TestMedia[], draft: Sc
           return route.fulfill({ json: copy });
         }
         if (version.state === "candidate") version.state = "promoted";
-        return route.fulfill({ json: version });
+        return replyAfterHold("promote", () => route.fulfill({ json: version }));
       }
     }
 
@@ -231,9 +237,9 @@ export function assetFixtures(versions: Version[], media: TestMedia[], draft: Sc
     pause: (value: boolean) => { paused = value; },
     paused: () => paused,
     loseReply: () => { dropReply = true; },
-    holdReply: () => {
+    holdReply: (operation: HeldReply) => {
       let release = () => {};
-      waitForReply = new Promise<void>((resolve) => { release = resolve; });
+      heldReplies.set(operation, new Promise<void>((resolve) => { release = resolve; }));
       return release;
     },
     start: (id: string) => update(id, { status: "running" }),

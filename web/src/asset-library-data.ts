@@ -87,11 +87,18 @@ export async function loadCandidateJob(api: StudioClient, id: string, signal: Ab
   return job;
 }
 
-export async function loadCandidateResult(api: StudioClient, id: string, job: Awaited<ReturnType<typeof loadCandidateJob>>,
-  signal: AbortSignal) {
-  const { data } = await api.GET("/v1/jobs/{id}/result", { signal, params: { path: { id } } });
-  if (!data || data.id !== job.result_version_id || data.asset_id !== job.target_id ||
-      data.scope.production_id !== job.asset_candidate?.production_id || data.kind !== job.asset_candidate?.kind ||
+type CandidateResultRef = {
+  jobId: string;
+  versionId: string | null;
+  assetId: string;
+  productionId?: string | null;
+  kind?: CandidateRequest["kind"];
+};
+
+export async function loadCandidateResult(api: StudioClient, source: CandidateResultRef, signal: AbortSignal) {
+  const { data } = await api.GET("/v1/jobs/{id}/result", { signal, params: { path: { id: source.jobId } } });
+  if (!data || data.id !== source.versionId || data.asset_id !== source.assetId ||
+      data.scope.production_id !== source.productionId || data.kind !== source.kind ||
       (data.state !== "candidate" && data.state !== "promoted")) throw new ApiError(500);
   return data;
 }

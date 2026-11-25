@@ -242,16 +242,30 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       await candidate.getByRole("button", { name: "Retry" }).click();
       await expect(candidate.getByRole("alert")).toHaveCount(0);
 
-      await press(page, promote);
+      const resultPath = `GET /v1/jobs/${id}/result`;
+      const resultReads = mock.api.calls.filter((call) => call === resultPath).length;
+      const releasePromotion = assets.holdReply("promote");
+      try {
+        await press(page, promote);
+        const promoting = candidate.getByRole("button", { name: "Promoting…", exact: true });
+        await expect(promoting).toBeVisible();
+        const jobRead = page.waitForResponse((response) => new URL(response.url()).pathname === `/v1/jobs/${id}`);
+        await showPoll(page);
+        await (await jobRead).finished();
+        await expect(promoting).toBeVisible();
+      } finally {
+        releasePromotion();
+      }
       await expect(candidate.getByText("Promoted to library")).toBeFocused();
       await expect(card(page, "Soup ladle").getByRole("link", { name: "Use Soup ladle v1 on board" })).toBeVisible();
+      expect(mock.api.calls.filter((call) => call === resultPath)).toHaveLength(resultReads);
       expect(version.state).toBe("promoted");
       expect(assets.promotions).toEqual([version.id]);
 
       await page.getByRole("link", { name: "Generate asset", exact: true }).click();
       await form.getByLabel("Name").fill("Pot lid");
       await form.getByLabel("Prompt").fill("A round lid.");
-      const releaseJob = assets.holdReply();
+      const releaseJob = assets.holdReply("submit");
       try {
         await form.getByRole("button", { name: "Request candidate" }).click();
         await expect(form.getByRole("button", { name: "Submitting…" })).toBeVisible();

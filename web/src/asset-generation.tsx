@@ -49,13 +49,20 @@ const keepPollingJob = (job: Awaited<ReturnType<typeof loadCandidateJob>>) => ac
 function CandidateResult({ api, job, target, onPromoted }: {
   api: StudioClient; job: Awaited<ReturnType<typeof loadCandidateJob>>; target?: AssetTarget; onPromoted: () => void;
 }) {
-  const load = useCallback((signal: AbortSignal) => loadCandidateResult(api, job.id, job, signal), [api, job]);
+  const { id: jobId, result_version_id: versionId, target_id: assetId, asset_candidate: spec } = job;
+  const productionId = spec?.production_id;
+  const kind = spec?.kind;
+  // A visibility refresh can return the same job in a new object while a
+  // promotion request is pending. Keep the review mounted for the same result.
+  const load = useCallback((signal: AbortSignal) => loadCandidateResult(api, {
+    jobId, versionId, assetId, productionId, kind,
+  }, signal), [api, jobId, versionId, assetId, productionId, kind]);
   const { result, retry } = useRequest(load);
   return <section className="asset-candidates" aria-labelledby="asset-candidates-heading">
     <h2 id="asset-candidates-heading">Candidates</h2>
     {result.status === "loading" && <p role="status">Loading result…</p>}
     {result.status === "failure" && <AssetProblem error={result.error} retry={retry} />}
-    {result.status === "success" && <CandidateReview key={result.data.id} version={result.data} jobId={job.id}
+    {result.status === "success" && <CandidateReview key={result.data.id} version={result.data} jobId={jobId}
       api={api} target={target} onPromoted={onPromoted} refresh={retry} />}
   </section>;
 }
