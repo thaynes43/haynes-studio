@@ -32,6 +32,7 @@ from haynes_studio.canonical.validate import (
     _sorted,
 )
 from haynes_studio.errors import Violation, pointer
+from haynes_studio.formats.recipe import recipe_hash, validate_recipe
 from haynes_studio.library.resolve import references
 from haynes_studio.schemas import schema_violations
 from haynes_studio.stages.preflight import ASSET_UNRESOLVED
@@ -86,7 +87,25 @@ def validate_run_snapshot(document: Any, *, context: str = READ) -> list[Violati
                   for v in validate_story(document["story"], context=READ)]
     if not _blocking(found):
         found += _resolved(document)
+        found += _format_pin(document, context)
     return _sorted(found)
+
+
+def _format_pin(document: Mapping[str, Any], context: str) -> list[Violation]:
+    version = document.get("format_version")
+    expected = document["story"].get("format_version_id")
+    if version is None:
+        if expected is not None and context != READ:
+            return [Violation("ref.unknown", "/format_version", "The story's format recipe must be pinned")]
+        return []
+    found = [Violation(v.rule, "/format_version/recipe" + v.path, v.message, v.status)
+             for v in validate_recipe(version["recipe"])]
+    if version["id"] != expected:
+        found.append(Violation("ref.unknown", "/format_version/id", "The recipe ID must match the story pin"))
+    if version["sha256"] != recipe_hash(version["recipe"]):
+        found.append(Violation("store.hash_mismatch", "/format_version/sha256",
+                               "The recipe SHA-256 does not match its canonical JSON"))
+    return found
 
 
 def _resolved(document: Mapping[str, Any]) -> list[Violation]:

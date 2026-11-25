@@ -12,12 +12,14 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert
 
 from haynes_studio.canonical import (
-    Story, boards_derived, story_derived, timing_summary, to_document, validate_production,
+    BuildBlocker, Story, boards_derived, story_derived, timing_summary, to_document, validate_production,
     validate_story,
 )
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.canonical.jsonvalues import normalize
 from haynes_studio.errors import ContractError, Violation, pointer
+from haynes_studio.formats import records as format_records
+from haynes_studio.formats.recipe import PIN_PATH, allowed_methods, format_length, method_violation
 from haynes_studio.golive import records as go_live
 from haynes_studio.library.resolve import resolve, story_references
 
@@ -161,6 +163,9 @@ class Draft:
         ordered = [self.boards[id_] for id_ in self.story["board_order"]]
         return {**self.story, "boards": ordered}
 
+    def format_version(self, conn: sa.Connection) -> dict | None:
+        return format_records.version(conn, self.story.get("format_version_id"))
+
     def _library(self, conn: sa.Connection, document: dict):
         refs = story_references(document)
         library = load_library(conn, {ref.version_id for ref in refs}, self.story["production_id"])
@@ -171,6 +176,7 @@ class Draft:
         _, library = self._library(conn, doc)
         story = Story.from_document(doc)
         derived = story_derived(story, story.ordered_boards(), library.facts(doc),
+                                format_length=format_length(self.format_version(conn)),
                                 highest_number_issued=self.highest_board)
         if status is None:
             stmt = go_live.story_status_query().where(stories.c.id == self.story["id"])
@@ -191,7 +197,17 @@ class Draft:
     def timing(self, conn: sa.Connection) -> dict:
         doc = self.exchange()
         _, library = self._library(conn, doc)
-        return to_document(timing_summary(doc, facts=library.facts(doc)))
+        pinned = self.format_version(conn)
+        timing = timing_summary(doc, facts=library.facts(doc), format_length=format_length(pinned))
+        blockers = list(timing.build_blockers)
+        if pinned is not None:
+            for board in doc["boards"]:
+                issue = method_violation(pinned["recipe"], board)
+                if issue is not None:
+                    blockers.append(BuildBlocker(code=issue.rule, board_id=board["id"], path=None))
+        elif doc.get("format_version_id") is not None:
+            blockers.append(BuildBlocker(code="ref.unknown", board_id=None, path=PIN_PATH))
+        return to_document(replace(timing, build_allowed=not blockers, build_blockers=tuple(blockers)))
 
     def validate(self, conn: sa.Connection) -> set[str]:
         doc = self.exchange()
@@ -278,9 +294,12 @@ def _references(conn: sa.Connection, story_id: str, refs: set[str]) -> None:
 
 
 def _insert_story(conn, doc):
+    pin = doc.get("format_version_id")
+    format_records.require_pin(conn, pin, doc["media_kind"])
     conn.execute(stories.insert().values(
         id=doc["id"], production_id=doc["production_id"], media_kind=doc["media_kind"],
         source_key=(doc.get("origin") or {}).get("source_key"), document=doc,
+        format_version_id=pin,
     ))
 
 
@@ -314,10 +333,13 @@ def create_story(conn: sa.Connection, production_id: str, kind: str, fields: dic
     return draft
 
 
-def _save_story(conn: sa.Connection, draft: Draft, refs: set[str]) -> None:
-    conn.execute(stories.update().where(stories.c.id == draft.story["id"]).values(
-        document=draft.story,
-    ))
+def _save_story(conn: sa.Connection, draft: Draft, refs: set[str], *, pin_changed=False) -> None:
+    values = {"document": draft.story}
+    if pin_changed:
+        pin = draft.story["format_version_id"]
+        format_records.require_pin(conn, pin, draft.story["media_kind"])
+        values["format_version_id"] = pin
+    conn.execute(stories.update().where(stories.c.id == draft.story["id"]).values(**values))
     _references(conn, draft.story["id"], refs)
 
 
@@ -334,7 +356,7 @@ def edit_story(conn: sa.Connection, id_: str, revision: int, fields: dict) -> Dr
     updated = _advance(draft, fields, timestamp())
     refs = updated.validate(conn)
     _reserve_ids(conn, _child_ids(updated.story, ("beds",)) - _child_ids(draft.story, ("beds",)))
-    _save_story(conn, updated, refs)
+    _save_story(conn, updated, refs, pin_changed="format_version_id" in fields)
     return updated
 
 
@@ -368,8 +390,15 @@ def add_board(conn: sa.Connection, id_: str, revision: int, fields: dict, by: di
     if spoken:
         voice_style = "narrator" if speakers and all(s == "narrator" for s in speakers) else "cast"
     doc.setdefault("voice", {"style": voice_style, "current_version_id": None})
-    doc.setdefault("method", {"layer": "layered" if cast else "whole_frame",
-                              "motion": "s2v" if any(s in cast_slots for s in speakers) else "i2v"})
+    if "method" not in doc:
+        method = {"layer": "layered" if cast else "whole_frame",
+                  "motion": "s2v" if any(s in cast_slots for s in speakers) else "i2v"}
+        pinned = draft.format_version(conn)
+        if pinned is not None:
+            methods = allowed_methods(pinned["recipe"], {"cast": cast, "lines": lines})
+            if methods:
+                method = methods[0]
+        doc["method"] = method
     updated = _advance(draft, {"board_order": [*draft.story["board_order"], id_board]}, now)
     updated.boards = {**draft.boards, id_board: doc}
     updated.highest_board = number

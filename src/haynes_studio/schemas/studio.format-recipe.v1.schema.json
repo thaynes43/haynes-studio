@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://haynes-studio.invalid/schemas/studio.format-recipe.v1.schema.json",
+  "title": "studio.format-recipe/v1",
+  "type": "object",
+  "required": ["schema", "frame", "length", "shot_types", "cast", "voice", "audio", "checks", "human_gates", "targets", "notes"],
+  "properties": {
+    "schema": {
+      "const": "studio.format-recipe/v1",
+      "x-studio": {"const": {"rule": "schema.unsupported", "message": "must be studio.format-recipe/v1"}}
+    },
+    "frame": {
+      "type": "object",
+      "required": ["width", "height", "fps"],
+      "properties": {
+        "width": {"type": "integer", "minimum": 2},
+        "height": {"type": "integer", "minimum": 2},
+        "fps": {"const": 24}
+      },
+      "additionalProperties": false
+    },
+    "length": {
+      "type": "object",
+      "required": ["min_ms", "max_ms"],
+      "properties": {
+        "min_ms": {"type": "integer", "minimum": 1},
+        "max_ms": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    },
+    "shot_types": {
+      "type": "object",
+      "minProperties": 1,
+      "properties": {
+        "speaking": {"$ref": "#/$defs/methods"},
+        "reaction": {"$ref": "#/$defs/methods"},
+        "ambient": {"$ref": "#/$defs/methods"}
+      },
+      "additionalProperties": false
+    },
+    "cast": {
+      "type": "object",
+      "required": ["rules", "team_costumes"],
+      "properties": {
+        "rules": {"$ref": "#/$defs/notes"},
+        "team_costumes": {
+          "type": "object",
+          "propertyNames": {"$ref": "#/$defs/slug"},
+          "additionalProperties": {
+            "type": "object",
+            "minProperties": 1,
+            "propertyNames": {"pattern": "^[a-z][a-z0-9_]{0,63}$"},
+            "additionalProperties": {"$ref": "#/$defs/text"}
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "voice": {
+      "type": "object",
+      "required": ["engine", "style"],
+      "properties": {
+        "engine": {"$ref": "#/$defs/optional_text"},
+        "style": {"$ref": "#/$defs/notes"}
+      },
+      "additionalProperties": false
+    },
+    "audio": {
+      "type": "object",
+      "required": ["style", "line_rms_dbfs", "master_lufs", "true_peak_dbtp"],
+      "properties": {
+        "style": {"$ref": "#/$defs/notes"},
+        "line_rms_dbfs": {"$ref": "#/$defs/level"},
+        "master_lufs": {"$ref": "#/$defs/level"},
+        "true_peak_dbtp": {"$ref": "#/$defs/level"}
+      },
+      "additionalProperties": false
+    },
+    "checks": {
+      "type": "object",
+      "propertyNames": {"pattern": "^[a-z][a-z0-9_.]{0,63}$"},
+      "additionalProperties": {
+        "type": "object",
+        "propertyNames": {"pattern": "^[a-z][a-z0-9_]{0,63}$"},
+        "additionalProperties": {"type": ["number", "string", "boolean", "null"]}
+      }
+    },
+    "human_gates": {"const": ["go_live"]},
+    "targets": {"type": "array", "items": {"$ref": "#/$defs/target"}},
+    "notes": {"$ref": "#/$defs/notes"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "text": {"type": "string", "minLength": 1, "maxLength": 1000, "pattern": "\\S"},
+    "optional_text": {"anyOf": [{"$ref": "#/$defs/text"}, {"type": "null"}]},
+    "slug": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?![\\s\\S])", "maxLength": 64},
+    "notes": {"type": "array", "items": {"$ref": "#/$defs/text"}},
+    "level": {"type": ["number", "null"], "maximum": 0},
+    "methods": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": ["layer", "motion"],
+        "properties": {
+          "layer": {"enum": ["layered", "whole_frame"]},
+          "motion": {"enum": ["s2v", "i2v"]}
+        },
+        "additionalProperties": false
+      }
+    },
+    "target": {
+      "type": "object",
+      "required": ["id", "name", "platform", "state", "account_id", "rules", "owner_note"],
+      "properties": {
+        "id": {"$ref": "#/$defs/slug"},
+        "name": {"$ref": "#/$defs/text"},
+        "platform": {"$ref": "#/$defs/slug"},
+        "state": {"enum": ["placeholder", "existing"]},
+        "account_id": {"type": ["string", "null"], "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+(?![\\s\\S])"},
+        "rules": {
+          "type": "object",
+          "required": ["max_length_ms", "ai_label_required", "aspect"],
+          "properties": {
+            "max_length_ms": {"type": ["integer", "null"], "minimum": 1},
+            "ai_label_required": {"type": ["boolean", "null"]},
+            "aspect": {"type": ["string", "null"], "pattern": "^[1-9][0-9]{0,4}:[1-9][0-9]{0,4}(?![\\s\\S])"}
+          },
+          "additionalProperties": false
+        },
+        "owner_note": {"$ref": "#/$defs/optional_text"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

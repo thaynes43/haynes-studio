@@ -60,6 +60,7 @@ class EstimateView(TransportModel):
     methods: list[MethodEstimate]
     queue_wait: QueueWait
     problems: list[dict]
+    warnings: list[dict]
 
 
 class CheckOverride(Payload):
@@ -85,7 +86,8 @@ def transport_models():
 def _prepare(conn, draft):
     story = draft.exchange()
     refs = {item.version_id for item in story_references(story)}
-    return inputs.prepare_queue(story, catalog.build_library(conn, story, refs))
+    return inputs.prepare_queue(story, catalog.build_library(conn, story, refs),
+                                format_version=draft.format_version(conn))
 
 
 def _read_view(conn, row, *, detail=True, worker_present=None):

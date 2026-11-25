@@ -149,6 +149,10 @@ GRANT UPDATE (state, outcome) ON studio.run_wan_attempts TO studio_app;
 
 -- Applied by revision 0004.
 GRANT SELECT, INSERT ON studio.go_live_approvals, studio.go_live_withdrawals TO studio_app;
+
+-- Applied by revision 0006.
+GRANT SELECT, INSERT ON studio.formats, studio.format_versions TO studio_app;
+GRANT UPDATE (format_version_id) ON studio.stories TO studio_app;
 ```
 
 Revision `0004_go_live_approvals` uses the PostgreSQL UTF-8 `und-x-icu`
@@ -256,9 +260,12 @@ token or digest.
   per scope. An Authorization header takes precedence over a session cookie.
   Agent keys can read productions in their `read` grants and edit drafts in
   their `draft:write` grants. Keys with `runs:queue` may enqueue and cancel runs.
+  An explicit `formats:write` grant allows catalog authoring. See
+  [format recipes](formats.md#api-and-scopes) for catalog access.
 - The P-14 `WorkerRoute` authenticates a worker bearer token before reading
   the query or body of any `/internal/v1/work/*` route. A worker token provides
   a worker principal here. Public Studio routes accept agent keys or sessions.
+  The format catalog's read routes also accept worker tokens.
 
 Protected routes authenticate before reading metadata request bodies. Query
 parameter names and values must be UTF-8 text without NUL characters.
@@ -286,9 +293,10 @@ which is never reissued.
 PATCH replaces each supplied field as a whole, including arrays and nested
 objects. Omit nested IDs to add lines, notes and cues. Preserve their returned
 IDs on edit. Remove an item by leaving it out of the replacement array.
-The server derives timing, counts and warnings on reads. A newly added board
-defaults to whole-frame I2V when it has no cast. A cast and a placed speaker
-default to layered S2V. Explicit methods are still validated.
+The server derives timing, counts and warnings on reads. A pinned
+[format recipe](formats.md#drafts-and-queued-runs) supplies default methods for new
+boards. Otherwise a board with no cast defaults to whole-frame I2V, and a cast
+with a placed speaker defaults to layered S2V. Explicit methods are validated.
 
 Selections are a per-subject JSON object in a `values` envelope. The empty
 selection has revision 0. PUT replaces the object and advances its revision.

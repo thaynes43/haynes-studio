@@ -165,7 +165,8 @@ def build_router():
     session_cookie = APIKeyCookie(name=SESSION_COOKIE, scheme_name="StudioSession", auto_error=False)
     bearer = HTTPBearer(scheme_name="StudioBearer", auto_error=False)
 
-    def resolve_actor(request: Request, authorization, session, csrf, *, approval=False) -> Actor:
+    def resolve_actor(request: Request, authorization, session, csrf, *,
+                      approval=False, allow_worker=False) -> Actor:
         # A supplied Authorization header takes precedence. An invalid bearer cannot
         # silently become a session-cookie request.
         if "authorization" in request.headers:
@@ -174,10 +175,15 @@ def build_router():
             with snapshot(request.app.state.engine) as conn:
                 agent = identity.get_agent(conn, authorization.credentials)
                 worker = (identity.get_worker(conn, authorization.credentials)
-                          if approval and agent is None else None)
+                          if (approval or allow_worker) and agent is None else None)
             if worker is not None:
-                request.state.principal = Principal(kind="worker", worker_id=worker)
-                raise forbidden("approval.worker_not_permitted", "Worker tokens cannot approve go-live")
+                principal = Principal(kind="worker", worker_id=worker)
+                request.state.principal = principal
+                if approval:
+                    raise forbidden("approval.worker_not_permitted", "Worker tokens cannot approve go-live")
+                if request.method not in SAFE_METHODS:
+                    raise forbidden()
+                return Actor(principal)
             if agent is None:
                 raise unauthenticated()
             key, grants = agent
@@ -213,16 +219,24 @@ def build_router():
         return actor
 
     class AuthenticatedRoute(MetadataRoute):
+        allow_worker = False
+
         def get_route_handler(self):
             handler = super().get_route_handler()
 
             async def authenticated(request):
                 # FastAPI would otherwise parse the body before solving dependencies.
-                await access(request, await bearer(request), await session_cookie(request),
-                             request.headers.get(CSRF_HEADER))
+                actor = await run_in_threadpool(
+                    resolve_actor, request, await bearer(request), await session_cookie(request),
+                    request.headers.get(CSRF_HEADER), allow_worker=self.allow_worker,
+                )
+                request.state.actor = actor
                 return await handler(request)
 
             return authenticated
+
+    class FormatsRoute(AuthenticatedRoute):
+        allow_worker = True
 
     class ApprovalRoute(MetadataRoute):
         def get_route_handler(self):
@@ -311,4 +325,4 @@ def build_router():
         _clear_cookie(response, LOGIN_COOKIE)
         return response
 
-    return router, protected, CurrentActor, AuthenticatedRoute, ApprovalRoute
+    return router, protected, CurrentActor, AuthenticatedRoute, ApprovalRoute, FormatsRoute

@@ -176,6 +176,7 @@ class BuildInputs:
     toolchain: Toolchain = field(default_factory=Toolchain)
     studio: str = "git:unknown"
     image_digest: str | None = None
+    format_version: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -802,7 +803,7 @@ def build_story(inputs: BuildInputs, *, store: Store, phase: str, sources: ClipS
     toolchain = build_toolchain(inputs.toolchain)
     prepared = prepare(inputs.story, library=library, store=store, toolchain=toolchain,
                        frame_size=(media.width, media.height),
-                       current_engine=Engine().signing_name)
+                       current_engine=Engine().signing_name, format_version=inputs.format_version)
     if phase == OFFLINE:  # the recognizer is a service: the offline phase reads the cache only
         transcriber = None
     return _build(inputs, prepared, store=store, phase=phase, sources=sources,

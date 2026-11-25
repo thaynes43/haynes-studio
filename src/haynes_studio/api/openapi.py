@@ -20,6 +20,7 @@ _CANONICAL = {
     "studio.asset-version.v1.schema.json": "AssetVersion",
     "studio.delivery.v1.schema.json": "Delivery",
     "studio.run.v1.schema.json": "RunView",
+    "studio.format-recipe.v1.schema.json": "FormatRecipe",
 }
 
 
@@ -89,6 +90,8 @@ def _write_schemas(schemas):
 _HUMAN_OPERATIONS = {"get_selections", "put_selections", "create_production", "enable_media_type", "logout"}
 _RUN_QUEUE_OPERATIONS = {"queue_run", "cancel_run", "record_check_override"}
 _GO_LIVE_OPERATIONS = {"approve_go_live", "withdraw_go_live"}
+_FORMAT_WRITE_OPERATIONS = {"create_format", "add_format_version"}
+_FORMAT_READ_OPERATIONS = {"list_formats", "list_format_versions", "get_format_version"}
 _DRAFT_OPERATIONS = {"create_story", "update_story", "create_board", "update_board",
                      "reorder_boards", "remove_board"}
 
@@ -111,6 +114,11 @@ def _document_access(document: dict) -> None:
                 operation["x-studio-scope"] = "runs:queue"
             elif name in _DRAFT_OPERATIONS:
                 operation["x-studio-scope"] = "draft:write"
+            elif name in _FORMAT_WRITE_OPERATIONS:
+                operation["x-studio-scope"] = "formats:write"
+            elif name in _FORMAT_READ_OPERATIONS:
+                operation["x-studio-scope"] = "read"
+                operation["x-studio-worker-read"] = True
             elif name != "get_me":
                 operation["x-studio-scope"] = "read"
             if method in ("get", "head") and "parameters" in operation:

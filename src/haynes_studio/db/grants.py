@@ -49,3 +49,9 @@ RUNTIME_GRANTS = METADATA_GRANTS + (
 GO_LIVE_GRANTS = (
     ("SELECT, INSERT", ("go_live_approvals", "go_live_withdrawals")),
 )
+
+
+FORMAT_GRANTS = (
+    ("SELECT, INSERT", ("formats", "format_versions")),
+    ("UPDATE (format_version_id)", ("stories",)),
+)

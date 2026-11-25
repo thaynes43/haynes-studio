@@ -17,6 +17,7 @@ from haynes_studio.canonical.ids import Minter
 from haynes_studio.mcp.server import MAX_ARGUMENT_BYTES, MAX_REQUEST_BYTES, MAX_RESULT_BYTES, _api_origin, create_app
 from haynes_studio.mcp.upstream import MAX_ERROR_BYTES
 from tests.canonical.fixtures import example
+from tests.formats.fixtures import doll_short
 
 from .client import API_URL, MCP_URL, call, connect, fail
 
@@ -27,6 +28,7 @@ studio_list_productions studio_get_production studio_list_stories studio_create_
 studio_get_story_summary studio_patch_story studio_get_story_timing studio_add_board
 studio_get_board studio_patch_board studio_reorder_boards studio_remove_board
 studio_search_assets studio_get_asset studio_get_delivery
+studio_list_formats studio_list_format_versions studio_get_format_version
 """.split())
 
 
@@ -47,6 +49,7 @@ class FakeStudio:
         self.sid = minter.mint("sty")
         self.bid, self.bid2 = minter.mint("brd"), minter.mint("brd")
         self.aid, self.vid, self.rid = (minter.mint(prefix) for prefix in ("ast", "asv", "run"))
+        self.fmv = minter.mint("fmv")
         self.authorization = "bEaReR " + secrets.token_urlsafe(32)
         self.requests = []
         self.override = None
@@ -96,6 +99,12 @@ class FakeStudio:
                    "next_cursor": self.vid}
         elif path == f"/v1/runs/{self.rid}/delivery":
             doc = {"run_id": self.rid, "master": {"frames": 24, "locator": "never-forward-this"}, "proxy": None}
+        elif path == "/v1/formats":
+            doc = {"items": [{"id": "doll-short", "name": "Doll short"}], "next_cursor": None}
+        elif path in ("/v1/formats/doll-short/versions", f"/v1/format-versions/{self.fmv}"):
+            version = {"id": self.fmv, "number": 1, "format_id": "doll-short", "sha256": "0" * 64}
+            doc = ({"items": [version], "next_cursor": None} if path.endswith("/versions") else
+                   {**version, "recipe": doll_short()["recipe"]})
         elif path in (f"/v1/stories/{self.sid}/boards", f"/v1/boards/{self.bid}"):
             doc = self.board
         else:
@@ -151,12 +160,22 @@ async def test_discovery_pages_and_projections(api):
         delivery = await call(session, "studio_get_delivery", run_id=api.rid)
         assert delivery["master"] == {"frames": 24}
 
+        format_tools = [tool for tool in tools if "format" in tool.name]
+        assert len(format_tools) == 3 and all(tool.annotations.readOnlyHint for tool in format_tools)
+        catalog = await call(session, "studio_list_formats")
+        assert catalog["items"] == [{"id": "doll-short", "name": "Doll short"}]
+        versions = await call(session, "studio_list_format_versions", format_id="doll-short", limit=1)
+        assert versions["items"][0]["id"] == api.fmv
+        assert dict(api.requests[-1].url.params) == {"limit": "1"}
+        result = await call(session, "studio_get_format_version", version_id=api.fmv)
+        assert result["recipe"] == doll_short()["recipe"]
+
 
 async def test_writes_forward_only_expected_methods_bodies_and_etags(api):
     async with api.app.router.lifespan_context(api.app), connect(api.app, api.authorization) as session:
         await call(session, "studio_create_story", production_id=api.pid, kind="short", fields={"title": "Draft"})
         await call(session, "studio_patch_story", story_id=api.sid, revision=5,
-                   patch={"set": None, "motion_style": {"style": "fixture"}})
+                   patch={"set": None, "motion_style": {"style": "fixture"}, "format_version_id": api.fmv})
         added = await call(session, "studio_add_board", story_id=api.sid, revision=6, fields={})
         assert added["story_revision"] == 7
         patch = {"photo": {"current_version_id": api.vid}, "notes": [{"text": "Hold"}],
@@ -170,7 +189,7 @@ async def test_writes_forward_only_expected_methods_bodies_and_etags(api):
     assert [req.method for req in api.requests] == ["POST", "PATCH", "POST", "PATCH", "PUT", "DELETE"]
     assert [req.headers.get("if-match") for req in api.requests] == [None, '"5"', '"6"', '"7"', '"8"', '"9"']
     assert [json.loads(req.content) if req.content else None for req in api.requests] == [
-        {"title": "Draft"}, {"set": None, "motion_style": {"style": "fixture"}}, {},
+        {"title": "Draft"}, {"set": None, "motion_style": {"style": "fixture"}, "format_version_id": api.fmv}, {},
         patch, {"board_order": order}, None,
     ]
 

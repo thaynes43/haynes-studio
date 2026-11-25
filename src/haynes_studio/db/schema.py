@@ -36,11 +36,22 @@ media_types = sa.Table("media_types", metadata,
                        sa.Column("kind", sa.Text, primary_key=True), document(),
                        sa.CheckConstraint("kind IN ('short', 'video')", name="media_kind"))
 
+formats = sa.Table("formats", metadata, sa.Column("id", sa.Text(collation="C"), primary_key=True),
+                   sa.Column("name", sa.Text, nullable=False))
+format_versions = sa.Table(
+    "format_versions", metadata, identifier(), foreign("format_id", "formats.id"),
+    sa.Column("number", sa.BigInteger, nullable=False), sa.Column("sha256", sa.String(64), nullable=False),
+    sa.Column("recipe", JSONB, nullable=False), sa.UniqueConstraint("format_id", "number"),
+)
 stories = sa.Table(
     "stories", metadata, identifier(), sa.Column("production_id", sa.Text, nullable=False),
     sa.Column("media_kind", sa.Text, nullable=False),
     sa.Column("source_key", sa.Text, unique=True), document(),
     sa.Column("published", sa.Boolean, nullable=False, server_default=sa.false()),
+    foreign("format_version_id", "format_versions.id", nullable=True),
+    sa.CheckConstraint("format_version_id IS NULL OR "
+                       "format_version_id IS NOT DISTINCT FROM document->>'format_version_id'",
+                       name="stories_format_version_matches_document"),
     sa.ForeignKeyConstraint(["production_id", "media_kind"],
                             ["media_types.production_id", "media_types.kind"]),
     sa.Index("stories_media_id", "production_id", "media_kind", "id"),
