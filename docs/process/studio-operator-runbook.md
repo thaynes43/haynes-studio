@@ -30,7 +30,9 @@ pod placement, running image pins, disruption budgets, endpoints and database
 health. Compare pod image digests to the [GitOps release record](https://github.com/thaynes43/haynes-ops/blob/main/kubernetes/main/apps/ai/studio/release.yaml).
 Expect the six serving pods ready across distinct nodes in each pair, one
 worker per lane and `postgres16` at three ready instances with successful
-backup and continuous archiving.
+backup and continuous archiving. Match the migration Job's suffix to the
+first 12 hexadecimal digits of `apiDigest` in the release record. During
+an image rollback, use the retained migration Job described below.
 
 ```sh
 flux get kustomizations -n ai | awk 'NR==1 || $1 ~ /^studio($|-)/'
@@ -40,7 +42,7 @@ kubectl -n ai get pods -l 'app.kubernetes.io/name in (studio-api,studio-web,stud
 kubectl -n ai get pdb studio-api studio-web studio-mcp
 kubectl -n ai get endpointslice -l 'kubernetes.io/service-name in (studio-api,studio-web,studio-mcp)' \
   -o 'custom-columns=SERVICE:.metadata.labels.kubernetes\.io/service-name,READY:.endpoints[*].conditions.ready,PORT:.ports[*].port'
-kubectl -n ai get job studio-migrate-08ac310f246c \
+kubectl -n ai get jobs -l app.kubernetes.io/name=studio-migration \
   -o 'custom-columns=JOB:.metadata.name,SUCCEEDED:.status.succeeded'
 kubectl -n database get cluster.postgresql.cnpg.io postgres16 \
   -o 'custom-columns=NAME:.metadata.name,READY:.status.readyInstances,LAST:.status.lastSuccessfulBackup,CONDITIONS:.status.conditions[*].type,STATUS:.status.conditions[*].status'
@@ -66,6 +68,8 @@ for spec in worker:1500 voice-worker:120 image-worker:300; do
   worker="studio-${spec%:*}"
   if kubectl -n ai exec "deploy/$worker" -c worker -- studio-worker --check-progress "${spec#*:}"; then
     printf '%s progress OK\n' "$worker"
+  else
+    printf '%s progress FAILED\n' "$worker" >&2
   fi
   kubectl -n ai logs "deploy/$worker" -c worker --since=2m |
     awk -v worker="$worker" '/\/work\/claim "HTTP\/1.1 204/ {n++} END {printf "%s claim 204: %d\n", worker, n}'
