@@ -720,6 +720,41 @@ def test_matte_uncertain_socket_result_after_dispatch_is_recorded(
         assert not marker.exists() and not attempt.exists()
 
 
+@pytest.mark.parametrize(("status", "body"), [
+    pytest.param(500, {"code": BUSY}, id="wrong-http-status"),
+    pytest.param(409, {"code": BUSY, "detail": "Synthetic extra field"}, id="extra-json-field"),
+])
+def test_matte_invalid_busy_reply_after_inference_does_not_release(
+    matte_studio, matte_format, matte_client, monkeypatch, status, body,
+):
+    s = matte_studio
+    local, weights = matte_client
+    source = opaque(s, scope=s.production_id)
+    identifier = success(request(s, payload(source, matte_format), "invalid-busy"), 202)["id"]
+    worker = MediaWorker(worker_api(s, lane="matte"), lane="matte", store=s.store, client=local)
+    real_call = matting.local_call
+    waits = []
+
+    def invalid_busy(path, method, *args, **kwargs):
+        reply = real_call(path, method, *args, **kwargs)
+        if method == "POST":
+            # Replace the reply only after the real engine has completed inference.
+            assert reply[0] == 200
+            assert row_of(s, identifier)["dispatched"]
+            return status, body
+        return reply
+
+    monkeypatch.setattr(matting, "local_call", invalid_busy)
+    monkeypatch.setattr(local, "pause", waits.append)
+    with Engine(local.scratch, weights, PROFILE, factory=load_fake) as backend, listening(local.socket, backend):
+        handled = worker.tick()
+    assert_failed(s, identifier, RESPONSE_INVALID)
+    assert handled
+    row = row_of(s, identifier)
+    assert row["dispatched"] and row["matte_releases"] == 0
+    assert waits == [matting.POST_QUIESCENCE_SECONDS]
+
+
 def test_matte_reclaim_refuses_stale_fence_and_duplicate_completion(
     matte_studio, matte_format, matte_client, monkeypatch,
 ):
