@@ -223,3 +223,18 @@ ingress during replacement, verifies Ready placement and continued idle
 claims, and compares read-only evidence from the shared database and store.
 Record the drill result, source test results, human playback and acceptance
 separately.
+
+The installed database grants and rollout evidence are recorded in
+[story 431](https://work.haynesnetwork.com/work_packages/431) and
+[story 434](https://work.haynesnetwork.com/work_packages/434). The queue
+worker pin and startup checks are in
+[story 956](https://work.haynesnetwork.com/work_packages/956). Import,
+image digests, ranged playback and out-of-scope proxy refusal are recorded
+in [story 957](https://work.haynesnetwork.com/work_packages/957). Signed-in
+phone playback is still open in
+[story 944](https://work.haynesnetwork.com/work_packages/944).
+
+The human-only override, lost acknowledgement, slow poll and Wan restart
+have source test coverage. An installed test of those cases needs its own
+authorized fixture and records the image digests and build revision. The
+one-API-pod procedure provides placement, ingress and shared-store evidence.
