@@ -4,6 +4,7 @@ import hashlib
 import http.client
 import os
 import re
+import stat
 from collections.abc import Callable
 from fcntl import LOCK_EX, LOCK_NB, flock
 from pathlib import Path
@@ -121,9 +122,13 @@ class MattingClient:
                 continue
             try:
                 fd = os.open(marker, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-            except FileNotFoundError:
+            except OSError:
+                # Gone already, or not a marker this adapter wrote (a symlink, an
+                # unreadable file). Leave it: a stray name must not stop matting.
                 continue
             try:
+                if not stat.S_ISREG(os.fstat(fd).st_mode):
+                    continue
                 try:
                     flock(fd, LOCK_EX | LOCK_NB)
                 except BlockingIOError:

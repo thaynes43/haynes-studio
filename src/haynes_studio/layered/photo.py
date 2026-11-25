@@ -130,7 +130,13 @@ def _place_still(cutout, slot, slot_name, frame_width, frame_height, matte):
     except (MatteError, AdapterError):
         raise LayeredError(CLIP_INVALID, "The cast matte has invalid silhouette geometry") from None
     art, silhouette, inset = size.sprite(cutout)
-    return art, compose.place(art.size, slot, frame_width, slot_name, silhouette=silhouette, inset=inset)
+    where = compose.place(art.size, slot, frame_width, slot_name, silhouette=silhouette, inset=inset)
+    if where.y < 0:
+        # The plate would cut the doll at the top of the frame without saying so.
+        raise LayeredError("matting.target_exceeds_frame",
+                           f"Slot {slot_name!r} target height {target} px does not fit above its bottom "
+                           f"line at {slot.bottom:g} px")
+    return art, where
 
 
 def compose_photo(inputs: PhotoInputs, read: Callable[[str], BinaryIO]) -> bytes:

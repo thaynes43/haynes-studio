@@ -93,7 +93,12 @@ keeping the fractional-alpha support beyond the measured silhouette. A
 slot crop conflicts with the measured silhouette and fails. A recipe
 target taller than the frame fails with `matting.target_exceeds_frame`
 and reports both heights. Motion clips
-keep their separate, timed `keyed_layer` path.
+keep their separate, timed `keyed_layer` path. A target that fits the frame but not the space above its slot's bottom
+line is refused with the same code, when the photo is planned (target height against
+the slot's bottom line) and again when it is composed (with the sprite's fringe
+included), so a doll is never cut at the top of the frame without an error. The
+adapter's sweep of its own finished attempts skips any name in the shared scratch
+that is not a regular marker file it wrote.
 
 ## Evidence
 

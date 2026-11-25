@@ -9,6 +9,7 @@ from haynes_studio.canonical.model import Board, Story
 from haynes_studio.delivery.model import MASTER_SIZES
 from haynes_studio.errors import ContractError
 from haynes_studio.jsonio import thaw
+from haynes_studio.layered import compose
 from haynes_studio.layered.errors import LayeredError
 from haynes_studio.layered.matte_size import ENGINE, SIZE_POLICY
 from haynes_studio.layered.photo import PhotoInputs, photo_inputs
@@ -113,6 +114,16 @@ def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: b
                                        "shape": thaw(params.get("receipt", {}).get("shape"))}
         layers = photo_inputs(story, board, blobs=blobs, width=size[0], height=size[1],
                               matte_sizes=matte_sizes)
+        for slot_name, matte in matte_sizes.items():
+            try:
+                bottom = compose.slot_of(thaw(layers.layout), slot_name).bottom
+            except LayeredError:
+                continue  # the composer reports an invalid layout itself
+            if matte["target_height_px"] > bottom:
+                # Refuse before a build is queued; the composer repeats the check
+                # with the sprite's fringe included.
+                raise error("matting.target_exceeds_frame", "/layers",
+                            "The cast matte is taller than the space above its slot's bottom line")
         return PhotoPlan(scope, LAYERED, size, None, sources, selected, layers)
 
     prompt = board.photo.prompt

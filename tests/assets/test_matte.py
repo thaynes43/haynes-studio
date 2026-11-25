@@ -372,6 +372,25 @@ def test_client_timeout_waits_for_late_writes_before_cleaning(world, monkeypatch
     assert list(client.scratch.iterdir()) == []
 
 
+def test_a_stray_marker_name_in_the_scratch_does_not_stop_matting(world, tmp_path):
+    """The scratch is shared with the service. A symlink or a directory that merely has
+    a marker's name is not this adapter's: it is left alone and the job still runs."""
+    store, weights, client, _ = world
+    original = source(store, np.full((256, 256, 3), 33, dtype=np.uint8))
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.write_bytes(b"not a marker")
+    link = client.scratch / f".studio-matting-{'d' * 32}"
+    link.symlink_to(elsewhere)
+    directory = client.scratch / f".studio-matting-{'e' * 32}"
+    directory.mkdir()
+    with Engine(client.scratch, weights, PROFILE, factory=load_fake) as engine:
+        with listening(client.socket, engine):
+            result, failures = run(world, original)
+    assert not failures and result is not None
+    assert link.is_symlink() and elsewhere.read_bytes() == b"not a marker"
+    assert directory.is_dir()
+
+
 def test_next_dispatch_sweeps_older_adapter_attempts_only(world, monkeypatch):
     store, weights, client, _ = world
     original = source(store, np.full((256, 256, 3), 33, dtype=np.uint8))
@@ -480,6 +499,9 @@ def test_layered_photo_places_only_a_manually_promoted_matte_at_the_recipe_heigh
         plan_photo(replace(story, format_version_id="fmv_00000000000000000000000002"), board, promoted.library)
     with pytest.raises(ContractError, match="matting.slot_mismatch"):
         plan_photo(story, replace(board, cast=(replace(board.cast[0], slot="b"),)), promoted.library)
+    short = replace(story, layouts={"trial": {"height": 81, "x": 0.5, "bottom": TARGET - 1}})
+    with pytest.raises(ContractError, match="matting.target_exceeds_frame"):
+        plan_photo(short, board, promoted.library)
     plan = plan_photo(story, board, promoted.library)
     assert plan.layers.document()["matte_sizes"]["a"]["target_height_px"] == TARGET
 
@@ -532,6 +554,7 @@ def test_matte_size_refuses_excess_upscale_and_trailing_edges(box, target):
     ("changed_measurement", CLIP_INVALID, "differs from its pinned measurement"),
     ("crop", LAYOUT_INVALID, "cannot use a layout crop"),
     ("too_tall", "matting.target_exceeds_frame", "target height 1200 px exceeds frame height 1080 px"),
+    ("above_slot", "matting.target_exceeds_frame", "does not fit above its bottom line at 500 px"),
 ])
 def test_layered_placement_refuses_incompatible_matte(case, code, message):
     alpha = np.zeros((400, 200), dtype=np.uint8)
@@ -539,12 +562,13 @@ def test_layered_placement_refuses_incompatible_matte(case, code, message):
     rgba = np.zeros((400, 200, 4), dtype=np.uint8)
     rgba[..., 3] = alpha
     cutout = Image.fromarray(rgba)
-    target = 1200 if case == "too_tall" else 360
+    target = {"too_tall": 1200, "above_slot": 800}.get(case, 360)
     measured = measure_shape(alpha, target)
     if case == "changed_measurement":
         measured["foreground_area_px"] -= 1
     crop = (0, 0, 200, 400) if case == "crop" else None
-    slot = compose.Slot(height=360, bottom=1080, x=0.5, crop=crop)
+    # "above_slot": the target fits the frame but not the 500 px above the slot's line.
+    slot = compose.Slot(height=360, bottom=500 if case == "above_slot" else 1080, x=0.5, crop=crop)
     with pytest.raises(LayeredError, match=message) as refused:
         _place_still(cutout, slot, "a", 1920, 1080, {"target_height_px": target, "shape": measured})
     assert refused.value.code == code
