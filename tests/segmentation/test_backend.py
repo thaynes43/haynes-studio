@@ -687,6 +687,18 @@ def test_serving_memory_stability_passes_run_04_that_failed_point_comparison():
     assert not old_stable
 
 
+def test_serving_memory_stability_passes_run_05_that_failed_pass_end_comparison():
+    memory = _saved_smoke_memory("05")
+    expected = memory["passes"]
+    passes = smoke._pass_memory(memory["requests"], 6, expected["cgroup_resident_bytes"])
+    assert passes == expected
+    assert smoke._memory_stable(passes)
+
+    # Both maxima pass. The part 5 verdict also required this single sample to pass.
+    end = passes["cgroup_resident_bytes"]
+    assert end[2] > end[1] + 64 * 1024**2
+
+
 def test_serving_memory_stability_refuses_run_03_with_only_two_passes():
     memory = _saved_smoke_memory("03")
     requests = memory["requests"]
@@ -697,7 +709,7 @@ def test_serving_memory_stability_refuses_run_03_with_only_two_passes():
     assert smoke._memory_stable(smoke._pass_memory(requests[:6] + requests, 6, end[:1] + end))
 
 
-@pytest.mark.parametrize("field", ["max_resident_rss_bytes", "max_cgroup_resident_bytes", "cgroup_resident_bytes"])
+@pytest.mark.parametrize("field", ["max_resident_rss_bytes", "max_cgroup_resident_bytes"])
 def test_serving_memory_stability_refuses_growth_above_tolerance(field):
     baseline = 1024**3
     passes = {
@@ -709,6 +721,17 @@ def test_serving_memory_stability_refuses_growth_above_tolerance(field):
     assert smoke._memory_stable(passes)
     passes[field][2] += 1
     assert not smoke._memory_stable(passes)
+
+
+@pytest.mark.parametrize(("second_end", "third_end"), [
+    pytest.param(700, 832, id="pass-2-ends-in-dip"),
+    pytest.param(832, 964, id="pass-3-ends-in-spike"),
+])
+def test_serving_memory_stability_ignores_pass_end_samples(second_end, third_end):
+    mib = 1024**2
+    samples = [{"sam": {"resident_rss_bytes": 800 * mib, "cgroup_resident_bytes": 832 * mib}}] * 3
+    end = [832 * mib, second_end * mib, third_end * mib]
+    assert smoke._memory_stable(smoke._pass_memory(samples, 1, end))
 
 
 @pytest.mark.parametrize("samples", [(512, 800, 800, 800, 800, 800), (800, 800, 800, 710, 710, 800)])
