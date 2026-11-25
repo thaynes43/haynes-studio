@@ -1,6 +1,7 @@
 """Canonical library and delivery persistence and the media authorization index."""
 
 from collections.abc import Collection, Iterable
+from dataclasses import replace
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert
@@ -52,8 +53,10 @@ def _joined_versions():
 
 
 def _version(row):
-    return version_document(AssetVersion.from_document({**row.document, "state": row.state}),
-                            Asset.from_document(row.asset))
+    version = AssetVersion.from_document({**row.document, "state": row.state})
+    # Catalog responses expose the supported fields. Build hydration still
+    # sees the stored declaration so the pre-build check can refuse it.
+    return version_document(replace(version, occlusion=None), Asset.from_document(row.asset))
 
 
 def _load_versions(rows, library: Library | None = None) -> Library:

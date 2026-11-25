@@ -913,6 +913,33 @@ def test_catalog_registration_omits_empty_visibility_declarations(queue, empty):
     assert held == plate
 
 
+def test_catalog_reads_project_out_of_band_declarations(queue):
+    q = queue
+    plate, other = set_version(q), set_version(q)
+    with q.engine.begin() as conn:
+        record_asset_version(conn, plate)
+        record_asset_version(conn, other)
+    docs = f"/v1/assets?kind=set&production={q.production_id}"
+    detail = f"/v1/assets/{plate['asset_id']}"
+    before = q.browser.get(docs)
+    before_detail = q.browser.get(detail)
+    assert before.status_code == before_detail.status_code == 200
+    assert {item["id"] for item in before.json()["items"]} == {plate["id"], other["id"]}
+    declaration = {"foreground": [{"key": "counter", "label": None, "layer_order": 30}], "focal_props": []}
+    with q.owner.begin() as conn:
+        conn.execute(asset_versions.update().where(asset_versions.c.id == plate["id"]).values(
+            document={**plate, "occlusion": declaration},
+        ))
+    after, after_detail = q.browser.get(docs), q.browser.get(detail)
+    assert after.status_code == after_detail.status_code == 200
+    assert after.content == before.content
+    assert after_detail.content == before_detail.content
+    with q.owner.connect() as conn:
+        assert conn.scalar(sa.select(asset_versions.c.document).where(
+            asset_versions.c.id == plate["id"],
+        ))["occlusion"] == declaration
+
+
 def test_catalog_import_validates_hint_against_known_separate_prop_still(queue):
     q = queue
     cutout = set_version(q)

@@ -252,6 +252,9 @@ SINK_FLOW = {
     ("library/library", "documents"): (
         "self.document(v.id)",
     ),
+    ("db/catalog", "_version"): (
+        "return version_document(replace(version, occlusion=None), Asset.from_document(row.asset))",
+    ),
     ("db/catalog", "record_asset_version"): (
         "document = version_write_document(document, source_content=source_content)", "document=document",
     ),
