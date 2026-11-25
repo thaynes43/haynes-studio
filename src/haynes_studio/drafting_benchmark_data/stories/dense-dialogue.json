@@ -1,0 +1,247 @@
+{
+  "schema": "studio.story/v1",
+  "id": "sty_00000000000000000000001CTC",
+  "production_id": "prd_00000000000000000000001CTC",
+  "media_kind": "short",
+  "title": "A Queue for the Queue",
+  "revision": 5,
+  "format_version_id": "fmv_000000000000000000000000E7",
+  "cast": [
+    {
+      "slot": "a",
+      "name": "Sibbet Vosko",
+      "voice_version_id": "asv_00000000000000000000001CTD"
+    },
+    {
+      "slot": "b",
+      "name": "Arlo Pindel",
+      "voice_version_id": "asv_00000000000000000000001CTE"
+    }
+  ],
+  "narrator_voice_version_id": null,
+  "set": {
+    "asset_version_id": "asv_00000000000000000000001CTC",
+    "motion_asset_version_id": null,
+    "foreground_edge_px": null,
+    "foreground_feather_px": null,
+    "legacy_fire": null
+  },
+  "layouts": {
+    "default": {}
+  },
+  "motion_style": null,
+  "mix": {
+    "line_rms_dbfs": -22,
+    "master_lufs": -20,
+    "true_peak_dbtp": -3.5
+  },
+  "checks": {},
+  "beds": [],
+  "board_order": [
+    "brd_00000000000000000000001CTD",
+    "brd_00000000000000000000001CTE",
+    "brd_00000000000000000000001CTF"
+  ],
+  "boards": [
+    {
+      "title": "The operator's setup",
+      "lines": [
+        {
+          "speaker": "a",
+          "text": "We issue one ticket per wait.",
+          "gap_before_ms": null,
+          "id": "lin_0000000000000000000000E083"
+        }
+      ],
+      "timing": {
+        "lead_ms": 150,
+        "tail_ms": 300,
+        "hold_ms": null
+      },
+      "voice": {
+        "style": "cast",
+        "current_version_id": null
+      },
+      "cast": [
+        {
+          "slot": "a",
+          "asset_version_id": "asv_00000000000000000000001CTQ"
+        }
+      ],
+      "photo": {
+        "prompt": null,
+        "input_asset_version_ids": [],
+        "current_version_id": null
+      },
+      "layout": {
+        "preset": "default",
+        "foreground": true
+      },
+      "method": {
+        "layer": "layered",
+        "motion": "s2v"
+      },
+      "cues": [],
+      "notes": [
+        {
+          "text": "Keep the editor's dry opening read.",
+          "id": "nte_0000000000000000000000E083"
+        }
+      ],
+      "seeds": {},
+      "schema": "studio.board/v1",
+      "id": "brd_00000000000000000000001CTD",
+      "story_id": "sty_00000000000000000000001CTC",
+      "number": 1,
+      "revision": 2,
+      "drafted_by": {
+        "kind": "agent",
+        "key_id": "key_000000000000000000000000E7"
+      },
+      "origin": null,
+      "created_by": {
+        "kind": "agent",
+        "key_id": "key_000000000000000000000000E7"
+      },
+      "draft_application": {
+        "board_key": "notice",
+        "draft_sha256": "7f16389f047cf8b88d9317dabb84d0dca93eabb71c00cdb89a0ba799c38df46b",
+        "model": "fixture",
+        "session": "op455-fixture",
+        "applied_at": "2026-11-25T00:00:00Z",
+        "board_revision": 1,
+        "applied_board_revision": 1,
+        "person_edit": "content",
+        "person_edit_revision": 2
+      }
+    },
+    {
+      "title": "Two short turns",
+      "lines": [
+        {
+          "speaker": "a",
+          "text": "Take one ticket.",
+          "gap_before_ms": null,
+          "id": "lin_0000000000000000000000E08D"
+        },
+        {
+          "speaker": "b",
+          "text": "I'll wait.",
+          "gap_before_ms": 200,
+          "id": "lin_0000000000000000000000E08E"
+        }
+      ],
+      "timing": {
+        "lead_ms": 150,
+        "tail_ms": 300,
+        "hold_ms": null
+      },
+      "voice": {
+        "style": "cast",
+        "current_version_id": null
+      },
+      "cast": [
+        {
+          "slot": "a",
+          "asset_version_id": "asv_00000000000000000000001CTQ"
+        },
+        {
+          "slot": "b",
+          "asset_version_id": "asv_00000000000000000000001CTR"
+        }
+      ],
+      "photo": {
+        "prompt": null,
+        "input_asset_version_ids": [],
+        "current_version_id": null
+      },
+      "layout": {
+        "preset": "default",
+        "foreground": true
+      },
+      "method": {
+        "layer": "layered",
+        "motion": "s2v"
+      },
+      "cues": [],
+      "notes": [
+        {
+          "text": "Rough dialogue to revise.",
+          "id": "nte_0000000000000000000000E08D"
+        }
+      ],
+      "seeds": {},
+      "schema": "studio.board/v1",
+      "id": "brd_00000000000000000000001CTE",
+      "story_id": "sty_00000000000000000000001CTC",
+      "number": 2,
+      "revision": 1,
+      "drafted_by": {
+        "kind": "agent",
+        "key_id": "key_000000000000000000000000E7"
+      },
+      "origin": null,
+      "created_by": {
+        "kind": "agent",
+        "key_id": "key_000000000000000000000000E7"
+      },
+      "draft_application": {
+        "board_key": "exchange",
+        "draft_sha256": "7f16389f047cf8b88d9317dabb84d0dca93eabb71c00cdb89a0ba799c38df46b",
+        "model": "fixture",
+        "session": "op455-fixture",
+        "applied_at": "2026-11-25T00:00:00Z",
+        "board_revision": 1,
+        "applied_board_revision": 1
+      }
+    },
+    {
+      "title": "One stuck button",
+      "lines": [],
+      "timing": {
+        "lead_ms": null,
+        "tail_ms": null,
+        "hold_ms": 1600
+      },
+      "voice": {
+        "style": null,
+        "current_version_id": null
+      },
+      "cast": [],
+      "photo": {
+        "prompt": "The bare ticket slot below a stuck red button.",
+        "input_asset_version_ids": [
+          "asv_00000000000000000000001CTC"
+        ],
+        "current_version_id": null
+      },
+      "layout": {
+        "preset": "default",
+        "foreground": false
+      },
+      "method": {
+        "layer": "whole_frame",
+        "motion": "i2v"
+      },
+      "cues": [],
+      "notes": [
+        {
+          "text": "Leave the button in the frame.",
+          "id": "nte_0000000000000000000000E08Q"
+        }
+      ],
+      "seeds": {},
+      "schema": "studio.board/v1",
+      "id": "brd_00000000000000000000001CTF",
+      "story_id": "sty_00000000000000000000001CTC",
+      "number": 3,
+      "revision": 1,
+      "drafted_by": {
+        "kind": "agent",
+        "key_id": "key_000000000000000000000000E7"
+      },
+      "origin": null
+    }
+  ],
+  "origin": null
+}

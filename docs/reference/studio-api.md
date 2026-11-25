@@ -168,6 +168,12 @@ GRANT SELECT, INSERT ON studio.escalation_check_failures, studio.escalation_pack
 GRANT SELECT, INSERT ON studio.run_candidates, studio.candidate_feedback,
     studio.feedback_iterations TO studio_app;
 GRANT UPDATE (feedback_iteration_id) ON studio.stories TO studio_app;
+-- Applied by revision 0009_release_packages.
+GRANT SELECT, INSERT ON studio.release_packages, studio.publications,
+    studio.feedback_iteration_clears TO studio_app;
+
+-- Applied by revision 0010_staging_archive.
+GRANT SELECT, INSERT ON studio.archive_records, studio.archive_versions TO studio_app;
 
 -- Applied by revision 0011_worker_lane_grants.
 GRANT SELECT ON studio.worker_lane_grants TO studio_app;
@@ -294,6 +300,9 @@ token or digest.
   their `draft:write` grants. Keys with `runs:queue` may enqueue and cancel runs.
   An explicit `formats:write` grant allows catalog authoring. See
   [format recipes](formats.md#api-and-scopes) for catalog access.
+  `archive:read` and `archive:write` grant access to the production's
+  [staging archive](staging-archive.md). Storyboard apply needs both
+  `archive:read` and `draft:write` in that production.
 - The P-14 `WorkerRoute` authenticates a worker bearer token before reading
   the query or body of any `/internal/v1/work/*` route. A worker token provides
   a worker principal here. Public Studio routes accept agent keys or sessions.
@@ -346,10 +355,13 @@ such as a recovered import, returns 404 `run.snapshot_missing`. A missing
 pinned blob returns 503 `run.snapshot_lost`. The route checks the recorded
 hash and a 16 MiB read limit before serving bytes or returning 304 for a matching
 `If-None-Match`. The browser verifies the bytes against the recorded hash
-before comparing board IDs.
+before comparing board IDs. A newly built snapshot over the same limit is
+refused before queuing with 422 `run.snapshot_too_large` and its size evidence.
 
 Use [Candidate feedback](feedback.md) to present a finished run for a frozen
 target, record people's notes and start a new draft revision.
+Use [Release packages](release-package.md) to prepare a manual release for a
+frozen target and record a drop after go-live.
 
 The catalog serves visible canonical versions through `GET /v1/assets`.
 Filter by kind, one or more labels, production or board. The board filter
@@ -497,7 +509,7 @@ STUDIO_THREADS=2 OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 uv run --no-sync pytes
 
 The DB suite reads `STUDIO_TEST_DATABASE_URL` for a disposable PostgreSQL 16
 database. The fixture identity creates a schema and temporary roles. It
-checks the upgrade path through `0008_candidate_feedback` and exercises
+checks the upgrade path through `0009_release_packages` and exercises
 downgrade to base and upgrade from an empty schema. API and store operations run with the executable
 Alembic grants. The suite checks key administration with the dedicated role,
 runtime-role refusal, and protection for ownership, snapshot and Wan attempt

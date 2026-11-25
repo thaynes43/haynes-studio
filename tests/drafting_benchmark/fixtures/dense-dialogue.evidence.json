@@ -1,0 +1,18 @@
+{
+  "schema": "studio.drafting-benchmark-evidence/v1",
+  "draft_sha256": "1d1be205ae5dce09222a1f334da0c14fa53d062f2630fd37caced32a79589828",
+  "writes": [
+    {
+      "production_id": "prd_00000000000000000000001CTC",
+      "story_id": "sty_00000000000000000000001CTC",
+      "board_key": "exchange",
+      "board_id": "brd_00000000000000000000001CTE",
+      "applied": true,
+      "tool": "studio_patch_board"
+    }
+  ],
+  "protected_boards": {
+    "brd_00000000000000000000001CTD": "{\"cast\":[{\"asset_version_id\":\"asv_00000000000000000000001CTQ\",\"slot\":\"a\"}],\"created_by\":{\"key_id\":\"key_000000000000000000000000E7\",\"kind\":\"agent\"},\"cues\":[],\"draft_application\":{\"applied_at\":\"2026-11-25T00:00:00Z\",\"applied_board_revision\":1,\"board_key\":\"notice\",\"board_revision\":1,\"draft_sha256\":\"7f16389f047cf8b88d9317dabb84d0dca93eabb71c00cdb89a0ba799c38df46b\",\"model\":\"fixture\",\"person_edit\":\"content\",\"person_edit_revision\":2,\"session\":\"op455-fixture\"},\"drafted_by\":{\"key_id\":\"key_000000000000000000000000E7\",\"kind\":\"agent\"},\"id\":\"brd_00000000000000000000001CTD\",\"layout\":{\"foreground\":true,\"preset\":\"default\"},\"lines\":[{\"gap_before_ms\":null,\"id\":\"lin_0000000000000000000000E083\",\"speaker\":\"a\",\"text\":\"We issue one ticket per wait.\"}],\"method\":{\"layer\":\"layered\",\"motion\":\"s2v\"},\"notes\":[{\"id\":\"nte_0000000000000000000000E083\",\"text\":\"Keep the editor's dry opening read.\"}],\"number\":1,\"origin\":null,\"photo\":{\"current_version_id\":null,\"input_asset_version_ids\":[],\"prompt\":null},\"revision\":2,\"schema\":\"studio.board/v1\",\"seeds\":{},\"story_id\":\"sty_00000000000000000000001CTC\",\"timing\":{\"hold_ms\":null,\"lead_ms\":150,\"tail_ms\":300},\"title\":\"The operator's setup\",\"voice\":{\"current_version_id\":null,\"style\":\"cast\"}}",
+    "brd_00000000000000000000001CTF": "{\"cast\":[],\"cues\":[],\"drafted_by\":{\"key_id\":\"key_000000000000000000000000E7\",\"kind\":\"agent\"},\"id\":\"brd_00000000000000000000001CTF\",\"layout\":{\"foreground\":false,\"preset\":\"default\"},\"lines\":[],\"method\":{\"layer\":\"whole_frame\",\"motion\":\"i2v\"},\"notes\":[{\"id\":\"nte_0000000000000000000000E08Q\",\"text\":\"Leave the button in the frame.\"}],\"number\":3,\"origin\":null,\"photo\":{\"current_version_id\":null,\"input_asset_version_ids\":[\"asv_00000000000000000000001CTC\"],\"prompt\":\"The bare ticket slot below a stuck red button.\"},\"revision\":1,\"schema\":\"studio.board/v1\",\"seeds\":{},\"story_id\":\"sty_00000000000000000000001CTC\",\"timing\":{\"hold_ms\":1600,\"lead_ms\":null,\"tail_ms\":null},\"title\":\"One stuck button\",\"voice\":{\"current_version_id\":null,\"style\":null}}"
+  }
+}

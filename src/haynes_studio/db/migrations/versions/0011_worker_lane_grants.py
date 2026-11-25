@@ -5,7 +5,7 @@ from alembic import op
 from haynes_studio.db.grants import WORKER_LANE_GRANTS, grant_runtime
 
 revision = "0011_worker_lane_grants"
-down_revision = "0008_candidate_feedback"
+down_revision = "0010_staging_archive"
 branch_labels = None
 depends_on = None
 

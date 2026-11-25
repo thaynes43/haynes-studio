@@ -1,0 +1,46 @@
+{
+  "schema": "studio.agent-draft/v1",
+  "production_id": "prd_00000000000000000000001CM4",
+  "story_id": "sty_00000000000000000000001CM4",
+  "model": "fixture",
+  "session": "op455-handwritten-fixture",
+  "set": {
+    "asset_version_id": "asv_00000000000000000000001CM4"
+  },
+  "boards": [
+    {
+      "key": "locker",
+      "fields": {
+        "title": "After hours",
+        "lines": [],
+        "timing": {
+          "lead_ms": null,
+          "tail_ms": null,
+          "hold_ms": 2000
+        },
+        "voice": null,
+        "cast": [],
+        "photo": {
+          "prompt": "An orange locker alcove with one tiny envelope slot.",
+          "input_asset_version_ids": [
+            "asv_00000000000000000000001CMR"
+          ]
+        },
+        "layout": {
+          "preset": "default",
+          "foreground": false
+        },
+        "method": {
+          "layer": "whole_frame",
+          "motion": "i2v"
+        },
+        "cues": [],
+        "notes": [
+          {
+            "text": "Cut to the second set as the envelope falls into its own slot."
+          }
+        ]
+      }
+    }
+  ]
+}

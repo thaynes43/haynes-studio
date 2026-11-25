@@ -1,0 +1,102 @@
+{
+  "schema": "studio.agent-draft/v1",
+  "production_id": "prd_00000000000000000000001CXG",
+  "story_id": "sty_00000000000000000000001CXG",
+  "model": "fixture",
+  "session": "op455-handwritten-fixture",
+  "set": {
+    "asset_version_id": "asv_00000000000000000000001CXG"
+  },
+  "boards": [
+    {
+      "key": "promise",
+      "fields": {
+        "title": "A noiseless repair",
+        "lines": [
+          {
+            "speaker": "a",
+            "text": "I fixed the bell. It won't make a sound.",
+            "gap_before_ms": null
+          }
+        ],
+        "timing": {
+          "lead_ms": 150,
+          "tail_ms": 300,
+          "hold_ms": null
+        },
+        "voice": "cast",
+        "cast": [
+          {
+            "slot": "a",
+            "asset_version_id": "asv_00000000000000000000001CXV"
+          }
+        ],
+        "photo": {
+          "prompt": null,
+          "input_asset_version_ids": []
+        },
+        "layout": {
+          "preset": "default",
+          "foreground": true
+        },
+        "method": {
+          "layer": "layered",
+          "motion": "s2v"
+        },
+        "cues": [],
+        "notes": [
+          {
+            "text": "Drelli speaks like she is reading a guarantee."
+          }
+        ]
+      }
+    },
+    {
+      "key": "latch",
+      "fields": {
+        "title": "The bell stays silent",
+        "lines": [],
+        "timing": {
+          "lead_ms": null,
+          "tail_ms": null,
+          "hold_ms": 2000
+        },
+        "voice": null,
+        "cast": [
+          {
+            "slot": "a",
+            "asset_version_id": "asv_00000000000000000000001CXV"
+          }
+        ],
+        "photo": {
+          "prompt": null,
+          "input_asset_version_ids": []
+        },
+        "layout": {
+          "preset": "default",
+          "foreground": true
+        },
+        "method": {
+          "layer": "layered",
+          "motion": "i2v"
+        },
+        "cues": [
+          {
+            "type": "sound",
+            "asset_version_id": "asv_00000000000000000000001CY4",
+            "anchor": {
+              "at_ms": 1250
+            },
+            "trim_ms": null,
+            "level_rms_dbfs": -22
+          }
+        ],
+        "notes": [
+          {
+            "text": "Pause on the folded hands. Let the latch have the last word."
+          }
+        ]
+      }
+    }
+  ]
+}

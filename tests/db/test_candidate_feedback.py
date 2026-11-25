@@ -5,18 +5,20 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy.exc import ProgrammingError
+import sqlalchemy as sa
+from sqlalchemy.exc import IntegrityError, ProgrammingError
 
+from haynes_studio.api.auth import Actor
 from haynes_studio.build.validate import validate_run
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.db import runs
 from haynes_studio.drafting.declaration import READ_TOKEN_HEADER
-from haynes_studio.db.schema import candidate_feedback, feedback_iterations, run_candidates
+from haynes_studio.db.schema import candidate_feedback, feedback_iteration_clears, feedback_iterations, run_candidates, stories
 from tests.db.test_formats import create_format, pin
 from tests.db.test_go_live import finished_fixture
 from tests.db.test_run_queue import queue, queue_run, worker_credentials
 from tests.db.test_studio_api import (
-    client, engine, new_production, owner_engine, register_agent, runtime_db, runtime_role, service,
+    client, engine, new_production, owner_engine, register_agent, runtime_db, runtime_role, service, sign_in,
 )
 from tests.formats.fixtures import doll_short
 
@@ -107,6 +109,10 @@ def test_targets_and_board_ids_are_from_the_frozen_run(queue):
     assert items[first["id"]]["notes"] == [saved, corrected]
     assert items[second["id"]]["notes"] == []
     assert first_page["revision"] == 7 and first_page["iteration"] is None
+    filtered = body(q.browser.get(list_path, params={
+        "candidate_id": first["id"], "note_ids": [saved["id"]],
+    }), 200)
+    assert filtered["items"] == [{**items[first["id"]], "notes": [saved]}]
 
 
 def test_iteration_preserves_approval_and_person_edits_and_queues_lineage(queue):
@@ -209,6 +215,70 @@ def test_refuses_unfinished_runs_and_runs_without_a_recipe(queue):
     refuse(present(q, run, "fixture-target"), 422, "candidate.run_unfinished")
     finish(q, run)
     refuse(present(q, run, "fixture-target"), 422, "candidate.format_missing")
+
+
+def test_clear_iteration_is_a_persons_revisioned_write_and_preserves_history(queue):
+    q = queue
+    run, _, target = queue_formatted(q)
+    candidate = body(present(q, run, target), 201)
+    saved = body(note(q, candidate, "Hold the reaction"), 201)
+    body(start(q, candidate, 4, [saved["id"]]), 201)
+    before = body(queue_run(q, "before-clear", rev=5), 201)
+    assert before["answers"]["note_ids"] == [saved["id"]]
+    path = f"/v1/stories/{q.story_id}/feedback-iteration"
+    _, agent = register_agent(q.owner, {q.production_id: ["read", "draft:write"]})
+    refuse(q.browser.delete(path, headers={**agent, "If-Match": "5"}), 403, "feedback.person_required")
+    refuse(q.browser.delete(path, headers={**q.csrf, "If-Match": "4"}), 409, "conflict.revision")
+    response = q.browser.delete(path, headers={**q.csrf, "If-Match": "5"})
+    assert body(response, 200) == {"revision": 6, "cleared": True}
+    assert response.headers["etag"] == '"6"'
+    assert body(q.browser.delete(path, headers={**q.csrf, "If-Match": "6"}), 200) == {
+        "revision": 6, "cleared": False,
+    }
+    page = body(q.browser.get(f"/v1/stories/{q.story_id}/candidates"), 200)
+    assert page["iteration"] is None and page["items"][0]["notes"] == [saved]
+    assert "answers" not in body(queue_run(q, "after-clear", rev=6), 201)
+    assert body(q.browser.get(f'/v1/runs/{before["id"]}'), 200)["answers"] == before["answers"]
+    with q.owner.connect() as conn:
+        audit = conn.execute(sa.select(feedback_iteration_clears)).mappings().one()
+        assert audit["story_id"] == q.story_id and audit["revision"] == 6
+        assert audit["document"]["cleared_by"]["kind"] == "human" and audit["document"]["cleared_at"]
+
+
+def test_db_refuses_to_reference_another_storys_iteration(queue, engine):
+    q = queue
+    run, _, target = queue_formatted(q)
+    candidate = body(present(q, run, target), 201)
+    saved = body(note(q, candidate, "Held note"), 201)
+    body(start(q, candidate, 4, [saved["id"]]), 201)
+    other = body(q.browser.post(f"/v1/productions/{q.production_id}/media-types/short/stories",
+                                json={"title": "Another fixture story"}, headers=q.csrf), 201)["id"]
+    with engine.connect() as conn:
+        iteration = conn.scalar(sa.select(stories.c.feedback_iteration_id).where(stories.c.id == q.story_id))
+    with pytest.raises(IntegrityError) as denied, engine.begin() as conn:
+        conn.execute(stories.update().where(stories.c.id == other).values(feedback_iteration_id=iteration))
+    assert denied.value.orig.diag.constraint_name == "stories_feedback_iteration_same_story"
+
+
+def test_clear_iteration_hides_stories_outside_the_persons_draft_scope(queue, monkeypatch):
+    q = queue
+    run, _, target = queue_formatted(q)
+    candidate = body(present(q, run, target), 201)
+    saved = body(note(q, candidate, "Retain this", boards=[q.board_id]), 201)
+    started = body(start(q, candidate, 4, [saved["id"]]), 201)
+    other = new_production(q.browser, q.csrf)
+    outsider = client(q.app)
+    csrf = sign_in(outsider, q.issuer, "two")
+    original = Actor.productions
+    monkeypatch.setattr(Actor, "productions", lambda actor, scope: (
+        frozenset({other}) if actor.principal.sub == "two" and scope == "draft:write" else original(actor, scope)
+    ))
+    base = f"/v1/stories/{q.story_id}"
+    for revision in ("4", "5"):
+        refuse(outsider.delete(base + "/feedback-iteration", headers={**csrf, "If-Match": revision}), 404, "not_found")
+    current = body(q.browser.get(base + "/candidates"), 200)
+    assert current["revision"] == started["revision"]
+    assert current["iteration"] == started["iteration"]
 
 
 @pytest.mark.parametrize("table", [run_candidates, candidate_feedback, feedback_iterations],

@@ -7,6 +7,7 @@ import { GoLive, ReviewTime, approvalRefusal } from "./production-approval";
 import { ReviewBoard, StoryBoards } from "./production-boards";
 import { CandidateReview, RunAnswers } from "./production-feedback";
 import { readProductionFilters, toggleProductionFilter, type ProductionFilters } from "./production-filters";
+import { ReleasePackages } from "./production-release";
 import { hasDelivery, loadDelivery, loadRuns, runStates, type Run } from "./production-review-data";
 import { boardLabel, listStories, type RouteData, type Story } from "./route-data";
 import { treePath, type Context, type MediaKind } from "./routes";
@@ -79,11 +80,13 @@ function RunChecks({ run }: { run: Run }) {
   </section>;
 }
 
-function FinishedRun({ api, run, path, onDecision }: {
+function FinishedRun({ api, run, path, onDecision, reloadDraft }: {
   api: StudioClient; run: Run; path: string; onDecision: (approval: Approval) => void;
+  reloadDraft: (signal: AbortSignal) => Promise<void>;
 }) {
   const load = useCallback((signal: AbortSignal) => loadDelivery(api, run, signal), [api, run]);
   const { result, retry } = useRequest(load);
+  const [approvalChange, setApprovalChange] = useState(0);
   if (result.status === "loading") return <p role="status" className="muted">Loading delivery…</p>;
   return <>
     {result.status === "failure" && <Problem error={result.error} retry={retry}
@@ -93,7 +96,12 @@ function FinishedRun({ api, run, path, onDecision }: {
       : <DeliveryPlayer delivery={result.data} />)}
     <RunChecks run={run} />
     <GoLive api={api} run={run} delivery={result.status === "success" ? result.data : undefined}
-      path={path} onDecision={onDecision} />
+      path={path} onDecision={(record) => {
+        setApprovalChange((value) => value + 1);
+        onDecision(record);
+      }} />
+    {run.status === "succeeded" && run.legacy == null && <ReleasePackages api={api} id={run.id}
+      runPath={path} approvalChange={approvalChange} onPublication={reloadDraft} />}
   </>;
 }
 
@@ -129,6 +137,7 @@ function StoryRuns({ api, story, context, run, reloadDraft }: {
               </div>
               <RunAnswers run={selected} runs={runs} context={context} />
               {hasDelivery(selected) && <FinishedRun api={api} run={selected}
+                reloadDraft={reloadDraft}
                 path={treePath("productions", { ...context, run: selected.id })}
                 onDecision={(record) => setDecisions((prior) => ({
                   ...prior, [record.run_id]: record.derived.state === "active",
@@ -159,7 +168,7 @@ export function ProductionReview({ api, data, context }: {
 
   return <>
     <div className="review-toolbar">
-      {!board && <p className="review-badges"><span>{storyStatus(story)}</span></p>}
+      {!board && <p className="review-badges"><span>{storyStatus(draft)}</span></p>}
       <Link className="pill" to={treePath("board", context)}>Open editor</Link>
     </div>
     {board

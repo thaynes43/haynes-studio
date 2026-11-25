@@ -97,6 +97,10 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       await expect(previous).toHaveAttribute("href", runPath(oldRun));
       await previous.click();
       await expect(page.getByRole("list", { name: "Feedback notes" })).toBeVisible();
+      const clear = candidates.getByRole("button", { name: "Clear draft iteration" });
+      await clear.click();
+      await expect(clear).toHaveCount(0);
+      await expect(forward).toHaveAttribute("href", runPath(answer.id));
       expect(api.violations).toEqual([]);
     });
   });

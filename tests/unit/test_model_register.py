@@ -14,9 +14,7 @@ def approval_register(monkeypatch):
     from haynes_studio.api.approval_routes import licence_register
 
     monkeypatch.delenv("STUDIO_MODEL_REGISTER", raising=False)
-    licence_register.cache_clear()
-    yield licence_register
-    licence_register.cache_clear()
+    return licence_register
 
 
 def test_api_and_library_read_the_packaged_register_from_any_directory(

@@ -1,0 +1,119 @@
+{
+  "schema": "studio.agent-draft/v1",
+  "production_id": "prd_00000000000000000000001CH0",
+  "story_id": "sty_00000000000000000000001CH0",
+  "model": "fixture",
+  "session": "op455-handwritten-fixture",
+  "set": {
+    "asset_version_id": "asv_00000000000000000000001CH0"
+  },
+  "boards": [
+    {
+      "key": "roll-call",
+      "fields": {
+        "title": "Everybody qualifies",
+        "lines": [
+          {
+            "speaker": "a",
+            "text": "Fastest at the starting whistle.",
+            "gap_before_ms": null
+          },
+          {
+            "speaker": "b",
+            "text": "Fastest at folding the map.",
+            "gap_before_ms": 200
+          },
+          {
+            "speaker": "c",
+            "text": "Fastest at returning the map.",
+            "gap_before_ms": 200
+          },
+          {
+            "speaker": "d",
+            "text": "Fastest at waiting for the map.",
+            "gap_before_ms": 200
+          }
+        ],
+        "timing": {
+          "lead_ms": 150,
+          "tail_ms": 300,
+          "hold_ms": null
+        },
+        "voice": "cast",
+        "cast": [
+          {
+            "slot": "a",
+            "asset_version_id": "asv_00000000000000000000001CHB"
+          },
+          {
+            "slot": "b",
+            "asset_version_id": "asv_00000000000000000000001CHC"
+          },
+          {
+            "slot": "c",
+            "asset_version_id": "asv_00000000000000000000001CHD"
+          },
+          {
+            "slot": "d",
+            "asset_version_id": "asv_00000000000000000000001CHE"
+          }
+        ],
+        "photo": {
+          "prompt": null,
+          "input_asset_version_ids": []
+        },
+        "layout": {
+          "preset": "default",
+          "foreground": true
+        },
+        "method": {
+          "layer": "layered",
+          "motion": "s2v"
+        },
+        "cues": [],
+        "notes": [
+          {
+            "text": "Stay wide so the four molded faces read as a group."
+          }
+        ]
+      }
+    },
+    {
+      "key": "clothespin",
+      "fields": {
+        "title": "The winner",
+        "lines": [],
+        "timing": {
+          "lead_ms": null,
+          "tail_ms": null,
+          "hold_ms": 2100
+        },
+        "voice": null,
+        "cast": [
+          {
+            "slot": "a",
+            "asset_version_id": "asv_00000000000000000000001CHB"
+          }
+        ],
+        "photo": {
+          "prompt": null,
+          "input_asset_version_ids": []
+        },
+        "layout": {
+          "preset": "default",
+          "foreground": true
+        },
+        "method": {
+          "layer": "layered",
+          "motion": "i2v"
+        },
+        "cues": [],
+        "notes": [
+          {
+            "text": "Brix watches the award ribbon settle on the clothespin, deadpan."
+          }
+        ]
+      }
+    }
+  ]
+}
