@@ -81,8 +81,11 @@ def _draft_document(archive: Archive) -> dict:
 
 
 def _imported_run(archive: Archive, imported_at: str) -> dict:
-    return {**archive.run, "provenance": {
-        **archive.run["provenance"], "archive_import": {**archive.marker, "imported_at": imported_at},
+    # Go-live already refuses a non-null legacy block. Preserve the historical
+    # succeeded status and provenance, and use that block for the import audit.
+    return {**archive.run, "legacy": {
+        **(archive.run["legacy"] or {}),
+        "archive_import": {**archive.marker, "imported_at": imported_at},
     }}
 
 
@@ -90,7 +93,8 @@ def _already_imported(conn: sa.Connection, archive: Archive, row) -> bool:
     if row is None:
         return False
     run = row["document"]
-    mark = (run.get("provenance") or {}).get("archive_import")
+    legacy = run.get("legacy")
+    mark = legacy.get("archive_import") if isinstance(legacy, dict) else None
     if (not isinstance(mark, dict) or "imported_at" not in mark
             or run != _imported_run(archive, mark["imported_at"])
             or row["production_id"] != archive.production_id

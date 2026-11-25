@@ -74,12 +74,11 @@ Read the delivery with `GET /v1/runs/{id}/delivery` and the two MP4s with
 the delivery. The API supports byte ranges. [Private playback](studio-api.md#private-playback)
 
 Imported runs retain their original terminal status and have
-`provenance.archive_import` in the run document. Its fields are `source_directory`
+`legacy.archive_import` in the run document. Its fields are `source_directory`
 (the basename), `source_kind` (`canonical` or `recovered`), `receipt_sha256`
 (the SHA-256 of the canonical JSON inventory) and `imported_at` (UTC database
-time). Story [412](https://work.haynesnetwork.com/work_packages/412) can use the
-presence of this field to refuse go-live approval for either layout. Imports
-are ineligible for go-live.
+time). The existing [go-live check](go-live.md) refuses either layout through
+the populated `legacy` block and returns `approval.legacy_run`.
 
 ## Database privileges
 

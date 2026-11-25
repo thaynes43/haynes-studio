@@ -25,6 +25,7 @@ def facts(path):
 class FixtureArchive:
     root: Path
     receipt: Path
+    name: str
     production_id: str
     run: dict
     delivery_id: str
@@ -34,7 +35,7 @@ class FixtureArchive:
 
     def args(self):
         args = ["import-production", str(self.root), "--receipt", str(self.receipt),
-                "--name", NAME, "--media-type", KIND]
+                "--name", self.name, "--media-type", KIND]
         return args + (["--recovered"] if self.recovered else [])
 
     def files(self):
@@ -53,6 +54,7 @@ def make_archive(parent, *, recovered=False, delivery_id=None):
 
     ids = Minter()
     production_id, story_id, board_id = (ids.mint(kind) for kind in ("prd", "sty", "brd"))
+    name = f"{NAME} {production_id}"
     run_id = ids.mint("run")
     delivery_id = delivery_id or ids.mint("dlv")
     asset = example("asset-version-photo-external.json")
@@ -75,7 +77,7 @@ def make_archive(parent, *, recovered=False, delivery_id=None):
                  method={"layer": "whole_frame", "motion": "i2v"}, seeds={"i2v:frame": 1})
     story.update(id=story_id, production_id=production_id, origin=None, board_order=[board_id],
                  boards=[board], cast=[], narrator_voice_version_id=None, set=None, beds=[],
-                 layouts={"default": {}}, motion_style=None, title=NAME)
+                 layouts={"default": {}}, motion_style=None, title=name)
     snapshot = {
         "schema": "studio.run-snapshot/v1", "story": story,
         "resolved_asset_versions": [{"id": asset["id"], "kind": "photo", "sha256": content["sha256"]}],
@@ -109,7 +111,7 @@ def make_archive(parent, *, recovered=False, delivery_id=None):
             "run_id": run_id, "delivery_id": delivery_id, "frames": FRAMES, "fps": 24, **records,
         })
         write("ledger.json", {
-            "id": "a" * 32, "kind": "edited_production", "state": "succeeded", "title": NAME,
+            "id": "a" * 32, "kind": "edited_production", "state": "succeeded", "title": name,
             "story": "fixture", "preset": "studio-private-view", "created_at": 1795277519,
             "finished_at": 1795277520, "output": f"productions/{archive.name}/proxy.mp4",
             **records["proxy"], "assets": [], "telemetry": {}, "provenance": {
@@ -139,7 +141,7 @@ def make_archive(parent, *, recovered=False, delivery_id=None):
         write("transcript-run.json", {"fixture": "transcript-run"})
         write("wan-clip.json", {"fixture": "wan-clip"})
         write("wan-service-run.json", {"fixture": "wan-service-run"})
-    fixture = FixtureArchive(archive, parent / "receipt.json", production_id, run, delivery_id,
+    fixture = FixtureArchive(archive, parent / "receipt.json", name, production_id, run, delivery_id,
                              snapshot, asset, recovered)
     fixture.receipt.write_bytes(canonical_json(fixture.files()))
     return fixture

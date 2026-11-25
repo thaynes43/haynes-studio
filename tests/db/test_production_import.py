@@ -23,7 +23,7 @@ from haynes_studio.store import LocalStore, StagingLeftoverWarning
 from tests.db.test_studio_api import (
     client, engine, new_production, register_agent, runtime_role, service, sign_in,
 )
-from tests.importer.production_fixture import NAME, make_archive
+from tests.importer.production_fixture import make_archive
 from tests.support.database import new_schema_name
 
 pytestmark = pytest.mark.db
@@ -121,21 +121,29 @@ def test_import_replay_and_production_scoped_media(operator, service, owner_engi
     assert str(tmp_path) not in first.out
 
     browser = client(app)
+    app.state.oidc.settings = replace(issuer.settings(), go_live_approver_subjects=frozenset({"one"}))
     with client(app) as owner:
-        other = new_production(owner, sign_in(owner, issuer))
+        csrf = sign_in(owner, issuer)
+        other = new_production(owner, csrf)
+        approval = owner.post(f'/v1/runs/{result["run_id"]}/go-live-approvals', headers=csrf,
+                              json={"master_sha256": before["final.mp4"]["sha256"],
+                                    "platform_setting": True})
+        assert approval.status_code == 422
+        assert approval.json()["error"]["code"] == "approval.legacy_run"
     _, headers = register_agent(owner_engine, {fixture.production_id: ["read"]})
     _, wrong = register_agent(owner_engine, {other: ["read"]})
     production = browser.get(f'/v1/productions/{result["production_id"]}', headers=headers)
-    assert production.status_code == 200 and production.json()["name"] == NAME
+    assert production.status_code == 200 and production.json()["name"] == fixture.name
     source = browser.get(f'/v1/stories/{result["story_id"]}', headers=headers)
     assert source.status_code == 200
     assert len(source.json()["board_order"]) == result["boards"]
     run = browser.get(f'/v1/runs/{result["run_id"]}', headers=headers)
     assert run.status_code == 200
     doc = run.json()
-    marker = doc["provenance"]["archive_import"]
+    marker = doc["legacy"]["archive_import"]
     assert doc["status"] == "succeeded" and doc["number"] == fixture.run["number"]
     assert doc["snapshot"] == fixture.run["snapshot"]
+    assert doc["provenance"] == fixture.run["provenance"]
     assert marker["source_directory"] == fixture.root.name and marker["imported_at"].endswith("Z")
     assert marker["source_kind"] == ("recovered" if recovered else "canonical")
     response = browser.get(f'/v1/runs/{result["run_id"]}/delivery', headers=headers)

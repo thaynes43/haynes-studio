@@ -320,7 +320,7 @@ def verify_archive(directory: Path, receipt_path: Path, *, name: str, kind: str,
                 docs[member] = document
         run = docs["run.json"]
         if (blocking(validate_run(run)) or run["status"] != "succeeded" or run["delivery_id"] is None
-                or not isinstance(run["provenance"], dict) or "archive_import" in run["provenance"]
+                or not isinstance(run["provenance"], dict) or "archive_import" in (run["legacy"] or {})
                 or run["finished_at"] is None or not isinstance(run["outputs"], dict)
                 or run["progress"]["stage"] != "delivered"
                 or run["outputs"].get("fps") != FPS
