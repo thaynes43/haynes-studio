@@ -1,0 +1,6 @@
+{
+  "schema": "studio.upscaling-resources/v1",
+  "measuring": {"request_gib": 2, "limit_gib": 8},
+  "serving": null,
+  "quality_peak_gib": 2
+}

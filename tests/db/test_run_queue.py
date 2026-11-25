@@ -800,12 +800,9 @@ def test_only_a_person_can_append_an_override_without_mutating_the_run(queue):
     assert result.json()["by"]["kind"] == "human"
 
 
-@pytest.mark.parametrize("refused", [False, True], ids=["lost-reply", "definite-refusal"])
-def test_worker_recovers_or_fails_staged_delivery(queue, tmp_path, refused):
-    from tests.delivery.media import write_master
+def add_sound_bed(q, tmp_path):
     from tests.support.synthetic import write_sine_wav
 
-    q = queue
     audio = write_sine_wav(tmp_path / "bed.wav", seconds=2.5, rate=48000).read_bytes()
     blob = q.store.publish(audio, scope=q.production_id, media_type="audio/wav")
     version = example("asset-version-cast.json")
@@ -821,6 +818,14 @@ def test_worker_recovers_or_fails_staged_delivery(queue, tmp_path, refused):
                              json={"beds": [{"type": "bed", "asset_version_id": version["id"],
                                              "level_rms_dbfs": -24, "clock": "film"}]})
     assert update.status_code == 200, update.text
+
+
+@pytest.mark.parametrize("refused", [False, True], ids=["lost-reply", "definite-refusal"])
+def test_worker_recovers_or_fails_staged_delivery(queue, tmp_path, refused):
+    from tests.delivery.media import write_master
+
+    q = queue
+    add_sound_bed(q, tmp_path)
     response = queue_run(q, "real-fixture", rev=4)
     assert response.status_code == 201, response.text
     run_id = response.json()["id"]

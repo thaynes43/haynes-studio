@@ -71,6 +71,8 @@ def _check_text(value: str) -> None:
 
 class StrictRequest(Request):
     async def json(self):
+        if hasattr(self, "_json"):
+            return self._json
         try:
             doc = parse_strict((await self.body()).decode("utf-8"))
             if too_deep(doc):
@@ -85,7 +87,8 @@ class StrictRequest(Request):
                     stack.extend(value)
                 elif isinstance(value, str):
                     _check_text(value)
-            return doc
+            self._json = doc
+            return self._json
         except (ValueError, RecursionError) as error:
             raise APIError(422, "schema.invalid", "Expected strict UTF-8 JSON within 64 levels") from error
 
@@ -95,6 +98,9 @@ class MetadataRoute(APIRoute):
 
     def too_large(self):
         return APIError(413, "request.too_large", "Metadata requests are limited to 2 MiB")
+
+    async def before_validation(self, request: StrictRequest) -> None:
+        """Check route-specific access before FastAPI validates parameters."""
 
     def get_route_handler(self):
         handler = super().get_route_handler()
@@ -118,6 +124,8 @@ class MetadataRoute(APIRoute):
                     raise self.too_large()
                 return message
 
-            return await handler(StrictRequest(request.scope, receive))
+            strict_request = StrictRequest(request.scope, receive)
+            await self.before_validation(strict_request)
+            return await handler(strict_request)
 
         return checked

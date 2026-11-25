@@ -48,7 +48,7 @@ jobs:
           revision=$(git rev-parse HEAD)
           test "$revision" = "$GITHUB_SHA"
           epoch=$(git show -s --format=%ct "$revision")
-          for name in studio-segmentation studio studio-web studio-matting; do
+          for name in studio-segmentation studio studio-web studio-matting studio-upscaling; do
             image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/haynes-$name:sha-$revision"
             labels=()
             if [[ $name = studio-matting ]]; then
@@ -59,6 +59,9 @@ jobs:
               labels+=(--label "io.haynes-studio.segmentation.resources=$resources")
               df -Pk "$IMAGE_DIR" | awk 'NR == 2 { ok = ($4 >= 12582912) } END { exit !ok }'
               df -Pi "$IMAGE_DIR" | awk 'NR == 2 { ok = ($4 >= 120000) } END { exit !ok }'
+            elif [[ $name = studio-upscaling ]]; then
+              resources=$(cat src/haynes_studio/upscaling/resources.json)
+              labels+=(--label "io.haynes-studio.upscaling.resources=$resources")
             fi
             docker buildx build --platform linux/amd64 --provenance=false \
               --build-arg "SOURCE_DATE_EPOCH=$epoch" --build-arg "REVISION=$revision" \
@@ -80,7 +83,7 @@ jobs:
               df -Pi "$IMAGE_DIR" | awk 'NR == 2 { ok = ($4 >= 100000) } END { exit !ok }'
             fi
 
-            if [[ $name = studio-matting ]]; then
+            if [[ $name = studio-matting || $name = studio-upscaling ]]; then
               test "$size" -le 1073741824
             fi
             container=$(docker create "$image")
@@ -201,6 +204,16 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Smoke the pinned upscaling runtime with a generated CPU graph
+        shell: bash
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/haynes-studio-upscaling:sha-$GITHUB_SHA"
+          docker run --rm --cpus=2 --memory=1g --network none --read-only --cap-drop=ALL \
+            --security-opt=no-new-privileges \
+            --tmpfs /upscaling:rw,nosuid,nodev,uid=10001,gid=10001,mode=0700,size=256m \
+            --mount "type=bind,src=$GITHUB_WORKSPACE/docker/smoke-upscaling.py,dst=/smoke-upscaling.py,readonly" \
+            "$image" python /smoke-upscaling.py >> "$GITHUB_STEP_SUMMARY"
+
       - name: Save the tested images for the publish job
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -238,7 +251,7 @@ jobs:
         shell: bash
         run: |
           IMAGE_DIR="$RUNNER_TEMP/studio-images"
-          for name in studio-segmentation studio studio-web studio-matting; do
+          for name in studio-segmentation studio studio-web studio-matting studio-upscaling; do
             repository="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/haynes-$name"
             image="$repository:sha-$GITHUB_SHA"
             docker load --input "$IMAGE_DIR/$name.tar"
