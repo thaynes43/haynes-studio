@@ -318,6 +318,12 @@ segmentation = [
     { name = "torchvision", marker = "python_full_version >= '3.12' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "transformers", marker = "python_full_version >= '3.12' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
+upscaling = [
+    { name = "jsonschema" },
+    { name = "numpy" },
+    { name = "opencv-contrib-python-headless", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "pillow" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -360,6 +366,12 @@ segmentation = [
     { name = "torch", marker = "python_full_version == '3.12.*' and platform_machine == 'x86_64' and sys_platform == 'linux'", url = "https://download-r2.pytorch.org/whl/cpu/torch-2.14.1%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl" },
     { name = "torchvision", marker = "python_full_version == '3.12.*' and platform_machine == 'x86_64' and sys_platform == 'linux'", url = "https://download-r2.pytorch.org/whl/cpu/torchvision-0.29.1%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl" },
     { name = "transformers", marker = "python_full_version == '3.12.*' and platform_machine == 'x86_64' and sys_platform == 'linux'", specifier = "==5.24.1" },
+]
+upscaling = [
+    { name = "jsonschema", specifier = ">=4.23,<5" },
+    { name = "numpy", specifier = "==2.4.6" },
+    { name = "opencv-contrib-python-headless", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", specifier = "==4.14.0.94" },
+    { name = "pillow", specifier = "==13.0.0" },
 ]
 
 [[package]]
@@ -703,6 +715,19 @@ dependencies = [
 wheels = [
     { url = "https://files.pythonhosted.org/packages/1d/46/e6f356c9539d2eed44126de3421a81e217da2ad91b22dc11b379cb1e384f/onnxruntime-1.32.0-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:5a34fc4dfeb5a7b4a74c95dcba1e773d722abda720b474edf1b0c419dc6d163d", size = 27773237, upload-time = "2026-11-13T11:06:03.754Z" },
     { url = "https://files.pythonhosted.org/packages/a3/81/55845186c20cba59f614991f4065dea148e48eeb9749893768c85ce64327/onnxruntime-1.32.0-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:99e1074c4b2197accd5073052a465361be17b89c093b8ffb6e6bd8f986c52df8", size = 27780211, upload-time = "2026-11-13T11:06:19.734Z" },
+]
+
+[[package]]
+name = "opencv-contrib-python-headless"
+version = "4.14.0.94"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/47/36/cc620b8809235d50f3713b1b592fcd2f117e41322a10fb37e6d332b8e7b8/opencv_contrib_python_headless-4.14.0.94.tar.gz", hash = "sha256:6cd98a20010c80bf9e6a9cff6189dd2c10bd111fb0aa4d5c6361389514a0ff6c", size = 151872798, upload-time = "2026-07-28T19:22:29.226Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fa/14/c64ee2785ea78e8f63cba05a0fc1fc954864933a34420171dfaa4d0bc27b/opencv_contrib_python_headless-4.14.0.94-cp37-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:4c0a7f18921a010b7418b2059d934ab9206b20cc1b13bd9eac97307f5d973c3e", size = 63665343, upload-time = "2026-07-28T19:16:05.566Z" },
+    { url = "https://files.pythonhosted.org/packages/88/92/a4ad45bfd93398b6a57601b078d4821cfa542610a786fde293b8f77804ea/opencv_contrib_python_headless-4.14.0.94-cp37-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:3ee9718fc1eb2d4439c72ec6ad65831ff6d0802ff6eacab834905d67686f2a38", size = 68184831, upload-time = "2026-07-28T19:17:04.183Z" },
 ]
 
 [[package]]
