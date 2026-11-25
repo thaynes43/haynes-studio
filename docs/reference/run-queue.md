@@ -201,27 +201,43 @@ restart failure allows one fresh attempt per claim before yielding.
 The pinned I2V or S2V graph associates the recorded graph SHA-256 with the model
 file hashes in the licence register.
 
-## Installed proof for story 437
+## Recovery evidence for story 437
 
-[Story 437](https://work.haynesnetwork.com/work_packages/437) records installed
-evidence separately from source test results and creative acceptance.
+[Story 437](https://work.haynesnetwork.com/work_packages/437) exercises
+independent API applications with a shared disposable PostgreSQL database
+and store. The tests compete for the global run head, claim independent
+lanes, fence superseded workers and resume an expired claim after an API
+restart. They terminate a database connection during a claim and check
+that the transaction rolls back, then retry through the API. An accepted
+enqueue retried with its original key and revision keeps its run ID.
 
-- Run the migration Job with the preprovisioned roles, and show the head
-  revision and effective runtime grants. Confirm the runtime user cannot
-  mutate a snapshot, attempt ID or credential table. Confirm claims use HTTP
-  with a worker token and refuse anonymous, browser and agent credentials
-  before parsing a malformed body or query.
-- Through two API replicas, enqueue two revisions and retry an idempotency key.
-  Edit the draft and verify both SHA-256 values, FIFO order and scoped reads.
-- Verify two worker identities compete for one head, an expired fence is
-  rejected, and an API or worker restart leaves every accepted run recoverable.
-- With an approved bounded fixture, observe lost submit acknowledgement, slow
-  poll, expiry and Wan restart. Show recorded IDs, reads before any new
-  submission, and digests. Verify the head retries after foreign work clears, and observe that a lease
-  refusal or loss of talosw01 pauses builds while draft CRUD stays up.
-- Verify a completed private delivery through the authenticated phone proxy,
-  including a Range read, and verify access is refused outside the production.
-  Verify cancelled work stops submissions and only a person can override a
-  permitted visual check.
-- Record image digests, revision and timing together with the private artifact
-  locations and hashes. Keep installed, usable and Tom's verdict separate.
+External engines and the identity provider are synthetic. A slow Wan poll
+allows reads and media claims while the next run keeps its FIFO position.
+After interrupted dispatch, the replacement looks up the saved Wan ID.
+An expired image job with a dispatch marker fails with
+`work.dispatch_unconfirmed` and is never automatically resubmitted. With
+the run worker absent and Wan unavailable, a run stays queued with
+`gpu_unavailable` while draft CRUD, existing delivery reads, the other
+worker lanes and queue read routes remain available.
+
+The installed check belongs to the coordinator. The one-API-pod procedure
+in haynes-ops `docs/reference/studio-deployment.md` measures the internal
+ingress during replacement, verifies Ready placement and continued idle
+claims, and compares read-only evidence from the shared database and store.
+Record the drill result, source test results, human playback and acceptance
+separately.
+
+The installed database grants and rollout evidence are recorded in
+[story 431](https://work.haynesnetwork.com/work_packages/431) and
+[story 434](https://work.haynesnetwork.com/work_packages/434). The queue
+worker pin and startup checks are in
+[story 956](https://work.haynesnetwork.com/work_packages/956). Import,
+image digests, ranged playback and out-of-scope proxy refusal are recorded
+in [story 957](https://work.haynesnetwork.com/work_packages/957). Signed-in
+phone playback is still open in
+[story 944](https://work.haynesnetwork.com/work_packages/944).
+
+The human-only override, lost acknowledgement, slow poll and Wan restart
+have source test coverage. An installed test of those cases needs its own
+authorized fixture and records the image digests and build revision. The
+one-API-pod procedure provides placement, ingress and shared-store evidence.
