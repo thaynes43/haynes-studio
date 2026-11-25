@@ -9,6 +9,7 @@ from haynes_studio.build.prebuild import snapshot_bytes
 from haynes_studio.build.validate import validate_run
 from haynes_studio.canonical.model import to_document
 from haynes_studio.db import catalog, drafts, runs
+from haynes_studio.golive import records as go_live
 from haynes_studio.db.engine import snapshot
 from haynes_studio.db.problems import StaleRevision, require_valid
 from haynes_studio.delivery import read_delivery
@@ -89,6 +90,8 @@ def _prepare(conn, draft):
 
 def _read_view(conn, row, *, detail=True, worker_present=None):
     view = runs.view(conn, row, detail=detail)
+    view["active_approval_id"] = (conn.scalar(go_live.active_id(row["id"]))
+                                  if view["status"] == "succeeded" else None)
     if view["status"] == "queued":
         if worker_present is None:
             worker_present = runs.worker_present(conn)

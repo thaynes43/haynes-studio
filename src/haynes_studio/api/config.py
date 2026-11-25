@@ -31,6 +31,8 @@ class OIDCSettings:
     cache_ttl_seconds: int = 5 * 60
     failure_ttl_seconds: int = 10
     allowed_groups: frozenset[str] = frozenset()
+    go_live_approver_subjects: frozenset[str] = field(default=frozenset(), repr=False)
+    go_live_freshness_seconds: int = 15 * 60
 
     def __post_init__(self):
         if not https_url(self.issuer) or urlsplit(self.issuer).query:
@@ -58,6 +60,10 @@ class OIDCSettings:
             raise ValueError("STUDIO_OIDC_CACHE_TTL_SECONDS must be between 1 and 3600")
         if not 1 <= self.failure_ttl_seconds <= 60:
             raise ValueError("STUDIO_OIDC_FAILURE_TTL_SECONDS must be between 1 and 60")
+        if any(not isinstance(s, str) or not s for s in self.go_live_approver_subjects):
+            raise ValueError("STUDIO_GO_LIVE_APPROVER_SUBJECTS must list verified OIDC subjects")
+        if not 1 <= self.go_live_freshness_seconds <= 86400:
+            raise ValueError("STUDIO_GO_LIVE_FRESHNESS_SECONDS must be between 1 and 86400")
 
     @property
     def redirect_uri(self):
@@ -84,7 +90,9 @@ def from_environment() -> OIDCSettings:
                             leeway_seconds=int(os.environ.get("STUDIO_OIDC_LEEWAY_SECONDS", "60")),
                             cache_ttl_seconds=int(os.environ.get("STUDIO_OIDC_CACHE_TTL_SECONDS", "300")),
                             failure_ttl_seconds=int(os.environ.get("STUDIO_OIDC_FAILURE_TTL_SECONDS", "10")),
-                            allowed_groups=_allowlist_from_environment("STUDIO_OIDC_ALLOWED_GROUPS"))
+                            allowed_groups=_allowlist_from_environment("STUDIO_OIDC_ALLOWED_GROUPS"),
+                            go_live_approver_subjects=_allowlist_from_environment("STUDIO_GO_LIVE_APPROVER_SUBJECTS"),
+                            go_live_freshness_seconds=int(os.environ.get("STUDIO_GO_LIVE_FRESHNESS_SECONDS", "900")))
     except KeyError as missing:
         raise ValueError(f"{missing.args[0]} is required") from None
 

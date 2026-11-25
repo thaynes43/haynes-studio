@@ -88,6 +88,7 @@ def _write_schemas(schemas):
 
 _HUMAN_OPERATIONS = {"get_selections", "put_selections", "create_production", "enable_media_type", "logout"}
 _RUN_QUEUE_OPERATIONS = {"queue_run", "cancel_run", "record_check_override"}
+_GO_LIVE_OPERATIONS = {"approve_go_live", "withdraw_go_live"}
 _DRAFT_OPERATIONS = {"create_story", "update_story", "create_board", "update_board",
                      "reorder_boards", "remove_board"}
 
@@ -101,6 +102,9 @@ def _document_access(document: dict) -> None:
             if name in _HUMAN_OPERATIONS:
                 operation["security"] = [{"StudioSession": []}]
                 operation["x-studio-scope"] = "human"
+            elif name in _GO_LIVE_OPERATIONS:
+                operation["security"] = [{"StudioSession": []}]
+                operation["x-studio-scope"] = "go_live:approve"
             elif name in _RUN_QUEUE_OPERATIONS:
                 if name == "record_check_override":
                     operation["security"] = [{"StudioSession": []}]
@@ -142,11 +146,27 @@ def install_openapi(app: FastAPI):
         # The API returns a story summary and separate boards. The exchange/snapshot
         # representation remains in the canonical schema file.
         schemas["Story"]["properties"].pop("boards")
+        approval_id = {"type": ["string", "null"]}
+        schemas["Story"]["required"].extend(["approved", "published", "latest_finished_run"])
+        schemas["Story"]["properties"].update({
+            "approved": {"type": "boolean"},
+            "published": {"type": "boolean"},
+            "latest_finished_run": {"type": ["object", "null"],
+                                    "required": ["id", "status", "finished_at", "active_approval_id"],
+                                    "properties": {
+                                        "id": {"type": "string"},
+                                        "status": {"enum": ["succeeded", "failed", "cancelled"]},
+                                        "finished_at": {"type": "string", "format": "date-time"},
+                                        "active_approval_id": approval_id,
+                                    }},
+        })
         schemas["AssetDetail"]["properties"]["asset"] = {"$ref": "#/components/schemas/Asset"}
         run = schemas["RunView"]
-        run["required"].extend(["revision", "cancel_requested", "estimate_methods", "queue_wait"])
+        run["required"].extend(["revision", "cancel_requested", "estimate_methods", "queue_wait",
+                                "active_approval_id"])
         run["properties"].update({
             "revision": {"type": "integer", "minimum": 1},
+            "active_approval_id": approval_id,
             "cancel_requested": {"type": "boolean"},
             "estimate_methods": {"type": "array", "items": {"$ref": "#/components/schemas/MethodEstimate"}},
             "queue_wait": {"anyOf": [{"$ref": "#/components/schemas/QueueWait"}, {"type": "null"}]},

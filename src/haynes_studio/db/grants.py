@@ -43,3 +43,8 @@ RUNTIME_GRANTS = METADATA_GRANTS + (
      ("runs",)),
     ("UPDATE (state, outcome)", ("run_wan_attempts",)),
 )
+
+
+GO_LIVE_GRANTS = (
+    ("SELECT, INSERT", ("go_live_approvals", "go_live_withdrawals")),
+)
