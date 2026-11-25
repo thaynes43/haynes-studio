@@ -1,0 +1,1345 @@
+[
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CH0",
+    "asset_id": "ast_00000000000000000000001CH0",
+    "number": 1,
+    "kind": "set",
+    "name": "Relay club table",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CH0"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {},
+    "capabilities": [
+      "opaque_plate"
+    ],
+    "content": {
+      "sha256": "cdbd4682d90c8aa207dcbe9bb5a83dba0709a13c78641c26b3b1d78af1f01b21",
+      "bytes": 55,
+      "media_type": "image/png",
+      "locator": "productions/prd_00000000000000000000001CH0/sha256/cd/cdbd4682d90c8aa207dcbe9bb5a83dba0709a13c78641c26b3b1d78af1f01b21.png"
+    },
+    "provenance": {
+      "origin": "imported",
+      "generator": {
+        "role": "image"
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "recorded_without_media": true,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CH1",
+    "asset_id": "ast_00000000000000000000001CH1",
+    "number": 1,
+    "kind": "voice",
+    "name": "Stock af_heart",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CH0"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {
+      "voice_id": "af_heart",
+      "stock": true
+    },
+    "capabilities": [
+      "tts_voice"
+    ],
+    "content": null,
+    "provenance": {
+      "origin": "declared",
+      "generator": {
+        "role": "voice",
+        "engine": "Kokoro",
+        "model": "Kokoro-82M v1.0",
+        "stock": true
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CHB",
+    "asset_id": "ast_00000000000000000000001CHB",
+    "number": 1,
+    "kind": "cast",
+    "name": "Brix Tovel",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CH0"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {
+      "character_slot": "a"
+    },
+    "capabilities": [
+      "rgba_cutout"
+    ],
+    "content": {
+      "sha256": "76762f4f42096aed827b224257a76180da8b252c24215a365e5eb62790cece21",
+      "bytes": 55,
+      "media_type": "image/png",
+      "locator": "productions/prd_00000000000000000000001CH0/sha256/76/76762f4f42096aed827b224257a76180da8b252c24215a365e5eb62790cece21.png"
+    },
+    "provenance": {
+      "origin": "imported",
+      "generator": {
+        "role": "image"
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "recorded_without_media": true,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CH2",
+    "asset_id": "ast_00000000000000000000001CH2",
+    "number": 1,
+    "kind": "voice",
+    "name": "Stock af_bella",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CH0"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {
+      "voice_id": "af_bella",
+      "stock": true
+    },
+    "capabilities": [
+      "tts_voice"
+    ],
+    "content": null,
+    "provenance": {
+      "origin": "declared",
+      "generator": {
+        "role": "voice",
+        "engine": "Kokoro",
+        "model": "Kokoro-82M v1.0",
+        "stock": true
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CHC",
+    "asset_id": "ast_00000000000000000000001CHC",
+    "number": 1,
+    "kind": "cast",
+    "name": "Marn Quillip",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CH0"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {
+      "character_slot": "b"
+    },
+    "capabilities": [
+      "rgba_cutout"
+    ],
+    "content": {
+      "sha256": "adc65205538776804befa279b212da8b231d8a2610c119b55a8416736338412a",
+      "bytes": 55,
+      "media_type": "image/png",
+      "locator": "productions/prd_00000000000000000000001CH0/sha256/ad/adc65205538776804befa279b212da8b231d8a2610c119b55a8416736338412a.png"
+    },
+    "provenance": {
+      "origin": "imported",
+      "generator": {
+        "role": "image"
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "recorded_without_media": true,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CH3",
+    "asset_id": "ast_00000000000000000000001CH3",
+    "number": 1,
+    "kind": "voice",
+    "name": "Stock af_nicole",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CH0"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {
+      "voice_id": "af_nicole",
+      "stock": true
+    },
+    "capabilities": [
+      "tts_voice"
+    ],
+    "content": null,
+    "provenance": {
+      "origin": "declared",
+      "generator": {
+        "role": "voice",
+        "engine": "Kokoro",
+        "model": "Kokoro-82M v1.0",
+        "stock": true
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CHD",
+    "asset_id": "ast_00000000000000000000001CHD",
+    "number": 1,
+    "kind": "cast",
+    "name": "Nessa Borlo",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CH0"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {
+      "character_slot": "c"
+    },
+    "capabilities": [
+      "rgba_cutout"
+    ],
+    "content": {
+      "sha256": "6ec394766ee3349f4fea57588cf51d7c667d487bab227f8267c74445d5b2e502",
+      "bytes": 55,
+      "media_type": "image/png",
+      "locator": "productions/prd_00000000000000000000001CH0/sha256/6e/6ec394766ee3349f4fea57588cf51d7c667d487bab227f8267c74445d5b2e502.png"
+    },
+    "provenance": {
+      "origin": "imported",
+      "generator": {
+        "role": "image"
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "recorded_without_media": true,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CH4",
+    "asset_id": "ast_00000000000000000000001CH4",
+    "number": 1,
+    "kind": "voice",
+    "name": "Stock am_puck",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CH0"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {
+      "voice_id": "am_puck",
+      "stock": true
+    },
+    "capabilities": [
+      "tts_voice"
+    ],
+    "content": null,
+    "provenance": {
+      "origin": "declared",
+      "generator": {
+        "role": "voice",
+        "engine": "Kokoro",
+        "model": "Kokoro-82M v1.0",
+        "stock": true
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CHE",
+    "asset_id": "ast_00000000000000000000001CHE",
+    "number": 1,
+    "kind": "cast",
+    "name": "Dex Pellock",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CH0"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {
+      "character_slot": "d"
+    },
+    "capabilities": [
+      "rgba_cutout"
+    ],
+    "content": {
+      "sha256": "5418903b4753c3ada7f97c6f1455fb4cfe87fd598132b7954825105a45f94031",
+      "bytes": 55,
+      "media_type": "image/png",
+      "locator": "productions/prd_00000000000000000000001CH0/sha256/54/5418903b4753c3ada7f97c6f1455fb4cfe87fd598132b7954825105a45f94031.png"
+    },
+    "provenance": {
+      "origin": "imported",
+      "generator": {
+        "role": "image"
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "recorded_without_media": true,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CM4",
+    "asset_id": "ast_00000000000000000000001CM4",
+    "number": 1,
+    "kind": "set",
+    "name": "Mint-green return counter",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CM4"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {},
+    "capabilities": [
+      "opaque_plate"
+    ],
+    "content": {
+      "sha256": "f0567c4eecf17cd3b3475f932592f2b904f674d58b5c9d2e3801bbd4e9495ba2",
+      "bytes": 55,
+      "media_type": "image/png",
+      "locator": "productions/prd_00000000000000000000001CM4/sha256/f0/f0567c4eecf17cd3b3475f932592f2b904f674d58b5c9d2e3801bbd4e9495ba2.png"
+    },
+    "provenance": {
+      "origin": "imported",
+      "generator": {
+        "role": "image"
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "recorded_without_media": true,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CM5",
+    "asset_id": "ast_00000000000000000000001CM5",
+    "number": 1,
+    "kind": "voice",
+    "name": "Stock af_heart",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CM4"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {
+      "voice_id": "af_heart",
+      "stock": true
+    },
+    "capabilities": [
+      "tts_voice"
+    ],
+    "content": null,
+    "provenance": {
+      "origin": "declared",
+      "generator": {
+        "role": "voice",
+        "engine": "Kokoro",
+        "model": "Kokoro-82M v1.0",
+        "stock": true
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CMF",
+    "asset_id": "ast_00000000000000000000001CMF",
+    "number": 1,
+    "kind": "cast",
+    "name": "Vellina Tuskett",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CM4"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {
+      "character_slot": "a"
+    },
+    "capabilities": [
+      "rgba_cutout"
+    ],
+    "content": {
+      "sha256": "ad557389c4bb0b9991d13b95e67f5ea665fd3076f5efd079cb8ea278f73861d7",
+      "bytes": 55,
+      "media_type": "image/png",
+      "locator": "productions/prd_00000000000000000000001CM4/sha256/ad/ad557389c4bb0b9991d13b95e67f5ea665fd3076f5efd079cb8ea278f73861d7.png"
+    },
+    "provenance": {
+      "origin": "imported",
+      "generator": {
+        "role": "image"
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "recorded_without_media": true,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CMR",
+    "asset_id": "ast_00000000000000000000001CMR",
+    "number": 1,
+    "kind": "set",
+    "name": "Orange parcel-locker alcove",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CM4"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {},
+    "capabilities": [
+      "opaque_plate"
+    ],
+    "content": {
+      "sha256": "7c9662a9c9cf46f870132393383a0ab62f0dbad5ce01a4a8e30d251c7f5d524e",
+      "bytes": 55,
+      "media_type": "image/png",
+      "locator": "productions/prd_00000000000000000000001CM4/sha256/7c/7c9662a9c9cf46f870132393383a0ab62f0dbad5ce01a4a8e30d251c7f5d524e.png"
+    },
+    "provenance": {
+      "origin": "imported",
+      "generator": {
+        "role": "image"
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "recorded_without_media": true,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CQ8",
+    "asset_id": "ast_00000000000000000000001CQ8",
+    "number": 1,
+    "kind": "set",
+    "name": "Miniature inspection bench",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CQ8"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {},
+    "capabilities": [
+      "opaque_plate"
+    ],
+    "content": {
+      "sha256": "ef036184c2a49b678bff09397ba9fdd5089d76af84103ec7754e21656bbed0e5",
+      "bytes": 55,
+      "media_type": "image/png",
+      "locator": "productions/prd_00000000000000000000001CQ8/sha256/ef/ef036184c2a49b678bff09397ba9fdd5089d76af84103ec7754e21656bbed0e5.png"
+    },
+    "provenance": {
+      "origin": "imported",
+      "generator": {
+        "role": "image"
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "recorded_without_media": true,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CQ9",
+    "asset_id": "ast_00000000000000000000001CQ9",
+    "number": 1,
+    "kind": "voice",
+    "name": "Stock af_heart",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CQ8"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {
+      "voice_id": "af_heart",
+      "stock": true
+    },
+    "capabilities": [
+      "tts_voice"
+    ],
+    "content": null,
+    "provenance": {
+      "origin": "declared",
+      "generator": {
+        "role": "voice",
+        "engine": "Kokoro",
+        "model": "Kokoro-82M v1.0",
+        "stock": true
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CQK",
+    "asset_id": "ast_00000000000000000000001CQK",
+    "number": 1,
+    "kind": "cast",
+    "name": "Tessip Dovell",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CQ8"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {
+      "character_slot": "a"
+    },
+    "capabilities": [
+      "rgba_cutout"
+    ],
+    "content": {
+      "sha256": "23f7238978a0f7a129fdedc4a85906b3b17d7c0aac37859dc52384ec7b527693",
+      "bytes": 55,
+      "media_type": "image/png",
+      "locator": "productions/prd_00000000000000000000001CQ8/sha256/23/23f7238978a0f7a129fdedc4a85906b3b17d7c0aac37859dc52384ec7b527693.png"
+    },
+    "provenance": {
+      "origin": "imported",
+      "generator": {
+        "role": "image"
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "recorded_without_media": true,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CQW",
+    "asset_id": "ast_00000000000000000000001CQW",
+    "number": 1,
+    "kind": "prop",
+    "name": "One chipped teal marble",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CQ8"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {},
+    "capabilities": [
+      "rgba_cutout"
+    ],
+    "content": {
+      "sha256": "ce6000275408db14b87b839ff51b3b66ef845d9d8c0941e97f1c220f4e2a3919",
+      "bytes": 55,
+      "media_type": "image/png",
+      "locator": "productions/prd_00000000000000000000001CQ8/sha256/ce/ce6000275408db14b87b839ff51b3b66ef845d9d8c0941e97f1c220f4e2a3919.png"
+    },
+    "provenance": {
+      "origin": "imported",
+      "generator": {
+        "role": "image"
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "recorded_without_media": true,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CTC",
+    "asset_id": "ast_00000000000000000000001CTC",
+    "number": 1,
+    "kind": "set",
+    "name": "Toy queue kiosk",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CTC"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {},
+    "capabilities": [
+      "opaque_plate"
+    ],
+    "content": {
+      "sha256": "581611f3ff471fea2dfbd9fbc66eadd8aa7f7edb61caf0a0afa55e793f2e3ab5",
+      "bytes": 55,
+      "media_type": "image/png",
+      "locator": "productions/prd_00000000000000000000001CTC/sha256/58/581611f3ff471fea2dfbd9fbc66eadd8aa7f7edb61caf0a0afa55e793f2e3ab5.png"
+    },
+    "provenance": {
+      "origin": "imported",
+      "generator": {
+        "role": "image"
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "recorded_without_media": true,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CTD",
+    "asset_id": "ast_00000000000000000000001CTD",
+    "number": 1,
+    "kind": "voice",
+    "name": "Stock af_heart",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CTC"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {
+      "voice_id": "af_heart",
+      "stock": true
+    },
+    "capabilities": [
+      "tts_voice"
+    ],
+    "content": null,
+    "provenance": {
+      "origin": "declared",
+      "generator": {
+        "role": "voice",
+        "engine": "Kokoro",
+        "model": "Kokoro-82M v1.0",
+        "stock": true
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CTQ",
+    "asset_id": "ast_00000000000000000000001CTQ",
+    "number": 1,
+    "kind": "cast",
+    "name": "Sibbet Vosko",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CTC"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {
+      "character_slot": "a"
+    },
+    "capabilities": [
+      "rgba_cutout"
+    ],
+    "content": {
+      "sha256": "8e00b0484210855b8744bb5bccbf0562072c8794f3a17c7d4082c40bd4b7bf22",
+      "bytes": 55,
+      "media_type": "image/png",
+      "locator": "productions/prd_00000000000000000000001CTC/sha256/8e/8e00b0484210855b8744bb5bccbf0562072c8794f3a17c7d4082c40bd4b7bf22.png"
+    },
+    "provenance": {
+      "origin": "imported",
+      "generator": {
+        "role": "image"
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "recorded_without_media": true,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CTE",
+    "asset_id": "ast_00000000000000000000001CTE",
+    "number": 1,
+    "kind": "voice",
+    "name": "Stock af_bella",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CTC"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {
+      "voice_id": "af_bella",
+      "stock": true
+    },
+    "capabilities": [
+      "tts_voice"
+    ],
+    "content": null,
+    "provenance": {
+      "origin": "declared",
+      "generator": {
+        "role": "voice",
+        "engine": "Kokoro",
+        "model": "Kokoro-82M v1.0",
+        "stock": true
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CTR",
+    "asset_id": "ast_00000000000000000000001CTR",
+    "number": 1,
+    "kind": "cast",
+    "name": "Arlo Pindel",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CTC"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {
+      "character_slot": "b"
+    },
+    "capabilities": [
+      "rgba_cutout"
+    ],
+    "content": {
+      "sha256": "daea279ec72ab07df8332e24cec6a4941b52f7bb9be6d3e1b6f2d211dbf79613",
+      "bytes": 55,
+      "media_type": "image/png",
+      "locator": "productions/prd_00000000000000000000001CTC/sha256/da/daea279ec72ab07df8332e24cec6a4941b52f7bb9be6d3e1b6f2d211dbf79613.png"
+    },
+    "provenance": {
+      "origin": "imported",
+      "generator": {
+        "role": "image"
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "recorded_without_media": true,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CXG",
+    "asset_id": "ast_00000000000000000000001CXG",
+    "number": 1,
+    "kind": "set",
+    "name": "Miniature bell repair stall",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CXG"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {},
+    "capabilities": [
+      "opaque_plate"
+    ],
+    "content": {
+      "sha256": "4e82c7e016b5311b49948dc2bcccaf4db00f662acc2ac1c0f0581f0fd5795de6",
+      "bytes": 55,
+      "media_type": "image/png",
+      "locator": "productions/prd_00000000000000000000001CXG/sha256/4e/4e82c7e016b5311b49948dc2bcccaf4db00f662acc2ac1c0f0581f0fd5795de6.png"
+    },
+    "provenance": {
+      "origin": "imported",
+      "generator": {
+        "role": "image"
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "recorded_without_media": true,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CXH",
+    "asset_id": "ast_00000000000000000000001CXH",
+    "number": 1,
+    "kind": "voice",
+    "name": "Stock af_heart",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CXG"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {
+      "voice_id": "af_heart",
+      "stock": true
+    },
+    "capabilities": [
+      "tts_voice"
+    ],
+    "content": null,
+    "provenance": {
+      "origin": "declared",
+      "generator": {
+        "role": "voice",
+        "engine": "Kokoro",
+        "model": "Kokoro-82M v1.0",
+        "stock": true
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CXV",
+    "asset_id": "ast_00000000000000000000001CXV",
+    "number": 1,
+    "kind": "cast",
+    "name": "Drelli Bunt",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CXG"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {
+      "character_slot": "a"
+    },
+    "capabilities": [
+      "rgba_cutout"
+    ],
+    "content": {
+      "sha256": "c41490b85c792b0ed2ae1b86f119fad4fe9cf0e6b087bffd93dfa933d3a9c3c8",
+      "bytes": 55,
+      "media_type": "image/png",
+      "locator": "productions/prd_00000000000000000000001CXG/sha256/c4/c41490b85c792b0ed2ae1b86f119fad4fe9cf0e6b087bffd93dfa933d3a9c3c8.png"
+    },
+    "provenance": {
+      "origin": "imported",
+      "generator": {
+        "role": "image"
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "recorded_without_media": true,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CY4",
+    "asset_id": "ast_00000000000000000000001CY4",
+    "number": 1,
+    "kind": "sound",
+    "name": "Bench drawer latch click",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CXG"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {},
+    "capabilities": [
+      "sound_effect"
+    ],
+    "content": {
+      "sha256": "b83355b945bdf6af3408c6fa1ff2dcf1202f73cca930a05fbb42d6bc46dbf18c",
+      "bytes": 55,
+      "media_type": "audio/wav",
+      "locator": "productions/prd_00000000000000000000001CXG/sha256/b8/b83355b945bdf6af3408c6fa1ff2dcf1202f73cca930a05fbb42d6bc46dbf18c.wav"
+    },
+    "provenance": {
+      "origin": "imported",
+      "generator": {
+        "role": "sound"
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "recorded_without_media": true,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  },
+  {
+    "schema": "studio.asset-version/v1",
+    "id": "asv_00000000000000000000001CXF",
+    "asset_id": "ast_00000000000000000000001CXF",
+    "number": 1,
+    "kind": "cast",
+    "name": "Decoy inspection doll",
+    "scope": {
+      "production_id": "prd_00000000000000000000001CXF"
+    },
+    "state": "promoted",
+    "labels": [],
+    "attributes": {
+      "character_slot": "a"
+    },
+    "capabilities": [
+      "rgba_cutout"
+    ],
+    "content": {
+      "sha256": "aec25d9fc5c9c942c64418035a95cfdb6d62baadb8eaddbde1fcbedba3eb81df",
+      "bytes": 55,
+      "media_type": "image/png",
+      "locator": "productions/prd_00000000000000000000001CXF/sha256/ae/aec25d9fc5c9c942c64418035a95cfdb6d62baadb8eaddbde1fcbedba3eb81df.png"
+    },
+    "provenance": {
+      "origin": "imported",
+      "generator": {
+        "role": "image"
+      },
+      "external": null,
+      "source_key": null,
+      "created_by": {
+        "kind": "agent_session",
+        "session": "op455-fixture",
+        "harness": "fixture",
+        "model": "fixture"
+      },
+      "created_at": "2026-11-25T00:00:00Z"
+    },
+    "legacy": null,
+    "recorded_without_media": true,
+    "licence": {
+      "name": null,
+      "url": null,
+      "commercial_use": "unknown",
+      "attribution_required": null,
+      "checked_at": null,
+      "checked_by": null,
+      "note": "Synthetic benchmark metadata."
+    }
+  }
+]
