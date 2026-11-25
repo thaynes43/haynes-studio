@@ -18,7 +18,7 @@ from __future__ import annotations
 import hashlib
 import io
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from typing import Any, BinaryIO
 
 import numpy as np
@@ -126,9 +126,8 @@ def _place_still(cutout, slot, slot_name, frame_width, matte):
         size = MatteSize.measured(measured, cutout.size, target)
     except (MatteError, AdapterError):
         raise LayeredError(CLIP_INVALID, "The cast matte has invalid silhouette geometry") from None
-    art, size_px, (inset_x, inset_y) = size.sprite(cutout)
-    where = compose.place(size_px, slot, frame_width, slot_name)
-    return art, replace(where, x=where.x - inset_x, y=where.y - inset_y)
+    art, silhouette, inset = size.sprite(cutout)
+    return art, compose.place(art.size, slot, frame_width, slot_name, silhouette=silhouette, inset=inset)
 
 
 def compose_photo(inputs: PhotoInputs, read: Callable[[str], BinaryIO]) -> bytes:

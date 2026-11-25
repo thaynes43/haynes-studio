@@ -1993,6 +1993,11 @@ export interface components {
                 true_peak_dbtp: components["schemas"]["FormatRecipe_level"];
             };
             cast: {
+                matte_slots?: {
+                    [key: string]: {
+                        target_height_px: number;
+                    };
+                };
                 rules: components["schemas"]["FormatRecipe_notes"];
                 team_costumes: {
                     [key: string]: {

@@ -21,6 +21,9 @@ from haynes_studio.layered.matte_size import SHAPE_INVALID, MatteSize
 from haynes_studio.canonical.model import to_document
 from haynes_studio.errors import ContractError
 from haynes_studio.formats.recipe import recipe_hash, validate_recipe
+from haynes_studio.layered import compose
+from haynes_studio.layered.errors import LAYOUT_INVALID, LayeredError
+from haynes_studio.layered.photo import _place_still
 from haynes_studio.library import EMPTY, Content, Library, Scope, VersionRequest, import_version, promote
 from haynes_studio.library.model import CANDIDATE, Licence
 from haynes_studio.matting.backend import Engine
@@ -365,3 +368,24 @@ def test_layered_photo_places_only_a_manually_promoted_matte_at_the_recipe_heigh
     visible = np.flatnonzero(column[:, 0].astype(int) - column[:, 1] >= 105)
     assert abs(len(visible) - TARGET) <= 1
     assert abs(visible[-1] + 1 - 800) <= 1
+
+
+@pytest.mark.parametrize("at_right", [False, True])
+def test_layered_placement_checks_the_full_sprite_including_its_fractional_fringe(at_right):
+    alpha = np.zeros((160, 160), dtype=np.uint8)
+    alpha[20:140, 35:125] = 255
+    alpha[65, 5:35] = alpha[65, 125:155] = 64
+    rgba = np.zeros((160, 160, 4), dtype=np.uint8)
+    rgba[..., 3] = alpha
+    cutout = Image.fromarray(rgba)
+    frame_width = 360
+    # The silhouette alone fits within the horizontal margin by one pixel.
+    center = 45 - compose.PAD + 1
+    if at_right:
+        center = frame_width - center
+    slot = compose.Slot(height=120, bottom=500, x=center / frame_width, crop=None)
+    measured = measure_shape(alpha, 120)
+    compose.place((90, 120), slot, frame_width, "a")
+    with pytest.raises(LayeredError) as refused:
+        _place_still(cutout, slot, "a", frame_width, {"target_height_px": 120, "shape": measured})
+    assert refused.value.code == LAYOUT_INVALID
