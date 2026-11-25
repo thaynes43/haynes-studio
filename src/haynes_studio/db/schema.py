@@ -152,6 +152,10 @@ worker_tokens = sa.Table("worker_tokens", metadata, digest(),
                          sa.Column("worker_id", sa.Text, nullable=False),
                          sa.Column("expires_at", sa.DateTime(timezone=True)),
                          sa.Column("revoked_at", sa.DateTime(timezone=True)))
+worker_lane_grants = sa.Table("worker_lane_grants", metadata,
+                             sa.Column("worker_id", sa.Text, primary_key=True),
+                             sa.Column("lane", sa.Text, nullable=False),
+                             sa.CheckConstraint("lane IN ('run', 'voice', 'image')"))
 
 
 run_lane = sa.Table("run_lane", metadata,

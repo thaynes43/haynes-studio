@@ -168,6 +168,9 @@ GRANT SELECT, INSERT ON studio.escalation_check_failures, studio.escalation_pack
 GRANT SELECT, INSERT ON studio.run_candidates, studio.candidate_feedback,
     studio.feedback_iterations TO studio_app;
 GRANT UPDATE (feedback_iteration_id) ON studio.stories TO studio_app;
+
+-- Applied by revision 0011_worker_lane_grants.
+GRANT SELECT ON studio.worker_lane_grants TO studio_app;
 ```
 
 Revision `0004_go_live_approvals` uses the PostgreSQL UTF-8 `und-x-icu`
@@ -207,13 +210,16 @@ main process output can be logged by Kubernetes even with a TTY. See
 ### Worker token administration
 
 Run the worker token command after migrating to head. Use the migration identity
-or a dedicated non-owner role in `STUDIO_MIGRATION_DATABASE_URL`. The command
-requires these grants and refuses the API runtime role. The worker process itself
-uses the internal HTTP API and needs no database account.
+in `STUDIO_MIGRATION_DATABASE_URL` to register a new worker ID with one lane
+(`run`, `voice` or `image`). A dedicated non-owner token administrator with
+the grants below can register or rotate tokens for a bound ID, list, and revoke.
+The runtime role can read lane grants. The worker process itself uses the
+internal HTTP API and needs no database account.
 
 ```sql
 GRANT CONNECT ON DATABASE studio TO studio_worker_token_admin;
 GRANT USAGE ON SCHEMA studio TO studio_worker_token_admin;
+GRANT SELECT (worker_id, lane) ON studio.worker_lane_grants TO studio_worker_token_admin;
 GRANT SELECT (digest, worker_id, expires_at, revoked_at), INSERT (digest, worker_id),
     UPDATE (revoked_at) ON studio.worker_tokens TO studio_worker_token_admin;
 ```
@@ -230,17 +236,27 @@ externally generated agent keys of 48–128 ASCII alphanumeric characters.
 
 ```sh
 uv run --no-sync studio-api-admin worker-token register \
-  --worker-id "$WORKER_ID" --token-file "$MOUNTED_TOKEN_FILE"
+  --worker-id "$WORKER_ID" --lane "$WORKER_LANE" --token-file "$MOUNTED_TOKEN_FILE"
 uv run --no-sync studio-api-admin worker-token list
 uv run --no-sync studio-api-admin worker-token revoke "$WORKER_ID"
 ```
 
+Migration `0011_worker_lane_grants` binds `studio-worker` to `run`,
+`studio-voice-worker` to `voice` and `studio-image-worker` to `image`.
+Existing tokens for those IDs work after migration, and the installed
+registration commands can still omit `--lane`. Other existing IDs have no
+grant and receive HTTP 403 `work.lane_forbidden` on worker routes. The migration
+identity can explicitly bind an unbound ID by registering with `--lane`.
+
 Use 1–63 ASCII letters, digits, dots, underscores or hyphens for the worker ID,
-starting with a letter or digit. Registering the same token for the same worker
-ID is idempotent. A new token for an existing ID requires `--replace`, which
-revokes the old token in the same transaction. A token already associated with a
-different worker ID or revoked cannot be reused. List reports worker IDs, expiry
-and revocation dates, including prior rows after replacement. Revoke is idempotent
+starting with a letter or digit. Registering the same active token for the
+same worker ID is idempotent. A new token for an existing ID requires
+`--replace`, which revokes the old token in the same transaction and keeps
+the lane. Omit `--lane` to reuse the binding. A different lane for a bound
+ID returns `key_admin.worker_lane_conflict`. Use a new worker ID for a new
+lane. A token already associated with a different worker ID or revoked cannot
+be reused. List reports worker IDs, lanes (null for unbound IDs), expiry and
+revocation dates, including prior rows after replacement. Revoke is idempotent
 and disables all tokens for the ID. Command output and audit events contain no
 token or digest.
 

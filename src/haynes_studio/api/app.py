@@ -21,7 +21,7 @@ from haynes_studio.db.engine import connect_engine
 from haynes_studio.db.problems import DraftProtected, NotFound, StaleRevision
 from haynes_studio.db.schema import (
     candidate_feedback, feedback_iterations, format_versions, go_live_approvals,
-    media_job_lanes, queue_lane_events, run_candidates, run_lane, sessions, stories,
+    media_job_lanes, queue_lane_events, run_candidates, run_lane, sessions, stories, worker_lane_grants,
 )
 from haynes_studio.errors import ContractError, pointer
 from haynes_studio.escalation.lifecycle import EscalationError
@@ -219,6 +219,7 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
             with engine.connect() as conn:
                 conn.execute(sa.select(sa.literal(1)).select_from(sessions).limit(0))
                 conn.execute(sa.select(run_lane.c.id).limit(0))
+                conn.execute(sa.select(worker_lane_grants.c.lane).limit(0))
                 conn.execute(sa.select(media_job_lanes.c.lane).limit(0))
                 conn.execute(sa.select(queue_lane_events.c.lane).limit(0))
                 conn.execute(sa.select(go_live_approvals.c.id).limit(0))

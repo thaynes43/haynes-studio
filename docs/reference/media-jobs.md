@@ -13,8 +13,9 @@ protocol. The API owns PostgreSQL transactions and catalog writes.
 Each media worker takes `STUDIO_API_URL`, `STUDIO_WORKER_TOKEN` and
 `STUDIO_STORE_ROOT`. It reads the packaged model licence register by default;
 `STUDIO_MODEL_REGISTER` optionally supplies the same override used by the API.
-Use a separate worker ID and
-token per process and mount the canonical store read/write for media workers.
+Use a separate worker ID and token per process with its
+[lane grant](studio-api.md#worker-token-administration). Mount the canonical
+store read/write for media workers.
 Blobs are written create-only by hash. A blob becomes readable through the API
 after its reference is committed. Keep the internal API reachable only from
 workers. `--once` processes at most one claim. Media workers have no Wan client
@@ -26,11 +27,16 @@ POST paths share the prefix `/internal/v1/work` and require a worker token.
 
 | Path | Media worker payload and effect |
 |---|---|
-| `/claim` | `{"lane":"image"}` or `{"lane":"voice"}`. Returns the lane's FIFO head, frozen inputs, fence and claim deadline, or 204. The existing empty request claims the run lane. |
+| `/claim` | `{"lane":"image"}` or `{"lane":"voice"}`. Returns the lane's FIFO head, frozen inputs, fence and claim deadline, or 204. An empty body selects `run`. |
 | `/heartbeat` | `job_id` and `fence`. Extends the claim by 90 seconds on the database clock. |
 | `/publish` | `job_id` and `fence`. Records entry to engine dispatch and renews the claim before submission. |
 | `/complete` | `job_id`, `fence` and result evidence. The API verifies stored content and commits the version, terminal status and eligible draft selection together. |
 | `/fail` | `job_id`, `fence`, bounded `code` and `message`. Preserves the request inputs and requester. |
+
+An unbound worker or a worker claiming a different lane gets 403
+`work.lane_forbidden`. Fenced media requests look up jobs within the
+worker's lane and return 404 for an ID outside it. Within the lane, the
+worker ID, fence and claim deadline must still match.
 
 Workers heartbeat every 15 seconds during blocking work. Expiry before
 dispatch allows another worker to take the same job with a new fence.

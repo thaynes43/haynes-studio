@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import insert
 from haynes_studio.agent_tokens import valid_agent_token
 
 from .problems import StaleRevision
-from .schema import agent_grants, agent_keys, login_attempts, selections, sessions, worker_tokens
+from .schema import agent_grants, agent_keys, login_attempts, selections, sessions, worker_lane_grants, worker_tokens
 
 AGENT_SCOPES = frozenset({"read", "draft:write", "assets:generate", "assets:upload",
                           "runs:queue", "formats:write"})
@@ -81,10 +81,23 @@ def get_agent(conn, secret: str | None) -> tuple[str, dict[str, frozenset[str]]]
     return key_id, {id_: frozenset(scopes) for id_, scopes in by_production.items()}
 
 
+def _worker_token(secret):
+    return sa.and_(worker_tokens.c.digest == token_digest(secret), _active(worker_tokens))
+
+
 def get_worker(conn, secret: str | None) -> str | None:
-    return conn.scalar(sa.select(worker_tokens.c.worker_id).where(
-        worker_tokens.c.digest == token_digest(secret), _active(worker_tokens),
-    ))
+    return conn.scalar(sa.select(worker_tokens.c.worker_id).where(_worker_token(secret)))
+
+
+def get_worker_lane(conn, secret: str):
+    """Read the active identity and its optional grant in one query."""
+    tokens_with_lanes = worker_tokens.outerjoin(
+        worker_lane_grants, worker_tokens.c.worker_id == worker_lane_grants.c.worker_id,
+    )
+    return conn.execute(
+        sa.select(worker_tokens.c.worker_id, worker_lane_grants.c.lane)
+        .select_from(tokens_with_lanes).where(_worker_token(secret))
+    ).one_or_none()
 
 
 def get_selections(conn, iss: str, sub: str) -> dict:

@@ -20,7 +20,7 @@ from haynes_studio.canonical.ids import Minter
 from haynes_studio.canonical.model import Board, Story
 from haynes_studio.db import drafts, identity, runs
 from haynes_studio.db.catalog import record_asset_version
-from haynes_studio.db.schema import run_wan_attempts, worker_tokens
+from haynes_studio.db.schema import run_wan_attempts, worker_lane_grants, worker_tokens
 from haynes_studio.library import Library
 from haynes_studio.photo.plan import plan_photo
 from haynes_studio.queue.wan import GPU_REFUSALS, LanePaused, ProductClips, ProductWan, product_request
@@ -38,11 +38,13 @@ from tests.queue.fake_wan import Clock, FakeWan, STORY
 pytestmark = pytest.mark.db
 
 
-def worker_credentials(engine):
+def worker_credentials(engine, *, lane="run"):
     secret = worker_bearer(token_hex(24))
+    worker_id = "fixture-" + Minter().mint("run")
     with engine.begin() as conn:
-        conn.execute(worker_tokens.insert().values(digest=identity.digest(secret),
-                                                   worker_id="fixture-" + Minter().mint("run")))
+        conn.execute(worker_tokens.insert().values(digest=identity.digest(secret), worker_id=worker_id))
+        if lane is not None:
+            conn.execute(worker_lane_grants.insert().values(worker_id=worker_id, lane=lane))
     return bearer(secret)
 
 
@@ -119,9 +121,9 @@ def queue_run(q, key, *, rev=3, headers=None):
                                    "Idempotency-Key": key, "If-Match": str(rev)})
 
 
-def worker_api(q, *, app=None, headers=None):
+def worker_api(q, *, app=None, headers=None, lane="run"):
     if headers is None:
-        headers = worker_credentials(q.owner)
+        headers = worker_credentials(q.owner, lane=lane)
     return WorkerAPI(LocalWorkerHTTP(app or q.app, headers))
 
 

@@ -42,9 +42,9 @@ def test_documented_runtime_table_grants_match_alembic():
     assert _table_privileges(documented) == _table_privileges(RUNTIME_GRANTS)
 
 
-def test_feedback_is_the_only_head_and_follows_escalation():
+def test_worker_lane_grants_is_the_only_head():
     migrations = ScriptDirectory(str(MIGRATIONS))
-    assert migrations.get_heads() == ["0008_candidate_feedback"]
+    assert migrations.get_heads() == ["0011_worker_lane_grants"]
     assert migrations.get_revision("0008_candidate_feedback").down_revision == "0007_escalation_packages"
     assert migrations.get_revision("0007_escalation_packages").down_revision == "0006_format_recipes"
     assert migrations.get_revision("0006_format_recipes").down_revision == "0005_job_operations"
