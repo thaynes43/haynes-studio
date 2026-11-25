@@ -485,6 +485,7 @@ def test_rejected_supplied_inputs_change_the_evidence_digest(world, fault):
         measured.append(next(check for check in checks if check["measured"]["target"] ==
                              {"kind": target[0], "key": target[1]}))
     first, second = measured
+    assert first["artifact_refs"]["inputs"] != second["artifact_refs"]["inputs"]
     assert first["artifact"] != second["artifact"]
     if fault != "absent PNG":
         assert first["measured"] == second["measured"]
