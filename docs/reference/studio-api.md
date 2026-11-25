@@ -165,16 +165,53 @@ Agent keys have a canonical `key_` ID and one row per
 `(key_id, production_id, scope)` grant. Migration `0002_active_agent_grants`
 marks existing grants active. Run the upgraded API before replacing grants
 with the CLI. Replacement disables omitted rows and enables the requested
-ones in one transaction, with no DELETE privilege.
+ones in one transaction, with no DELETE privilege. Registration of a revoked
+key returns `key_admin.key_revoked`.
 
-Agent keys and worker credentials store a lowercase SHA-256 digest of a
-unique, random secret. The API and MCP accept 43-character unpadded base64url
-agent keys generated from 32 random bytes and externally generated keys of
-48–128 ASCII alphanumeric characters. Worker credentials retain their
-base64url format and have a `worker_id`. Use `revoked_at` or `expires_at` to
-disable a credential. See [agent key administration](studio-mcp.md#agent-key-administration)
-for the file-based CLI. Workers call the internal API through the story 410
-transport and need no database account.
+Agent `create --out` writes the new `0600` file after the database commits.
+Use `create` without `--out` only from an interactive `kubectl exec`. A pod's
+main process output can be logged by Kubernetes even with a TTY. See
+[agent key administration](studio-mcp.md#agent-key-administration).
+
+### Worker token administration
+
+Run the worker token command after migrating to head. Use the migration identity
+or a dedicated non-owner role in `STUDIO_MIGRATION_DATABASE_URL`. The command
+requires these grants and refuses the API runtime role. The worker process itself
+uses the internal HTTP API and needs no database account.
+
+```sql
+GRANT CONNECT ON DATABASE studio TO studio_worker_token_admin;
+GRANT USAGE ON SCHEMA studio TO studio_worker_token_admin;
+GRANT SELECT (digest, worker_id, expires_at, revoked_at), INSERT (digest, worker_id),
+    UPDATE (revoked_at) ON studio.worker_tokens TO studio_worker_token_admin;
+```
+
+Mount the External Secrets Password generator's value as a file. Use 48–121
+ASCII alphanumeric characters and an optional final newline. Supply the same
+generated value to the worker in `STUDIO_WORKER_TOKEN`. The worker prepends
+`worker_` to the bearer it sends to `/internal/v1/work/*`, and administration
+stores only the lowercase SHA-256 digest of that bearer and its worker ID.
+Send the `worker_` prefix too when checking authentication directly over HTTP.
+Agent keys use the agent-key table and public routes. The API and MCP accept
+43-character unpadded base64url agent keys generated from 32 random bytes and
+externally generated agent keys of 48–128 ASCII alphanumeric characters.
+
+```sh
+uv run --no-sync studio-api-admin worker-token register \
+  --worker-id "$WORKER_ID" --token-file "$MOUNTED_TOKEN_FILE"
+uv run --no-sync studio-api-admin worker-token list
+uv run --no-sync studio-api-admin worker-token revoke "$WORKER_ID"
+```
+
+Use 1–63 ASCII letters, digits, dots, underscores or hyphens for the worker ID,
+starting with a letter or digit. Registering the same token for the same worker
+ID is idempotent. A new token for an existing ID requires `--replace`, which
+revokes the old token in the same transaction. A token already associated with a
+different worker ID or revoked cannot be reused. List reports worker IDs, expiry
+and revocation dates, including prior rows after replacement. Revoke is idempotent
+and disables all tokens for the ID. Command output and audit events contain no
+token or digest.
 
 ## Browser, agent and worker requests
 
