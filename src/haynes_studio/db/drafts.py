@@ -518,7 +518,9 @@ def select_board_media(conn: sa.Connection, draft: Draft, board_id: str, kind: L
     except DraftProtected:
         return None
     media = held[kind]
-    if media["current_version_id"] == version_id:
+    protection = held.get("draft_application", held)
+    person_adopting = by["kind"] == "human" and "person_edit" not in protection
+    if media["current_version_id"] == version_id and not person_adopting:
         return held["revision"]
     now = timestamp()
     doc = {**_board_changed(held, by, "media", now),

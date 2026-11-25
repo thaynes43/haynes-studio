@@ -383,8 +383,9 @@ Automatic selection uses the job requester from the insert-only
 board, an agent-requested result is kept in version history with
 `result_is_current: false` for a job or `selected: false` for an upload.
 A person's job protects the selected result with a person-edit record and
-preserves any existing record. An agent's result advances its own current
-draft stamp with the board revision.
+preserves any existing record. This covers a voice job that reuses the
+board's current version. An agent's result advances its own current draft
+stamp with the board revision.
 
 An API process accepts one upload at a time after authentication and a
 production-scope check. A concurrent upload returns 503 `photo.upload_busy`

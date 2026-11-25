@@ -475,8 +475,10 @@ def test_interrupted_upload_releases_slot(studio, tmp_path, monkeypatch, transpo
             elif failure == "disconnect":
                 return {"type": "http.disconnect"}
             elif failure == "size":
+                if reads > 2:
+                    pytest.fail("The route must refuse oversize bodies before reading another chunk")
                 limit = MAX_UPLOAD_BYTES if transport == "api" else MAX_UPLOAD_REQUEST_BYTES
-                return {"type": "http.request", "body": b"x" * limit, "more_body": False}
+                return {"type": "http.request", "body": b"x" * limit, "more_body": True}
             else:
                 raise RuntimeError("fixture receive failed")
             return {"type": "http.request", "body": payload[reads - 1:], "more_body": False}
@@ -701,22 +703,30 @@ def test_job_media_selection_respects_person_edit(studio, kind, by_human):
     assert [version["id"] for version in versions] == [result["result_version_id"]]
 
 
-@pytest.mark.parametrize("kind", ["photo", "voice"])
-def test_person_job_selection_protects_an_untouched_board(studio, kind):
+@pytest.mark.parametrize(("kind", "reuse"), [("photo", False), ("voice", False), ("voice", True)],
+                         ids=["photo", "voice", "voice-reuse"])
+def test_person_job_selection_protects_an_untouched_board(studio, kind, reuse):
     s = studio
     board = board_in(s, spoken=kind == "voice")
     path = f"/v1/boards/{board}"
-    assert "person_edit" not in current_board(s, board)
+    worker = speech_worker(s, FakeKokoro()) if kind == "voice" else image_worker(s)[0]
+    if reuse:
+        success(operation(s, board, kind, "agent-choice"), 202)
+        assert worker.tick()
+    before = current_board(s, board)
+    assert "person_edit" not in before
     queued = success(s.browser.post(f"{path}/{kind}-jobs", json={},
                                     headers={**s.csrf, "Idempotency-Key": "person-choice"}), 202)
-    worker = speech_worker(s, FakeKokoro()) if kind == "voice" else image_worker(s)[0]
     assert worker.tick()
     read = s.agent.get(path, headers=s.auth)
     selected = success(read)
     result = job(s, queued["id"])
     assert result["result_is_current"]
     assert selected[kind]["current_version_id"] == result["result_version_id"]
+    if reuse:
+        assert before[kind]["current_version_id"] == result["result_version_id"]
     revision = selected["revision"]
+    assert revision == before["revision"] + 1
     headers = {**s.auth, "If-Match": str(revision)}
     change = {kind: {**selected[kind], "current_version_id": None}}
     denied = s.agent.patch(path, headers=headers, json=change)
