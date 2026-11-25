@@ -38,11 +38,15 @@ def main() -> int:
     commands.add_parser("serve")
     commands.add_parser("ready")
     measure = commands.add_parser("smoke")
-    measure.add_argument("--no-cpu-arena", action="store_true")
-    measure.add_argument("--no-memory-pattern", action="store_true")
-    measure.add_argument("--graph-optimization", choices=("all", "extended", "basic", "disabled"), default="all")
-    measure.add_argument("--arena-growth", choices=("default", "same-as-requested"), default="default")
-    measure.add_argument("--shrink-cpu-arena", action="store_true")
+    defaults = SessionSettings()
+    measure.add_argument("--cpu-arena", action=argparse.BooleanOptionalAction, default=defaults.cpu_arena)
+    measure.add_argument("--no-memory-pattern", dest="memory_pattern", action="store_false",
+                         default=defaults.memory_pattern)
+    measure.add_argument("--graph-optimization", choices=("all", "extended", "basic", "disabled"),
+                         default=defaults.graph_optimization)
+    measure.add_argument("--arena-growth", choices=("default", "same-as-requested"),
+                         default=defaults.arena_growth)
+    measure.add_argument("--shrink-cpu-arena", action="store_true", default=defaults.shrink_cpu_arena)
     commands.add_parser("profile")
     args = parser.parse_args()
     scratch, weights = Path("/matting"), Path("/weights")
@@ -61,10 +65,10 @@ def main() -> int:
         else:
             from .smoke import smoke
 
-            if args.no_cpu_arena and (args.arena_growth != "default" or args.shrink_cpu_arena):
+            if not args.cpu_arena and (args.arena_growth != "default" or args.shrink_cpu_arena):
                 measure.error("arena growth and shrinkage require the CPU arena")
             settings = SessionSettings(
-                cpu_arena=not args.no_cpu_arena, memory_pattern=not args.no_memory_pattern,
+                cpu_arena=args.cpu_arena, memory_pattern=args.memory_pattern,
                 graph_optimization=args.graph_optimization, arena_growth=args.arena_growth,
                 shrink_cpu_arena=args.shrink_cpu_arena,
             )

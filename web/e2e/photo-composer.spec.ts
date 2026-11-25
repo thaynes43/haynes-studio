@@ -26,7 +26,7 @@ const resumePolling = (page: Page) => page.evaluate(() => document.dispatchEvent
 
 async function returnFromAssets(page: Page, versionId: string) {
   const { to, state } = photoAssetReturn(boardContext, versionId);
-  // The future Assets page passes this state to React Router's Link or navigate.
+  // Inject return state to exercise the composer's recovery when a pin became unavailable.
   await page.evaluate(({ to, state }) => {
     const historyState = { usr: state, key: crypto.randomUUID(), idx: history.state.idx + 1 };
     history.pushState(historyState, "", to);
@@ -208,13 +208,13 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       await expect(browse).toHaveAttribute("href", assetsPath(boardContext));
       await browse.click();
       await expect(page).toHaveURL(assetsPath(boardContext));
-      await expect(page.getByText("Assets will appear here.")).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Asset library" })).toBeVisible();
       await returnFromAssets(page, unavailablePin);
       await expect(composer(page).getByText("This asset can’t be used on this board.")).toBeVisible();
       expect(api.contentEdits).toHaveLength(0);
 
       await browse.click();
-      await expect(page.getByText("Assets will appear here.")).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Asset library" })).toBeVisible();
       await returnFromAssets(page, propPin);
       await expect(composer(page).getByRole("button", { name: /Remove Soup bowl/ })).toBeVisible();
       await page.clock.runFor(450);
