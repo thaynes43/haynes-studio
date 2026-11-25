@@ -134,6 +134,30 @@ Foley keeps its idle, cooldown, memory and thermal watchdog checks. The product
 paths accept typed job fields and media digests. Steps, model selection, arbitrary
 graphs, URLs and filenames stay under server control.
 
+## Admission refusals
+
+A job refused before engine submission can include `admission_code` beside its
+existing `error` text. The engine did not start the refused job. Older records
+can omit the field. An HTTP refusal before a job is recorded still uses the
+existing HTTP error body. The legacy Wan route retains its response shape when
+the local-model profile is absent.
+
+| `admission_code` | Meaning | Client action |
+| --- | --- | --- |
+| `gpu_busy` | GPU utilization or memory exceeded the admission limits. | Back off and use a new ID when compute is available. |
+| `gpu_warm` | The required cooldown or idle conditions were unmet. | Back off and retry with a new ID after cooldown. |
+| `engine_busy` | The engine queue showed work or could not be verified. | Wait for a verified idle queue, then retry with a new ID. |
+| `lease_held` | Another lane owns compute or an existing render hold blocks admission. | Retry with a new ID after the lease or render hold clears. |
+| `local_model_handover` | The API could not verify that local-model residency was safe. | Retry with a new ID after verification. A durable hold requires operator inspection. |
+| `local_model_unavailable` | A local-model status needed for admission was unavailable. | Retry with a new ID after the sidecar can supply status. |
+| `pre_admission_failed` | A different error occurred before the engine started, such as an invalid inference budget. | Inspect the error and resolve the cause before making a new request. |
+
+Continue to poll the same ID after an ambiguous reply. The current Studio video
+client recognizes the existing ComfyUI busy text and Rack GPU busy or warm
+texts. Mounted-profile sidecar or handover refusals use the same Rack GPU busy
+text so that client backs off. A Wan or Foley admission check that sees foreign
+engine work preserves it and refuses that attempt without latching a new hold.
+
 ## Legacy cleanup
 
 The installed legacy worker raises a JSON parse error and latches the hold
@@ -161,13 +185,34 @@ Generate and persist a fresh lowercase 32-digit hex UUID and the typed request
 before sending it. Use a JSON body of 1 to 65,536 bytes with a
 `Content-Length`. All operations require `operation` and `profile`, where
 `profile` is the configured model name. Load and unload take only those fields.
-Inference also requires `prompt` (1 to 4,096 characters, trimmed and
-nonblank), and optionally takes `image_sha256` and `max_output_tokens`. Omit
-the image for text-only inference. For vision, upload one PNG through the
-existing digest staging route first. The server verifies the staged digest and
-applies the same PNG bounds before inference. The configured output limit
-applies by default. Input tokens include the model's template and image tokens,
-and the input plus requested output budget must fit the configured context.
+Inference requires `prompt` (1 to 4,096 characters, trimmed and nonblank).
+Optional fields are `mode`, `max_output_tokens` and one of `image_sha256`
+or `image_sha256s`. The singular digest keeps its existing upload bounds.
+The plural field accepts one to four PNGs in input order, each up to 8 MiB and
+up to 1080×1920 or 1920×1080. Stage every PNG through
+`PUT /v1/inputs/{sha256}.png` first. The API and the model child both check each
+staged digest and its PNG bounds. Omit both image fields for text-only work.
+The complete input includes the model template and image tokens. The backend
+counts it on CPU and caps each image at 1,024 visual tokens. If that input plus
+the requested output budget cannot fit the configured context, the worker
+returns `context_limit` before image encoding. The profile's output ceiling
+applies by default.
+
+| Mode | Inputs and `result.text` |
+| --- | --- |
+| `text` | Free text with optional images. Omission and explicit `text` produce the same request fingerprint as the original text request. |
+| `frame_check_v1` | Requires an image. Returns a JSON object with `frames`, one entry per input image in order. Each entry has `face` (`visible`, `hidden`, `uncertain`), `code` (one to 64 characters or `null` for unreadable evidence) and `wardrobe` (`match`, `mismatch`, `uncertain`). |
+| `plan_v1` | Returns a JSON object with `scene_id` (one to 64 characters) and `shots` (one to 12 objects, each containing a `technical_direction` of one to 512 characters). |
+| `plan_tool_v1` | Returns one JSON object with `name` equal to `record_plan_v1` and an `arguments` object. Arguments are `scene_id` (one to 64 characters), integer `shot_count` (one to 12) and `technical_direction` (one to 512 characters). The call is returned as data. |
+
+Structured results and tool arguments are validated against server-owned
+versioned definitions. Incomplete output or a schema mismatch within the
+resource bounds fails with `invalid_result`. A token or byte limit violation
+fails with `backend_failed` and records a residency hold. The request accepts
+only its typed fields. Schemas,
+grammars, tool definitions and image URLs are controlled by the server.
+An explicit structured mode and the order of its image digests are part of
+the immutable request.
 
 ```json
 {"operation":"infer","profile":"configured-model","prompt":"Describe this panel.","max_output_tokens":128}
@@ -200,6 +245,8 @@ stay loaded while both cards meet the admission limits.
 | A job needs the resident card | The Wan lease stays held across unload, memory verification and engine submission. Both-card jobs and Foley on the model card use this handover. Wan's `queued` acknowledgment records the request. ComfyUI submission waits for the configured card to reach the unloaded memory ceiling. |
 | Wan or Foley owns compute | The local request receives `worker_busy`. A replay or status read can still return its existing record. |
 | The API loses a sidecar reply or restarts | The sidecar keeps a copy of the same lease until work ends. Once the lease is available, the API matches the original request ID to the sidecar receipt and checks residency. A recorded request proved absent fails with `submission_lost`. |
-| The sidecar dies or hits its operation deadline | A replacement starts unloaded. A fresh idle card sample at or below the unloaded ceiling establishes that the previous instance is gone. A pending request then fails with `sidecar_restarted`. Unavailable status blocks new GPU work while residency is uncertain. |
-| Unload leaves memory allocated | The worker records a residency hold and preserves it across API restarts. Resolve the card state before admitting more work or disabling the profile. |
-| Engine work is unknown or the render hold is set | Load, inference, unload and handover stop. A transient queue read failure refuses the attempt. A malformed or nonempty queue requires inspection, and existing ComfyUI work is preserved. |
+| A profile is mounted and the sidecar is unavailable | Wan and Foley skip the sidecar status read when the residency file is absent. The worker writes pending state before a load can reach the sidecar. An existing record requires sidecar status before handover. |
+| A model operation exceeds its deadline or the child dies | The supervisor kills a timed-out child and reaps it before recording the receipt or releasing its copy of the lease. The request reports `operation_timeout` or `backend_exited` after the card passes its unloaded memory check. |
+| The supervisor dies | A replacement starts unloaded. A fresh idle card sample at or below the unloaded ceiling verifies that the card is clear. A pending request then fails with `sidecar_restarted`. Unavailable status blocks new GPU work while residency is uncertain. |
+| Unload ends the model process | The supervisor waits for child exit. Fresh idle memory at or below the unloaded ceiling completes the handover proof. If memory cannot be verified, the worker records a residency hold that survives API restarts. |
+| Engine work is unknown or the render hold is set | Existing engine work is preserved. Wan and Foley refuse their admission attempt. A malformed or nonempty engine queue when handling a direct local-model request can latch a hold. A transient queue read failure refuses that attempt. |
