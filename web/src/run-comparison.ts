@@ -9,7 +9,7 @@ export type FrozenBoard = Pick<Board, "id" | "title" | "method"> & {
   voice: { current_version_id: string | null };
 };
 export type FrozenSnapshot = { boards: FrozenBoard[] };
-type SnapshotRef = Pick<RunView, "story_id"> & {
+type SnapshotRef = Pick<RunView, "id" | "story_id"> & {
   snapshot: Pick<RunView["snapshot"], "sha256" | "story_revision" | "board_count">;
 };
 
@@ -48,8 +48,8 @@ export async function loadFrozenSnapshot(api: StudioClient, run: SnapshotRef, si
   const { sha256 } = run.snapshot;
   if (!/^[a-f0-9]{64}$/.test(sha256)) return;
   try {
-    const { data, response } = await api.GET("/v1/media/{sha256}", {
-      signal, params: { path: { sha256 } }, parseAs: "arrayBuffer",
+    const { data, response } = await api.GET("/v1/runs/{id}/snapshot", {
+      signal, params: { path: { id: run.id } }, parseAs: "arrayBuffer",
     });
     if (!data || response.headers.get("Content-Type")?.split(";")[0] !== "application/json") return;
     const hash = await crypto.subtle.digest("SHA-256", data);

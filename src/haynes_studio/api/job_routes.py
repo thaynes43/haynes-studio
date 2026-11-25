@@ -18,7 +18,6 @@ from haynes_studio.db.problems import NotFound, require_revision
 from haynes_studio.db.runs import database_time, timestamp
 from haynes_studio.jsonio import parse_strict
 from haynes_studio.layered.errors import LayeredError
-from haynes_studio.library.library import require_media
 from haynes_studio.library.model import signature, version_document
 from haynes_studio.photo.build import METHOD_INVALID, ExternalProvenance, import_photo
 from haynes_studio.photo.plan import WHOLE_FRAME
@@ -161,9 +160,8 @@ def _upload_inputs(state, actor, board_id, revision, declared):
         if board["method"]["layer"] != WHOLE_FRAME:
             raise APIError(422, METHOD_INVALID, "Layered board photos come from the compositor",
                            path="/method/layer")
-        selected = board["photo"]["current_version_id"]
-        if selected is not None:
-            require_media(library.get(selected), "/photo/current_version_id")
+        # The current ID fences selection. Bytes are required only for media
+        # that is actually used as a source for the replacement.
         return story_id, photo_plan(story, board_id, library), library
 
 

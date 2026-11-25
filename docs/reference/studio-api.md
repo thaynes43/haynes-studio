@@ -315,6 +315,15 @@ selection has revision 0. PUT replaces the object and advances its revision.
 Story lists and reads expose `latest_finished_run`, `approved` and `published`.
 See [Story and run status](go-live.md#story-and-run-status).
 
+`GET /v1/runs/{id}/snapshot` returns the original `studio.run-snapshot/v1` bytes
+with `Content-Type: application/json` and the quoted SHA-256 as a strong `ETag`.
+People and agent keys with production `read` can use it. The run view,
+snapshot and people-only [go-live review](go-live.md#read-a-runs-review) use
+the same scope, `Cache-Control: private, no-store`, and 404 `not_found` for
+unknown or inaccessible runs. An accessible run without a frozen snapshot,
+such as a recovered import, returns 404 `run.snapshot_missing`. The browser
+verifies the bytes against the recorded hash before comparing board IDs.
+
 The catalog serves visible canonical versions through `GET /v1/assets`.
 Filter by kind, one or more labels, production or board. The board filter
 returns versions referenced by that board. `GET /v1/assets/{id}` returns the

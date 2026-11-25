@@ -47,6 +47,10 @@ HTTP and MCP callers use the same production and credential checks.
 
 ## Upload memory
 
+A replacement upload can target a board whose selected photo is recorded
+without media. Versions used as actual image sources still require their
+bytes. On a protected board the new photo is saved unselected.
+
 One MCP process and one API process each admit a single D42 upload. A
 concurrent upload gets HTTP 503 `photo.upload_busy` before the process reads
 its body. Ordinary MCP requests at `/mcp` keep their 256 KiB cap. Use

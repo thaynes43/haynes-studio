@@ -733,10 +733,28 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Get Go Live Approvals */
+        get: operations["get_go_live_approvals"];
         put?: never;
         /** Approve Go Live */
         post: operations["approve_go_live"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/runs/{id}/snapshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Run Snapshot */
+        get: operations["get_run_snapshot"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -868,6 +886,31 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AllowedDecision */
+        AllowedDecision: {
+            /**
+             * Allowed
+             * @constant
+             */
+            allowed: true;
+        };
+        /** ApprovalReview */
+        ApprovalReview: {
+            /** Approvals */
+            approvals: components["schemas"]["ApprovalView"][];
+            /** Approve */
+            approve: components["schemas"]["AllowedDecision"] | components["schemas"]["DeniedDecision"];
+            /** Master Sha256 */
+            master_sha256: string | null;
+            /** Release Checks */
+            release_checks: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+            /** Run Id */
+            run_id: string;
+            /** Withdraw */
+            withdraw: components["schemas"]["AllowedDecision"] | components["schemas"]["DeniedDecision"];
+        };
         /** ApprovalState */
         ApprovalState: {
             /** Publication Ids */
@@ -1166,6 +1209,8 @@ export interface components {
                 slot: components["schemas"]["StudioDefs_slot"];
             }[];
             created_at?: components["schemas"]["StudioDefs_timestamp"];
+            /** @description Set by the server at local board creation. Absent on imported and older boards. */
+            readonly created_by?: components["schemas"]["StudioDefs_principal"];
             cues: components["schemas"]["StudioDefs_board_cue"][];
             derived?: {
                 content_ms: components["schemas"]["StudioDefs_frames_or_null"];
@@ -1544,6 +1589,16 @@ export interface components {
         Delivery_stored: {
             legacy_path?: null;
             locator?: string;
+        };
+        /** DeniedDecision */
+        DeniedDecision: {
+            /**
+             * Allowed
+             * @constant
+             */
+            allowed: false;
+            /** Code */
+            code: string;
         };
         /** ErrorDetail */
         ErrorDetail: {
@@ -2148,6 +2203,97 @@ export interface components {
                 number,
                 number
             ] | null;
+        };
+        /**
+         * studio.run-snapshot/v1: the story a run builds, by value (contract section 8)
+         * @description The story with its boards embedded, every asset version the build reads pinned by content hash (or definition_signature for a voice, input_signature and take hashes for a board voice), and the toolchain the run was asked for. It holds no run ID and no time of the run, so the same draft always gives the same canonical bytes and hash. The story's own fields are checked by studio.story/v1.
+         */
+        RunSnapshot: {
+            format_version?: {
+                id: components["schemas"]["StudioDefs_fmv_id"];
+                recipe: components["schemas"]["FormatRecipe"];
+                sha256: components["schemas"]["StudioDefs_sha256"];
+            };
+            resolved_asset_versions: ({
+                definition_signature?: string;
+                id: components["schemas"]["StudioDefs_asv_id"];
+                input_signature?: string;
+                /** @enum {unknown} */
+                kind: "cast" | "costume" | "prop" | "set" | "photo" | "motion" | "sound" | "voice" | "board_voice" | "character_card";
+                sha256: string | null;
+                take_sha256?: components["schemas"]["StudioDefs_sha256"][];
+            } & (unknown & unknown & unknown))[];
+            /** @constant */
+            schema: "studio.run-snapshot/v1";
+            /** studio.story/v1: one video, its boards in order (contract section 2) */
+            story: {
+                beds: components["schemas"]["StudioDefs_bed_cue"][];
+                board_order: components["schemas"]["StudioDefs_brd_id"][];
+                boards: components["schemas"]["Board"][];
+                cast: {
+                    name: string;
+                    slot: components["schemas"]["StudioDefs_slot"];
+                    voice_version_id: components["schemas"]["StudioDefs_asv_id"];
+                }[];
+                checks: {
+                    asr_tolerances?: {
+                        [key: string]: string;
+                    } | null;
+                    asr_tolerances_note?: string | null;
+                };
+                created_at?: components["schemas"]["StudioDefs_timestamp"];
+                created_by?: components["schemas"]["StudioDefs_principal"];
+                derived?: {
+                    board_count: components["schemas"]["StudioDefs_count"];
+                    duration_ms: components["schemas"]["StudioDefs_count"];
+                    /** @constant */
+                    fps: 24;
+                    frames: components["schemas"]["StudioDefs_count"];
+                    next_board_number: components["schemas"]["StudioDefs_positive"];
+                    timed_boards: components["schemas"]["StudioDefs_count"];
+                    untimed_boards: components["schemas"]["StudioDefs_count"];
+                    warnings: components["schemas"]["StudioDefs_warning"][];
+                };
+                format_version_id: components["schemas"]["StudioDefs_fmv_id_or_null"];
+                id: components["schemas"]["StudioDefs_sty_id"];
+                layouts: {
+                    [key: string]: Record<string, never>;
+                };
+                media_kind: components["schemas"]["StudioDefs_media_kind"];
+                mix: {
+                    line_rms_dbfs: components["schemas"]["StudioDefs_level"];
+                    master_lufs: components["schemas"]["StudioDefs_level"];
+                    true_peak_dbtp: components["schemas"]["StudioDefs_level"];
+                };
+                motion_style: Record<string, never> | null;
+                narrator_voice_version_id: components["schemas"]["StudioDefs_asv_id_or_null"];
+                origin: {
+                    legacy_revision: components["schemas"]["StudioDefs_positive"];
+                    manifest: string;
+                    source_key: components["schemas"]["StudioDefs_source_key"];
+                    tracker: string | null;
+                } | null;
+                production_id: components["schemas"]["StudioDefs_prd_id"];
+                revision: components["schemas"]["StudioDefs_positive"];
+                /** @constant */
+                schema: "studio.story/v1";
+                set: {
+                    asset_version_id: components["schemas"]["StudioDefs_asv_id_or_null"];
+                    foreground_edge_px: [
+                        number,
+                        number
+                    ][] | null;
+                    foreground_feather_px: number | null;
+                    legacy_fire: Record<string, never> | null;
+                    motion_asset_version_id: components["schemas"]["StudioDefs_asv_id_or_null"];
+                    note?: string | null;
+                } | null;
+                title: string;
+                updated_at?: components["schemas"]["StudioDefs_timestamp"];
+            };
+            toolchain_request: {
+                studio: string;
+            };
         };
         /**
          * studio.run/v1: one build of one story snapshot (contract sections 7 and 8, D30)
@@ -8835,6 +8981,118 @@ export interface operations {
             };
         };
     };
+    get_go_live_approvals: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalReview"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     approve_go_live: {
         parameters: {
             query?: never;
@@ -8862,6 +9120,120 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApprovalView"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_run_snapshot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Original canonical studio.run-snapshot/v1 bytes */
+            200: {
+                headers: {
+                    /** @description The quoted SHA-256 of the snapshot bytes */
+                    ETag?: string;
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunSnapshot"];
                 };
             };
             /** @description Authentication required */

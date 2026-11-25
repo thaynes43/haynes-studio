@@ -168,14 +168,39 @@ Both use the proposed llama.cpp b12679 runtime. Its code is MIT and its
 licence permits dealing “in the Software without restriction” subject to
 its notice terms. [Pinned runtime licence](https://github.com/ggml-org/llama.cpp/blob/b12679/LICENSE)
 
+## Proposed matting profiles
+
+Story [459](https://work.haynesnetwork.com/work_packages/459) proposes one CPU
+backend. Checked 2026-11-25 by dev-env agent session
+`haynes-studio-1125-040756` (Codex, `gpt-6.2-sol`). Installation is pending and
+separate output terms are unknown. File pins and quotes
+are in `proposals.matting` in the [packaged JSON register](../../src/haynes_studio/model_licences.json).
+The [profile proposal](matting-backend-profile.md) gives the evidence for
+the alternatives and the install smoke.
+
+For these model files, `weights_commercial_use` records use of the graph.
+`licence.commercial_use` and `outputs_commercial_use` record terms for
+what it makes, consistent with the engine table above.
+
+| Proposed profile | File | Licence evidence | Output terms |
+|---|---|---|---|
+| BiRefNet Lite FP32 (primary) | `onnx/model.onnx` | The ONNX export and original Lite checkpoint cards say `license: mit`. The upstream MIT text requires retaining its notice with substantial copies. [Export card](https://huggingface.co/onnx-community/BiRefNet_lite-ONNX/blob/de15b22ba131738a16dff04aab8bdf8dc32e3ac1/README.md) · [Upstream card](https://huggingface.co/ZhengPeng7/BiRefNet_lite/blob/aa62cd87eafb9cc43056d08ef3615a14628b831d/README.md) · [MIT text](https://github.com/ZhengPeng7/BiRefNet/blob/f7079632d681ecf12161fcea8905682934e59e51/LICENSE) | Unknown |
+| BRIA RMBG 1.4 FP32 (fallback) | `onnx/model.onnx` | Card says “source-available model for non-commercial use”. Commercial model use requires a separate BRIA agreement. The linked licence returned 404, leaving its exact Creative Commons variant and other terms unknown. [Publisher card](https://huggingface.co/briaai/RMBG-1.4/raw/da1d078376e6691105a5530a374a010627fc60b5/README.md) | Unknown. Replace the fallback or obtain a commercial agreement before commercial use. |
+| ONNX Runtime 1.32.0 CPU (both) | CPython 3.12 Linux x86-64 wheel | Microsoft records “MIT License” for the runtime. Include its licence and third-party notices in the built image. [Distribution metadata](https://pypi.org/project/onnxruntime/1.32.0/) · [Notices](https://github.com/microsoft/onnxruntime/blob/main/ThirdPartyNotices.txt) | Unknown |
+
+D49 keeps research and personal use available. Record the installed profile
+when its exact bytes and smoke have been verified.
+
 ## Proposed segmentation backend
 
 Story [460](https://work.haynesnetwork.com/work_packages/460) proposes these
 rows. Checked 2026-11-25 by dev-env agent session
 `haynes-studio-1125-043121` (Codex). The pinned model files, SHA-256s, licence
-evidence and runtime rows are in `segmentation_backend_proposal` in the
+evidence and runtime rows are in `proposals.segmentation` in the
 [packaged register](../../src/haynes_studio/model_licences.json). The source
 proposal describes a primary and fallback for the later install session.
+The JSON records use of each licensed model under `weights_commercial_use`
+and the separate output terms under `outputs_commercial_use`.
 [Backend profile](segmentation-backend-profile.md)
 
 | Use | Files | Terms on the model or code | Output use and attribution |

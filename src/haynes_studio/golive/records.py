@@ -61,8 +61,12 @@ def get(conn, approval_id):
     return result
 
 
-def get_withdrawal(conn, approval_id):
-    return conn.scalar(sa.select(withdrawals.c.document).where(withdrawals.c.approval_id == approval_id))
+def history(conn, run_id):
+    approved_at = sa.cast(approvals.c.document["approved_at"].astext, sa.DateTime(timezone=True))
+    rows = conn.execute(sa.select(approvals.c.document, withdrawals.c.document).select_from(_active)
+                        .where(approvals.c.run_id == run_id)
+                        .order_by(approved_at.desc(), approvals.c.id.desc()))
+    return [_view(document, withdrawal) for document, withdrawal in rows]
 
 
 def record_withdrawal(conn, approval, by, auth_time, withdrawn_at):

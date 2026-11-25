@@ -9,6 +9,7 @@ import { BoardComparison } from "./run-compare";
 import { compareSnapshots, loadFrozenSnapshot, parseSnapshot, type FrozenBoard } from "./run-comparison";
 
 const reference = {
+  id: "run_00000000000000000000000001",
   story_id: contractSnapshot.story.id,
   snapshot: { sha256: "a".repeat(64), story_revision: contractSnapshot.story.revision, board_count: contractSnapshot.story.boards.length },
 };
@@ -70,14 +71,14 @@ describe("frozen snapshot comparison", () => {
     ]);
   });
 
-  it("reads exact snapshot bytes by hash and handles a missing or mismatched blob", async () => {
+  it("reads snapshot bytes by run ID and rejects a missing or mismatched blob", async () => {
     const origin = "https://studio.example.invalid";
     const { signal } = new AbortController();
     const bytes = JSON.stringify(contractSnapshot);
     const sha256 = createHash("sha256").update(bytes).digest("hex");
     const ref = { ...reference, snapshot: { ...reference.snapshot, sha256 } };
     const api = (body: string | null) => createStudioApi(origin, signal, () => {}, async (input) => {
-      expect((input as Request).url).toBe(`${origin}/v1/media/${sha256}`);
+      expect((input as Request).url).toBe(`${origin}/v1/runs/${ref.id}/snapshot`);
       return new Response(body, body ? { headers: { "Content-Type": "application/json" } } : { status: 404 });
     }).client;
 

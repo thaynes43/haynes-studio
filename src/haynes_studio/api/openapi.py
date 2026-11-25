@@ -23,6 +23,7 @@ _CANONICAL = {
     "studio.asset-version.v1.schema.json": "AssetVersion",
     "studio.delivery.v1.schema.json": "Delivery",
     "studio.run.v1.schema.json": "RunView",
+    "studio.run-snapshot.v1.schema.json": "RunSnapshot",
     "studio.format-recipe.v1.schema.json": "FormatRecipe",
     "studio.job.v1.schema.json": "JobView",
     "studio.escalation.v1.schema.json": "EscalationPackage",
@@ -145,6 +146,9 @@ def _document_access(document: dict) -> None:
             elif name in _GO_LIVE_OPERATIONS:
                 operation["security"] = [{"StudioSession": []}]
                 operation["x-studio-scope"] = "go_live:approve"
+            elif name == "get_go_live_approvals":
+                operation["security"] = [{"StudioSession": []}]
+                operation["x-studio-scope"] = "read"
             elif name in _RUN_QUEUE_OPERATIONS:
                 if name == "record_check_override":
                     operation["security"] = [{"StudioSession": []}]
@@ -189,8 +193,11 @@ def install_openapi(app: FastAPI):
         for name, schema in sources.items():
             if name != "StudioDefs":
                 schemas[name] = _rewrite(schema, name, schemas, sources)
-        # The API returns a story summary and separate boards. The exchange/snapshot
-        # representation remains in the canonical schema file.
+        # Run snapshots contain the canonical story and its embedded boards.
+        # The separate draft story endpoint returns a summary.
+        frozen_story = deepcopy(schemas["Story"])
+        frozen_story["required"].append("boards")
+        schemas["RunSnapshot"]["properties"]["story"] = frozen_story
         schemas["Story"]["properties"].pop("boards")
         approval_id = {"type": ["string", "null"]}
         schemas["Story"]["required"].extend(["approved", "published", "latest_finished_run"])

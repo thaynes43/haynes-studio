@@ -19,7 +19,7 @@ from haynes_studio.canonical.model import Principal
 from haynes_studio.db import identity
 from haynes_studio.db.engine import snapshot
 from haynes_studio.escalation import responder
-from haynes_studio.golive.policy import require_approver
+from haynes_studio.golive.policy import require_approver, require_person
 from haynes_studio.queue.worker_tokens import valid_worker_bearer
 
 from .config import OIDCSettings
@@ -240,16 +240,19 @@ def build_router():
         def get_route_handler(self):
             handler = super().get_route_handler()
 
-            async def approver_only(request):
+            async def go_live(request):
                 actor = await run_in_threadpool(
                     resolve_actor, request, await bearer(request), await session_cookie(request),
                     request.headers.get(CSRF_HEADER), approval=True,
                 )
-                require_approver(actor, request.app.state.oidc.settings, datetime.now(timezone.utc))
+                if request.method in SAFE_METHODS:
+                    require_person(actor)
+                else:
+                    require_approver(actor, request.app.state.oidc.settings, datetime.now(timezone.utc))
                 request.state.actor = actor
                 return await handler(request)
 
-            return approver_only
+            return go_live
 
     CurrentActor = Annotated[Actor, Depends(access)]
 

@@ -1,11 +1,7 @@
 import createClient from "openapi-fetch";
-import type { ApprovalReviewPaths } from "../approval-review-contract";
 import type { components, paths } from "./schema";
 
 const safeMethods = new Set(["GET", "HEAD", "OPTIONS"]);
-type StudioPaths = Omit<paths, keyof ApprovalReviewPaths> & {
-  [Path in keyof ApprovalReviewPaths]: Omit<paths[Path], "get"> & ApprovalReviewPaths[Path];
-};
 
 export class ApiError extends Error {
   constructor(
@@ -43,7 +39,7 @@ export function createStudioApi(
   send: typeof fetch = globalThis.fetch.bind(globalThis),
 ) {
   let csrf: string | undefined;
-  const client = createClient<StudioPaths>({
+  const client = createClient<paths>({
     baseUrl: origin,
     async fetch(request) {
       if (new URL(request.url).origin !== origin) throw new ApiError(403, "auth.origin");

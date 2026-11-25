@@ -210,7 +210,7 @@ After selection, fetch only the chosen pair using the same pinned repository,
 revision and path as the metadata table, with `/resolve/` in place of
 `/blob/`. For each allowlisted config/tokenizer file use the same revision.
 The [packaged register](../../src/haynes_studio/model_licences.json) lists all
-filenames, byte counts and hashes in `segmentation_backend_proposal`. Hashes
+filenames, byte counts and hashes in `proposals.segmentation`. Hashes
 for the small config/tokenizer files were computed from their public bytes.
 The payload is **846,220,082 bytes primary** or **777,420,069 bytes fallback**,
 including these files. Neither install includes the YuNet comparison file.
