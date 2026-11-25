@@ -145,7 +145,7 @@ def callers(operation):
         if operation.schema.get("x-studio-key") == "package responder":
             access.append(f"Package responder with {scope}")
         elif operation.name == "get_job":
-            access.append(f"Agent with {scope} (board jobs)")
+            access.append(f"Agent with {scope} (board and production-scoped matte jobs)")
         else:
             access.append(f"Agent with {scope}")
     return " or ".join(access) if access else "No Studio credential"

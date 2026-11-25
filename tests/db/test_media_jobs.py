@@ -640,12 +640,13 @@ def test_worker_lane_refusals_leave_queue_rows_unchanged(queue, studio):
         for target in ("run", "voice", "image"):
             if lane != target:
                 refuse("claim", lane, json={"lane": target})
+                refuse("claim", lane, json={"lane": target, "extra": True})
     for lane in ("voice", "image", None):
         refuse("claim", lane)
     refuse("claim", None, content=b"{")  # An unbound ID is refused before body parsing.
 
     attempt = f"attempts/{'a' * 32}"
-    for action in ("heartbeat", "publish", "complete", "fail", "attempts", attempt):
+    for action in ("heartbeat", "publish", "complete", "fail", "resume", "attempts", attempt):
         for payload in ({"json": {"run_id": run_id, "fence": "invalid"}}, {"content": b"{"}):
             refuse(action, "voice", **payload)
             refuse(action, "image", **payload)
@@ -1180,6 +1181,32 @@ def test_pausing_media_lane_leaves_requests_queued_until_resumed(studio, lane):
     assert job(s, second)["status"] == "queued"
     assert not success(s.browser.put(path, headers=s.csrf, json={"paused": False}))["paused"]
     assert worker.claim(lane).body["job"]["id"] == second
+
+
+@pytest.mark.parametrize(("lane", "kind"), [("image", "photo"), ("voice", "voice")], ids=["image", "voice"])
+def test_paused_media_lane_leaves_expired_dispatch_running_until_resumed(studio, lane, kind):
+    s = studio
+    board = board_in(s, spoken=lane == "voice")
+    identifier = success(operation(s, board, kind, "paused-dispatch"), 202)["id"]
+    claim = worker_api(s, lane=lane).claim(lane)
+    assert claim.identity["job_id"] == identifier
+    claim.publish()
+
+    path = f"/v1/queue/lanes/{lane}"
+    assert success(s.browser.put(path, headers=s.csrf, json={"paused": True}))["paused"]
+    with s.owner.begin() as conn:
+        expired = database_time(conn) - timedelta(seconds=1)
+        conn.execute(media_jobs.update().where(media_jobs.c.id == identifier).values(claim_until=expired))
+
+    poller = worker_api(s, lane=lane)
+    assert poller.claim(lane) is None
+    view = job(s, identifier)
+    assert view["status"] == "running" and view["error"] is None
+
+    assert not success(s.browser.put(path, headers=s.csrf, json={"paused": False}))["paused"]
+    assert poller.claim(lane) is None
+    view = job(s, identifier)
+    assert view["status"] == "failed" and view["error"]["code"] == "work.dispatch_unconfirmed"
 
 
 def test_photo_currency_blocks_build_and_preserves_frozen_run(queue):

@@ -4,7 +4,7 @@ import sqlalchemy as sa
 
 from .schema import media_job_lanes, queue_lane_events, run_lane
 
-LANES = ("run", "voice", "image")
+LANES = ("run", "voice", "image", "matte")
 
 
 def _latest(conn, lane):

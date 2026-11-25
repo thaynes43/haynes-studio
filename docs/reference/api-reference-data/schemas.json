@@ -7000,7 +7000,8 @@
             "enum": [
               "voice",
               "photo",
-              "asset_candidate"
+              "asset_candidate",
+              "matte"
             ],
             "title": "Kind",
             "type": "string"
@@ -7087,6 +7088,32 @@
               "properties": {
                 "target_id": {
                   "$ref": "#/components/schemas/StudioDefs_brd_id"
+                }
+              }
+            }
+          },
+          {
+            "else": {
+              "not": {
+                "required": [
+                  "matte"
+                ]
+              }
+            },
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "matte"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "target_id": {
+                  "$ref": "#/components/schemas/StudioDefs_asv_id"
                 }
               }
             }
@@ -7349,8 +7376,62 @@
             "enum": [
               "voice",
               "photo",
-              "asset_candidate"
+              "asset_candidate",
+              "matte"
             ]
+          },
+          "matte": {
+            "additionalProperties": false,
+            "properties": {
+              "format_sha256": {
+                "$ref": "#/components/schemas/StudioDefs_sha256"
+              },
+              "format_version_id": {
+                "$ref": "#/components/schemas/StudioDefs_fmv_id"
+              },
+              "kind": {
+                "enum": [
+                  "cast",
+                  "costume",
+                  "prop"
+                ]
+              },
+              "production_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/StudioDefs_prd_id"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "slot": {
+                "$ref": "#/components/schemas/StudioDefs_slot"
+              },
+              "source_sha256": {
+                "$ref": "#/components/schemas/StudioDefs_sha256"
+              },
+              "source_version_id": {
+                "$ref": "#/components/schemas/StudioDefs_asv_id"
+              },
+              "target_height_px": {
+                "maximum": 2048,
+                "minimum": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "source_version_id",
+              "source_sha256",
+              "production_id",
+              "kind",
+              "format_version_id",
+              "format_sha256",
+              "slot",
+              "target_height_px"
+            ],
+            "type": "object"
           },
           "photo": {
             "additionalProperties": false,
@@ -7486,7 +7567,7 @@
           "created_at",
           "updated_at"
         ],
-        "title": "studio.job/v1: one asynchronous job (voice, photo, asset candidate), contract section 2 and VOICE-4",
+        "title": "studio.job/v1: one asynchronous job (voice, photo, image candidate or matte), contract section 2 and VOICE-4",
         "type": "object"
       },
       "JobView_error": {
@@ -7676,6 +7757,31 @@
         }
       },
       "JsonValue": {},
+      "MatteRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "format_version_id": {
+            "title": "Format Version Id",
+            "type": "string"
+          },
+          "slot": {
+            "pattern": "^[a-z]$",
+            "title": "Slot",
+            "type": "string"
+          },
+          "source_version_id": {
+            "title": "Source Version Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_version_id",
+          "format_version_id",
+          "slot"
+        ],
+        "title": "MatteRequest",
+        "type": "object"
+      },
       "Me": {
         "properties": {
           "csrf_token": {
@@ -8565,7 +8671,8 @@
             "enum": [
               "run",
               "image",
-              "voice"
+              "voice",
+              "matte"
             ],
             "title": "Lane",
             "type": "string"
@@ -14132,7 +14239,7 @@
         "openWorldHint": false,
         "readOnlyHint": true
       },
-      "description": "Read compact status and the result version ID for a scoped voice or photo job.",
+      "description": "Read compact status and the result version ID for a scoped voice, photo or matte job.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {

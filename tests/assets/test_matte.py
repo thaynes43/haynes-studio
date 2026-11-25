@@ -17,7 +17,7 @@ import pytest
 from PIL import Image
 
 from haynes_studio.adapters import matting
-from haynes_studio.adapters.matting import MattingClient
+from haynes_studio.adapters.matting import MattingClient, MattingUnavailable
 from haynes_studio.assets.matte import run_matte_job
 from haynes_studio.layered.matte_size import SHAPE_INVALID, MatteSize
 from haynes_studio.canonical.model import to_document
@@ -372,6 +372,25 @@ def test_client_timeout_waits_for_late_writes_before_cleaning(world, monkeypatch
     assert list(client.scratch.iterdir()) == []
 
 
+def test_socket_open_timeout_needs_no_quiescence_wait(world, monkeypatch):
+    store, weights, client, _ = world
+    original = source(store, np.full((256, 256, 3), 33, dtype=np.uint8))
+    send = client._call
+
+    def timeout_on_connect(method, *args, **kwargs):
+        if method == "POST":
+            raise MattingUnavailable("adapter.timeout", "matting", "The socket could not be opened")
+        return send(method, *args, **kwargs)
+
+    monkeypatch.setattr(client, "_call", timeout_on_connect)
+    monkeypatch.setattr(client, "_ready_after_timeout",
+                        lambda **_: pytest.fail("An unopened socket cannot leave active work"))
+    with Engine(client.scratch, weights, PROFILE, factory=load_fake) as engine, listening(client.socket, engine):
+        with pytest.raises(MattingUnavailable):
+            run(world, original, before_dispatch=lambda: None)
+    assert list(client.scratch.iterdir()) == []
+
+
 def test_a_stray_marker_name_in_the_scratch_does_not_stop_matting(world, tmp_path):
     """The scratch is shared with the service. A symlink or a directory that merely has
     a marker's name is not this adapter's: it is left alone and the job still runs."""
@@ -430,7 +449,7 @@ def test_busy_retry_budget_ends_without_publication(world, monkeypatch):
     original = source(store, np.full((160, 160, 3), 33, dtype=np.uint8))
     waits = []
     client.pause = waits.append
-    monkeypatch.setattr(client, "ready", lambda: None)
+    monkeypatch.setattr(client, "ready", lambda **kwargs: None)
     monkeypatch.setattr(matting, "local_call", lambda *a, **kw: (409, {"code": "adapter.busy"}))
     assert_failed(world, original, "adapter.busy")
     assert waits == [matting.BUSY_INTERVAL] * matting.BUSY_RETRIES

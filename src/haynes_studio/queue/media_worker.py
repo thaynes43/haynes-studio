@@ -1,12 +1,16 @@
 """Drive media claims using the Studio API and caller-configured service clients."""
 
+import logging
 from dataclasses import replace
 from datetime import UTC, datetime
 from hashlib import sha256
+from tempfile import TemporaryDirectory
 from time import monotonic, sleep
 
-from haynes_studio.adapters.errors import AdapterError
+from haynes_studio.adapters.errors import COMMAND_FAILED, TIMEOUT, AdapterError
+from haynes_studio.adapters.matting import MattingUnavailable
 from haynes_studio.assets.candidate import generate_candidate
+from haynes_studio.assets.matte import matte_outputs, run_matte_job
 from haynes_studio.canonical.model import to_document
 from haynes_studio.errors import ContractError, blocking
 from haynes_studio.layered.errors import LayeredError
@@ -14,14 +18,16 @@ from haynes_studio.library import Library
 from haynes_studio.library.model import version_document
 from haynes_studio.photo.build import compose_layered_photo, generate_photo
 from haynes_studio.photo.validation import PNG
-from haynes_studio.store import BLOB_MISSING, LIBRARY, StoreError
+from haynes_studio.store import BLOB_MISSING, LIBRARY, LocalStore, StoreError
 from haynes_studio.voice import Job, make_voice, validate_job
 
-from .media_inputs import checked_candidate, checked_photo
+from .media_inputs import checked_candidate, checked_matte, checked_photo
 from .progress import ProgressFile
+from .protocol import MEDIA_LANES
 from .worker_api import WorkerAPIError
 
 IMAGE_WAIT_SECONDS = 30 * 60
+logger = logging.getLogger(__name__)
 
 
 class ImageQueueBusy(Exception):
@@ -35,10 +41,17 @@ class Dispatch:
         self.active = active
         self.started = False
 
-    def __call__(self):
+    def _check(self):
         self.active.touch_progress()
         if self.active.lost.is_set():
             raise WorkerAPIError("work.fence_lost", 409)
+
+    def check(self):
+        self._check()
+        self.active.claim.heartbeat()
+
+    def __call__(self):
+        self._check()
         if self.started:
             self.active.claim.heartbeat()
         else:
@@ -80,8 +93,8 @@ class SpeechLane:
 class MediaWorker:
     def __init__(self, api, *, lane, store, client, licences=None, clock=monotonic, pause=sleep,
                  progress=None):
-        if lane not in ("image", "voice"):
-            raise ValueError("Expected an image or voice lane")
+        if lane not in MEDIA_LANES:
+            raise ValueError("Expected an image, voice or matte lane")
         self.api, self.lane, self.store, self.client = api, lane, store, client
         self.licences, self.clock, self.pause = licences, clock, pause
         self.progress = progress or ProgressFile()
@@ -114,12 +127,55 @@ class MediaWorker:
         )
         return {"version": version_document(result.version, result.library.asset_of(result.version.id))}
 
+    def _matte(self, job, claim, dispatch, frozen, production):
+        target = checked_matte(job, frozen)
+        library = Library.from_version_documents(claim.body["library"])
+
+        def record_failure(*, code, message):
+            if code == TIMEOUT:
+                message = "Matting timed out. Scratch may remain until the next sweep."
+            claim.fail(code=code, message=message)
+
+        try:
+            with TemporaryDirectory(prefix=f"studio-{job.id}-", dir=self.client.scratch) as scratch:
+                stage = LocalStore(scratch)
+                result = run_matte_job(
+                    library, source_version_id=job.target_id, job_id=job.id, production_id=production,
+                    format_version=frozen["format_version"], slot=target.slot, by=job.created_by,
+                    now=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                    store=self.store, client=self.client, output_store=stage, check_fence=dispatch.check,
+                    before_dispatch=dispatch,
+                    record_failure=record_failure,
+                )
+                if result is None:
+                    return None
+                # A reused result can reach publication without a sidecar request.
+                dispatch()
+                # A replay can restore missing files even though it returns
+                # the existing candidate. Copy every staged artifact.
+                for item in matte_outputs(result.version):
+                    try:
+                        staged = stage.open(item.locator)
+                    except StoreError as error:
+                        if error.code != BLOB_MISSING:
+                            raise
+                        continue
+                    with staged:
+                        dispatch()
+                        self.store.publish(staged, scope=production or LIBRARY, media_type=item.media_type,
+                                           expected_sha256=item.sha256)
+        except OSError as error:
+            raise AdapterError(COMMAND_FAILED, "matting", "The matte staging store is unavailable") from error
+        return {"matte_version": version_document(result.version, result.library.asset_of(result.version.id))}
+
     def _result(self, job, claim, dispatch):
         self.progress()
         frozen = claim.body["inputs"]
         production = claim.body["production_id"]
         if job.kind == "voice":
             return self._voice(job, claim, dispatch, production)
+        if job.kind == "matte":
+            return self._matte(job, claim, dispatch, frozen, production)
         image = ImageLane(self.client, dispatch, clock=self.clock, pause=self.pause)
         if job.kind == "photo":
             plan = checked_photo(job, frozen)
@@ -139,10 +195,23 @@ class MediaWorker:
         return {"sha256": blob.sha256, "generator": to_document(prepared.generator),
                 "licence": to_document(prepared.licence)}
 
+    def _matte_wait(self, error):
+        message = f"Waiting for the matting sidecar ({error.code})"
+        self.progress.write_status(message)
+        logger.warning("%s", message)
+
     def tick(self):
         from .worker import ActiveClaim
 
         self.progress()
+        if self.lane == "matte":
+            try:
+                self.client.ready_for_claim()
+            except AdapterError as error:
+                self._matte_wait(error)
+                self.api.settle_expired_matte()
+                return False
+            self.progress.write_status("Matting sidecar ready")
         claim = self.api.claim(self.lane)
         if claim is None:
             return False
@@ -152,8 +221,16 @@ class MediaWorker:
                 violations = blocking(validate_job(doc))
                 if violations:
                     raise ContractError(doc["id"], violations)
-                evidence = self._result(Job.from_document(doc), claim, Dispatch(active))
+                job = Job.from_document(doc)
+                evidence = self._result(job, claim, Dispatch(active))
                 self.progress()
+            except MattingUnavailable as error:
+                try:
+                    claim.release(reason=error.release_reason)
+                except WorkerAPIError:
+                    logger.warning("Matte claim release was not confirmed. The worker will let the claim expire.")
+                self._matte_wait(error)
+                return False
             except WorkerAPIError:
                 raise
             except ContractError as error:
@@ -165,6 +242,8 @@ class MediaWorker:
             except Exception:
                 claim.fail(code="work.media_failed", message="The worker could not prepare the media result")
             else:
+                if job.kind == "matte" and evidence is None:  # The adapter already recorded the failure.
+                    return True
                 try:
                     claim.complete({"result": evidence})
                 except WorkerAPIError as error:

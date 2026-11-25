@@ -40,10 +40,11 @@ for request and response details. This map covers the API used by
 | `generate_board_photo` | `POST /boards/{id}/photo-jobs` | `studio_generate_photo` | assets:generate | [407](https://work.haynesnetwork.com/work_packages/407), [430](https://work.haynesnetwork.com/work_packages/430) |
 | `upload_board_photo` (D42) | `POST /boards/{id}/photo-versions` | `studio_upload_photo` at `/mcp/upload` | Agent with `assets:upload` | [407](https://work.haynesnetwork.com/work_packages/407), [430](https://work.haynesnetwork.com/work_packages/430) |
 | `list_board_photo_versions` | `GET /boards/{id}/photo-versions` | — | read | [407](https://work.haynesnetwork.com/work_packages/407), [430](https://work.haynesnetwork.com/work_packages/430) |
-| `get_job` | `GET /jobs/{id}` | `studio_get_job` | read | [430](https://work.haynesnetwork.com/work_packages/430) |
+| `get_job` | `GET /jobs/{id}` | `studio_get_job` | read | [430](https://work.haynesnetwork.com/work_packages/430), [965](https://work.haynesnetwork.com/work_packages/965) |
 | `search_assets` | `GET /assets?kind=&label=&production=&board=` | `studio_search_assets` | read | [382](https://work.haynesnetwork.com/work_packages/382), [409](https://work.haynesnetwork.com/work_packages/409) |
 | `get_asset` | `GET /assets/{id}` | `studio_get_asset` | read | [382](https://work.haynesnetwork.com/work_packages/382), [409](https://work.haynesnetwork.com/work_packages/409) |
 | `generate_asset_candidate` | `POST /asset-jobs` | — | Signed-in person | [408](https://work.haynesnetwork.com/work_packages/408), [430](https://work.haynesnetwork.com/work_packages/430) |
+| `request_matte` | `POST /asset-jobs/matte` | — | Signed-in person | [965](https://work.haynesnetwork.com/work_packages/965) |
 | `promote_asset_version` | `POST /asset-versions/{id}/promote` | — | Signed-in person | [408](https://work.haynesnetwork.com/work_packages/408) |
 | `get_media` | `GET /media/{sha256}` | — | read | [409](https://work.haynesnetwork.com/work_packages/409) |
 | `estimate_run` | `GET /stories/{id}/estimate` | `studio_estimate_run` | read | [410](https://work.haynesnetwork.com/work_packages/410), [430](https://work.haynesnetwork.com/work_packages/430) |
@@ -67,8 +68,9 @@ for request and response details. This map covers the API used by
 | `get_version_media`, `head_version_media` | `GET`, `HEAD /asset-versions/{id}/media/{sha256}` | — | Signed-in person | [430](https://work.haynesnetwork.com/work_packages/430) |
 | `get_queue_lanes`, `set_queue_lane` | `GET /queue/lanes`, `PUT /queue/lanes/{lane}` | — | Signed-in person | [430](https://work.haynesnetwork.com/work_packages/430) |
 
-Candidate job detail is restricted to people. Scoped agent keys can read board
-job status and metadata. For photo and voice history, the web can get hashes
+Image candidate and shared-library matte status requires a person. Agent keys
+can read board and matte job status and metadata with `read` on the job's
+production. For photo and voice history, the web can get hashes
 from the job result or board version lists, then use the people-only job or
 version preview for ranged playback. A board-scoped version can be read via
 `/v1/media/{sha256}` only while a current draft references it.

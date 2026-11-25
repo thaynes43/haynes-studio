@@ -8,11 +8,12 @@ The source version and its capabilities stay immutable.
 
 ## Job and candidate
 
-Nothing in the product calls `haynes_studio.assets.matte.run_matte_job` yet.
-Job kind, route, lane and worker wiring belong to a separate story with
-sidecar activation and a deployment pin. The function itself checks that
-the source is a library-level asset in the job's production scope and that
-its pinned version has the `opaque_photo` capability.
+[OP965](https://work.haynesnetwork.com/work_packages/965) wires
+`haynes_studio.assets.matte.run_matte_job` into the `matte` media lane.
+The function checks that the source is a library-level asset in the job's
+scope and its pinned version has the `opaque_photo` capability.
+[Request and job status](studio-api.md#media-operations) ·
+[Deployment pin](media-jobs.md#matte-worker-deployment-pin)
 
 The function takes an authorized job ID, scope, pinned source version and
 pinned format recipe version. The
@@ -23,20 +24,21 @@ their kinds. An opaque library photo selected for a cast slot derives a
 cast candidate. Use a chroma colour only when its uniform backing and sRGB
 provenance are known.
 
-The adapter is the worker-side operation. The staged sidecar shares
-`/matting` with the Studio run worker, where the admitted claim supplies
+The adapter is the worker-side operation. The sidecar shares
+`/matting` with the matte lane worker, where the admitted claim supplies
 the filename-free request. The worker holds store reads and its job
 fence. Pass a separate output store when the worker stages for an API-owned
-commit. Pass the claim's fence/progress check and failure writer
-(`code`, `message`). Compare the ready reply to an explicitly configured profile
+commit. Pass the claim's fence/progress check, dispatch callback and failure writer
+(`code`, `message`). The worker records entry to dispatch after the socket opens
+and before the request is sent. Compare the ready reply to an explicitly configured profile
 ID, manifest hash and CPU provider. The `MattingClient` takes that expected
 hash and a `Profile` constructed with the installed backend image digest and
 its build SHA, from the release record. It validates the frozen request and
 uses the backend's verifier to check every artifact, the response and the
 receipt's measured alpha geometry. A valid busy reply waits 5 s before
 another attempt, up to seven waits. Each dispatch uses a fresh attempt
-directory. A timeout or ambiguous response ends the job. After a client
-timeout, the adapter allows the backend's request deadline to pass and
+directory. A timeout or ambiguous response after dispatch begins ends the job.
+After a client timeout, the adapter allows the backend's request deadline to pass and
 waits for the pinned readiness response before removing its scratch files.
 The wait is bounded. Before dispatch, the adapter also clears its expired,
 unlocked scratch attempts from earlier runs.
@@ -45,10 +47,13 @@ Publish the verified straight RGBA8 cutout, L8 mask and canonical receipt
 create-only by hash, in the source scope. The API or job owner commits the
 returned `Outcome` under the same claim once all three blobs are
 authoritative. A failed write may leave unreferenced blobs. Only the
-committed outcome is an asset candidate. The job operation records
-failures, including pin mismatch, missing service, exhausted busy retries,
-timeout, invalid response and invalid shape. The existing promotion
-operation remains a person's action.
+committed outcome is an asset candidate. The matte lane checks readiness before
+claiming and releases the claim if the service disappears before dispatch.
+The [worker protocol](media-jobs.md#claims-and-results) bounds releases. The
+job operation records dispatched failures, including exhausted busy retries,
+timeout, invalid response and invalid shape. The timeout record mentions
+the next sweep because the attempt can outlive the job. The existing
+promotion operation remains a person's action.
 
 The `matting:` source key and candidate asset/version IDs derive from the
 pinned source descriptor, backend profile hash, optional chroma colour and
@@ -56,7 +61,9 @@ the format/slot normalization record. They exclude the job and scratch
 attempt IDs. A replay in the same library verifies the three committed blobs
 and returns the existing version and receipt. If media is missing, the
 adapter replays the original job ID, checks all regenerated descriptors against
-the recorded pins and recreates the missing blobs create-only. Different
+the recorded pins and recreates the missing blobs create-only. The worker copies
+any staged files even when the adapter returns `created=False` and uses the existing
+candidate ID. Different
 bytes at a recorded locator fail with `store.hash_mismatch`. Independent
 dispatches keep the same PNGs and candidate IDs. Each dispatch's receipt
 signature includes its job ID.
@@ -102,9 +109,9 @@ that is not a regular marker file it wrote.
 
 ## Evidence
 
-The source suite exercises the real socket server and its subprocess with a
-synthetic fake graph. The pinned image and weights passed the earlier
+The source and database suites exercise the real socket server and its
+subprocess with a synthetic fake graph. The pinned image and weights passed the earlier
 [OP459 smoke](https://work.haynesnetwork.com/work_packages/459), comment
-10004. The serving sidecar and product matting job admission still need a
-deployment pin. The [private quality trial](https://work.haynesnetwork.com/work_packages/451)
+10004. The serving sidecar and matte worker still need a deployment pin.
+The [private quality trial](https://work.haynesnetwork.com/work_packages/451)
 stays pending Tom's verdict under CR-46.
