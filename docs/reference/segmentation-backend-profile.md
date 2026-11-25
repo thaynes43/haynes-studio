@@ -309,8 +309,29 @@ before and after, and the report was the last line written.
 The verdict compared pass 2 with pass 1 request by request. That counted
 first-use paging as growth. SAM's memory-mapped weights are touched during
 the mask-only cases. The detector's weights are first touched on request
-five. Worker residency was flat throughout pass 2. A passing real-weight
-serving smoke remains pending. [Story 460, comment 10156](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/460/activity#comment-10156).
+five. Worker residency was flat throughout pass 2.
+[Story 460, comment 10156](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/460/activity#comment-10156).
+
+**Changed (2026-11-25).** The real-weight serving smoke
+`studio-segmentation-smoke-04` ran three passes and failed on
+`memory_stable` alone. The cgroup peak was 2,932,133,888 bytes (2.73 GiB)
+under the 5 GiB limit, cold load took 22.1 s, all eighteen calls had their
+expected status, exact readiness passed before and after, and the report
+was the last line.
+
+| Measured (MiB) | Pass 2 | Pass 3 |
+|---|---:|---:|
+| Worker resident memory maximum | 1601 | 1608 |
+| Worker resident memory mean | 1575 | 1583 |
+| Cgroup resident memory maximum | 1713 | 1720 |
+| Cgroup resident memory at pass end | 1712.6 | 1692.0 |
+
+Matching request and phase samples varied from **-84 to +89 MiB** between
+passes 2 and 3 as file-backed pages were reclaimed and faulted back and
+scratch memory varied. The point-by-point comparison at 64 MiB failed on
+that variation despite steady pass maxima and a lower final cgroup sample.
+A passing real-weight serving smoke remains pending.
+[Story 460, comment 10172](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/460/activity#comment-10172).
 
 ## Provisioning and GitOps
 
@@ -387,10 +408,12 @@ a successful reply that matches the staged receipt and mask.
 ## Expected smoke and private quality check
 
 The serving smoke records worker resident RSS and cgroup resident bytes for
-each request phase in all three passes, plus cgroup resident bytes at the end
-of each pass. Pass 1 warms the models. The stability verdict compares each
-sample in pass 3 with its counterpart in pass 2 and allows up to 64 MiB
-(67,108,864 bytes) of growth. The other verdicts still cover all three
+each request phase in all three passes. It also reports the maximum of
+each resident measurement across the phases of each pass and cgroup
+resident bytes at pass end. Pass 1 warms the models. From pass 2 to pass 3,
+the stability verdict allows up to 64 MiB (67,108,864 bytes) of growth in
+each of maximum worker RSS, maximum cgroup residency and cgroup residency
+at pass end. The other verdicts still cover all three
 passes, including the absolute 5 GiB memory limit. Two flat passes cannot
 rule out a slow leak. The reviewer estimated that a leak under about 10 MiB
 per request could pass and consume roughly 2 GiB of headroom in about

@@ -101,23 +101,37 @@ def _request_phases(fixture, result):
     return phases
 
 
-def _memory_stable(requests, case_count, pass_cgroup):
-    def within_tolerance(first, second):
-        return (type(first) is int and type(second) is int and first > 0 and second > 0
-                and second <= first + RESIDENT_GROWTH_BYTES)
-
-    reference, comparison = (number - 1 for number in STABILITY_PASSES)
-    first_requests = requests[reference * case_count:(reference + 1) * case_count]
-    second_requests = requests[comparison * case_count:(comparison + 1) * case_count]
-    return (
-        len(requests) == len(SERVING_PASS_SUFFIXES) * case_count and len(pass_cgroup) == len(SERVING_PASS_SUFFIXES)
-        and within_tolerance(pass_cgroup[reference], pass_cgroup[comparison])
-        and all(
-            first.keys() == second.keys() and all(
-                within_tolerance(first[phase][key], second[phase][key])
-                for phase in first for key in ("resident_rss_bytes", "cgroup_resident_bytes")
+def _pass_memory(requests, case_count, pass_cgroup):
+    report = {
+        "tolerance_bytes": RESIDENT_GROWTH_BYTES,
+        "compared_passes": list(STABILITY_PASSES),
+        "max_resident_rss_bytes": [],
+        "max_cgroup_resident_bytes": [],
+        "cgroup_resident_bytes": pass_cgroup,
+    }
+    for index in range(len(pass_cgroup)):
+        phases = [
+            phase
+            for request in requests[index * case_count:(index + 1) * case_count]
+            for phase in request.values()
+        ]
+        for key in ("resident_rss_bytes", "cgroup_resident_bytes"):
+            report[f"max_{key}"].append(
+                max((phase[key] for phase in phases if type(phase.get(key)) is int), default=None)
             )
-            for first, second in zip(first_requests, second_requests, strict=True)
+    return report
+
+
+def _memory_stable(passes):
+    reference, comparison = (number - 1 for number in STABILITY_PASSES)
+    return all(
+        len(values) == len(SERVING_PASS_SUFFIXES)
+        and all(type(value) is int and value > 0 for value in (values[reference], values[comparison]))
+        and values[comparison] <= values[reference] + RESIDENT_GROWTH_BYTES
+        for values in (
+            passes["max_resident_rss_bytes"],
+            passes["max_cgroup_resident_bytes"],
+            passes["cgroup_resident_bytes"],
         )
     )
 
@@ -214,13 +228,10 @@ def _smoke_run(scratch, weights, profile, strategy, inputs, report, *, repeat=Fa
             checks["ready_after"] = (status, report["readiness"]["after"]) == (200, expected)
     checks["phase_memory"] = _phase_memory(report["memory"], request_phases, cgroup_bytes("max"))
     if repeat:
-        report["memory"]["passes"] = {
-            "tolerance_bytes": RESIDENT_GROWTH_BYTES, "compared_passes": list(STABILITY_PASSES),
-            "cgroup_resident_bytes": pass_cgroup,
-        }
-        checks["memory_stable"] = checks["phase_memory"] and _memory_stable(
+        report["memory"]["passes"] = _pass_memory(
             report["memory"].get("requests", []), len(cases), pass_cgroup,
         )
+        checks["memory_stable"] = _memory_stable(report["memory"]["passes"])
     return results
 
 
