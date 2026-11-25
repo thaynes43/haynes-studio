@@ -156,6 +156,10 @@ GRANT SELECT, INSERT ON studio.media_jobs TO studio_app;
 GRANT UPDATE (document, worker_id, fence, claim_until, dispatched)
     ON studio.media_jobs TO studio_app;
 GRANT SELECT, INSERT ON studio.asset_promotions, studio.queue_lane_events TO studio_app;
+
+-- Applied by revision 0007_escalation_packages.
+GRANT SELECT, INSERT ON studio.escalation_check_failures, studio.escalation_packages,
+    studio.escalation_events TO studio_app;
 ```
 
 Revision `0004_go_live_approvals` uses the PostgreSQL UTF-8 `und-x-icu`
