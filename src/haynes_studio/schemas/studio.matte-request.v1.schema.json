@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://haynes-studio.invalid/schemas/studio.matte-request.v1.schema.json",
+  "title": "Studio still matting request (OP459)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "job_id",
+    "source",
+    "profile_id",
+    "profile_sha256",
+    "parameters"
+  ],
+  "properties": {
+    "schema": {
+      "const": "studio.matte-request/v1"
+    },
+    "job_id": {
+      "$ref": "studio.job.v1.schema.json#/$defs/job_id"
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "profile_id": {
+      "enum": [
+        "birefnet-lite-ort-cpu-v1",
+        "bria-rmbg-1.4-ort-cpu-v1"
+      ]
+    },
+    "profile_sha256": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/sha256"
+    },
+    "parameters": {
+      "$ref": "#/$defs/parameters"
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "asset_version_id",
+        "production_id",
+        "sha256",
+        "bytes",
+        "media_type",
+        "width",
+        "height"
+      ],
+      "properties": {
+        "asset_version_id": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/asv_id"
+        },
+        "production_id": {
+          "anyOf": [
+            {
+              "$ref": "studio.defs.v1.schema.json#/$defs/prd_id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sha256": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/sha256"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20971520
+        },
+        "media_type": {
+          "enum": [
+            "image/png",
+            "image/jpeg"
+          ]
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 64,
+          "maximum": 2048
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 64,
+          "maximum": 2048
+        }
+      }
+    },
+    "parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "chroma_rgb",
+        "target_height_px"
+      ],
+      "properties": {
+        "chroma_rgb": {
+          "anyOf": [
+            {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 3,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 255
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "target_height_px": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2048
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -2,8 +2,9 @@
 
 Story [433](https://work.haynesnetwork.com/work_packages/433) defines two
 `linux/amd64` images for story [434](https://work.haynesnetwork.com/work_packages/434).
-The [Studio images workflow](../../.github/workflows/studio-images.yml) builds and
-smokes both on every pull request and on `main`. The `main` publish job loads the
+Story [459](https://work.haynesnetwork.com/work_packages/459) adds the CPU
+matting image. The [Studio images workflow](../../.github/workflows/studio-images.yml)
+builds and smokes all three on every pull request and on `main`. The `main` publish job loads the
 same image archives that passed the smoke tests and pushes them to GHCR.
 
 ## Images and digests
@@ -12,14 +13,15 @@ same image archives that passed the smoke tests and pushes them to GHCR.
 | --- | --- | --- | --- | --- |
 | `ghcr.io/thaynes43/haynes-studio` | `sha-<full commit>` | `10001:10001` | `8000` | `studio-api serve --host 0.0.0.0 --port 8000` |
 | `ghcr.io/thaynes43/haynes-studio-web` | `sha-<full commit>` | `101:101` | `8080` | `/usr/sbin/nginx -g 'daemon off;'` |
+| `ghcr.io/thaynes43/haynes-studio-matting` | `sha-<full commit>` | `10001:10001` | Unix socket only | `studio-matting serve` |
 
 Use the full merged commit SHA. The workflow summary under **Publish tested Studio
 images** records each registry digest alongside that revision. You can also resolve
-both tags at the registry.
+the tags at the registry.
 
 ```sh
 revision=$(git rev-parse origin/main)
-for name in haynes-studio haynes-studio-web; do
+for name in haynes-studio haynes-studio-web haynes-studio-matting; do
   repository="ghcr.io/thaynes43/$name"
   digest=$(docker buildx imagetools inspect "$repository:sha-$revision" \
     --format '{{.Manifest.Digest}}') || exit 1
@@ -62,6 +64,7 @@ and stderr. Its web root and configuration can stay read-only.
 | API | `STUDIO_DATABASE_URL`, `STUDIO_STORE_ROOT`, `STUDIO_PUBLIC_ORIGIN`, `STUDIO_OIDC_ISSUER`, `STUDIO_OIDC_CLIENT_ID`, `STUDIO_OIDC_CLIENT_SECRET`, at least one of `STUDIO_OIDC_ALLOWED_SUBJECTS` and `STUDIO_OIDC_ALLOWED_GROUPS` | `STUDIO_DATABASE_SCHEMA`, `STUDIO_STORE_FRESHNESS_SECONDS`, `STUDIO_OIDC_LEEWAY_SECONDS`, `STUDIO_OIDC_CACHE_TTL_SECONDS`, `STUDIO_OIDC_FAILURE_TTL_SECONDS`, `STUDIO_SESSION_SECONDS` | `GET /healthz` returns 204. `GET /readyz` returns 204 when PostgreSQL and the store are ready. |
 | Migration Job | `STUDIO_MIGRATION_DATABASE_URL` | `STUDIO_DATABASE_SCHEMA`, default `studio`. Match the API and precreate it. | Run `studio-api-migrate upgrade head`. Exit status 0 is success. |
 | Web | None | None | `GET /index.html` on port 8080 returns 200. |
+| Matting | `STUDIO_MATTING_IMAGE` set to the full immutable image reference | None | `studio-matting ready` checks the profile and CPU provider over the Unix socket. |
 
 See [Studio API](studio-api.md#environment) for values and defaults. Mount the
 shared D39 store at `STUDIO_STORE_ROOT` with write access for UID 10001 so the API
@@ -88,10 +91,25 @@ builds the web app with the pnpm version pinned in `web/package.json` and
 `pnpm install --frozen-lockfile`. CI uses the checkout's commit timestamp as
 `SOURCE_DATE_EPOCH` and rewrites exported layer timestamps.
 
-The workflow checks the image labels and user IDs, then scans both runtime
+The workflow checks the image labels and user IDs, then scans the runtime
 filesystems for the repository's prohibited media extensions and credential
 filenames. The certifi HTTPS trust bundle must contain only public X.509
 certificates. The Python smoke runs the CLI, imports the installed dependencies,
 loads TLS trust, runs OpenAPI generation and migrates a disposable PostgreSQL 16
 database. The web smoke verifies the HTML, SPA fallback, cache headers and
 reserved path 404s. Both smoke tests use read-only root filesystems.
+
+The matting image uses the same CPython base. It installs the locked
+matting dependency group and checks the exact 27,780,211-byte ORT CPU
+wheel against its separately pinned SHA-256. A read-only `/weights` mount
+supplies the graph and profile records. Mount a private writable
+`/matting` for the socket, attempt files, `HOME` and `TMPDIR`. The image
+carries the upstream BiRefNet licence notice. The filesystem scan rejects
+model files, and the build checks the image is within the 1 GiB budget.
+
+The matting image smoke runs with a read-only root and network disabled.
+It imports ORT and checks its distribution and hashed wheel identity, then
+runs the backend over Unix HTTP with a generated ONNX graph. It checks CPU
+provider selection, inference, both PNGs and the receipt. Real weights,
+quality, timing, memory and installation require the install smoke.
+[Matting profile](matting-backend-profile.md)

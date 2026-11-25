@@ -1,4 +1,4 @@
-# Matting backend profile proposal
+# Matting backend profile
 
 **Proposed 2026-11-25** for [story 459](https://work.haynesnetwork.com/work_packages/459).
 Use **BiRefNet Lite FP32 on ONNX Runtime CPU** for single-subject cast and prop
@@ -21,6 +21,13 @@ opaque source and its capabilities stay immutable under D15.
 [PoC cutout procedure](../process/manual-short-poc.md) ·
 [Layered adapter](layered-adapter.md) · [Asset candidates](asset-candidates.md) ·
 [Doll format](doll-format.md) · [Studio plan, D15, D18, D22–D24 and E2](../proposals/0003-studio-plan.md)
+
+**Selected by CR-33**, story 459 comment 9934. The source implements
+`birefnet-lite-ort-cpu-v1` for stills. BRIA requires a new ruling after a
+primary smoke failure. Clips use the existing chroma keyer. The 32-inode
+provisioning budget stands without a free-inode reading because this NFS
+client does not report one. Installation and the private quality check are
+**Expected**.
 
 ## Candidate evidence
 
@@ -199,7 +206,40 @@ blob and the original opaque candidate. Promotion remains explicit.
 [Store publication](../contracts/studio-contracts-v1.md#atomic-create-only-publication) ·
 [Media worker claims](media-jobs.md#claims-and-results)
 
-## Provisioning and GitOps sketch
+## Backend source
+
+The [request](matting-examples/request.json) and [result](matting-examples/result.json)
+examples use illustrative artifact and image hashes. Both schemas ship with the
+package. Compute the signature over the frozen request object, including its
+schema tag and excluding the attempt ID. The signature is a receipt field.
+Request and failure bodies are JSON. A failure body is `{"code":"adapter.*"}`.
+
+`studio-matting serve` binds `/matting/matte.sock` with mode 0660.
+`GET /v1/ready` returns `{profile_id, profile_sha256, provider}` while the
+inference process is ready, or 503 during recovery. A startup pin error
+exits before binding. Malformed input returns 400, pin mismatch or busy
+409, command failure 500, invalid output 502, unavailability 503 and
+deadline expiry 504. Requests have a 4 KiB body limit. The worker stages
+an attempt directory writable by the shared group and an `input` file
+readable by that group. The backend refuses links, non-regular inputs and
+nonempty prior attempts. The caller uses a fresh directory after any failed
+or ambiguous reply. A killed attempt may leave files in its private scratch.
+The store commits only after a verified success receipt.
+
+The enrolled image's build revision is baked into its configuration. The
+provisioner writes the canonical `profile.json` and separate `profile.sha256`
+with the exact deployable image digest into the immutable weights allocation.
+On startup the backend reconstructs the expected manifest from the image
+reference, baked revision and effective settings, checks both mounted records,
+then reads and hashes the graph it gives to ORT. The local hash check confirmed
+224,005,088 bytes and SHA-256 `5600024376f572a557870a5eb0afb1e5961636bef4e1e22132025467d0f03333`.
+The graph declares FP32 tensors `input_image` `[1,3,1024,1024]` and
+`output_image` `[1,1,1024,1024]`. The process checks the provider and tensor
+metadata before readiness and checks the logits before sigmoid. A request
+that exceeds 30 s kills and reaps the subprocess before a fresh CPU session
+can load. A load has its own 120 s budget.
+
+## Provisioning and GitOps
 
 Read-only check on 2026-11-25 used `kubectl -n ai get deploy studio-render`
 with the resource and node columns, and `kubectl -n ai exec deploy/studio-render -c app -- df -Pk /studio`,
@@ -219,10 +259,8 @@ The Studio share reported
   400,158,443 bytes and leaves 110,827,867,083,029 before metadata.
   Re-read capacity before provisioning. Budget **1 GiB and 32 new inodes**
   on the share for the selected graph, receipt, retained failed attempt or
-  fallback, and a small synthetic smoke. Keep **32 GiB and 1,024 free
-  inodes** after that budget. Have the existing storage owner confirm the
-  inode reserve from the authoritative volume before downloading if the NFS
-  client still omits it.
+  fallback, and a small synthetic smoke. Keep **32 GiB** free after the byte budget. Under CR-33 the NFS client
+  may omit the free-inode reading. Use one new allocation for each attempt.
 - Stream to a unique file under a new profile job directory in the existing
   `/studio/jobs` allocation, with no Hub cache. Enforce the published byte
   count and SHA-256. Finalize create-only on that share and mount the selected
@@ -337,7 +375,12 @@ if it fails. An unrepresentative or unavailable authorized fixture leaves
 private quality pending. Share the numerical evidence and private locators
 through the story. Keep Tom's verdict separate.
 
-The image digest, installed health and rollback read-back, exact ONNX output
-metadata, CPU cold-load/latency/RSS and real painted-eye, fringe and clip
-behaviour remain unmeasured. This source proposal supplies the two pins and
-one interface for the coordinator's ruling.
+The CI image smoke uses a generated channel-mean ONNX graph. It verifies
+the pinned wheel, CPU session, Unix HTTP, PNG and receipt read-back. The
+install Job runs `studio-matting smoke` with the real profile and prints
+one JSON report with per-region metrics, verdicts, hashes, cold load,
+wall time per request and peak RSS. It reports the sum of supervisor and
+worker RSS peaks as a conservative upper bound.
+
+Real profile load, cold-load/latency/RSS, installed health and rollback
+read-back, and painted-eye, fringe and clip behaviour remain **Expected**.
