@@ -14,6 +14,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
+from haynes_studio.segmentation import backend, smoke
 from haynes_studio.segmentation.backend import Engine
 from haynes_studio.segmentation.fixtures import Fixture, fixtures, visible_fraction
 from haynes_studio.segmentation.inference import (
@@ -435,3 +436,43 @@ def test_busy_timeout_reap(tmp_path, pins, example):
             engine._recovery.join(timeout=5)
             assert engine.readiness and engine._child.process.pid != original_pid
             assert local_call(socket_path, "POST", "/v1/segment", good)[0] == 200
+
+
+
+def test_slow_receipt_never_returns_ready(tmp_path, pins, example, monkeypatch):
+    profile, weights = pins
+    data, request = example.request("prop")
+    payload = stage(tmp_path, data, request)
+    with Engine(tmp_path, weights, profile, factory=_factory) as engine:
+        create_file = backend._create_file
+        monotonic = backend.monotonic
+        delay = 0
+
+        def slow_commit(directory, name, data):
+            nonlocal delay
+            create_file(directory, name, data)
+            delay = 61
+
+        monkeypatch.setattr(backend, "_create_file", slow_commit)
+        monkeypatch.setattr(backend, "monotonic", lambda: monotonic() + delay)
+        receipt = engine.run(payload)
+        assert (receipt["status"], receipt["reason"], receipt["mask"]) == ("failed", "timeout", None)
+        staged = (tmp_path / payload["attempt_id"] / "result.json").read_bytes()
+        assert digest(staged) != digest(canonical_json(receipt))
+
+
+def test_smoke_stops_after_unexpected_visibility(tmp_path, pins, monkeypatch):
+    profile, weights = pins
+    observed = []
+
+    def failed_visibility(scratch, weights, profile, strategy, inputs, report):
+        observed.append(strategy)
+        report["cases"] = {"foreground": {"status": "ready"}}
+        report["verdicts"] = {"visibility": False}
+        return {"foreground": (b"result", b"mask")}
+
+    monkeypatch.setattr(Profile, "installed", lambda: profile)
+    monkeypatch.setattr(smoke, "fixtures", lambda: {"foreground": object()})
+    monkeypatch.setattr(smoke, "_smoke_run", failed_visibility)
+    report = smoke.smoke(tmp_path, weights, ("mmap", "buffered"))
+    assert observed == ["mmap"] and not report["passed"]

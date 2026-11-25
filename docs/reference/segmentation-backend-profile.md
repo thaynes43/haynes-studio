@@ -232,8 +232,9 @@ On an ambiguous reply use a fresh attempt. The caller uses the receipt hash,
 file read-back and its own claim fence before publishing. The backend writes
 a closed failed result when the request is valid and the attempt can receive
 one. Malformed envelopes and busy capacity return a short code. A timed-out
-child is killed and reaped before a replacement loads. Its private attempt can
-contain an unreferenced mask. A `needs_hint` result returns HTTP 200 with its
+child is killed and reaped before a replacement loads. A timeout can leave an
+unreferenced mask or late staged receipt. The caller requires a matching
+successful reply before using either file. A `needs_hint` result returns HTTP 200 with its
 stable reason, null mask and null tight box. Only successful current replies
 can lead to a ready completion.
 

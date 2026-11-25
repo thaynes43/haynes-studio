@@ -270,7 +270,11 @@ class Engine:
                 except OSError:
                     # A caller must receive a committed receipt before using
                     # any mask. A partial write stays inside this attempt.
-                    receipt = Observation().receipt(request, self.profile, "failed", "store_failed")
+                    return Observation().receipt(request, self.profile, "failed", "store_failed")
+                if monotonic() >= deadline and receipt["status"] != "failed":
+                    # A slow close can consume the remaining budget. An
+                    # attempt is usable only with the matching successful reply.
+                    return Observation().receipt(request, self.profile, "failed", "timeout")
                 return receipt
         except FileNotFoundError:
             return Observation().receipt(request, self.profile, "failed", "input_unavailable")

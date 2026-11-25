@@ -164,7 +164,8 @@ def smoke(scratch: Path, weights: Path, strategies: tuple[str, ...]) -> dict:
                 baseline = results
             else:
                 checks["byte_parity"] = results == baseline and results.keys() == inputs.keys()
-            if any(case["status"] == "failed" for case in run["cases"].values()):
+            if (run["verdicts"].get("visibility") is False
+                    or any(case["status"] == "failed" for case in run["cases"].values())):
                 break
         allowance = (RESOURCES["serving"] if len(strategies) == 1 else None) or RESOURCES["measurement"]
         peak = cgroup_bytes("peak")

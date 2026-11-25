@@ -17,8 +17,9 @@ RUN uv venv --python 3.12 /opt/studio \
     && (cd /tmp/wheels && sha256sum *.whl) > /opt/studio/segmentation-wheels.sha256 \
     && uv pip install --python /opt/studio/bin/python --no-deps --no-index /tmp/wheels/*.whl \
     && site=/opt/studio/lib/python3.12/site-packages \
-    && find "$site/numpy" -type d -name tests -prune -exec rm -rf {} + \
-    && rm -f "$site/torch/bin/test_interpreter_async.pt" \
+    && find "$site/numpy" "$site/networkx" "$site/sympy" -type d -name tests -prune -exec rm -rf {} + \
+    && rm -f "$site/torch/bin/test_interpreter_async.pt" "$site/networkx/generators/atlas.dat.gz" \
+        "$site/distutils-precedence.pth" \
     && rm -rf /tmp/wheels
 
 FROM wheels AS build
