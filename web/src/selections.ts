@@ -1,6 +1,7 @@
 import { ApiError, type StudioClient } from "./api/client";
 import type { components } from "./api/schema";
 import { parseRoute, safePath } from "./routes";
+import { readProductionFilters, type ProductionFilters } from "./production-filters";
 
 const namespace = "web_shell";
 const destinations = {
@@ -15,11 +16,32 @@ type SelectionVersion = {
   values: SelectionDocument["values"];
   etag: string;
 };
+type Changes = Partial<Destinations> & { production_filters?: Record<string, ProductionFilters> };
 
 function object(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {};
+}
+
+function mergeChanges(earlier: Changes, later: Changes): Changes {
+  if (!later.production_filters) return { ...earlier, ...later };
+  return {
+    ...earlier,
+    ...later,
+    production_filters: { ...earlier.production_filters, ...later.production_filters },
+  };
+}
+
+function applyChanges(values: SelectionDocument["values"], changes: Changes): SelectionDocument["values"] {
+  const shell = object(values[namespace]);
+  const filters = changes.production_filters && {
+    ...object(shell.production_filters), ...changes.production_filters,
+  };
+  return {
+    ...values,
+    [namespace]: { ...shell, ...changes, ...(filters && { production_filters: filters }) },
+  };
 }
 
 export function readDestinations(values: SelectionDocument["values"]): Destinations {
@@ -50,23 +72,30 @@ export async function loadSelections(client: StudioClient, signal?: AbortSignal)
 
 export function createSelections(client: StudioClient, initial: SelectionVersion) {
   let confirmed = initial;
-  let pending: Partial<Destinations> = {};
+  let pending: Changes = {};
   let saving = false;
-  let snapshot = { destinations: readDestinations(initial.values), error: undefined as unknown };
+  let optimistic = initial.values;
+  let snapshot = readSnapshot(initial.values);
   const listeners = new Set<() => void>();
 
-  function publish(next: Destinations, error?: unknown) {
-    snapshot = { destinations: next, error };
+  function readSnapshot(values: SelectionDocument["values"], error?: unknown) {
+    return {
+      destinations: readDestinations(values),
+      productionFilters: object(object(values[namespace]).production_filters),
+      error,
+    };
+  }
+
+  function publish(values: SelectionDocument["values"], error?: unknown) {
+    optimistic = values;
+    snapshot = readSnapshot(values, error);
     for (const listener of listeners) listener();
   }
 
-  async function write(changes: Partial<Destinations>) {
+  async function write(changes: Changes) {
     const { data, response } = await client.PUT("/v1/me/selections", {
       params: { header: { "If-Match": confirmed.etag } },
-      body: { values: {
-        ...confirmed.values,
-        [namespace]: { ...object(confirmed.values[namespace]), ...changes },
-      } },
+      body: { values: applyChanges(confirmed.values, changes) },
     });
     return selectionVersion(data, response);
   }
@@ -87,15 +116,21 @@ export function createSelections(client: StudioClient, initial: SelectionVersion
             confirmed = await write(changes);
           }
         } catch (error) {
-          pending = { ...changes, ...pending };
-          publish({ ...readDestinations(confirmed.values), ...pending }, error);
+          pending = mergeChanges(changes, pending);
+          publish(applyChanges(confirmed.values, pending), error);
           return;
         }
-        publish({ ...readDestinations(confirmed.values), ...pending });
+        publish(applyChanges(confirmed.values, pending));
       }
     } finally {
       saving = false;
     }
+  }
+
+  function remember(changes: Changes) {
+    pending = mergeChanges(pending, changes);
+    publish(applyChanges(optimistic, changes), snapshot.error);
+    void flush();
   }
 
   return {
@@ -106,9 +141,10 @@ export function createSelections(client: StudioClient, initial: SelectionVersion
     snapshot: () => snapshot,
     remember(key: Destination, path: string) {
       if (snapshot.destinations[key] === path) return;
-      pending[key] = path;
-      publish({ ...snapshot.destinations, [key]: path }, snapshot.error);
-      void flush();
+      remember({ [key]: path });
+    },
+    rememberProductionFilters(path: string, filters: ProductionFilters) {
+      remember({ production_filters: { [path]: readProductionFilters(filters) } });
     },
     retry: flush,
   };
