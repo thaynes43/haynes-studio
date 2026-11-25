@@ -1,5 +1,6 @@
 """Drive media claims using the Studio API and caller-configured service clients."""
 
+import logging
 from dataclasses import replace
 from datetime import UTC, datetime
 from hashlib import sha256
@@ -7,6 +8,7 @@ from tempfile import TemporaryDirectory
 from time import monotonic, sleep
 
 from haynes_studio.adapters.errors import COMMAND_FAILED, TIMEOUT, AdapterError
+from haynes_studio.adapters.matting import MattingUnavailable
 from haynes_studio.assets.candidate import generate_candidate
 from haynes_studio.assets.matte import matte_outputs, run_matte_job
 from haynes_studio.canonical.model import to_document
@@ -25,6 +27,7 @@ from .protocol import MEDIA_LANES
 from .worker_api import WorkerAPIError
 
 IMAGE_WAIT_SECONDS = 30 * 60
+logger = logging.getLogger(__name__)
 
 
 class ImageQueueBusy(Exception):
@@ -38,10 +41,17 @@ class Dispatch:
         self.active = active
         self.started = False
 
-    def __call__(self):
+    def _check(self):
         self.active.touch_progress()
         if self.active.lost.is_set():
             raise WorkerAPIError("work.fence_lost", 409)
+
+    def check(self):
+        self._check()
+        self.active.claim.heartbeat()
+
+    def __call__(self):
+        self._check()
         if self.started:
             self.active.claim.heartbeat()
         else:
@@ -133,11 +143,14 @@ class MediaWorker:
                     library, source_version_id=job.target_id, job_id=job.id, production_id=production,
                     format_version=frozen["format_version"], slot=target.slot, by=job.created_by,
                     now=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-                    store=self.store, client=self.client, output_store=stage, check_fence=dispatch,
+                    store=self.store, client=self.client, output_store=stage, check_fence=dispatch.check,
+                    before_dispatch=dispatch,
                     record_failure=record_failure,
                 )
                 if result is None:
                     return None
+                # A reused result can reach publication without a sidecar request.
+                dispatch()
                 # A replay can restore missing files even though it returns
                 # the existing candidate. Copy every staged artifact.
                 for item in matte_outputs(result.version):
@@ -151,6 +164,11 @@ class MediaWorker:
                         dispatch()
                         self.store.publish(staged, scope=production or LIBRARY, media_type=item.media_type,
                                            expected_sha256=item.sha256)
+        except MattingUnavailable as error:
+            if not dispatch.started:
+                raise
+            record_failure(code=error.code, message=error.message)
+            return None
         except OSError as error:
             raise AdapterError(COMMAND_FAILED, "matting", "The matte staging store is unavailable") from error
         return {"matte_version": version_document(result.version, result.library.asset_of(result.version.id))}
@@ -182,10 +200,22 @@ class MediaWorker:
         return {"sha256": blob.sha256, "generator": to_document(prepared.generator),
                 "licence": to_document(prepared.licence)}
 
+    def _matte_wait(self, error):
+        message = f"Waiting for the matting sidecar ({error.code})"
+        self.progress.write_status(message)
+        logger.warning("%s", message)
+
     def tick(self):
         from .worker import ActiveClaim
 
         self.progress()
+        if self.lane == "matte":
+            try:
+                self.client.ready_for_claim()
+            except AdapterError as error:
+                self._matte_wait(error)
+                return False
+            self.progress.write_status("Matting sidecar ready")
         claim = self.api.claim(self.lane)
         if claim is None:
             return False
@@ -198,6 +228,10 @@ class MediaWorker:
                 job = Job.from_document(doc)
                 evidence = self._result(job, claim, Dispatch(active))
                 self.progress()
+            except MattingUnavailable as error:
+                claim.release()
+                self._matte_wait(error)
+                return False
             except WorkerAPIError:
                 raise
             except ContractError as error:

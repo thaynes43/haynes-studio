@@ -1,8 +1,12 @@
 """Exercise matte admission, fencing and publication through Studio's serving paths."""
 
 import asyncio
+import multiprocessing
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
+from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -16,6 +20,7 @@ from haynes_studio.adapters.matting import MattingClient
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.db.catalog import record_asset_version
 from haynes_studio.db.migrate import migrate
+from haynes_studio.db.runs import database_time
 from haynes_studio.db.schema import asset_versions, media_jobs, queue_lane_events, worker_lane_grants
 from haynes_studio.library import EMPTY, Content, Scope, VersionRequest, import_version
 from haynes_studio.library.model import Licence, version_document
@@ -27,17 +32,19 @@ from haynes_studio.matting.profile import (
 from haynes_studio.matting.service import listening
 from haynes_studio.mcp.server import create_app
 from haynes_studio.queue.media_worker import MediaWorker
-from haynes_studio.queue.worker_api import MediaClaimAPI
+from haynes_studio.queue.progress import ProgressFile
+from haynes_studio.queue.worker_api import MediaClaimAPI, WorkerAPIError
 from haynes_studio.store import LIBRARY
 
 from tests.assets.test_candidates import BY, NOW
+from tests.assets.test_matte import load_waiting_matte
 from tests.db.test_media_jobs import (
     board_in, client, engine, job, owner_engine, register_agent, runtime_db, runtime_role, service, studio,
     success, upload,
 )
 from tests.db.test_run_queue import worker_api, worker_credentials
 from tests.formats.fixtures import doll_short
-from tests.matting.test_backend import PROFILE, load_fake, prepared
+from tests.matting.test_backend import PROFILE, load_fake, prepared, request_for
 from tests.mcp.client import API_URL, call, connect, fail
 
 pytestmark = pytest.mark.db
@@ -101,6 +108,23 @@ def request(studio, body, key, *, headers=None):
 
 def retire(claim):
     return claim.fail(code="work.fixture", message="Fixture finished")["status"]
+
+
+def row_of(studio, identifier):
+    with studio.owner.connect() as conn:
+        return conn.execute(sa.select(media_jobs).where(media_jobs.c.id == identifier)).mappings().one()
+
+
+def expire(studio, identifier):
+    with studio.owner.begin() as conn:
+        conn.execute(media_jobs.update().where(media_jobs.c.id == identifier)
+                     .values(claim_until=database_time(conn) - timedelta(seconds=1)))
+
+
+def conflict(action, code="work.fence_lost"):
+    with pytest.raises(WorkerAPIError) as caught:
+        action()
+    assert caught.value.status == 409 and caught.value.code == code
 
 
 def test_matte_admission_and_scoped_job_reads(matte_studio, matte_format):
@@ -176,6 +200,8 @@ def test_matte_lane_grants_pause_resume_and_fifo(matte_studio, matte_format):
         refused(lane, "claim", 403 if lane is None else 422,
                 "work.lane_forbidden" if lane is None else "schema.invalid",
                 content=b'{"lane":"matte",')
+        refused(lane, "release-matte", 403, "work.lane_forbidden", json={"job_id": first, "fence": 1})
+        refused(lane, "release-matte", 403, "work.lane_forbidden", content=b"{")
     for lane in ("run", "image", "voice"):
         refused("matte", "claim", 403, "work.lane_forbidden", json={"lane": lane})
         refused("matte", "claim", 422, "schema.unknown_field", json={"lane": lane, "extra": True})
@@ -218,6 +244,7 @@ def test_matte_worker_publishes_and_rebuilds_all_pinned_files(matte_studio, matt
     local, weights = matte_client
     worker = MediaWorker(api, lane="matte", store=s.store, client=local)
     dispatches = []
+    recorded_before_send = []
     dispatch = local.run
 
     def trace(spec, data, **kwargs):
@@ -227,6 +254,16 @@ def test_matte_worker_publishes_and_rebuilds_all_pinned_files(matte_studio, matt
     monkeypatch.setattr(local, "run", trace)
     first = success(request(s, body, "first-press"), 202)["id"]
     with Engine(local.scratch, weights, PROFILE, factory=load_fake) as backend, listening(local.socket, backend):
+        run_backend = backend.run
+
+        def read_fence(value):
+            with s.owner.connect() as conn:
+                row = conn.execute(sa.select(media_jobs.c.id, media_jobs.c.dispatched)
+                                   .where(media_jobs.c.lane == "matte", media_jobs.c.worker_id.is_not(None))).one()
+            recorded_before_send.append(tuple(row))
+            return run_backend(value)
+
+        monkeypatch.setattr(backend, "run", read_fence)
         assert worker.tick()
         finished = job(s, first)
         assert finished["status"] == "succeeded" and finished["result_is_current"] is False, finished.get("error")
@@ -259,6 +296,7 @@ def test_matte_worker_publishes_and_rebuilds_all_pinned_files(matte_studio, matt
         assert worker.tick()
         assert success(s.browser.get(f"/v1/jobs/{cached}/result")) == promoted
     assert dispatches == [first, first]
+    assert recorded_before_send == [(first, True), (rebuild, True)]
     latest = {item["id"]: item for item in success(s.browser.get("/v1/assets"))["items"]}
     assert latest[source["id"]] == source and latest[version] == promoted
 
@@ -318,16 +356,108 @@ def test_matte_backend_and_size_refusals_leave_no_candidates(matte_studio, matte
             assert_failed(s, identifier, code)
 
 
-def test_matte_busy_pin_missing_and_timeout_are_recorded(matte_studio, matte_format, matte_client, monkeypatch):
+def test_matte_waits_for_pinned_sidecar_then_runs_in_order(
+    matte_studio, matte_format, matte_client, monkeypatch, tmp_path, caplog,
+):
     s = matte_studio
     local, weights = matte_client
-    original = opaque(s, scope=s.production_id)
-    body = payload(original, matte_format)
-    worker = MediaWorker(worker_api(s, lane="matte"), lane="matte", store=s.store, client=local)
-    missing = success(request(s, body, "missing-backend"), 202)["id"]
-    assert worker.tick()
-    assert_failed(s, missing, NOT_FOUND)
+    marker = tmp_path / "worker-progress"
+    worker = MediaWorker(worker_api(s, lane="matte"), lane="matte", store=s.store, client=local,
+                         progress=ProgressFile(marker))
+    body = payload(opaque(s, scope=s.production_id), matte_format)
+    ids = [success(request(s, body, key), 202)["id"] for key in ("first", "second")]
 
+    def waiting(code):
+        assert not worker.tick()
+        assert all(job(s, identifier)["status"] == "queued" and row_of(s, identifier)["fence"] == 0
+                   for identifier in ids)
+        line = f"Waiting for the matting sidecar ({code})"
+        assert line in caplog.messages
+        assert marker.read_text().strip() == line and worker.progress.fresh(5)
+
+    waiting(NOT_FOUND)
+    with Engine(local.scratch, weights, PROFILE, factory=load_fake) as backend, listening(local.socket, backend):
+        with monkeypatch.context() as patch:
+            patch.setattr(backend, "_digest", None)
+            waiting(NOT_FOUND)
+            patch.setattr(backend, "_digest", "0" * 64)
+            waiting(PIN_MISMATCH)
+        assert worker.tick()
+        assert [job(s, identifier)["status"] for identifier in ids] == ["succeeded", "queued"]
+        assert marker.read_text().strip() == "Matting sidecar ready"
+        assert worker.tick()
+        assert [job(s, identifier)["status"] for identifier in ids] == ["succeeded", "succeeded"]
+
+
+def test_matte_busy_attempt_prevents_any_claim(matte_studio, matte_format, matte_client, tmp_path, caplog, monkeypatch):
+    s = matte_studio
+    local, weights = matte_client
+    monkeypatch.setattr(local, "pause", lambda seconds: None)
+    marker = tmp_path / "worker-progress"
+    worker = MediaWorker(worker_api(s, lane="matte"), lane="matte", store=s.store, client=local,
+                         progress=ProgressFile(marker))
+    identifier = success(request(s, payload(opaque(s, scope=s.production_id), matte_format), "busy"), 202)["id"]
+    ctx = multiprocessing.get_context("spawn")
+    entered, resume = ctx.Event(), ctx.Event()
+    factory = partial(load_waiting_matte, entered=entered, resume=resume)
+    prior = request_for(local.scratch, local.profile_sha256, value=77)
+    data = (local.scratch / prior["attempt_id"] / "input").read_bytes()
+    with Engine(local.scratch, weights, PROFILE, factory=factory) as backend, listening(local.socket, backend):
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            active = pool.submit(local.run, prior["request"], data, check_fence=lambda: None)
+            try:
+                assert entered.wait(5)
+                assert not worker.tick()
+                assert job(s, identifier)["status"] == "queued" and row_of(s, identifier)["fence"] == 0
+                line = f"Waiting for the matting sidecar ({BUSY})"
+                assert line in caplog.messages and marker.read_text().strip() == line
+            finally:
+                resume.set()
+            active.result(timeout=5)
+        assert worker.tick() and job(s, identifier)["status"] == "succeeded"
+
+
+@pytest.mark.parametrize("disconnects", [1, 4])
+def test_matte_socket_loss_before_send_releases_with_durable_bound(
+    matte_studio, matte_format, matte_client, monkeypatch, disconnects,
+):
+    s = matte_studio
+    local, weights = matte_client
+    identifier = success(request(s, payload(opaque(s, scope=s.production_id), matte_format), "race"), 202)["id"]
+    real_call = matting.local_call
+
+    def disappear(path, method, *args, **kwargs):
+        if method == "POST":
+            path.unlink()
+        return real_call(path, method, *args, **kwargs)
+
+    with Engine(local.scratch, weights, PROFILE, factory=load_fake) as backend:
+        for number in range(1, disconnects + 1):
+            # A new worker still sees the count stored by the preceding claim.
+            worker = MediaWorker(worker_api(s, lane="matte"), lane="matte", store=s.store, client=local)
+            with listening(local.socket, backend), monkeypatch.context() as patch:
+                patch.setattr(matting, "local_call", disappear)
+                assert not worker.tick()
+            row = row_of(s, identifier)
+            assert row["fence"] == number and row["matte_releases"] == min(number, 3)
+            assert row["claim_until"] is None and row["worker_id"] is None and not row["dispatched"]
+            assert not list(local.scratch.glob(".studio-matting-*"))
+            if number <= 3:
+                view = job(s, identifier)
+                assert view["status"] == "queued" and view["error"] is None
+        if disconnects == 1:
+            with listening(local.socket, backend):
+                assert worker.tick()
+                assert job(s, identifier)["status"] == "succeeded"
+        else:
+            assert_failed(s, identifier, "matting.sidecar_unavailable")
+
+
+def test_matte_timeout_after_dispatch_is_recorded(matte_studio, matte_format, matte_client, monkeypatch):
+    s = matte_studio
+    local, weights = matte_client
+    body = payload(opaque(s, scope=s.production_id), matte_format)
+    worker = MediaWorker(worker_api(s, lane="matte"), lane="matte", store=s.store, client=local)
     now, waits = 0, []
 
     def pause(seconds):
@@ -338,25 +468,13 @@ def test_matte_busy_pin_missing_and_timeout_are_recorded(matte_studio, matte_for
     monkeypatch.setattr(local, "pause", pause)
     monkeypatch.setattr(matting, "monotonic", lambda: now)
     with Engine(local.scratch, weights, PROFILE, factory=load_fake) as backend, listening(local.socket, backend):
-        monkeypatch.setattr(local, "profile_sha256", "0" * 64)
-        bad_pin = success(request(s, body, "pin-refused"), 202)["id"]
-        assert worker.tick()
-        assert_failed(s, bad_pin, PIN_MISMATCH)
-        monkeypatch.setattr(local, "profile_sha256", backend.readiness["profile_sha256"])
-
-        # The real socket reports busy while another request owns the engine.
-        with backend._lock:
-            busy = success(request(s, body, "busy"), 202)["id"]
-            assert worker.tick()
-            assert_failed(s, busy, BUSY)
-        assert waits == [matting.BUSY_INTERVAL] * matting.BUSY_RETRIES
-
         real_call = matting.local_call
         sent = False
 
         def deadline(path, method, *args, **kwargs):
             nonlocal sent
             if method == "POST":
+                kwargs["before_dispatch"]()
                 sent = True
                 raise TimeoutError
             if sent:
@@ -367,6 +485,9 @@ def test_matte_busy_pin_missing_and_timeout_are_recorded(matte_studio, matte_for
         timed = success(request(s, body, "timeout"), 202)["id"]
         assert worker.tick()
         assert "next sweep" in assert_failed(s, timed, TIMEOUT)
+        row = row_of(s, timed)
+        assert row["dispatched"] and row["matte_releases"] == 0
+        assert waits[0] == matting.POST_QUIESCENCE_SECONDS
         marker, = local.scratch.glob(".studio-matting-*")
         attempt = local.scratch / marker.name.removeprefix(".studio-matting-")
         assert attempt.is_dir()
@@ -375,6 +496,53 @@ def test_matte_busy_pin_missing_and_timeout_are_recorded(matte_studio, matte_for
         next_job = success(request(s, body, "after-timeout"), 202)["id"]
         assert worker.tick() and job(s, next_job)["status"] == "succeeded"
         assert not marker.exists() and not attempt.exists()
+
+
+def test_matte_reclaim_refuses_stale_fence_and_duplicate_completion(
+    matte_studio, matte_format, matte_client, monkeypatch,
+):
+    s = matte_studio
+    identifier = success(request(s, payload(opaque(s, scope=s.production_id), matte_format), "reclaim"), 202)["id"]
+    api = worker_api(s, lane="matte")
+    stale = api.claim("matte")
+    expire(s, identifier)
+    current = api.claim("matte")
+    assert current.identity == {**stale.identity, "fence": stale.identity["fence"] + 1}
+    conflict(stale.publish)
+    conflict(lambda: retire(stale))
+    conflict(stale.release)
+    assert job(s, identifier)["status"] == "running" and not row_of(s, identifier)["dispatched"]
+
+    complete = MediaClaimAPI.complete
+
+    def complete_once(claim, evidence):
+        conflict(lambda: complete(stale, evidence))
+        finished = complete(claim, evidence)
+        assert finished["status"] == "succeeded"
+        conflict(lambda: complete(claim, evidence))
+        return finished
+
+    monkeypatch.setattr(MediaClaimAPI, "complete", complete_once)
+    monkeypatch.setattr(api, "claim", lambda lane: current)
+    local, weights = matte_client
+    worker = MediaWorker(api, lane="matte", store=s.store, client=local)
+    with Engine(local.scratch, weights, PROFILE, factory=load_fake) as backend, listening(local.socket, backend):
+        assert worker.tick() and job(s, identifier)["status"] == "succeeded"
+
+
+def test_matte_expiry_after_dispatch_fails_without_reclaim(matte_studio, matte_format):
+    s = matte_studio
+    body = payload(opaque(s, scope=s.production_id), matte_format)
+    first, second = [success(request(s, body, key), 202)["id"] for key in ("dispatched", "following")]
+    api = worker_api(s, lane="matte")
+    claim = api.claim("matte")
+    assert claim.identity["job_id"] == first
+    claim.publish()
+    conflict(claim.release, "work.dispatched")
+    expire(s, first)
+    assert api.claim("matte") is None
+    assert_failed(s, first, "work.dispatch_unconfirmed")
+    assert api.claim("matte").identity["job_id"] == second
 
 
 def test_matte_migration_round_trip_and_downgrade_refusal(matte_studio, matte_format, runtime_role):

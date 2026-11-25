@@ -334,6 +334,8 @@ class WorkRoute(WorkerRoute):
     async def before_validation(self, request):
         if self.operation_id in {"reserve_wan_attempt", "update_wan_attempt"}:
             require_worker_lane(request, "run")
+        elif self.operation_id == "release_matte_work":
+            require_worker_lane(request, "matte")
         elif self.operation_id in {"heartbeat_work", "publish_work", "complete_work", "fail_work"}:
             # A job_id without a run_id selects media work. A malformed request
             # without that discriminator follows the run-lane default.
@@ -423,6 +425,14 @@ def worker_router():
             require_valid(validate_run(row["document"]))
             _delivery(conn, request, row, body)
             return runs.view(conn, row, detail=False)
+
+    @router.post("/release-matte", status_code=204, operation_id="release_matte_work")
+    def release_matte_work(body: MediaFence, request: Request):
+        require_worker_lane(request, "matte")
+        with request.app.state.engine.begin() as conn:
+            row, now = media_work.lock(conn, request, body)
+            jobs.release_matte(conn, row, now)
+        return Response(status_code=204)
 
     @router.post("/fail", operation_id="fail_work")
     def fail_work(body: WorkFailure | MediaFailure, request: Request):

@@ -1,7 +1,7 @@
 # Studio API and MCP reference
 
 API **1.0.0**, OpenAPI **3.1.0**, studio-mcp **1.0.0**.
-Source contract build SHA-256 `3f0b60ad5617f6643822828101d103ad1d0f4efd0bf46761c49fcbda949284d7`.
+Source contract build SHA-256 `2e688173bdf7e057a3dc956199fa3cffde0b98462274b3077eab1c56b38a2596`.
 The build digest identifies the offline OpenAPI export, MCP tool descriptors and excluded worker route index.
 
 Regenerate this page and its schema data when a PR changes an operation, tool or schema.
@@ -507,6 +507,7 @@ They describe individual request or response parts. Use the HTTP or MCP table fo
 | `POST /internal/v1/work/fail` | `fail_work` | Internal worker protocol excluded from OpenAPI. [Run queue](run-queue.md#claims-and-reconciliation) and [media workers](media-jobs.md#claims-and-results). |
 | `POST /internal/v1/work/heartbeat` | `heartbeat_work` | Internal worker protocol excluded from OpenAPI. [Run queue](run-queue.md#claims-and-reconciliation) and [media workers](media-jobs.md#claims-and-results). |
 | `POST /internal/v1/work/publish` | `publish_work` | Internal worker protocol excluded from OpenAPI. [Run queue](run-queue.md#claims-and-reconciliation) and [media workers](media-jobs.md#claims-and-results). |
+| `POST /internal/v1/work/release-matte` | `release_matte_work` | Internal worker protocol excluded from OpenAPI. [Run queue](run-queue.md#claims-and-reconciliation) and [media workers](media-jobs.md#claims-and-results). |
 | `POST /internal/v1/work/resume` | `resume_work` | Internal worker protocol excluded from OpenAPI. [Run queue](run-queue.md#claims-and-reconciliation) and [media workers](media-jobs.md#claims-and-results). |
 
 ### MCP tools with no API operation
@@ -528,4 +529,5 @@ They require a worker bearer, its lane grant and the current claim fence for cla
 | `POST /internal/v1/work/fail` | `fail_work` | Worker | Internal worker protocol excluded from OpenAPI. [Run queue](run-queue.md#claims-and-reconciliation) and [media workers](media-jobs.md#claims-and-results). |
 | `POST /internal/v1/work/heartbeat` | `heartbeat_work` | Worker | Internal worker protocol excluded from OpenAPI. [Run queue](run-queue.md#claims-and-reconciliation) and [media workers](media-jobs.md#claims-and-results). |
 | `POST /internal/v1/work/publish` | `publish_work` | Worker | Internal worker protocol excluded from OpenAPI. [Run queue](run-queue.md#claims-and-reconciliation) and [media workers](media-jobs.md#claims-and-results). |
+| `POST /internal/v1/work/release-matte` | `release_matte_work` | Worker | Internal worker protocol excluded from OpenAPI. [Run queue](run-queue.md#claims-and-reconciliation) and [media workers](media-jobs.md#claims-and-results). |
 | `POST /internal/v1/work/resume` | `resume_work` | Worker | Internal worker protocol excluded from OpenAPI. [Run queue](run-queue.md#claims-and-reconciliation) and [media workers](media-jobs.md#claims-and-results). |

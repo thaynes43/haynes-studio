@@ -177,6 +177,9 @@ GRANT SELECT, INSERT ON studio.archive_records, studio.archive_versions TO studi
 
 -- Applied by revision 0011_worker_lane_grants.
 GRANT SELECT ON studio.worker_lane_grants TO studio_app;
+
+-- Applied by revision 0013_matte_jobs.
+GRANT UPDATE (matte_releases) ON studio.media_jobs TO studio_app;
 ```
 
 Revision `0004_go_live_approvals` uses the PostgreSQL UTF-8 `und-x-icu`

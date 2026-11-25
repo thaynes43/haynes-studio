@@ -8,7 +8,7 @@ from io import BytesIO
 from PIL import Image
 
 from haynes_studio.adapters.errors import COMMAND_FAILED, REQUEST_INVALID, AdapterError
-from haynes_studio.adapters.matting import MattingClient, failure
+from haynes_studio.adapters.matting import MattingClient, MattingUnavailable, failure
 from haynes_studio.canonical.ids import is_id, ulid
 from haynes_studio.canonical.model import Principal, to_document
 from haynes_studio.errors import ContractError
@@ -147,7 +147,8 @@ def _content(data: bytes, media_type: str, production_id: str | None, **size) ->
 def _make_candidate(
     library: Library, *, source_version_id: str, job_id: str, production_id: str | None,
     format_version: Mapping, slot: str, by: Principal, now: str, store: Store, client: MattingClient,
-    check_fence: Callable[[], None], chroma_rgb: tuple[int, int, int] | None, output_store: Store,
+    check_fence: Callable[[], None], before_dispatch: Callable[[], None] | None,
+    chroma_rgb: tuple[int, int, int] | None, output_store: Store,
 ) -> Outcome:
     version = library.get(source_version_id)
     require_media(version, "/source_version_id")
@@ -180,7 +181,7 @@ def _make_candidate(
             raise failure(IDEMPOTENCY_MISMATCH, "The recorded matte has an invalid receipt") from None
 
     request = {"schema": "studio.matte-request/v1", "job_id": job_id, **identity}
-    receipt, artifacts = client.run(request, data, check_fence=check_fence)
+    receipt, artifacts = client.run(request, data, check_fence=check_fence, before_dispatch=before_dispatch)
     canvas = source["width"], source["height"]
     MatteSize.measured(receipt["shape"], canvas, target.height)
 
@@ -240,6 +241,7 @@ def run_matte_job(
     library: Library, *, source_version_id: str, job_id: str, production_id: str | None,
     format_version: Mapping, slot: str, by: Principal, now: str, store: Store, client: MattingClient,
     check_fence: Callable[[], None], record_failure: Callable[..., None],
+    before_dispatch: Callable[[], None] | None = None,
     chroma_rgb: tuple[int, int, int] | None = None, output_store: Store | None = None,
 ) -> Outcome | None:
     """Run in the worker beside the sidecar, from an admitted, frozen asset job.
@@ -248,15 +250,18 @@ def run_matte_job(
     when supplied. The caller owns the claim and commits the returned library
     outcome behind its fence, after making all three blobs authoritative.
     Blob writes alone do not publish a candidate. Fence loss propagates.
+    A worker that supplies a dispatch callback also handles predispatch outages.
     """
     try:
         return _make_candidate(
             library, source_version_id=source_version_id, job_id=job_id, production_id=production_id,
             format_version=format_version, slot=slot, by=by, now=now, store=store, client=client,
-            check_fence=check_fence, chroma_rgb=chroma_rgb,
+            check_fence=check_fence, before_dispatch=before_dispatch, chroma_rgb=chroma_rgb,
             output_store=store if output_store is None else output_store,
         )
     except (AdapterError, StoreError) as error:
+        if before_dispatch is not None and isinstance(error, MattingUnavailable):
+            raise
         record_failure(code=error.code, message=str(error)[:500] if isinstance(error, AdapterError)
                        else "The private store could not verify or publish the matte")
     except ContractError as error:

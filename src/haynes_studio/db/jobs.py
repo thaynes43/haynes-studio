@@ -1,5 +1,7 @@
 """Durable media jobs beside the run queue."""
 
+from dataclasses import replace
+
 import sqlalchemy as sa
 
 from haynes_studio.canonical.ids import is_id
@@ -16,6 +18,7 @@ from .schema import media_job_lanes, media_jobs
 STATUS = media_jobs.c.document["status"].astext
 ACTIVE = ("queued", "running")
 KIND_LANE = {"voice": "voice", "photo": "image", "asset_candidate": "image", "matte": "matte"}
+MATTE_RELEASE_LIMIT = 3
 
 
 def lock_lane(conn, lane, *, skip_locked=False):
@@ -157,3 +160,19 @@ def dispatch(conn, row, now):
     if row["dispatched"]:
         raise QueueConflict("work.dispatched", "This job has already entered engine dispatch")
     save(conn, row, dispatched=True, claim_until=now + LEASE)
+
+
+def release_matte(conn, row, now):
+    if row["dispatched"]:
+        raise QueueConflict("work.dispatched", "A dispatched matte job cannot be released")
+    job = Job.from_document(job_document(row))
+    updated_at = timestamp(now)
+    if row["matte_releases"] >= MATTE_RELEASE_LIMIT:
+        finish(conn, row, transitions.fail(job, "matting.sidecar_unavailable",
+                                           "The matting sidecar repeatedly disappeared before dispatch",
+                                           now=updated_at))
+        return
+    # Keep the job's FIFO position and revoke the current fence's lease.
+    queued = replace(job, status="queued", updated_at=updated_at)
+    save(conn, row, document=queued.to_document(), worker_id=None, claim_until=None,
+         matte_releases=row["matte_releases"] + 1)

@@ -220,6 +220,7 @@ media_jobs = sa.Table(
     sa.Column("inputs", JSONB, nullable=False), document(),
     sa.Column("worker_id", sa.Text),
     sa.Column("fence", sa.BigInteger, nullable=False),
+    sa.Column("matte_releases", sa.SmallInteger, nullable=False),
     sa.Column("claim_until", sa.DateTime(timezone=True)),
     sa.Column("dispatched", sa.Boolean, nullable=False),
 )

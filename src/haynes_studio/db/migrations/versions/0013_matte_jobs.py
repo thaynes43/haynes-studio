@@ -1,6 +1,9 @@
 """Add the matte candidate kind and its independently granted FIFO lane."""
 
+import sqlalchemy as sa
 from alembic import op
+
+from haynes_studio.db.grants import MATTE_GRANTS, grant_runtime
 
 revision = "0013_matte_jobs"
 down_revision = "0012_release_constraints"
@@ -43,6 +46,8 @@ def upgrade():
           "(kind IN ('photo', 'asset_candidate') AND lane = 'image')",
           "kind IN ('asset_candidate', 'matte')")
     op.execute("INSERT INTO media_job_lanes (lane, next_position) VALUES ('matte', 1)")
+    op.add_column("media_jobs", sa.Column("matte_releases", sa.SmallInteger(), nullable=False, server_default="0"))
+    grant_runtime(MATTE_GRANTS)
 
 
 def downgrade():
@@ -52,3 +57,4 @@ def downgrade():
           "kind = 'asset_candidate'")
     op.execute("DELETE FROM media_job_lanes WHERE lane = 'matte'")
     _lanes("")
+    op.drop_column("media_jobs", "matte_releases")

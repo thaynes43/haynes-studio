@@ -89,5 +89,8 @@ class MediaClaimAPI(ClaimAPI):
     def heartbeat(self, progress=None):
         return self._post("heartbeat")
 
+    def release(self):
+        self._post("release-matte")
+
     def fail(self, *, code, message):
         return self._post("fail", code=code, message=message)

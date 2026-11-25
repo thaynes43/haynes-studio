@@ -32,6 +32,7 @@ POST paths share the prefix `/internal/v1/work` and require a worker token.
 | `/heartbeat` | `job_id` and `fence`. Extends the claim by 90 seconds on the database clock. |
 | `/publish` | `job_id` and `fence`. Records entry to engine dispatch and renews the claim before submission. |
 | `/complete` | `job_id`, `fence` and result evidence. The API verifies stored content and commits the version, terminal status and eligible draft selection together. |
+| `/release-matte` | `job_id` and `fence` from a matte worker. Requeues the same FIFO job after a predispatch sidecar outage. After three releases, the next such outage fails the job with `matting.sidecar_unavailable`. |
 | `/fail` | `job_id`, `fence`, bounded `code` and `message`. Preserves the request inputs and requester. |
 
 An unbound worker or a worker claiming a different lane gets 403
@@ -55,10 +56,17 @@ HTTP and MCP callers use the same production and credential checks.
 ## Matte worker deployment pin
 
 The GitOps pin for [story 965](https://work.haynesnetwork.com/work_packages/965)
-starts the pinned matting sidecar first. Verify `studio-matting ready` and
-the exact CPU profile hash at `GET /v1/ready` over its Unix socket before
-starting the worker. Apply the API schema upgrade through `0013_matte_jobs`
-and register the worker's dedicated token and grant before it claims work.
+needs the pinned sidecar, the API schema upgrade through `0013_matte_jobs`,
+and the worker's dedicated token and grant. Set `STUDIO_RUNTIME_ROLE` to the
+existing API runtime login when applying the migration so it grants access
+to update the release counter. The sidecar and worker can start
+in either order. Before each claim the worker checks the exact CPU profile
+at `GET /v1/ready` and waits for any tracked attempt to clear. While the socket
+is unavailable, the model is loading, the profile differs, or a previous
+attempt is active, the worker reports the reason in its log and progress marker
+and polls again at its usual five-second interval. A socket outage before
+dispatch releases the claim under its fence. Once dispatch begins, failures
+are terminal. Use `studio-matting ready` to verify the deployed sidecar.
 Use the migration identity for the initial registration.
 
 ```sh
@@ -72,21 +80,30 @@ Set `STUDIO_API_URL`, `STUDIO_WORKER_TOKEN`, `STUDIO_STORE_ROOT`,
 `STUDIO_MATTING_PROFILE_SHA256`. Use the same generated token for
 registration and the worker environment. The backend image and revision
 refer to the pinned sidecar. The profile digest comes from its release record.
-`STUDIO_WORKER_PROGRESS_FILE` optionally enables the liveness marker.
+Set `STUDIO_WORKER_PROGRESS_FILE=/run/studio/worker-progress` for liveness.
+Use `studio-worker --progress-file /run/studio/worker-progress --check-progress 300`
+as the probe and allow the worker time to write its first marker. Its Unix
+request can block for 35 seconds. Unconfirmed requests can add 33 seconds of
+quiescence and up to 121 seconds of readiness recovery before the main thread
+touches the marker again. The 300-second budget also leaves room for fenced API
+calls and local staging. The probe reads the marker timestamp.
 
 Mount the same writable scratch volume at `/matting` in the sidecar and
 matte worker. Give them the shared group that can use the mode-0660
 socket and read and write the attempt files. Mount the canonical store
 read/write in the worker at its configured store root. The API uses the
 same store. The sidecar alone mounts the read-only weights. The worker
-reaches the matting service through the Unix socket.
+reaches the matting service through the shared Unix socket. In haynes-ops,
+add the matte worker's pod label to the API's port-8002 ingress rule alongside
+the voice and image labels. Allow the matte worker network egress for DNS
+and the API's port-8002 listener only. The Unix socket needs no network rule.
 
 The worker writes verified output into private per-claim staging on scratch.
 Under the fence it copies every staged blob into the canonical store,
 including files rebuilt for an existing candidate. The API verifies all three
 hashes and commits the candidate and terminal job in one transaction.
-The adapter handles busy replies with seven bounded waits. A timeout fails
-the job and can leave the attempt for the next adapter sweep.
+The adapter handles busy replies with seven bounded waits. A timeout after
+dispatch begins fails the job and can leave the attempt for the next adapter sweep.
 [File and receipt contract](matting-adapter.md)
 
 ## Upload memory

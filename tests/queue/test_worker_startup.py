@@ -127,5 +127,6 @@ def test_matte_worker_cli_requires_its_own_profile_and_claims_only_matte(tmp_pat
             main()
         assert error.value.code == 2 and not requests
         return
+    monkeypatch.setattr("haynes_studio.adapters.matting.MattingClient.ready_for_claim", lambda self: None)
     main()
     assert requests == [("/internal/v1/work/claim", "Bearer worker_" + secret, {"lane": "matte"})]

@@ -15,12 +15,21 @@ class ProgressFile:
         self.clock = clock
 
     def __call__(self):
+        self._write()
+
+    def write_status(self, message):
+        self._write((message + "\n").encode())
+
+    def _write(self, status=None):
         if self.path is None:
             return
         # The containing directory belongs to the deployment. A bad marker mount
         # must fail visibly instead of silently disabling its liveness probe.
         descriptor = os.open(self.path, os.O_CREAT | os.O_WRONLY, 0o600)
         try:
+            if status is not None:
+                os.write(descriptor, status)
+                os.ftruncate(descriptor, len(status))
             now = self.clock()
             os.utime(descriptor, (now, now))
         finally:
