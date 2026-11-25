@@ -1,4 +1,13 @@
-"""Add the matte candidate kind and its independently granted FIFO lane."""
+"""Add the matte candidate kind and its independently granted FIFO lane.
+
+PostgreSQL's 500 ms lock timeout applies per lock acquisition. The grant
+lock can queue. The other three table prelocks use NOWAIT. A reader queued
+behind the migration can wait for the grant lock budget plus the DDL and
+commit (about 10 ms at the installed table sizes). API readiness latency
+also includes its queries. On the fourth-pin upgrade from 0012, a lock
+timeout leaves 0012 in place and the migration Job can retry within its
+retry budget.
+"""
 
 import sqlalchemy as sa
 from alembic import op

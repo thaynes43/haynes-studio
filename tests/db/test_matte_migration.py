@@ -2,7 +2,7 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
-from time import monotonic
+from time import monotonic, sleep
 
 import pytest
 import sqlalchemy as sa
@@ -14,7 +14,6 @@ from tests.db.test_studio_api import engine, owner_engine, runtime_db, runtime_r
 pytestmark = pytest.mark.db
 PREDECESSOR = "0012_release_constraints"
 TARGET = "0013_matte_jobs"
-LOCK_BOUND_SECONDS = 0.5
 
 # The 80975a9 /readyz transaction, with its SQLAlchemy LIMIT parameters inlined.
 BEFORE_GRANTS = (
@@ -101,11 +100,84 @@ def test_predecessor_readiness_overlaps_upgrade(
 
     record_property("readiness_ms", round(1000 * readiness_seconds, 1))
     record_property("ddl_lock_window_ms", round(1000 * lock_seconds, 1))
-    assert readiness_seconds < LOCK_BOUND_SECONDS
     with engine.connect() as read:
         assert read.exec_driver_sql("SELECT lane FROM media_job_lanes ORDER BY lane").scalars().all() == [
             "image", "matte", "voice",
         ]
+
+
+def wait_for_blocker(observer, blocked_pid, blocker_pid):
+    deadline = monotonic() + 2
+    while monotonic() < deadline:
+        blockers = observer.exec_driver_sql("SELECT pg_blocking_pids(%s)", (blocked_pid,)).scalar_one()
+        if blocker_pid in blockers:
+            return
+        sleep(0.005)
+    pytest.fail(f"PostgreSQL did not queue backend {blocked_pid} behind {blocker_pid}")
+
+
+@pytest.mark.parametrize("release_holder", [True, False], ids=["commit", "timeout"])
+def test_reader_queues_behind_waiting_upgrade(
+    release_holder, predecessor, owner_engine, engine, runtime_role, record_property,
+):
+    migrating, reading = Event(), Event()
+    migration_pid = reader_pid = None
+
+    def before_lock(conn, cursor, statement, parameters, context, executemany):
+        nonlocal migration_pid
+        if statement == "LOCK TABLE worker_lane_grants IN ACCESS EXCLUSIVE MODE":
+            # Check the GUC on the migrating connection, without wall-clock
+            # tolerances that could let a different configured timeout pass.
+            cursor.execute("SHOW lock_timeout")
+            assert cursor.fetchone() == ("500ms",)
+            migration_pid = conn.connection.driver_connection.info.backend_pid
+            migrating.set()
+
+    def read_ready():
+        nonlocal reader_pid
+        with engine.connect() as reader:
+            reader.exec_driver_sql("SET LOCAL statement_timeout = '3s'")
+            for query in BEFORE_GRANTS:
+                reader.exec_driver_sql(query)
+            reader_pid = reader.connection.driver_connection.info.backend_pid
+            started = monotonic()
+            reading.set()
+            reader.exec_driver_sql(GRANTS)
+            for query in AFTER_GRANTS:
+                reader.exec_driver_sql(query)
+            return monotonic() - started
+
+    with ThreadPoolExecutor(max_workers=2) as background, engine.connect() as holder:
+        holder.exec_driver_sql(GRANTS)
+        holder_pid = holder.connection.driver_connection.info.backend_pid
+        sa.event.listen(owner_engine, "before_cursor_execute", before_lock)
+        try:
+            upgraded = background.submit(migrate, owner_engine, runtime_role=runtime_role[0])
+            try:
+                assert migrating.wait(timeout=2)
+                wait_for_blocker(holder, migration_pid, holder_pid)
+                reader = background.submit(read_ready)
+                assert reading.wait(timeout=2)
+                wait_for_blocker(holder, reader_pid, migration_pid)
+                if release_holder:
+                    holder.rollback()
+                    upgraded.result(timeout=3)
+                else:
+                    with pytest.raises(OperationalError, match="lock timeout") as caught:
+                        upgraded.result(timeout=3)
+                    assert caught.value.orig.sqlstate == "55P03"
+                # In the timeout case the grant holder still has its lock.
+                # The reader can proceed as soon as the queued upgrade leaves.
+                record_property("queued_readiness_ms", round(1000 * reader.result(timeout=3), 1))
+            finally:
+                holder.rollback()
+        finally:
+            sa.event.remove(owner_engine, "before_cursor_execute", before_lock)
+
+    with owner_engine.connect() as conn:
+        assert conn.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == (
+            TARGET if release_holder else PREDECESSOR
+        )
 
 
 @pytest.mark.parametrize("table", ["worker_lane_grants", "media_job_lanes", "queue_lane_events", "media_jobs"])
@@ -121,3 +193,24 @@ def test_upgrade_refuses_contended_tables_and_preserves_predecessor(
         assert reason in str(caught.value.orig)
     with owner_engine.connect() as conn:
         assert conn.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == PREDECESSOR
+
+
+@pytest.mark.parametrize("table", ["worker_lane_grants", "queue_lane_events"])
+def test_downgrade_prelocks_contended_tables(table, owner_engine, engine):
+    def bound_test_statement(conn):
+        conn.exec_driver_sql("SET LOCAL statement_timeout = '3s'")
+
+    with engine.connect() as serving:
+        serving.exec_driver_sql(f"SELECT 1 FROM {table} LIMIT 0")
+        sa.event.listen(owner_engine, "begin", bound_test_statement)
+        try:
+            reason = "lock timeout" if table == "worker_lane_grants" else "could not obtain lock"
+            with pytest.raises(OperationalError, match=reason) as caught:
+                migrate(owner_engine, direction="downgrade", target=PREDECESSOR)
+            assert caught.value.orig.sqlstate == "55P03"
+            assert caught.value.statement.startswith("LOCK TABLE ")
+        finally:
+            sa.event.remove(owner_engine, "begin", bound_test_statement)
+    with owner_engine.connect() as conn:
+        assert conn.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == TARGET
+        assert conn.exec_driver_sql("SELECT next_position FROM media_job_lanes WHERE lane = 'matte'").scalar_one() == 1
