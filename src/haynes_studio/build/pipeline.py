@@ -129,6 +129,7 @@ from haynes_studio.cache.keys import (
 )
 from haynes_studio.cache.plan import LayeredMotion, Toolchain
 from haynes_studio.canonical.ids import Minter, is_id
+from haynes_studio.canonical.occlusion import OCCLUSION_UNAVAILABLE
 from haynes_studio.delivery import Delivery, deliver, read_delivery
 from haynes_studio.delivery.model import MASTER_SIZES
 from haynes_studio.delivery.publish import RECORD as DELIVERY_DOCUMENT, STAGE as DELIVERY_STAGE
@@ -833,7 +834,8 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
            delivery_id: str | None, dry_run: bool = False,
            queued: QueuedBuild | None = None) -> BuildResult:
     library = inputs.library
-    if prepared.story is None:  # a draft that breaks a write rule cannot be snapshotted
+    if prepared.story is None or any(p.rule == OCCLUSION_UNAVAILABLE for p in prepared.report.blocking):
+        # Such a draft cannot be snapshotted, even to record a failed run.
         raise PreflightError("<story>", prepared.report)
     story = prepared.story
     production = story.production_id

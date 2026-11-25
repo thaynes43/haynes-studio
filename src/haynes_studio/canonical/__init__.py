@@ -33,6 +33,7 @@ from haynes_studio.canonical.model import (
     StoryTiming,
     to_document,
 )
+from haynes_studio.canonical.occlusion import story_write_document
 from haynes_studio.canonical.validate import (
     CONTEXTS,
     QUEUE_RUN,
@@ -74,6 +75,8 @@ def load_story(document: Any, *, facts: Facts | None = None, context: str = "rea
     problems = blocking(validate_story(document, context=context, facts=facts))
     if problems:
         raise ContractError(source, problems)
+    if context == "write":
+        document = story_write_document(document)
     return Story.from_document(document)
 
 

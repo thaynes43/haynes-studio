@@ -61,7 +61,7 @@ def _production(archive: Archive, name: str, kind: str) -> dict:
 
 def _draft_document(archive: Archive) -> dict:
     # import_draft stores the canonical editable fields and derives the views
-    # on read. The frozen snapshot itself is kept verbatim.
+    # on read. Its normalized snapshot and verified source blob are kept separately.
     story = normalize(archive.story)
     story.pop("derived", None)
     for board in story["boards"]:
@@ -72,7 +72,7 @@ def _draft_document(archive: Archive) -> dict:
 def _imported_run(archive: Archive, imported_at: str) -> dict:
     # Go-live already refuses a non-null legacy block. Preserve the historical
     # succeeded status and provenance, and use that block for the import audit.
-    return {**archive.run, "legacy": {
+    return {**archive.run, "snapshot": archive.snapshot_pin, "legacy": {
         **(archive.run["legacy"] or {}),
         "archive_import": {**archive.marker, "imported_at": imported_at},
     }}
@@ -171,6 +171,13 @@ def _publish(store: LocalStore, archive: Archive, *, replay: bool) -> None:
             raise ImportProblem("store_conflict", member)
         if replay and state != PRESENT:
             raise ImportProblem("store_missing", member)
+    if archive.snapshot_data is not None:
+        pin = archive.snapshot_pin
+        state = store.verify(pin["locator"], pin["sha256"])
+        if state == MISMATCH:
+            raise ImportProblem("store_conflict", "snapshot.json")
+        if replay and state != PRESENT:
+            raise ImportProblem("store_missing", "snapshot.json")
     if replay:
         return
     for member, (locator, media_type) in publications.items():
@@ -180,6 +187,11 @@ def _publish(store: LocalStore, archive: Archive, *, replay: bool) -> None:
                              expected_sha256=facts["sha256"])
         if blob.locator != locator or blob.bytes != facts["bytes"]:
             raise ImportProblem("store_conflict", member)
+    if archive.snapshot_data is not None:
+        blob = store.publish(archive.snapshot_data, scope=archive.production_id,
+                             media_type="application/json", expected_sha256=pin["sha256"])
+        if blob.locator != pin["locator"]:
+            raise ImportProblem("store_conflict", "snapshot.json")
 
 
 def _import(engine: sa.Engine, archive: Archive, root: Path, name: str, kind: str) -> bool:

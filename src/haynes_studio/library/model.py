@@ -21,7 +21,7 @@ from __future__ import annotations
 import hashlib
 import json
 import unicodedata
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import Any
@@ -298,6 +298,7 @@ class AssetVersion:
     # and for a motion version recorded before the block existed.
     motion: Mapping[str, Any] | None = None
     recorded_without_media: bool = False
+    occlusion: Mapping[str, Any] | None = None
 
     @classmethod
     def from_document(cls, doc: Mapping[str, Any]) -> AssetVersion:
@@ -311,7 +312,8 @@ class AssetVersion:
                    legacy=None if doc.get("legacy") is None else freeze(doc["legacy"]),
                    voice=BoardVoice.from_document(doc.get("voice")),
                    motion=None if doc.get("motion") is None else freeze(doc["motion"]),
-                   recorded_without_media=doc.get("recorded_without_media", False))
+                   recorded_without_media=doc.get("recorded_without_media", False),
+                   occlusion=None if doc.get("occlusion") is None else freeze(doc["occlusion"]))
 
     @property
     def source_key(self) -> str | None:
@@ -328,9 +330,9 @@ class AssetVersion:
         return replace(self, state=state)
 
 
-def version_document(version: AssetVersion, asset: Asset) -> dict[str, Any]:
-    """The ``studio.asset-version/v1`` document a read returns: the version's own
-    fields joined with its asset's kind, name, scope, labels and attributes."""
+def version_document(version: AssetVersion, asset: Asset, *,
+                     source_content: Callable[[str], Content | None] | None = None) -> dict[str, Any]:
+    """Join the version and asset fields for canonical output under CR-61."""
     out = {
         "schema": ASSET_VERSION_SCHEMA, "id": version.id, "asset_id": version.asset_id,
         "number": version.number, "kind": version.kind, "name": asset.name,
@@ -346,6 +348,11 @@ def version_document(version: AssetVersion, asset: Asset) -> dict[str, Any]:
         out["motion"] = thaw(version.motion)
     if version.recorded_without_media:
         out["recorded_without_media"] = True
+    if version.occlusion is not None:
+        from haynes_studio.library.validate import version_write_document
+
+        out["occlusion"] = thaw(version.occlusion)
+        return version_write_document(out, source_content=source_content)
     return out
 
 
@@ -399,11 +406,15 @@ def pin(version: AssetVersion, asset: Asset) -> str:
 
     A ``motion`` version with a motion block (story 457, proposal) pins its record's
     identity, which covers its bytes and how they are keyed and played: the same clip
-    keyed another way is the next version, never the same one."""
+    keyed another way is the next version, never the same one. A set version with
+    occlusion declarations hashes its content hash and those declarations so
+    editing a hint or layer assignment also yields a new version."""
     identity = recorded_identity(version)
     if identity is not None:
         return identity
     if version.content is not None:
+        if version.occlusion is not None:
+            return signature({"sha256": version.content.sha256, "occlusion": thaw(version.occlusion)})
         return version.content.sha256
     if version.voice is not None:
         return takes_signature(version.voice)
@@ -420,7 +431,8 @@ def content_fields(version: AssetVersion) -> dict[str, Any]:
     return {"kind": version.kind, "capabilities": sorted(version.capabilities),
             "content": to_document(version.content), "provenance": provenance,
             "legacy": thaw(version.legacy), "voice": to_document(version.voice),
-            "motion": thaw(version.motion), "recorded_without_media": version.recorded_without_media}
+            "motion": thaw(version.motion), "recorded_without_media": version.recorded_without_media,
+            "occlusion": thaw(version.occlusion)}
 
 
 def take_offsets(lead_ms: int, gaps_ms: tuple[int, ...] | list[int],

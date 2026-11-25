@@ -101,6 +101,7 @@ def create_record(conn, production_id, kind, title):
 
 
 def append(conn, record_id, *, number, previous, payload, data, principal, key_hash, request_hash):
+    payload = {**payload, "text": data.decode("utf-8")}
     return conn.execute(versions.insert().values(
         id=Minter().mint("arv"), record_id=record_id, number=number, revises_version_id=previous,
         **payload, bytes=len(data), sha256=hashlib.sha256(data).hexdigest(), written_by=principal,

@@ -25,7 +25,7 @@ from tests.db.test_run_queue import queue, queue_run, read_run, worker_api, work
 from tests.db.test_studio_api import (
     bearer, client, engine, new_production, owner_engine, register_agent, runtime_db, runtime_role, service,
 )
-from tests.mcp.client import API_URL, call, connect
+from tests.mcp.client import API_URL, call, connect, fail
 
 pytestmark = pytest.mark.db
 ARTIFACT = "a" * 64
@@ -420,6 +420,55 @@ def test_responder_only_patches_named_draft_fields_with_cr23_acknowledgment(queu
     assert agent.get(board, headers=auth).json()["title"] == "Adjusted"
     assert reported(q, package_id, auth).status_code == 200
     assert agent.get(board, headers=auth).status_code == 403
+
+
+@pytest.mark.parametrize("transport", ["http", "mcp"])
+def test_escalation_responder_cannot_write_check_poses(queue, transport):
+    q = queue
+    _, proposed = propose(q)
+    package = proposed["package"]
+    package_id = package["deduplication_id"]
+    auth = fixture_responder(q, package)
+    assert transition(q, package_id, "authorize",
+                      json={"acknowledge_board_ids": [q.board_id]}).status_code == 200
+    accept(q, package_id, FakeTransport())
+    path = f"/v1/boards/{q.board_id}"
+    legacy_layout = {"preset": "default", "foreground": True}
+    layout = {**legacy_layout, "check_poses": [{"key": "studio", "frame": 0}]}
+    if transport == "http":
+        agent = client(q.app)
+        fresh = agent.get(path, headers=auth)
+        acknowledgment = {"board_revision": fresh.json()["revision"],
+                          "read_token": fresh.headers["x-studio-board-read-token"]}
+        headers = {**auth, "If-Match": fresh.headers["etag"]}
+        denied = agent.patch(path, headers=headers, json={
+            "layout": layout, "acknowledge_person_edit": acknowledgment,
+        })
+        assert denied.status_code == 422, denied.text
+        assert denied.json()["error"]["code"] == "occlusion.check_unavailable"
+        result = agent.patch(path, headers=headers, json={
+            "layout": legacy_layout, "acknowledge_person_edit": acknowledgment,
+        })
+        assert result.status_code == 200, result.text
+    else:
+        async def through_mcp():
+            mcp = create_mcp(API_URL, api_transport=httpx.ASGITransport(app=q.app))
+            async with mcp.router.lifespan_context(mcp), connect(mcp, auth["Authorization"]) as session:
+                fresh = await call(session, "studio_get_board", board_id=q.board_id)
+                acknowledgment = {"board_revision": fresh["revision"], "read_token": fresh["read_token"]}
+                error = await fail(session, "studio_patch_board", board_id=q.board_id,
+                                   revision=fresh["revision"], patch={
+                    "layout": layout, "acknowledge_person_edit": acknowledgment,
+                })
+                assert error["code"] == "occlusion.check_unavailable"
+                changed = await call(session, "studio_patch_board", board_id=q.board_id,
+                                     revision=fresh["revision"], patch={
+                    "layout": legacy_layout, "acknowledge_person_edit": acknowledgment,
+                })
+                assert changed["revision"] == fresh["revision"] + 1
+
+        asyncio.run(through_mcp())
+    assert q.browser.get(path).json()["layout"] == legacy_layout
 
 
 def test_automatic_authorization_does_not_acknowledge_person_edits(queue):

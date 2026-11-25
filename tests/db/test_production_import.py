@@ -16,6 +16,7 @@ import sqlalchemy as sa
 
 from haynes_studio.api.key_admin import run as admin
 from haynes_studio.api.oidc import random_secret
+from haynes_studio.build.validate import validate_run_snapshot
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.db import drafts, runs
 from haynes_studio.db.engine import connect_engine
@@ -23,14 +24,17 @@ from haynes_studio.db.migrate import migrate
 from haynes_studio.db.schema import asset_media, asset_versions, deliveries, productions, run_lane, stories
 from haynes_studio.db.schema import runs as run_rows
 from haynes_studio.drafting.declaration import READ_TOKEN_HEADER
+from haynes_studio.errors import ContractError
 from haynes_studio.importer import production as production_import
-from haynes_studio.store import LocalStore, StagingLeftoverWarning
+from haynes_studio.importer.production_archive import verify_archive
+from haynes_studio.store import LocalStore, StagingLeftoverWarning, canonical_json
 from tests.build_story.fixtures import OPERATOR, example
 from tests.db.test_studio_api import (
     client, engine, new_production, register_agent, runtime_role, service, sign_in,
 )
 from tests.db.test_media_jobs import PROVENANCE, image_file
-from tests.importer.production_fixture import FRAMES, make_archive
+from tests.importer.production_fixture import FRAMES, KIND, make_archive
+from tests.importer.test_production_archive import archive_set, rewrite_snapshot
 from tests.queue.fake_wan import Clock
 from tests.support.database import new_schema_name
 
@@ -107,6 +111,35 @@ def assert_private_ranges(browser, headers, wrong_headers, media, expected_bytes
     assert hashlib.sha256(b"".join(chunks)).hexdigest() == media["sha256"]
     tail = browser.get(url, headers={**headers, "Range": "bytes=-31"})
     assert tail.status_code == 206 and tail.content == expected_bytes[-31:]
+
+
+@pytest.mark.parametrize("field", ["check_poses", "occlusion"])
+@pytest.mark.parametrize("author", ["person", "agent"])
+def test_production_archive_apply_rechecks_visibility_before_commit(owner_engine, tmp_path, field, author):
+    creator = OPERATOR if author == "person" else {"kind": "agent", "key_id": Minter().mint("key")}
+    fixture = make_archive(tmp_path / "job", board_creator=creator)
+    with verify_archive(fixture.root, fixture.receipt, name=fixture.name, kind=KIND,
+                        recovered=False) as checked:
+        production = production_import._production(checked, fixture.name, KIND)
+        story = production_import._draft_document(checked)
+        if field == "check_poses":
+            story["boards"][0]["layout"]["check_poses"] = [{"key": "still", "frame": 0}]
+            path = "/boards/0/layout/check_poses"
+        else:
+            plate = archive_set(fixture, {
+                "foreground": [{"key": "shelf", "label": None, "layer_order": 10}], "focal_props": [],
+            })
+            plate["provenance"]["created_by"] = creator
+            checked.versions.append(plate)
+            path = "/occlusion"
+        with pytest.raises(ContractError) as caught, owner_engine.begin() as conn:
+            production_import._persist(conn, checked, production, story)
+        assert [(v.rule, v.path) for v in caught.value.violations] == [
+            ("occlusion.check_unavailable", path),
+        ]
+
+    with owner_engine.connect() as conn:
+        assert conn.scalar(sa.select(productions.c.id).where(productions.c.id == fixture.production_id)) is None
 
 
 @pytest.mark.parametrize("recovered", [False, True])
@@ -200,6 +233,42 @@ def test_import_replay_and_production_scoped_media(operator, service, owner_engi
         assert conn.scalar(sa.select(run_lane.c.next_position)) == lane
     assert file_paths(store) == before_paths
     assert fixture.files() == before
+
+
+@pytest.mark.parametrize("empty", [[], None])
+def test_import_snapshot_route_returns_canonical_bytes(operator, service, owner_engine, tmp_path, capsys, empty):
+    app, store, _ = service
+    fixture = make_archive(tmp_path / "job")
+    board = fixture.snapshot["story"]["boards"][0]
+    board["layout"]["check_poses"] = empty
+    rewrite_snapshot(fixture)
+    fixture.receipt.write_bytes(canonical_json(fixture.files()))
+    source = (fixture.root / "snapshot.json").read_bytes()
+    original_pin = fixture.run["snapshot"]
+    assert admin(fixture.args()) == 0
+    result = json.loads(capsys.readouterr().out)
+    _, auth = register_agent(owner_engine, {fixture.production_id: ["read"]})
+    with client(app) as browser:
+        path = f'/v1/runs/{result["run_id"]}'
+        response = browser.get(f"{path}/snapshot", headers=auth)
+        assert response.status_code == 200
+        saved = response.json()
+        assert validate_run_snapshot(saved) == []
+        board["layout"].pop("check_poses")
+        assert response.content == canonical_json(fixture.snapshot)
+        assert "check_poses" not in browser.get(f'/v1/boards/{board["id"]}', headers=auth).json()["layout"]
+        run = browser.get(path, headers=auth).json()
+        pin = run["snapshot"]
+        assert run["legacy"]["archive_import"]["source_snapshot"] == original_pin
+        digest = hashlib.sha256(response.content).hexdigest()
+        assert pin["sha256"] == digest != original_pin["sha256"]
+        assert response.headers["etag"] == f'"{digest}"'
+    with store.open(original_pin["locator"]) as handle:
+        assert handle.read() == source
+    with owner_engine.connect() as conn:
+        assert runs.get(conn, result["run_id"])["snapshot"] == saved
+    assert admin(fixture.args()) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "already_imported"
 
 
 def test_upload_replacement_for_imported_recorded_only_photo(operator, service, owner_engine, tmp_path, capsys):

@@ -49,7 +49,8 @@ from haynes_studio.canonical.model import (
     Board,
     FormatLength,
 )
-from haynes_studio.errors import INVALID, WARNING, Violation, pointer
+from haynes_studio.canonical.occlusion import POSE_PATH, board_write_document, pose_problems, story_write_document
+from haynes_studio.errors import INVALID, WARNING, ContractError, Violation, pointer
 from haynes_studio.schemas import UNKNOWN_FIELD, schema_violations
 
 READ, WRITE, QUEUE_RUN = "read", "write", "queue_run"
@@ -157,6 +158,11 @@ def validate_board(document: Any, *, context: str = READ, facts: Facts | None = 
     document, stop = _prepare(document, BOARD_SCHEMA)
     if stop is not None:
         return stop
+    if context == WRITE:
+        try:
+            document = board_write_document(document)
+        except ContractError as error:
+            return _sorted(error.violations)
     found = _no_derived(document, context) + _schema(BOARD_SCHEMA, document)
     if not _blocking(found):
         found += board_rules(document, "", context=context, facts=facts or NO_FACTS,
@@ -232,6 +238,8 @@ def board_rules(document: Mapping, prefix: str, *, context: str, facts: Facts,
                         f"layout preset {board.layout.preset!r} is not in the story's layouts"))
     found += _duplicates(((at("cast", i, "slot"), e.slot) for i, e in enumerate(board.cast)),
                          "cast slot")
+    found += [_v(v.rule, prefix + POSE_PATH + v.path, v.message)
+              for v in pose_problems(document["layout"].get("check_poses", ()))]
     if check_ids:
         found += _duplicates(_board_ids(board, prefix), "ID")
 
@@ -320,6 +328,11 @@ def validate_story(document: Any, *, context: str = READ, facts: Facts | None = 
     document, stop = _prepare(document, STORY_SCHEMA)
     if stop is not None:
         return stop
+    if context == WRITE:
+        try:
+            document = story_write_document(document)
+        except ContractError as error:
+            return _sorted(error.violations)
     facts = facts or NO_FACTS
     found = _no_derived(document, context)
     boards = document.get("boards")

@@ -195,12 +195,13 @@ def _validated_version(conn, record, payload):
     if record["kind"] == "storyboard":
         try:
             draft = Draft.parse(data)
-            draft.require_valid_boards()
+            data = draft.archive_bytes()
         except ContractError as error:
             raise _board_error(error) from None
         if draft.production_id != record["production_id"]:
             raise APIError(422, "archive.production_mismatch", "The draft belongs to another production", path="/text")
         _decoded_text((draft.model, draft.session, *(board.fields for board in draft.boards)))
+        return _text(data.decode("utf-8"), "/text")
     return data
 
 

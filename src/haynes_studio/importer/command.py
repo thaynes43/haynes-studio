@@ -187,7 +187,8 @@ def main(argv: Sequence[str] | None = None, *, stdout: TextIO | None = None,
         _check(args)
         started = now()
         story, import_map = _document(args.story), _document(args.map)
-        library = Library.from_version_documents(_document(args.library)) if args.library else EMPTY
+        library = (Library.from_version_documents(_document(args.library), context="write")
+                   if args.library else EMPTY)
         library, recovery_map, lines, created = load_inputs(Path(args.repo), story, import_map,
                                                             library, by=by, now=started)
         plan = plan_import(recovery_map, lines, library, production_id=story["production_id"])
@@ -215,10 +216,11 @@ def main(argv: Sequence[str] | None = None, *, stdout: TextIO | None = None,
     report = result.report
     report["library"] = {"versions": len(result.library.versions), "created_now": created}
     target = Path(args.out)
+    documents = result.library.documents()
     try:
         target.mkdir()
         _create(target / REPORT_FILE, report)
-        _create(target / LIBRARY_FILE, result.library.documents())
+        _create(target / LIBRARY_FILE, documents)
     except OSError as error:
         err.write(f"{PROG}: cannot write {target}: {error}\n")
         json.dump(report, err, sort_keys=True)  # the only copy of what was read

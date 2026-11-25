@@ -25,7 +25,9 @@ Create takes `kind`, `title`, `text`, `provenance` and an optional
 has 1 to 80 characters. Format IDs refer to exact saved [format versions](formats.md).
 Text may be up to 262,144 UTF-8 bytes. Tabs, line feeds, carriage returns and
 Unicode text are preserved exactly. Other control characters and credential
-shapes detected by the Studio prose check are refused.
+shapes detected by the Studio prose check are refused. If a storyboard draft
+contains a null or empty `layout.check_poses` list, Studio removes the field
+and stores the re-encoded JSON. It refuses nonempty declarations.
 
 Use `{"origin":"original"}` for original work. Adapted work uses
 `{"origin":"adapted","source_locator":{"label":"fixtureScene-12","sha256":"…"}}`.
@@ -56,7 +58,7 @@ List records and version metadata with `cursor` and `limit`. Record detail
 lists newest versions first. Version metadata includes the writer, timestamp,
 parent ID, byte count, digest, provenance and optional format pin. An exact
 version read checks the SHA-256 over the stored UTF-8 bytes and returns
-`archive.text_hash_mismatch` (500) on a mismatch. It adds the original `text`
+`archive.text_hash_mismatch` (500) on a mismatch. It adds the stored `text`
 after verification. Record and exact version reads both return 404 for unknown
 IDs and for IDs outside the caller's `archive:read` grants. A local shepherd calls
 `studio_get_archive_version` with the `version_id` from its handoff. Its

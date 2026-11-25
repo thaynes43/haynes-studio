@@ -400,6 +400,83 @@ def test_archive_apply_can_update_plain_draft_by_same_agent(studio):
     ]
 
 
+@pytest.mark.parametrize("operation", ["create", "revise", "apply-create", "apply-replace"])
+@pytest.mark.parametrize("actor", ["person", "agent-http", "agent-mcp"])
+def test_storyboard_writes_refuse_check_poses(studio, owner_engine, operation, actor):
+    initial = draft(studio, "Initial", "one")
+    changed = draft(studio, "Changed", "one")
+    changed["boards"][0]["fields"]["layout"]["check_poses"] = [{"key": "studio", "frame": 0}]
+    text = json.dumps(changed)
+    if operation == "create":
+        path = create_path(studio.production)
+        body = entry("storyboard", text)
+        tool = "studio_create_archive_record"
+        arguments = {"production_id": studio.production, "idempotency_key": "opt-in", **body}
+        revision = 1
+    else:
+        archive = stage(studio, initial)
+        version = archive["head_version_id"]
+        if operation == "revise":
+            path = record_path(archive["id"]) + "/versions"
+            body = {"text": text, "provenance": ORIGINAL, "revises_version_id": version}
+            tool = "studio_add_archive_version"
+            arguments = {"record_id": archive["id"], "idempotency_key": "opt-in", **body}
+            revision = 1
+        else:
+            revision = 1
+            if operation == "apply-replace":
+                accepted = apply(studio, version, revision)
+                assert accepted.status_code == 200, accepted.text
+                revision = accepted.json()["revision"]
+                version = revise(studio, archive["id"], version, initial)
+            # Simulate an archived draft written outside the current staging API.
+            with owner_engine.begin() as conn:
+                conn.execute(archive_versions.update().where(archive_versions.c.id == version).values(
+                    text=text, bytes=len(text.encode()), sha256=hashlib.sha256(text.encode()).hexdigest(),
+                ))
+            path = version_path(version) + "/apply"
+            body = {"story_id": studio.story}
+            tool = "studio_apply_archive_storyboard"
+            arguments = {**body, "version_id": version, "revision": revision}
+
+    if actor == "agent-mcp":
+        async def through_mcp():
+            async with studio.mcp.router.lifespan_context(studio.mcp), connect(
+                studio.mcp, studio.headers["Authorization"],
+            ) as session:
+                return await fail(session, tool, **arguments)
+
+        error = asyncio.run(through_mcp())
+        assert error["http_status"] == 422
+    else:
+        writer, headers = ((studio.browser, studio.csrf) if actor == "person" else
+                           (client(studio.api), studio.headers))
+        denied = writer.post(path, json=body, headers={
+            **headers, "Idempotency-Key": "opt-in", "If-Match": str(revision),
+        })
+        assert denied.status_code == 422, denied.text
+        error = denied.json()["error"]
+    assert error["code"] == "occlusion.check_unavailable"
+    assert studio.browser.get(story_path(studio)).json()["revision"] == revision
+
+
+@pytest.mark.parametrize("empty", [[], None])
+def test_storyboard_apply_omits_empty_pose_list(studio, empty):
+    document = draft(studio, "No visibility request", "one")
+    document["boards"][0]["fields"]["layout"]["check_poses"] = empty
+    archive = stage(studio, document)
+    stored = studio.browser.get(version_path(archive["head_version_id"])).json()
+    layout = json.loads(stored["text"])["boards"][0]["fields"]["layout"]
+    assert "check_poses" not in layout
+    assert stored["sha256"] == hashlib.sha256(stored["text"].encode()).hexdigest()
+    applied = apply(studio, archive["head_version_id"], 1)
+    assert applied.status_code == 200, applied.text
+    board, = applied.json()["boards"]
+    assert studio.browser.get(board_path(board["board_id"])).json()["layout"] == {
+        "preset": "default", "foreground": True,
+    }
+
+
 @pytest.mark.parametrize("isolate_redraft_guard", [False, True], ids=["per-board", "mutation"])
 def test_apply_refuses_another_agents_board(studio, owner_engine, monkeypatch, isolate_redraft_guard):
     archive = stage(studio, draft(studio, "First", "one"))

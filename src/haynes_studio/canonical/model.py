@@ -17,6 +17,7 @@ from types import MappingProxyType
 from typing import Any
 
 from haynes_studio.canonical.jsonvalues import integral, normalize
+from haynes_studio.canonical.occlusion import board_write_document
 from haynes_studio.jsonio import freeze, thaw
 
 BOARD_SCHEMA = "studio.board/v1"
@@ -41,7 +42,7 @@ def to_document(value: Any) -> Any:
             if field_value is None and item.name in omit:
                 continue
             out[item.name] = to_document(field_value)
-        return out
+        return board_write_document(out) if isinstance(value, Board) else out
     if isinstance(value, MappingProxyType | dict):
         return {key: to_document(item) for key, item in value.items()}
     if isinstance(value, tuple | list):
@@ -149,9 +150,28 @@ class CastEntry:
 
 
 @dataclass(frozen=True, slots=True)
+class CheckPose:
+    key: str
+    frame: int
+
+    def __post_init__(self) -> None:
+        if type(self.frame) is not int or self.frame < 0:
+            raise ValueError("A check pose frame must be a non-negative integer")
+
+
+@dataclass(frozen=True, slots=True)
 class Layout:
     preset: str
     foreground: bool
+    check_poses: tuple[CheckPose, ...] | None = None
+
+    _omit_none = ("check_poses",)
+
+    @classmethod
+    def from_document(cls, doc: Mapping[str, Any]) -> Layout:
+        poses = doc.get("check_poses")
+        return cls(doc["preset"], doc["foreground"],
+                   None if poses is None else tuple(CheckPose(**pose) for pose in poses))
 
 
 @dataclass(frozen=True, slots=True)
@@ -318,7 +338,7 @@ class Board:
             photo=Photo(current_version_id=photo["current_version_id"], prompt=photo["prompt"],
                         input_asset_version_ids=tuple(photo["input_asset_version_ids"])),
             cast=tuple(CastEntry(**entry) for entry in doc["cast"]),
-            layout=Layout(**doc["layout"]), method=Method(**doc["method"]),
+            layout=Layout.from_document(doc["layout"]), method=Method(**doc["method"]),
             seeds=MappingProxyType(dict(doc["seeds"])),
             cues=tuple(_cue(cue) for cue in doc["cues"]),
             notes=tuple(Note(id=note["id"], text=note["text"]) for note in doc["notes"]),

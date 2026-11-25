@@ -18,6 +18,7 @@ from haynes_studio.importer.command import LIBRARY_FILE, REPORT_FILE, main
 from haynes_studio.library.library import Library
 from tests.importer.test_import import snapshot
 from tests.library.fixtures import OPERATOR, imported
+from tests.motion.fixtures import still_version
 from tests.support.policy import REPO_ROOT
 
 URL = "https://work.haynesnetwork.com/work_packages/428"
@@ -159,3 +160,26 @@ def test_the_module_runs_as_a_command():
     result = subprocess.run([sys.executable, "-m", "haynes_studio.importer", "--help"],
                             capture_output=True, timeout=60, check=False, cwd=REPO_ROOT)
     assert result.returncode == 0 and b"--dry-run" in result.stdout
+
+
+@pytest.mark.parametrize("agent_session", [False, True], ids=["person", "agent-session"])
+def test_main_and_module_refuse_library_opt_in_before_creating_outputs(tmp_path, inputs, agent_session):
+    from tests.cli.test_operators import AGENT_FLAGS
+    plate = still_version(200, "b" * 64, kind="set")
+    plate["occlusion"] = {
+        "foreground": [{"key": "shelf", "label": None, "layer_order": 10}], "focal_props": [],
+    }
+    versions = tmp_path / "versions.json"
+    versions.write_text(json.dumps([plate]))
+    flags = AGENT_FLAGS if agent_session else None
+    args = argv(tmp_path, inputs, "--library", str(versions), "--out", str(tmp_path / "new"),
+                "--authorized-by", URL, operator_flags=flags)
+    before = snapshot(tmp_path)
+    factory = Factory()
+    code, out, err = call(args, factory)
+    assert code != 0 and not out and factory.made == 0
+    result = subprocess.run([sys.executable, "-m", "haynes_studio.importer", *args],
+                            text=True, capture_output=True, timeout=60, check=False, cwd=REPO_ROOT)
+    assert result.returncode == code and result.stdout == out and result.stderr == err
+    assert "occlusion.check_unavailable at /occlusion" in err
+    assert "The visibility check is not installed" in err and snapshot(tmp_path) == before
