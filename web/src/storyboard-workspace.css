@@ -1,6 +1,6 @@
 .storyboard-workspace {
   display: grid;
-  grid-template-areas: "stage" "timeline";
+  grid-template-areas: "stage" "timeline" "inspector";
   grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
@@ -102,18 +102,12 @@
 .storyboard-thumb > span { display: block; margin: 6px auto; height: calc(100% - 12px); aspect-ratio: 3 / 4; border: 1px solid #525852; border-radius: 2px; }
 .storyboard-controls { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .storyboard-controls .pill[aria-disabled="true"] { opacity: .55; cursor: default; }
-.storyboard-inspector { display: none; }
+.storyboard-inspector { grid-area: inspector; min-width: 0; }
+.storyboard-inspector:empty { display: none; }
 
 @media (min-width: 960px) {
   .storyboard-workspace {
     grid-template-areas: "stage inspector" "timeline inspector";
     grid-template-columns: minmax(0, 1fr) clamp(260px, 27vw, 336px);
-  }
-  .storyboard-inspector {
-    display: block;
-    grid-area: inspector;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    background: var(--surface);
   }
 }

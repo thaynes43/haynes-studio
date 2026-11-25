@@ -26,6 +26,7 @@ export function useStoryboard(api: StudioClient, scope: StoryboardScope, request
   const [focus, setFocus] = useState<{ board?: string }>();
   const lifetime = useRef<AbortController>(null);
   const working = useRef(false);
+  const syncingInspector = useRef(false);
   const currentRoute = useRef(requested);
 
   useLayoutEffect(() => {
@@ -38,6 +39,20 @@ export function useStoryboard(api: StudioClient, scope: StoryboardScope, request
   const draft = refreshed?.draft ?? (result.status === "success" ? result.data.draft : undefined);
   const selected = draft && selectBoard(draft.story.board_order, requested, refreshed?.previousOrder);
   const selectedIndex = draft?.boards.findIndex(({ record }) => record.id === selected) ?? -1;
+  const boardOrder = useRef(draft?.story.board_order);
+  useLayoutEffect(() => { boardOrder.current = draft?.story.board_order; }, [draft]);
+
+  const refreshFromInspector = useCallback(() => {
+    const signal = lifetime.current?.signal;
+    if (!signal || signal.aborted || working.current || syncingInspector.current) return;
+    syncingInspector.current = true;
+    void loadStoryboardDraft(api, scope, signal).then((latest) => {
+      if (!signal.aborted) setRefreshed((previous) => previous && previous.draft.story.revision > latest.story.revision
+        ? previous : { draft: latest, previousOrder: boardOrder.current ?? [] });
+    }, () => {
+      // Inspector polling will retry on its next observation of a newer board.
+    }).finally(() => { syncingInspector.current = false; });
+  }, [api, scope]);
 
   useEffect(() => {
     if (!draft || selected === requested) return;
@@ -76,7 +91,8 @@ export function useStoryboard(api: StudioClient, scope: StoryboardScope, request
 
       const latest = await loadStoryboardDraft(api, scope, signal);
       if (signal.aborted) return;
-      setRefreshed({ draft: latest, previousOrder: draft.story.board_order });
+      setRefreshed((previous) => previous && previous.draft.story.revision > latest.story.revision
+        ? previous : { draft: latest, previousOrder: draft.story.board_order });
       const moved = outcome.movedId ? latest.story.board_order.indexOf(outcome.movedId) : -1;
       setNotice(moved >= 0 ? `Moved to ${boardPosition(moved).toLowerCase()}.` : outcome.message ?? "");
       if (routeAtStart !== currentRoute.current) return;
@@ -94,7 +110,7 @@ export function useStoryboard(api: StudioClient, scope: StoryboardScope, request
   }
 
   return {
-    result, retry, draft, selected, selectedIndex, pending, notice, problem, focus,
+    result, retry, draft, selected, selectedIndex, pending, notice, problem, focus, refreshFromInspector,
     clearNotice: () => setNotice(""),
     reload: () => void update(),
     add: () => draft && void update(async (signal) => ({ message: "Board added.", addedId: await addBoard(api, draft, signal) })),

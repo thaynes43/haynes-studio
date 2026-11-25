@@ -1,6 +1,8 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
+import type { StudioClient } from "./api/client";
+import { BoardInspector, type InspectorVoiceState } from "./board-inspector";
 import { treePath } from "./routes";
 import { Empty, Problem } from "./shell-ui";
 import type { StoryboardPanel, StoryboardScope } from "./storyboard-data";
@@ -28,8 +30,8 @@ function VoiceStrip({ panel }: { panel: StoryboardPanel }) {
   </div>;
 }
 
-function Stage({ panel, index, range, aspect }: {
-  panel?: StoryboardPanel; index: number; range?: string; aspect: "short" | "video";
+function Stage({ panel, index, range, aspect, voiceCurrent }: {
+  panel?: StoryboardPanel; index: number; range?: string; aspect: "short" | "video"; voiceCurrent: boolean;
 }) {
   if (!panel) return <section className="storyboard-stage" aria-label="Selected board stage">
     <Empty>No boards yet.</Empty>
@@ -50,14 +52,15 @@ function Stage({ panel, index, range, aspect }: {
         } />
       </div>
     </div>
-    <VoiceStrip key={panel.voice} panel={panel} />
+    {voiceCurrent && <VoiceStrip key={panel.voice} panel={panel} />}
   </section>;
 }
 
-export function StoryboardWorkspace({ model, scope }: { model: StoryboardModel; scope: StoryboardScope }) {
+export function StoryboardWorkspace({ api, model, scope }: { api: StudioClient; model: StoryboardModel; scope: StoryboardScope }) {
   const { draft, focus, notice, pending, problem, selected, selectedIndex } = model;
   const strip = useRef<HTMLOListElement>(null);
   const add = useRef<HTMLButtonElement>(null);
+  const [voiceState, setVoiceState] = useState<InspectorVoiceState>();
   useLayoutEffect(() => {
     if (!focus) return;
     const button = focus.board ? document.getElementById(panelElementId(focus.board)) : add.current;
@@ -77,8 +80,10 @@ export function StoryboardWorkspace({ model, scope }: { model: StoryboardModel; 
   const labels = timelineLabels(draft.timing);
   const locked = pending || Boolean(problem?.reload);
   const selectedTiming = selected ? labels.boards.get(selected) : undefined;
+  const panel = draft.boards[selectedIndex];
   return <div className="storyboard-workspace">
-    <Stage key={selected} panel={draft.boards[selectedIndex]} index={selectedIndex} aspect={scope.media} range={selectedTiming?.range} />
+    <Stage key={selected} panel={panel} index={selectedIndex} aspect={scope.media} range={selectedTiming?.range}
+      voiceCurrent={Boolean(voiceState?.current && voiceState.board === selected && voiceState.revision === panel?.record.revision)} />
     <section className="storyboard-timeline" aria-labelledby="storyboard-timeline-heading">
       <div className="storyboard-timeline-heading">
         <h2 id="storyboard-timeline-heading">Panel timeline</h2>
@@ -114,6 +119,9 @@ export function StoryboardWorkspace({ model, scope }: { model: StoryboardModel; 
         {problem.reload && <button className="pill" type="button" onClick={model.reload}>Reload draft</button>}
       </>}
     </section>
-    <aside className="storyboard-inspector" aria-label="Board inspector" />
+    <aside className="storyboard-inspector" aria-label="Board inspector">
+      {panel && <BoardInspector api={api} board={panel.record} story={draft.story} fps={draft.timing.fps} timelinePending={locked}
+        onRefresh={model.refreshFromInspector} onVoiceState={setVoiceState} />}
+    </aside>
   </div>;
 }

@@ -191,7 +191,7 @@ function StoryboardPage({ api, production, media, story, board, selections, befo
     {result.status === "loading" && <p role="status" className="muted">Loading…</p>}
     {result.status === "failure" && <Problem error={result.error} retry={retry} />}
     {draft && <>
-      <StoryboardWorkspace model={model} scope={scope} />
+      <StoryboardWorkspace api={api} model={model} scope={scope} />
       <div className="actions">
         {selected && <Link className="pill" to={treePath("board", { ...scope, board: selected }, "photo")}>Reference photo</Link>}
         <Link className="pill" to={treePath("board", scope, "runs")}>Runs</Link>
