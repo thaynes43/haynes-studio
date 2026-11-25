@@ -8,7 +8,8 @@ import os
 import re
 import stat
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from functools import partial
 from multiprocessing.connection import Connection, wait
 from multiprocessing.process import BaseProcess
 from pathlib import Path
@@ -23,7 +24,7 @@ from .ort import OnnxMatte
 from .pixels import MAX_SOURCE_BYTES, MODES, decode_source, describe_png, encode_png, matte_pixels, measure_shape
 from .profile import (
     BUSY, COMMAND_FAILED, NOT_FOUND, PIN_MISMATCH, PROFILE_ID, PROVIDER, REQUEST_INVALID,
-    REQUEST_SECONDS, RESPONSE_INVALID, STARTUP_SECONDS, TIMEOUT, MatteError, Profile,
+    REQUEST_SECONDS, RESPONSE_INVALID, STARTUP_SECONDS, TIMEOUT, MatteError, Profile, SessionSettings,
 )
 
 REQUEST_SCHEMA = "studio.matte-request.v1.schema.json"
@@ -148,32 +149,62 @@ def _infer(scratch: Path, attempt: str, request: dict, profile: Profile, matte) 
         os.close(root)
 
 
-def _worker(channel, scratch: Path, weights: Path, profile: Profile, factory) -> None:
+def _worker_rss() -> dict[str, int] | None:
+    try:
+        fields = {}
+        for line in Path("/proc/self/status").read_text().splitlines():
+            key, _, value = line.partition(":")
+            if key in ("VmHWM", "VmRSS"):
+                fields[key] = int(value.split()[0]) * 1024
+        return {"peak_rss_bytes": fields["VmHWM"], "rss_after_bytes": fields["VmRSS"]}
+    except (OSError, ValueError, KeyError):
+        return None
+
+
+def _reset_worker_peak() -> bool:
+    try:
+        Path("/proc/self/clear_refs").write_text("5")
+        return True
+    except OSError:
+        return False
+
+
+def _worker(channel, scratch: Path, weights: Path, profile: Profile, pinned_profile: Profile,
+            factory, measure_memory: bool) -> None:
+    def reply(success, result):
+        channel.send((success, result, _worker_rss() if measure_phase else None))
+
+    measure_phase = measure_memory
     with channel:
         try:
-            digest, graph = profile.verify(weights)
+            digest, graph = pinned_profile.verify(weights)
+            if profile != pinned_profile:
+                digest = hashlib.sha256(profile.manifest()).hexdigest()
             matte = factory(graph)
             del graph
         except MatteError as error:
-            channel.send((False, error.code))
+            reply(False, error.code)
             return
         except Exception:
-            channel.send((False, COMMAND_FAILED))
+            reply(False, COMMAND_FAILED)
             return
-        channel.send((True, digest))
+        reply(True, digest)
         while True:
             try:
                 attempt, request = channel.recv()
             except EOFError:
                 return
+            # Linux resets VmHWM to current RSS. The next reading includes
+            # retained buffers and any transient high water in this request.
+            measure_phase = measure_memory and _reset_worker_peak()
             try:
                 receipt = _infer(scratch, attempt, request, profile, matte)
             except MatteError as error:
-                channel.send((False, error.code))
+                reply(False, error.code)
             except Exception:
-                channel.send((False, COMMAND_FAILED))
+                reply(False, COMMAND_FAILED)
             else:
-                channel.send((True, receipt))
+                reply(True, receipt)
 
 
 @dataclass
@@ -206,12 +237,15 @@ class _Child:
 class Engine:
     """One request at a time. A killed worker is joined before replacement starts."""
 
-    def __init__(self, scratch: Path, weights: Path, profile: Profile, *, factory=OnnxMatte,
-                 request_seconds=REQUEST_SECONDS, startup_seconds=STARTUP_SECONDS):
+    def __init__(self, scratch: Path, weights: Path, profile: Profile, *, factory=None,
+                 request_seconds=REQUEST_SECONDS, startup_seconds=STARTUP_SECONDS,
+                 smoke_settings: SessionSettings | None = None, memory: dict | None = None):
         self._scratch = scratch
         self._weights = weights
-        self._profile = profile
-        self._factory = factory
+        self._pinned_profile = profile
+        self._profile = replace(profile, session=smoke_settings) if smoke_settings is not None else profile
+        self._factory = factory if factory is not None else partial(OnnxMatte, settings=self._profile.session)
+        self._memory = memory
         self._request_seconds = request_seconds
         self._startup_seconds = startup_seconds
         self._lock = threading.Lock()
@@ -239,7 +273,8 @@ class Engine:
         ctx = multiprocessing.get_context("spawn")
         parent, peer = ctx.Pipe()
         process = ctx.Process(target=_worker, args=(
-            peer, self._scratch, self._weights, self._profile, self._factory,
+            peer, self._scratch, self._weights, self._profile, self._pinned_profile, self._factory,
+            self._memory is not None,
         ), daemon=True)
         try:
             process.start()
@@ -250,7 +285,9 @@ class Engine:
             peer.close()
         child = _Child(process, parent)
         try:
-            success, result = child.read(deadline)
+            success, result, memory = child.read(deadline)
+            if self._memory is not None:
+                self._memory.setdefault("session_creation", memory)
             if not success:
                 raise MatteError(result)
         except BaseException:
@@ -286,7 +323,9 @@ class Engine:
             deadline = monotonic() + self._request_seconds
             try:
                 self._child.channel.send((attempt, request))
-                success, result = self._child.read(deadline)
+                success, result, memory = self._child.read(deadline)
+                if self._memory is not None:
+                    self._memory.setdefault("requests", []).append(memory)
             except (MatteError, OSError) as error:
                 self._stop()
                 self._recovery = threading.Thread(target=self._recover, name="matting-recovery")

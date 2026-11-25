@@ -34,7 +34,8 @@ def fake_ort(monkeypatch):
             assert providers == [PROVIDER]
             assert vars(sess_options) == {
                 "execution_mode": "sequential", "intra_op_num_threads": 2,
-                "inter_op_num_threads": 1,
+                "inter_op_num_threads": 1, "enable_cpu_mem_arena": True,
+                "enable_mem_pattern": True, "graph_optimization_level": "all",
             }
             assert entries == {
                 "session.intra_op.allow_spinning": "0",
@@ -54,8 +55,9 @@ def fake_ort(monkeypatch):
         def disable_fallback(self):
             self.fallback = False
 
-        def run(self, outputs, inputs):
+        def run(self, outputs, inputs, run_options):
             assert not self.fallback
+            assert run_options is None
             assert outputs == [OUTPUT_NAME] and list(inputs) == [INPUT_NAME]
             tensor = inputs[INPUT_NAME]
             assert tensor.shape == (1, 3, DIM, DIM)
@@ -67,6 +69,7 @@ def fake_ort(monkeypatch):
     module = SimpleNamespace(
         __version__=RUNTIME_VERSION, SessionOptions=Options, InferenceSession=Session,
         ExecutionMode=SimpleNamespace(ORT_SEQUENTIAL="sequential"),
+        GraphOptimizationLevel=SimpleNamespace(ORT_ENABLE_ALL="all"),
     )
     monkeypatch.setitem(sys.modules, "onnxruntime", module)
     return config, module

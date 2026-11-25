@@ -5,6 +5,7 @@ import importlib.metadata
 import json
 import os
 import sys
+from dataclasses import asdict, replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -15,10 +16,10 @@ from haynes_studio.matting.backend import Engine, verify_result
 from haynes_studio.matting.pixels import encode_png
 from haynes_studio.matting.profile import (
     DIM, GRAPH_NAME, INPUT_NAME, OUTPUT_NAME, PROFILE_ID, PROVIDER, RUNTIME_VERSION,
-    WHEEL_NAME, WHEEL_SHA256, Profile,
+    WHEEL_NAME, WHEEL_SHA256, Profile, SessionSettings,
 )
 from haynes_studio.matting.service import listening, local_call
-from haynes_studio.matting.smoke import _request
+from haynes_studio.matting.smoke import _report_memory, _request
 
 
 def varint(number):
@@ -57,33 +58,62 @@ def synthetic_graph():
     return integer(1, 8) + message(7, graph) + message(8, integer(2, 13))
 
 
-def exercise_graph(scratch_parent, revision):
+def exercise_graph(scratch_parent, revision, settings):
     graph = synthetic_graph()
-    profile = Profile("sha256:" + "f" * 64, revision, len(graph), hashlib.sha256(graph).hexdigest())
+    pinned = Profile("sha256:" + "f" * 64, revision, len(graph), hashlib.sha256(graph).hexdigest())
+    profile = replace(pinned, session=settings)
+    memory = {}
     with TemporaryDirectory(dir=scratch_parent) as work:
         scratch = Path(work)
         weights = scratch / "fake-weights"
         weights.mkdir()
-        manifest = profile.manifest()
-        digest = hashlib.sha256(manifest).hexdigest()
-        (weights / "profile.json").write_bytes(manifest)
-        (weights / "profile.sha256").write_text(digest + "\n")
+        pin = pinned.manifest()
+        digest = hashlib.sha256(profile.manifest()).hexdigest()
+        (weights / "profile.json").write_bytes(pin)
+        (weights / "profile.sha256").write_text(hashlib.sha256(pin).hexdigest() + "\n")
         (weights / GRAPH_NAME).write_bytes(graph)
         socket = scratch / "matte.sock"
-        with Engine(scratch, weights, profile) as engine, listening(socket, engine):
+        with Engine(scratch, weights, pinned, smoke_settings=settings, memory=memory) as engine, listening(socket, engine):
             assert local_call(socket, "GET", "/v1/ready") == (200, {
                 "profile_id": PROFILE_ID, "profile_sha256": digest, "provider": PROVIDER,
             })
             rgb = np.zeros((64, 64, 3), dtype=np.uint8)
             rgb[8:56, 8:56] = 255
-            request = _request(scratch, encode_png(rgb), 64, 64, digest)
-            status, receipt = local_call(socket, "POST", "/v1/matte", request)
-            assert status == 200, receipt
-            directory = scratch / request["attempt_id"]
-            artifacts = {name: (directory / (name + ".png")).read_bytes()
-                         for name in ("cutout", "mask")}
-            verify_result(request["request"], receipt, artifacts, profile)
-            assert receipt["shape"]["bbox_xyxy"] == [8, 8, 56, 56]
+            data = encode_png(rgb)
+            outputs = []
+            for _ in range(4):
+                request = _request(scratch, data, 64, 64, digest)
+                status, receipt = local_call(socket, "POST", "/v1/matte", request)
+                assert status == 200, receipt
+                directory = scratch / request["attempt_id"]
+                artifacts = {name: (directory / (name + ".png")).read_bytes() for name in ("cutout", "mask")}
+                verify_result(request["request"], receipt, artifacts, profile)
+                assert receipt["shape"]["bbox_xyxy"] == [8, 8, 56, 56]
+                outputs.append(receipt["artifacts"])
+    assert outputs.count(outputs[0]) == len(outputs)
+    report = {"verdicts": {}}
+    _report_memory(memory, report)
+    assert report["verdicts"]["memory_phases_measured"]
+    return outputs[0], report["worker_memory"]
+
+
+def exercise_settings(scratch_parent, revision):
+    baseline, memory = exercise_graph(scratch_parent, revision, SessionSettings())
+    measures = [{"settings": asdict(SessionSettings()), "memory": memory}]
+    for settings in (
+        SessionSettings(cpu_arena=False),
+        SessionSettings(memory_pattern=False),
+        SessionSettings(graph_optimization="extended"),
+        SessionSettings(graph_optimization="basic"),
+        SessionSettings(graph_optimization="disabled"),
+        SessionSettings(arena_growth="same-as-requested"),
+        SessionSettings(shrink_cpu_arena=True),
+        SessionSettings(arena_growth="same-as-requested", shrink_cpu_arena=True),
+    ):
+        artifacts, memory = exercise_graph(scratch_parent, revision, settings)
+        assert artifacts == baseline, settings
+        measures.append({"settings": asdict(settings), "memory": memory})
+    return measures
 
 
 def main():
@@ -94,9 +124,10 @@ def main():
     assert importlib.metadata.version("onnxruntime") == onnxruntime.__version__ == RUNTIME_VERSION
     wheel_hash, wheel_name = Path("/opt/studio/onnxruntime-wheel.sha256").read_text().split()
     assert (wheel_name, wheel_hash) == (WHEEL_NAME, WHEEL_SHA256)
-    exercise_graph("/matting", os.environ["STUDIO_MATTING_REVISION"])
+    measures = exercise_settings("/matting", os.environ["STUDIO_MATTING_REVISION"])
     print(json.dumps({"runtime_version": RUNTIME_VERSION, "wheel_sha256": wheel_hash,
                       "provider": PROVIDER, "graph": "synthetic_channel_mean",
+                      "synthetic_memory": measures,
                       "proof": "CPU session, Unix HTTP, PNG and receipt read-back",
                       "pending": "real weight load, quality, RSS, timing and deployment"}))
 
