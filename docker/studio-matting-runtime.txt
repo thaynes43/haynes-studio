@@ -1,0 +1,1 @@
+onnxruntime==1.32.0 --hash=sha256:99e1074c4b2197accd5073052a465361be17b89c093b8ffb6e6bd8f986c52df8

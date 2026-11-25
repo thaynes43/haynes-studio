@@ -1,0 +1,23 @@
+{
+  "schema": "studio.matte-request/v1",
+  "job_id": "job_00000000000000000000000001",
+  "source": {
+    "asset_version_id": "asv_00000000000000000000000001",
+    "production_id": null,
+    "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+    "bytes": 1024,
+    "media_type": "image/png",
+    "width": 384,
+    "height": 512
+  },
+  "profile_id": "birefnet-lite-ort-cpu-v1",
+  "profile_sha256": "d7601eda1434893f9facf3ad2dd54aef7553e086269d59a2442fe9bfabd335f5",
+  "parameters": {
+    "chroma_rgb": [
+      36,
+      180,
+      60
+    ],
+    "target_height_px": 360
+  }
+}
