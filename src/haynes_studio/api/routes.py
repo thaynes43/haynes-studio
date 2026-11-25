@@ -14,6 +14,7 @@ from haynes_studio.db.engine import snapshot
 from haynes_studio.db.problems import NotFound
 from haynes_studio.drafting.declaration import READ_TOKEN_HEADER, PersonEditAcknowledgment
 from haynes_studio.errors import pointer
+from haynes_studio.escalation import responder
 from haynes_studio.library.resolve import board_references
 
 from .errors import APIError, ERROR_RESPONSES
@@ -244,6 +245,8 @@ def build_router(CurrentActor, authenticated_route):
         with request.app.state.engine.begin() as conn:
             story_id = _board_access(conn, actor, "draft:write", id)
             fields = dict(body.root)
+            if responder.is_responder(actor.principal.key_id):
+                responder.require_patch(conn, actor.principal.key_id, story_id, id, fields)
             ack = None
             if "acknowledge_person_edit" in fields:
                 try:

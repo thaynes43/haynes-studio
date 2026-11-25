@@ -69,3 +69,8 @@ GO_LIVE_GRANTS = (
 )
 
 RUNTIME_GRANTS = RUN_QUEUE_GRANTS + GO_LIVE_GRANTS + JOB_GRANTS
+
+
+ESCALATION_GRANTS = (
+    ("SELECT, INSERT", ("escalation_check_failures", "escalation_packages", "escalation_events")),
+)

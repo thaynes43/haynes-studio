@@ -153,6 +153,9 @@ def runtime_role(studio_db):
 def owner_engine(studio_db, runtime_role):
     engine = connect_engine(studio_db.url, studio_db.schema)
     try:
+        # The disposable schema is session-scoped. Each module starts its
+        # staged upgrade from base, including after another module used head.
+        migrate(engine, "downgrade", "base")
         migrate(engine, target="0002_active_agent_grants")
         migrate(engine, target="0004_go_live_approvals", runtime_role=runtime_role[0])
         migrate(engine, target="0005_job_operations", runtime_role=runtime_role[0])
