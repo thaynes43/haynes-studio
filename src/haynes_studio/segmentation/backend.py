@@ -20,7 +20,7 @@ from .inference import Observation, observe, validate_request
 from .memory import Phases
 from .pixels import decode_source, describe_mask, encode_mask, tight_box
 from .profile import (
-    MAX_SOURCE_BYTES, PROFILE_ID, REQUEST_SECONDS, SERVING_PROFILE_ID, STARTUP_SECONDS, WEIGHT_LOAD,
+    MAX_SOURCE_BYTES, PROFILE_ID, REQUEST_SECONDS, STARTUP_SECONDS, WEIGHT_LOAD,
     Profile, SegmentationError, digest,
 )
 from .runtime import load_models
@@ -192,7 +192,7 @@ class Engine:
                 return None
         except ValueError:
             return None
-        return {"profile_id": SERVING_PROFILE_ID, "profile_sha256": pin, "device": "cpu"}
+        return {"profile_id": PROFILE_ID, "profile_sha256": pin, "device": "cpu"}
 
     def _start(self):
         deadline = monotonic() + self.startup_seconds

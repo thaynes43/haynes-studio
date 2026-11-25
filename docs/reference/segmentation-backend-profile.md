@@ -246,11 +246,14 @@ the exact file allowlist and hashes before loading either model. The runtime
 uses the explicit DINO and SAM image classes, local files, safetensors and
 FP32 eager CPU inference. `GET /v1/ready` returns
 `{profile_id, profile_sha256, device}` when the inference process is live.
-Readiness uses the new serving manifest ID. The request `profile` and result
-`provenance.profile.id` keep the v1 schema value
-`grounding-dino-tiny-sam2.1-tiny-cpu-v1`. The result's
-`provenance.profile.sha256` binds it to the versioned manifest. Provisioning
-hashes that manifest using the published serving image and its build revision.
+Under provisional coordinator ruling CR-53, clients send
+`grounding-dino-tiny-sam2.1-tiny-cpu-v1` as the request `profile`. They
+compare the entire readiness response with exactly that selector in
+`profile_id`, the SHA-256 of the serving manifest in `profile_sha256`, and
+`cpu` in `device`. The manifest identifies the serving contract as
+`grounding-dino-tiny-sam2.1-tiny-cpu-v2`. Provisioning hashes the manifest
+using the published image and its build revision. Each result carries the
+selector and manifest hash in `provenance.profile`.
 The image records the built Python wheel hashes and embeds its Python
 dependency SBOM. A resource contract ships in [the package](../../src/haynes_studio/segmentation/resources.json)
 and the image's `io.haynes-studio.segmentation.resources` OCI label. The
@@ -355,7 +358,19 @@ activation. The readiness probe verifies the live process and exact
 profile without inference. Revert the pin or disable the companion via
 GitOps if the gate fails. Keep prior assets and run evidence.
 
+On SIGTERM, the service stops accepting connections and lets an in-flight
+request finish within its 60 s deadline. The staged pod allows 150 s for
+termination to cover the request, any bounded worker recovery and cleanup.
+An expired request returns a failed receipt. An attempt is usable only with
+a successful reply that matches the staged receipt and mask.
+
 ## Expected smoke and private quality check
+
+The serving smoke reports worker resident RSS and cgroup resident bytes for
+the matching request phases in both passes. It separately records cgroup
+resident bytes at the end of each pass. Each second-pass sample may exceed
+its first-pass sample by at most 64 MiB (67,108,864 bytes) to allow ordinary
+allocator and page-cache variation. The absolute 5 GiB limit still applies.
 
 1. Generate deterministic PNG inputs outside the checkout with Pillow.
    At 1080×1920 draw an RGB `(32,40,56)` background and a trapezoid with

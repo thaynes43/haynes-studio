@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import multiprocessing
 import os
+import signal
 import subprocess
 import sys
 import threading
@@ -14,6 +15,7 @@ from importlib.resources import files
 from io import BytesIO
 from json import loads
 from pathlib import Path
+from time import monotonic, sleep
 from types import SimpleNamespace
 
 import numpy as np
@@ -30,7 +32,7 @@ from haynes_studio.segmentation.inference import (
 )
 from haynes_studio.segmentation.pixels import decode_source, describe_mask, encode_mask, tight_box
 from haynes_studio.segmentation.profile import (
-    FALLBACK_ID, SERVING_PROFILE_ID, Profile, SegmentationError, digest,
+    FALLBACK_ID, PROFILE_ID, SERVING_PROFILE_ID, Profile, SegmentationError, digest,
 )
 from haynes_studio.segmentation.service import _UnixConnection, listening, local_call
 from haynes_studio.segmentation.smoke import stage
@@ -392,8 +394,9 @@ def test_socket_create_only(tmp_path, pins, example):
     with Engine(scratch, weights, profile, factory=_factory) as engine, listening(socket_path, engine):
         assert socket_path.stat().st_mode & 0o777 == 0o660
         assert local_call(socket_path, "GET", "/v1/ready") == (200, {
-            "profile_id": SERVING_PROFILE_ID, "profile_sha256": digest(profile.manifest()), "device": "cpu",
+            "profile_id": PROFILE_ID, "profile_sha256": digest(profile.manifest()), "device": "cpu",
         })
+        assert loads(profile.manifest())["profile"] == SERVING_PROFILE_ID
         status, reply = local_call(socket_path, "POST", "/v1/segment", payload)
         assert status == 200 and reply["result"]["status"] == "ready"
         directory = scratch / payload["attempt_id"]
@@ -416,6 +419,22 @@ def test_socket_create_only(tmp_path, pins, example):
         finally:
             connection.close()
     assert not socket_path.exists()
+
+
+@pytest.mark.parametrize("mutation", [None, "hash", "selector", "extra_key"])
+def test_ready_command_checks_exact_model_selector_and_manifest(pins, monkeypatch, mutation):
+    profile, _ = pins
+    reply = {"profile_id": PROFILE_ID, "profile_sha256": digest(profile.manifest()), "device": "cpu"}
+    if mutation == "hash":
+        reply["profile_sha256"] = "f" * 64
+    elif mutation == "selector":
+        reply["profile_id"] = SERVING_PROFILE_ID
+    elif mutation == "extra_key":
+        reply["serving_profile_id"] = SERVING_PROFILE_ID
+    monkeypatch.setattr(Profile, "installed", lambda: profile)
+    monkeypatch.setattr("haynes_studio.segmentation.service.local_call", lambda *_, **__: (200, reply))
+    monkeypatch.setattr(sys, "argv", ["studio-segmentation", "ready"])
+    assert cli.main() == int(mutation is not None)
 
 
 @pytest.mark.parametrize("mutation", ["symlink", "hardlink", "fifo", "missing", "fallback", "digest"])
@@ -482,6 +501,60 @@ def test_busy_timeout_reap(tmp_path, pins, example):
             assert engine.readiness and engine._child.process.pid != original_pid
             assert local_call(socket_path, "POST", "/v1/segment", good)[0] == 200
 
+
+
+def _terminating_factory(weights, phase, strategy, *, timeout):
+    def segmenter(image, hint):
+        os.kill(os.getppid(), signal.SIGTERM)
+        if timeout:
+            threading.Event().wait()
+        return _synthetic_segmenter(image, hint)
+    return _synthetic_detector, segmenter
+
+
+def _serve_offline():
+    scratch, weights, outcome = sys.argv[1:]
+    cli.SCRATCH, cli.WEIGHTS = Path(scratch), Path(weights)
+    Profile.installed = lambda: TinyProfile("sha256:" + "c" * 64, "d" * 40, "e" * 64, (("synthetic", "1"),))
+    factory = partial(_terminating_factory, timeout=outcome == "timeout")
+    backend.Engine = partial(Engine, factory=factory, request_seconds=2)
+    cli._serve()
+
+
+@pytest.mark.parametrize("outcome", ["complete", "timeout"])
+def test_sigterm_drains_request_then_refuses_connections(tmp_path, pins, example, outcome):
+    _, weights = pins
+    socket_path = tmp_path / "segment.sock"
+    data, request = example.request("prop")
+    payload = stage(tmp_path, data, request)
+    with subprocess.Popen(
+        [sys.executable, "-c", "from tests.segmentation.test_backend import _serve_offline; _serve_offline()",
+         str(tmp_path), str(weights), outcome],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+    ) as process:
+        try:
+            deadline = monotonic() + 10
+            while not socket_path.is_socket() and process.poll() is None and monotonic() < deadline:
+                sleep(0.025)
+            status, reply = local_call(socket_path, "POST", "/v1/segment", payload, timeout=5)
+            output, _ = process.communicate(timeout=5)
+            assert process.returncode == 0, output
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.communicate(timeout=5)
+    directory = tmp_path / payload["attempt_id"]
+    receipt = reply["result"]
+    assert canonical_json(receipt) == (directory / "result.json").read_bytes()
+    assert reply["result_sha256"] == digest(canonical_json(receipt))
+    if outcome == "timeout":
+        assert (status, receipt["status"], receipt["reason"], receipt["mask"]) == (504, "failed", "timeout", None)
+        assert not (directory / "mask.png").exists()
+    else:
+        assert status == 200 and receipt["status"] == "ready"
+        assert digest((directory / "mask.png").read_bytes()) == receipt["mask"]["sha256"]
+    with pytest.raises((ConnectionRefusedError, FileNotFoundError)):
+        local_call(socket_path, "GET", "/v1/ready")
 
 
 def test_slow_receipt_never_returns_ready(tmp_path, pins, example, monkeypatch):
@@ -588,6 +661,23 @@ def test_smoke_memory_allowance(tmp_path, smoke_workload, monkeypatch, strategie
     assert report["verdicts"]["cgroup_allowance"] is passed and report["passed"] is passed
 
 
+@pytest.mark.parametrize("field", ["resident_rss_bytes", "cgroup_resident_bytes", "pass_cgroup"])
+def test_serving_memory_stability_refuses_growth_above_tolerance(field):
+    first = 1024**3
+    second = first + smoke.RESIDENT_GROWTH_BYTES
+    passes = [first, second]
+    requests = [
+        {"sam": {"resident_rss_bytes": value, "cgroup_resident_bytes": value}}
+        for value in passes
+    ]
+    assert smoke._memory_stable(requests, 1, passes)
+    if field == "pass_cgroup":
+        passes[1] += 1
+    else:
+        requests[1]["sam"][field] += 1
+    assert not smoke._memory_stable(requests, 1, passes)
+
+
 class SmokeProfile(TinyProfile):
     def verify(self, root):
         memory.cgroup_bytes = lambda _: 512 * 1024**2
@@ -626,7 +716,7 @@ def _run_offline_smoke():
     smoke.Engine = partial(Engine, factory=_smoke_factory)
     smoke.os.geteuid = smoke.os.getegid = lambda: 10001
     smoke.os.statvfs = lambda _: SimpleNamespace(f_flag=os.ST_RDONLY)
-    smoke.cgroup_bytes = {"max": (16 if args else 5) * 1024**3, "peak": 1024**3}.get
+    smoke.cgroup_bytes = {"max": (16 if args else 5) * 1024**3, "peak": 1024**3, "current": 512 * 1024**2}.get
     sys.argv = ["studio-segmentation", "smoke", *args]
     return cli.main()
 
@@ -655,6 +745,12 @@ def test_smoke_report_is_last(tmp_path, pins, args):
         run, = report["runs"]
         assert run["weight_load"] == "mmap" and run["cold_load_ms"] > 0
         assert run["verdicts"]["phase_memory"] and run["verdicts"]["create_only_replay"]
+        assert run["verdicts"]["memory_stable"]
+        assert run["memory"]["passes"] == {
+            "tolerance_bytes": 64 * 1024**2, "cgroup_resident_bytes": [512 * 1024**2] * 2,
+        }
+        expected = {"profile_id": PROFILE_ID, "profile_sha256": digest(profile.manifest()), "device": "cpu"}
+        assert run["readiness"] == {"initial": expected, "after": expected}
         assert len(run["memory"]["requests"]) == 12
         assert set(run["cases"]) == set(fixtures()) | {f"{name}_repeat" for name in fixtures()}
 

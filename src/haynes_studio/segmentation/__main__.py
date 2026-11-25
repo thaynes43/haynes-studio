@@ -9,7 +9,7 @@ from threading import Event
 
 from haynes_studio.store import canonical_json
 
-from .profile import SCRATCH, SERVING_PROFILE_ID, WEIGHT_LOAD, WEIGHTS, Profile, SegmentationError, digest
+from .profile import PROFILE_ID, SCRATCH, WEIGHT_LOAD, WEIGHTS, Profile, SegmentationError, digest
 
 
 def _serve():
@@ -49,9 +49,9 @@ def main() -> int:
             from .service import local_call
 
             status, report = local_call(SCRATCH / "segment.sock", "GET", "/v1/ready", timeout=2)
-            return int(
-                status != 200 or report.get("profile_id") != SERVING_PROFILE_ID or report.get("device") != "cpu"
-            )
+            expected = {"profile_id": PROFILE_ID, "profile_sha256": digest(Profile.installed().manifest()),
+                        "device": "cpu"}
+            return int(status != 200 or report != expected)
         elif args.command == "profile":
             manifest = Profile.installed().manifest()
             print(canonical_json({"manifest": manifest.decode(), "sha256": digest(manifest)}).decode())

@@ -14,8 +14,10 @@ from .fixtures import fixtures, visible_fraction
 from .inference import box_iou
 from .memory import cgroup_bytes
 from .pixels import describe_mask, mask_iou, tight_box
-from .profile import RESOURCES, SERVING_PROFILE_ID, WEIGHT_LOAD, Profile, SegmentationError, digest
+from .profile import PROFILE_ID, RESOURCES, SERVING_PROFILE_ID, WEIGHT_LOAD, Profile, SegmentationError, digest
 from .service import listening, local_call
+
+RESIDENT_GROWTH_BYTES = 64 * 1024**2
 
 
 def stage(scratch: Path, data: bytes, request: dict) -> dict:
@@ -93,11 +95,30 @@ def _request_phases(fixture, result):
     return phases
 
 
+def _memory_stable(requests, case_count, pass_cgroup):
+    def within_tolerance(first, second):
+        return (type(first) is int and type(second) is int and first > 0 and second > 0
+                and second <= first + RESIDENT_GROWTH_BYTES)
+
+    return (
+        len(requests) == 2 * case_count and len(pass_cgroup) == 2
+        and within_tolerance(*pass_cgroup)
+        and all(
+            first.keys() == second.keys() and all(
+                within_tolerance(first[phase][key], second[phase][key])
+                for phase in first for key in ("resident_rss_bytes", "cgroup_resident_bytes")
+            )
+            for first, second in zip(requests[:case_count], requests[case_count:], strict=True)
+        )
+    )
+
+
 def _smoke_run(scratch, weights, profile, strategy, inputs, report, *, repeat=False):
     results = {}
     masks = {}
     request_phases = []
-    report.update({"weight_load": strategy, "memory": {}, "verdicts": {}, "cases": {}})
+    report.update({"weight_load": strategy, "memory": {}, "verdicts": {}, "cases": {}, "readiness": {}})
+    pass_cgroup = []
     checks = report["verdicts"]
     pin = digest(profile.manifest())
     socket = scratch / "segment.sock"
@@ -105,8 +126,9 @@ def _smoke_run(scratch, weights, profile, strategy, inputs, report, *, repeat=Fa
     with Engine(scratch, weights, profile, memory=report["memory"], load_strategy=strategy) as engine:
         report["cold_load_ms"] = round((monotonic() - cold_start) * 1000)
         with listening(socket, engine):
-            expected = {"profile_id": SERVING_PROFILE_ID, "profile_sha256": pin, "device": "cpu"}
-            checks["ready_initial"] = local_call(socket, "GET", "/v1/ready") == (200, expected)
+            expected = {"profile_id": PROFILE_ID, "profile_sha256": pin, "device": "cpu"}
+            status, report["readiness"]["initial"] = local_call(socket, "GET", "/v1/ready")
+            checks["ready_initial"] = (status, report["readiness"]["initial"]) == (200, expected)
             if not checks["ready_initial"]:
                 return results
             cases = list(inputs.items())
@@ -169,10 +191,20 @@ def _smoke_run(scratch, weights, profile, strategy, inputs, report, *, repeat=Fa
                         checks[f"visibility{suffix}"] = visible >= 0.95 and hidden <= 0.05
                         checks[f"hidden_prop_fails_fixture_gate{suffix}"] = hidden <= 0.50
                     masks.clear()
+                    if repeat:
+                        pass_cgroup.append(cgroup_bytes("current"))
                     if not checks[f"visibility{suffix}"]:
                         break
-            checks["ready_after"] = local_call(socket, "GET", "/v1/ready") == (200, expected)
+            status, report["readiness"]["after"] = local_call(socket, "GET", "/v1/ready")
+            checks["ready_after"] = (status, report["readiness"]["after"]) == (200, expected)
     checks["phase_memory"] = _phase_memory(report["memory"], request_phases, cgroup_bytes("max"))
+    if repeat:
+        report["memory"]["passes"] = {
+            "tolerance_bytes": RESIDENT_GROWTH_BYTES, "cgroup_resident_bytes": pass_cgroup,
+        }
+        checks["memory_stable"] = checks["phase_memory"] and _memory_stable(
+            report["memory"].get("requests", []), len(cases), pass_cgroup,
+        )
     return results
 
 
