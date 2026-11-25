@@ -186,8 +186,11 @@ ready replica on talosw01, limited to **20 vCPUs and 32 GiB**. Read-only
 `stat -f -c '%S %a %c %d' /studio` in that container showed
 **110,936,790,663,168 bytes free (100.90 TiB)**. Free inodes were unreported
 (dash in `df`, `-1` in `stat`). The later queue-worker rollout reduced D18's
-original 24-vCPU render allocation by four. [Rollout evidence, comment 9872](https://work.haynesnetwork.com/work_packages/956) ·
-[Render service](services.md#studio-render-cpu-work)
+original 24-vCPU render allocation by four. The 24-vCPU values in the
+repository rules and service reference predate that rollout. The pilot
+uses the observed 20-vCPU limit and the queue worker's separate four-vCPU
+allocation. [Rollout evidence, comment 9872](https://work.haynesnetwork.com/work_packages/956) ·
+[Render service](services.md#studio-render-cpu-work) · [Repository rules](../../AGENTS.md)
 
 - One primary download totals **38,973 weight bytes**, leaving
   **110,936,790,624,195 bytes** before metadata at the read-back. Lanczos has
@@ -299,9 +302,11 @@ Measure luma as `0.2126R + 0.7152G + 0.0722B` on the encoded RGB samples.
    limit. This is a bounded acceptance smoke, with cost extrapolated to 100
    frames from the observed mean.
 
-After the smoke, story [453](https://work.haynesnetwork.com/work_packages/453)
-can compare one authorized excerpt of up to **64 contiguous source frames**
-from the archived build's pinned *One More Meeting* 576 × 1024 S2V clip.
+Story 461 part 2 owns installation and the synthetic smoke. After that
+handoff, the private quality comparison is the remaining acceptance
+evidence for delivery story [453](https://work.haynesnetwork.com/work_packages/453).
+Use one authorized excerpt of up to **64 contiguous source frames** from the
+archived build's pinned *One More Meeting* 576 × 1024 S2V clip.
 Resolve and verify the authorized private clip by the build's source hash.
 If that source is unavailable, record the comparison as pending. Use the same
 trims, take, decal evidence and clock for both profiles. Choose the
