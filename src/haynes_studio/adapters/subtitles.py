@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import errno
 import hashlib
+import hmac
 import os
 import re
 import stat
@@ -13,7 +14,7 @@ from contextlib import ExitStack, contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from functools import wraps
-from typing import Literal, ParamSpec, Protocol, TypedDict, TypeVar
+from typing import Literal, ParamSpec, Protocol, TypeVar
 
 from haynes_studio.store import canonical_json
 
@@ -58,11 +59,6 @@ class TimeRange:
     end_ms: int
 
 
-class SourceLocator(TypedDict):
-    label: str
-    sha256: str
-
-
 @dataclass(frozen=True, slots=True)
 class _ReadRange:
     unit: Literal["cue", "ms"]
@@ -89,14 +85,7 @@ class ReadProvenance:
 class SceneRead:
     cues: tuple[Cue, ...] = field(repr=False)
     provenance: ReadProvenance
-    _scene_number: int
-
-    @property
-    def source_locator(self) -> SourceLocator:
-        return {
-            "label": f"{self.provenance.source_id}-{self._scene_number}",
-            "sha256": self.provenance.passage_sha256,
-        }
+    _scene_number: int = field(repr=False)
 
 
 class SubtitleSource(Protocol):
@@ -269,15 +258,16 @@ def _read_file(fd: int, info: os.stat_result) -> bytes:
     return bytes(data)
 
 
-def _opaque_id(*parts: str) -> str:
-    return hashlib.sha256(canonical_json(parts)).hexdigest()
+def _opaque_id(key: bytes, *parts: str) -> str:
+    return hmac.digest(key, canonical_json(parts), "sha256").hex()
 
 
 class FilesystemSubtitleSource:
     """Two levels under an explicit root: title directories containing episode files."""
 
     def __init__(
-        self, root: str | os.PathLike[str], *, source_id: str, allow_windows_1252: bool = False,
+        self, root: str | os.PathLike[str], *, source_id: str, receipt_key: bytes,
+        allow_windows_1252: bool = False,
     ):
         if sys.platform != "linux":
             raise refusal("subtitle.platform", "Filesystem subtitle sources require Linux")
@@ -287,8 +277,11 @@ class FilesystemSubtitleSource:
             raise refusal(SOURCE_OUTSIDE, "Source root must be an absolute directory path with plain components")
         if not isinstance(source_id, str) or not _SOURCE_ID.fullmatch(source_id):
             raise RequestInvalid("subtitles", "Supply an opaque source ID for the archive locator")
+        if not isinstance(receipt_key, bytes) or len(receipt_key) != 32:
+            raise RequestInvalid("subtitles", "Supply a 32-byte secret receipt key for this source")
         self._root = tuple(parts)
         self._source_id = source_id
+        self._receipt_key = receipt_key
         self._allow_windows_1252 = allow_windows_1252
 
     @contextmanager
@@ -340,8 +333,8 @@ class FilesystemSubtitleSource:
         passage = canonical_json([[cue.start_ms, cue.end_ms, cue.text] for cue in cues])
         provenance = ReadProvenance(
             source_id=self._source_id,
-            title_id=_opaque_id(self._source_id, title),
-            episode_id=_opaque_id(self._source_id, title, episode),
+            title_id=_opaque_id(self._receipt_key, self._source_id, title),
+            episode_id=_opaque_id(self._receipt_key, self._source_id, title, episode),
             range=requested_range,
             passage_sha256=hashlib.sha256(passage).hexdigest(),
             principal=principal,

@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 import unicodedata
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field
 from html import unescape
+from typing import TypeVar
 
 from haynes_studio.canonical.jsonvalues import too_deep
 from haynes_studio.jsonio import parse_strict
+from haynes_studio.store import canonical_json
 
 from ._subtitle_text import plain_text, refusal
 from .errors import RequestInvalid
@@ -19,6 +22,12 @@ DEFAULT_MAX_SOURCE_WORDS = 4
 _MAX_SUMMARY_CHARS = 4_000
 _MAX_ARCHIVE_BYTES = 256 * 1024
 _WORDS = re.compile(r"[^\W_]+")
+# Hangul fillers (including decomposed compatibility forms) and braille blank.
+_BLANK_FILLERS = frozenset("\u115f\u1160\u2800")
+_ARCHIVE_FIELDS = frozenset({
+    "kind", "revises_version_id", "format_version_id", "production_id", "record_id", "idempotency_key",
+})
+_T = TypeVar("_T")
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,12 +38,29 @@ class SituationBeat:
     description: str = field(repr=False)
 
 
+@dataclass(frozen=True, slots=True)
+class GuardedArchiveRequest:
+    """A serialized create or append body for the supplied transport."""
+
+    _body: bytes = field(repr=False)
+    _sha256: str = field(repr=False)
+
+    def send(self, send_body: Callable[[bytes], _T]) -> _T:
+        """Pass the exact checked JSON bytes to the caller's transport."""
+        body = self._body
+        if hashlib.sha256(body).hexdigest() != self._sha256:
+            raise refusal("subtitle.staging_text", "Guarded archive request body changed")
+        return send_body(body)
+
+
 def _words(text: str) -> list[str]:
-    folded = unicodedata.normalize("NFKC", text).casefold()
-    letters = "".join(
-        ch for ch in folded if ch not in "'’ʼ" and unicodedata.category(ch) != "Cf"
-    )
-    return _WORDS.findall(letters)
+    letters = []
+    for ch in unicodedata.normalize("NFKD", text):
+        category = unicodedata.category(ch)
+        if ch in "'’ʼ" or category == "Cf" or category.startswith("M"):
+            continue
+        letters.append(" " if ch.isspace() or ch in _BLANK_FILLERS else ch)
+    return _WORDS.findall("".join(letters).casefold())
 
 
 def _runs(text: str, size: int) -> Iterator[tuple[str, ...]]:
@@ -43,15 +69,16 @@ def _runs(text: str, size: int) -> Iterator[tuple[str, ...]]:
         yield tuple(words[offset:offset + size])
 
 
-def _json_values(value: object) -> Iterator[str]:
+def _json_values(value: object, *, check_key: Callable[[str], None]) -> Iterator[str]:
     if isinstance(value, str):
         yield value
     elif isinstance(value, dict):
-        for item in value.values():
-            yield from _json_values(item)
+        for key, item in value.items():
+            check_key(key)
+            yield from _json_values(item, check_key=check_key)
     elif isinstance(value, list):
         for item in value:
-            yield from _json_values(item)
+            yield from _json_values(item, check_key=check_key)
 
 
 def _valid_text(text: str, max_bytes: int) -> None:
@@ -112,15 +139,22 @@ class SceneStaging:
         self._require_safe(result)
         return result
 
-    def archive_payload(self, *, text: str, title: str | None = None) -> dict:
-        """Return guarded text and adapted provenance for archive create or append."""
+    def archive_payload(
+        self, *, text: str, title: str | None = None, **operation_fields: str | None,
+    ) -> GuardedArchiveRequest:
+        """Prepare the immutable body for archive create or append."""
+        if operation_fields.keys() - _ARCHIVE_FIELDS:
+            raise RequestInvalid("subtitle.staging", "Unexpected archive operation argument")
+        for value in operation_fields.values():
+            if value is not None:
+                _valid_text(value, 255)
         _valid_text(text, _MAX_ARCHIVE_BYTES)
         if title is not None:
             _valid_text(title, 80 * 4)
         prefix = f"{title}\n" if title is not None else ""
         self._require_safe(prefix + text)
-        # Storyboard text is JSON. Decode escaped words and check runs across text
-        # fields without treating structural keys as part of the dialogue.
+        # Check decoded keys in their own right. Keep the scan across consecutive
+        # string values so structural keys cannot break a run across text fields.
         if text.lstrip().startswith(("{", "[", '"')):
             try:
                 document = parse_strict(text)
@@ -131,11 +165,18 @@ class SceneStaging:
                 document = None
             if too_deep(document):
                 raise refusal("subtitle.staging_text", "Staging JSON exceeds its nesting limit")
-            self._require_safe(prefix + "\n".join(_json_values(document)))
+            values = _json_values(document, check_key=self._require_safe)
+            self._require_safe(prefix + "\n".join(values))
+        scene = self._scene
         payload = {
+            **operation_fields,
             "text": text,
-            "provenance": {"origin": "adapted", "source_locator": self._scene.source_locator},
+            "provenance": {"origin": "adapted", "source_locator": {
+                "label": f"{scene.provenance.source_id}-{scene._scene_number}",
+                "sha256": scene.provenance.passage_sha256,
+            }},
         }
         if title is not None:
             payload["title"] = title
-        return payload
+        body = canonical_json(payload)
+        return GuardedArchiveRequest(body, hashlib.sha256(body).hexdigest())

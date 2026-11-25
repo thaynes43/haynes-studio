@@ -6,9 +6,9 @@ created at run time. A real source read and Tom's creative review are **Expected
 
 ## Discovery and scene reads
 
-`FilesystemSubtitleSource(root, source_id=...)` takes one explicit absolute
-Linux directory. It expects title directories directly beneath the root and
-episode files directly beneath their title. `list_titles()` and
+`FilesystemSubtitleSource(root, source_id=..., receipt_key=...)` takes one
+explicit absolute Linux directory. It expects title directories directly
+beneath the root and episode files directly beneath their title. `list_titles()` and
 `list_episodes(title)` return sorted names for private, in-memory selection.
 Discovery inspects at most 512 entries per directory and opens no episode
 content. An episode selector is the discovered basename, including its
@@ -29,7 +29,7 @@ symlinks including root ancestors, nested mounts below the root (including
 bind mounts), non-regular episode files, multiply linked files and over-limit
 files. It opens components relative to verified descriptors and reads the
 checked inode. A changed file fails closed. Permission errors return
-`subtitle.access_denied`; other refusals use stable `adapter.source_*` or
+`subtitle.access_denied`. Other refusals use stable `adapter.source_*` or
 `subtitle.*` codes. Errors carry no source path or text. The filesystem
 adapter uses Linux procfs and opens data read-only with access-time updates
 disabled. For an access-time flag denied by Linux, it can use an already
@@ -53,10 +53,11 @@ a gap.
 `scene.provenance.as_record()` for a private receipt. It contains only the
 configured source ID, opaque title and episode IDs, requested range and unit,
 passage SHA-256, opaque principal ID and UTC read time. The title and episode
-IDs are SHA-256 hashes over the source ID and relevant selector names, encoded
-as compact UTF-8 JSON. The IDs are stable within a source and belong in private
-records. The principal is caller-supplied attribution. The adapter creates
-no audit file or log entry.
+IDs use HMAC-SHA-256 over the compact UTF-8 JSON array of the source ID and
+relevant selector names. Supply a private, randomly generated 32-byte key
+for the source and reuse it across reads that need comparable receipts. The receipt carries only the
+resulting IDs. The principal is caller-supplied attribution. The adapter
+creates no audit file or log entry.
 
 The passage hash covers the compact UTF-8 JSON array of
 `[start_ms, end_ms, text]` triples in returned order. The archive request
@@ -76,31 +77,46 @@ beats=...)` adds the timing envelope for each beat from the cue times. Give
 the drafting agent the summary. The person or creative session describing the
 beats supplies the interpretation.
 
-Use `staging.archive_payload(title=..., text=...)` for the final text of a
-create. For an append, call `staging.archive_payload(text=...)` with the same
-passage available in memory. Add the other arguments for the existing
-`studio_create_archive_record` or `studio_add_archive_version` operation
-(or its HTTP equivalent) and submit the returned fields as prepared. The
-helper supplies `adapted` provenance. The same guard checks each summary and
-archive write prepared through this helper, including storyboard JSON string
-values. The archive itself receives only the prepared text and locator and
-does not have source cues for comparison. [Archive operations](staging-archive.md#operations)
+Use `staging.archive_payload(kind=..., title=..., text=...)` for a create or
+`staging.archive_payload(revises_version_id=..., text=...)` for an append
+with the same passage in memory. Include any optional body fields during
+preparation. For the MCP operation, include the relevant `production_id` or
+`record_id` and the `idempotency_key` as well. The helper supplies the
+`adapted` locator only in the guarded request. Call `request.send(send_body)`
+with a transport that submits the supplied JSON bytes as the HTTP body or
+the MCP arguments object. The request holds immutable bytes and verifies
+their SHA-256 before calling the transport. Prepare a new request for any
+edit. Text sent to the archive by any other route is not checked by this
+guard. [Archive operations](staging-archive.md#operations)
 
 By default, five consecutive source words trigger `subtitle.verbatim`.
 `max_source_words` sets the number of permitted consecutive words (1–8).
-The comparison folds Unicode case, normalizes compatibility characters,
-accounts for markup and punctuation, and checks across cue boundaries in
-both time and file order. It can flag coincidental matches and miss short
-quotations or reworded dialogue. It is a mechanical floor. Use only the
-situation, invent names, team names, logos and dialogue, and leave the creative
-verdict with Tom. [Original content and review rules](../../AGENTS.md#human-review-gates)
+The comparison folds Unicode case, decomposes compatibility characters,
+removes combining marks and zero-width characters, and treats whitespace
+and blank-looking fillers as separators. It accounts for markup and
+punctuation, checks decoded JSON keys and string values, and checks across
+cue boundaries in both time and file order.
+
+Passing the guard is not a finding of originality. It can flag coincidental
+matches, and deliberate evasion can defeat it, for example by using a
+look-alike letter from another script or changing one word in every five
+at the default threshold. The guard does not map look-alike letters across
+scripts. Use only the situation and invent names, team names, logos and
+dialogue. The creative verdict is Tom's. [Original content rule](../../AGENTS.md#hard-rules)
 
 ## Real read (Expected)
 
 Before a real read, Tom must designate all four:
 
 1. The authorized source and its opaque source ID.
-2. The exact existing read-only root path that the authorized environment can use.
+2. The exact existing root path that the authorized environment can use. The
+   source must be mounted read-only or with access-time updates off (`noatime`),
+   or its files and any directories listed must be owned by the account that
+   runs the read. The adapter opens without updating access time. For files
+   owned by another account, it only falls back to an ordinary read when the
+   mount already prevents access-time updates. On an ordinary writable share
+   with access-time updates enabled and files owned by another account, reads
+   return `subtitle.access_denied`.
 3. The allowed discovery scope, exact title and episode, and one cue or time
    range. The scope must cover inspecting that file in memory to select the scene.
 4. Who may run that read and the opaque principal ID to record for them.

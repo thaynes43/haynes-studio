@@ -1,11 +1,14 @@
 """Subtitle files and all their dialogue are invented here at test time."""
 
+import errno
 import hashlib
+import hmac
 import json
 import logging
 import os
 import stat
 import traceback
+from dataclasses import FrozenInstanceError, replace
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
@@ -23,6 +26,7 @@ pytestmark = pytest.mark.skipif(os.name != "posix" or not hasattr(os, "O_PATH"),
 TITLE = "The Quartz Teacup"
 EPISODE = "Episode 07.srt"
 LINE = "Tavren parks seven velvet kettles beneath moons."
+RECEIPT_KEY = bytes(range(32))
 
 
 def srt(*blocks):
@@ -42,11 +46,15 @@ def source(tmp_path):
         ("00:00:01,000", "00:00:02,800", f"<i>{LINE}</i>"),
         ("00:00:04,000", "00:00:04,800", "Mivren misplaces a wooden receipt."),
     ).replace("\n", "\r\n").encode("utf-8-sig"))
-    return root, FilesystemSubtitleSource(root, source_id="sampleSource")
+    return root, FilesystemSubtitleSource(root, source_id="sampleSource", receipt_key=RECEIPT_KEY)
 
 
 def read(adapter, selection=CueRange(1, 3), *, title=TITLE, episode=EPISODE):
     return adapter.read_scene(title, episode, selection, scene_number=7, principal="person_42")
+
+
+def archive_document(request):
+    return request.send(json.loads)
 
 
 def test_discovery_and_read_leave_a_read_only_tree_untouched(source):
@@ -111,7 +119,7 @@ def test_rejects_absolute_file_outside_root_and_ambiguous_root(source, tmp_path)
         read(adapter, episode=str(outside))
     for root in ("/", "relative", f"{tmp_path}/../elsewhere"):
         with pytest.raises(AdapterError, match="adapter.source_outside"):
-            FilesystemSubtitleSource(root, source_id="sampleSource")
+            FilesystemSubtitleSource(root, source_id="sampleSource", receipt_key=RECEIPT_KEY)
 
 
 def test_refuses_links_in_root_ancestors_title_and_episode(source, tmp_path):
@@ -121,9 +129,11 @@ def test_refuses_links_in_root_ancestors_title_and_episode(source, tmp_path):
     (root / "title link").symlink_to(root / TITLE, target_is_directory=True)
     (root / TITLE / "episode link.srt").symlink_to(root / TITLE / EPISODE)
     with pytest.raises(AdapterError, match="adapter.source_link"):
-        FilesystemSubtitleSource(alias, source_id="sampleSource").list_titles()
+        FilesystemSubtitleSource(alias, source_id="sampleSource", receipt_key=RECEIPT_KEY).list_titles()
     with pytest.raises(AdapterError, match="adapter.source_link"):
-        FilesystemSubtitleSource(alias / "child", source_id="sampleSource").list_titles()
+        FilesystemSubtitleSource(
+            alias / "child", source_id="sampleSource", receipt_key=RECEIPT_KEY,
+        ).list_titles()
     with pytest.raises(AdapterError, match="adapter.source_link"):
         adapter.list_episodes("title link")
     with pytest.raises(AdapterError, match="adapter.source_link"):
@@ -198,6 +208,31 @@ def test_denial_and_missing_errors_carry_no_private_path(source, monkeypatch, ca
         assert private not in caplog.text
 
 
+@pytest.mark.parametrize("mount_flag", ["ST_RDONLY", "ST_NOATIME", None], ids=["read-only", "noatime", "writable"])
+def test_noatime_open_refusal_only_falls_back_on_safe_mounts(source, monkeypatch, mount_flag):
+    _, adapter = source
+    mount_flags = getattr(os, mount_flag) if mount_flag else 0
+    real_open = os.open
+    reopen_flags = []
+
+    def open_with_nonowner_refusal(path, flags, **kwargs):
+        if path.startswith("/proc/self/fd/"):
+            reopen_flags.append(flags)
+            if flags & os.O_NOATIME:
+                raise PermissionError(errno.EPERM, "O_NOATIME refused")
+        return real_open(path, flags, **kwargs)
+
+    monkeypatch.setattr(os, "open", open_with_nonowner_refusal)
+    monkeypatch.setattr(os, "fstatvfs", lambda fd: SimpleNamespace(f_flag=mount_flags))
+    if mount_flags:
+        assert read(adapter).cues[0].text == LINE
+        assert reopen_flags == [os.O_RDONLY | os.O_NOATIME, os.O_RDONLY]
+    else:
+        with pytest.raises(AdapterError, match="subtitle.access_denied"):
+            read(adapter)
+        assert reopen_flags == [os.O_RDONLY | os.O_NOATIME]
+
+
 def test_vtt_bom_settings_header_metadata_ids_markup_and_overlap(source):
     root, adapter = source
     data = (
@@ -228,7 +263,9 @@ def test_legacy_srt_encodings(source):
     path.write_bytes(text.encode("cp1252"))
     with pytest.raises(AdapterError, match="subtitle.encoding"):
         read(adapter, CueRange(1, 2))
-    opted_in = FilesystemSubtitleSource(root, source_id="sampleSource", allow_windows_1252=True)
+    opted_in = FilesystemSubtitleSource(
+        root, source_id="sampleSource", receipt_key=RECEIPT_KEY, allow_windows_1252=True,
+    )
     assert read(opted_in, CueRange(1, 2)).cues[0].text == "Tâve’s ceramic poncho."
     path.write_bytes(text.encode("utf-32"))
     with pytest.raises(AdapterError, match="subtitle.encoding"):
@@ -292,6 +329,26 @@ def test_growth_past_byte_limit_is_refused(source, monkeypatch):
         read(adapter)
 
 
+def test_same_size_file_change_during_read_is_refused(source, monkeypatch):
+    root, adapter = source
+    path = root / TITLE / EPISODE
+    original = path.read_bytes()
+    replacement = original.replace(b"Tavren", b"Karven")
+    assert len(replacement) == len(original) and replacement != original
+    real_read = os.read
+
+    def read_then_change(fd, size):
+        chunk = real_read(fd, size)
+        if chunk:
+            path.write_bytes(replacement)
+            os.utime(path, ns=(1_000_000_000, 2_000_000_000))
+        return chunk
+
+    monkeypatch.setattr(os, "read", read_then_change)
+    with pytest.raises(AdapterError, match="adapter.source_changed"):
+        read(adapter)
+
+
 @pytest.mark.parametrize(("count", "length", "end"), [
     (1, 4097, "00:00:02,000"), (3, 3000, "00:00:02,000"),
     (81, 1, "00:00:02,000"), (10001, 1, "00:00:02,000"),
@@ -308,45 +365,74 @@ def test_parser_and_scene_limits(source, count, length, end):
 
 def test_metadata_only_receipt_and_keyed_archive_locator(source, caplog):
     root, adapter = source
+    production = "prd_" + "1" * 26
     with caplog.at_level(logging.DEBUG):
         scene = read(adapter)
-        payload = SceneStaging(scene).archive_payload(title="Copper Latch", text="A courier hoards hinges.")
+        stage = SceneStaging(scene)
+        prepared = stage.archive_payload(kind="script", title="Copper Latch", text="A courier hoards hinges.")
+        payload = archive_document(prepared)
     receipt = scene.provenance.as_record()
     passage = json.dumps([[1000, 2800, LINE], [2100, 3800, "Zevri weighs lunar pebbles."]],
                          separators=(",", ":")).encode()
-    assert scene.source_locator == {"label": "sampleSource-7", "sha256": hashlib.sha256(passage).hexdigest()}
-    assert scene.source_locator == read(adapter, TimeRange(0, 3800)).source_locator
+    locator = payload["provenance"]["source_locator"]
+    assert not hasattr(scene, "source_locator")
+    assert locator == {"label": "sampleSource-7", "sha256": hashlib.sha256(passage).hexdigest()}
+    assert read(adapter, TimeRange(0, 3800)).provenance.passage_sha256 == locator["sha256"]
     assert receipt == {
         "source_id": "sampleSource", "title_id": receipt["title_id"], "episode_id": receipt["episode_id"],
         "range": {"unit": "cue", "start": 1, "end": 3}, "principal": "person_42",
-        "passage_sha256": scene.source_locator["sha256"], "read_at": receipt["read_at"],
+        "passage_sha256": locator["sha256"], "read_at": receipt["read_at"],
     }
     assert receipt["title_id"] != receipt["episode_id"]
-    assert all(len(receipt[name]) == 64 for name in ("title_id", "episode_id"))
+    selectors = {"title_id": ("sampleSource", TITLE), "episode_id": ("sampleSource", TITLE, EPISODE)}
+    for name, parts in selectors.items():
+        encoded = json.dumps(parts, separators=(",", ":")).encode("utf-8")
+        assert receipt[name] == hmac.digest(RECEIPT_KEY, encoded, "sha256").hex()
+        assert receipt[name] != hashlib.sha256(encoded).hexdigest()
     assert datetime.fromisoformat(receipt["read_at"]).tzinfo == UTC
     assert not caplog.records
+    output = json.dumps(receipt) + json.dumps(payload) + repr(scene) + repr(scene.cues) + repr(prepared)
     for private in (str(root), TITLE, EPISODE, LINE, "Zevri"):
-        assert private not in json.dumps(receipt) + json.dumps(payload) + repr(scene) + repr(scene.cues)
+        assert private not in output
 
-    production = "prd_" + "1" * 26
     request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(archive_source_key=b"fixture")))
-    body = ArchiveCreate.model_validate({"kind": "script", **payload})
-    tool = CreateArchiveRecord.model_validate({
-        "production_id": production, "idempotency_key": "fixture-create", **body.model_dump(),
-    })
-    assert tool.provenance.source_locator.model_dump() == scene.source_locator
+    body = prepared.send(ArchiveCreate.model_validate_json)
+    tool = stage.archive_payload(
+        kind="script", title="Copper Latch", text="A courier hoards hinges.",
+        production_id=production, idempotency_key="fixture-create",
+    ).send(CreateArchiveRecord.model_validate_json)
+    assert tool.provenance.source_locator.model_dump() == locator
     stored = _stored_payload(request, production, body.model_dump())["provenance"]["source_locator"]
-    assert stored["label"] == scene.source_locator["label"]
+    assert stored["label"] == locator["label"]
     assert set(stored) == {"label", "hmac_sha256"}
     assert stored["hmac_sha256"] != receipt["passage_sha256"]
 
-    append = SceneStaging(scene).archive_payload(text="The courier trades a hinge for a compass.")
-    append["revises_version_id"] = "arv_" + "2" * 26
-    body = ArchiveAppend.model_validate(append)
-    tool = AddArchiveVersion.model_validate({
-        "record_id": "arc_" + "3" * 26, "idempotency_key": "fixture-append", **body.model_dump(),
-    })
-    assert tool.provenance.source_locator.model_dump() == scene.source_locator
+    append_fields = {
+        "text": "The courier trades a hinge for a compass.", "revises_version_id": "arv_" + "2" * 26,
+    }
+    appended = stage.archive_payload(**append_fields).send(ArchiveAppend.model_validate_json)
+    assert appended.provenance.source_locator.model_dump() == locator
+    tool = stage.archive_payload(
+        **append_fields, record_id="arc_" + "3" * 26, idempotency_key="fixture-append",
+    ).send(AddArchiveVersion.model_validate_json)
+    assert tool.provenance.source_locator.model_dump() == locator
+
+
+def test_archive_send_refuses_an_edited_body_before_transport(source):
+    stage = SceneStaging(read(source[1]))
+    request = stage.archive_payload(kind="script", title="Copper Latch", text="A courier hoards hinges.")
+    document = archive_document(request)
+    document["text"] = LINE
+    edited = json.dumps(document).encode("utf-8")
+    with pytest.raises(FrozenInstanceError):
+        request._body = edited
+
+    def unexpected_send(_body):
+        pytest.fail("Edited request reached the transport")
+
+    with pytest.raises(AdapterError, match="subtitle.staging_text"):
+        replace(request, _body=edited).send(unexpected_send)
+    assert archive_document(request)["text"] == "A courier hoards hinges."
 
 
 def test_summary_has_conflict_and_beats_timed_from_the_scene(source):
@@ -361,7 +447,8 @@ def test_summary_has_conflict_and_beats_timed_from_the_scene(source):
         "1000–2800 ms — The groundskeeper moves the inventory.",
         "2100–3800 ms — The caretaker counters by inspecting the supplies.",
     ]
-    assert stage.archive_payload(text=summary)["text"] == summary
+    prepared = stage.archive_payload(text=summary, revises_version_id="arv_" + "2" * 26)
+    assert archive_document(prepared)["text"] == summary
     with pytest.raises(AdapterError, match="Beats must cover the whole scene"):
         stage.summarize(conflict="A rivalry over equipment.", beats=(SituationBeat(1, "A move."),))
 
@@ -391,6 +478,11 @@ def test_summary_rejects_dialogue_in_the_conflict_and_across_beats(source, caplo
     r'"\u0054avren parks seven velvet kettles"',
     r'{"lines":[{"text":"\u0054avren parks seven"},{"text":"velvet kettles"}]}',
     r'{"text":"\u0054avren parks seven velvet kettles"}',
+    pytest.param(r'{"cues":[{"\u0054avren parks seven velvet kettles":"A quiet prop enters."}]}',
+                 id="escaped-key"),
+    pytest.param("Tavren\u3164parks\u3164seven\u3164velvet\u3164kettles", id="blank-filler"),
+    pytest.param("Ta\u0301vren parks se\u0301ven velvet kettles", id="combining-marks"),
+    pytest.param("Ta\u200bvren parks seven velvet kettles", id="zero-width"),
 ])
 def test_archive_payload_refuses_normalized_dialogue_including_json_and_cue_joins(source, repeated):
     stage = SceneStaging(read(source[1]))
@@ -402,7 +494,7 @@ def test_archive_payload_refuses_normalized_dialogue_including_json_and_cue_join
 
 def test_guard_threshold_and_staging_size(source):
     scene = read(source[1])
-    assert SceneStaging(scene).archive_payload(text="Tavren parks seven velvet")["text"]
+    assert archive_document(SceneStaging(scene).archive_payload(text="Tavren parks seven velvet"))["text"]
     with pytest.raises(AdapterError, match="subtitle.verbatim"):
         SceneStaging(scene, max_source_words=2).archive_payload(text="Tavren parks seven")
     with pytest.raises(AdapterError, match="subtitle.staging_text"):
