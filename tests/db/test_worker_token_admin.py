@@ -158,6 +158,36 @@ def test_lane_migration_retains_existing_tokens_on_upgrade_and_downgrade(studio_
             admin.execute(sql.SQL("DROP SCHEMA {} CASCADE").format(sql.Identifier(schema)))
 
 
+def test_worker_revoke_keeps_working_with_pre_lane_admin_grants(
+    admin, studio_db, worker_admin_db, owner_engine, service, tmp_path, monkeypatch,
+):
+    # This is the installed registration shape: no --lane for a seeded ID.
+    worker_id = "studio-voice-worker"
+    secret = _secret(64)
+    token_file = tmp_path / "worker-secret"
+    token_file.write_text(secret, encoding="ascii")
+    assert admin("worker-token", "register", "--worker-id", worker_id,
+                 "--token-file", str(token_file)) == {"worker_id": worker_id}
+    api = client(service[0])
+    auth = bearer(worker_bearer(secret))
+    assert api.post(CLAIM, headers=auth, json={"lane": "voice"}).status_code == 204
+
+    role = sql.Identifier(f"{studio_db.schema}_worker_token_admin")
+    privileges = sql.SQL("SELECT (worker_id, lane) ON {}.worker_lane_grants").format(
+        sql.Identifier(studio_db.schema),
+    )
+    with psycopg.connect(studio_db.url) as conn:
+        conn.execute(sql.SQL("REVOKE {} FROM {}").format(privileges, role))
+    try:
+        monkeypatch.setenv("STUDIO_MIGRATION_DATABASE_URL", worker_admin_db.url)
+        assert admin("worker-token", "list", expect=1) == "key_admin.privileges_required"
+        assert admin("worker-token", "revoke", worker_id)["revoked_at"]
+        assert api.post(CLAIM, headers=auth, json={"lane": "voice"}).status_code == 401
+    finally:
+        with psycopg.connect(studio_db.url) as conn:
+            conn.execute(sql.SQL("GRANT {} TO {}").format(privileges, role))
+
+
 @pytest.mark.parametrize("invalid", [b"A" * 47, b"A" * 122, b"_" * 48, b"A" * 48 + b"\n\n", b"A" * 47 + b"\xff"])
 def test_worker_register_rejects_invalid_file(admin, tmp_path, invalid):
     token_file = tmp_path / "worker-secret"

@@ -213,6 +213,7 @@ Run the worker token command after migrating to head. Use the migration identity
 in `STUDIO_MIGRATION_DATABASE_URL` to register a new worker ID with one lane
 (`run`, `voice` or `image`). A dedicated non-owner token administrator with
 the grants below can register or rotate tokens for a bound ID, list, and revoke.
+The lane grant read permission is needed for registration and listing.
 The runtime role can read lane grants. The worker process itself uses the
 internal HTTP API and needs no database account.
 

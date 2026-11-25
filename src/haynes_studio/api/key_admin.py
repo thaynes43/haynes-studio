@@ -40,7 +40,7 @@ class AdminParser(argparse.ArgumentParser):
         self.exit(2, "key_admin.invalid_arguments: see --help for accepted options\n")
 
 
-def _admin_role(conn, *, worker: bool) -> str:
+def _admin_role(conn, *, worker_action: str | None) -> str:
     role, can_administer = conn.execute(sa.text("""
         SELECT current_user, COALESCE(has_schema_privilege(current_schema(), 'USAGE'), false)
             AND bool_and(COALESCE(has_column_privilege(to_regclass(table_name), column_name, privilege), false))
@@ -59,7 +59,11 @@ def _admin_role(conn, *, worker: bool) -> str:
         ) AS required(worker, table_name, privilege, columns)
         CROSS JOIN LATERAL unnest(columns) AS fields(column_name)
         WHERE worker = :worker
-    """), {"worker": worker}).one()
+            AND (table_name != 'worker_lane_grants' OR :read_worker_lanes)
+    """), {
+        "worker": worker_action is not None,
+        "read_worker_lanes": worker_action in ("register", "list"),
+    }).one()
     if not can_administer:
         raise AdminProblem("key_admin.privileges_required", 403)
     return role
@@ -334,7 +338,7 @@ def run(argv=None) -> int:
         engine = connect_engine(dsn, os.getenv("STUDIO_DATABASE_SCHEMA", "studio"))
         status = 200
         with engine.begin() as conn:
-            audit["principal_id"] = _admin_role(conn, worker=worker_mode)
+            audit["principal_id"] = _admin_role(conn, worker_action=getattr(options, "worker_action", None))
             if worker_mode:
                 result, status = _worker_admin(conn, options, worker_digest)
             elif secret is not None:
