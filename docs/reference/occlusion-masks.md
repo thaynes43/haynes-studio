@@ -16,7 +16,7 @@ a new version even when the plate bytes are identical.
 
 | Entry | Fields |
 |---|---|
-| Foreground role | `key`, nullable `label`, positive `layer_order`, optional `hint`. Its mask identifies pixels of the set plate that draw at this depth. |
+| Foreground role | `key`, nullable `label`, positive `layer_order`, optional `hint`. Its mask identifies pixels of the set plate assigned to this depth for the source check. |
 | Focal prop | `key`, `label`, `depth`, `layer_order` when depth is known, optional `hint`. A prop with `depth: "background"` has order 0 and uses the plate. A prop with `depth: "foreground"` uses the plate and names its `foreground_role` and that role's order. A prop with `depth: "separate"` pins a `source_asset_version_id` with `rgba_cutout` and uses the slot in the layout preset named by its own key. `depth: "unspecified"` requires review. |
 
 Keys are unique across the two arrays and distinct from cast slots on the
@@ -30,19 +30,26 @@ owning set. An explicit hint is frozen with the request.
 
 A board layout opts in with `check_poses`, a list of
 `{"key": "baseline", "frame": 0}` objects. Keys are unique and frames are
-zero-based at the delivery rate, relative to the board. The layout's existing
-`foreground` flag controls whether the table or other roles draw in front.
-Legacy boards continue to use the existing edge and feather fields.
+zero-based at the delivery rate, relative to the board. The renderer's
+`foreground` flag controls the legacy edge and feather layer. It draws no
+segmented role masks. Pre-build refuses boards that pin a set with foreground
+roles as `occlusion.render_unsupported`, including with `foreground: false`.
+Legacy boards keep the same rendering behavior.
 
 ## Worker and completion
 
 Call `haynes_studio.assets.occlusion.run_segmentation_job` beside the
-segmentation sidecar. They share the `/segmentation` scratch volume. The
-worker reads an authorized library version and owns the store writes. The
-sidecar receives the normalized still through a private attempt directory
-and the closed request over the local Unix socket. It needs neither network
-access nor a store credential. The client compares readiness with the
-explicitly frozen profile ID, profile-manifest hash and CPU device.
+segmentation sidecar. The worker and sidecar can write to the shared
+`/segmentation` scratch volume, which is reserved for those containers. A
+symlink or non-regular lock at `.studio-segmentation.lock` yields
+`lock_path_invalid`. The worker reads an authorized library version and owns
+the store writes. The sidecar receives the normalized still through a private
+attempt directory and the closed request over the local Unix socket. It needs
+neither network access nor a store credential. The client compares readiness with the
+explicitly frozen profile ID, profile-manifest hash and CPU device. The worker
+must ship the same `haynes_studio.segmentation` source as the pinned serving
+image. Different source changes the manifest hash and every call returns
+`profile_unavailable`.
 
 The job owns the current claim. It supplies a read-only authorized library
 slice, a claim check, a current-ready lookup and atomic, fenced writers for
@@ -57,45 +64,64 @@ until the service's deadline has passed.
 
 On a matching reply, the worker verifies the closed result, request echoes,
 profile provenance, on-disk receipt and exact binary PNG. It publishes the
-mask by hash, then the canonical receipt by hash, and finally calls the
-completion writer to commit `identity`, `status`, `reason`, `result` and
-`mask`. The last step is create-only under the same live claim. The worker
-rechecks store read-back before it asks for completion. A lost claim or a
-partial write can leave unreferenced blobs. Only a current, completed
-`ready` is usable geometry. A `needs_hint` completion carries the receipt
-and reason and goes to human review. It offers no mask and changes no
-thresholds. A failed receipt may be kept as a diagnostic. The source
-version remains read-only throughout.
+mask by hash, then the canonical receipt by hash, and verifies both with
+store read-back. The completion writer creates a `ready` record with
+`identity`, `status`, `reason`, `result` and `mask` under the same live claim.
+Only a current, completed `ready` is usable geometry. A lost claim or a
+partial write can leave unreferenced blobs. The failure writer appends
+verified `needs_hint` and `failed` receipts as diagnostics outside the ready
+identity namespace, leaving the same frozen request eligible for a later
+ready completion. `needs_hint` carries its stable reason to human review
+with zero usable masks. The source version stays read-only.
 
 ## Visibility check
 
 `evaluate_visibility` takes the pinned layout and library plus the worker's
 frozen still inputs, resolved layer moves and completed observations for each
 named pose. It resolves the camera from the board clock and checks every
-cast face and declared focal prop. It uses the compositor's centred set fit, slot crop origin,
-sprite size, placement, held pose and camera crop. It applies the same set
-fit and framing to the foreground alpha. Binary support is sampled at the
-centres of the framed output pixels. The denominator extends that grid
-before slot and frame clipping. From that support it removes clipped pixels
-and pixels with rendered alpha of at least 128 in any strictly higher layer.
+cast face and declared focal prop. It uses the compositor's centred set fit,
+slot crop origin, sprite size, placement, held pose and camera crop. For
+buildable layers it measures coverage from cast alpha and the legacy edge
+and feather foreground alpha in delivery framing. The standalone check can
+measure separate props at their declared positions against those layers.
+Those prop components do not supply occluder alpha. The standalone
+source check can also fit segmented role masks with the plate's centred cover
+and camera framing to test the declared depth arrangement. Those masks describe
+proposed layers, so the build refuses the set until the renderer supports them.
+Binary support is sampled at the centres of the framed output pixels. The
+denominator extends that grid before slot and frame clipping. The check removes
+clipped pixels and pixels with alpha of at least 128 in any measured layer strictly above it.
 Shadows do not contribute. A baked-in foreground prop must be entirely within
 its named role and unambiguous across the other roles. Its own layer and all
-layers beneath it cannot occlude it. A mask spanning depth layers requires
-a person to supply a better hint or layer assignment.
+layers beneath it cannot occlude it. A baked background prop needs depth
+geometry when the legacy foreground redraws the plate. A mask spanning depth
+layers requires a person to supply a better hint or layer assignment.
 
 Each check records the target, pose, frame size, camera crop, evidence hashes,
 integer visible and total pixel counts, status and thresholds. A measured
 fraction of at least 85% is `visible`. A fraction of at most 50% is `hidden`
-and produces a blocking pre-build violation. The interval between them and
-missing or invalid geometry yield `uncertain` with the existing technical
-check review action. Unmeasurable cases record zero for both counts and a
-reason. The floors are proposed technical defaults pending the private trial.
+and produces a blocking pre-build violation. Only `uncertain` can be
+overridden. The interval between the floors and missing or invalid geometry
+yield `uncertain` with the existing technical check review action. Unmeasurable
+cases record zero for both counts and a reason. The floors are proposed
+technical defaults pending the private trial.
 
-The product preflight requires review for opted-in boards while the job and
-frozen pose provider are pending. A source check covers the stills supplied
-for that pose. Cast moves and camera changes require evidence at each
-declared check pose. A moving set needs an exact source frame bound to
-each pose before it can be certified.
+The worker stops an uncertain run for review before asking for any clip.
+Run details show the measurement and floors. A signed-in person can record
+a reason with the existing check override action. The override stores the
+full measurement, floors and evidence hashes. Selecting Build again can
+proceed when all uncertain checks have approved evidence for the exact same
+frozen inputs. The new snapshot pins the approved evidence hashes.
+
+## Gaps
+
+- The renderer needs to draw the declared role masks in the frame before a
+  board that pins them can build.
+- The product lacks the segmentation job and frozen pose provider. Opted-in
+  boards get `uncertain` for missing geometry. A source check covers the
+  stills supplied for that pose. Cast moves and camera changes require
+  evidence at each declared pose. A moving set needs the exact source frame
+  bound to each pose.
 
 ## Expected private quality trial
 

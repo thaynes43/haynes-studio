@@ -698,16 +698,23 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
         }
         const body = request.postDataJSON() as Schemas["CheckOverride"];
         queue.overrideWrites.push({ id, revision, body });
-        if (check !== "layered.decal_gate") return reject(route, 403, "forbidden", "check.not_overridable");
+        if (check !== "layered.decal_gate" && check !== "occlusion.visibility") {
+          return reject(route, 403, "forbidden", "check.not_overridable");
+        }
         if (!body.reason?.trim() || !/^[0-9a-f]{64}$/.test(body.artifact)) return reject(route, 422, "invalid", "schema.invalid");
         if (run.check_overrides?.some(({ artifact }) => artifact === body.artifact)) {
           return reject(route, 409, "conflict", "check.override_exists");
         }
-        if ((run.status !== "succeeded" && run.status !== "failed") ||
-            !run.checks?.some((item) => item.check === check && item.result === "fail" && item.artifact === body.artifact)) {
+        const matched = run.checks?.find((item) => item.check === check && item.result === "fail" && item.artifact === body.artifact);
+        const evidence = matched?.actual as { result?: string } | undefined;
+        if ((run.status !== "succeeded" && run.status !== "failed") || !matched ||
+            (check === "occlusion.visibility" && evidence?.result !== "uncertain")) {
           return reject(route, 409, "conflict", "check.not_overridable");
         }
-        const record: Schemas["CheckOverrideView"] = { ...body, check, by: run.queued_by, at: run.queued_at };
+        const record: Schemas["CheckOverrideView"] = {
+          ...body, check, by: run.queued_by, at: run.queued_at,
+          ...(check === "occlusion.visibility" ? { evidence } : {}),
+        };
         run.check_overrides?.push(record);
         run.revision += 1;
         return route.fulfill({ status: 201, json: record });

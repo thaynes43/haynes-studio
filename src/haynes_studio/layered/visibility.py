@@ -18,11 +18,11 @@ from haynes_studio.jsonio import thaw
 from haynes_studio.layered import compose
 from haynes_studio.layered.errors import LayeredError
 from haynes_studio.layered.photo import still_geometry
-from haynes_studio.layered.visibility_geometry import Projection, frame_alpha, measure_support
+from haynes_studio.layered.visibility_geometry import Projection, frame_alpha, measure_support, set_plate_crop
 from haynes_studio.library import AssetVersion, Library
 from haynes_studio.motion.record import LOOP, SET
 from haynes_studio.motion.resolve import candidates
-from haynes_studio.render.delivery_profile import fit_set_plate, set_plate_crop
+from haynes_studio.render.delivery_profile import fit_set_plate
 from haynes_studio.segmentation.pixels import describe_mask
 from haynes_studio.segmentation.profile import SegmentationError, digest
 from haynes_studio.store import canonical_json
@@ -30,6 +30,7 @@ from haynes_studio.store.layout import is_sha256
 from haynes_studio.timebase import DELIVERY_FPS
 
 CHECK = "occlusion.visibility"
+REVIEW_REQUIRED = "occlusion.review"
 VERSION = "1"
 VISIBLE_MIN_PERCENT = 85
 HIDDEN_MAX_PERCENT = 50
@@ -86,6 +87,7 @@ class _Frame:
     layers: dict[str, _Layer] = field(default_factory=dict)
     foreground: dict[str, np.ndarray] = field(default_factory=dict)
     coverage: dict[int, np.ndarray] = field(default_factory=dict)
+    legacy_foreground: bool = False
 
     def mask(self, layer, kind, key, label=None, hint=None):
         outcome = self.geometry.observations.get((kind, key))
@@ -158,14 +160,14 @@ def _cutout(library, stage, key, order, source_id, kind, preset, matte):
     if len(move) != 3 or any(abs(compose._number(n, "move value")) > 10_000 for n in move):
         raise _Review("missing_or_invalid_move")
     projection = Projection.sprite(crop, dimensions, where, stage.size, move)
-    sprite = image.crop(crop).resize(dimensions, Image.Resampling.LANCZOS)
-    plate = compose.plate(sprite, where, width, height)
-    posed = compose.move_plate(plate, stage.size, where.pivot, move)
-    alpha = frame_alpha(posed.getchannel("A"), stage.size, stage.framing)
-    stage.layers[key] = _Layer(order, version, image, projection)
-    if order in stage.coverage:
+    if any(layer.order == order for layer in stage.layers.values()):
         raise _Review("duplicate_layer_order")
-    stage.coverage[order] = alpha
+    stage.layers[key] = _Layer(order, version, image, projection)
+    if kind == "cast":
+        sprite = image.crop(crop).resize(dimensions, Image.Resampling.LANCZOS)
+        plate = compose.plate(sprite, where, width, height)
+        posed = compose.move_plate(plate, stage.size, where.pivot, move)
+        stage.coverage[order] = frame_alpha(posed.getchannel("A"), stage.size, stage.framing)
     stage.refs[f"layer:{key}"] = version.content.sha256
 
 
@@ -201,7 +203,7 @@ def _assemble(story, board, library, config, set_id, stage):
 
     for role in config["foreground"]:
         order = role["layer_order"]
-        if order <= len(board.cast) * CAST_ORDER_STEP or order in stage.coverage:
+        if order <= len(board.cast) * CAST_ORDER_STEP or any(layer.order == order for layer in stage.layers.values()):
             raise _Review("invalid_foreground_order")
         mask = stage.mask(background, "foreground", role["key"], role["label"], role.get("hint"))
         stage.foreground[role["key"]] = mask
@@ -210,9 +212,9 @@ def _assemble(story, board, library, config, set_id, stage):
             stage.coverage[order] = frame_alpha(alpha, stage.size, stage.framing)
     if board.layout.foreground and not config["foreground"] and story.set.foreground_edge_px is not None:
         alpha = compose.foreground_alpha(story.set.foreground_edge_px, story.set.foreground_feather_px, *stage.size)
-        stage.coverage[max(stage.coverage, default=0) + 1] = frame_alpha(alpha, stage.size, stage.framing)
-        if any(prop["depth"] == "background" for prop in config["focal_props"]):
-            raise _Review("legacy_foreground_needs_depth_geometry")
+        order = max((layer.order for layer in stage.layers.values()), default=0) + 1
+        stage.coverage[order] = frame_alpha(alpha, stage.size, stage.framing)
+        stage.legacy_foreground = True
     return background
 
 
@@ -223,6 +225,8 @@ def _subject(stage, background, board, kind, key, prop):
     depth = prop["depth"]
     if depth == "unspecified":
         raise _Review("unspecified_depth")
+    if depth == "background" and stage.legacy_foreground:
+        raise _Review("legacy_foreground_needs_depth_geometry")
     layer = stage.layers[key] if depth == "separate" else background
     mask = stage.mask(layer, kind, key, prop["label"], prop.get("hint"))
     if depth == "separate":
@@ -236,7 +240,12 @@ def _subject(stage, background, board, kind, key, prop):
     return mask, layer, order
 
 
-def _result(kind, key, pose, size, framing, refs, *, visible=0, total=0, reason=None):
+def evidence_sha256(evidence: dict) -> str:
+    """Bind a review to the whole measurement, including its floors and input hashes."""
+    return digest(canonical_json({key: value for key, value in evidence.items() if key != "artifact"}))
+
+
+def _result(board, kind, key, pose, size, framing, refs, *, visible=0, total=0, reason=None):
     if reason is not None:
         status = "uncertain"
     elif visible * 100 >= total * VISIBLE_MIN_PERCENT:
@@ -248,12 +257,13 @@ def _result(kind, key, pose, size, framing, refs, *, visible=0, total=0, reason=
     evidence = result_document(
         CHECK, VERSION, dict(refs), {"visible": "pass", "hidden": "fail", "uncertain": "uncertain"}[status],
         thresholds=dict(THRESHOLDS),
-        measured={"target": {"kind": kind, "key": key}, "pose": to_document(pose),
+        measured={"board_id": board.id, "target": {"kind": kind, "key": key}, "pose": to_document(pose),
                   "framing": {"size_px": list(size), "crop_xyxy": None if framing is None else list(framing)},
                   "visible_pixels": visible, "total_pixels": total, "status": status, "reason": reason},
         issues=[] if reason is None else [reason],
         escalation={"action": "review", "check": CHECK} if status == "uncertain" else None,
     )
+    evidence["artifact"] = evidence_sha256(evidence)
     return evidence
 
 
@@ -283,6 +293,7 @@ def evaluate_visibility(
     config = None if set_version is None else set_version.occlusion
     if config is None and board.layout.check_poses is None:
         return []
+    config = config or {"foreground": (), "focal_props": ()}
     refs = {"layout": digest(canonical_json({
         "board": board.id, "story": story.id, "set": to_document(story.set),
         "layout": to_document(board.layout), "preset": thaw(story.layouts.get(board.layout.preset)),
@@ -290,8 +301,7 @@ def evaluate_visibility(
         "motion_style": thaw(story.motion_style), "roles": thaw(config),
     }))}
     targets = [("face", entry.slot, None) for entry in board.cast]
-    if config is not None:
-        targets.extend(("prop", prop["key"], prop) for prop in config["focal_props"])
+    targets.extend(("prop", prop["key"], prop) for prop in config["focal_props"])
     if not targets:
         targets = [("set", "set", None)]
     requirements = board.layout.check_poses or (CheckPose("unspecified", 0),)
@@ -302,8 +312,8 @@ def evaluate_visibility(
         framing = None
         stage = None
         try:
-            if config is None or board.layout.check_poses is None:
-                raise _Review("missing_set_or_pose_declaration")
+            if board.layout.check_poses is None:
+                raise _Review("missing_pose_declaration")
             if board.method.layer != "layered":
                 raise _Review("unsupported_layout_method")
             if geometry is None or type(geometry.frame) is not int or geometry.frame != pose.frame:
@@ -325,7 +335,7 @@ def evaluate_visibility(
             background = _assemble(story, board, library, config, set_id, stage)
         except _GEOMETRY_ERRORS as error:
             for kind, key, _ in targets:
-                results.append(_result(kind, key, pose, frame_size, framing, refs if stage is None else stage.refs,
+                results.append(_result(board, kind, key, pose, frame_size, framing, refs if stage is None else stage.refs,
                                        reason=_reason(error)))
             continue
 
@@ -338,26 +348,21 @@ def evaluate_visibility(
                 for above, alpha in stage.coverage.items():
                     if above > order:
                         kept &= alpha < OCCLUDING_ALPHA
-                result = _result(kind, key, pose, frame_size, framing, stage.refs,
+                result = _result(board, kind, key, pose, frame_size, framing, stage.refs,
                                  visible=int(np.count_nonzero(kept)), total=total)
             except _GEOMETRY_ERRORS as error:
-                result = _result(kind, key, pose, frame_size, framing, stage.refs, reason=_reason(error))
+                result = _result(board, kind, key, pose, frame_size, framing, stage.refs, reason=_reason(error))
             results.append(result)
     return results
 
 
 def visibility_violations(evidence: list[dict]) -> list[Violation]:
-    """Apply the pre-build gate without an automatic override."""
+    """Return hard pre-build refusals. Uncertain checks go to run review."""
     out = []
     for check in evidence:
         tested = check["measured"]
-        status = tested["status"]
-        if status == "visible":
-            continue
-        key, pose = tested["target"]["key"], tested["pose"]["key"]
-        path = pointer("layout", "check_poses")
-        if status == "hidden":
-            out.append(Violation("occlusion.hidden", path, f"{key} is hidden at pose {pose}"))
-        else:
-            out.append(Violation("occlusion.review", path, f"{key} needs human review at pose {pose}"))
+        if tested["status"] == "hidden":
+            key, pose = tested["target"]["key"], tested["pose"]["key"]
+            out.append(Violation("occlusion.hidden", pointer("layout", "check_poses"),
+                                 f"{key} is hidden at pose {pose}"))
     return out

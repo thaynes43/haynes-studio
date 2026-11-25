@@ -2111,9 +2111,13 @@ export interface components {
             };
             /**
              * Check
-             * @constant
+             * @enum {string}
              */
-            check: "layered.decal_gate";
+            check: "layered.decal_gate" | "occlusion.visibility";
+            /** Evidence */
+            evidence?: {
+                [key: string]: unknown;
+            } | null;
             /** Reason */
             reason: string;
         };
@@ -3064,7 +3068,7 @@ export interface components {
         };
         /**
          * studio.run-snapshot/v1: the story a run builds, by value (contract section 8)
-         * @description The story with its boards embedded, every asset version the build reads pinned by content hash (or definition_signature for a voice, input_signature and take hashes for a board voice), and the toolchain the run was asked for. It holds no run ID and no time of the run, so the same draft always gives the same canonical bytes and hash. The story's own fields are checked by studio.story/v1.
+         * @description The story with its boards embedded, every asset version the build reads pinned by content hash (or definition_signature for a voice, input_signature and take hashes for a board voice), the requested toolchain and any applicable visibility overrides. It holds no run ID or run time. Identical frozen inputs and approvals yield the same canonical bytes and hash. The story's own fields are checked by studio.story/v1.
          */
         RunSnapshot: {
             format_version?: {
@@ -3152,6 +3156,8 @@ export interface components {
             toolchain_request: {
                 studio: string;
             };
+            /** @description SHA-256 hashes of uncertain visibility evidence reviewed and overridden by a person for these frozen inputs. */
+            visibility_overrides?: components["schemas"]["StudioDefs_sha256"][];
         };
         /**
          * studio.run/v1: one build of one story snapshot (contract sections 7 and 8, D30)

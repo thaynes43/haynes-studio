@@ -5306,9 +5306,24 @@
             "type": "object"
           },
           "check": {
-            "const": "layered.decal_gate",
+            "enum": [
+              "layered.decal_gate",
+              "occlusion.visibility"
+            ],
             "title": "Check",
             "type": "string"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence"
           },
           "reason": {
             "maxLength": 500,
@@ -9225,7 +9240,7 @@
       },
       "RunSnapshot": {
         "additionalProperties": false,
-        "description": "The story with its boards embedded, every asset version the build reads pinned by content hash (or definition_signature for a voice, input_signature and take hashes for a board voice), and the toolchain the run was asked for. It holds no run ID and no time of the run, so the same draft always gives the same canonical bytes and hash. The story's own fields are checked by studio.story/v1.",
+        "description": "The story with its boards embedded, every asset version the build reads pinned by content hash (or definition_signature for a voice, input_signature and take hashes for a board voice), the requested toolchain and any applicable visibility overrides. It holds no run ID or run time. Identical frozen inputs and approvals yield the same canonical bytes and hash. The story's own fields are checked by studio.story/v1.",
         "properties": {
           "format_version": {
             "additionalProperties": false,
@@ -9700,6 +9715,15 @@
               "studio"
             ],
             "type": "object"
+          },
+          "visibility_overrides": {
+            "description": "SHA-256 hashes of uncertain visibility evidence reviewed and overridden by a person for these frozen inputs.",
+            "items": {
+              "$ref": "#/components/schemas/StudioDefs_sha256"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
           }
         },
         "required": [

@@ -9,10 +9,13 @@ export function activeRun(run: Pick<RunView, "status">) {
 }
 
 export const visualCheck = "layered.decal_gate";
+export const visibilityCheck = "occlusion.visibility";
 
 export function canOverride(run: RunView, check: components["schemas"]["RunView_check"]) {
   return (run.status === "failed" || run.status === "succeeded") && run.check_overrides !== undefined &&
-    check.check === visualCheck && check.result === "fail" && typeof check.artifact === "string" &&
+    (check.check === visualCheck ||
+      (check.check === visibilityCheck && readObject(check.actual).result === "uncertain")) &&
+    check.result === "fail" && typeof check.artifact === "string" &&
     /^[a-f0-9]{64}$/.test(check.artifact) && !run.check_overrides.some(({ artifact }) => artifact === check.artifact);
 }
 

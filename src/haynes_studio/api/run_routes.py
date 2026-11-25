@@ -2,6 +2,7 @@
 
 import os
 import re
+from dataclasses import replace
 from datetime import datetime
 from hashlib import sha256
 from typing import Annotated, Literal
@@ -87,9 +88,10 @@ class CheckOverride(Payload):
 
 
 class CheckOverrideView(CheckOverride):
-    check: Literal["layered.decal_gate"]
+    check: Literal["layered.decal_gate", "occlusion.visibility"]
     by: dict
     at: str
+    evidence: dict | None = None
 
 
 class QueueLaneUpdate(Body):
@@ -232,9 +234,16 @@ def build_router(CurrentActor, authenticated_route):
                 if current != revision:
                     raise StaleRevision(current)
                 prepared = _prepare(conn, draft)
-                prepared.ensure_buildable()
+                prepared.ensure_preflight()
                 frozen, library = inputs.freeze(prepared, studio=request.app.state.build_revision)
                 data, sha = snapshot_bytes(frozen)
+                if prepared.visibility_review:
+                    artifacts = {check["artifact"] for check in prepared.visibility_review}
+                    approved = runs.visibility_approvals(conn, id, sha, artifacts)
+                    if len(approved) == len(artifacts):
+                        prepared = replace(prepared, visibility_overrides=approved)
+                        frozen, library = inputs.freeze(prepared, studio=request.app.state.build_revision)
+                        data, sha = snapshot_bytes(frozen)
                 if len(data) > MAX_SNAPSHOT_BYTES:
                     raise APIError(422, "run.snapshot_too_large",
                                    "The frozen draft exceeds the snapshot limit. Reduce the draft before queuing.",
@@ -289,16 +298,17 @@ def build_router(CurrentActor, authenticated_route):
             return _etag(response, _read_view(conn, row))
 
     @router.post("/runs/{id}/checks/{check}/overrides", status_code=201,
-                 response_model=CheckOverrideView, operation_id="record_check_override")
+                 response_model=CheckOverrideView, response_model_exclude_none=True,
+                 operation_id="record_check_override")
     def record_check_override(id: str, check: str, body: CheckOverride, request: Request,
                               actor: CurrentActor, if_match: IfMatch):
         actor.human()
-        if check != runs.CHECK_OVERRIDABLE:
-            raise forbidden("check.not_overridable", "Only the visual decal check supports an override")
+        if check not in runs.OVERRIDABLE_CHECKS:
+            raise forbidden("check.not_overridable", "Only the visual decal and uncertain visibility checks support an override")
         with request.app.state.engine.begin() as conn:
             row = _run_access(conn, actor, "runs:queue", id, lock=True)
             escalation_storage.lock(conn)
-            return runs.record_override(conn, row, _revision(if_match), artifact=body.artifact,
+            return runs.record_override(conn, row, _revision(if_match), check=check, artifact=body.artifact,
                                         reason=body.reason, actor=to_document(actor.principal))
 
     return router

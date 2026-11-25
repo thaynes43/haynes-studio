@@ -11,16 +11,19 @@ from io import BytesIO
 
 import numpy as np
 import pytest
-from PIL import Image, ImageDraw, ImageOps
+from PIL import Image, ImageDraw
 
-from haynes_studio.build.prebuild import prepare
+from haynes_studio.build import prebuild
+from haynes_studio.build.prebuild import VisibilityReviewRequired, prepare
 from haynes_studio.cache.plan import Toolchain
-from haynes_studio.canonical.model import Line, to_document
+from haynes_studio.canonical.model import CheckPose, Line, to_document
 from haynes_studio.errors import ContractError
+from haynes_studio.layered import compose
 from haynes_studio.layered.photo import compose_photo
 from haynes_studio.layered.visibility import (
     CHECK, THRESHOLDS, PoseGeometry, PoseStill, evaluate_visibility, visibility_violations,
 )
+from haynes_studio.layered.visibility_geometry import Projection, measure_support, set_plate_crop
 from haynes_studio.library import Library, Outcome
 from haynes_studio.library.model import locator_for
 from haynes_studio.photo.plan import plan_photo
@@ -31,6 +34,7 @@ from haynes_studio.stages.preflight import PreflightError
 from tests.assets.test_occlusion import (
     Journal, SIZE, factory, library_image, pins, run, world,  # noqa: F401
 )
+from tests.build_story.fixtures import World as BuildWorld
 from tests.cache import fixtures as fx
 from tests.canonical.fixtures import example
 from tests.motion import fixtures as mf
@@ -53,7 +57,7 @@ def cutout(box=FACE, *, alpha=255, color=(40, 90, 80)):
     return still
 
 
-def declaration(table, prop_depth, prop_box, prop_id):
+def declaration(table, prop_depth, prop_box, prop_id, prop_order):
     foreground = [] if table is None else [
         {"key": "table", "label": "table", "layer_order": 30, "hint": box_hint(table)},
     ]
@@ -65,12 +69,12 @@ def declaration(table, prop_depth, prop_box, prop_id):
     elif prop_depth == "foreground":
         focal.update(layer_order=30, foreground_role="table")
     elif prop_depth == "separate":
-        focal.update(layer_order=5, source_asset_version_id=prop_id)
+        focal.update(layer_order=prop_order, source_asset_version_id=prop_id)
     return {"foreground": foreground, "focal_props": [focal]}
 
 
 def scene(world, *, focus=TABLE, face_alpha=255, prop_depth=None, prop_box=FACE,
-          camera=None, slot_crop=None, legacy=False, second_pose=False, move=(0, 0, 0)):
+          prop_order=5, camera=None, slot_crop=None, legacy=False, second_pose=False, move=(0, 0, 0)):
     store, _, _ = world
     cast, rgba = library_image(store, cutout(alpha=face_alpha), "cast", production_id=fx.PRODUCTION)
     library = cast.library
@@ -81,7 +85,7 @@ def scene(world, *, focus=TABLE, face_alpha=255, prop_depth=None, prop_box=FACE,
         library = prop.library
         component = PoseStill(prop.version.id, prop_rgba)
     config = None if legacy else declaration(focus, prop_depth, prop_box,
-                                             None if component is None else component.version_id)
+                                             None if component is None else component.version_id, prop_order)
     plate, rgb = library_image(store, Image.new("RGB", SIZE, (31, 90, 120)), "set", library=library,
                                config=config, production_id=fx.PRODUCTION)
     width, height = SIZE
@@ -115,7 +119,7 @@ def scene(world, *, focus=TABLE, face_alpha=255, prop_depth=None, prop_box=FACE,
 def observations(world, story, library, pose):
     _, client, weights = world
     journal = Journal()
-    config = library.version(story.set.asset_version_id).occlusion
+    config = library.version(story.set.asset_version_id).occlusion or {"foreground": [], "focal_props": []}
     wanted = [("face", "a", pose.cutouts["a"], None, pose.hints["face", "a"])]
     wanted += [("foreground", layer["key"], pose.plate, layer["label"], layer.get("hint"))
                for layer in config["foreground"]]
@@ -162,11 +166,8 @@ def test_exact_foreground_counts_and_floors(world, foreground, expected):
             "foreground:table:result", "face:a:mask", "face:a:result"} == result["artifact_refs"].keys()
     if expected[0] == "uncertain":
         assert result["escalation"] == {"action": "review", "check": CHECK} and not result["passed"]
-    if expected[0] != "visible":
-        assert [v.rule for v in visibility_violations([result])] == [
-            "occlusion.hidden" if expected[0] == "hidden" else "occlusion.review"]
-    else:
-        assert visibility_violations([result]) == []
+    assert [v.rule for v in visibility_violations([result])] == (
+        ["occlusion.hidden"] if expected[0] == "hidden" else [])
 
 
 @pytest.mark.parametrize(("options", "expected", "framing"), [
@@ -181,6 +182,33 @@ def test_clipping_subtracts_from_the_numerator_only(world, options, expected, fr
     (result,) = evaluated(world, story, library, {"still": observations(world, story, library, pose)})
     assert counted(result) == expected
     assert result["measured"]["framing"]["crop_xyxy"] == framing
+
+
+@pytest.mark.parametrize(("angle", "zoom"), [(15, 1), (-30, 1), (25, 1), (25, 1.35)])
+def test_translated_rotated_support_matches_compositor(angle, zoom):
+    frame_size = (160, 120)
+    sprite_size = (76, 68)
+    sprite = Image.new("RGBA", sprite_size)
+    ImageDraw.Draw(sprite).rectangle((8, 8, 28, 28), fill="white")
+    mask = np.asarray(sprite.getchannel("A")) > 0
+    where = compose.Placement(x=37, y=20, cx=75, bottom=88)
+    move = (7, -4, angle)
+    cue = {"start_ms": 0, "duration_ms": 0, "zoom_from": zoom, "zoom_to": zoom, "center_px": (80, 60)}
+    framing = compose.camera_box(frame_size, cue, 0) or (0, 0, *frame_size)
+
+    plate = compose.plate(sprite, where, *frame_size)
+    moved = compose.move_plate(plate, frame_size, where.pivot, move)
+    rendered = np.asarray(compose.camera(moved, cue, 0).getchannel("A")) >= 128
+    projection = Projection.sprite((0, 0, *sprite_size), sprite_size, where, frame_size, move)
+    total, measured = measure_support(mask, projection, frame_size, framing)
+    assert total >= np.count_nonzero(measured) > 0
+    if zoom == 1:
+        np.testing.assert_array_equal(measured, rendered)
+    else:
+        # Camera resampling is bicubic, while binary support uses nearest centres.
+        # Allow up to 2% disagreement at the zoomed edges.
+        iou = np.count_nonzero(measured & rendered) / np.count_nonzero(measured | rendered)
+        assert iou >= 0.98
 
 
 @pytest.mark.parametrize(("alpha", "depth", "prop_box", "expected", "reason"), [
@@ -201,6 +229,12 @@ def test_declared_prop_depth_and_alpha_without_shadows(world, alpha, depth, prop
         assert counted(face) == ("hidden", 0, 400)
 
 
+def test_a_separate_prop_does_not_supply_unrendered_occluder_alpha(world):
+    story, library, pose = scene(world, focus=None, prop_depth="separate", prop_order=20)
+    face, prop = evaluated(world, story, library, {"still": observations(world, story, library, pose)})
+    assert counted(face) == counted(prop) == ("visible", 400, 400)
+
+
 def test_additional_named_pose_must_supply_its_own_geometry(world):
     story, library, pose = scene(world, second_pose=True)
     pose = observations(world, story, library, pose)
@@ -208,7 +242,7 @@ def test_additional_named_pose_must_supply_its_own_geometry(world):
     assert counted(first) == ("visible", 400, 400)
     assert counted(missing) == ("uncertain", 0, 0)
     assert missing["measured"]["reason"] == "missing_or_wrong_pose"
-    assert not missing["passed"] and visibility_violations([first, missing])
+    assert not missing["passed"] and visibility_violations([first, missing]) == []
     other = replace(pose, frame=12, moves={"a": (-25, 0, 0)})
     first, second = evaluated(world, story, library, {"still": pose, "wide": other})
     assert counted(second) == ("hidden", 100, 400)
@@ -237,24 +271,76 @@ def test_invalid_geometry_never_becomes_buildable(world, fault):
     (result,) = evaluated(world, story, library, {"still": pose})
     assert counted(result) == ("uncertain", 0, 0)
     assert result["escalation"]["action"] == "review"
-    assert [v.rule for v in visibility_violations([result])] == ["occlusion.review"]
+    assert visibility_violations([result]) == []
 
 
-def _prepare(world, story, library):
-    return prepare(to_document(story), library=library, store=world[0], toolchain=Toolchain(),
-                   frame_size=SIZE, current_engine="Kokoro-82M v1.0")
+def _prepare(world, story, library, **options):
+    # The queue checks pinned metadata. The segmentation fixtures above check the actual still bytes.
+    fixture = BuildWorld(world[0].root, world[0], [library.document(key) for key in library.versions])
+    fixture.voice(fx.VOICE_A, 101, "af_heart")
+    story = replace(story, cast=tuple(replace(entry, voice_version_id=fx.VOICE_A) for entry in story.cast),
+                    narrator_voice_version_id=None)
+    (entry,) = story.boards[0].cast
+    still_sha = library.version(entry.asset_version_id).content.sha256
+    motion = mf.version(mf.loop_block(still_sha256=still_sha), n=80, clip="a" * 64)
+    motion["scope"] = {"production_id": story.production_id}
+    motion["content"]["locator"] = locator_for("a" * 64, "video/mp4", story.production_id)
+    fixture.docs.append(motion)
+    return prepare(to_document(story), library=fixture.library(), store=None, toolchain=Toolchain(),
+                   frame_size=SIZE, current_engine="Kokoro-82M v1.0", **options)
 
 
-def test_product_prebuild_blocks_opt_in_without_authoritative_evidence(world):
-    story, library, _ = scene(world)
+def opted_in_legacy(world, **options):
+    story, library, pose = scene(world, legacy=True, **options)
+    (board,) = story.boards
+    board = replace(board, layout=replace(board.layout, foreground=False, check_poses=(CheckPose("still", 0),)))
+    return replace(story, boards=(board,)), library, pose
+
+
+def test_product_prebuild_routes_missing_geometry_to_review(world):
+    story, library, _ = opted_in_legacy(world)
     before = _prepare(world, story, library)
-    assert any(p.rule == "occlusion.review" for p in before.report.blocking)
+    assert before.report.ok
+    (evidence,) = before.pending_visibility
+    assert counted(evidence) == ("uncertain", 0, 0)
+    assert evidence["measured"]["reason"] == "missing_or_wrong_pose"
+    with pytest.raises(VisibilityReviewRequired) as refused:
+        before.ensure_buildable()
+    assert refused.value.checks[0]["actual"] == evidence
+
+
+@pytest.mark.parametrize(("move", "counts"), [((0, 0, 0), ("uncertain", 280, 400)),
+                                               ((-25, 0, 0), ("hidden", 0, 400))])
+def test_measured_face_build_gate_respects_only_uncertain_overrides(world, monkeypatch, move, counts):
+    story, library, pose = opted_in_legacy(world, slot_crop=[0.25, 0, 1, 1], move=move)
+    (evidence,) = evaluated(world, story, library, {"still": observations(world, story, library, pose)})
+    assert counted(evidence) == counts
+    monkeypatch.setattr(prebuild, "evaluate_visibility", lambda *args, **kwargs: [evidence])
+    before = _prepare(world, story, library)
+    after = _prepare(world, story, library, visibility_overrides=(evidence["artifact"],))
+    if counts[0] == "hidden":
+        assert [p.rule for p in after.report.blocking] == ["occlusion.hidden"]
+        with pytest.raises(PreflightError):
+            after.ensure_buildable()
+    else:
+        with pytest.raises(VisibilityReviewRequired):
+            before.ensure_buildable()
+        after.ensure_buildable()
+
+
+def test_product_prebuild_refuses_declared_foreground_roles_even_when_disabled(world):
+    story, library, _ = scene(world)
+    (board,) = story.boards
+    board = replace(board, layout=replace(board.layout, foreground=False))
+    before = _prepare(world, replace(story, boards=(board,)), library)
+    assert [p.rule for p in before.report.blocking] == ["occlusion.render_unsupported"]
+    assert not before.pending_visibility
     with pytest.raises(PreflightError):
         before.ensure_buildable()
 
 
 def test_legacy_boards_keep_edge_feather_rendering_and_their_layout_document(world):
-    story, library, _ = scene(world, legacy=True)
+    story, library, pose = scene(world, legacy=True)
     board = story.boards[0]
     assert to_document(board.layout) == {"preset": "test", "foreground": True}
     assert evaluated(world, story, library, {}) == []
@@ -269,13 +355,28 @@ def test_legacy_boards_keep_edge_feather_rendering_and_their_layout_document(wor
     assert with_edge.getpixel((15, 15)) == (31, 90, 120)
     assert without_edge.getpixel((15, 15)) == (40, 90, 80)
 
+    board = replace(board, layout=replace(board.layout, check_poses=(CheckPose("still", 0),)))
+    checked = replace(story, boards=(board,))
+    (check,) = evaluated(world, checked, library, {"still": observations(world, checked, library, pose)})
+    assert counted(check) == ("hidden", 0, 400)
+
+
+def test_legacy_foreground_keeps_face_measurement_when_prop_depth_is_ambiguous(world):
+    story, library, pose = scene(world, focus=None, prop_depth="background")
+    story = replace(story, set=replace(story.set, foreground_edge_px=((0, 9), (64, 9)),
+                                      foreground_feather_px=1))
+    face, prop = evaluated(world, story, library, {"still": observations(world, story, library, pose)})
+    assert counted(face) == ("hidden", 0, 400)
+    assert counted(prop) == ("uncertain", 0, 0)
+    assert prop["measured"]["reason"] == "legacy_foreground_needs_depth_geometry"
+
 
 @pytest.mark.parametrize(("source", "size"), [((80, 60), (32, 32)), ((40, 64), (64, 48)), ((64, 48), (64, 48))])
 def test_cover_crop_preserves_existing_pillow_resampling(source, size):
     rng = np.random.default_rng(452)
     image = Image.fromarray(rng.integers(0, 256, (source[1], source[0], 3), dtype=np.uint8))
-    assert fit_set_plate(image, size).tobytes() == ImageOps.fit(
-        image, size, method=Image.Resampling.LANCZOS).tobytes()
+    assert image.resize(size, Image.Resampling.LANCZOS, box=set_plate_crop(source, size)).tobytes() == (
+        fit_set_plate(image, size).tobytes())
 
 
 def test_pose_keys_are_unique_and_round_trip(world):

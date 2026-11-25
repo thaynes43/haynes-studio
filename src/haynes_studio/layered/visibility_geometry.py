@@ -13,6 +13,19 @@ from haynes_studio.layered import compose
 MAX_MEASUREMENT_PIXELS = 16_777_216
 
 
+def set_plate_crop(source: tuple[int, int], size: tuple[int, int]) -> tuple[float, float, float, float]:
+    """The centred, zero-bleed cover box used by Pillow's ImageOps.fit."""
+    width, height = source
+    ratio, output_ratio = width / height, size[0] / size[1]
+    crop_width, crop_height = width, height
+    if ratio > output_ratio:
+        crop_width = output_ratio * height
+    elif ratio < output_ratio:
+        crop_height = width / output_ratio
+    left, top = (width - crop_width) * 0.5, (height - crop_height) * 0.5
+    return left, top, left + crop_width, top + crop_height
+
+
 @dataclass(frozen=True)
 class Projection:
     source_box: tuple[float, float, float, float]

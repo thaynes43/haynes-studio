@@ -16,7 +16,7 @@ library and the store and from nothing else:
    and the speech-to-video size) for layered ones. Each problem names its board.
 4. **The snapshot** (``studio.run-snapshot/v1``): the story and its boards by value, no
    ``derived`` blocks, and every asset version the build reads pinned by hash, with no
-   run ID or time, so the same draft gives the same canonical bytes.
+   run ID or time. Identical frozen inputs and approvals give the same canonical bytes.
 """
 
 from __future__ import annotations
@@ -27,17 +27,19 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from haynes_studio.build.errors import BuildError
 from haynes_studio.build.validate import SNAPSHOT_SCHEMA, validate_run_snapshot
 from haynes_studio.cache.plan import LayeredMotion, Toolchain
 from haynes_studio.canonical import Facts, Story, load_story
 from haynes_studio.canonical.derive import board_clock
 from haynes_studio.canonical.validate import WRITE
-from haynes_studio.errors import WARNING, blocking
+from haynes_studio.checks._evidence import as_run_check
+from haynes_studio.errors import WARNING, Violation, blocking
 from haynes_studio.formats.recipe import PIN_PATH, method_violation
 from haynes_studio.jsonio import thaw
 from haynes_studio.layered import check_board as layered_check
 from haynes_studio.layered.pin import pin_story
-from haynes_studio.layered.visibility import evaluate_visibility, visibility_violations
+from haynes_studio.layered.visibility import REVIEW_REQUIRED, evaluate_visibility, visibility_violations
 from haynes_studio.library import Library
 from haynes_studio.library.model import locator_for
 from haynes_studio.library.resolve import Resolution, resolve
@@ -58,6 +60,16 @@ from haynes_studio.wholeframe import check_board as wholeframe_check
 WAV = "audio/wav"
 
 
+class VisibilityReviewRequired(BuildError):
+    """Stop rendering and attach the pending checks to the run for review."""
+
+    def __init__(self, evidence: tuple[dict, ...]):
+        super().__init__(REVIEW_REQUIRED, "Review the uncertain visibility checks before building",
+                         stage="prebuild")
+        self.checks = [{**as_run_check(check), "board_id": check["measured"]["board_id"]}
+                       for check in evidence]
+
+
 @dataclass(frozen=True)
 class Prepared:
     """What the pre-build check found: the story model (boards embedded), its facts,
@@ -72,14 +84,26 @@ class Prepared:
     motion: LayeredMotion | None
     report: PreflightReport
     format_version: Mapping[str, Any] | None = None
+    visibility_review: tuple[dict, ...] = ()
+    visibility_overrides: tuple[str, ...] = ()
 
     @property
     def ok(self) -> bool:
-        return self.report.ok and self.story is not None
+        return self.report.ok and self.story is not None and not self.pending_visibility
+
+    @property
+    def pending_visibility(self) -> tuple[dict, ...]:
+        approved = set(self.visibility_overrides)
+        return tuple(check for check in self.visibility_review if check["artifact"] not in approved)
+
+    def ensure_preflight(self, source: str = "<story>") -> None:
+        if not self.report.ok or self.story is None:
+            raise PreflightError(source, self.report)
 
     def ensure_buildable(self, source: str = "<story>") -> None:
-        if not self.ok:
-            raise PreflightError(source, self.report)
+        self.ensure_preflight(source)
+        if pending := self.pending_visibility:
+            raise VisibilityReviewRequired(pending)
 
 
 def draft_document(story: Mapping[str, Any]) -> dict[str, Any]:
@@ -117,12 +141,14 @@ def resolved_versions(resolution: Resolution, library: Library,
     return out
 
 
-def _adapter_problems(story: Story, *, library: Library, facts: Facts, motion: LayeredMotion | None,
-                      toolchain: Toolchain, frame_size: tuple[int, int]) -> list[Problem]:
-    """Each board's adapter check, located like the pre-build check's problems."""
-    found = []
+def _adapter_checks(story: Story, *, library: Library, facts: Facts, motion: LayeredMotion | None,
+                    toolchain: Toolchain, frame_size: tuple[int, int]) -> tuple[list[Problem], list[dict]]:
+    """Each board's hard refusals and its evidence for human review."""
+    found, review = [], []
     s2v_size = tuple(thaw(toolchain.s2v_profile).get("size", ()))
     i2v_fps = thaw(toolchain.i2v_profile).get("source_fps", 24)
+    set_version = library.get(story.set.asset_version_id) if story.set is not None else None
+    config = set_version.occlusion if set_version is not None else None
     for index, board in enumerate(story.boards or ()):
         if board.method.layer == "whole_frame":
             clock = board_clock(board, facts)
@@ -132,11 +158,14 @@ def _adapter_problems(story: Story, *, library: Library, facts: Facts, motion: L
             violations = layered_check(story, board, motion=None if motion is None else
                                        motion.boards.get(board.id), frame_size=frame_size,
                                        s2v_size=s2v_size if len(s2v_size) == 2 else None)
-        if board.method.layer == "layered" or board.layout.check_poses is not None:
-            # The product has no job or frozen pose provider yet. Opted-in
-            # boards require review until that evidence is available.
-            violations += visibility_violations(evaluate_visibility(
-                story, board, library, frame_size=frame_size, poses={}))
+        if config is not None and config["foreground"]:
+            violations.append(Violation("occlusion.render_unsupported", "/set/asset_version_id",
+                                        "This set declares foreground roles that the renderer cannot draw"))
+        elif config is not None or board.layout.check_poses is not None:
+            # The product has no frozen pose provider yet. Missing evidence goes to review.
+            checks = evaluate_visibility(story, board, library, frame_size=frame_size, poses={})
+            violations += visibility_violations(checks)
+            review.extend(check for check in checks if check["result"] == "uncertain")
         for violation in violations:
             path = violation.path
             if path.startswith("/boards/"):  # the motion resolver's pointers name the board
@@ -149,7 +178,7 @@ def _adapter_problems(story: Story, *, library: Library, facts: Facts, motion: L
                 violation.rule, violation.status, story_path, violation.message,
                 board_id=board.id, board_number=board.number,
                 legacy_shot=board.origin.legacy_shot if board.origin else None, field=path))
-    return found
+    return found, review
 
 
 def _metadata_present(_locator, _sha):
@@ -160,9 +189,10 @@ def _metadata_present(_locator, _sha):
 def prepare(document: Mapping[str, Any], *, library: Library, store: Store | None,
             toolchain: Toolchain, frame_size: tuple[int, int], current_engine: str,
             jobs: Iterable[Any] = (), check_photo_currency: bool = False,
-            format_version: Mapping[str, Any] | None = None) -> Prepared:
-    """Run the pre-build check of a draft story (boards embedded). Never raises for a
-    story that cannot be built: every problem is in ``report``. With no store,
+            format_version: Mapping[str, Any] | None = None,
+            visibility_overrides: tuple[str, ...] = ()) -> Prepared:
+    """Check a draft story with its boards embedded. Hard refusals go in ``report``
+    and uncertain visibility evidence goes in ``visibility_review``. With no store,
     resolve declared content identities and require the worker to verify the bytes."""
     document = draft_document(document)
     facts = voice_facts(library, document, jobs, current_engine=current_engine)
@@ -198,9 +228,9 @@ def prepare(document: Mapping[str, Any], *, library: Library, store: Store | Non
     # The motion records every layered board plays (story 457's resolver); a board's
     # problems stay on its BoardMotion, and the layered check reports them.
     motion = pin_story(document, library, verify, production_id=story.production_id)
-    if story.boards is not None:
-        problems += _adapter_problems(story, library=library, facts=facts, motion=motion, toolchain=toolchain,
-                                      frame_size=frame_size)
+    adapter_problems, review = _adapter_checks(story, library=library, facts=facts, motion=motion,
+                                              toolchain=toolchain, frame_size=frame_size)
+    problems += adapter_problems
     seen, unique = set(), []
     for problem in problems:  # a refusal both checks report (method.unavailable) once
         key = (problem.rule, problem.board_id, problem.field)
@@ -211,7 +241,7 @@ def prepare(document: Mapping[str, Any], *, library: Library, store: Store | Non
     unique.sort(key=lambda p: (-1 if p.board_id is None else order.get(p.board_id, len(order)),
                                p.field, p.rule, p.message))
     return Prepared(document, library, story, facts, resolution, resolved, motion,
-                    PreflightReport(tuple(unique)), format_version)
+                    PreflightReport(tuple(unique)), format_version, tuple(review), visibility_overrides)
 
 
 def blocking_problems(problems: Iterable[Problem]) -> list[Problem]:
@@ -248,6 +278,8 @@ def make_snapshot(prepared: Prepared, library: Library, *, studio: str) -> dict[
     if prepared.format_version is not None:
         snapshot["format_version"] = {key: copy.deepcopy(prepared.format_version[key])
                                       for key in ("id", "sha256", "recipe")}
+    if prepared.visibility_overrides:
+        snapshot["visibility_overrides"] = sorted(prepared.visibility_overrides)
     problems = blocking(validate_run_snapshot(snapshot, context=WRITE))
     if problems:  # the story passed its own checks; a snapshot that fails is a bug here
         raise AssertionError("; ".join(str(problem) for problem in problems))

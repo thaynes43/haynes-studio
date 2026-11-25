@@ -40,7 +40,7 @@ class SegmentationIdentity:
 
 @dataclass(frozen=True)
 class SegmentationCompletion:
-    """Create-only claim output. A receipt without this record is an orphan."""
+    """Verified claim output. Only ready results occupy the completion key."""
 
     identity: SegmentationIdentity
     result: Blob
@@ -191,9 +191,10 @@ def run_segmentation_job(
     """Run beside the sidecar from an admitted, frozen asset operation.
 
     The caller supplies an authorized library slice and a current-only ready lookup.
-    Its commit and failure writers must enforce the claim fence atomically. The
-    completion writer checks the same claim revision within the create-only write;
-    a stale claim raises and leaves no completion. Source and library are read-only.
+    Both writers must enforce the claim fence atomically. The completion writer
+    creates only ready records. The failure writer appends diagnostics, optionally
+    with a verified non-ready receipt, outside the ready identity namespace.
+    Source and library are read-only.
     """
     try:
         scope_prefix(LIBRARY if production_id is None else production_id)
@@ -224,7 +225,10 @@ def run_segmentation_job(
             receipt = _publish(store, identity, canonical_json(result), JSON, check_fence)
             completion = SegmentationCompletion(identity, receipt, result["status"], result["reason"], mask)
             check_fence()
-            commit_completion(completion)
+            if completion.status == "ready":
+                commit_completion(completion)
+            else:
+                record_failure(code=completion.reason, diagnostic=completion)
             return SegmentationOutcome(completion, png)
     except SegmentationError as error:
         code = error.reason

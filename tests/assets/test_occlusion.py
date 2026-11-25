@@ -84,6 +84,10 @@ def factory(weights, phase, strategy):
     return detector, segmenter
 
 
+def matching_factory(weights, phase, strategy):
+    return lambda image, prompt: detector(image, "synthetic match"), segmenter
+
+
 def blocking_factory(weights, phase, strategy, *, started, release):
     def blocking(image, hint):
         started.set()
@@ -102,6 +106,7 @@ class Journal:
     def __init__(self):
         self.current = True
         self.completions = []
+        self.diagnostics = []
         self.failures = []
 
     def fence(self):
@@ -110,17 +115,20 @@ class Journal:
 
     def commit(self, completion):
         self.fence()
-        if completion.status == "ready":
-            assert self.lookup(completion.identity) is None
+        assert not any(item.identity == completion.identity for item in self.completions)
         self.completions.append(completion)
 
     def lookup(self, key):
         self.fence()
         return next((r for r in self.completions if r.identity == key and r.status == "ready"), None)
 
-    def diagnose(self, *, code):
+    def diagnose(self, *, code, diagnostic=None):
         self.fence()
-        self.failures.append(code)
+        if diagnostic is None:
+            self.failures.append(code)
+        else:
+            assert code == diagnostic.reason
+            self.diagnostics.append(diagnostic)
 
 
 @pytest.fixture
@@ -210,9 +218,44 @@ def test_uncertainty_is_recorded_for_a_person(world, kind, label, red, reason):
     assert result.action == "review"
     assert result.completion.reason == reason and result.completion.status == "needs_hint"
     assert result.png is None and result.completion.mask is None
-    assert journal.completions == [result.completion]
+    assert journal.diagnostics == [result.completion]
+    assert not journal.completions
     assert journal.lookup(result.completion.identity) is None
     assert not journal.failures
+
+
+def test_needs_hint_does_not_reserve_a_later_ready_completion(world):
+    store, client, weights = world
+    source, _ = library_image(store, Image.new("RGB", SIZE, (30, 50, 70)), "set")
+    journal = Journal()
+    hint = {"kind": "point", "xy": [15, 15]}
+    with Engine(client.scratch, weights, client.profile, factory=factory) as engine, listening(client.socket, engine):
+        review = run(world, source, journal, label="no match")
+        hinted = run(world, source, journal, label="no match", hint=hint)
+    assert review.action == "review" and hinted.action == "use_mask"
+    assert review.completion.identity != hinted.completion.identity
+
+    # A new inference attempt can also resolve the same request and profile.
+    with Engine(client.scratch, weights, client.profile, factory=matching_factory) as engine, \
+            listening(client.socket, engine):
+        repeated = run(world, source, journal, label="no match")
+    assert repeated.action == "use_mask" and repeated.completion.identity == review.completion.identity
+    assert journal.diagnostics == [review.completion]
+    assert journal.completions == [hinted.completion, repeated.completion]
+
+
+def test_symlink_at_scratch_lock_is_reported_without_following_it(world):
+    store, client, _ = world
+    source, _ = library_image(store, Image.new("RGB", SIZE), "set")
+    lock = client.scratch / ".studio-segmentation.lock"
+    target = client.scratch / "untouched"
+    lock.symlink_to(target)
+    journal = Journal()
+
+    assert run(world, source, journal) is None
+    assert journal.failures == ["lock_path_invalid"]
+    assert lock.is_symlink() and not target.exists()
+    assert not journal.completions
 
 
 @pytest.mark.parametrize("mutation", [
@@ -417,6 +460,7 @@ def test_backend_timeout_commits_only_diagnostic(world):
     assert started.is_set()
     assert result.action == "stop" and result.completion.reason == "timeout"
     assert result.completion.mask is None and result.png is None
+    assert journal.diagnostics == [result.completion] and not journal.completions
     assert journal.lookup(result.completion.identity) is None
 
 

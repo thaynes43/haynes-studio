@@ -8,6 +8,7 @@ import re
 import stat
 from collections.abc import Callable
 from contextlib import contextmanager
+from errno import EISDIR, ELOOP
 from fcntl import LOCK_EX, LOCK_NB, flock
 from pathlib import Path
 from time import sleep, time
@@ -124,11 +125,16 @@ class SegmentationClient:
     @contextmanager
     def serial(self, check_fence: Callable[[], None]):
         """Hold the local gate across readiness, lookup, dispatch and completion."""
-        fd = os.open(self.scratch / ".studio-segmentation.lock",
-                     os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, 0o660)
+        try:
+            fd = os.open(self.scratch / ".studio-segmentation.lock",
+                         os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, 0o660)
+        except OSError as error:
+            if error.errno in (ELOOP, EISDIR):
+                raise SegmentationError("lock_path_invalid") from None
+            raise
         try:
             if not stat.S_ISREG(os.fstat(fd).st_mode):
-                raise SegmentationError("store_failed")
+                raise SegmentationError("lock_path_invalid")
             for wait in range(BUSY_WAITS + 1):
                 check_fence()
                 try:
