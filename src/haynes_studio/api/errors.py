@@ -5,7 +5,7 @@ from typing import Literal
 from fastapi import HTTPException, Request
 from starlette.responses import JSONResponse, Response
 
-from .models import TransportModel
+from .models import JsonObject, TransportModel
 
 ErrorStatus = Literal["invalid", "unavailable", "conflict", "forbidden", "unauthenticated",
                       "not_found", "too_large", "service_unavailable", "internal"]
@@ -24,6 +24,8 @@ class ErrorDetail(TransportModel):
     message: str
     request_id: str
     current_revision: int | None = None
+    existing_entity_id: str | None = None
+    evidence: JsonObject | None = None
 
 
 class ErrorEnvelope(TransportModel):
@@ -33,11 +35,16 @@ class ErrorEnvelope(TransportModel):
 class APIError(HTTPException):
     def __init__(self, http_status: int, code: str, message: str, *, path: str = "",
                  headers: dict | None = None, status: ErrorStatus | None = None,
-                 current_revision: int | None = None):
+                 current_revision: int | None = None, existing_entity_id: str | None = None,
+                 evidence: JsonObject | None = None):
         self.details = {"code": code, "status": status or STATUS[http_status],
                         "http_status": http_status, "path": path, "message": message}
         if current_revision is not None:
             self.details["current_revision"] = current_revision
+        if existing_entity_id is not None:
+            self.details["existing_entity_id"] = existing_entity_id
+        if evidence is not None:
+            self.details["evidence"] = evidence
         super().__init__(http_status, detail=message, headers=headers)
 
 

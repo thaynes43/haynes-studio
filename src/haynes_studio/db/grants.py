@@ -33,7 +33,8 @@ METADATA_GRANTS = (
 )
 
 
-# Table-level SELECT on agent_grants also covers the active column added in 0002.
+# Frozen privileges replayed by revision 0003. Table-level SELECT on
+# agent_grants also covers the active column added in 0002.
 RUNTIME_GRANTS = METADATA_GRANTS + (
     ("SELECT", ("run_lane",)),
     ("UPDATE (next_position, worker_seen_at)", ("run_lane",)),
@@ -42,4 +43,9 @@ RUNTIME_GRANTS = METADATA_GRANTS + (
      "cancel_requested, publishing)",
      ("runs",)),
     ("UPDATE (state, outcome)", ("run_wan_attempts",)),
+)
+
+
+GO_LIVE_GRANTS = (
+    ("SELECT, INSERT", ("go_live_approvals", "go_live_withdrawals")),
 )
