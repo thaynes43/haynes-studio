@@ -1,0 +1,437 @@
+"""Contract guards under deterministic CPU-only fakes."""
+
+from __future__ import annotations
+
+import multiprocessing
+import os
+import threading
+from contextlib import nullcontext
+from dataclasses import replace
+from functools import partial
+from io import BytesIO
+
+import numpy as np
+import pytest
+from PIL import Image
+
+from haynes_studio.segmentation.backend import Engine
+from haynes_studio.segmentation.fixtures import Fixture, fixtures, visible_fraction
+from haynes_studio.segmentation.inference import (
+    Candidate, Grounding, Observation, observe, select_boxes, validate_request,
+)
+from haynes_studio.segmentation.pixels import decode_source, describe_mask, encode_mask, tight_box
+from haynes_studio.segmentation.profile import FALLBACK_ID, PROFILE_ID, Profile, SegmentationError, digest
+from haynes_studio.segmentation.service import _UnixConnection, listening, local_call
+from haynes_studio.segmentation.smoke import stage
+from haynes_studio.store import canonical_json
+
+
+class TinyProfile(Profile):
+    def model_files(self):
+        return tuple({
+            "directory": name, "repository": f"synthetic/{name}", "revision": "0" * 40,
+            "files": [
+                {"name": "model.safetensors", "size_bytes": 4, "sha256": digest(b"fake")},
+                {"name": "config.json", "size_bytes": 2, "sha256": digest(b"{}")},
+            ],
+        } for name in ("dino", "sam"))
+
+
+@pytest.fixture
+def pins(tmp_path):
+    profile = TinyProfile("sha256:" + "c" * 64, "d" * 40, "e" * 64, (("synthetic", "1"),))
+    path = tmp_path / "weights"
+    path.mkdir()
+    manifest = profile.manifest()
+    (path / "profile.json").write_bytes(manifest)
+    (path / "profile.sha256").write_text(digest(manifest) + "\n")
+    for model in profile.model_files():
+        directory = path / model["directory"]
+        directory.mkdir()
+        (directory / "model.safetensors").write_bytes(b"fake")
+        (directory / "config.json").write_bytes(b"{}")
+    return profile, path
+
+
+def _box(box=(10, 10, 35, 35), score=0.9, phrase="prop"):
+    return Candidate(box, score, phrase)
+
+
+def _synthetic_detector(image, prompt):
+    return Grounding([_box()], image.size, image.size)
+
+
+def _synthetic_segmenter(image, hint):
+    logits = np.full((1, image.height, image.width), -1.0, dtype=np.float32)
+    logits[:, 10:35, 10:35] = 1.0
+    return logits, [0.9]
+
+
+def _factory(weights, phase, strategy):
+    return _synthetic_detector, _synthetic_segmenter
+
+
+def _stalling_factory(weights, phase, strategy, *, started):
+    def segmenter(image, hint):
+        if hint["kind"] == "point":
+            started.set()
+            threading.Event().wait()
+        return _synthetic_segmenter(image, hint)
+    return _synthetic_detector, segmenter
+
+
+@pytest.fixture
+def example():
+    image = Image.new("RGB", (64, 48), (100, 110, 120))
+    return Fixture(image, np.zeros((48, 64), dtype=bool), "prop", "orange ball", None)
+
+
+def _measure(image, request, detector=_synthetic_detector, segmenter=_synthetic_segmenter, alpha=None):
+    obs = Observation()
+    reason, mask = observe(image, alpha, request, detector, segmenter, obs, lambda _: nullcontext())
+    return obs, reason, mask
+
+
+@pytest.mark.parametrize(("field", "value"), [
+    ("source_extra", "outside"), ("hint", {"kind": "box", "xyxy": [0, 0, 5, 5], "path": "x"}),
+    ("hint", {"kind": "point", "xy": [64, 47]}),
+    ("hint", {"kind": "point", "xy": [1.0, 2]}),
+    ("hint", {"kind": "point", "xy": [True, 2]}),
+    ("hint", {"kind": "box", "xyxy": [0, 0, 0, 7]}),
+    ("hint", {"kind": "box", "xyxy": [0, 0, 65, 7]}),
+    ("hint", {"kind": "text", "text": " orange ball"}),
+    ("hint", {"kind": "text", "text": "e\u0301"}),
+    ("hint", {"kind": "text", "text": "a" * 81}),
+    ("hint", {"kind": "text", "text": "x\udcff"}),
+    ("width", 64.0), ("width", 31), ("height", 1921), ("both_large", None),
+    ("sha256", "f" * 64 + "\n"), ("sha256", "A" * 64),
+    ("label", None), ("key", ".hidden"), ("key", "prop\n"),
+])
+def test_request_guards(example, field, value):
+    _, request = example.request("prop")
+    if field == "both_large":
+        request["input"].update(width=1920, height=1081)
+    elif field == "source_extra":
+        request["input"]["path"] = value
+    else:
+        group = ("input" if field in request["input"] else "target" if field in request["target"] else None)
+        (request[group] if group else request)[field] = value
+    with pytest.raises(SegmentationError, match="invalid_input"):
+        validate_request(request)
+
+
+@pytest.mark.parametrize("mutation", ["animated", "orientation", "type", "digest", "dimensions", "bytes"])
+def test_source_guards(example, mutation):
+    data, request = example.request("prop")
+    facts = request["input"]
+    buffer = BytesIO()
+    if mutation == "animated":
+        example.image.save(buffer, "PNG", save_all=True, append_images=[Image.new("RGB", example.image.size)])
+    if mutation == "orientation":
+        exif = Image.Exif()
+        exif[274] = 6
+        example.image.save(buffer, "JPEG", exif=exif)
+    if mutation == "type":
+        example.image.save(buffer, "BMP")
+    if mutation == "bytes":
+        buffer.write(data + bytes(8 * 1024**2))
+    if buffer.tell():
+        data = buffer.getvalue()
+        facts["sha256"] = digest(data)
+    if mutation == "digest":
+        facts["sha256"] = "f" * 64
+    if mutation == "dimensions":
+        facts["width"] -= 1
+    with pytest.raises(SegmentationError, match="invalid_input"):
+        decode_source(data, facts)
+
+
+@pytest.mark.parametrize("format", ["PNG", "JPEG", "WEBP"])
+def test_valid_sources(example, format):
+    buffer = BytesIO()
+    example.image.save(buffer, format)
+    data = buffer.getvalue()
+    _, request = example.request("prop")
+    request["input"]["sha256"] = digest(data)
+    image, alpha = decode_source(data, request["input"])
+    assert image.mode == "RGB" and image.size == example.image.size and alpha is None
+
+
+@pytest.mark.parametrize(("candidates", "reason"), [
+    ([_box(score=0.349)], "no_match"),
+    ([_box(phrase=".")], "no_match"),
+    ([_box((64, 5, 85, 30))], "no_match"),
+    ([_box(), _box((40, 10, 64, 35), 0.81)], "ambiguous_match"),
+    ([_box((0, 5, 15.9, 30))], "too_small"),
+])
+def test_grounding_uncertainty(example, candidates, reason):
+    _, request = example.request("prop")
+    obs, outcome, mask = _measure(
+        example.image, request, lambda image, _: Grounding(candidates, image.size, (100, 100)),
+        lambda *_: pytest.fail("ambiguous grounding must not invoke SAM"),
+    )
+    assert (outcome, mask, obs.executed) == (reason, None, ["dino"])
+
+
+def test_nms_and_projection(example):
+    candidates = [_box((-2, 6.2, 22.2, 23.6)), _box((0, 6, 22, 23), 0.88)]
+    grounding = Grounding(candidates, (128, 96), (128, 96))
+    assert len(select_boxes(grounding)) == 1
+    _, request = example.request("prop")
+    obs, reason, _ = _measure(example.image, request, lambda *_: grounding)
+    assert reason is None
+    assert obs.detector_box == [0, 3, 12, 12]
+    assert obs.applied["detector_resize_wh"] == [128, 96]
+
+
+def test_default_and_override_queries(example):
+    _, request = example.request("prop")
+    assert _measure(example.image, request)[0].applied["prompt"] == "orange ball."
+    request["target"].update(kind="face", label=None)
+    assert _measure(example.image, request)[0].applied["prompt"] == "doll face."
+    request["target"]["kind"] = "foreground"
+    obs, reason, _ = _measure(example.image, request)
+    assert (obs.applied["prompt"], reason) == ("table. lectern. chair back.", "foreground_depth_ambiguous")
+    request["hint"] = {"kind": "text", "text": "Near Oak Table."}
+    assert _measure(example.image, request)[0].applied["prompt"] == "near oak table."
+
+
+@pytest.mark.parametrize("hint", [{"kind": "point", "xy": [12, 12]}, {"kind": "box", "xyxy": [0, 0, 64, 48]}])
+def test_direct_hints_bypass_detector(example, hint):
+    _, request = example.request("prop")
+    request["hint"] = hint
+    obs, reason, mask = _measure(example.image, request, lambda *_: pytest.fail("must bypass detector"))
+    assert reason is None and tight_box(mask) == [10, 10, 35, 35]
+    assert obs.executed == ["sam"] and obs.detector_box is obs.detector_score is None
+
+
+@pytest.mark.parametrize("mutation", ["low", "nonfinite_scores", "disagree", "empty", "full", "point", "alpha"])
+def test_uncertain_masks(example, mutation):
+    _, request = example.request("prop")
+    logits, scores = _synthetic_segmenter(example.image, {})
+    alpha = None
+    if mutation == "disagree":
+        scores.append(0.88)
+        logits = np.concatenate([logits, np.roll(logits, 25, axis=2)])
+    if mutation == "low":
+        scores[0] = 0.79
+    if mutation == "nonfinite_scores":
+        scores[0] = float("nan")
+    if mutation == "empty":
+        logits[:] = 0
+    if mutation == "full":
+        logits[:] = 1
+    if mutation == "point":
+        request["hint"] = {"kind": "point", "xy": [0, 0]}
+    if mutation == "alpha":
+        alpha = np.zeros(logits.shape[1:], dtype=bool)
+    _, reason, mask = _measure(example.image, request, segmenter=lambda *_: (logits, scores), alpha=alpha)
+    assert (reason, mask) == ("mask_uncertain", None)
+
+
+def test_highest_finite_agreeing_mask(example):
+    _, request = example.request("prop")
+    logits, _ = _synthetic_segmenter(example.image, {})
+    _, reason, mask = _measure(example.image, request, segmenter=lambda *_: (
+        np.concatenate([-logits, logits, logits]), [float("nan"), 0.80, 0.83],
+    ))
+    assert reason is None and tight_box(mask) == [10, 10, 35, 35]
+
+
+def test_rgba_against_gray_and_nonzero_alpha(example):
+    source = Image.new("RGBA", example.image.size)
+    source.putpixel((11, 15), (250, 250, 250, 1))
+    fixture = replace(example, image=source)
+    data, request = fixture.request("prop")
+    image, alpha = decode_source(data, request["input"])
+    assert image.getpixel((0, 0)) == (128, 128, 128)
+    assert alpha.sum() == 1
+    _, reason, mask = _measure(image, request, alpha=alpha)
+    assert reason is None and tight_box(mask) == [11, 15, 12, 16]
+
+
+@pytest.mark.parametrize("mutation", ["width", "logit", "score_count"])
+def test_invalid_segmenter_output(example, mutation):
+    _, request = example.request("prop")
+    logits, scores = _synthetic_segmenter(example.image, {})
+    if mutation == "width":
+        logits = logits[..., :-1]
+    if mutation == "logit":
+        logits[0, 0, 0] = float("nan")
+    if mutation == "score_count":
+        scores.append(0.9)
+    with pytest.raises(SegmentationError, match="invalid_output"):
+        _measure(example.image, request, segmenter=lambda *_: (logits, scores))
+
+
+@pytest.mark.parametrize("mutation", ["size", "binary", "metadata"])
+def test_mask_png_guards(example, mutation):
+    logits, _ = _synthetic_segmenter(example.image, {})
+    mask = logits[0] > 0
+    if mutation == "size":
+        # The incorrectly sized file has a perfectly valid digest of its own.
+        png = encode_mask(mask[:, :-1])
+        assert len(digest(png)) == 64
+    else:
+        from PIL.PngImagePlugin import PngInfo
+
+        pixels = mask.astype(np.uint8) * 255
+        metadata = PngInfo()
+        if mutation == "metadata":
+            metadata.add_text("source", "fixture")
+        else:
+            pixels[0, 0] = 128
+        buffer = BytesIO()
+        Image.fromarray(pixels).save(buffer, "PNG", pnginfo=metadata)
+        png = buffer.getvalue()
+    with pytest.raises(SegmentationError, match="invalid_output"):
+        describe_mask(png, example.image.size)
+
+
+def test_full_size_truth_fixtures():
+    suite = fixtures()
+    masks = {}
+    for name in ("foreground", "visible_face", "hidden_prop", "point"):
+        fixture = suite[name]
+        data, request = fixture.request(name)
+        image, alpha = decode_source(data, request["input"])
+        obs, reason, mask = _measure(image, request, segmenter=lambda *_: (
+            np.where(fixture.truth, 1, -1)[None, ...].astype(np.float32), [0.98],
+        ), alpha=alpha)
+        assert obs.executed == ["sam"] and reason is None and np.array_equal(mask, fixture.truth)
+        masks[name] = mask
+    assert masks["foreground"].sum() == 1020934
+    assert masks["visible_face"].sum() == masks["hidden_prop"].sum() == 15373
+    assert visible_fraction(masks["visible_face"], masks["foreground"]) == 1
+    # The same fully occluded marker can represent a hidden cast slot.
+    hidden_face = replace(suite["hidden_prop"], kind="face", label=None)
+    data, hidden_request = hidden_face.request("hidden_face")
+    validate_request(hidden_request)
+    image, alpha = decode_source(data, hidden_request["input"])
+    _, reason, mask = _measure(image, hidden_request, segmenter=lambda *_: (
+        np.where(hidden_face.truth, 1, -1)[None, ...].astype(np.float32), [0.98],
+    ), alpha=alpha)
+    assert reason is None and np.array_equal(mask, hidden_face.truth)
+    assert visible_fraction(mask, masks["foreground"]) == 0
+
+
+@pytest.mark.parametrize("mutation", ["manifest", "pin", "dino", "sam", "config", "extra", "symlink"])
+def test_weight_profile_guards(pins, mutation):
+    profile, weights = pins
+    if mutation == "manifest":
+        (weights / "profile.json").write_bytes(replace(profile, revision="a" * 40).manifest())
+    elif mutation == "pin":
+        (weights / "profile.sha256").write_text("a" * 64 + "\n")
+    elif mutation in ("dino", "sam"):
+        (weights / mutation / "model.safetensors").write_bytes(b"else")
+    elif mutation == "config":
+        (weights / "dino/config.json").write_bytes(b"[]")
+    elif mutation == "extra":
+        (weights / "sam/other.safetensors").touch()
+    else:
+        path = weights / "sam/config.json"
+        path.unlink()
+        path.symlink_to("../dino/config.json")
+    with pytest.raises(SegmentationError, match="profile_unavailable"):
+        profile.verify(weights)
+
+
+def test_socket_create_only(tmp_path, pins, example):
+    profile, weights = pins
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    socket_path = scratch / "s"
+    data, request = example.request("prop")
+    payload = stage(scratch, data, request)
+    with Engine(scratch, weights, profile, factory=_factory) as engine, listening(socket_path, engine):
+        assert socket_path.stat().st_mode & 0o777 == 0o660
+        assert local_call(socket_path, "GET", "/v1/ready") == (200, {
+            "profile_id": PROFILE_ID, "profile_sha256": digest(profile.manifest()), "device": "cpu",
+        })
+        status, reply = local_call(socket_path, "POST", "/v1/segment", payload)
+        assert status == 200 and reply["result"]["status"] == "ready"
+        directory = scratch / payload["attempt_id"]
+        receipt = (directory / "result.json").read_bytes()
+        png = (directory / "mask.png").read_bytes()
+        assert receipt == canonical_json(reply["result"])
+        assert digest(receipt) == reply["result_sha256"]
+        assert digest(png) == reply["result"]["mask"]["sha256"]
+        assert reply["result"]["box_xyxy"] == [10, 10, 35, 35]
+        assert local_call(socket_path, "POST", "/v1/segment", payload)[0] == 400
+        assert (directory / "result.json").read_bytes() == receipt
+        assert (directory / "mask.png").read_bytes() == png
+        fresh = stage(scratch, data, request)
+        assert local_call(socket_path, "POST", "/v1/segment", fresh) == (200, reply)
+        connection = _UnixConnection(socket_path, 3)
+        try:
+            connection.request("POST", "/v1/segment", body=b" " * 5000,
+                               headers={"Content-Type": "application/json"})
+            assert connection.getresponse().status == 400
+        finally:
+            connection.close()
+    assert not socket_path.exists()
+
+
+@pytest.mark.parametrize("mutation", ["symlink", "hardlink", "fifo", "missing", "fallback", "digest"])
+def test_artifact_refusals(tmp_path, pins, example, mutation):
+    profile, weights = pins
+    data, request = example.request("prop")
+    payload = stage(tmp_path, data, request)
+    directory = tmp_path / payload["attempt_id"]
+    source = directory / "input"
+    if mutation in ("symlink", "hardlink", "fifo", "missing"):
+        source.unlink()
+    if mutation in ("symlink", "hardlink"):
+        external = tmp_path / "outside"
+        external.write_bytes(data)
+        if mutation == "symlink":
+            source.symlink_to(external)
+        else:
+            os.link(external, source)
+    if mutation == "fifo":
+        os.mkfifo(source)
+    if mutation == "fallback":
+        request["profile"] = FALLBACK_ID
+    if mutation == "digest":
+        request["input"]["sha256"] = "f" * 64
+    with Engine(tmp_path, weights, profile, factory=_factory) as engine:
+        result = engine.run(payload)
+    assert result["status"] == "failed" and result["box_xyxy"] is result["mask"] is None
+    expected = {"fallback": "profile_unavailable", "missing": "input_unavailable"}
+    assert result["reason"] == expected.get(mutation, "invalid_input")
+    assert not (directory / "mask.png").exists()
+    if mutation != "missing":
+        assert (directory / "result.json").read_bytes() == canonical_json(result)
+
+
+def test_busy_timeout_reap(tmp_path, pins, example):
+    profile, weights = pins
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    started = multiprocessing.get_context("spawn").Event()
+    data, request = example.request("prop")
+    stalled = stage(scratch, data, {**request, "hint": {"kind": "point", "xy": [12, 12]}})
+    socket_path = scratch / "s"
+    replies = []
+    factory = partial(_stalling_factory, started=started)
+    with Engine(scratch, weights, profile, factory=factory, request_seconds=2) as engine:
+        original_pid = engine._child.process.pid
+        with listening(socket_path, engine):
+            def first_call():
+                replies.append(local_call(socket_path, "POST", "/v1/segment", stalled, timeout=5))
+
+            thread = threading.Thread(target=first_call)
+            thread.start()
+            try:
+                assert started.wait(1)
+                good = stage(scratch, data, request)
+                assert local_call(socket_path, "POST", "/v1/segment", good) == (409, {"code": "busy"})
+            finally:
+                thread.join()
+            [(status, reply)] = replies
+            assert status == 504 and reply["result"]["reason"] == "timeout"
+            with pytest.raises(ProcessLookupError):
+                os.kill(original_pid, 0)
+            engine._recovery.join(timeout=5)
+            assert engine.readiness and engine._child.process.pid != original_pid
+            assert local_call(socket_path, "POST", "/v1/segment", good)[0] == 200
