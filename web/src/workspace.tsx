@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router";
 
 import type { StudioClient } from "./api/client";
 import { EditorLanding, EditorPicker } from "./editor-entry";
+import { ProductionReview, ProductionStories } from "./production-review";
 import { boardLabel, loadRoute, type RouteData } from "./route-data";
 import { assetsPath, mediaKinds, parseRoute, routePath, treePath, type Route } from "./routes";
 import type { SelectionStore } from "./selections";
@@ -36,6 +37,9 @@ function trailFor(route: ContextRoute, data: RouteData): Crumb[] {
     trail.push({ label: mediaKinds[media].label, to: treePath(area, { production, media }) });
   }
   if (data.story) trail.push({ label: data.story.title, to: treePath(area, { production, media, story }) });
+  if (area === "productions" && data.run) {
+    trail.push({ label: `Run ${data.run.number}`, to: treePath(area, route.context) });
+  }
   if (data.board) trail.push({ label: boardLabel(data.board), to: treePath(area, route.context) });
   if (data.story && (route.page === "runs" || route.page === "compare")) {
     trail.push({ label: "Runs", to: treePath(area, route.context, "runs") });
@@ -83,12 +87,11 @@ function RouteContents({ route, data }: { route: ContextRoute; data: RouteData }
     const boards = data.story?.board_order ?? [];
     return <>
       <div className="actions">
-        {area === "productions" && <Link className="pill primary" to={treePath("board", route.context)}>Open editor</Link>}
         {area === "board" && board && <Link className="pill" to={treePath(area, route.context, "photo")}>Reference photo</Link>}
         {area === "board" && <Link className="pill" to={treePath(area, { production, media, story }, "runs")}>Runs</Link>}
       </div>
       {board
-        ? <Empty>{area === "board" ? "Board editing will appear here." : "Board review will appear here."}</Empty>
+        ? <Empty>Board editing will appear here.</Empty>
         : boards.length > 0
           ? <Rows items={boards.map((id, index) => ({
               to: treePath(area, { production, media, story, board: id }),
@@ -119,6 +122,19 @@ function RouteContents({ route, data }: { route: ContextRoute; data: RouteData }
         to: treePath(area, { production: id }), label: name,
       }))} />
     : <Empty>No productions yet.</Empty>;
+}
+
+function ContextContents({ api, route, data, selections }: {
+  api: StudioClient; route: ContextRoute; data: RouteData; selections: SelectionStore;
+}) {
+  const { area, context } = route;
+  if (area === "board" && !context.story) return <EditorPicker api={api} context={context} data={data} />;
+  if (area === "productions") {
+    if (data.story) return <ProductionReview api={api} data={{ ...data, story: data.story }} context={context} />;
+    if (context.media && context.production) return <ProductionStories api={api} media={context.media}
+      production={context.production} selections={selections} />;
+  }
+  return <RouteContents route={route} data={data} />;
 }
 
 function ShellPage({
@@ -152,9 +168,7 @@ function ContextPage({
     <ShellPage title={treeHeading(route, data)} trail={trailFor(route, data)} current={routePath(route)} before={before}>
       {result.status === "loading" && <p role="status" className="muted">Loading…</p>}
       {result.status === "failure" && <Problem error={result.error} retry={retry} />}
-      {result.status === "success" && (area === "board" && !context.story
-        ? <EditorPicker api={api} context={context} data={data} />
-        : <RouteContents route={route} data={data} />)}
+      {result.status === "success" && <ContextContents api={api} route={route} data={data} selections={selections} />}
     </ShellPage>
   );
 }
