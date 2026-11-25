@@ -660,21 +660,66 @@ def test_smoke_memory_allowance(tmp_path, smoke_workload, monkeypatch, strategie
     assert report["verdicts"]["cgroup_allowance"] is passed and report["passed"] is passed
 
 
-@pytest.mark.parametrize("field", ["resident_rss_bytes", "cgroup_resident_bytes", "pass_cgroup"])
+def _saved_smoke_memory(run):
+    fixture = Path(__file__).with_name("fixtures") / f"smoke-{run}-memory.json"
+    return loads(fixture.read_text(encoding="utf-8"))
+
+
+def test_serving_memory_stability_passes_run_04_that_failed_point_comparison():
+    memory = _saved_smoke_memory("04")
+    requests = memory["requests"]
+    end = memory["passes"]["cgroup_resident_bytes"]
+    passes = smoke._pass_memory(requests, 6, end)
+    assert passes["max_resident_rss_bytes"] == [1678929920, 1679060992, 1686446080]
+    assert passes["max_cgroup_resident_bytes"] == [1795072000, 1795846144, 1803661312]
+    assert passes["cgroup_resident_bytes"] == [1795325952, 1795813376, 1774198784]
+    assert smoke._memory_stable(passes)
+
+    # Apply the former verdict to the same judged requests and phases.
+    tolerance = 64 * 1024**2
+    old_stable = end[2] <= end[1] + tolerance and all(
+        first.keys() == second.keys() and all(
+            second[phase][key] <= first[phase][key] + tolerance
+            for phase in first for key in ("resident_rss_bytes", "cgroup_resident_bytes")
+        )
+        for first, second in zip(requests[6:12], requests[12:18], strict=True)
+    )
+    assert not old_stable
+
+
+def test_serving_memory_stability_refuses_run_03_with_only_two_passes():
+    memory = _saved_smoke_memory("03")
+    requests = memory["requests"]
+    end = memory["passes"]["cgroup_resident_bytes"]
+    assert len(requests) == 12 and len(end) == 2
+    assert not smoke._memory_stable(smoke._pass_memory(requests, 6, end))
+    # Add a warm-up without changing either observed pass. The growth is within tolerance.
+    assert smoke._memory_stable(smoke._pass_memory(requests[:6] + requests, 6, end[:1] + end))
+
+
+@pytest.mark.parametrize("field", ["max_resident_rss_bytes", "max_cgroup_resident_bytes", "cgroup_resident_bytes"])
 def test_serving_memory_stability_refuses_growth_above_tolerance(field):
-    first = 1024**3
-    second = first + smoke.RESIDENT_GROWTH_BYTES
-    passes = [first // 2, first, second]
+    baseline = 1024**3
+    passes = {
+        "max_resident_rss_bytes": [baseline] * 3,
+        "max_cgroup_resident_bytes": [baseline] * 3,
+        "cgroup_resident_bytes": [baseline] * 3,
+    }
+    passes[field][2] += 64 * 1024**2
+    assert smoke._memory_stable(passes)
+    passes[field][2] += 1
+    assert not smoke._memory_stable(passes)
+
+
+@pytest.mark.parametrize("samples", [(512, 800, 800, 800, 800, 800), (800, 800, 800, 710, 710, 800)])
+def test_serving_memory_stability_accepts_warmup_and_bidirectional_request_noise(samples):
+    mib = 1024**2
     requests = [
-        {"sam": {"resident_rss_bytes": value, "cgroup_resident_bytes": value}}
-        for value in passes
+        {"sam": {"resident_rss_bytes": value * mib, "cgroup_resident_bytes": (value + 32) * mib}}
+        for value in samples
     ]
-    assert smoke._memory_stable(requests, 1, passes)
-    if field == "pass_cgroup":
-        passes[2] += 1
-    else:
-        requests[2]["sam"][field] += 1
-    assert not smoke._memory_stable(requests, 1, passes)
+    passes = smoke._pass_memory(requests, 2, [832 * mib] * 3)
+    assert smoke._memory_stable(passes)
 
 
 class SmokeProfile(TinyProfile):
@@ -787,6 +832,10 @@ def test_smoke_report_is_last(tmp_path, pins, scenario, args, exit_code):
         )
         assert run["memory"]["passes"] == {
             "tolerance_bytes": 64 * 1024**2, "compared_passes": [2, 3],
+            "max_resident_rss_bytes": [800 * 1024**2, 800 * 1024**2,
+                                       (865 if scenario == "growth" else 800) * 1024**2],
+            "max_cgroup_resident_bytes": [832 * 1024**2, 832 * 1024**2,
+                                          (897 if scenario == "growth" else 832) * 1024**2],
             "cgroup_resident_bytes": [832 * 1024**2] * 3,
         }
         requests = run["memory"]["requests"]
