@@ -96,18 +96,19 @@ for older inputs. Use that source only after size and SHA-256 verification.
 - **Encoder build and exact rebuilds (2026-11-25, provisional ruling CR-52).** A
   render records its encoder build (`pyav-<version>/libavcodec-<version>`; the
   mix records `pyav-<version>/libavfilter-<version>/libswresample-<version>`).
-  An exact reconstruction needs an environment with that same build. Up to
-  Studio `80975a9` (the third deployment pin) the lock carries PyAV 18.1.0,
-  which PyPI later withdrew for a double free when decoding audio with a custom
-  channel layout. From [story 966](https://work.haynesnetwork.com/work_packages/966)
-  the lock carries 18.1.1. Measured on one fixed synthetic input with Studio's
+  An exact reconstruction needs an environment with that same build. Every lock
+  before [story 966](https://work.haynesnetwork.com/work_packages/966) carries
+  PyAV 18.1.0, which PyPI later withdrew for a double free when decoding audio
+  with a custom channel layout; that includes `80975a9`, the third deployment
+  pin and the build installed when the story merged. From story 966 the lock
+  carries 18.1.1. Measured on one fixed synthetic input with Studio's
   own encode, mix and mux: the mix is byte-identical across the two; the
   picture and the master decode to identical frames and have the same sizes,
   but their bytes differ in the embedded `Lavc` and `Lavf` version strings, so
   their hashes differ. To rebuild an output recorded with `pyav-18.1.0`
-  exactly, sync the environment from the lock at `80975a9` or earlier
-  (a withdrawn release still installs from a lock, with a warning) or run that
-  pin's image by digest. Under a later build the same inputs give a new run
+  exactly, sync the environment from a lock before story 966, such as the one
+  at `80975a9` (a withdrawn release still installs from a lock, with a
+  warning), or run that pin's image by digest. Under a later build the same inputs give a new run
   with new hashes, and cached segments recorded under the earlier build are
   not reused.
 - **Scratch and caches.** New runs recreate build scratch and cache entries from
