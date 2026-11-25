@@ -230,6 +230,17 @@ export function CandidateReview({ api, run, context, reloadDraft }: {
     });
   }
 
+  function clearIteration() {
+    if (!current) return;
+    void submit(id, async (signal) => {
+      const { data } = await api.DELETE("/v1/stories/{id}/feedback-iteration", {
+        signal, params: { path: { id: story_id }, header: { "If-Match": current.etag } },
+      });
+      if (!data) throw new ApiError(502);
+      if (!signal.aborted) setIteration(undefined);
+    }, true);
+  }
+
   return <section className="feedback-review" aria-label="Candidates and feedback">
     <h3>Candidates</h3>
     {initial.result.status === "loading" && <p role="status" className="muted">Loading candidates…</p>}
@@ -250,6 +261,8 @@ export function CandidateReview({ api, run, context, reloadDraft }: {
     {iteration && <p role="status">Draft revision {iteration.started_revision} opened.{" "}
       <Link to={treePath("board", context)}>Open draft</Link>
     </p>}
+    {current?.data.iteration && <button className="pill" type="button"
+      disabled={busy || refreshFailure != null} onClick={clearIteration}>Clear draft iteration</button>}
     {current?.data.items.map((candidate) => <CandidateCard key={candidate.id}
       api={api} candidate={candidate} context={context} busy={busy}
       boards={snapshot?.story.boards ?? []} canStart={refreshFailure == null} etag={current.etag}

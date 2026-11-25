@@ -8,8 +8,8 @@ times. Draft edits leave the run and its eligibility intact. Each run can have
 one active approval. Withdrawing it appends a second record. A new approval
 after withdrawal gets a new ID.
 
-The approval is for manual release. Story [449](https://work.haynesnetwork.com/work_packages/449)
-owns the release package, additional rights checks and recording a manual drop.
+The approval is for manual release. See [release packages](release-package.md)
+for preparation and recording a manual drop.
 See [story 412](https://work.haynesnetwork.com/work_packages/412) for the approval
 record and [decisions D29, D43, D44, D49 and D52](../proposals/0003-studio-plan.md#decisions-so-far)
 for its rules.
@@ -97,6 +97,6 @@ time. `approved` means some run of the story has an active approval, including
 an older run when a newer one has finished. Individual run reads and lists
 expose `active_approval_id`.
 
-`published` is independent recorded metadata and defaults to false. The
+`published` is derived from the story's recorded drops and defaults to false. The
 `publication=unpublished|published` and `approved=true|false` filters combine
 before pagination. A manual drop can remain recorded after approval withdrawal.

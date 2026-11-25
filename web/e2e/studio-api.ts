@@ -4,6 +4,7 @@ import { treePath, type MediaKind } from "../src/routes";
 import { latestRun, photoVersion, reviewFixtures, voiceVersion } from "./studio-review-fixtures";
 import { mediaResponse, type ReviewMedia, type TestMedia } from "./studio-review-media";
 import { feedbackFixtures } from "./studio-feedback-fixtures";
+import { releaseFixtures } from "./studio-release-fixtures";
 import { runFixtures } from "./studio-run-fixtures";
 import { formatFixture, inspectorBoards, voiceFixtures } from "./studio-inspector-fixtures";
 import { boardVersions, formatId, storyTiming } from "./studio-storyboard-fixtures";
@@ -100,9 +101,9 @@ function nextId(first: string, number: number) {
 }
 
 export async function mockStudio(context: BrowserContext, baseURL: string, {
-  empty = false, reviewMedia, storyboardMedia, runMedia, inspector = false, photoMedia,
+  empty = false, reviewMedia, storyboardMedia, runMedia, inspector = false, photoMedia, releaseMaximum,
 }: { empty?: boolean; reviewMedia?: ReviewMedia; storyboardMedia?: Pick<ReviewMedia, "photo" | "voice">;
-  runMedia?: ReviewMedia; inspector?: boolean; photoMedia?: TestMedia[] } = {}) {
+  runMedia?: ReviewMedia; inspector?: boolean; photoMedia?: TestMedia[]; releaseMaximum?: number } = {}) {
   let current: User | null = "lena";
   let next: User = "lena";
   let failure: Failure | undefined;
@@ -178,7 +179,8 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
     );
   }
   const feedback = feedbackFixtures(stories[0], [...boards.values()].filter(({ id }) =>
-    story.board_order.includes(id)), review?.runs ?? []);
+    story.board_order.includes(id)), review?.runs ?? [], releaseMaximum);
+  const release = releaseFixtures(stories[0], feedback.frozen);
   const selections: Record<User, Selection> = {
     lena: { revision: 0, values: {} },
     arden: { revision: 0, values: {
@@ -416,6 +418,7 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
         return route.fulfill({ json: storyTiming(draft, boards, versions, voice.matches) });
       }
       if (resource === "candidates" && method === "GET") return feedback.list(route, draft);
+      if (resource === "feedback-iteration" && method === "DELETE") return feedback.clear(route);
       if (resource === "runs" && method === "GET") {
         if (queue) {
           const items = queue.runs.filter((run) => run.story_id === draft.id).map((run) => queue.view(run));
@@ -708,6 +711,11 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
       }
       if (resource === "snapshot" && method === "GET") return feedback.snapshot(route, run);
       if (resource === "candidates" && method === "POST") return feedback.present(route, run, people[user].displayName);
+      if (resource === "release-packages" || (resource === "publications" && method === "POST")) {
+        const refusal = identityRefusal(user);
+        return release.handle(route, run, review.deliveries.get(id), review.preview(run, refusal, runRefusal),
+          people[user].displayName, user, refusal);
+      }
       if (resource === "go-live-approvals") {
         const refusal = identityRefusal(user);
         const preview = review.preview(run, refusal, runRefusal);

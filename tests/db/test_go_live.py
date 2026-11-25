@@ -50,10 +50,11 @@ def setup(service, owner_engine):
                            list_path=f"/v1/productions/{production}/media-types/short/stories")
 
 
-def finished_fixture(s, *, failure=None, queued_id=None):
+def finished_fixture(s, *, failure=None, queued_id=None, format_pin=None, extra_uses=None):
     uses = {"wan-ti2v": Use("video", hardware="two RTX 3090s"),
             "kokoro": Use("voice"), "stable-audio": Use("sound"),
             "qwen-image": Use("image"), "asr": Use("check")}
+    uses.update(extra_uses or {})
     if failure == "file":
         uses["wan-ti2v"].files["unlisted-placeholder"] = digest("file")
     register = licence_register()
@@ -62,21 +63,24 @@ def finished_fixture(s, *, failure=None, queued_id=None):
         engine_list.append({"key": "unregistered-placeholder", "role": "writer", "files": []})
     external_id = Minter().mint("asv")
     provenance = {
-        "engines": engine_list, "toolchain": {},
+        "engines": engine_list, "toolchain": {"studio": "git:fixture"}, "usage": None,
         "inputs_externally_generated": [{"id": external_id, "kind": "board_photo",
                                          "agent": {"session": "private-fixture"}}],
         "public": {"ai_generated": failure != "disclosure",
                    "credits": credits(engine_list, {key: use.hardware for key, use in uses.items()})},
     }
     if failure == "provenance":
-        provenance = {}
+        del provenance["toolchain"]
     if failure == "no_video":
         provenance["engines"] = [engine for engine in engine_list if engine["role"] != "video"]
     with s.owner.begin() as conn:
         if queued_id is None:
             draft = conn.scalar(sa.select(stories.c.document).where(stories.c.id == s.story))
             key = Minter().mint("run")
-            row = runs.enqueue(conn, snapshot={"story": {**draft, "boards": []}},
+            snapshot_doc = {"story": {**draft, "boards": []}}
+            if format_pin is not None:
+                snapshot_doc["format_version"] = format_pin
+            row = runs.enqueue(conn, snapshot=snapshot_doc,
                                snapshot_sha256=digest("snapshot " + key), library={}, actor=APPROVER,
                                key=key, estimate={"estimate": {}, "methods": []})
         else:
@@ -187,11 +191,6 @@ def test_approved_older_run_keeps_exact_evidence_and_withdrawal_is_append_only(s
     assert listing(publication="unpublished") == listing(approved=True) == [s.story]
     assert listing(publication="unpublished", approved=True) == [s.story]
     assert listing(publication="published", approved=True) == listing(approved=False) == []
-    # Stand in for story 449's eventual publication writer and prove it is independent.
-    with s.owner.begin() as conn:
-        conn.execute(stories.update().where(stories.c.id == s.story).values(published=True))
-    assert listing(publication="published", approved=True) == [s.story]
-
     active = read_review(s, older)
     assert active["approvals"] == [approval] and active["release_checks"] == evidence
     refused = s.browser.post(older.path, json=older.body, headers=s.csrf)
@@ -204,7 +203,7 @@ def test_approved_older_run_keeps_exact_evidence_and_withdrawal_is_append_only(s
     assert output["master_sha256"] == approval["master_sha256"]
     assert output["derived"]["state"] == "withdrawn"
     assert output["derived"]["withdrawal"]["withdrawn_by"] == APPROVER
-    assert listing(publication="published", approved=False) == [s.story]
+    assert listing(publication="unpublished", approved=False) == [s.story]
     assert listing(publication="published", approved=True) == []
     past = read_review(s, older)
     assert past["approvals"] == [output]
@@ -306,6 +305,11 @@ def test_approval_review_hides_withdrawal_identity_from_non_approvers(setup):
     assert public["derived"]["withdrawal"] == {
         key: private["derived"]["withdrawal"][key] for key in ("schema", "approval_id", "withdrawn_at")
     }
+    with s.owner.begin() as conn:
+        row = conn.scalar(sa.select(go_live_approvals.c.document).where(go_live_approvals.c.id == approval["id"]))
+        conn.execute(go_live_approvals.update().where(go_live_approvals.c.id == approval["id"])
+                     .values(document={**row, "future_private_field": "fixture"}))
+        assert records.history(conn, run.id, show_identity=False) == [public]
 
 
 def test_review_scope_and_principal_refusals(setup, monkeypatch):

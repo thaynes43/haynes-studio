@@ -228,6 +228,17 @@ go_live_withdrawals = sa.Table("go_live_withdrawals", metadata,
     foreign("approval_id", "go_live_approvals.id", primary_key=True), document(),
 )
 
+release_packages = sa.Table(
+    "release_packages", metadata, sa.Column("sha256", sa.String(64), primary_key=True),
+    foreign("run_id", "runs.id"), sa.Column("target_id", sa.Text, nullable=False),
+    sa.Column("bytes", sa.BigInteger, nullable=False), sa.UniqueConstraint("run_id", "target_id"),
+)
+publications = sa.Table(
+    "publications", metadata, identifier(),
+    sa.Column("package_sha256", sa.String(64), sa.ForeignKey("release_packages.sha256"),
+              nullable=False, unique=True),
+    foreign("approval_id", "go_live_approvals.id"), document(),
+)
 
 run_candidates = sa.Table(
     "run_candidates", metadata, identifier(), foreign("run_id", "runs.id"),
@@ -252,4 +263,9 @@ feedback_iterations = sa.Table(
     sa.Column("started_by", JSONB, nullable=False),
     sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("started_revision", sa.BigInteger, nullable=False),
+)
+feedback_iteration_clears = sa.Table(
+    "feedback_iteration_clears", metadata, foreign("story_id", "stories.id", primary_key=True),
+    sa.Column("revision", sa.BigInteger, primary_key=True),
+    foreign("iteration_id", "feedback_iterations.id"), document(),
 )

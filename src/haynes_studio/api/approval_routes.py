@@ -1,19 +1,17 @@
 """People-only go-live review and decision routes."""
 
-from functools import cache
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Request
 from pydantic import Field, StringConstraints
 
-from haynes_studio.build.provenance import Register
 from haynes_studio.canonical.model import to_document
 from haynes_studio.db import catalog, runs
 from haynes_studio.db.engine import snapshot
 from haynes_studio.db.problems import NotFound
-from haynes_studio.golive import checks, records
+from haynes_studio.golive import checks, packages, records
+from haynes_studio.golive.checks import licence_register as licence_register
 from haynes_studio.golive.policy import require_allowlisted_approver, require_approver
-from haynes_studio.model_register import load_model_register
 
 from .errors import APIError, ERROR_RESPONSES
 from .models import Body, JsonObject, TransportModel
@@ -70,16 +68,7 @@ class ApprovalReview(TransportModel):
     approvals: list[ApprovalHistoryItem]
 
 
-@cache
-def licence_register() -> Register:
-    try:
-        return Register(load_model_register())
-    except (OSError, ValueError, KeyError, TypeError) as error:
-        raise APIError(503, "approval.licence_register_unavailable",
-                       "The model licence register could not be read") from error
-
-
-def _check_approval(run, delivery, master_sha256, platform_setting, active, *, preview=False):
+def _check_approval(run, delivery, master_sha256, platform_setting, active, saved, *, preview=False):
     evidence = active_refusal = None
     try:
         verified = checks.verify_delivery(run, delivery, master_sha256)
@@ -88,7 +77,7 @@ def _check_approval(run, delivery, master_sha256, platform_setting, active, *, p
             active_refusal = APIError(409, "approval.already_active", "The run already has an active approval")
             if not preview:
                 raise active_refusal
-        evidence = checks.release_checks(run, verified, platform_setting, licence_register())
+        evidence = checks.checked_evidence(run, verified, platform_setting, saved())
     except APIError as error:
         if not preview:
             raise
@@ -136,7 +125,8 @@ def build_router(CurrentActor, approval_route):
             master = delivery["master"]["sha256"] if delivery else None
             active = conn.scalar(records.active_id(row["id"]))
             evidence, approval_refusal = _check_approval(
-                row["document"], delivery, master, True, active, preview=True,
+                row["document"], delivery, master, True, active,
+                lambda: packages.saved_checks(conn, state.store, row, delivery), preview=True,
             )
             show_identity = _refusal(require_allowlisted_approver, actor, state.oidc.settings) is None
             return {
@@ -160,9 +150,11 @@ def build_router(CurrentActor, approval_route):
                 checks.refuse_legacy(None, _delivery(conn, id))
                 raise
             run = row["document"]
+            delivery = _delivery(conn, row["id"])
             evidence, _ = _check_approval(
-                run, _delivery(conn, row["id"]), body.master_sha256, body.platform_setting,
+                run, delivery, body.master_sha256, body.platform_setting,
                 conn.scalar(records.active_id(row["id"])),
+                lambda: packages.saved_checks(conn, state.store, row, delivery),
             )
             now = runs.database_time(conn)
             require_approver(actor, state.oidc.settings, now)

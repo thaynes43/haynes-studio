@@ -26,6 +26,7 @@ pytestmark = pytest.mark.anyio
 NAMES = set("""
 studio_list_productions studio_get_production studio_list_stories studio_create_story
 studio_get_story_summary studio_patch_story studio_get_story_timing studio_add_board
+studio_list_candidates
 studio_get_board studio_patch_board studio_reorder_boards studio_remove_board
 studio_search_assets studio_get_asset studio_get_delivery
 studio_list_formats studio_list_format_versions studio_get_format_version
@@ -52,6 +53,7 @@ class FakeStudio:
         self.bid, self.bid2 = minter.mint("brd"), minter.mint("brd")
         self.aid, self.vid, self.rid = (minter.mint(prefix) for prefix in ("ast", "asv", "run"))
         self.fmv = minter.mint("fmv")
+        self.cid, self.fid = minter.mint("cnd"), minter.mint("fbk")
         self.authorization = "bEaReR " + secrets.token_urlsafe(32)
         self.requests = []
         self.override = None
@@ -95,6 +97,13 @@ class FakeStudio:
         elif path == f"/v1/stories/{self.sid}/timing":
             doc = {"story_id": self.sid, "story_revision": self.story["revision"], "build_blockers": [],
                    "boards": [{"board_id": id_, "frames": 24} for id_ in self.story["board_order"]]}
+        elif path == f"/v1/stories/{self.sid}/candidates":
+            doc = {"revision": 5, "iteration": None, "next_cursor": None, "items": [{
+                "id": self.cid, "run_id": self.rid, "target_id": "fixture-shorts",
+                "notes": [{"id": self.fid, "text": "Hold the last reaction", "board_ids": [self.bid],
+                           "internal": "not projected"}],
+                "answering_runs": [],
+            }]}
         elif path == "/v1/assets":
             doc = {"items": [self.version], "next_cursor": self.vid}
         elif path == f"/v1/assets/{self.aid}":
@@ -113,6 +122,24 @@ class FakeStudio:
         else:
             raise AssertionError(f"Unhandled API route {path}")
         return httpx.Response(status, json=doc, headers={"X-Request-ID": "req-fixture"})
+
+
+async def test_find_selected_feedback_through_read_only_mcp(api):
+    async with api.app.router.lifespan_context(api.app), connect(api.app, api.authorization) as session:
+        tools = (await session.list_tools()).tools
+        tool = next(tool for tool in tools if tool.name == "studio_list_candidates")
+        assert tool.annotations.readOnlyHint is True
+        page = await call(session, tool.name, story_id=api.sid, candidate_id=api.cid,
+                          run_id=api.rid, note_ids=[api.fid])
+        assert page["items"][0]["notes"] == [{
+            "id": api.fid, "text": "Hold the last reaction", "board_ids": [api.bid],
+        }]
+        request = api.requests[-1]
+        assert request.method == "GET" and request.content == b""
+        assert request.url.path == f"/v1/stories/{api.sid}/candidates"
+        assert dict(request.url.params) == {
+            "candidate_id": api.cid, "run_id": api.rid, "note_ids": api.fid, "limit": "1",
+        }
 
 
 async def test_discovery_pages_and_projections(api):
