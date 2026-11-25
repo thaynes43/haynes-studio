@@ -1,11 +1,12 @@
 import { useCallback, useState } from "react";
 import { Link } from "react-router";
 import { ApiError, type StudioClient } from "./api/client";
+import { DeliveryPlayer } from "./delivery-player";
 import type { Approval } from "./approval-review-contract";
 import { GoLive, ReviewTime, approvalRefusal } from "./production-approval";
 import { ReviewBoard, StoryBoards } from "./production-boards";
 import { readProductionFilters, toggleProductionFilter, type ProductionFilters } from "./production-filters";
-import { hasDelivery, loadDelivery, loadRuns, mediaUrl, runStates, type Delivery, type Run } from "./production-review-data";
+import { hasDelivery, loadDelivery, loadRuns, runStates, type Run } from "./production-review-data";
 import { boardLabel, listStories, type RouteData, type Story } from "./route-data";
 import { treePath, type Context, type MediaKind } from "./routes";
 import type { SelectionStore } from "./selections";
@@ -57,26 +58,6 @@ export function ProductionStories({ api, production, media, selections }: {
   </>;
 }
 
-function Player({ delivery }: { delivery: Delivery }) {
-  const proxy = mediaUrl(delivery.proxy?.sha256);
-  const master = mediaUrl(delivery.master.sha256);
-  const [showMaster, setShowMaster] = useState(!proxy);
-  const [failedSource, setFailedSource] = useState<string>();
-  const source = showMaster ? master : proxy;
-  if (!source) return <Empty>Playback is unavailable for this delivery.</Empty>;
-  return <>
-    <video key={source} className="review-video" src={source} controls playsInline preload="metadata"
-      aria-label={showMaster ? "Master video" : "Phone proxy"}
-      onLoadedMetadata={() => setFailedSource(undefined)}
-      onError={() => setFailedSource(source)} />
-    {failedSource === source && <p role="alert">This video could not be played.</p>}
-    {proxy && master && <div className="actions review-playback" role="group" aria-label="Playback quality">
-      <button className="pill" type="button" aria-pressed={!showMaster} onClick={() => setShowMaster(false)}>Phone proxy</button>
-      <button className="pill" type="button" aria-pressed={showMaster} onClick={() => setShowMaster(true)}>Master</button>
-    </div>}
-  </>;
-}
-
 const resultLabels = { pass: "Passed", pass_with_tolerances: "Passed with tolerances", fail: "Failed", overridden: "Overridden" };
 
 function RunChecks({ run }: { run: Run }) {
@@ -108,7 +89,7 @@ function FinishedRun({ api, run, path, onDecision }: {
       message={approvalRefusal(result.error instanceof ApiError ? result.error.code : undefined)} />}
     {result.status === "success" && (result.data.store.adapter === "legacy_wan_ledger"
       ? <Empty>Playback is unavailable for this imported delivery.</Empty>
-      : <Player delivery={result.data} />)}
+      : <DeliveryPlayer delivery={result.data} />)}
     <RunChecks run={run} />
     <GoLive api={api} run={run} delivery={result.status === "success" ? result.data : undefined}
       path={path} onDecision={onDecision} />

@@ -98,16 +98,6 @@
 .review-run-heading h3 { margin: 0; }
 .review-run-heading time { color: var(--muted); }
 
-.review-video {
-  display: block;
-  max-height: min(64dvh, 560px);
-  width: 100%;
-  margin-block: 14px 8px;
-  background: #000;
-  border-radius: 6px;
-  object-fit: contain;
-}
-
 .review-run-detail > section,
 .review-run-detail > .problem {
   margin-top: 16px;

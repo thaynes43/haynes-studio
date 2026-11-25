@@ -1,0 +1,9 @@
+.review-video {
+  display: block;
+  max-height: min(64dvh, 560px);
+  width: 100%;
+  margin-block: 14px 8px;
+  background: #000;
+  border-radius: 6px;
+  object-fit: contain;
+}
