@@ -50,8 +50,17 @@ def main() -> int:
     measure = commands.add_parser("smoke")
     measure.add_argument("--allocator", choices=("compare", "default"), default="compare")
     trial = commands.add_parser("compare")
-    trial.add_argument("--input", required=True, help="Hash-named file in the read-only input mount")
-    trial.add_argument("--input-sha256", required=True)
+    trial.allow_abbrev = False
+    source = trial.add_mutually_exclusive_group(required=True)
+    source.add_argument("--input", help="Hash-named PNG or JPEG in the read-only input mount")
+    source.add_argument("--proxy", help="Stored MP4 proxy locator containing its SHA-256")
+    trial.add_argument("--input-sha256")
+    trial.add_argument("--master", help="Stored MP4 locator of the same delivery's master")
+    trial.add_argument("--delivery-id", help="Delivery ID whose pairing the caller verified")
+    trial.add_argument("--probe", action="store_true", help="Check stored MP4 frames without running either scaler")
+    selector = trial.add_mutually_exclusive_group()
+    selector.add_argument("--frame-index", help="Zero-based delivery frame index")
+    selector.add_argument("--timestamp", help="Nonnegative seconds on the delivery clock")
     trial.add_argument("--orientation", choices=("portrait", "landscape"), default="portrait")
     trial.add_argument("--plate", action="store_true", help="Use the delivery plate's centered cover fit")
     for name in ("lettering", "face", "hair"):
@@ -68,28 +77,44 @@ def main() -> int:
 
             status, ready = local_call(scratch / "upscale.sock", "GET", "/v1/ready", timeout=2)
             return int(status != 200 or ready.get("profile_id") != PROFILE_ID or ready.get("provider") != PROVIDER)
-        profile = Profile.installed()
         if args.command == "profile":
-            manifest = profile.manifest()
+            manifest = Profile.installed().manifest()
             report = {"manifest": manifest.decode(), "sha256": sha256(manifest).hexdigest()}
         elif args.command == "smoke":
             from .smoke import smoke
 
-            report = smoke(scratch, weights, profile, try_compact=args.allocator == "compare")
+            report = smoke(scratch, weights, Profile.installed(), try_compact=args.allocator == "compare")
         else:
-            from .comparison import compare
+            from .video import frame_selector, probe_frames, require_delivery_id
 
-            if not re.fullmatch(rf"{re.escape(args.input_sha256)}\.(?:jpg|png)", args.input):
+            index = None
+            if args.proxy is not None:
+                if args.input_sha256 is not None or args.plate:
+                    raise UpscaleError(REQUEST_INVALID)
+                index = frame_selector(args.frame_index, args.timestamp)
+                if not args.probe:
+                    require_delivery_id(args.master, args.delivery_id)
+            elif (args.probe or args.master is not None or args.delivery_id is not None
+                    or args.frame_index is not None or args.timestamp is not None or args.input_sha256 is None
+                    or not re.fullmatch(rf"{re.escape(args.input_sha256)}\.(?:jpg|png)", args.input)):
                 raise UpscaleError(REQUEST_INVALID)
-            rois = {name: box for name in ("lettering", "face", "hair")
-                    if (box := getattr(args, name + "_roi")) is not None}
-            report = compare(
-                scratch, weights, Path("/input"), Path("/output"), profile,
-                relative=args.input, source_sha256=args.input_sha256,
-                target=TARGETS[0] if args.orientation == "portrait" else TARGETS[1], plate=args.plate, rois=rois,
-            )
+            target = TARGETS[0] if args.orientation == "portrait" else TARGETS[1]
+            if args.probe:
+                report = probe_frames(Path("/store"), args.proxy, index, target,
+                                      master=args.master, delivery_id=args.delivery_id)
+            else:
+                from .comparison import compare
+
+                rois = {name: box for name in ("lettering", "face", "hair")
+                        if (box := getattr(args, name + "_roi")) is not None}
+                report = compare(
+                    scratch, weights, Path("/store" if args.proxy is not None else "/input"), Path("/output"),
+                    Profile.installed(), relative=args.input, source_sha256=args.input_sha256,
+                    proxy=args.proxy, master=args.master, delivery_id=args.delivery_id, frame_index=index,
+                    target=target, plate=args.plate, rois=rois,
+                )
         print(canonical_json(report).decode(), flush=True)
-        return int(args.command == "smoke" and not report["passed"])
+        return int(not report.get("passed", True))
     except (UpscaleError, OSError, HTTPException) as error:
         # Logs contain no caller paths, exception text or private pixels.
         print(canonical_json({"code": getattr(error, "code", COMMAND_FAILED)}).decode(), flush=True)

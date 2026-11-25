@@ -15,7 +15,10 @@ from pathlib import Path
 
 from haynes_studio.store import canonical_json
 
+# The v1 wire schemas pin this selector. The immutable manifest identifies the
+# serving revision, and its digest binds each receipt to that revision.
 PROFILE_ID = "grounding-dino-tiny-sam2.1-tiny-cpu-v1"
+SERVING_PROFILE_ID = "grounding-dino-tiny-sam2.1-tiny-cpu-v2"
 FALLBACK_ID = "owlv2-base-sam2.1-tiny-cpu-v1"
 IMAGE = "ghcr.io/thaynes43/haynes-studio-segmentation"
 SCRATCH = Path("/segmentation")
@@ -35,6 +38,7 @@ RUNTIME_PINS = {
     "pillow": ("13.0.0", "42d63be3af4f9b951b199b0a9d23365d37ab14687e6d77b74940432c8515c4ca"),
 }
 RESOURCES = json.loads(files(__package__).joinpath("resources.json").read_text(encoding="utf-8"))
+WEIGHT_LOAD = RESOURCES["serving"]["weight_load"]
 MODEL_DIRS = ("dino", "sam")
 
 DETECTOR_FLOOR = 0.35
@@ -98,7 +102,7 @@ def parameters() -> dict:
     return {
         "dtype": "float32", "execution": "eager", "batch": 1,
         "threads": {"intra_op": 2, "inter_op": 1, **THREAD_ENV}, "in_flight": 1,
-        "weight_load": "mmap", "startup_seconds": STARTUP_SECONDS, "request_seconds": REQUEST_SECONDS,
+        "weight_load": WEIGHT_LOAD, "startup_seconds": STARTUP_SECONDS, "request_seconds": REQUEST_SECONDS,
         "detector": {
             "short_edge": 800, "long_edge": 1333, "padding": "batch_max_bottom_right",
             "custom_kernels": False, "max_tokens": MAX_TOKENS, "score_floor": DETECTOR_FLOOR,
@@ -149,7 +153,7 @@ class Profile:
 
     def manifest(self) -> bytes:
         return canonical_json({
-            "schema": "studio.segmentation-profile/v1", "profile": PROFILE_ID,
+            "schema": "studio.segmentation-profile/v1", "profile": SERVING_PROFILE_ID,
             "image_digest": self.image_digest, "app_build": self.revision,
             "models": self.model_files(), "runtime": self.runtime(), "device": "cpu",
             "parameters": parameters(), "resources": RESOURCES,

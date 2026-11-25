@@ -1,1 +1,1 @@
-{"schema":"studio.segmentation-resources/v1","measurement":{"request_gib":16,"limit_gib":16},"serving":null}
+{"schema":"studio.segmentation-resources/v1","measurement":{"request_gib":16,"limit_gib":16},"serving":{"request_gib":4,"limit_gib":5,"weight_load":"mmap"}}
