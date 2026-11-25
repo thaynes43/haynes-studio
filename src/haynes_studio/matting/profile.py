@@ -58,7 +58,7 @@ class MatteError(Exception):
 
 @dataclass(frozen=True)
 class SessionSettings:
-    cpu_arena: bool = True
+    cpu_arena: bool = False
     memory_pattern: bool = True
     graph_optimization: str = "all"
     arena_growth: str = "default"

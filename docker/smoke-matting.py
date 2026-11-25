@@ -100,15 +100,16 @@ def exercise_graph(scratch_parent, revision, settings):
 def exercise_settings(scratch_parent, revision):
     baseline, memory = exercise_graph(scratch_parent, revision, SessionSettings())
     measures = [{"settings": asdict(SessionSettings()), "memory": memory}]
+    arena_on = SessionSettings(cpu_arena=True)
     for settings in (
-        SessionSettings(cpu_arena=False),
+        arena_on,
         SessionSettings(memory_pattern=False),
         SessionSettings(graph_optimization="extended"),
         SessionSettings(graph_optimization="basic"),
         SessionSettings(graph_optimization="disabled"),
-        SessionSettings(arena_growth="same-as-requested"),
-        SessionSettings(shrink_cpu_arena=True),
-        SessionSettings(arena_growth="same-as-requested", shrink_cpu_arena=True),
+        replace(arena_on, arena_growth="same-as-requested"),
+        replace(arena_on, shrink_cpu_arena=True),
+        replace(arena_on, arena_growth="same-as-requested", shrink_cpu_arena=True),
     ):
         artifacts, memory = exercise_graph(scratch_parent, revision, settings)
         assert artifacts == baseline, settings
