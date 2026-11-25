@@ -4,6 +4,14 @@ from alembic import op
 
 
 def grant_runtime(grants: tuple[tuple[str, tuple[str, ...]], ...], *, schema_usage=False) -> None:
+    _configure_runtime(grants, "GRANT", "TO", schema_usage)
+
+
+def revoke_runtime(grants: tuple[tuple[str, tuple[str, ...]], ...]) -> None:
+    _configure_runtime(grants, "REVOKE", "FROM", False)
+
+
+def _configure_runtime(grants, command, direction, schema_usage):
     context = op.get_context()
     role = context.config.attributes.get("runtime_role")
     if role is None:
@@ -16,7 +24,7 @@ def grant_runtime(grants: tuple[tuple[str, tuple[str, ...]], ...], *, schema_usa
         conn.exec_driver_sql(f"GRANT USAGE ON SCHEMA {schema} TO {grantee}")
     for privilege, tables in grants:
         names = ", ".join(f"{schema}.{quote(table)}" for table in tables)
-        conn.exec_driver_sql(f"GRANT {privilege} ON TABLE {names} TO {grantee}")
+        conn.exec_driver_sql(f"{command} {privilege} ON TABLE {names} {direction} {grantee}")
 
 
 # Frozen privileges for the metadata schema introduced in 0001. Revision
@@ -43,3 +51,13 @@ RUNTIME_GRANTS = METADATA_GRANTS + (
      ("runs",)),
     ("UPDATE (state, outcome)", ("run_wan_attempts",)),
 )
+
+
+PROMOTION_GRANTS = (("UPDATE (state, document)", ("asset_versions",)),)
+
+JOB_GRANTS = (
+    ("SELECT", ("media_job_lanes",)),
+    ("UPDATE (next_position)", ("media_job_lanes",)),
+    ("SELECT, INSERT", ("media_jobs",)),
+    ("UPDATE (document, worker_id, fence, claim_until, dispatched)", ("media_jobs",)),
+) + PROMOTION_GRANTS

@@ -20,6 +20,10 @@ from haynes_studio.canonical.jsonvalues import normalize
 from haynes_studio.errors import ContractError, Violation, pointer
 from haynes_studio.library.resolve import resolve, story_references
 
+from haynes_studio.photo.plan import photo_facts
+from haynes_studio.voice import Engine, voice_facts
+
+from .jobs import active_for_story
 from .catalog import ProductionScope, load_library, record_asset_version
 from .problems import NotFound, require_revision, require_valid
 from .schema import boards, draft_ids, media_types, productions, stories, story_asset_refs
@@ -124,10 +128,11 @@ def story_production(conn: sa.Connection, id_: str) -> str:
     return result
 
 
-def board_story(conn: sa.Connection, id_: str) -> str:
-    result = conn.scalar(sa.select(boards.c.story_id).where(
-        boards.c.id == id_, boards.c.tombstone.is_(False),
-    ))
+def board_story(conn: sa.Connection, id_: str, *, include_tombstone=False) -> str:
+    stmt = sa.select(boards.c.story_id).where(boards.c.id == id_)
+    if not include_tombstone:
+        stmt = stmt.where(boards.c.tombstone.is_(False))
+    result = conn.scalar(stmt)
     if result is None:
         raise NotFound
     return result
@@ -160,11 +165,17 @@ class Draft:
         library = load_library(conn, {ref.version_id for ref in refs}, self.story["production_id"])
         return refs, library
 
+    def facts(self, conn, document, library):
+        return voice_facts(library, document, active_for_story(conn, self.story["id"]),
+                           current_engine=Engine().signing_name).merged(
+            photo_facts(Story.from_document(document), library),
+        )
+
     def summary(self, conn: sa.Connection) -> dict:
         doc = self.exchange()
         _, library = self._library(conn, doc)
         story = Story.from_document(doc)
-        derived = story_derived(story, story.ordered_boards(), library.facts(doc),
+        derived = story_derived(story, story.ordered_boards(), self.facts(conn, doc, library),
                                 highest_number_issued=self.highest_board)
         return {**self.story, "derived": to_document(derived)}
 
@@ -173,14 +184,14 @@ class Draft:
             raise NotFound
         doc = self.exchange()
         _, library = self._library(conn, doc)
-        derived = boards_derived(Story.from_document(doc).ordered_boards(), library.facts(doc))
+        derived = boards_derived(Story.from_document(doc).ordered_boards(), self.facts(conn, doc, library))
         index = self.story["board_order"].index(id_)
         return {**self.boards[id_], "derived": to_document(derived[index])}
 
     def timing(self, conn: sa.Connection) -> dict:
         doc = self.exchange()
         _, library = self._library(conn, doc)
-        return to_document(timing_summary(doc, facts=library.facts(doc)))
+        return to_document(timing_summary(doc, facts=self.facts(conn, doc, library)))
 
     def validate(self, conn: sa.Connection) -> set[str]:
         doc = self.exchange()
@@ -466,3 +477,12 @@ def import_draft(conn: sa.Connection, production_doc: dict, exchange: dict,
     draft = get_draft(conn, doc["id"])
     _references(conn, doc["id"], draft.validate(conn))
     return draft
+
+
+def board_snapshot(conn, draft, board_id, additional=()):
+    board = draft.boards.get(board_id)
+    if board is None:
+        raise NotFound
+    story = {**draft.story, "boards": [board], "board_order": [board_id]}
+    refs = {ref.version_id for ref in story_references(story)}
+    return story, load_library(conn, refs.union(additional), story["production_id"])

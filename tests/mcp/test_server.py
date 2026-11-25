@@ -27,6 +27,8 @@ studio_list_productions studio_get_production studio_list_stories studio_create_
 studio_get_story_summary studio_patch_story studio_get_story_timing studio_add_board
 studio_get_board studio_patch_board studio_reorder_boards studio_remove_board
 studio_search_assets studio_get_asset studio_get_delivery
+studio_generate_voice studio_generate_photo studio_upload_photo studio_get_job
+studio_estimate_run studio_queue_run studio_list_runs studio_get_run studio_cancel_run
 """.split())
 
 

@@ -292,7 +292,7 @@ def test_sdk_edits_scoped_drafts_through_the_api(admin, service, owner_engine, t
             async with connect(mcp, "Bearer " + writer["key"]) as session:
                 tools = {item.name for item in (await session.list_tools()).tools}
                 assert "studio_patch_board" in tools and "studio_get_media" not in tools
-                assert "go_live:approve" not in tools and "studio_queue_run" not in tools
+                assert "studio_approve_go_live" not in tools and "studio_queue_run" in tools
                 listed = await call(session, "studio_list_productions")
                 assert [item["id"] for item in listed["items"]] == [production]
                 detail = await call(session, "studio_get_production", production_id=production)

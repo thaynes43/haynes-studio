@@ -159,3 +159,27 @@ run_check_overrides = sa.Table("run_check_overrides", metadata,
     sa.Column("artifact", sa.Text, primary_key=True),
     document(),
 )
+
+
+media_job_lanes = sa.Table(
+    "media_job_lanes", metadata, sa.Column("lane", sa.Text, primary_key=True),
+    sa.Column("next_position", sa.BigInteger, nullable=False),
+)
+media_jobs = sa.Table(
+    "media_jobs", metadata, identifier(),
+    foreign("production_id", "productions.id", nullable=True),
+    foreign("story_id", "stories.id", nullable=True),
+    foreign("board_id", "boards.id", nullable=True),
+    foreign("lane", "media_job_lanes.lane"),
+    sa.Column("position", sa.BigInteger, nullable=False),
+    sa.Column("kind", sa.Text, nullable=False),
+    sa.Column("idempotency_target", sa.Text, nullable=False),
+    sa.Column("idempotency_actor", sa.Text, nullable=False),
+    sa.Column("idempotency_key", sa.Text, nullable=False),
+    sa.Column("request_signature", sa.Text, nullable=False),
+    sa.Column("inputs", JSONB, nullable=False), document(),
+    sa.Column("worker_id", sa.Text),
+    sa.Column("fence", sa.BigInteger, nullable=False),
+    sa.Column("claim_until", sa.DateTime(timezone=True)),
+    sa.Column("dispatched", sa.Boolean, nullable=False),
+)

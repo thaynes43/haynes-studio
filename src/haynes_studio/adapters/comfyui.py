@@ -200,6 +200,26 @@ def _template(item: pinned.PinnedInput, name: str, nodes: dict[str, str]) -> dic
     return graph
 
 
+def image_graph(request: TextToImage | ImageEdit, *, t2i_graph, edit_graph) -> dict:
+    """The filled graph, built the way ``poc/comfy.py`` builds it."""
+    prefix = f'studio/{request.job}/{request.name}'
+    if isinstance(request, TextToImage):
+        graph = _template(t2i_graph, T2I_GRAPH, T2I_NODES)
+        graph['4']['inputs']['prompt'] = request.prompt
+        graph['5']['inputs'].update(width=request.width, height=request.height)
+        graph['6']['inputs']['seed'] = request.seed
+        graph['8']['inputs']['filename_prefix'] = prefix
+        return graph
+    if isinstance(request, ImageEdit):
+        graph = _template(edit_graph, EDIT_GRAPH, EDIT_NODES)
+        graph['6']['inputs']['prompt'] = request.prompt
+        graph['7']['inputs']['seed'] = request.seed
+        graph['1']['inputs']['image'] = request.upload_name
+        graph['9']['inputs']['filename_prefix'] = prefix
+        return graph
+    raise RequestInvalid(LABEL, "request must be TextToImage or ImageEdit")
+
+
 class ImageClient:
     # Both are per process, shared by every ImageClient: one render at a time (the
     # snippet waits for other clients' work), and the prompt a failed render may have
@@ -222,23 +242,7 @@ class ImageClient:
         self.edit_graph = take(edit_graph, EDIT_GRAPH)
 
     def graph(self, request: TextToImage | ImageEdit) -> dict:
-        """The filled graph, built the way ``poc/comfy.py`` builds it."""
-        prefix = f'studio/{request.job}/{request.name}'
-        if isinstance(request, TextToImage):
-            g = _template(self.t2i_graph, T2I_GRAPH, T2I_NODES)
-            g['4']['inputs']['prompt'] = request.prompt
-            g['5']['inputs'].update(width=request.width, height=request.height)
-            g['6']['inputs']['seed'] = request.seed
-            g['8']['inputs']['filename_prefix'] = prefix
-            return g
-        if isinstance(request, ImageEdit):
-            g = _template(self.edit_graph, EDIT_GRAPH, EDIT_NODES)
-            g['6']['inputs']['prompt'] = request.prompt
-            g['7']['inputs']['seed'] = request.seed
-            g['1']['inputs']['image'] = request.upload_name
-            g['9']['inputs']['filename_prefix'] = prefix
-            return g
-        raise RequestInvalid(LABEL, "request must be TextToImage or ImageEdit")
+        return image_graph(request, t2i_graph=self.t2i_graph, edit_graph=self.edit_graph)
 
     def payload(self, request: TextToImage | ImageEdit) -> bytes:
         """The stdin bytes, exactly as ``poc/comfy.py`` ``run()`` writes them."""
@@ -276,7 +280,7 @@ class ImageClient:
         cleared, ImageClient._unsettled = ImageClient._unsettled, None
         return cleared
 
-    def render(self, request: TextToImage | ImageEdit) -> ImageResult:
+    def render(self, request: TextToImage | ImageEdit, *, before_submit=None) -> ImageResult:
         """Submit one prompt and return its first image. The only supported way to
         submit: one render per process, and none while an earlier prompt may be in flight
         (see the module notes)."""
@@ -287,6 +291,8 @@ class ImageClient:
                                           "one prompt at a time on the shared GPU")
         try:
             self._settle_in_flight()
+            if before_submit is not None:
+                before_submit()
             result = self._run(command)
             stderr = result.stderr.decode("utf-8", "replace")
             prompt_id = _prompt_id(stderr)

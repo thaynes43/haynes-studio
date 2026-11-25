@@ -8,12 +8,15 @@ from typing import Annotated, BinaryIO
 from fastapi import APIRouter, Header, Request
 from starlette.responses import Response, StreamingResponse
 
-from haynes_studio.db.catalog import media_for_hash
+from haynes_studio.canonical.ids import is_id
+from haynes_studio.db.catalog import media_for_hash, preview_media
 from haynes_studio.db.engine import snapshot
+from haynes_studio.db.problems import NotFound
 from haynes_studio.store.errors import BLOB_MISSING, LOCATOR_INVALID, StoreError
 from haynes_studio.store.layout import is_sha256, parse_locator
 
 from .errors import APIError, ERROR_RESPONSES, ErrorEnvelope, missing
+from .job_routes import job_access
 
 _CHUNK_SIZE = 256 * 1024
 _SINGLE_RANGE = re.compile(r"bytes=([0-9]*)-([0-9]*)", re.IGNORECASE|re.ASCII)
@@ -83,6 +86,52 @@ RANGE_RESPONSES = {
 }
 
 
+HEAD_RESPONSES = {
+    code: {k: v for k, v in description.items() if k not in ("content", "model")}
+    for code, description in RANGE_RESPONSES.items()
+}
+
+
+def _serve(request, refs, sha256, range_header, if_range):
+    store_failed = False
+    for ref in refs:
+        handle = None
+        try:
+            loc = parse_locator(ref.locator)
+            if loc.sha256 != sha256:
+                continue
+            handle = request.app.state.store.open(loc.text)
+            size = os.fstat(handle.fileno()).st_size
+            if ref.size is not None and ref.size != size:
+                continue
+            etag = f'"{sha256}"'
+            selected = byte_range(range_header if if_range in (None, etag) else None, size)
+            status, start, count = 200, 0, size
+            headers = {"Accept-Ranges": "bytes", "ETag": etag,
+                       "Content-Type": loc.media_type, "X-Content-Type-Options": "nosniff"}
+            if selected is not None:
+                start, end = selected
+                count, status = end - start + 1, 206
+                headers["Content-Range"] = f"bytes {start}-{end}/{size}"
+            headers["Content-Length"] = str(count)
+            if request.method == "HEAD":
+                return Response(status_code=status, headers=headers)
+            response = BlobStream(handle, start, count, status_code=status, headers=headers)
+            handle = None  # BlobStream now closes the open descriptor.
+            return response
+        except StoreError as error:
+            if error.code not in (BLOB_MISSING, LOCATOR_INVALID):
+                raise
+        except OSError:
+            store_failed = True
+        finally:
+            if handle is not None:
+                handle.close()
+    if store_failed:
+        raise APIError(503, "store.failed", "The media store could not complete the request")
+    raise missing()
+
+
 def build_router(CurrentActor, authenticated_route):
     router = APIRouter(prefix="/v1", tags=["media"], responses=ERROR_RESPONSES,
                        route_class=authenticated_route)
@@ -90,50 +139,42 @@ def build_router(CurrentActor, authenticated_route):
     @router.get("/media/{sha256}", operation_id="get_media", response_class=Response,
                 responses=RANGE_RESPONSES)
     @router.head("/media/{sha256}", operation_id="head_media", response_class=Response,
-                 responses={code: {k: v for k, v in description.items() if k not in ("content", "model")}
-                            for code, description in RANGE_RESPONSES.items()})
+                 responses=HEAD_RESPONSES)
     def get_media(request: Request, sha256: str, actor: CurrentActor,
                   range_header: RangeHeader = None, if_range: IfRange = None):
         if not is_sha256(sha256):
             raise missing()
         with snapshot(request.app.state.engine) as conn:
             refs = media_for_hash(conn, sha256, actor.productions("read"))
-        store_failed = False
-        for ref in refs:
-            handle = None
-            try:
-                loc = parse_locator(ref.locator)
-                if loc.sha256 != sha256:
-                    continue
-                handle = request.app.state.store.open(loc.text)
-                size = os.fstat(handle.fileno()).st_size
-                if ref.size is not None and ref.size != size:
-                    continue
-                etag = f'"{sha256}"'
-                selected = byte_range(range_header if if_range in (None, etag) else None, size)
-                status, start, count = 200, 0, size
-                headers = {"Accept-Ranges": "bytes", "ETag": etag,
-                           "Content-Type": loc.media_type, "X-Content-Type-Options": "nosniff"}
-                if selected is not None:
-                    start, end = selected
-                    count, status = end - start + 1, 206
-                    headers["Content-Range"] = f"bytes {start}-{end}/{size}"
-                headers["Content-Length"] = str(count)
-                if request.method == "HEAD":
-                    return Response(status_code=status, headers=headers)
-                response = BlobStream(handle, start, count, status_code=status, headers=headers)
-                handle = None  # BlobStream now closes the open descriptor.
-                return response
-            except StoreError as error:
-                if error.code not in (BLOB_MISSING, LOCATOR_INVALID):
-                    raise
-            except OSError:
-                store_failed = True
-            finally:
-                if handle is not None:
-                    handle.close()
-        if store_failed:
-            raise APIError(503, "store.failed", "The media store could not complete the request")
-        raise missing()
+        return _serve(request, refs, sha256, range_header, if_range)
+
+    @router.get("/asset-versions/{id}/media/{sha256}", operation_id="get_version_media",
+                response_class=Response, responses=RANGE_RESPONSES)
+    @router.head("/asset-versions/{id}/media/{sha256}", operation_id="head_version_media",
+                 response_class=Response, responses=HEAD_RESPONSES)
+    def get_version_media(request: Request, id: str, sha256: str, actor: CurrentActor,
+                          range_header: RangeHeader = None, if_range: IfRange = None):
+        if actor.principal.kind != "human" or not is_id(id, "asv") or not is_sha256(sha256):
+            raise missing()
+        with snapshot(request.app.state.engine) as conn:
+            refs = preview_media(conn, id, sha256, actor.productions("read"))
+        return _serve(request, refs, sha256, range_header, if_range)
+
+    @router.get("/jobs/{id}/media/{sha256}", operation_id="get_job_media",
+                response_class=Response, responses=RANGE_RESPONSES)
+    @router.head("/jobs/{id}/media/{sha256}", operation_id="head_job_media",
+                 response_class=Response, responses=HEAD_RESPONSES)
+    def get_job_media(request: Request, id: str, sha256: str, actor: CurrentActor,
+                      range_header: RangeHeader = None, if_range: IfRange = None):
+        if actor.principal.kind != "human" or not is_id(id, "job") or not is_sha256(sha256):
+            raise missing()
+        with snapshot(request.app.state.engine) as conn:
+            row = job_access(conn, actor, id)
+            version_id = row["document"]["result_version_id"]
+            if version_id is None:
+                raise NotFound
+            refs = preview_media(conn, version_id, sha256, actor.productions("read"),
+                                 job=row)
+        return _serve(request, refs, sha256, range_header, if_range)
 
     return router

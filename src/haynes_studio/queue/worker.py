@@ -203,11 +203,66 @@ class BuildWorker:
                    error=failure, admission_busy=error.admission_busy, **fields)
 
 
+def _serve(worker, once):
+    while True:
+        try:
+            did_work = worker.tick()
+        except WorkerAPIError as error:
+            logger.warning("Studio worker request failed (%s)", error.code)
+            if once or error.status in (401, 403):
+                raise SystemExit(1) from None
+            did_work = False
+        except OSError as error:
+            logger.warning("Studio worker store is unavailable (%s)", type(error).__name__)
+            if once:
+                raise SystemExit(1) from None
+            did_work = False
+        if once:
+            return
+        if not did_work:
+            sleep(IDLE_SECONDS)
+
+
+def _media_main(options, parser):
+    from haynes_studio.library.winter_menu import load_licence_register
+
+    from .media_services import ComfyHTTP, WyomingKokoro
+    from .media_worker import MediaWorker
+
+    with ExitStack() as resources:
+        try:
+            origin = service_url(os.environ["STUDIO_API_URL"])
+            token = worker_bearer(os.environ["STUDIO_WORKER_TOKEN"], allow_legacy=True)
+            store = LocalStore(os.environ["STUDIO_STORE_ROOT"])
+            register = load_licence_register(os.environ["STUDIO_MODEL_REGISTER"])
+            if options.lane == "image":
+                url = service_url(os.environ["STUDIO_COMFYUI_URL"])
+                image_http = resources.enter_context(httpx.Client(base_url=url, trust_env=False, timeout=60))
+                client = ComfyHTTP(image_http)
+            else:
+                port = int(os.getenv("STUDIO_TTS_PORT", "10210"))
+                if not 1 <= port <= 65535:
+                    raise ValueError("Invalid port")
+                client = WyomingKokoro(os.environ["STUDIO_TTS_HOST"], port)
+        except KeyError as error:
+            parser.error(f"{error.args[0]} is required")
+        except (OSError, ValueError) as error:
+            parser.error(f"Worker configuration is invalid ({type(error).__name__})")
+        api = resources.enter_context(httpx.Client(base_url=origin, trust_env=False, timeout=15,
+                                                   headers={"Authorization": f"Bearer {token}"}))
+        _serve(MediaWorker(WorkerAPI(api), lane=options.lane, store=store, client=client,
+                           licences=register), options.once)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--lane", choices=("run", "image", "voice"), default="run")
     parser.add_argument("--once", action="store_true", help="Process at most one claim and exit")
     options = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
+    if options.lane != "run":
+        _media_main(options, parser)
+        return
 
     try:
         studio_url = service_url(os.environ["STUDIO_API_URL"])
@@ -236,24 +291,7 @@ def main():
                              tracker_story=tracker_story, transcriber=transcriber,
                              studio=os.getenv("STUDIO_BUILD_REVISION", "git:unknown"),
                              image_digest=os.getenv("STUDIO_BUILD_IMAGE_DIGEST"))
-        while True:
-            try:
-                did_work = worker.tick()
-            except WorkerAPIError as error:
-                logger.warning("Studio worker request failed (%s)", error.code)
-                if options.once or error.status in (401, 403):
-                    raise SystemExit(1) from None
-                did_work = False
-            except OSError as error:
-                logger.warning("Studio worker store is unavailable (%s)", type(error).__name__)
-                if options.once:
-                    raise SystemExit(1) from None
-                did_work = False
-            if options.once:
-                return
-            if not did_work:
-                sleep(IDLE_SECONDS)
-
+        _serve(worker, options.once)
 
 if __name__ == "__main__":
     main()

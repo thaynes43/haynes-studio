@@ -8,8 +8,8 @@ from sqlalchemy.dialects.postgresql import insert
 from haynes_studio.delivery.model import MASTER_SIZES
 from haynes_studio.delivery.validate import validate_delivery
 from haynes_studio.errors import ContractError, Violation
-from haynes_studio.library.library import Library
-from haynes_studio.library.model import Asset, AssetVersion, CANDIDATE, PROMOTED, version_document
+from haynes_studio.library.library import Library, promote
+from haynes_studio.library.model import BOARD, CANDIDATE, PROMOTED, Asset, AssetVersion, version_document
 from haynes_studio.library.validate import validate_asset, validate_asset_version
 from haynes_studio.store.layout import blob_locator, is_sha256, parse_locator
 
@@ -253,7 +253,8 @@ def media_for_hash(conn: sa.Connection, sha256: str, allowed: ProductionScope):
     asset = sa.select(asset_media.c.locator, asset_media.c.size).select_from(
         asset_media.join(asset_versions).join(assets),
     ).where(asset_media.c.sha256 == sha256, asset_versions.c.state != CANDIDATE,
-            sa.or_(production_asset, sa.and_(assets.c.production_id.is_(None), referenced)))
+            sa.or_(sa.and_(production_asset, assets.c.board_id.is_(None)),
+                   sa.and_(sa.or_(production_asset, assets.c.production_id.is_(None)), referenced)))
     indexed = delivery.union(asset).subquery()
     return conn.execute(sa.select(indexed).order_by(indexed.c.locator)).all()
 
@@ -278,3 +279,76 @@ def build_library(conn: sa.Connection, story: dict, version_ids: Collection[str]
     ))
     documents = [version_document(v, library.asset_of(v.id)) for v in library.versions.values()]
     return Library.from_version_documents([*documents, *(_version(row) for row in rows)])
+
+
+def board_library(conn, library: Library, board_id: str, *kinds: str) -> Library:
+    rows = conn.execute(_joined_versions().where(
+        assets.c.board_id == board_id, assets.c.kind.in_(kinds),
+        asset_versions.c.state != CANDIDATE,
+    ))
+    documents = {v.id: version_document(v, library.asset_of(v.id)) for v in library.versions.values()}
+    for row in rows:
+        doc = _version(row)
+        documents[doc["id"]] = doc
+    return Library.from_version_documents(documents.values())
+
+
+def board_versions(conn, board_id, kind, after, limit):
+    stmt = _joined_versions().where(assets.c.board_id == board_id, assets.c.kind == kind,
+                                    asset_versions.c.state != CANDIDATE)
+    if after is not None:
+        stmt = stmt.where(asset_versions.c.id > after)
+    return [_version(row) for row in conn.execute(stmt.order_by(asset_versions.c.id).limit(limit))]
+
+
+def version_library(conn, *, version_id=None, asset_id=None, source_key=None):
+    stmt = _joined_versions()
+    identities = []
+    if source_key is not None:
+        source = sa.select(asset_sources.c.asset_id).where(asset_sources.c.source_key == source_key)
+        identities.append(assets.c.id.in_(source))
+    if asset_id is not None:
+        identities.append(assets.c.id == asset_id)
+    if identities:
+        stmt = stmt.where(sa.or_(*identities))
+    if version_id is not None:
+        stmt = stmt.where(asset_versions.c.id == version_id)
+    return Library.from_version_documents(_version(row) for row in conn.execute(stmt))
+
+
+def preview_media(conn, version_id: str, sha256: str, allowed: ProductionScope, *, job=None):
+    stmt = sa.select(asset_media.c.locator, asset_media.c.size).select_from(
+        asset_media.join(asset_versions).join(assets),
+    ).where(asset_media.c.version_id == version_id, asset_media.c.sha256 == sha256,
+            _catalog_scope(allowed))
+    if job is not None:
+        stmt = stmt.where(assets.c.production_id.is_not_distinct_from(job["production_id"]))
+    if job is None or job["kind"] != "asset_candidate":
+        stmt = stmt.where(sa.or_(asset_versions.c.state == CANDIDATE,
+                                assets.c.kind.in_(("photo", "board_voice"))))
+    return conn.execute(stmt).all()
+
+
+def promote_version(conn, version_id, by, now):
+    # Serialize on the immutable source ID, including creation of a board photo's
+    # new library version, which uses a derived source key.
+    conn.execute(sa.select(sa.func.pg_advisory_xact_lock(sa.func.hashtextextended(version_id, 430))))
+    library = version_library(conn, version_id=version_id)
+    original = library.get(version_id)
+    if original is None:
+        raise NotFound
+    if original.kind == "photo" and original.state == BOARD:
+        result = version_library(conn, source_key=f"promote:{version_id}")
+        library = Library.build((*library.assets.values(), *result.assets.values()),
+                                (*library.versions.values(), *result.versions.values()))
+    outcome = promote(library, version_id, by=by, now=now)
+    version = outcome.version
+    document = version_document(version, outcome.library.asset_of(version.id))
+    if outcome.created:
+        if version.id == version_id:
+            require_valid(validate_asset_version(document))
+            conn.execute(asset_versions.update().where(asset_versions.c.id == version_id)
+                         .values(state=version.state, document=document))
+        else:
+            record_asset_version(conn, document)
+    return document

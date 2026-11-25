@@ -1,6 +1,6 @@
 # Studio MCP
 
-`studio-mcp` serves the v1 draft tools over stateless MCP Streamable HTTP at
+`studio-mcp` serves the v1 draft, media job and run tools over stateless MCP Streamable HTTP at
 `/mcp`. Each request presents the caller's agent key in
 `Authorization: Bearer <key>`. The server checks the key with `GET /v1/me` and
 forwards the authorization value unchanged to the matching
@@ -42,6 +42,11 @@ as `studio-mcp` version `1.0.0`.
 | `studio_reorder_boards` | `draft:write` | Story summary and resulting revision. Takes the current story revision and every active board ID in the desired order. |
 | `studio_remove_board` | `draft:write` | Board ID, resulting revision and `tombstone: true`. Takes the current board revision. |
 | `studio_search_assets`, `studio_get_asset` | `read` | Visible asset version summaries with their immutable version numbers. Asset detail includes the asset revision. |
+| `studio_generate_voice`, `studio_generate_photo` | `assets:generate` | Compact job status for a saved board. Photo accepts an optional seed. |
+| `studio_upload_photo` | `assets:upload` | Upload result with the version ID, selection flag and resulting board revision. Takes `board_id`, `revision`, `media_type`, `data_base64` and `provenance`. |
+| `studio_get_job` | `read` | Compact voice or photo job status, input signature and result version ID. |
+| `studio_estimate_run`, `studio_list_runs`, `studio_get_run` | `read` | Story estimate and blockers, a page of runs, or run status with progress, stages and checks. |
+| `studio_queue_run`, `studio_cancel_run` | `runs:queue` | Run status and revision. Queue takes the current story revision. Cancel takes the current run revision. |
 | `studio_get_delivery` | `read` | Immutable delivery metadata including hashes, sizes and frame counts. |
 
 Patch replaces each supplied field. For `lines`, `cues` or `notes`, keep
@@ -69,16 +74,22 @@ Ordered board and timing cursors include the story revision and the last board
 ID. When a story changes between pages, restart the read from the first page
 after the revision conflict. Responses carry one compact JSON object in
 `structuredContent` and in a text block for older clients. The tools cap
-arguments at 64 KiB and the encoded result object at 128 KiB. The MCP HTTP
-request cap is 256 KiB and the upstream JSON cap is 8 MiB. Query a smaller
-page or request fewer fields if a read reaches a limit.
+metadata arguments at 64 KiB and the encoded result object at 128 KiB.
+The upload's base64 field represents at most 20 MiB of decoded image bytes.
+The MCP HTTP request cap is the maximum base64 length plus 256 KiB for the
+JSON-RPC envelope and metadata. Upstream JSON responses are capped at 8 MiB.
+Query a smaller page or request fewer fields if a read reaches a limit.
 
-The v1 tool registry covers draft metadata, asset metadata and delivery
-metadata. Media playback remains the authenticated API's job. Generation,
-builds and uploaded photos are part of [OP430](https://work.haynesnetwork.com/work_packages/430).
-The table in section 12 of the [Studio contract](../contracts/studio-contracts-v1.md#12-api-ui-and-mcp-boundaries)
-gives people the go-live and publication operations. It currently defines usage
-as run provenance, with no standalone usage-write operation.
+Supply `idempotency_key` on the generation and run queue tools. Retry with
+the same key and arguments to recover the existing job or run after a lost
+reply. The API returns `idempotency.mismatch` if the request under that key
+changes. Uploads forward the decoded bytes and strict D42 declaration to
+the [API upload](studio-api.md#d42-photo-upload).
+
+People use the API for playback, previews, library candidate generation and
+promotion. The [transport map](studio-operation-parity.md) gives the planned
+and implemented HTTP and MCP operations for the web flows. Usage is part of
+run provenance.
 
 ## Agent key administration
 

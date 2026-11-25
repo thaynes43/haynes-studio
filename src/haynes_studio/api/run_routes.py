@@ -8,7 +8,7 @@ from fastapi import APIRouter, Header, Request, Response
 from haynes_studio.build.prebuild import snapshot_bytes
 from haynes_studio.build.validate import validate_run
 from haynes_studio.canonical.model import to_document
-from haynes_studio.db import catalog, drafts, runs
+from haynes_studio.db import catalog, drafts, jobs, runs
 from haynes_studio.db.engine import snapshot
 from haynes_studio.db.problems import StaleRevision, require_valid
 from haynes_studio.delivery import read_delivery
@@ -17,11 +17,13 @@ from haynes_studio.library.resolve import story_references
 from haynes_studio.queue import inputs
 from haynes_studio.queue.protocol import (
     SHA256, ClaimFence, Heartbeat, JobId, Payload, Progress, Reason, Reservation, WanResult,
-    WorkAttempt, WorkCompletion, WorkFailure, WorkReserve,
+    MediaCompletion, MediaFailure, MediaFence, MediaHeartbeat, WorkAttempt, WorkClaim,
+    WorkCompletion, WorkFailure, WorkReserve,
 )
 from haynes_studio.queue.staging import BuildStageStore, publish_staged_delivery
 from haynes_studio.store import StoreError
 
+from . import media_work
 from .auth import WorkerRoute
 from .errors import APIError, ERROR_RESPONSES, forbidden
 from .models import Document, Page, TransportModel
@@ -77,14 +79,16 @@ def transport_models():
     return (
         RunView, Page[RunView], QueueWait, EstimateRange, MethodEstimate, EstimateView,
         CheckOverride, CheckOverrideView, ClaimFence, Progress, Heartbeat, Reservation,
-        WanResult, WorkReserve, WorkAttempt, WorkCompletion, WorkFailure,
+        WanResult, WorkReserve, WorkAttempt, WorkCompletion, WorkFailure, WorkClaim,
+        MediaFence, MediaHeartbeat, MediaCompletion, MediaFailure,
     )
 
 
 def _prepare(conn, draft):
     story = draft.exchange()
     refs = {item.version_id for item in story_references(story)}
-    return inputs.prepare_queue(story, catalog.build_library(conn, story, refs))
+    return inputs.prepare_queue(story, catalog.build_library(conn, story, refs),
+                                jobs=jobs.active_for_story(conn, story["id"]))
 
 
 def _read_view(conn, row, *, detail=True, worker_present=None):
@@ -226,14 +230,19 @@ def worker_router():
                        include_in_schema=False)
 
     @router.post("/claim", operation_id="claim_work")
-    def claim_work(request: Request):
+    def claim_work(request: Request, body: WorkClaim | None = None):
+        lane = "run" if body is None else body.lane
+        worker_id = request.state.principal.worker_id
         with request.app.state.engine.begin() as conn:
-            claim = runs.claim(conn, request.state.principal.worker_id)
+            claim = runs.claim(conn, worker_id) if lane == "run" else media_work.claim(conn, worker_id, lane)
         return claim if claim is not None else Response(status_code=204)
 
     @router.post("/heartbeat", operation_id="heartbeat_work")
-    def heartbeat_work(body: Heartbeat, request: Request):
+    def heartbeat_work(body: Heartbeat | MediaHeartbeat, request: Request):
         with request.app.state.engine.begin() as conn:
+            if isinstance(body, MediaHeartbeat):
+                row, now = media_work.lock(conn, request, body)
+                return jobs.heartbeat(conn, row, now)
             row, now = _lock(conn, request, body)
             return runs.heartbeat(conn, row, now, body.progress.model_dump() if body.progress else None)
 
@@ -262,14 +271,21 @@ def worker_router():
                                           body.result.model_dump() if body.result else None))
 
     @router.post("/publish", status_code=204, operation_id="publish_work")
-    def publish_work(body: ClaimFence, request: Request):
+    def publish_work(body: ClaimFence | MediaFence, request: Request):
         with request.app.state.engine.begin() as conn:
-            row, _ = _lock(conn, request, body)
-            runs.publish(conn, row)
+            if isinstance(body, MediaFence):
+                row, now = media_work.lock(conn, request, body)
+                jobs.dispatch(conn, row, now)
+            else:
+                row, _ = _lock(conn, request, body)
+                runs.publish(conn, row)
         return Response(status_code=204)
 
     @router.post("/complete", operation_id="complete_work")
-    def complete_work(body: WorkCompletion, request: Request):
+    def complete_work(body: WorkCompletion | MediaCompletion, request: Request):
+        if isinstance(body, MediaCompletion):
+            with request.app.state.engine.begin() as conn:
+                return media_work.complete(conn, request, body)
         actor = to_document(request.state.principal)
         if any(check.get("result") == "fail" for check in body.checks):
             raise APIError(422, "work.check_failed", "A successful run cannot have a failed delivery check")
@@ -284,7 +300,10 @@ def worker_router():
             return runs.view(conn, row, detail=False)
 
     @router.post("/fail", operation_id="fail_work")
-    def fail_work(body: WorkFailure, request: Request):
+    def fail_work(body: WorkFailure | MediaFailure, request: Request):
+        if isinstance(body, MediaFailure):
+            with request.app.state.engine.begin() as conn:
+                return media_work.finish_failure(conn, request, body)
         if (body.status == "queued") != (body.wait_reason is not None):
             raise APIError(422, "work.wait_reason", "A queued run requires a wait reason")
         if body.wan_job_id is not None and body.status not in ("failed", "cancelled"):

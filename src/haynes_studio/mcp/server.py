@@ -24,13 +24,14 @@ from haynes_studio.agent_tokens import AGENT_TOKEN_PATTERN
 from haynes_studio.canonical.jsonvalues import too_deep
 from haynes_studio.errors import pointer
 
+from .arguments import MAX_UPLOAD_BASE64, UploadPhoto
 from .tools import OPERATIONS
 from .upstream import Problem, StudioAPI, auth_required, json_text
 
 VERSION = "1.0.0"
 MAX_ARGUMENT_BYTES = 64 * 1024
 MAX_RESULT_BYTES = 128 * 1024
-MAX_REQUEST_BYTES = 256 * 1024
+MAX_REQUEST_BYTES = MAX_UPLOAD_BASE64 + 256 * 1024
 LOCAL_HOSTS = ("127.0.0.1", "127.0.0.1:*", "localhost", "localhost:*", "[::1]", "[::1]:*")
 _BEARER = re.compile(rf"(?i:Bearer) {AGENT_TOKEN_PATTERN}")
 _DNS_LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
@@ -48,8 +49,12 @@ def _tool_result(document: dict, *, error: bool = False) -> CallToolResult:
 def _validate_arguments(model, values):
     if too_deep(values):
         raise Problem(422, "schema.invalid", "Tool arguments may nest to 64 levels")
+    # The raw media field is independently bounded by the upload schema. The
+    # regular metadata budget still applies to the rest of the request.
+    metadata = ({key: value for key, value in values.items() if key != "data_base64"}
+                if model is UploadPhoto and isinstance(values, dict) else values)
     try:
-        size = len(json_text(values).encode("utf-8"))
+        size = len(json_text(metadata).encode("utf-8"))
     except (UnicodeError, ValueError, OverflowError):
         raise Problem(422, "schema.invalid", "Expected strict UTF-8 JSON arguments") from None
     if size > MAX_ARGUMENT_BYTES:

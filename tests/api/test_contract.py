@@ -29,7 +29,18 @@ def test_openapi_has_resolved_canonical_shapes_errors_and_security():
     assert schemas["StoryCreate"]["required"] == ["title"]
     assert "id" not in schemas["NoteInput"]["required"]
     assert "/internal/v1/work/claim" not in document["paths"]
-    assert "/v1/boards/{id}/photo-versions" not in document["paths"]
+    upload = document["paths"]["/v1/boards/{id}/photo-versions"]["post"]
+    assert set(upload["requestBody"]["content"]) == {"image/png", "image/jpeg", "image/webp"}
+    assert upload["security"] == [{"StudioBearer": []}]
+    assert upload["x-studio-scope"] == "assets:upload"
+    assert {header["name"] for header in upload["parameters"] if header["in"] == "header"} == {
+        "If-Match", "X-Studio-Photo-Provenance",
+    }
+    assert document["paths"]["/v1/jobs/{id}/result"]["get"]["security"] == [{"StudioSession": []}]
+    assert document["paths"]["/v1/jobs/{id}/media/{sha256}"]["head"]["x-studio-scope"] == "human"
+    generation = document["paths"]["/v1/boards/{id}/photo-jobs"]["post"]
+    assert generation["x-studio-scope"] == "assets:generate"
+    assert "Location" in generation["responses"]["202"]["headers"]
     assert schemas["RunView"]["properties"]["queue_wait"]["anyOf"][0]["$ref"].endswith("/QueueWait")
     assert document["paths"]["/v1/stories/{id}/runs"]["post"]["x-studio-scope"] == "runs:queue"
     assert document["paths"]["/v1/runs/{id}"]["get"]["x-studio-scope"] == "read"
@@ -96,7 +107,8 @@ def test_unsatisfiable_range(value, size):
 
 
 def test_external_photo_declaration_does_not_accept_server_claims():
-    fields = {"model": "example model", "prompt": "Example prompt", "session": "s", "harness": "h"}
+    fields = {"model": "example model", "prompt": "Example prompt", "session": "s", "harness": "h",
+              "paid_api": False, "source_asset_version_ids": []}
     assert ExternalPhotoDeclaration.model_validate(fields).source_asset_version_ids == []
     with pytest.raises(ValueError, match="Extra inputs"):
         ExternalPhotoDeclaration.model_validate({**fields, "externally_generated": True})

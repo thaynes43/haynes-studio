@@ -18,11 +18,11 @@ from starlette.exceptions import HTTPException
 from haynes_studio.db import runs
 from haynes_studio.db.engine import connect_engine
 from haynes_studio.db.problems import NotFound, StaleRevision
-from haynes_studio.db.schema import run_lane, sessions
+from haynes_studio.db.schema import media_job_lanes, run_lane, sessions
 from haynes_studio.errors import ContractError, pointer
 from haynes_studio.store.local import LocalStore
 
-from . import auth, media, routes, run_routes
+from . import auth, job_routes, media, routes, run_routes
 from .config import DEFAULT_STORE_FRESHNESS_SECONDS, from_environment, store_freshness_from_environment
 from .errors import APIError, ErrorDetail, ErrorEnvelope, STATUS, error_response, missing
 from .models import build_models
@@ -94,8 +94,9 @@ def _errors(app: FastAPI):
     @app.exception_handler(ContractError)
     async def invalid_document(request: Request, error: ContractError):
         first = error.violations[0]
-        status = "unavailable" if first.status == "unavailable" else "invalid"
-        return await api_error(request, APIError(422, first.rule, first.message,
+        code = {"too_large": 413, "conflict": 409, "forbidden": 403}.get(first.status, 422)
+        status = first.status if first.status in ("unavailable", "too_large", "conflict", "forbidden") else "invalid"
+        return await api_error(request, APIError(code, first.rule, first.message,
                                                  path=first.path, status=status))
 
     @app.exception_handler(StaleRevision)
@@ -108,7 +109,7 @@ def _errors(app: FastAPI):
     @app.exception_handler(runs.IdempotencyMismatch)
     async def idempotency_mismatch(request: Request, error: runs.IdempotencyMismatch):
         return await api_error(request, APIError(422, "idempotency.mismatch",
-                                                 "This key already queued a different story revision"))
+                                                 "This key already queued a different request"))
 
     @app.exception_handler(runs.QueueConflict)
     async def queue_conflict(request: Request, error: runs.QueueConflict):
@@ -143,7 +144,7 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
     _errors(app)
     app.add_middleware(RequestContextMiddleware)
 
-    build_models(*run_routes.transport_models())
+    build_models(*run_routes.transport_models(), *job_routes.transport_models())
     for model in (ErrorDetail, ErrorEnvelope):
         model.model_config["defer_build"] = False
         model.model_rebuild()
@@ -153,6 +154,7 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
     app.include_router(routes.build_router(current_actor, authenticated_route))
     app.include_router(media.build_router(current_actor, authenticated_route))
     app.include_router(run_routes.build_router(current_actor, authenticated_route))
+    app.include_router(job_routes.build_router(current_actor, authenticated_route))
     app.include_router(run_routes.worker_router())
 
     @app.get("/healthz", status_code=204, response_class=Response, operation_id="healthz")
@@ -166,6 +168,7 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
             with engine.connect() as conn:
                 conn.execute(sa.select(sa.literal(1)).select_from(sessions).limit(0))
                 conn.execute(sa.select(run_lane.c.id).limit(0))
+                conn.execute(sa.select(media_job_lanes.c.lane).limit(0))
         except (SQLAlchemyError, OSError):
             return False
         return True

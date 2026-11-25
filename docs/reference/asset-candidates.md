@@ -54,18 +54,17 @@ version ID to `photo.input_asset_version_ids` and pass the draft to `plan_photo`
 
 ## API and UI integration
 
-- The API persists the frozen request with `studio.job/v1` kind `asset_candidate`.
-  Use the reserved asset ID as `target_id` and the plan signature as `input_signature`.
-  Rebuild the plan from the saved input and verify the signature before rendering.
-  Keep the HTTP idempotency reservation and serialize by job ID across workers.
-  If the blob published before a metadata commit failed, retry with the same
-  prepared output. Reconcile unknown ComfyUI work before any submission retry.
-- Require a human with access to the generation scope for generation and promotion.
-  Authorize previews through the private job, its result and the reader's scope
-  before granting media access. Use normal library search for pickers and validate
-  new board reference writes against eligible versions in scope.
-  The library query's `include_candidates=True` option is for authorized private
-  result views. [API story 430](https://work.haynesnetwork.com/work_packages/430)
+- The API reserves the asset ID and saves the plan signature and frozen request
+  as a `studio.job/v1` candidate job. The worker checks for an existing result
+  before submitting. The fenced completion writes the asset, version and job
+  outcome together. If a dispatched claim expires, its job fails and the
+  shared image lane checks for outstanding ComfyUI work before a new submission.
+  [Worker protocol](media-jobs.md#claims-and-results)
+- Signed-in people generate and promote candidates using the
+  [media operations](studio-api.md#media-operations). Read the result version
+  metadata before previewing its content through the
+  [private playback routes](studio-api.md#private-playback). Normal library
+  search and board pickers use eligible versions in scope.
 - The UI polls the job for the preview ID and shows Promote as an explicit action.
   Decline or Generate again can leave the prior preview private. Use the returned
   promoted version ID when adding the still to a board. Show the capabilities and
