@@ -21,7 +21,9 @@ from haynes_studio.library.winter_menu import LicenceRegister
 from haynes_studio.matting.pixels import MAX_SOURCE_BYTES, decode_source
 from haynes_studio.matting.profile import PROFILE_ID, MatteError
 from haynes_studio.model_register import load_model_register
-from haynes_studio.store import HASH_MISMATCH, LIBRARY, PRESENT, Blob, Store, StoreError, canonical_json
+from haynes_studio.store import (
+    COLLISION, HASH_MISMATCH, LIBRARY, MISSING, PRESENT, Blob, Store, StoreError, canonical_json,
+)
 
 PNG = "image/png"
 JSON = "application/json"
@@ -85,7 +87,7 @@ def _stable_id(prefix: str, key: str) -> str:
     return f"{prefix}_{ulid(bits >> 80, bits % (1 << 80))}"
 
 
-def _existing(library: Library, store: Store, key: str, asset_id: str, version_id: str) -> Outcome | None:
+def _existing(library: Library, key: str, asset_id: str, version_id: str) -> AssetVersion | None:
     asset = library.by_source_key(key)
     if asset is None:
         return None
@@ -94,16 +96,26 @@ def _existing(library: Library, store: Store, key: str, asset_id: str, version_i
             or version.source_key != key or version.state not in (CANDIDATE, PROMOTED)
             or version.origin != "derived" or set(version.capabilities) != {"rgba_cutout", "mask"}):
         raise failure(IDEMPOTENCY_MISMATCH, "This matting input already has a different candidate")
-    params = (version.provenance.get("generator") or {}).get("params", {})
+    return version
+
+
+def _recorded_outputs(version: AssetVersion, store: Store) -> tuple[tuple[Content, ...], tuple[Content, ...]]:
     try:
+        params = version.provenance["generator"]["params"]
         outputs = (version.content, Content.from_document(params.get("mask")),
                    Content.from_document(params.get("receipt_blob")))
     except (KeyError, TypeError):
         raise failure(IDEMPOTENCY_MISMATCH, "The recorded matte has an invalid descriptor") from None
+    missing = []
     for descriptor in outputs:
-        if descriptor is None or store.verify(descriptor.locator, descriptor.sha256) != PRESENT:
-            raise failure(HASH_MISMATCH, "A recorded matte artifact is missing or differs from its pin")
-    return Outcome(library, version, created=False)
+        if descriptor is None:
+            raise failure(IDEMPOTENCY_MISMATCH, "The recorded matte has an invalid descriptor")
+        state = store.verify(descriptor.locator, descriptor.sha256)
+        if state == MISSING:
+            missing.append(descriptor)
+        elif state != PRESENT:
+            raise failure(HASH_MISMATCH, "A stored matte artifact differs from its pin")
+    return outputs, tuple(missing)
 
 
 def _publish(store: Store, data: bytes, content: Content, scope: str) -> None:
@@ -143,8 +155,17 @@ def _make_candidate(
     key = "matting:" + sha256(canonical_json({"input": identity, "target": target.document()})).hexdigest()
     asset_id, version_id = _stable_id("ast", key), _stable_id("asv", key)
     check_fence()
-    if existing := _existing(library, store, key, asset_id, version_id):
-        return existing
+    existing = _existing(library, key, asset_id, version_id)
+    if existing is not None:
+        recorded, missing = _recorded_outputs(existing, store)
+        if not missing:
+            return Outcome(library, existing, created=False)
+        # The receipt is job-specific. Replay its original request so even a
+        # missing receipt blob can be restored without changing provenance.
+        try:
+            job_id = existing.provenance["generator"]["params"]["receipt"]["job_id"]
+        except (KeyError, TypeError):
+            raise failure(IDEMPOTENCY_MISMATCH, "The recorded matte has an invalid receipt") from None
 
     request = {"schema": "studio.matte-request/v1", "job_id": job_id, **identity}
     receipt, artifacts = client.run(request, data, check_fence=check_fence)
@@ -156,6 +177,26 @@ def _make_candidate(
     mask = _content(artifacts["mask"], PNG, production, width=canvas[0], height=canvas[1])
     receipt_bytes = canonical_json(receipt)
     receipt_blob = _content(receipt_bytes, JSON, production)
+    outputs = ((artifacts["cutout"], cutout), (artifacts["mask"], mask), (receipt_bytes, receipt_blob))
+    if existing is not None:
+        if (cutout, mask, receipt_blob) != recorded:
+            raise failure(HASH_MISMATCH, "The rebuilt matte differs from its recorded hashes or descriptors")
+        for payload, descriptor in outputs:
+            verified_store = store
+            if descriptor in missing:
+                check_fence()
+                try:
+                    _publish(output_store, payload, descriptor, production or LIBRARY)
+                except StoreError as error:
+                    if error.code != COLLISION:
+                        raise
+                    raise failure(HASH_MISMATCH, "A stored matte artifact differs from its pin") from None
+                verified_store = output_store
+            if verified_store.verify(descriptor.locator, descriptor.sha256) != PRESENT:
+                raise failure(HASH_MISMATCH, "A recorded matte artifact could not be verified")
+        check_fence()
+        return Outcome(library, existing, created=False)
+
     try:
         licences = LicenceRegister.from_document(load_model_register()["proposals"]["matting"])
     except (KeyError, TypeError, ValueError):
@@ -176,8 +217,7 @@ def _make_candidate(
         }},
         licence=licences.licence_for("composite", PROFILE_ID),
     ), by=by, now=now)
-    for payload, artifact in ((artifacts["cutout"], cutout), (artifacts["mask"], mask),
-                              (receipt_bytes, receipt_blob)):
+    for payload, artifact in outputs:
         check_fence()
         _publish(output_store, payload, artifact, production or LIBRARY)
     check_fence()

@@ -1,8 +1,10 @@
 """Run the Studio claim adapter against the pinned service with synthetic inference."""
 
 import multiprocessing
+import os
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
+from fcntl import LOCK_EX, flock
 from functools import partial
 from hashlib import sha256
 from io import BytesIO
@@ -22,7 +24,7 @@ from haynes_studio.canonical.model import to_document
 from haynes_studio.errors import ContractError
 from haynes_studio.formats.recipe import recipe_hash, validate_recipe
 from haynes_studio.layered import compose
-from haynes_studio.layered.errors import LAYOUT_INVALID, LayeredError
+from haynes_studio.layered.errors import CLIP_INVALID, LAYOUT_INVALID, LayeredError
 from haynes_studio.layered.photo import _place_still
 from haynes_studio.library import EMPTY, Content, Library, Scope, VersionRequest, import_version, promote
 from haynes_studio.library.model import CANDIDATE, Licence
@@ -175,6 +177,47 @@ def test_verified_edges_green_eyes_and_size_match_with_deterministic_candidates(
     assert list(client.scratch.iterdir()) == []
 
 
+@pytest.mark.parametrize("present_with_wrong_bytes", [False, True])
+def test_recorded_matte_repairs_missing_blobs_and_refuses_corruption(world, monkeypatch, present_with_wrong_bytes):
+    store, weights, client, _ = world
+    original = source(store, np.full((256, 256, 3), 33, dtype=np.uint8))
+    requests = []
+    dispatch = client.run
+
+    def record_dispatch(request, *args, **kwargs):
+        requests.append(request["job_id"])
+        return dispatch(request, *args, **kwargs)
+
+    monkeypatch.setattr(client, "run", record_dispatch)
+    with Engine(client.scratch, weights, PROFILE, factory=load_fake) as engine:
+        with listening(client.socket, engine):
+            result, failures = run(world, original)
+            assert not failures
+            outputs = (to_document(result.version.content), params(result)["mask"], params(result)["receipt_blob"])
+            paths = [Path(store.root) / output["locator"] for output in outputs]
+            original_bytes = [path.read_bytes() for path in paths]
+            if present_with_wrong_bytes:
+                paths[0].unlink()
+                paths[1].unlink()
+                paths[1].write_bytes(b"present, but corrupted")
+                paths[1].chmod(0o444)
+            else:
+                for path in paths:
+                    path.unlink()
+            replay, failures = run(world, original, library=result.library, job_id=OTHER_JOB)
+    if present_with_wrong_bytes:
+        assert replay is None
+        assert [issue["code"] for issue in failures] == ["store.hash_mismatch"]
+        assert requests == [JOB_ID]
+        assert not paths[0].exists()
+        assert paths[1].read_bytes() == b"present, but corrupted"
+    else:
+        assert not failures
+        assert requests == [JOB_ID, JOB_ID]
+        assert not replay.created and replay.version is result.version
+        assert [path.read_bytes() for path in paths] == original_bytes
+
+
 @pytest.mark.parametrize(("value", "factory", "code"), [
     (55, load_fake, "adapter.command_failed"),
     (56, load_fake, "adapter.response_invalid"),
@@ -276,12 +319,91 @@ def test_hard_timeout_is_recorded_without_replaying(world):
     store, weights, client, _ = world
     original = source(store, np.full((256, 256, 3), 77, dtype=np.uint8))
     started = multiprocessing.get_context("spawn").Event()
-    client.pause = lambda _: pytest.fail("Timeout must not dispatch a retry")
+    mocked_call = client._call
+    requests = []
+
+    def record_call(method, route, *args, **kwargs):
+        if method == "POST":
+            requests.append(route)
+        return mocked_call(method, route, *args, **kwargs)
+
+    client._call = record_call
     with Engine(client.scratch, weights, PROFILE, factory=partial(load_blocking_matte, started=started),
                 request_seconds=1) as engine:
         with listening(client.socket, engine):
             assert_failed(world, original, "adapter.timeout")
     assert started.is_set()
+    assert requests == ["/v1/matte"]
+    assert list(client.scratch.iterdir()) == []
+
+
+def test_client_timeout_waits_for_late_writes_before_cleaning(world, monkeypatch):
+    store, weights, client, _ = world
+    original = source(store, np.full((160, 160, 3), 77, dtype=np.uint8))
+    context = multiprocessing.get_context("spawn")
+    entered, resume = context.Event(), context.Event()
+    completed = Event()
+    client.timeout = 1
+    factory = partial(load_waiting_matte, entered=entered, resume=resume)
+    with Engine(client.scratch, weights, PROFILE, factory=factory) as engine:
+        run_backend = engine.run
+
+        def signal_result(payload):
+            result = run_backend(payload)
+            completed.set()
+            return result
+
+        def wait_for_quiescence(seconds):
+            assert seconds == matting.POST_QUIESCENCE_SECONDS
+            assert entered.is_set()
+            # The ready endpoint is already green while this request owns the files.
+            client.ready()
+            (attempt,) = [path for path in client.scratch.iterdir() if path.is_dir()]
+            assert (attempt / "input").is_file()
+            resume.set()
+            assert completed.wait(5)
+            assert (attempt / "cutout.png").is_file()
+            assert (attempt / "mask.png").is_file()
+
+        client.pause = wait_for_quiescence
+        monkeypatch.setattr(engine, "run", signal_result)
+        with listening(client.socket, engine):
+            assert_failed(world, original, "adapter.timeout")
+    assert list(client.scratch.iterdir()) == []
+
+
+def test_next_dispatch_sweeps_older_adapter_attempts_only(world, monkeypatch):
+    store, weights, client, _ = world
+    original = source(store, np.full((256, 256, 3), 33, dtype=np.uint8))
+    attempt_id = "a" * 32
+    marker = client.scratch / f".studio-matting-{attempt_id}"
+    marker.touch()
+    os.utime(marker, (1, 1))
+    abandoned = client.scratch / attempt_id
+    abandoned.mkdir()
+    (abandoned / "cutout.png").touch()
+    unrelated = client.scratch / ("b" * 32)
+    unrelated.mkdir()
+    active = client.scratch / ("c" * 32)
+    active.mkdir()
+    active_marker = client.scratch / f".studio-matting-{active.name}"
+    real_call = client._call
+
+    def check_sweep(method, *args, **kwargs):
+        if method == "POST":
+            assert unrelated.is_dir()
+            assert active.is_dir()
+            assert not abandoned.exists() and not marker.exists()
+        return real_call(method, *args, **kwargs)
+
+    monkeypatch.setattr(client, "_call", check_sweep)
+    with Engine(client.scratch, weights, PROFILE, factory=load_fake) as engine:
+        with listening(client.socket, engine), active_marker.open("xb") as owner:
+            flock(owner, LOCK_EX)
+            os.utime(owner.fileno(), (1, 1))
+            result, failures = run(world, original)
+    assert not failures and result.created
+    assert set(client.scratch.iterdir()) == {unrelated, active, active_marker}
 
 
 def test_busy_retry_budget_ends_without_publication(world, monkeypatch):
@@ -354,6 +476,10 @@ def test_layered_photo_places_only_a_manually_promoted_matte_at_the_recipe_heigh
     with pytest.raises(ContractError, match="ref.unpromoted"):
         plan_photo(story, board, plate.library)
     promoted = promote(plate.library, result.version.id, by=BY, now=NOW)
+    with pytest.raises(ContractError, match="matting.slot_mismatch"):
+        plan_photo(replace(story, format_version_id="fmv_00000000000000000000000002"), board, promoted.library)
+    with pytest.raises(ContractError, match="matting.slot_mismatch"):
+        plan_photo(story, replace(board, cast=(replace(board.cast[0], slot="b"),)), promoted.library)
     plan = plan_photo(story, board, promoted.library)
     assert plan.layers.document()["matte_sizes"]["a"]["target_height_px"] == TARGET
 
@@ -387,5 +513,38 @@ def test_layered_placement_checks_the_full_sprite_including_its_fractional_fring
     measured = measure_shape(alpha, 120)
     compose.place((90, 120), slot, frame_width, "a")
     with pytest.raises(LayeredError) as refused:
-        _place_still(cutout, slot, "a", frame_width, {"target_height_px": 120, "shape": measured})
+        _place_still(cutout, slot, "a", frame_width, 1080, {"target_height_px": 120, "shape": measured})
     assert refused.value.code == LAYOUT_INVALID
+
+
+@pytest.mark.parametrize(("box", "target"), [
+    ((20, 20, 80, 100), 321),
+    ((100, 20, 160, 100), 100),
+    ((20, 80, 80, 160), 100),
+])
+def test_matte_size_refuses_excess_upscale_and_trailing_edges(box, target):
+    with pytest.raises(matting.AdapterError) as refused:
+        MatteSize.measured({"bbox_xyxy": box, "foreground_area_px": 4800}, (160, 160), target)
+    assert refused.value.code == SHAPE_INVALID
+
+
+@pytest.mark.parametrize(("case", "code", "message"), [
+    ("changed_measurement", CLIP_INVALID, "differs from its pinned measurement"),
+    ("crop", LAYOUT_INVALID, "cannot use a layout crop"),
+    ("too_tall", "matting.target_exceeds_frame", "target height 1200 px exceeds frame height 1080 px"),
+])
+def test_layered_placement_refuses_incompatible_matte(case, code, message):
+    alpha = np.zeros((400, 200), dtype=np.uint8)
+    alpha[20:380, 50:150] = 255
+    rgba = np.zeros((400, 200, 4), dtype=np.uint8)
+    rgba[..., 3] = alpha
+    cutout = Image.fromarray(rgba)
+    target = 1200 if case == "too_tall" else 360
+    measured = measure_shape(alpha, target)
+    if case == "changed_measurement":
+        measured["foreground_area_px"] -= 1
+    crop = (0, 0, 200, 400) if case == "crop" else None
+    slot = compose.Slot(height=360, bottom=1080, x=0.5, crop=crop)
+    with pytest.raises(LayeredError, match=message) as refused:
+        _place_still(cutout, slot, "a", 1920, 1080, {"target_height_px": target, "shape": measured})
+    assert refused.value.code == code

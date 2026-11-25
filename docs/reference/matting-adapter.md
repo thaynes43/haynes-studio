@@ -8,8 +8,14 @@ The source version and its capabilities stay immutable.
 
 ## Job and candidate
 
-Call `haynes_studio.assets.matte.run_matte_job` with an authorized job ID,
-scope, pinned source version and pinned format recipe version. The
+Nothing in the product calls `haynes_studio.assets.matte.run_matte_job` yet.
+Job kind, route, lane and worker wiring belong to a separate story with
+sidecar activation and a deployment pin. The function itself checks that
+the source is a library-level asset in the job's production scope and that
+its pinned version has the `opaque_photo` capability.
+
+The function takes an authorized job ID, scope, pinned source version and
+pinned format recipe version. The
 [service profile](matting-backend-profile.md#artifact-contract-for-story-451)
 defines the request, supported source media and response. The caller uses
 the job's own scope for both read and write. Cast, costume and prop keep
@@ -29,7 +35,11 @@ its build SHA, from the release record. It validates the frozen request and
 uses the backend's verifier to check every artifact, the response and the
 receipt's measured alpha geometry. A valid busy reply waits 5 s before
 another attempt, up to seven waits. Each dispatch uses a fresh attempt
-directory. A timeout or ambiguous response ends the job.
+directory. A timeout or ambiguous response ends the job. After a client
+timeout, the adapter allows the backend's request deadline to pass and
+waits for the pinned readiness response before removing its scratch files.
+The wait is bounded. Before dispatch, the adapter also clears its expired,
+unlocked scratch attempts from earlier runs.
 
 Publish the verified straight RGBA8 cutout, L8 mask and canonical receipt
 create-only by hash, in the source scope. The API or job owner commits the
@@ -44,9 +54,12 @@ The `matting:` source key and candidate asset/version IDs derive from the
 pinned source descriptor, backend profile hash, optional chroma colour and
 the format/slot normalization record. They exclude the job and scratch
 attempt IDs. A replay in the same library verifies the three committed blobs
-and returns the existing version and receipt. The first receipt carries its
-actual job ID and full request signature. In independent dispatches, the PNGs
-and candidate IDs match. Receipt signatures track their individual job IDs.
+and returns the existing version and receipt. If media is missing, the
+adapter replays the original job ID, checks all regenerated descriptors against
+the recorded pins and recreates the missing blobs create-only. Different
+bytes at a recorded locator fail with `store.hash_mismatch`. Independent
+dispatches keep the same PNGs and candidate IDs. Each dispatch's receipt
+signature includes its job ID.
 
 The derived candidate has capabilities `rgba_cutout` and `mask`. Its
 `content` is the cutout. Its `provenance.generator` has role `composite`,
@@ -77,7 +90,9 @@ and measurement. Placement centers the silhouette at the layout slot's
 horizontal center and aligns its bottom to the slot. The recipe gives the
 figure height. Placement trims fully transparent padding and resizes once,
 keeping the fractional-alpha support beyond the measured silhouette. A
-slot crop conflicts with the measured silhouette and fails. Motion clips
+slot crop conflicts with the measured silhouette and fails. A recipe
+target taller than the frame fails with `matting.target_exceeds_frame`
+and reports both heights. Motion clips
 keep their separate, timed `keyed_layer` path.
 
 ## Evidence

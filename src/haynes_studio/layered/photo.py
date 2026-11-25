@@ -112,13 +112,16 @@ def _image(data: bytes, what: str) -> PIL.Image.Image:
         raise LayeredError(CLIP_INVALID, f"{what} does not decode: {type(error).__name__}") from error
 
 
-def _place_still(cutout, slot, slot_name, frame_width, matte):
+def _place_still(cutout, slot, slot_name, frame_width, frame_height, matte):
     if matte is None:
         art = compose.sprite(cutout, slot)
         return art, compose.place(art.size, slot, frame_width, slot_name)
     if slot.crop is not None:
         raise LayeredError(LAYOUT_INVALID, "A size-matched cast still cannot use a layout crop")
     target = matte["target_height_px"]
+    if target > frame_height:
+        raise LayeredError("matting.target_exceeds_frame",
+                           f"Slot {slot_name!r} target height {target} px exceeds frame height {frame_height} px")
     try:
         measured = measure_shape(np.asarray(cutout.getchannel("A")), target)
         if measured != thaw(matte["shape"]):
@@ -147,7 +150,7 @@ def compose_photo(inputs: PhotoInputs, read: Callable[[str], BinaryIO]) -> bytes
             raise LayeredError(UNSUPPORTED, f"slot {slot_name}'s still has no transparent pixel; a "
                                "layered cast still is an RGBA cutout")
         slot = compose.slot_of(layout, slot_name)
-        art, where = _place_still(cutout, slot, slot_name, width, matte)
+        art, where = _place_still(cutout, slot, slot_name, width, height, matte)
         plate = compose.plate(art, where, width, height)
         compose.draw(frame, plate, compose.shadow(plate), where.pivot, 0, 0, 0)
     if inputs.foreground is not None:
