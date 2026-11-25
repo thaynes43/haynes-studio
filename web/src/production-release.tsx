@@ -75,6 +75,10 @@ function PackageDetails({ item, runPath, busy, record }: {
   const [location, setLocation] = useState("");
   const [localTime, setLocalTime] = useState("");
   const canSignIn = !item.record_publication.allowed && item.record_publication.code === "approval.sign_in_again";
+  const releasable = item.state === "releasable";
+  const heldReason = item.held_reason === "release.approval_required"
+    ? "The exact run and master need an active go-live approval."
+    : approvalRefusal(item.held_reason ?? undefined) ?? "The release checks need review.";
 
   function send(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -82,24 +86,26 @@ function PackageDetails({ item, runPath, busy, record }: {
   }
 
   return <>
-    <p role="status">{item.state === "held"
-      ? "Package ready, release held. The exact run and master need an active go-live approval."
-      : "Releasable. The exact run and master have an active go-live approval."}</p>
+    <p role="status">{releasable
+      ? "Releasable. The exact run and master have an active go-live approval."
+      : `Package ready, release held. ${heldReason}`}</p>
+    {item.evidence_status === "stale" && <p className="muted">The package is stale. Prepare it again after resolving the check above.</p>}
+    {item.evidence_status === "older" && <p className="muted">The package contains older release evidence.</p>}
     {value.target.account_id && <p className="muted">Target account {value.target.account_id}</p>}
     {value.target.owner_note && <p className="muted">{value.target.owner_note}</p>}
     <CheckEvidence value={value} />
     <section aria-label="Release description">
       <h4>Release description</h4>
       <p className="review-description">{value.description}</p>
-      <CopyButton label="Copy description" value={value.description} />
+      {releasable && <CopyButton label="Copy description" value={value.description} />}
     </section>
     <section aria-label="Platform checklist">
       <h4>Platform checklist</h4>
       <ul>{value.checklist.map((step) => <li key={step}>{step}</li>)}</ul>
-      <CopyButton label="Copy checklist" value={value.checklist.map((step) => `- ${step}`).join("\n")} />
+      {releasable && <CopyButton label="Copy checklist" value={value.checklist.map((step) => `- ${step}`).join("\n")} />}
     </section>
-    <p><a className="pill" href={`/v1/media/${value.master.sha256}`}
-      download={`${value.run_id}.mp4`}>Download master</a> <span className="muted">{value.master.bytes.toLocaleString()} bytes</span></p>
+    {releasable && <p><a className="pill" href={`/v1/media/${value.master.sha256}`}
+      download={`${value.run_id}.mp4`}>Download master</a> <span className="muted">{value.master.bytes.toLocaleString()} bytes</span></p>}
     {publication && <div>
       <h4>Publication recorded</h4>
       <p>{publication.location}</p>
@@ -107,14 +113,14 @@ function PackageDetails({ item, runPath, busy, record }: {
         <ReviewTime value={publication.recorded_at} /></p>
       {publication.published_at && <p>Published <ReviewTime value={publication.published_at} /></p>}
     </div>}
-    {!publication && item.state === "releasable" && (item.record_publication.allowed
+    {!publication && releasable && (item.record_publication.allowed
       ? <form className="release-form" onSubmit={send}>
         <label>Public location
           <input value={location} onChange={(event) => setLocation(event.target.value)}
             required maxLength={2048} disabled={busy} />
         </label>
         <label>Publication time (optional)
-          <input type="datetime-local" value={localTime} onChange={(event) => setLocalTime(event.target.value)}
+          <input type="datetime-local" step="1" value={localTime} onChange={(event) => setLocalTime(event.target.value)}
             disabled={busy} />
         </label>
         <button className="pill" disabled={busy || !location.trim()}>Record publication</button>
@@ -139,12 +145,14 @@ export function ReleasePackages({ api, id, runPath, approvalChange, onPublicatio
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const request = useRef<AbortController | null>(null);
+  const publicationPress = useRef<{ input: string; key: string } | null>(null);
   useEffect(() => () => request.current?.abort(), []);
 
   const current = result.status === "success" ? result.data : undefined;
   const selected = current?.targets.find(({ id }) => id === target);
   const visible = selected ?? current?.targets.find(({ id }) => id === current.items[0]?.package.target.id);
   const item = current?.items.find(({ package: value }) => value.target.id === visible?.id);
+  const canPrepare = !item || item.evidence_status !== "current";
 
   async function write(action: (signal: AbortSignal) => Promise<unknown>,
                        after?: (signal: AbortSignal) => Promise<void>) {
@@ -175,9 +183,9 @@ export function ReleasePackages({ api, id, runPath, approvalChange, onPublicatio
     {current?.targets.length === 0 && <p className="muted">This run has no frozen YouTube Shorts target.</p>}
     {current && current.targets.length > 0 && <form className="release-form" onSubmit={(event) => {
       event.preventDefault();
-      if (!selected || item) return;
+      if (!visible || !canPrepare) return;
       void write((signal) => api.POST("/v1/runs/{id}/release-packages", {
-        signal, params: { path: { id } }, body: { target_id: selected.id },
+        signal, params: { path: { id } }, body: { target_id: visible.id },
       }));
     }}>
       <label>Release target
@@ -186,13 +194,19 @@ export function ReleasePackages({ api, id, runPath, approvalChange, onPublicatio
           {current.targets.map((choice) => <option key={choice.id} value={choice.id}>{choice.name}</option>)}
         </select>
       </label>
-      {!item && <button className="pill" disabled={busy || !selected}>Prepare package</button>}
+      {canPrepare && <button className="pill" disabled={busy || !visible}>{item ? "Prepare again" : "Prepare package"}</button>}
     </form>}
     {item && <PackageDetails key={item.sha256} item={item} runPath={runPath} busy={busy}
-      record={(location, published_at) => void write((signal) =>
-        api.POST("/v1/runs/{id}/publications", {
-          signal, params: { path: { id } }, body: { package_sha256: item.sha256, location, published_at },
-        }), onPublication)} />}
+      record={(location, published_at) => void write(async (signal) => {
+        const body = { package_sha256: item.sha256, location, published_at };
+        const input = JSON.stringify(body);
+        const press = publicationPress.current?.input === input
+          ? publicationPress.current : { input, key: crypto.randomUUID() };
+        publicationPress.current = press;
+        await api.POST("/v1/runs/{id}/publications", {
+          signal, params: { path: { id }, header: { "Idempotency-Key": press.key } }, body,
+        });
+      }, onPublication)} />}
     {error != null && <Problem error={error} message={error instanceof ApiError
       ? approvalRefusal(error.code) ?? error.detail?.message : undefined} />}
     {error instanceof ApiError && error.detail?.evidence != null && <details>

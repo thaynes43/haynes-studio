@@ -28,6 +28,7 @@ export function releaseFixtures(draft: Schemas["Story"], frozen: Schemas["RunSna
     return {
       ...item, state: active ? "releasable" : "held",
       held_reason: active ? null : "release.approval_required",
+      evidence_status: "current",
       approval_id: active?.id ?? null, publication,
       record_publication: code ? { allowed: false, code } : { allowed: true },
     } satisfies Schemas["ReleasePackageView"];
@@ -43,6 +44,9 @@ export function releaseFixtures(draft: Schemas["Story"], frozen: Schemas["RunSna
     }
     if (new URL(request.url()).pathname.endsWith("/publications")) {
       if (refusal) return refuse(route, 403, refusal, "A go-live approver must record publication");
+      if (!request.headers()["idempotency-key"]) {
+        return refuse(route, 422, "schema.invalid", "Supply an Idempotency-Key");
+      }
       const body = request.postDataJSON() as Schemas["PublicationWrite"];
       const item = [...packages.values()].find((saved) => saved.sha256 === body.package_sha256 && saved.package.run_id === run.id);
       if (!item) return refuse(route, 404, "not_found", "Package unavailable");
@@ -51,13 +55,13 @@ export function releaseFixtures(draft: Schemas["Story"], frozen: Schemas["RunSna
         return refuse(route, 409, state.record_publication.allowed ? "release.approval_required" :
           state.record_publication.code, "Publication cannot be recorded");
       }
-      const record: Publication = {
+      const record = {
         schema: "studio.publication/v1", id: "pub_01M79V9FC00000000000000001",
         package_sha256: item.sha256, approval_id: state.approval_id,
         run_id: run.id, master_sha256: item.package.master.sha256,
         location: body.location, recorded_by_display_name: name, recorded_at: "2026-11-04T15:00:00Z",
         published_at: body.published_at ?? null,
-      };
+      } satisfies Publication;
       publications.set(item.sha256, record);
       draft.published = true;
       return route.fulfill({ status: 201, json: {

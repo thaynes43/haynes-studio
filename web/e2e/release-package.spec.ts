@@ -23,22 +23,17 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       await release.getByRole("button", { name: "Prepare package" }).click();
       await expect(release.getByText(/Package ready, release held/)).toBeVisible();
       await expect(release.getByRole("button", { name: "Record publication" })).toHaveCount(0);
+      const master = release.getByRole("link", { name: "Download master" });
+      const copyDescription = release.getByRole("button", { name: "Copy description" });
+      const copyChecklist = release.getByRole("button", { name: "Copy checklist" });
+      await expect(master).toHaveCount(0);
+      await expect(copyDescription).toHaveCount(0);
+      await expect(copyChecklist).toHaveCount(0);
       await release.getByText("Model licences · Passed", { exact: true }).click();
       await release.getByText("video-local · Local model terms · unknown", { exact: true }).click();
       await expect(release.getByText("Terms are pending verification.", { exact: true })).toBeVisible();
       await release.getByText("Platform maximum · Passed", { exact: true }).click();
       await expect(release.getByText(/"max_length_ms": 60000/)).toBeVisible();
-
-      await release.getByRole("button", { name: "Copy description" }).click();
-      await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(description);
-      await release.getByRole("button", { name: "Copy checklist" }).click();
-      await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()))
-        .toContain("Turn on the synthetic-content setting.");
-      const master = release.getByRole("link", { name: "Download master" });
-      await expect(master).toHaveAttribute("href", `/v1/media/${reviewMedia.olderMaster.hash}`);
-      const download = page.waitForEvent("download");
-      await master.click();
-      expect((await download).suggestedFilename()).toBe(`${oldRun}.mp4`);
 
       const approve = async () => {
         await page.getByRole("checkbox", { name: "Confirm the AI-generated platform setting" }).check();
@@ -46,8 +41,21 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
         await expect(release.getByText(/Releasable. The exact run and master/)).toBeVisible();
       };
       await approve();
+      await copyDescription.click();
+      await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(description);
+      await copyChecklist.click();
+      await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()))
+        .toContain("Turn on the synthetic-content setting.");
+      await expect(master).toHaveAttribute("href", `/v1/media/${reviewMedia.olderMaster.hash}`);
+      const download = page.waitForEvent("download");
+      await master.click();
+      expect((await download).suggestedFilename()).toBe(`${oldRun}.mp4`);
+
       await page.getByRole("button", { name: "Withdraw approval" }).click();
       await expect(release.getByText(/Package ready, release held/)).toBeVisible();
+      await expect(master).toHaveCount(0);
+      await expect(copyDescription).toHaveCount(0);
+      await expect(copyChecklist).toHaveCount(0);
       await approve();
 
       await page.getByRole("link", { name: /Run 2.*Finished/ }).click();
@@ -65,8 +73,23 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
         await page.goto("/auth/login?return_to=" + encodeURIComponent(runPath(oldRun)));
       }
       await release.getByRole("textbox", { name: "Public location" }).fill(location);
-      await release.getByRole("button", { name: "Record publication" }).click();
+      const record = release.getByRole("button", { name: "Record publication" });
+      const keys: (string | undefined)[] = [];
+      if (viewport.width === 1280) {
+        await page.route(`**/v1/runs/${oldRun}/publications`, async (route) => {
+          keys.push(route.request().headers()["idempotency-key"]);
+          if (keys.length === 1) await route.abort();
+          else await route.fallback();
+        });
+        await record.click();
+        await expect(release.getByRole("alert")).toBeVisible();
+      }
+      await record.click();
       await expect(release.getByRole("heading", { name: "Publication recorded" })).toBeVisible();
+      if (viewport.width === 1280) {
+        expect(keys[0]).toBeTruthy();
+        expect(keys).toEqual([keys[0], keys[0]]);
+      }
       await expect(release.getByText(location)).toBeVisible();
       await expect(release.getByRole("link", { name: location })).toHaveCount(0);
       await expect(page.getByText("Published", { exact: true })).toBeVisible();
