@@ -70,8 +70,16 @@ The GitOps pin for [story 965](https://work.haynesnetwork.com/work_packages/965)
 needs the pinned sidecar, the API schema upgrade through `0013_matte_jobs`,
 and the worker's dedicated token and grant. Set `STUDIO_RUNTIME_ROLE` to the
 existing API runtime login when applying the migration so it grants access
-to update the release counter. The sidecar and worker can start
-in either order. Before each claim the worker checks the exact CPU profile
+to update the release counter. The migration sets a PostgreSQL lock timeout
+of 500 ms per acquisition. It can queue for the grant table and takes the
+other three table prelocks with `NOWAIT`. A reader queued behind it can
+wait for the grant lock budget plus DDL and commit, measured at about
+10 ms at the installed table sizes. End-to-end readiness also includes
+the remaining readiness queries. A lock timeout rolls the upgrade back to
+`0012_release_constraints` and the Job retries within its configured budget.
+
+The sidecar and worker can start in either order. Before each claim the
+worker checks the exact CPU profile
 at `GET /v1/ready` and waits for any tracked attempt to clear. While the socket
 is unavailable, the model is loading, the profile differs, or a previous
 attempt is active, the worker reports the reason in its log and progress marker
