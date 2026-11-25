@@ -500,6 +500,43 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       await expect(cutout).toHaveCount(0);
     });
 
+    test("uses a new cutout key after a definitive first refusal", async ({ page, mock }) => {
+      expect(mock.api.assets).toBeDefined();
+      await page.route(`/v1/stories/${story.id}`, (route) =>
+        route.fulfill({ json: { ...story, format_version_id: formatFixture.id } }));
+      await page.route(`/v1/format-versions/${formatFixture.id}`, (route) =>
+        route.fulfill({ json: { ...formatFixture, recipe: { ...formatFixture.recipe, cast: {
+          ...formatFixture.recipe.cast, matte_slots: { a: { target_height_px: 160 } },
+        } } } }));
+      const presses: { key: string; body: components["schemas"]["MatteRequest"] }[] = [];
+      await page.route("/v1/asset-jobs/matte", (route) => {
+        const request = route.request();
+        presses.push({ key: request.headers()["idempotency-key"], body: request.postDataJSON() });
+        return route.fulfill({ status: 422, json: { error: {
+          status: "invalid", code: "adapter.request_invalid", path: "/slot", http_status: 422,
+          request_id: "mock-matte-refusal", message: `Cutout refused on press ${presses.length}.`,
+        } } });
+      });
+
+      await page.goto(productionRoute);
+      await card(page, "Soup bowl").getByRole("button", { name: "Cut out", exact: true }).click();
+      const form = page.getByRole("form", { name: "Request matte" });
+      await form.getByRole("combobox", { name: "Cast slot" }).selectOption("a");
+      const submit = form.getByRole("button", { name: /^(Request matte|Retry matte request)$/ });
+      await submit.click();
+      await expect(form.getByRole("alert")).toContainText("Cutout refused on press 1.");
+      await submit.click();
+      await expect(form.getByRole("alert")).toContainText("Cutout refused on press 2.");
+
+      const [first, second] = presses;
+      expect(presses).toHaveLength(2);
+      expect(first.body).toEqual({ source_version_id: propPin, format_version_id: formatFixture.id, slot: "a" });
+      expect(second.body).toEqual(first.body);
+      expect(first.key).toMatch(/^[0-9a-f-]{36}$/);
+      expect(second.key).toMatch(/^[0-9a-f-]{36}$/);
+      expect(second.key).not.toBe(first.key);
+    });
+
     test("keeps cutout presses by slot, focuses job status and results, and promotes", async ({ page, mock }) => {
       type Job = components["schemas"]["JobView"];
       type MatteRequest = components["schemas"]["MatteRequest"];
