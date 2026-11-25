@@ -222,12 +222,18 @@ def client(app):
     return TestClient(app, base_url=ORIGIN, follow_redirects=False)
 
 
-def begin_login(browser):
-    response = browser.get("/auth/login")
+def begin_login(browser, **params):
+    response = browser.get("/auth/login", params=params)
     assert response.status_code == 303
     assert response.headers["cache-control"] == "private, no-store"
     assert response.headers["referrer-policy"] == "no-referrer"
     return parse_qs(urlsplit(response.headers["location"]).query)
+
+
+def assert_auth_redirect(response, code):
+    assert response.status_code == 303
+    assert response.headers["location"] == f"/?auth_error={code}"
+    assert response.content == b""
 
 
 def sign_in(browser, issuer, subject="one", **claims):
@@ -265,7 +271,7 @@ def register_agent(engine, grants, *, expires_at=None, revoked_at=None):
 
 
 def new_production(browser, csrf):
-    response = browser.post("/v1/productions", json={"name": "A fixture production"}, headers=csrf)
+    response = browser.post("/v1/productions", json={"name": "Fixture production " + Minter().mint("prd")}, headers=csrf)
     assert response.status_code == 201, response.text
     id_ = response.json()["id"]
     response = browser.put(f"/v1/productions/{id_}/media-types/short",
@@ -303,14 +309,15 @@ def test_login_is_bound_to_the_browser_and_token_and_state_are_single_use(servic
     query = begin_login(browser)
     code = issuer.authorize(query, "one")
     callback = {"code": code, "state": query["state"][0]}
-    assert other.get("/auth/callback", params=callback).status_code == 401
-    assert browser.get("/auth/callback", params={**callback, "state": "wrong"}).status_code == 401
+    assert_auth_redirect(other.get("/auth/callback", params=callback), "auth.oidc_state")
+    assert_auth_redirect(browser.get("/auth/callback", params={**callback, "state": "wrong"}),
+                         "auth.oidc_state")
     assert issuer.exchanges == 0
     attempt_cookie = browser.cookies.get(LOGIN_COOKIE)
     assert browser.get("/auth/callback", params=callback).status_code == 303
     assert issuer.exchanges == 1
-    assert browser.get("/auth/callback", params=callback,
-                       headers={"Cookie": f"{LOGIN_COOKIE}={attempt_cookie}"}).status_code == 401
+    assert_auth_redirect(browser.get("/auth/callback", params=callback,
+                                     headers={"Cookie": f"{LOGIN_COOKIE}={attempt_cookie}"}), "auth.oidc_state")
     assert issuer.exchanges == 1
     session = browser.cookies.get(SESSION_COOKIE)
     with engine.connect() as conn:
@@ -324,18 +331,19 @@ def test_login_is_bound_to_the_browser_and_token_and_state_are_single_use(servic
     assert browser.get("/v1/me", headers=bearer(random_secret())).status_code == 401
 
 
-@pytest.mark.parametrize(("subject", "changes", "status"), [
-    ("outside", {}, 403), ("one", {"nonce": "wrong"}, 401),
-    ("one", {"aud": "wrong"}, 401), ("one", {"iss": "https://other.example.invalid/"}, 401),
-    ("one", {"azp": "wrong"}, 401), ("one", {"exp": 1}, 401),
+@pytest.mark.parametrize(("subject", "changes"), [
+    ("outside", {}), ("one", {"nonce": "wrong"}), ("one", {"aud": "wrong"}),
+    ("one", {"iss": "https://other.example.invalid/"}), ("one", {"azp": "wrong"}),
+    ("one", {"exp": 1}), ("one", {"auth_time": True}), ("one", {"auth_time": "123"}),
+    ("one", {"auth_time": 99999999999}),
 ])
-def test_oidc_rejects_wrong_identity_or_claims(service, subject, changes, status):
+def test_oidc_rejects_wrong_identity_or_claims(service, subject, changes):
     app, _, issuer = service
     browser = client(app)
     query = begin_login(browser)
     code = issuer.authorize(query, subject, **changes)
     response = browser.get("/auth/callback", params={"code": code, "state": query["state"][0]})
-    assert response.status_code == status
+    assert_auth_redirect(response, "auth.subject_forbidden" if subject == "outside" else "auth.oidc_invalid")
     assert browser.cookies.get(SESSION_COOKIE) is None
 
 
@@ -363,10 +371,7 @@ def test_oidc_groups_must_match_exactly_in_the_id_token(service, claims):
         code = issuer.authorize(query, "outside", **claims)
         response = browser.get("/auth/callback", params={"code": code, "state": query["state"][0]},
                                headers={"X-Authentik-Groups": ALLOWED_GROUP})
-        assert response.status_code == 403
-        error = response.json()["error"]
-        assert error["code"] == "auth.subject_forbidden"
-        assert error["message"] == "This OIDC subject is outside the Studio allowlist"
+        assert_auth_redirect(response, "auth.subject_forbidden")
         assert browser.cookies.get(SESSION_COOKIE) is None
 
 
@@ -378,8 +383,7 @@ def test_oidc_refuses_groups_from_an_id_token_with_an_invalid_signature(service)
         query = begin_login(browser)
         code = issuer.authorize(query, "outside", groups=[ALLOWED_GROUP])
         response = browser.get("/auth/callback", params={"code": code, "state": query["state"][0]})
-        assert response.status_code == 401
-        assert response.json()["error"]["code"] == "auth.oidc_invalid"
+        assert_auth_redirect(response, "auth.oidc_invalid")
         assert browser.cookies.get(SESSION_COOKIE) is None
 
 
@@ -391,8 +395,7 @@ def test_oidc_groups_still_require_a_valid_subject(service, subject):
         query = begin_login(browser)
         code = issuer.authorize(query, subject, groups=[ALLOWED_GROUP])
         response = browser.get("/auth/callback", params={"code": code, "state": query["state"][0]})
-        assert response.status_code == 401
-        assert response.json()["error"]["code"] == "auth.oidc_invalid"
+        assert_auth_redirect(response, "auth.oidc_invalid")
         assert browser.cookies.get(SESSION_COOKIE) is None
 
 
@@ -411,8 +414,8 @@ def test_subject_and_group_sessions_follow_their_configured_allowlists(service):
         assert group.get("/v1/me").status_code == 200
 
 
-@pytest.mark.parametrize(("leeway", "status"), [(None, 303), (0, 401)])
-def test_oidc_clock_skew_is_configurable(service, leeway, status):
+@pytest.mark.parametrize("leeway", [None, 0])
+def test_oidc_clock_skew_is_configurable(service, leeway):
     app, _, issuer = service
     if leeway is not None:
         app.state.oidc.settings = replace(issuer.settings(), leeway_seconds=leeway)
@@ -420,7 +423,10 @@ def test_oidc_clock_skew_is_configurable(service, leeway, status):
     query = begin_login(browser)
     code = issuer.authorize(query, "one", iat=datetime.now(UTC) + timedelta(seconds=5))
     response = browser.get("/auth/callback", params={"code": code, "state": query["state"][0]})
-    assert response.status_code == status
+    if leeway is None:
+        assert response.status_code == 303 and response.headers["location"] == "/"
+    else:
+        assert_auth_redirect(response, "auth.oidc_invalid")
 
 
 def test_oidc_caches_discovery_and_keys_until_ttl_and_refreshes_on_rotation(service, monkeypatch):
@@ -456,7 +462,7 @@ def test_oidc_unknown_kid_refreshes_once_then_refuses(service):
     query = begin_login(other)
     code = issuer.authorize(query, "one")
     response = other.get("/auth/callback", params={"code": code, "state": query["state"][0]})
-    assert response.status_code == 401 and response.json()["error"]["code"] == "auth.oidc_invalid"
+    assert_auth_redirect(response, "auth.oidc_invalid")
     assert issuer.key_requests == 2 and other.cookies.get(SESSION_COOKIE) is None
 
 
@@ -468,7 +474,7 @@ def test_oidc_refuses_small_signing_key(service):
     code = issuer.authorize(query, "one")
     with pytest.warns(InsecureKeyLengthWarning):  # The fake issuer signs with its small key.
         response = browser.get("/auth/callback", params={"code": code, "state": query["state"][0]})
-    assert response.status_code == 401 and response.json()["error"]["code"] == "auth.oidc_invalid"
+    assert_auth_redirect(response, "auth.oidc_invalid")
     assert browser.cookies.get(SESSION_COOKIE) is None
 
 
@@ -483,10 +489,10 @@ def test_oidc_refuses_discovery_issuer_mismatch_and_reports_provider_outage(serv
     issuer.discovery_issuer = "https://other.example.invalid/"
     callback = browser.get("/auth/callback", params={"code": code, "state": query["state"][0]})
     login = browser.get("/auth/login")
-    for response in (callback, login):
-        assert response.status_code == 503
-        error = response.json()["error"]
-        assert (error["code"], error["status"]) == ("auth.provider_unavailable", "service_unavailable")
+    assert_auth_redirect(callback, "auth.provider_unavailable")
+    assert login.status_code == 503
+    error = login.json()["error"]
+    assert (error["code"], error["status"]) == ("auth.provider_unavailable", "service_unavailable")
     assert issuer.exchanges == 0 and browser.cookies.get(SESSION_COOKIE) is None
 
 
