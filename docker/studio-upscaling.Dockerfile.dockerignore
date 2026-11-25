@@ -1,0 +1,11 @@
+**
+!pyproject.toml
+!uv.lock
+!README.md
+!LICENSE
+!src/**
+**/__pycache__
+**/*.py[cod]
+!docker/studio-build-constraints.txt
+!docker/studio-upscaling-runtime.txt
+**/*.pb

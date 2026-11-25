@@ -1,0 +1,237 @@
+"""Exercise profile, artifact and worker behavior without model weights or OpenCV contrib."""
+
+from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
+from functools import partial
+from hashlib import sha1, sha256
+import json
+from threading import Event
+from time import monotonic, sleep
+
+import pytest
+from PIL import Image, PngImagePlugin
+
+from haynes_studio.store import canonical_json
+from haynes_studio.upscaling.backend import Engine, envelope, verify_result
+from haynes_studio.upscaling.comparison import _source, compare
+from haynes_studio.upscaling.fixtures import Motion, portrait, scores
+from haynes_studio.upscaling.pixels import crop_plate, decode_png, encode_png
+from haynes_studio.upscaling.profile import (
+    BUSY, GRAPH_NAME, MAX_INPUT, PIN_MISMATCH, REQUEST_INVALID, RESPONSE_INVALID, TIMEOUT, Profile, UpscaleError,
+)
+from haynes_studio.upscaling.service import _UnixConnection, listening, local_call
+from haynes_studio.upscaling.trial import frame, stage
+
+TARGET = (1080, 1920)
+SOURCE = (540, 960)
+
+
+class FakeFsrcnn:
+    def __init__(self, graph):
+        assert graph == b"toy-graph"
+
+    def __call__(self, rgb):
+        return rgb.resize((rgb.width * 2, rgb.height * 2), Image.Resampling.NEAREST)
+
+
+class StallOnce(FakeFsrcnn):
+    def __init__(self, graph, marker):
+        super().__init__(graph)
+        self.marker = marker
+
+    def __call__(self, rgb):
+        try:
+            with self.marker.open("xb"):
+                pass
+        except FileExistsError:
+            return super().__call__(rgb)
+        Event().wait(30)
+        return super().__call__(rgb)
+
+
+@pytest.fixture
+def pins(tmp_path):
+    graph = b"toy-graph"
+    blob = sha1(b"blob " + str(len(graph)).encode() + b"\0" + graph, usedforsecurity=False).hexdigest()
+    profile = Profile("sha256:" + "a" * 64, "1" * 40, b'{"cpu":{"model":"fake"},"native_sha256":{}}',
+                      len(graph), sha256(graph).hexdigest(), blob)
+    weights = tmp_path / "weights"
+    weights.mkdir()
+    manifest = profile.manifest()
+    digest = sha256(manifest).hexdigest()
+    (weights / GRAPH_NAME).write_bytes(graph)
+    (weights / "profile.json").write_bytes(manifest)
+    (weights / "profile.sha256").write_text(digest + "\n")
+    return weights, profile, digest
+
+
+@pytest.fixture
+def rgb():
+    return Image.new("RGB", SOURCE, (20, 70, 180))
+
+
+def test_transport(tmp_path, pins, rgb):
+    weights, profile, digest = pins
+    socket = tmp_path / "s"
+    receipts = []
+    for _ in range(2):
+        with Engine(tmp_path, weights, profile, factory=FakeFsrcnn) as engine, listening(socket, engine):
+            assert local_call(socket, "GET", "/v1/ready") == (200, engine.readiness)
+            png, receipt = frame(tmp_path, socket, rgb, TARGET, profile, digest)
+            assert receipt["output"]["width"] == TARGET[0]
+            assert decode_png(png, TARGET, RESPONSE_INVALID).getpixel((10, 10)) == rgb.getpixel((0, 0))
+            receipts.append(canonical_json(receipt))
+    assert receipts[0] == receipts[1]
+
+
+def test_refusals(tmp_path, pins, rgb):
+    weights, profile, digest = pins
+    socket = tmp_path / "s"
+    with Engine(tmp_path, weights, profile, factory=FakeFsrcnn) as engine, listening(socket, engine):
+        good = stage(tmp_path, encode_png(rgb), rgb.size, TARGET, digest)
+        for override, code, expected in (
+            ({"profile_sha256": "0" * 64}, PIN_MISMATCH, 409),
+            ({"profile_id": "unknown"}, PIN_MISMATCH, 409),
+            ({"source": {**good["request"]["source"], "sha256": "0" * 64}}, PIN_MISMATCH, 409),
+            ({"source": {**good["request"]["source"], "bytes": MAX_INPUT + 1}}, REQUEST_INVALID, 400),
+            ({"target": {"width": 1080.0, "height": 1920}}, REQUEST_INVALID, 400),
+            ({"source": {**good["request"]["source"], "width": 539}}, REQUEST_INVALID, 400),
+            ({"unexpected": 1}, REQUEST_INVALID, 400),
+        ):
+            value = {**good, "request": {**good["request"], **override}}
+            assert local_call(socket, "POST", "/v1/upscale-frame", value) == (expected, {"code": code})
+        for body in (b'{"attempt_id": 1, "attempt_id": 2}', b"X" * 6000):
+            connection = _UnixConnection(socket, 5)
+            try:
+                connection.request("POST", "/v1/upscale-frame", body=body,
+                                   headers={"Content-Type": "application/json"})
+                response = connection.getresponse()
+                assert response.status == 400 and json.loads(response.read()) == {"code": REQUEST_INVALID}
+            finally:
+                connection.close()
+        assert not (tmp_path / good["attempt_id"] / "result").exists()
+        assert local_call(socket, "POST", "/v1/upscale-frame", good)[0] == 200
+        output = tmp_path / good["attempt_id"] / "result/output.png"
+        assert output.parent.parent.stat().st_mode & 0o7777 == 0o2770
+        assert output.parent.stat().st_mode & 0o7777 == 0o2770
+        assert output.stat().st_mode & 0o777 == 0o640
+        saved = output.read_bytes()
+        assert local_call(socket, "POST", "/v1/upscale-frame", good)[0] == 400
+        assert output.read_bytes() == saved
+
+
+def test_symlinks(tmp_path, pins, rgb):
+    weights, profile, digest = pins
+    value = stage(tmp_path, encode_png(rgb), rgb.size, TARGET, digest)
+    attempt = tmp_path / value["attempt_id"]
+    external = tmp_path / "external"
+    (attempt / "input.png").rename(external)
+    (attempt / "input.png").symlink_to(external)
+    with Engine(tmp_path, weights, profile, factory=FakeFsrcnn) as engine:
+        with pytest.raises(UpscaleError, match=REQUEST_INVALID):
+            engine.run(value)
+    assert not (attempt / "result").exists()
+
+
+def test_manifest_pins(tmp_path, pins):
+    weights, profile, _ = pins
+    (weights / GRAPH_NAME).write_bytes(b"toy-grapH")
+    with pytest.raises(UpscaleError, match=PIN_MISMATCH):
+        Engine(tmp_path, weights, profile, factory=FakeFsrcnn)
+
+
+def test_timeout(tmp_path, pins, rgb):
+    weights, profile, digest = pins
+    socket = tmp_path / "s"
+    marker = tmp_path / "inflight"
+    factory = partial(StallOnce, marker=marker)
+    with Engine(tmp_path, weights, profile, factory=factory, request_seconds=1) as engine, listening(socket, engine):
+        first = stage(tmp_path, encode_png(rgb), rgb.size, TARGET, digest)
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            pending = executor.submit(local_call, socket, "POST", "/v1/upscale-frame", first)
+            stop = monotonic() + 0.8
+            while not marker.exists() and monotonic() < stop:
+                sleep(0.01)
+            assert marker.exists()
+            assert local_call(socket, "POST", "/v1/upscale-frame", first) == (409, {"code": BUSY})
+            assert pending.result(2) == (504, {"code": TIMEOUT})
+        partial_run = tmp_path / first["attempt_id"]
+        assert not (partial_run / "result").exists()
+        stop = monotonic() + 3
+        while engine.readiness is None and monotonic() < stop:
+            sleep(0.01)
+        assert engine.readiness["profile_sha256"] == digest
+        _, receipt = frame(tmp_path, socket, rgb, TARGET, profile, digest)
+        assert receipt["source"] == first["request"]["source"]
+        assert (partial_run / "input.png").read_bytes() == encode_png(rgb)
+
+
+def test_png(rgb, tmp_path):
+    assert decode_png(encode_png(rgb), SOURCE, REQUEST_INVALID).size == SOURCE
+    metadata = PngImagePlugin.PngInfo()
+    metadata.add_text("not_normalized", "proof")
+    file = tmp_path / "metadata.png"
+    rgb.save(file, pnginfo=metadata)
+    for invalid in (file.read_bytes(), encode_png(rgb.convert("RGBA")), encode_png(rgb) + b"tail"):
+        with pytest.raises(UpscaleError, match=REQUEST_INVALID):
+            decode_png(invalid, SOURCE, REQUEST_INVALID)
+
+
+def test_result(tmp_path, pins, rgb):
+    weights, profile, digest = pins
+    value = stage(tmp_path, encode_png(rgb), rgb.size, TARGET, digest)
+    _, request = envelope(value)
+    with Engine(tmp_path, weights, profile, factory=FakeFsrcnn) as engine:
+        receipt = engine.run(value)
+    data = (tmp_path / value["attempt_id"] / "result/output.png").read_bytes()
+    modified = deepcopy(receipt)
+    modified["provenance"]["manifest"]["png"]["compress_level"] = 4
+    with pytest.raises(UpscaleError, match=RESPONSE_INVALID):
+        verify_result(request, modified, data, profile)
+    with pytest.raises(UpscaleError, match=RESPONSE_INVALID):
+        verify_result(request, receipt, data[:-1], profile)
+
+
+def test_comparison(tmp_path, pins, rgb):
+    weights, profile, _ = pins
+    source, output = tmp_path / "source", tmp_path / "jobs"
+    source.mkdir()
+    output.mkdir()
+    png = encode_png(rgb)
+    (source / "private.png").write_bytes(png)
+    config = {"relative": "private.png", "source_sha256": sha256(png).hexdigest(),
+              "allocation": "upscaling-op461-compare-000000000001", "target": TARGET,
+              "rois": {"lettering": (0, 0, 15, 15)}, "factory": FakeFsrcnn}
+    summary = compare(tmp_path, weights, source, output, profile, **config)
+    completed = output / config["allocation"]
+    report = json.loads((completed / "report.json").read_bytes())
+    assert "private.png" not in json.dumps(summary) + json.dumps(report)
+    assert len(list(completed.iterdir())) == 3
+    assert report["review"] == "comparison pending"
+    for label, artifact in summary["outputs"].items():
+        data = (completed / f"{label}.png").read_bytes()
+        assert artifact["sha256"] == sha256(data).hexdigest()
+    with pytest.raises(FileExistsError):
+        compare(tmp_path, weights, source, output, profile, **config)
+    assert json.loads((completed / "report.json").read_bytes()) == report
+    (source / "link").symlink_to(source / "private.png")
+    with pytest.raises(OSError):
+        _source(source, "link")
+    with pytest.raises(UpscaleError, match=REQUEST_INVALID):
+        _source(source, "../private.png")
+
+
+def test_fixture_geometry():
+    reference = portrait()
+    result = scores(reference, reference)
+    assert [band["correct"] for band in result["text"]] == [4, 4, 4]
+    assert all(distance == 0 for distance in result["face_displacement_px"].values())
+    assert result["edge"]["median_spread_px"] == pytest.approx(0.8)
+    assert result["flat"]["std"] == pytest.approx(0)
+    motion = Motion()
+    for index in (0, 1):
+        shifted = portrait(index)
+        motion.add(shifted, shifted, index)
+    assert motion.report() == {"worst_mean": 0.0, "worst_p95": 0.0, "identical_background": True}
+    cropped, box = crop_plate(Image.new("RGB", (626, 1024)), TARGET)
+    assert cropped.size == (576, 1024) and box == (25, 0, 601, 1024)

@@ -1,12 +1,11 @@
-# Upscaling backend profile proposal
+# Upscaling backend profile
 
-**Proposed 2026-11-25** for [story 461](https://work.haynesnetwork.com/work_packages/461).
+**Comparison profile, 2026-11-25** for [story 461](https://work.haynesnetwork.com/work_packages/461).
 Pilot **FSRCNN ×2 FP32 on OpenCV DNN CPU**. Keep **Pillow Lanczos** as the
 explicit fallback and current delivery default. Provisional
 [ruling 35](../contracts/studio-contracts-v1.md#ruling-35) chooses FSRCNN for
-comparison only. It becomes selectable only after the install smoke and one
-private comparison show a useful gain. Both choices use zero
-GPU lease time.
+comparison only. Selection stays gated by the install smoke and Tom's
+review of a private comparison. Both choices use zero GPU lease time.
 
 The E0 assembly scaled 576 × 1024 clips to 1080 × 1920 (1.875×) and reported
 soft hair and lettering. The other master orientation is 1920 × 1080. D22–D24
@@ -81,7 +80,7 @@ Record wheel redistribution terms if an image is distributed. [D48 and D49](../p
 | Runtime | `opencv-contrib-python-headless==4.14.0.94` on CPython 3.12 Linux amd64. `DNN_BACKEND_OPENCV`, `DNN_TARGET_CPU`, FP32, OpenCL off, `cv2.setNumThreads(2)`, one inference in flight. Keep other math pools at one thread. Pin the effective OpenCV CPU features reported by `getCPUFeaturesLine()` and the exact CPU model on talosw01. Admit that runtime configuration only after repeatability is verified. | Pillow 13.0.0 from the Studio lock. One frame at a time on CPU, one worker, no separate accelerator or model file. |
 | Resize | Opaque RGB8 to BGR8, `DnnSuperResImpl` with `setModel("fsrcnn", 2)`, verify BGR8 ×2 shape, back to RGB8, then Pillow 13.0.0 `Resampling.LANCZOS` to the exact target. A ×2 target needs no second resize. | Same-aspect clip calls Pillow `Resampling.LANCZOS` once. Plates use the existing centred Lanczos cover fit. |
 | Tile and overlap | Whole frame, e.g. one 576 × 1024 tile, 0 px overlap. Maximum graph input 720 × 1280 or 1280 × 720. No tile seams or padding policy. Larger graph inputs require a different profile. | Whole frame, 0 px overlap. |
-| CPU and memory budget | Two vCPUs maximum, one job. Request 1 GiB, limit 2 GiB. 30 s ready-process startup cap, 5 s per-frame hard deadline from verified input staging through output validation, 300 s from first frame dispatch to clip completion. | Same offline CPU allocation, reserve 512 MiB for one work item. |
+| CPU and memory budget | Two vCPUs maximum, one job. 2 GiB quality target. Serving request and limit await measurement. 30 s ready-process startup cap, 5 s per-frame hard deadline from verified input staging through output validation, 300 s from first frame dispatch to clip completion. | Same offline CPU allocation, reserve 512 MiB for one work item. |
 | Warm planning range for 100 input frames (576 × 1024 → 1080 × 1920) | **30–80 s**, including local RGB PNG I/O, graph, fit and encode. 300 input frames cost about 90–240 s before startup or unexpected NFS stalls. | **10–30 s** including the same local RGB PNG I/O and encode, excluding ordinary video decode and mux. |
 
 The ranges are estimates. OpenCV's butterfly area extrapolation
@@ -97,6 +96,10 @@ wheel for the published source API. [Upstream 4.14.0 release](https://github.com
 [Studio lock](../../uv.lock)
 
 ## Artifact contract for delivery conversion
+
+The worker contract and two one-shot workloads are staged. The delivery
+consumer, cache grouping and profile selection described here are future
+integration, gated by CR-35.
 
 The existing renderer resolves `DeliveryUpscalerProfile` by
 `delivery_profile_sha256`. Add the learned backend's manifest SHA-256 to the
@@ -179,7 +182,7 @@ the in-flight child before dispatching another job. Selecting Lanczos is an
 explicit new build plan with its own conversion digest. A backend failure
 does not rewrite the plan or use a different filter for individual frames.
 
-## Download, image and workload sketch
+## Download, image and workload
 
 Read-only on **2026-11-25**, `kubectl -n ai get deploy studio-render` reported one
 ready replica on talosw01, limited to **20 vCPUs and 32 GiB**. Read-only
@@ -194,9 +197,13 @@ original 24-vCPU render allocation by four. The pilot uses the observed
 - One primary download totals **38,973 weight bytes**, leaving
   **110,936,790,624,195 bytes** before metadata at the read-back. Lanczos has
   zero weight bytes. Stream the immutable source to one unique staging file in
-  a fresh job directory under existing `/studio/jobs`. Check length and
-  `git hash-object --no-filters` against the publisher blob ID, then freeze the
-  resulting raw SHA-256 in the approved deployment manifest. Finalize
+  a fresh job directory under existing `/studio/jobs`. Check length and the Git blob SHA-1 (the hash of the Git blob header and
+  bytes). A bounded in-memory read from the immutable publisher URL
+  verified that blob and gave raw SHA-256
+  `366b33f0084c7b3f2bf6724f0a2c77bca94fcec9d7b6d72389d330073b380d5c`.
+  The private provisioner independently verifies both hashes after
+  flushing and dropping its write cache. Provision on talosw01 to capture
+  the exact CPU model and OpenCV CPU features in the immutable manifest. Finalize
   create-only and mount that job's immutable weight directory read-only at
   `/weights`. Refuse extra or mismatched bytes, recheck the provisioned file at
   startup, and keep weights out of build layers and public git.
@@ -223,34 +230,47 @@ original 24-vCPU render allocation by four. The pilot uses the observed
   (**7,144,542 bytes**, SHA-256
   `42d63be3af4f9b951b199b0a9d23365d37ab14687e6d77b74940432c8515c4ca`).
   Those two wheels total **75,329,373 bytes** before base and dependencies.
-  Pin NumPy 2.4.6 from the lock and verify the complete lock in the
-  install story.
+  Pin the Linux amd64 NumPy 2.4.6 wheel from the lock (**16,645,538 bytes**,
+  SHA-256 `90f9849678c75fe7afa2d348ac842c168b0a4d3d61919687216dfc547976d853`).
+  The image build verifies the three exact wheel hashes against the
+  Studio lock. It keeps their installed licence and bundled-library notices.
   Keep the contrib wheel out of the main package's `cv2` environment. Include
   OpenCV, Pillow and bundled-library notices and applicable redistribution
   obligations. Cap at 1 GiB installed image and 2 GiB temporary build space
-  separately from the share budget. [Studio base](../../docker/studio.Dockerfile) ·
+  separately from the share budget. The build checks the temporary
+  package and source footprint and the workflow checks image size.
+  [Studio base](../../docker/studio.Dockerfile) ·
   [OpenCV wheel metadata](https://pypi.org/pypi/opencv-contrib-python-headless/4.14.0.94/json) ·
   [Studio lock](../../uv.lock) · [Wheel licensing](https://pypi.org/project/opencv-contrib-python-headless/4.14.0.94/#licensing)
 - In haynes-ops, pin the approved image by registry digest and use a
   serial install smoke Job on talosw01 with `backoffLimit: 0` and
   `activeDeadlineSeconds: 300`. Use the render worker's low-priority CPU
-  allocation and a window without other heavy renders. For continued use,
+  allocation and a window without other heavy renders. The first smoke
+  requests 2 GiB and has an 8 GiB measuring allowance. The 2 GiB quality
+  target is reported from measured cgroup peak. Set serving memory in a
+  separate change from the phase evidence. For continued use,
   place one local worker beside `studio-render` and carve two vCPUs from
   its 20-vCPU allowance for inference (18 for render, 2 for the scaler).
   Count the scaler within the 32 GiB allocation and coordinate concurrent
   matting or render workloads under the same caps. Run as UID/GID 10001,
   dropped capabilities, RuntimeDefault seccomp, read-only root and weights,
   no service-account token, ingress, GPU request or runtime download. Share
-  only the Unix socket and bounded scratch (256 MiB `emptyDir`), with the
-  caller holding store credentials and production access. Readiness checks
+  only the Unix socket and bounded scratch (256 MiB `emptyDir`). The
+  caller and backend share GID 10001 and use setgid, group-writable attempt
+  and result directories with group-readable PNGs. The caller holds store
+  credentials and production access. Readiness checks
   decoded graph metadata and admitted manifest/image/tool identity. Roll
-  back by reverting the GitOps pin and withdrawing learned profile admission
-  from new builds. Retain any output already committed. Record the image
-  digest, measured resource peaks, health and rollback target in part 2.
+  back by withdrawing the policy stage in Git and retaining the private
+  files. After future activation, withdraw profile admission from new
+  builds, then revert the worker and offline CPU split. The coordinator
+  records the image digest, measured peaks and health at installation.
+  [Ops runbook](https://github.com/thaynes43/haynes-ops/blob/main/docs/reference/studio-upscaling-deployment.md)
 
 ## Install smoke and private comparison
 
-All steps are **Expected**. Generate fixtures in a fresh private scratch job.
+Cluster steps are **Expected**. The built-image check uses a generated CPU
+graph and an isolated read-only container with networking disabled. The
+coordinator runs the following using the verified weights and fresh scratch.
 Run both profiles on identical source PNGs. Use Lanczos as the reference for
 the FSRCNN quality and resource gates. Record input, output and profile
 hashes, cold start, warm mean/p95 and maximum wall time, peak RSS and cgroup
@@ -297,14 +317,32 @@ Measure luma as `0.2126R + 0.7152G + 0.0722B` on the encoded RGB samples.
    the worst pair's p95 absolute residual change **≤ Lanczos + 2/255**.
    Also verify the identical background ROI and exact reference cadence if
    replaying these frames at 24 fps. Check mean warm time **≤ 0.80 s/frame**,
-   p95 **≤ 2 s**, each frame under its 5 s deadline and memory under the 2 GiB
-   limit. This is a bounded acceptance smoke, with cost extrapolated to 100
-   frames from the observed mean.
+   p95 **≤ 2 s**, each frame under its 5 s deadline and measured job memory
+   at or below the 2 GiB quality target. Extrapolate cost to 100 frames
+   from the observed mean.
 
-Story 461 part 2 owns installation and the synthetic smoke. After that
-handoff, the private quality comparison is the remaining acceptance
-evidence for delivery story [453](https://work.haynesnetwork.com/work_packages/453).
-Use one authorized excerpt of up to **64 contiguous source frames** from the
+5. Measure both the default and `compact-allocator` processes in the first
+   cluster smoke. The latter uses glibc arena maximum 1 and fixed 128 KiB
+   trim and mmap thresholds. Freeze these settings in separate smoke
+   profile digests. Compare every generated PNG byte for byte between the
+   two settings, and each setting's PNG and canonical receipt against its
+   fresh-worker replay. Record worker phase high-water and post-phase RSS,
+   sampled cgroup memory by phase and the kernel's whole-job cgroup peak.
+   The serving profile has no allocator override. The generated
+   maximum-size graph input adds a 19th evaluated frame per setting.
+
+The Studio coordinator owns the graph provisioning and cluster smoke.
+The staged one-shot comparison Job uses a single authorized opaque PNG/JPEG
+frame or still, verified by its byte hash. The Job publishes two PNGs and
+a create-only report in a new private jobs allocation. It logs only hashes,
+sizes, timing, memory and objective measurements. With a still and no
+high-resolution truth, report luma differences at output and source scale,
+edge energy and fixed lettering, face or hair ROI scores where supplied.
+Inspect glyphs, face geometry and halos at 1:1 using the private pair.
+**Comparison pending.**
+
+For delivery story [453](https://work.haynesnetwork.com/work_packages/453),
+use one authorized excerpt of up to **64 contiguous source frames** from the
 archived build's pinned *One More Meeting* 576 × 1024 S2V clip.
 Resolve and verify the authorized private clip by the build's source hash.
 If that source is unavailable, record the comparison as pending. Use the same
@@ -324,10 +362,9 @@ ranges, time, checks and review verdict separately.
 [Archived build evidence](../../titles/one-more-meeting/run-log.md) ·
 [Decal drift measurement](wardrobe-decal-checks.md#decal-drift)
 
-**Evidence limits.** The publisher Git blob pin, runtime wheel hashes and
-share bytes are verified metadata. Raw weight SHA-256, actual graph I/O,
-peak RAM, timing, byte-repeatability, real lettering and doll identity,
-private playback quality, authoritative free inodes, image digest and workload
-health await later evidence. Profile proposal is source. Repository tests
-exercise the existing conversion. The learned backend has no installed,
-usable or accepted result.
+**Evidence limits.** Source pins include the verified publisher Git blob,
+raw file SHA-256 and runtime wheels. The local fake-graph checks exercise
+the CPU code, profile, Unix socket and artifact handling. Real graph
+execution, measured RAM and timing, installed health, authoritative free
+inodes, actual lettering and doll identity, private comparison and Tom's
+acceptance await separate evidence. Lanczos remains the delivery scaler.
