@@ -1,4 +1,4 @@
-"""Durable media jobs on two lanes beside the run queue."""
+"""Durable media jobs beside the run queue."""
 
 import sqlalchemy as sa
 
@@ -15,6 +15,7 @@ from .schema import media_job_lanes, media_jobs
 
 STATUS = media_jobs.c.document["status"].astext
 ACTIVE = ("queued", "running")
+KIND_LANE = {"voice": "voice", "photo": "image", "asset_candidate": "image", "matte": "matte"}
 
 
 def lock_lane(conn, lane, *, skip_locked=False):
@@ -35,7 +36,7 @@ def lookup(conn, kind, target, by, key, signature):
 
 
 def enqueue(conn, job, *, position, production, story=None, board=None, inputs, key, signature):
-    lane = "voice" if job.kind == "voice" else "image"
+    lane = KIND_LANE[job.kind]
     requester = to_document(job.created_by)
     conn.execute(media_job_lanes.update().where(media_job_lanes.c.lane == lane)
                  .values(next_position=position + 1))
@@ -45,6 +46,14 @@ def enqueue(conn, job, *, position, production, story=None, board=None, inputs, 
         idempotency_actor=actor_key(requester), idempotency_key=key,
         request_signature=signature, requester=requester, inputs=inputs, document=job.to_document(),
     ).returning(media_jobs)).mappings().one()
+
+
+def prior_matte_versions(conn, input_signature):
+    version_id = media_jobs.c.document["result_version_id"].astext
+    return list(conn.scalars(sa.select(version_id).where(
+        media_jobs.c.lane == "matte", STATUS == "succeeded",
+        media_jobs.c.document["input_signature"].astext == input_signature,
+    ).distinct()))
 
 
 def job_document(row):

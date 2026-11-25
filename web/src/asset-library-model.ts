@@ -1,5 +1,5 @@
 import { eligiblePhotoAsset, isVersionId, type AssetVersion, type PhotoBoardScope } from "./photo-composer-model";
-import { mediaUrl } from "./production-review-data";
+import { mediaUrl, readObject } from "./production-review-data";
 import { assetScopes, defaultAssetScope, type AssetFilters, type AssetScope, type Context } from "./routes";
 
 export function visibleAssetScope(context: Context, filters: AssetFilters) {
@@ -43,7 +43,19 @@ export function groupAssets(versions: AssetVersion[], filters: AssetFilters) {
 
 export function candidateJobId(version: AssetVersion) {
   const sourceKey = version.provenance.source_key ?? "";
+  if (sourceKey.startsWith("matting:")) {
+    const job = readObject(readObject(version.provenance.generator.params).receipt).job_id;
+    return typeof job === "string" && isJobId(job) ? job : undefined;
+  }
   return /^asset-candidate:(job_[0-7][0-9A-HJKMNP-TV-Z]{25})$/.exec(sourceKey)?.[1];
+}
+
+export const isJobId = (id: string) => /^job_[0-7][0-9A-HJKMNP-TV-Z]{25}$/.test(id);
+
+export function canCutOut(version: AssetVersion) {
+  return !version.recorded_without_media && !version.scope.story_id && !version.scope.board_id &&
+    version.capabilities.includes("opaque_photo") &&
+    (version.content?.media_type === "image/png" || version.content?.media_type === "image/jpeg");
 }
 
 export function assetPreview(version: AssetVersion, jobId?: string) {
@@ -53,7 +65,7 @@ export function assetPreview(version: AssetVersion, jobId?: string) {
   const hashPath = mediaUrl(content.sha256);
   if (!hashPath) return;
   const sourceJob = jobId ?? (version.scope.production_id === null ? candidateJobId(version) : undefined);
-  const url = sourceJob && /^job_[0-7][0-9A-HJKMNP-TV-Z]{25}$/.test(sourceJob)
+  const url = sourceJob && isJobId(sourceJob)
     ? `/v1/jobs/${sourceJob}${hashPath.slice(3)}`
     : version.state === "candidate" || version.kind === "photo" || version.kind === "board_voice"
       ? `/v1/asset-versions/${version.id}${hashPath.slice(3)}`

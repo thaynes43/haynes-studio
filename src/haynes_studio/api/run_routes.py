@@ -23,7 +23,7 @@ from haynes_studio.escalation import storage as escalation_storage
 from haynes_studio.library.resolve import story_references
 from haynes_studio.queue import inputs
 from haynes_studio.queue.protocol import (
-    SHA256, ClaimFence, Heartbeat, JobId, Payload, Progress, Reason, Reservation, WanResult,
+    MEDIA_LANES, SHA256, ClaimFence, Heartbeat, JobId, Payload, Progress, Reason, Reservation, WanResult,
     MediaCompletion, MediaFailure, MediaFence, MediaHeartbeat, WorkAttempt, WorkClaim,
     WorkCompletion, WorkFailure, WorkLane, WorkReserve,
 )
@@ -344,7 +344,7 @@ class WorkRoute(WorkerRoute):
                 require_worker_lane(request, "run")
                 raise
             if isinstance(body, dict) and "job_id" in body and "run_id" not in body:
-                require_worker_lane(request, "voice", "image")
+                require_worker_lane(request, *MEDIA_LANES)
             else:
                 require_worker_lane(request, "run")
 

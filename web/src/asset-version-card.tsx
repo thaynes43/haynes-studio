@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Link } from "react-router";
 
-import { assetOrigins, assetPreview, assetUseProblem, candidateJobId } from "./asset-library-model";
+import { assetOrigins, assetPreview, assetUseProblem, candidateJobId, canCutOut } from "./asset-library-model";
 import { photoAssetReturn, type AssetVersion, type PhotoBoardScope } from "./photo-composer-model";
 import { mediaUrl, readObject } from "./production-review-data";
 import type { Board } from "./route-data";
 
 export type AssetTarget = { scope: PhotoBoardScope; board: Board };
+export type SelectCutout = (version: AssetVersion) => void;
 
 function Preview({ url, type, label }: { url: string; type: string; label: string }) {
   const [failed, setFailed] = useState(false);
@@ -71,8 +72,13 @@ export function UseAsset({ version, target, declined = false }: {
     aria-label={`Use ${version.name} v${version.number} on board`}>Use on board</Link>;
 }
 
-export function LibraryVersion({ version, latest, target }: {
-  version: AssetVersion; latest: boolean; target?: AssetTarget;
+export function CutOutAction({ version, onCutout }: { version: AssetVersion; onCutout?: SelectCutout }) {
+  if (!onCutout || !canCutOut(version)) return null;
+  return <button type="button" className="pill" onClick={() => onCutout(version)}>Cut out</button>;
+}
+
+export function LibraryVersion({ version, latest, target, onCutout }: {
+  version: AssetVersion; latest: boolean; target?: AssetTarget; onCutout?: SelectCutout;
 }) {
   const [open, setOpen] = useState(latest);
   return <li className="asset-version">
@@ -81,6 +87,7 @@ export function LibraryVersion({ version, latest, target }: {
       {open && <div className="asset-version-detail">
         <VersionDetails version={version} />
         <UseAsset version={version} target={target} />
+        <CutOutAction version={version} onCutout={onCutout} />
       </div>}
     </details>
   </li>;

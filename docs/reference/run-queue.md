@@ -35,7 +35,7 @@ revision returns 422 `idempotency.mismatch`. A new key with a stale draft or run
 ETag returns 409 `conflict.revision`. Preflight reports unavailable methods as
 422. Draft CRUD and enqueue stay available during worker outages. Build preflight
 checks pending voice and photo jobs and requires current whole-frame I2V
-photos. The [media workers](media-jobs.md) claim the voice and image lanes
+photos. The [media workers](media-jobs.md) claim the voice, image and matte lanes
 independently.
 
 The estimate reports GPU and CPU wall-time ranges in seconds. Method rows name

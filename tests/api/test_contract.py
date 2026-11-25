@@ -201,7 +201,7 @@ def test_slow_and_hung_store_readiness_uses_one_worker_and_recovers(monkeypatch,
 
     class Engine:
         def connect(self):
-            return nullcontext(SimpleNamespace(execute=lambda _: None))
+            return nullcontext(SimpleNamespace(execute=lambda _: None, scalar=lambda _: "matte"))
 
     browser = TestClient(create_app(Engine(), SimpleNamespace(root=tmp_path), None))
     monkeypatch.setattr(Path, "is_dir", blocked)

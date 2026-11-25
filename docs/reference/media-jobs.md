@@ -8,6 +8,7 @@ protocol. The API owns PostgreSQL transactions and catalog writes.
 |---|---|---|
 | `studio-worker --lane voice` | One board voice at a time | `STUDIO_TTS_HOST` and optional `STUDIO_TTS_PORT` (10210) for Kokoro Wyoming TTS. |
 | `studio-worker --lane image` | One photo or asset candidate at a time | `STUDIO_COMFYUI_URL` as an HTTP(S) origin for the shared image engine. Layered photos use the deterministic D51 compositor. |
+| `studio-worker --lane matte` | One matte candidate at a time | Pinned CPU sidecar over `/matting/matte.sock`. See the deployment pin below. |
 | `studio-worker` | Build queue | See the [build worker configuration](run-queue.md#worker-configuration). |
 
 Each media worker takes `STUDIO_API_URL`, `STUDIO_WORKER_TOKEN` and
@@ -27,7 +28,7 @@ POST paths share the prefix `/internal/v1/work` and require a worker token.
 
 | Path | Media worker payload and effect |
 |---|---|
-| `/claim` | `{"lane":"image"}` or `{"lane":"voice"}`. Returns the lane's FIFO head, frozen inputs, fence and claim deadline, or 204. An empty body selects `run`. |
+| `/claim` | `{"lane":"image"}`, `{"lane":"voice"}` or `{"lane":"matte"}`. Returns the lane's FIFO head, frozen inputs, fence and claim deadline, or 204. An empty body selects `run`. |
 | `/heartbeat` | `job_id` and `fence`. Extends the claim by 90 seconds on the database clock. |
 | `/publish` | `job_id` and `fence`. Records entry to engine dispatch and renews the claim before submission. |
 | `/complete` | `job_id`, `fence` and result evidence. The API verifies stored content and commits the version, terminal status and eligible draft selection together. |
@@ -47,9 +48,46 @@ before sending. The worker lets existing work finish and never interrupts it.
 An uncertain submission is never replayed under another worker fence.
 There is no automatic purge.
 
-The media lanes have no public cancel route in this story. Poll the
+Poll the
 [job operations](studio-api.md#media-operations) for status and versions.
 HTTP and MCP callers use the same production and credential checks.
+
+## Matte worker deployment pin
+
+The GitOps pin for [story 965](https://work.haynesnetwork.com/work_packages/965)
+starts the pinned matting sidecar first. Verify `studio-matting ready` and
+the exact CPU profile hash at `GET /v1/ready` over its Unix socket before
+starting the worker. Apply the API schema upgrade through `0013_matte_jobs`
+and register the worker's dedicated token and grant before it claims work.
+Use the migration identity for the initial registration.
+
+```sh
+studio-api-admin worker-token register --worker-id studio-matte-worker \
+  --lane matte --token-file "$MOUNTED_TOKEN_FILE"
+studio-worker --lane matte
+```
+
+Set `STUDIO_API_URL`, `STUDIO_WORKER_TOKEN`, `STUDIO_STORE_ROOT`,
+`STUDIO_MATTING_IMAGE`, `STUDIO_MATTING_REVISION`, and
+`STUDIO_MATTING_PROFILE_SHA256`. Use the same generated token for
+registration and the worker environment. The backend image and revision
+refer to the pinned sidecar. The profile digest comes from its release record.
+`STUDIO_WORKER_PROGRESS_FILE` optionally enables the liveness marker.
+
+Mount the same writable scratch volume at `/matting` in the sidecar and
+matte worker. Give them the shared group that can use the mode-0660
+socket and read and write the attempt files. Mount the canonical store
+read/write in the worker at its configured store root. The API uses the
+same store. The sidecar alone mounts the read-only weights. The worker
+reaches the matting service through the Unix socket.
+
+The worker writes verified output into private per-claim staging on scratch.
+Under the fence it copies every staged blob into the canonical store,
+including files rebuilt for an existing candidate. The API verifies all three
+hashes and commits the candidate and terminal job in one transaction.
+The adapter handles busy replies with seven bounded waits. A timeout fails
+the job and can leave the attempt for the next adapter sweep.
+[File and receipt contract](matting-adapter.md)
 
 ## Upload memory
 
@@ -81,7 +119,7 @@ maximum-size uploads. The numbers measure process RSS in the local setup.
 ## Worker progress probe
 
 Set `STUDIO_WORKER_PROGRESS_FILE=/run/studio/worker-progress`, or pass
-`--progress-file /run/studio/worker-progress`, on each run, image or voice worker.
+`--progress-file /run/studio/worker-progress`, on each run, image, voice or matte worker.
 Use a separate file per worker process in a writable runtime directory outside the
 media store. Without either option, progress files are disabled. The main thread
 touches the file on each claim poll and pipeline step, on every Wan poll, and on

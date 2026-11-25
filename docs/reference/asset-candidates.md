@@ -37,6 +37,25 @@ and prop PNGs have `opaque_photo`; a set PNG has `opaque_plate`. These describe 
 opaque still and leave cutout, mask, keying and motion capability to their own stages.
 [Model licence register](model-licences.md) · [Library records](studio-library.md)
 
+## Cut out an existing still
+
+[Story 965](https://work.haynesnetwork.com/work_packages/965) adds a matte
+candidate job for a pinned library PNG or JPEG with the `opaque_photo`
+capability. In the Assets page opened in a story, **Cut out** shows on
+eligible versions, including image candidate results. The form shows the
+story's pinned format version and offers the cast slots defined in its
+`cast.matte_slots`. Update the story's format pin to a recipe with explicit
+slot sizes to enable the action.
+
+A press sends the source version ID, format version ID and selected slot.
+An uncertain reply keeps that request and its key for retry. The job link
+shows the queued, paused, running and terminal states from API reads.
+An admitted source and the result stay in the same library scope, including
+the shared library. A successful result opens the existing candidate review
+and its explicit **Promote** action. The source stays pinned and the job
+does not select a board asset. The matte lane and the image lane claim work
+independently. [Matting adapter](matting-adapter.md) · [Worker protocol](media-jobs.md)
+
 ## Promotion and retention
 
 | Action | Version state afterward | Normal picker | Private result |
@@ -74,7 +93,7 @@ and pass the draft to `plan_photo`.
   in that story. `q` and `kind` filter the versions returned for the scope.
   Removing a scope chip keeps the target. The saved Assets destination keeps scope,
   target and kind. Using a promoted still returns its exact version ID to the composer.
-- Assets uses the shared image lane read and follows the job in the `job` URL
+- Assets reads the image or matte lane and follows the job in the `job` URL
   parameter. Open a candidate's job link to review or promote its result. If the
   job read is refused, polling stops and a new request is available. Job IDs travel
   between the library and generation views after a successful read. The API exposes
@@ -84,7 +103,7 @@ and pass the draft to `plan_photo`.
   reusable version.
 - Candidate job previews use the job media route. Photo and board voice previews
   use the version route. Other promoted media uses the hash route, except a
-  generated global still can use its source job. Unreferenced global media without
+  generated or matted global still can use its source job. Unreferenced global media without
   a source job may show an unavailable preview under the current media policy.
   Recorded-only versions show their metadata. All previews use the session cookie.
   [Library UI story 456](https://work.haynesnetwork.com/work_packages/456)

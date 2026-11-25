@@ -3,19 +3,60 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEve
 import { ApiError, type StudioClient } from "./api/client";
 import { AssetProblem, CandidateReview } from "./asset-candidate-review";
 import {
-  activeCandidate, loadCandidateJob, loadCandidateResult, loadImageLane, queueCandidate, type CandidateRequest,
+  activeCandidate, loadAssetLanes, loadCandidateJob, loadCandidateResult, queueCandidate, queueMatte,
+  type CandidateRequest, type CandidateStatus, type MatteRequest,
 } from "./asset-library-data";
 import { kindLabel } from "./asset-library-model";
-import type { AssetTarget } from "./asset-version-card";
+import type { AssetTarget, SelectCutout } from "./asset-version-card";
+import type { AssetVersion } from "./photo-composer-model";
 import type { Production } from "./route-data";
 import { pollRuns } from "./run-polling";
 import { useRequest } from "./use-request";
 
 const generationKinds = { cast: true, costume: true, set: true, prop: true } satisfies Record<CandidateRequest["kind"], true>;
-type Press = { body: CandidateRequest; key: string };
 
 function ambiguous(error: unknown) {
   return !(error instanceof ApiError) || error.status === 0 || error.status >= 500;
+}
+
+function useCandidatePress<Body>(
+  api: StudioClient,
+  queue: (api: StudioClient, body: Body, key: string, signal: AbortSignal) => Promise<CandidateStatus>,
+  onJob: (id: string) => void,
+) {
+  const [press, setPress] = useState<{ body: Body; key: string }>();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<unknown>();
+  const request = useRef<AbortController | null>(null);
+  const showJob = useRef(onJob);
+  useEffect(() => () => request.current?.abort(), []);
+  useLayoutEffect(() => { showJob.current = onJob; }, [onJob]);
+
+  async function submit(body: () => Body) {
+    if (request.current) return;
+    const attempt = press ?? { body: body(), key: crypto.randomUUID() };
+    const pending = new AbortController();
+    request.current = pending;
+    setSaving(true);
+    setError(undefined);
+    try {
+      const queued = await queue(api, attempt.body, attempt.key, pending.signal);
+      if (pending.signal.aborted) return;
+      setPress(undefined);
+      showJob.current(queued.id);
+    } catch (error) {
+      if (!pending.signal.aborted) {
+        setPress(ambiguous(error) ? attempt : undefined);
+        setError(error);
+      }
+    } finally {
+      if (!pending.signal.aborted) {
+        request.current = null;
+        setSaving(false);
+      }
+    }
+  }
+  return { retrying: Boolean(press), saving, error, submit };
 }
 
 function useAssetPoll<T>(
@@ -55,18 +96,21 @@ export function useCandidateJob(api: StudioClient, id?: string) {
   return { value: refused ? undefined : value, error, retry, missing, active };
 }
 
-function CandidateResult({ api, job, target, onPromoted }: {
-  api: StudioClient; job: CandidateJobRecord; target?: AssetTarget; onPromoted: () => void;
+function CandidateResult({ api, job, target, onPromoted, onCutout }: {
+  api: StudioClient; job: CandidateJobRecord; target?: AssetTarget; onPromoted: () => void; onCutout?: SelectCutout;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
-  const { id: jobId, result_version_id: versionId, target_id: assetId, asset_candidate: spec } = job;
+  const { id: jobId, result_version_id: versionId } = job;
+  const spec = job.kind === "matte" ? job.matte : job.asset_candidate;
+  const assetId = job.kind === "asset_candidate" ? job.target_id : undefined;
+  const sourceVersionId = job.kind === "matte" ? job.target_id : undefined;
   const productionId = spec?.production_id;
   const kind = spec?.kind;
   // A visibility refresh can return the same job in a new object while a
   // promotion request is pending. Keep the review mounted for the same result.
   const load = useCallback((signal: AbortSignal) => loadCandidateResult(api, {
-    jobId, versionId, assetId, productionId, kind,
-  }, signal), [api, jobId, versionId, assetId, productionId, kind]);
+    jobId, versionId, assetId, productionId, kind, sourceVersionId,
+  }, signal), [api, jobId, versionId, assetId, productionId, kind, sourceVersionId]);
   const { result, retry } = useRequest(load);
   function refresh() {
     heading.current?.focus();
@@ -77,112 +121,120 @@ function CandidateResult({ api, job, target, onPromoted }: {
     {result.status === "loading" && <p role="status">Loading result…</p>}
     {result.status === "failure" && <AssetProblem error={result.error} retry={refresh} />}
     {result.status === "success" && <CandidateReview key={result.data.id} version={result.data} jobId={jobId}
-      api={api} target={target} onPromoted={onPromoted} refresh={refresh} />}
+      api={api} target={target} onPromoted={onPromoted} refresh={refresh} onCutout={onCutout} />}
   </section>;
 }
 
-function CandidateJob({ api, status, paused, target, onPromoted }: {
+function CandidateJob({ api, status, paused, target, onPromoted, onCutout }: {
   api: StudioClient; status: ReturnType<typeof useCandidateJob>; paused: boolean; target?: AssetTarget;
-  onPromoted: () => void;
+  onPromoted: () => void; onCutout?: SelectCutout;
 }) {
   const { value: job, error, retry } = status;
   if (status.missing) return <p role="alert">Candidate job not found.</p>;
 
+  const matte = job?.kind === "matte";
+  const subject = matte ? "Matte" : "Candidate";
   const label = job ? {
-    queued: paused ? "Candidate queued · image lane paused" : "Candidate queued",
-    running: "Candidate running",
-    succeeded: "Candidate ready",
-    failed: "Candidate failed",
-    cancelled: "Candidate cancelled",
+    queued: paused ? `${subject} queued · ${matte ? "matte" : "image"} lane paused` : `${subject} queued`,
+    running: `${subject} running`,
+    succeeded: `${subject} ready`,
+    failed: `${subject} failed`,
+    cancelled: `${subject} cancelled`,
   }[job.status] : error == null ? "Reading candidate job…" : undefined;
 
   return <div className="asset-job">
     {label && <p role="status">{label}</p>}
     {error != null && <AssetProblem error={error} retry={retry} />}
     {job?.status === "failed" && job.error && <p role="alert">{job.error.message} · {job.error.code}</p>}
-    {job?.status === "succeeded" && <CandidateResult api={api} job={job} target={target} onPromoted={onPromoted} />}
+    {job?.status === "succeeded" && <CandidateResult api={api} job={job} target={target}
+      onPromoted={onPromoted} onCutout={onCutout} />}
   </div>;
 }
 
-export function AssetGeneration({ api, generate, production, scopeReady, job, jobStatus, target, onJob, onPromoted }: {
+export function AssetGeneration({ api, generate, production, scopeReady, job, jobStatus, target, onJob,
+  onPromoted, onCutout, cuttingOut }: {
   api: StudioClient; generate: boolean; production?: Production; scopeReady: boolean;
   job?: string; jobStatus: ReturnType<typeof useCandidateJob>; target?: AssetTarget;
-  onJob: (job?: string) => void; onPromoted: () => void;
+  onJob: (job?: string) => void; onPromoted: () => void; onCutout?: SelectCutout; cuttingOut: boolean;
 }) {
   const [name, setName] = useState("");
   const [prompt, setPrompt] = useState("");
   const [kind, setKind] = useState<CandidateRequest["kind"]>("cast");
-  const [press, setPress] = useState<Press>();
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<unknown>();
-  const request = useRef<AbortController | null>(null);
-  const showJob = useRef(onJob);
+  const { retrying, saving, error, submit } = useCandidatePress(api, queueCandidate, onJob);
   const { active: jobActive } = jobStatus;
-  const loadLane = useCallback((signal: AbortSignal) => loadImageLane(api, signal), [api]);
-  const lane = useAssetPoll(loadLane, keepPollingLane, generate || jobActive);
+  const loadLanes = useCallback((signal: AbortSignal) => loadAssetLanes(api, signal), [api]);
+  const lanes = useAssetPoll(loadLanes, keepPollingLane, generate || jobActive);
+  const imageLane = lanes.value?.image;
+  const jobLane = jobStatus.value?.kind === "matte" ? lanes.value?.matte : imageLane;
+  const unavailable = jobActive || cuttingOut || (!retrying && (!scopeReady || !name.trim() || !prompt.trim()));
 
-  useEffect(() => () => request.current?.abort(), []);
-  useLayoutEffect(() => { showJob.current = onJob; }, [onJob]);
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  function request(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (request.current || jobActive || (!press && (!scopeReady || !name.trim() || !prompt.trim()))) return;
-    const attempt = press ?? {
-      body: { name: name.trim(), kind, prompt: prompt.trim(), production_id: production?.id ?? null,
-        seed: crypto.getRandomValues(new Uint32Array(1))[0] },
-      key: crypto.randomUUID(),
-    };
-    const pending = new AbortController();
-    request.current = pending;
-    setSaving(true);
-    setError(undefined);
-    try {
-      const queued = await queueCandidate(api, attempt.body, attempt.key, pending.signal);
-      if (pending.signal.aborted) return;
-      setPress(undefined);
-      showJob.current(queued.id);
-    } catch (error) {
-      if (!pending.signal.aborted) {
-        if (ambiguous(error)) setPress(attempt);
-        else setPress(undefined);
-        setError(error);
-      }
-    } finally {
-      if (!pending.signal.aborted) {
-        request.current = null;
-        setSaving(false);
-      }
-    }
+    if (!unavailable) void submit(() => ({
+      name: name.trim(), kind, prompt: prompt.trim(), production_id: production?.id ?? null,
+      seed: crypto.getRandomValues(new Uint32Array(1))[0],
+    }));
   }
 
   return <div className={generate ? "asset-generation" : undefined}>
-    {generate && <form className="asset-card asset-generate-form" onSubmit={submit} aria-label="Generate asset candidate">
+    {generate && <form className="asset-card asset-generate-form" onSubmit={request} aria-label="Generate asset candidate">
       <p role="status" className="asset-lane">
-        {lane.value ? (lane.value.paused ? "Image lane paused" : "Shared image lane open") : "Reading image lane…"}
+        {imageLane ? (imageLane.paused ? "Image lane paused" : "Shared image lane open") : "Reading image lane…"}
       </p>
-      {lane.error != null && <AssetProblem error={lane.error} retry={lane.retry} />}
+      {lanes.error != null && <AssetProblem error={lanes.error} retry={lanes.retry} />}
       {scopeReady && <p className="muted">{production?.name ?? "Shared library"}</p>}
-      <label>Name<input value={name} maxLength={100} required disabled={saving || Boolean(press)}
+      <label>Name<input value={name} maxLength={100} required disabled={saving || retrying}
         onChange={(event) => setName(event.currentTarget.value)} /></label>
-      <label>Kind<select value={kind} disabled={saving || Boolean(press)} onChange={(event) => {
+      <label>Kind<select value={kind} disabled={saving || retrying} onChange={(event) => {
         setKind(event.currentTarget.value as CandidateRequest["kind"]);
       }}>
         {Object.keys(generationKinds).map((kind) => <option key={kind} value={kind}>{kindLabel(kind)}</option>)}
       </select></label>
-      <label>Prompt<textarea value={prompt} maxLength={1800} rows={5} required disabled={saving || Boolean(press)}
+      <label>Prompt<textarea value={prompt} maxLength={1800} rows={5} required disabled={saving || retrying}
         onChange={(event) => setPrompt(event.currentTarget.value)} /></label>
-      <button className="pill primary" type="submit" aria-disabled={saving || jobActive || !scopeReady ||
-        (!press && (!name.trim() || !prompt.trim()))}>
-        {saving ? "Submitting…" : press ? "Retry candidate request" : "Request candidate"}
+      <button className="pill primary" type="submit" aria-disabled={saving || unavailable}>
+        {saving ? "Submitting…" : retrying ? "Retry candidate request" : "Request candidate"}
       </button>
       {error != null && <AssetProblem error={error} />}
     </form>}
-    {job && <CandidateJob key={job} status={jobStatus} api={api} paused={lane.value?.paused === true} target={target}
-      onPromoted={onPromoted} />}
-    {job && <div className="asset-actions"><button className="pill" type="button" disabled={saving || Boolean(press)}
+    {job && <CandidateJob key={job} status={jobStatus} api={api} paused={jobLane?.paused === true} target={target}
+      onPromoted={onPromoted} onCutout={saving || retrying ? undefined : onCutout} />}
+    {job && <div className="asset-actions"><button className="pill" type="button" disabled={saving || retrying || cuttingOut}
       onClick={() => {
         document.getElementById("page-heading")?.focus();
         onJob();
       }}>Close job view</button></div>}
   </div>;
+}
+
+export function MatteForm({ api, source, format, slots, onJob, onClose }: {
+  api: StudioClient; source: AssetVersion; format: { id: string; format_id: string; number: number };
+  slots: string[]; onJob: (job: string) => void; onClose: () => void;
+}) {
+  const [slot, setSlot] = useState("");
+  const select = useRef<HTMLSelectElement>(null);
+  const { retrying, saving, error, submit } = useCandidatePress<MatteRequest>(api, queueMatte, onJob);
+  useEffect(() => { select.current?.focus(); }, []);
+
+  function request(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (slots.includes(slot)) void submit(() => ({ source_version_id: source.id, format_version_id: format.id, slot }));
+  }
+
+  return <form className="asset-card asset-generate-form" aria-label="Request matte" onSubmit={request}>
+    <h2>Cut out {source.name} · v{source.number}</h2>
+    <p className="muted">Format {format.format_id} · v{format.number}</p>
+    <label>Cast slot<select ref={select} required value={slot}
+      disabled={saving || retrying} onChange={(event) => setSlot(event.currentTarget.value)}>
+      <option value="" disabled>Choose a slot</option>
+      {slots.map((value) => <option key={value} value={value}>{value.toUpperCase()}</option>)}
+    </select></label>
+    <div className="asset-actions">
+      <button className="pill primary" type="submit" aria-disabled={!slot || saving}>
+        {saving ? "Submitting…" : retrying ? "Retry matte request" : "Request matte"}
+      </button>
+      <button className="pill" type="button" disabled={saving} onClick={onClose}>Close cutout</button>
+    </div>
+    {error != null && <AssetProblem error={error} />}
+  </form>;
 }

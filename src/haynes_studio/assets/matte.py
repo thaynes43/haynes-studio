@@ -54,6 +54,23 @@ class MatteTarget:
                 "format_sha256": self.format_sha256, "slot": self.slot, "target_height_px": self.height}
 
 
+def matte_kind(kind: str) -> str:
+    # A library photo's explicitly chosen cast slot gives the cutout a cast identity.
+    return "cast" if kind == "photo" else kind
+
+
+def matte_identity(request: Mapping, target: MatteTarget) -> tuple[str, str, str]:
+    identity = {field: request[field] for field in ("source", "profile_id", "profile_sha256", "parameters")}
+    key = "matting:" + sha256(canonical_json({"input": identity, "target": target.document()})).hexdigest()
+    return key, _stable_id("ast", key), _stable_id("asv", key)
+
+
+def matte_outputs(version: AssetVersion) -> tuple[Content | None, ...]:
+    params = version.provenance["generator"]["params"]
+    return (version.content, Content.from_document(params.get("mask")),
+            Content.from_document(params.get("receipt_blob")))
+
+
 def _read_source(store: Store, version: AssetVersion, production_id: str | None) -> tuple[dict, bytes]:
     content = version.content
     formats = {"image/jpeg": "JPEG", PNG: "PNG"}
@@ -101,9 +118,7 @@ def _existing(library: Library, key: str, asset_id: str, version_id: str) -> Ass
 
 def _recorded_outputs(version: AssetVersion, store: Store) -> tuple[tuple[Content, ...], tuple[Content, ...]]:
     try:
-        params = version.provenance["generator"]["params"]
-        outputs = (version.content, Content.from_document(params.get("mask")),
-                   Content.from_document(params.get("receipt_blob")))
+        outputs = matte_outputs(version)
     except (KeyError, TypeError):
         raise failure(IDEMPOTENCY_MISMATCH, "The recorded matte has an invalid descriptor") from None
     missing = []
@@ -139,9 +154,7 @@ def _make_candidate(
     if version is None or version.content is None:
         raise failure(REQUEST_INVALID, "The pinned source version has no media")
     asset = library.asset_of(source_version_id)
-    # A promoted library photo is opaque-only. Its explicitly chosen cast
-    # slot makes the derived candidate a cast asset with its own identity.
-    kind = "cast" if asset.kind == "photo" else asset.kind
+    kind = matte_kind(asset.kind)
     if (not is_id(job_id, "job") or asset.scope.production_id != production_id
             or asset.scope.story_id is not None or asset.scope.board_id is not None
             or not version.has("opaque_photo")
@@ -152,8 +165,7 @@ def _make_candidate(
     identity = {"source": source, "profile_id": PROFILE_ID, "profile_sha256": client.profile_sha256,
                 "parameters": {"chroma_rgb": None if chroma_rgb is None else list(chroma_rgb),
                                "target_height_px": target.height}}
-    key = "matting:" + sha256(canonical_json({"input": identity, "target": target.document()})).hexdigest()
-    asset_id, version_id = _stable_id("ast", key), _stable_id("asv", key)
+    key, asset_id, version_id = matte_identity(identity, target)
     check_fence()
     existing = _existing(library, key, asset_id, version_id)
     if existing is not None:

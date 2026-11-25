@@ -11,11 +11,13 @@ from starlette.requests import ClientDisconnect
 
 from haynes_studio.adapters.errors import AdapterError
 from haynes_studio.assets.candidate import plan_candidate
+from haynes_studio.assets.matte import MatteTarget
 from haynes_studio.canonical.ids import Minter, is_id
 from haynes_studio.db import catalog, drafts, jobs
 from haynes_studio.db.engine import snapshot
 from haynes_studio.db.problems import NotFound, require_revision
 from haynes_studio.db.runs import database_time, timestamp
+from haynes_studio.formats import records
 from haynes_studio.jsonio import parse_strict
 from haynes_studio.layered.errors import LayeredError
 from haynes_studio.library.model import signature, version_document
@@ -23,7 +25,7 @@ from haynes_studio.photo.build import METHOD_INVALID, ExternalProvenance, import
 from haynes_studio.photo.plan import WHOLE_FRAME
 from haynes_studio.photo_limits import TIMEOUT_CODE, TIMEOUT_MESSAGE, UploadBodyTimeout
 from haynes_studio.photo.validation import MAX_UPLOAD_BYTES
-from haynes_studio.queue.media_inputs import documents, photo_plan, photo_request, provenance
+from haynes_studio.queue.media_inputs import documents, matte_signature, photo_plan, photo_request, provenance
 from haynes_studio.voice.jobs import new_job
 from haynes_studio.voice.plan import plan_board_voice
 
@@ -57,10 +59,16 @@ class CandidateRequest(Body):
     seed: Seed = 0
 
 
+class MatteRequest(Body):
+    source_version_id: str
+    format_version_id: str
+    slot: Annotated[str, StringConstraints(pattern=r"^[a-z]$")]
+
+
 class JobStatus(TransportModel):
     schema_: Literal["studio.job/v1"] = Field(alias="schema")
     id: str
-    kind: Literal["voice", "photo", "asset_candidate"]
+    kind: Literal["voice", "photo", "asset_candidate", "matte"]
     target_id: str
     status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
     result_version_id: str | None
@@ -85,7 +93,7 @@ class PhotoUploadView(TransportModel):
 
 
 def transport_models():
-    return (VoiceRequest, PhotoRequest, CandidateRequest, JobStatus, JobView, PhotoUploadView,
+    return (VoiceRequest, PhotoRequest, CandidateRequest, MatteRequest, JobStatus, JobView, PhotoUploadView,
             Page[JobStatus])
 
 
@@ -222,6 +230,43 @@ def build_router(CurrentActor, authenticated_route):
                       "labels": list(plan.labels)}
             row = jobs.enqueue(conn, job, position=position, production=production, inputs=frozen,
                                key=idempotency_key, signature=fingerprint)
+        return _queued(response, row, created=True)
+
+    @router.post("/asset-jobs/matte", operation_id="request_matte", status_code=202,
+                 response_model=JobStatus, responses=JOB_RESPONSES)
+    def request_matte(body: MatteRequest, request: Request, response: Response,
+                      actor: CurrentActor, idempotency_key: IdempotencyKey):
+        actor.human()
+        source_id = _id(body.source_version_id, "asv", "/source_version_id")
+        format_id = _id(body.format_version_id, "fmv", "/format_version_id")
+        by = actor.principal
+        fingerprint = signature(body.model_dump())
+        with request.app.state.engine.begin() as conn:
+            position = jobs.lock_lane(conn, "matte")
+            existing = jobs.lookup(conn, "matte", "asset-jobs", by, idempotency_key, fingerprint)
+            if existing is not None:
+                return _queued(response, existing, created=False)
+            library = catalog.version_library(conn, version_id=source_id)
+            source = library.get(source_id)
+            format_version = records.version(conn, format_id)
+            if source is None or format_version is None:
+                raise NotFound
+            asset = library.asset_of(source_id)
+            if (asset.scope.story_id is not None or asset.scope.board_id is not None
+                    or not source.has("opaque_photo") or source.content is None
+                    or source.content.locator is None
+                    or source.content.media_type not in ("image/png", "image/jpeg")):
+                raise APIError(422, "adapter.request_invalid", "Choose a library-scoped opaque PNG or JPEG",
+                               path="/source_version_id")
+            try:
+                target = MatteTarget.from_recipe(format_version, body.slot)
+            except AdapterError as error:
+                raise APIError(422, error.code, error.message, path="/slot") from error
+            frozen = {"source": version_document(source, asset), "format_version": format_version, "slot": body.slot}
+            now = timestamp(database_time(conn))
+            job = new_job("matte", source_id, matte_signature(frozen, target), by=by, now=now)
+            row = jobs.enqueue(conn, job, position=position, production=asset.scope.production_id,
+                               inputs=frozen, key=idempotency_key, signature=fingerprint)
         return _queued(response, row, created=True)
 
     @router.get("/jobs/{id}", response_model=JobView, operation_id="get_job")
