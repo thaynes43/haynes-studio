@@ -31,7 +31,7 @@ from haynes_studio.build.validate import SNAPSHOT_SCHEMA, validate_run_snapshot
 from haynes_studio.cache.plan import LayeredMotion, Toolchain
 from haynes_studio.canonical import Facts, Story, load_story
 from haynes_studio.canonical.derive import board_clock
-from haynes_studio.canonical.validate import WRITE
+from haynes_studio.canonical.validate import UNAVAILABLE, WRITE
 from haynes_studio.errors import WARNING, blocking
 from haynes_studio.formats.recipe import PIN_PATH, method_violation
 from haynes_studio.jsonio import thaw
@@ -55,6 +55,7 @@ from haynes_studio.voice import voice_facts
 from haynes_studio.wholeframe import check_board as wholeframe_check
 
 WAV = "audio/wav"
+OCCLUSION_UNAVAILABLE = "occlusion.check_unavailable"
 
 
 @dataclass(frozen=True)
@@ -151,6 +152,23 @@ def _metadata_present(_locator, _sha):
     return PRESENT
 
 
+def _occlusion_refusal(story: Story, library: Library) -> Problem | None:
+    """Stop opted-in stories at pre-build until the renderer can check them."""
+    message = "The visibility check is not installed"
+    if story.set is not None and story.set.asset_version_id is not None:
+        plate = library.get(story.set.asset_version_id)
+        if plate is not None and plate.occlusion is not None:
+            field = "/set/asset_version_id"
+            return Problem(OCCLUSION_UNAVAILABLE, UNAVAILABLE, field, message, field=field)
+    for index, board in enumerate(story.boards or ()):
+        if board.layout.check_poses is not None:
+            field = "/layout/check_poses"
+            return Problem(OCCLUSION_UNAVAILABLE, UNAVAILABLE, f"/boards/{index}{field}", message,
+                           board_id=board.id, board_number=board.number,
+                           legacy_shot=board.origin.legacy_shot if board.origin else None, field=field)
+    return None
+
+
 def prepare(document: Mapping[str, Any], *, library: Library, store: Store | None,
             toolchain: Toolchain, frame_size: tuple[int, int], current_engine: str,
             jobs: Iterable[Any] = (), check_photo_currency: bool = False,
@@ -172,6 +190,9 @@ def prepare(document: Mapping[str, Any], *, library: Library, store: Store | Non
                          for v in getattr(error, "violations", ()))
         return Prepared(document, library, None, facts, resolution, resolved, None, PreflightReport(
             problems or (Problem("schema.invalid", "invalid", "", str(error)),)))
+    if refusal := _occlusion_refusal(story, library):
+        return Prepared(document, library, story, facts, resolution, resolved, None,
+                        PreflightReport((refusal,)), format_version)
     if check_photo_currency:
         facts = facts.merged(photo_facts(story, library))
     report = preflight(story, facts=facts, resolved=resolved, store=store)

@@ -33,6 +33,7 @@ from tests.db.test_studio_api import (
     bearer, client, engine, new_production, new_story, owner_engine,
     register_agent, runtime_db, runtime_role, service, sign_in,
 )
+from tests.motion.fixtures import still_version
 from tests.queue.fake_wan import Clock, FakeWan, STORY
 
 pytestmark = pytest.mark.db
@@ -798,6 +799,73 @@ def test_only_a_person_can_append_an_override_without_mutating_the_run(queue):
     assert current["status"] == "failed" and current["checks"] == original["checks"]
     assert current["check_overrides"] == [result.json()]
     assert result.json()["by"]["kind"] == "human"
+
+
+@pytest.mark.parametrize("opt_in", ["foreground", "focal_props", "check_poses", "set_and_board"])
+def test_opted_in_build_is_refused_for_people_and_agents(queue, opt_in):
+    q = queue
+    legacy = queue_run(q, "legacy-before-opt-in")
+    assert legacy.status_code == 201, legacy.text
+    run_id = legacy.json()["id"]
+    claim = worker_api(q).claim()
+    artifact = "1" * 64
+    claim.fail(status="failed", reason="Fixture check failure", checks=[{
+        "check": "layered.decal_gate", "result": "fail", "artifact": artifact, "value": 0.7,
+    }])
+    _, run_etag = read_run(q, run_id)
+    override = {"artifact": artifact, "reason": "The decal stays readable"}
+    checks = f"/v1/runs/{run_id}/checks"
+    for code in ("occlusion.visibility", "occlusion.check_unavailable"):
+        response = q.browser.post(f"{checks}/{code}/overrides", json=override,
+                                  headers={**q.csrf, "If-Match": run_etag})
+        assert response.status_code == 403 and response.json()["error"]["code"] == "check.not_overridable"
+    allowed = q.browser.post(f"{checks}/layered.decal_gate/overrides", json=override,
+                             headers={**q.csrf, "If-Match": run_etag})
+    assert allowed.status_code == 201, allowed.text
+
+    story_path = f"/v1/stories/{q.story_id}"
+    if opt_in != "check_poses":
+        blob = q.store.publish(q.png, scope=q.production_id, media_type="image/png")
+        config = {"foreground": [], "focal_props": []}
+        if opt_in == "focal_props":
+            config["focal_props"] = [{"key": "menu", "label": "menu", "depth": "background", "layer_order": 0}]
+        else:
+            config["foreground"] = [{"key": "counter", "label": "counter", "layer_order": 30}]
+        plate = still_version(144, blob.sha256, kind="set")
+        plate.update(id=Minter().mint("asv"), asset_id=Minter().mint("ast"), legacy=None,
+                     scope={"production_id": q.production_id}, occlusion=config,
+                     content={**blob.to_document(), "width": 144, "height": 256})
+        plate["provenance"]["source_key"] = f"fixture:{plate['id']}"
+        with q.engine.begin() as conn:
+            record_asset_version(conn, plate)
+        edit = q.browser.patch(story_path, headers={**q.csrf, "If-Match": "3"}, json={"set": {
+            "asset_version_id": plate["id"], "motion_asset_version_id": None,
+            "foreground_edge_px": None, "foreground_feather_px": None, "legacy_fire": None,
+        }})
+        assert edit.status_code == 200, edit.text
+    if opt_in in ("check_poses", "set_and_board"):
+        edit = q.browser.patch(f"/v1/boards/{q.board_id}", headers={**q.csrf, "If-Match": "2"}, json={"layout": {
+            "preset": "default", "foreground": False, "check_poses": [{"key": "still", "frame": 0}],
+        }})
+        assert edit.status_code == 200, edit.text
+
+    rev = q.browser.get(story_path).json()["revision"]
+    _, agent = register_agent(q.owner, {q.production_id: ["read", "runs:queue"]})
+    path = "/boards/0/layout/check_poses" if opt_in == "check_poses" else "/set/asset_version_id"
+    estimate = q.browser.get(f"{story_path}/estimate", headers=agent).json()
+    assert [(p["rule"], p["status"], p["path"]) for p in estimate["problems"]] == [
+        ("occlusion.check_unavailable", "unavailable", path),
+    ]
+    for actor in (q.csrf, agent):
+        refused = queue_run(q, "opted-in", rev=rev, headers=actor)
+        assert refused.status_code == 422, refused.text
+        problem = refused.json()["error"]
+        assert (problem["code"], problem["status"], problem["path"], problem["message"]) == (
+            "occlusion.check_unavailable", "unavailable", path, "The visibility check is not installed",
+        )
+        assert not problem.get("evidence")
+    assert worker_api(q).claim() is None
+    assert [row["id"] for row in q.browser.get(f"{story_path}/runs").json()["items"]] == [run_id]
 
 
 def add_sound_bed(q, tmp_path):

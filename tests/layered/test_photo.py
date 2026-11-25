@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import copy
 import io
+from hashlib import sha256
 
 import numpy as np
 import PIL.Image
@@ -15,6 +16,7 @@ from haynes_studio.jsonio import thaw
 from haynes_studio.layered import compose_photo, photo_inputs, reader
 from haynes_studio.layered.errors import UNSUPPORTED, LayeredError
 from haynes_studio.layered.photo import PhotoInputs
+from haynes_studio.photo.plan import plan_photo
 from tests.cache import fixtures as fx
 from tests.cache.fixtures import PRODUCTION
 from tests.layered import helpers as h
@@ -50,6 +52,24 @@ def test_the_same_inputs_give_the_same_bytes(world):
     made = inputs(world, h.story_document())
     read = reader(world.store, [PRODUCTION])
     assert compose_photo(made, read) == compose_photo(inputs(world, h.story_document()), read)
+
+
+@pytest.mark.parametrize(("foreground", "expected"), [
+    (False, "858d71bed5e8908713dafdb99b45760eddbf5e5d8488fe5609b8abc3fb902e91"),
+    (True, "b6984d028176b3ac56de5bd696367ffc856165483405b01f3db4246df6396583"),
+], ids=["plain", "legacy-edge-feather-and-camera"])
+def test_legacy_photo_matches_main_bytes(world, foreground, expected):
+    document = h.story_document(foreground=foreground)
+    if foreground:
+        fx.board_of(document, h.B1)["cues"] = [
+            {"id": fx.ident("cue", 1), "type": "camera", "anchor": {"at_ms": 0}, "duration_ms": 200,
+             "zoom_from": 1.0, "zoom_to": 1.3, "center_px": [180, 420], "easing": "ease_out_cubic"},
+        ]
+    story = load_story(document, context="write")
+    layers = plan_photo(story, story.boards[0], world.library()).layers
+    rendered = compose_photo(layers, reader(world.store, [PRODUCTION]))
+    # PNG hashes measured from the unmodified photo renderer on main at 0f6ca21.
+    assert sha256(rendered).hexdigest() == expected
 
 
 def test_a_changed_still_set_layout_or_framing_gives_a_new_photo(world):

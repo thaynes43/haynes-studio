@@ -4,8 +4,10 @@ and the rules the examples do not reach."""
 from __future__ import annotations
 
 import copy
+from hashlib import sha256
 from pathlib import Path
 
+import numpy as np
 import pytest
 from jsonschema import Draft202012Validator
 
@@ -14,6 +16,8 @@ from haynes_studio.canonical import (
     Facts,
     FormatLength,
     VoiceVersionFacts,
+    load_story,
+    to_document,
     validate_board,
     validate_legacy_import,
     validate_method_capabilities,
@@ -21,9 +25,11 @@ from haynes_studio.canonical import (
     validate_story,
     validate_story_timing,
 )
+from haynes_studio.canonical.model import CheckPose
 from haynes_studio.canonical.validate import SCHEMA_FILES
 from haynes_studio.errors import WARNING
 from haynes_studio.schemas import validator_for
+from haynes_studio.store import canonical_json
 from tests.canonical.fixtures import EXAMPLES, board_context, example, example_context
 from tests.contracts import harness
 from tests.contracts.registry import VALIDATORS
@@ -82,6 +88,35 @@ def test_each_embedded_board_validates_alone(number):
     found = next(b for b in example("valid/story-winter-menu-r4.json")["boards"]
                  if b["number"] == number)
     assert blocking(VALIDATORS["board"](found, context="read")) == []
+
+
+def test_legacy_story_and_boards_serialize_byte_for_byte():
+    document = example("valid/story-winter-menu-r4.json")
+    story = canonical_json(to_document(load_story(document)))
+    boards = canonical_json([to_document(Board.from_document(board)) for board in document["boards"]])
+    # The Winter Menu story and its nine boards serialized on main at 0f6ca21.
+    assert sha256(story).hexdigest() == "0532748ce14ee933f57f09de721581113cf6d1af5d39f477566b84cc28a2d220"
+    assert sha256(boards).hexdigest() == "373ed181fd2d2d0f90283ed5d8678805bf9ab03bcd17e4a7286f488bd6bf1935"
+
+
+def test_check_pose_keys_are_unique_and_round_trip():
+    document = example("valid/story-winter-menu-r4.json")
+    layout = document["boards"][0]["layout"]
+    poses = [{"key": "still", "frame": 0}, {"key": "wide", "frame": 12}]
+    layout["check_poses"] = poses
+    board = load_story(document).boards[0]
+    assert to_document(board.layout) == layout
+    poses[1]["key"] = "still"
+    assert blocking(validate_story(document)) == [
+        ("ref.duplicate", "invalid", "/boards/0/layout/check_poses/1/key"),
+    ]
+
+
+@pytest.mark.parametrize("frame", [False, 0.0, np.int32(0), -1])
+def test_pose_requires_an_exact_integer_frame(frame):
+    assert CheckPose("still", 0).frame == 0
+    with pytest.raises(ValueError, match="frame must be a non-negative integer"):
+        CheckPose("still", frame)
 
 
 @pytest.mark.parametrize("item", INVALID, ids=_id)
