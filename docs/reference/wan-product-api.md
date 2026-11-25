@@ -152,11 +152,25 @@ the local-model profile is absent.
 | `local_model_unavailable` | A local-model status needed for admission was unavailable. | Retry with a new ID after the sidecar can supply status. |
 | `pre_admission_failed` | A different error occurred before the engine started, such as an invalid inference budget. | Inspect the error and resolve the cause before making a new request. |
 
-Continue to poll the same ID after an ambiguous reply. The current Studio video
-client recognizes the existing ComfyUI busy text and Rack GPU busy or warm
-texts. Mounted-profile sidecar or handover refusals use the same Rack GPU busy
-text so that client backs off. A Wan or Foley admission check that sees foreign
-engine work preserves it and refuses that attempt without latching a new hold.
+Continue to poll the same ID after an ambiguous reply. The two Studio clients
+read these refusals differently, and both still read the `error` text, not the
+code:
+
+- The run queue (`src/haynes_studio/queue/wan.py`) treats the ComfyUI
+  foreign-queue text and the two Rack GPU texts (busy, and above the
+  temperature limit) as an admission refusal in which nothing ran. It records
+  the attempt as busy and waits for the lane. Mounted-profile sidecar and
+  handover refusals use the same Rack GPU busy text, so the queue waits on
+  those too.
+- The command-line clip client (`src/haynes_studio/adapters/wan.py`) treats
+  only the lease text, `Compute is reserved by another video/audio job`, as
+  `adapter.busy`. Any other refusal, the Rack GPU texts included, ends as
+  `adapter.job_failed` with "inspect before any further render". It does not
+  back off by itself.
+
+Story https://work.haynesnetwork.com/work_packages/430 moves the run queue to
+`admission_code`. A Wan or Foley admission check that sees foreign engine work
+preserves it and refuses that attempt without latching a new hold.
 
 ## Legacy cleanup
 
