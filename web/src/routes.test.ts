@@ -17,7 +17,7 @@ describe("shell routes", () => {
     const scoped = assetsPath(context, true);
     expect(safePath(scoped)).toBe(scoped);
     const [pathname, search] = scoped.split("?");
-    expect(parseRoute(pathname, search)).toEqual({ area: "assets", context, generate: true });
+    expect(parseRoute(pathname, search)).toMatchObject({ area: "assets", context, generate: true });
   });
 
   test("dropping a scope removes all of its descendants", () => {

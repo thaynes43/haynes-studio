@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useSyncExternalStore, type ReactNode }
 import { Link, useLocation } from "react-router";
 
 import type { StudioClient } from "./api/client";
+import { AssetLibraryPage } from "./asset-library";
 import { EditorLanding, EditorPicker } from "./editor-entry";
 import { ProductionReview, ProductionStories } from "./production-review";
 import { boardLabel, loadRoute, type RouteData } from "./route-data";
@@ -20,23 +21,11 @@ import { useRunList } from "./use-run-list";
 import { useStoryboard } from "./use-storyboard";
 import "./story-runs.css";
 
-type ContextRoute = Extract<Route, { context: unknown }>;
+type ContextRoute = Extract<Route, { area: "productions" | "board" }>;
 
 function trailFor(route: ContextRoute, data: RouteData): Crumb[] {
   const { production, media, story } = route.context;
   const editor = { label: "Editor", to: "/editor" };
-  if (route.area === "assets") {
-    const trail = [editor, { label: "Assets", to: assetsPath() }];
-    if (data.production) {
-      trail.push({ label: data.production.name, to: assetsPath({ production }) });
-    }
-    if (data.board) {
-      trail.push({ label: boardLabel(data.board), to: assetsPath(route.context) });
-    }
-    if (route.generate) trail.push({ label: "Generate", to: assetsPath(route.context, true) });
-    return trail;
-  }
-
   const { area } = route;
   const trail = area === "productions"
     ? [{ label: "Productions", to: treePath(area) }]
@@ -63,7 +52,6 @@ function trailFor(route: ContextRoute, data: RouteData): Crumb[] {
 }
 
 function treeHeading(route: ContextRoute, data: RouteData) {
-  if (route.area === "assets") return route.generate ? "Generate asset" : "Asset library";
   const { production, media, story, board } = route.context;
   if (route.page === "photo") return "Reference photo";
   if (route.page === "runs") return "Runs";
@@ -77,14 +65,6 @@ function treeHeading(route: ContextRoute, data: RouteData) {
 
 function RouteContents({ route, data }: { route: ContextRoute; data: RouteData }) {
   const { production, media } = route.context;
-  if (route.area === "assets") {
-    return route.generate
-      ? <Empty>Asset generation will appear here.</Empty>
-      : <>
-          <div className="actions"><Link className="pill" to={assetsPath(route.context, true)}>Generate asset</Link></div>
-          <Empty>Assets will appear here.</Empty>
-        </>;
-  }
   const { area } = route;
   if (media) {
     return data.stories?.length
@@ -154,7 +134,7 @@ function ContextPage({
   const load = useCallback((signal: AbortSignal) => loadRoute(api, context, area, signal), [api, context, area]);
   const { result, retry } = useRequest(load);
   const valid = result.status === "success";
-  const remembered = area === "assets" ? assetsPath(context) : treePath(area, context);
+  const remembered = treePath(area, context);
   useEffect(() => {
     if (valid) selections.remember(area, remembered);
   }, [area, remembered, selections, valid]);
@@ -218,7 +198,7 @@ export function Workspace({
   const inEditor = route.area === "editor" || route.area === "board" || route.area === "assets";
   const assets = route.area === "board" && route.context.production
     ? assetsPath(route.context)
-    : destinations.assets;
+    : route.area === "assets" ? assetsPath(route.context, false, route.filters) : destinations.assets;
   const saveProblem = error == null ? null : <Problem saving error={error} retry={() => { void selections.retry(); }} />;
   let page: ReactNode;
   if (route.area === "board" && (!route.page || route.page === "photo") &&
@@ -226,6 +206,9 @@ export function Workspace({
     const { production, media, story, board } = route.context;
     page = <StoryboardPage key={treePath("board", { production, media, story })} api={api} production={production}
       media={media} story={story} board={board} photoRoute={route.page === "photo"} selections={selections} before={saveProblem} />;
+  } else if (route.area === "assets") {
+    page = <AssetLibraryPage key={assetsPath(route.context)} api={api} route={route} selections={selections}
+      before={saveProblem} />;
   } else if ("context" in route) {
     page = <ContextPage key={location.key} api={api} route={route} selections={selections} before={saveProblem} />;
   } else {
