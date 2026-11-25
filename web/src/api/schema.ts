@@ -1214,6 +1214,8 @@ export interface components {
             outcome: "applied" | "conflict" | "skipped";
             /** Reason */
             reason: string;
+            /** Stamped Version Id */
+            stamped_version_id?: string | null;
         };
         /** ArchiveCreate */
         ArchiveCreate: {
@@ -1298,7 +1300,7 @@ export interface components {
             /** Number */
             number: number;
             /** Provenance */
-            provenance: components["schemas"]["Original"] | components["schemas"]["Adapted"];
+            provenance: components["schemas"]["Original"] | components["schemas"]["StoredAdapted"];
             /** Record Id */
             record_id: string;
             /** Revises Version Id */
@@ -1326,7 +1328,7 @@ export interface components {
             /** Number */
             number: number;
             /** Provenance */
-            provenance: components["schemas"]["Original"] | components["schemas"]["Adapted"];
+            provenance: components["schemas"]["Original"] | components["schemas"]["StoredAdapted"];
             /** Record Id */
             record_id: string;
             /** Revises Version Id */
@@ -1622,11 +1624,11 @@ export interface components {
                 board_key: string;
                 board_revision: components["schemas"]["StudioDefs_positive"];
                 draft_sha256: string;
-                model: string;
+                model?: string;
                 person_edit?: components["schemas"]["Board_person_edit"];
                 person_edit_acknowledgments?: components["schemas"]["Board_person_edit_acknowledgments"];
                 person_edit_revision?: components["schemas"]["StudioDefs_positive"];
-                session: string;
+                session?: string;
             };
             drafted_by: components["schemas"]["StudioDefs_principal"];
             duration_ms?: components["schemas"]["StudioDefs_duration_is_derived"];
@@ -3040,6 +3042,22 @@ export interface components {
             label: string;
             /** Sha256 */
             sha256: string;
+        };
+        /** StoredAdapted */
+        StoredAdapted: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            origin: "adapted";
+            source_locator: components["schemas"]["StoredSourceLocator"];
+        };
+        /** StoredSourceLocator */
+        StoredSourceLocator: {
+            /** Hmac Sha256 */
+            hmac_sha256: string;
+            /** Label */
+            label: string;
         };
         /** studio.story/v1: one video, its boards in order (contract section 2) */
         Story: {
