@@ -9,7 +9,7 @@ from haynes_studio.delivery.model import MASTER_SIZES
 from haynes_studio.delivery.validate import validate_delivery
 from haynes_studio.errors import ContractError, Violation
 from haynes_studio.library.library import Library
-from haynes_studio.library.model import Asset, AssetVersion, CANDIDATE, version_document
+from haynes_studio.library.model import Asset, AssetVersion, CANDIDATE, PROMOTED, version_document
 from haynes_studio.library.validate import validate_asset, validate_asset_version
 from haynes_studio.store.layout import blob_locator, is_sha256, parse_locator
 
@@ -256,3 +256,25 @@ def media_for_hash(conn: sa.Connection, sha256: str, allowed: ProductionScope):
             sa.or_(production_asset, sa.and_(assets.c.production_id.is_(None), referenced)))
     indexed = delivery.union(asset).subquery()
     return conn.execute(sa.select(indexed).order_by(indexed.c.locator)).all()
+
+
+def build_library(conn: sa.Connection, story: dict, version_ids: Collection[str]) -> Library:
+    """The explicit pins and relevant promoted motion alternatives for a snapshot."""
+    production_id = story["production_id"]
+    library = load_library(conn, version_ids, production_id)
+    if not any(board["method"]["layer"] == "layered" for board in story["boards"]):
+        return library
+    stills = {v.content.sha256 for v in library.versions.values()
+              if v.content is not None and v.content.media_type.startswith("image/")}
+    if not stills:
+        return library
+    rows = conn.execute(_joined_versions().where(
+        _catalog_scope({production_id}), assets.c.kind == "motion",
+        sa.or_(assets.c.story_id.is_(None), assets.c.story_id == story["id"]),
+        sa.or_(assets.c.board_id.is_(None), assets.c.board_id.in_(story["board_order"])),
+        asset_versions.c.state == PROMOTED,
+        asset_versions.c.document["motion"]["still_sha256"].astext.in_(stills),
+        asset_versions.c.id.not_in(version_ids),
+    ))
+    documents = [version_document(v, library.asset_of(v.id)) for v in library.versions.values()]
+    return Library.from_version_documents([*documents, *(_version(row) for row in rows)])

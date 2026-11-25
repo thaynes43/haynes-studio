@@ -1,9 +1,12 @@
 # Proposal 0003: the studio plan after grooming round 1
 
-Status: **the current plan, for grooming.** It supersedes
-[0002](0002-agentic-studio.md) (kept as history). Nothing here is started; Tom decides when
-each epic runs. Decisions come from Tom in the 2026-11-03 session, and are also recorded on
-[saga 362](https://work.haynesnetwork.com/work_packages/362).
+Status: **the current plan, in execution since 2026-11-24.** It supersedes
+[0002](0002-agentic-studio.md). The earlier plan held execution for a separate start.
+Tom started the remaining saga in [saga 362](https://work.haynesnetwork.com/work_packages/362),
+comment 9653. The coordinator grooms, orders and starts ready stories, and records
+provisional choices for Tom's review. Tom owns acceptance and exact-run go-live.
+The decisions below and the [Studio contract](../contracts/studio-contracts-v1.md)
+record the product choices and what the first two waves supplied.
 
 ## Decisions so far
 
@@ -178,23 +181,24 @@ separately recorded after Tom's exact-run go-live.
 
 ## Epics (revised)
 
-The OpenProject epics from proposal 0002 (372 to 377) carry amendment comments pointing here.
-New epics are filed for E0, E7, E8, E9 and E10.
+The tracker holds live story state. The sixth-amendment snapshot below uses
+[saga 362](https://work.haynesnetwork.com/work_packages/362), comments 9653,
+9669 and 9752, and the [contract's installed and published evidence](../contracts/studio-contracts-v1.md#installed-and-published-state).
 
-| Epic | What it delivers | Depends on |
-|---|---|---|
-| **E0 Video-generation PoC** (new, first) | The Winter Menu remade with a Wan clip per cut, testing all three talking-shot methods, with findings that decide E1 to E5's design | nothing |
-| E1 Core (372) | Canonical story/board model with an explicit legacy adapter, cached supported-method builds and create-only delivery | E0 findings |
-| E2 Asset pipelines (373) | Matting service (studio-owned), occlusion masks, automatic size matching, character cards, immutable versioned library with labels | E0 findings, E1 |
-| E3 API, storage, queue, MCP (374) | stateless studio-api with replicas (D41), Postgres on `database/postgres16` and gasha01 NFS media (D39); a GPU scheduler owning the 3090s (Wan, Foley, local model); MCP with scoped agent keys | E1 |
-| E4 Local model hosting (375) | One multimodal local model on a 3090, loaded and unloaded by the scheduler | E3 |
-| E5 Local shepherd (376, renamed) | Frontier board writer initially (D40), the local writer once E10 passes (D46), and a local shepherd for the technical pipeline stages; no creative judgment | E3, E4 |
-| E6 Storyboard UI (377) | The production/media/story/board UX of the [v6 mockup](../design/studio-ui-mockup/review.md), measured pre-build assets, and drafts that stay editable while immutable runs are queued; go-live is the only approval | E3 |
-| **E7 Staging room and script sources** (new) | Tom and a frontier agent (dev-env v2) adapt subtitle scenes and stage archive scripts through the studio MCP; read-only subtitle discovery on HaynesTower or Bazarr | E3 |
-| **E8 Escalation through dev-env v2** (new) | Escalation packages, a sanctioned way to request a responder, MCP access for responders, cost logging | E3, the dev-env v2 saga |
-| **E9 Formats, accounts, candidates and drops** (new) | Format definitions with gate settings, accounts, candidate review per account, feedback into revisions, a publishing gate with rights and disclosure checks. Platform integrations only with Tom's explicit approval | E1, E3, E6 |
-| **E10 Local model benchmark and harness** (462, new, D46) | A private task benchmark (board drafting first) run against a frontier reference and local models, a scoreboard over time, and harness tools that steer local models to close the gap; a task moves to local only on Tom's verdict | E4 hosting, E3 MCP |
-| Later | Trend watching, long-form tooling, batches at scale | |
+| Epic | What it delivers | Depends on | 2026-11-24 snapshot |
+|---|---|---|---|
+| [E0 Video-generation PoC](https://work.haynesnetwork.com/work_packages/387) | The Winter Menu remade with a Wan clip per cut, testing all three talking-shot methods, with findings that decide E1 to E5's design | nothing | In review. Private films and findings delivered. |
+| [E1 Core](https://work.haynesnetwork.com/work_packages/372) | Canonical story/board model with an explicit legacy adapter, cached supported-method builds and create-only delivery | E0 findings | Close-out in progress. Two private archives verified, quieter-gavel cut reviewed, E1 acceptance and authenticated playback open. |
+| [E2 Asset pipelines](https://work.haynesnetwork.com/work_packages/373) | Matting service (studio-owned), occlusion masks, automatic size matching, character cards, immutable versioned library with labels | E0 findings, E1 | In execution. First photo, candidate, conversion and check source landed. |
+| [E3 API, storage, queue, MCP](https://work.haynesnetwork.com/work_packages/374) | stateless studio-api with replicas (D41), Postgres on `database/postgres16` and gasha01 NFS media (D39); a GPU scheduler owning the 3090s (Wan, Foley, local model); MCP with scoped agent keys | E1 | In execution. API, web shell and MCP source landed. Wan API v1, database and Authentik installed. Images published. App deployment and usable end-to-end proof remain open. |
+| [E4 Local model hosting](https://work.haynesnetwork.com/work_packages/375) | One multimodal local model on a 3090, loaded and unloaded by the scheduler | E3 | Profile proposal merged. Hosting follows admission and rollout. |
+| [E5 Local shepherd](https://work.haynesnetwork.com/work_packages/376) | Frontier board writer initially (D40), the local writer once E10 passes (D46), and a local shepherd for the technical pipeline stages; no creative judgment | E3, E4 | Authorized, with API and hosting dependencies. |
+| [E6 Storyboard UI](https://work.haynesnetwork.com/work_packages/377) | The production/media/story/board UX of the [v6 mockup](../design/studio-ui-mockup/review.md), measured pre-build assets, and drafts that stay editable while immutable runs are queued; go-live is the only approval | E3 | Shell and Editor creation source merged. Full board, review and installed UX remain open. |
+| [E7 Staging room and script sources](https://work.haynesnetwork.com/work_packages/388) | Tom and a frontier agent (dev-env v2) adapt subtitle scenes and stage archive scripts through the studio MCP; read-only subtitle discovery on HaynesTower or Bazarr | E3 | Authorized, with E3 dependencies. |
+| [E8 Escalation through dev-env v2](https://work.haynesnetwork.com/work_packages/389) | Escalation packages, a sanctioned way to request a responder, MCP access for responders, cost logging | E3, the dev-env v2 saga | Authorized, with E3 and external dependencies. |
+| [E9 Formats, accounts, candidates and drops](https://work.haynesnetwork.com/work_packages/390) | Format definitions with gate settings, accounts, candidate review per account, feedback into revisions, a publishing gate with rights and disclosure checks. Platform integrations only with Tom's explicit approval | E1, E3, E6 | Authorized within private scope. External publishing and account gates still apply. |
+| [E10 Local model benchmark and harness](https://work.haynesnetwork.com/work_packages/462) | A private task benchmark (board drafting first) run against a frontier reference and local models, a scoreboard over time, and harness tools that steer local models to close the gap; a task moves to local only on Tom's verdict | E4 hosting, E3 MCP | Authorized. Corpus and baselines precede the hosted comparison and switch verdict. |
+| Later | Trend watching, long-form tooling, batches at scale | | |
 
 ## E0 results (2026-11-03)
 
@@ -281,7 +285,7 @@ learn what the plan must change.
   [393](https://work.haynesnetwork.com/work_packages/393) (layered),
   [394](https://work.haynesnetwork.com/work_packages/394) (speech-to-video) and
   [395](https://work.haynesnetwork.com/work_packages/395) (Foley, best-of, findings).
-- E1 [372](https://work.haynesnetwork.com/work_packages/372) (stories 378 to 382 wait for E0),
+- E1 [372](https://work.haynesnetwork.com/work_packages/372),
   E2 [373](https://work.haynesnetwork.com/work_packages/373),
   E3 [374](https://work.haynesnetwork.com/work_packages/374),
   E4 [375](https://work.haynesnetwork.com/work_packages/375),

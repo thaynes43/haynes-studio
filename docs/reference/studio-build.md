@@ -258,14 +258,13 @@ the run as done. `studio run show RUN_ID` shows what the store holds.
 ### Workers
 
 `--workers N` (default 1) renders boards in up to N processes. After the local pass, the
-plan runs once to make every clip and keyed frame and to collect the segments the cache
-lacks; those are rendered by N `spawn`ed processes, each opening the same store with its
-own cache for the same run and its own renderer (two threads each: the encoder's sliced
-threads, OpenCV's two); then the plan runs again and every segment is a hit. The stage
-commit is create-only, so two writers of one segment both succeed with the same record;
-no lock or delete is added. A worker sends back its renderer's report and checks, or the
-error's code, and the parent fails the run naming the board. Workers need the local
-store. Tests: two workers give the same decoded frames as one.
+plan runs once to make every clip and keyed frame and to collect the missing segments.
+Up to N spawned processes each open the local store with their own cache and renderer
+for the run. Segment encoding uses one thread and OpenCV uses two. The plan then runs
+again and reads the newly cached segments. The stage commit is create-only, so two
+writers of a segment can both succeed with the same record. A worker sends back its
+renderer report and checks, or the error code. The parent fails the run naming the
+board. The build test verifies that two workers give the same decoded frames as one.
 
 ## Live clip sources (story 851)
 
@@ -606,9 +605,11 @@ tests there would never run in `uv run pytest` or CI).
 open at that time. Q-406-2 now puts service phases in the session pod and offline
 phases on the worker, copying the store between them. Story 428 actually ran offline
 in its session pod because the worker was outside the lock; story 862 installed the
-lock on 2026-11-18, but no offline phase has run there yet. Use the current
+lock on 2026-11-18. Story 942 later ran offline on the worker for
+[One More Meeting](../../titles/one-more-meeting/run-log.md) with a hash-checked
+cache transfer. Use the current
 [worker procedure](../process/manual-short-poc.md#package-builds-on-the-cpu-worker)
-for that Expected step; the planning commands below are kept unchanged.
+for another build. The planning commands below are historical.
 
 1. **Checkout and tools.** In a session pod, at `main`:
    `UV_PYTHON_DOWNLOADS=never uv sync --locked --python 3.11`.

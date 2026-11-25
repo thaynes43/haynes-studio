@@ -7,6 +7,7 @@ export type Context = {
   media?: MediaKind;
   story?: string;
   board?: string;
+  run?: string;
 };
 type BoardPage = "photo" | "runs" | "compare";
 
@@ -20,7 +21,7 @@ export const mediaKinds = {
   video: { label: "Video", plural: "Videos", aspect: "16:9" },
 } satisfies Record<MediaKind, { label: string; plural: string; aspect: string }>;
 
-function isId(value: string | undefined | null, prefix: "prd" | "sty" | "brd") {
+function isId(value: string | undefined | null, prefix: "prd" | "sty" | "brd" | "run") {
   return typeof value === "string" && value.length === 30 && value.startsWith(prefix + "_") &&
     /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/.test(value.slice(4));
 }
@@ -30,11 +31,12 @@ function isMedia(value: string | undefined | null): value is MediaKind {
 }
 
 export function treePath(area: TreeArea, context: Context = {}, page?: BoardPage) {
-  const { production, media, story, board } = context;
+  const { production, media, story, board, run } = context;
   const base = area === "productions" ? "/productions" : "/editor/board";
   const suffix = page === "compare" ? "/runs/compare" : page ? "/" + page : "";
   return base + (production ? "/" + production : "") + (media ? "/" + media : "") +
-    (story ? "/" + story : "") + (board ? "/boards/" + board : "") + suffix;
+    (story ? "/" + story : "") + (board ? "/boards/" + board : "") +
+    (area === "productions" && run ? "/runs/" + run : "") + suffix;
 }
 
 export function assetsPath(context: Context = {}, generate = false) {
@@ -99,6 +101,9 @@ export function parseRoute(pathname: string, search = ""): Route {
   if (area === "board" && branch === "runs") {
     if (tail.length === 1) return { area, context, page: "runs" };
     if (tail.length === 2 && item === "compare") return { area, context, page: "compare" };
+  }
+  if (area === "productions" && branch === "runs" && tail.length === 2 && isId(item, "run")) {
+    return { area, context: { ...context, run: item } };
   }
   return missing;
 }

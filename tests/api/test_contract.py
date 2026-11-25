@@ -30,6 +30,12 @@ def test_openapi_has_resolved_canonical_shapes_errors_and_security():
     assert "id" not in schemas["NoteInput"]["required"]
     assert "/internal/v1/work/claim" not in document["paths"]
     assert "/v1/boards/{id}/photo-versions" not in document["paths"]
+    assert schemas["RunView"]["properties"]["queue_wait"]["anyOf"][0]["$ref"].endswith("/QueueWait")
+    assert document["paths"]["/v1/stories/{id}/runs"]["post"]["x-studio-scope"] == "runs:queue"
+    assert document["paths"]["/v1/runs/{id}"]["get"]["x-studio-scope"] == "read"
+    overrides = document["paths"]["/v1/runs/{id}/checks/{check}/overrides"]["post"]
+    assert overrides["x-studio-scope"] == "runs:queue"
+    assert overrides["security"] == [{"StudioSession": []}]
     patch = document["paths"]["/v1/stories/{id}"]["patch"]
     assert patch["x-studio-scope"] == "draft:write"
     assert document["paths"]["/v1/me/selections"]["put"]["security"] == [{"StudioSession": []}]

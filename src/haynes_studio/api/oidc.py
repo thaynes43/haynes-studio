@@ -120,7 +120,7 @@ class OIDC:
         finally:
             self._jwks_lock.release()
 
-    def authorize(self, state: str, nonce: str, verifier: str) -> str:
+    def authorize(self, state: str, nonce: str, verifier: str, *, fresh: bool = False) -> str:
         challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest())
         metadata = self._metadata()
         try:
@@ -130,6 +130,7 @@ class OIDC:
                 "state": state, "nonce": nonce,
                 "code_challenge": challenge.decode("ascii").rstrip("="),
                 "code_challenge_method": "S256",
+                **({"prompt": "login"} if fresh else {}),
             })
         except ValueError as error:
             raise APIError(503, "auth.provider_unavailable", "OIDC discovery is unavailable") from error
@@ -176,6 +177,15 @@ class OIDC:
                 raise ValueError("OIDC authorized party mismatch")
         if not isinstance(claims["nonce"], str) or claims["nonce"] != nonce:
             raise ValueError("OIDC nonce mismatch")
-        if claims["sub"] not in self.settings.allowed_subjects:
+        subject = claims["sub"]
+        if not subject or not subject.isascii() or "\x00" in subject or len(subject) > 255:
+            raise ValueError("OIDC subject is invalid")
+        groups = claims.get("groups")
+        group_allowed = (
+            isinstance(groups, list)
+            and all(isinstance(group, str) for group in groups)
+            and not self.settings.allowed_groups.isdisjoint(groups)
+        )
+        if subject not in self.settings.allowed_subjects and not group_allowed:
             raise forbidden("auth.subject_forbidden", "This OIDC subject is outside the Studio allowlist")
         return claims

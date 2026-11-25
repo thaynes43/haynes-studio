@@ -1,0 +1,46 @@
+"""Keep the operator's runtime GRANT reference in sync with Alembic."""
+
+import re
+from pathlib import Path
+
+from haynes_studio.db.grants import GO_LIVE_GRANTS, RUNTIME_GRANTS
+
+REFERENCES = Path(__file__).resolve().parents[2] / "docs/reference"
+
+
+def _table_privileges(grants):
+    entries = set()
+    for privileges, tables in grants:
+        names = re.findall(r"[A-Z]+(?: \([^()]+\))?", privileges)
+        assert ", ".join(names) == privileges
+        for name in names:
+            privilege, _, columns = name.partition(" (")
+            fields = tuple(sorted(columns.rstrip(")").split(", "))) if columns else ()
+            entries.update((table, privilege, fields) for table in tables)
+    return entries
+
+
+def test_documented_runtime_table_grants_match_alembic():
+    reference = REFERENCES / "studio-api.md"
+    sql = reference.read_text(encoding="utf-8").split("```sql\n", 1)[1].split("```", 1)[0]
+    documented = []
+    for statement in sql.split(";"):
+        statement = " ".join(line.strip() for line in statement.splitlines()
+                             if not line.lstrip().startswith("--")).strip()
+        if not statement or statement.startswith(("GRANT USAGE ON SCHEMA ", "GRANT CONNECT ON DATABASE ")):
+            continue
+        grant = re.fullmatch(r"GRANT (.+?) ON (.+) TO studio_app", " ".join(statement.split()))
+        assert grant, statement
+        privileges, tables = grant.groups()
+        names = tables.split(", ")
+        assert all(re.fullmatch(r"studio\.[a-z_][a-z_0-9]*", name) for name in names)
+        documented.append((privileges, tuple(name.removeprefix("studio.") for name in names)))
+
+    assert _table_privileges(documented) == _table_privileges(RUNTIME_GRANTS + GO_LIVE_GRANTS)
+
+
+def test_agent_key_terminal_output_guidance_covers_pod_logs():
+    for reference in ("studio-api.md", "studio-mcp.md"):
+        prose = " ".join((REFERENCES / reference).read_text(encoding="utf-8").split())
+        assert "Use `create` without `--out` only from an interactive `kubectl exec`." in prose, reference
+        assert "logged by Kubernetes even with a TTY" in prose, reference

@@ -20,7 +20,7 @@ the legacy `/videos` routes. The `/v1` routes and typed results use the Service.
   the queue and the GPU conditions.
 - `GET /openapi.json` publishes the request and response schemas.
 
-**Installed baseline, 2026-11-24.** A read-only probe from the API container
+**Pre-rollout baseline, 2026-11-24.** A read-only probe from the API container
 returned `/health` with `accepting_jobs: true` and `active_job: null`,
 `/ready` with `ready: true`, and OpenAPI `1.0.0` with only the legacy video
 paths. `/v1/profiles` returned 404. The installed `/config/video/api.py` SHA-256 was
@@ -29,11 +29,17 @@ It matches the November 24 source baseline with OP917's queue client-ID check.
 The services page records the earlier deployment read on November 18 and gives
 the loopback command used for current agent access. The Foley loopback worker reported models present and no active job. The Service
 health check succeeded from inside the Wan workload. Direct Service access from
-the task session timed out. The product interface has fake-engine source tests. A separate GitOps rollout and version
-read-back are required before a live client switches to it. The E0 and story 842
-paths remain historical proof for the profiles.
+the task session timed out. The product interface has fake-engine source tests.
+The E0 and story 842 paths remain historical proof for the profiles.
 [Service reference](services.md#wan-api-storage-and-delivery) ·
 [OP917 source](https://github.com/thaynes43/haynes-ops/commit/2ab6a5550dc908a757c32a9b22878a14fda60319) · [Story 458](https://work.haynesnetwork.com/work_packages/458)
+
+**Installed later on 2026-11-24.** Flux applied haynes-ops `1a5d2e08`. Seven files
+matched the merged SHA-256s. In-pod `/v1/ready` and `/v1/profiles` returned 200 for
+`1.0.0` and the three job types with no active job. The legacy file route still
+served bounded, suffix and open-ended ranges with 206. The ingress rule excludes
+`/v1`. The coordinator read the rule from the session, which had no LAN route. A live product GPU job and the post-S2V admission check remain open.
+[Story 458](https://work.haynesnetwork.com/work_packages/458), comment 9749.
 
 ## Submit and recover
 

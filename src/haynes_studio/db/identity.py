@@ -6,6 +6,8 @@ import re
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert
 
+from haynes_studio.agent_tokens import valid_agent_token
+
 from .problems import StaleRevision
 from .schema import agent_grants, agent_keys, login_attempts, selections, sessions, worker_tokens
 
@@ -21,10 +23,12 @@ def token_digest(token: str | None) -> str | None:
     return digest(token) if token is not None and _TOKEN.fullmatch(token) else None
 
 
-def create_attempt(conn, secret: str, *, state: str, nonce: str, verifier: str, expires_at):
+def create_attempt(conn, secret: str, *, state: str, nonce: str, verifier: str, expires_at,
+                   return_to: str = "/"):
     conn.execute(login_attempts.delete().where(login_attempts.c.expires_at <= sa.func.now()))
     conn.execute(login_attempts.insert().values(
         digest=digest(secret), state=state, nonce=nonce, verifier=verifier, expires_at=expires_at,
+        return_to=return_to,
     ))
 
 
@@ -32,14 +36,15 @@ def consume_attempt(conn, secret: str | None, state: str):
     return conn.execute(login_attempts.delete().where(
         login_attempts.c.digest == token_digest(secret), login_attempts.c.state == state,
         login_attempts.c.expires_at > sa.func.now(),
-    ).returning(login_attempts.c.nonce, login_attempts.c.verifier)).one_or_none()
+    ).returning(login_attempts.c.nonce, login_attempts.c.verifier, login_attempts.c.return_to)).one_or_none()
 
 
 def create_session(conn, secret: str, *, iss: str, sub: str, display_name: str | None,
-                   csrf: str, expires_at):
+                   csrf: str, expires_at, auth_time=None):
     conn.execute(sessions.delete().where(sessions.c.expires_at <= sa.func.now()))
     conn.execute(sessions.insert().values(digest=digest(secret), iss=iss, sub=sub,
-                                          display_name=display_name, csrf=csrf, expires_at=expires_at))
+                                          display_name=display_name, csrf=csrf, expires_at=expires_at,
+                                          auth_time=auth_time))
 
 
 def get_session(conn, secret: str | None):
@@ -59,14 +64,16 @@ def _active(table):
 
 
 def get_agent(conn, secret: str | None) -> tuple[str, dict[str, frozenset[str]]] | None:
+    if not valid_agent_token(secret):
+        return None
     key_id = conn.scalar(sa.select(agent_keys.c.id).where(
-        agent_keys.c.digest == token_digest(secret), _active(agent_keys),
+        agent_keys.c.digest == digest(secret), _active(agent_keys),
     ))
     if key_id is None:
         return None
     by_production: dict[str, set[str]] = {}
     for row in conn.execute(sa.select(agent_grants.c.production_id, agent_grants.c.scope).where(
-        agent_grants.c.key_id == key_id,
+        agent_grants.c.key_id == key_id, agent_grants.c.active,
     )):
         if row.scope in AGENT_SCOPES:
             by_production.setdefault(row.production_id, set()).add(row.scope)
