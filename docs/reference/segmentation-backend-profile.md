@@ -86,8 +86,11 @@ Use FP32, eager inference, batch one, one request in flight, `nice -n 10`,
 two CPU threads (PyTorch intra-op and OMP two, inter-op and BLAS one,
 tokenizer parallelism off). The original 2 GiB request and 8 GiB limit were
 planning estimates. The first smoke is staged with a 16 GiB request
-and limit as a measuring allowance. Set serving memory in a follow-up from
-the measured run. Allow 60 s for cold readiness and 60 s per target.
+and limit as a measuring allowance. The smoke checks the image's minimum
+allowance and reports the actual cgroup limit. Raise the measuring allowance
+in the Ops release when node headroom permits. Set exact serving memory in
+a follow-up from the measured run. Allow 60 s for cold readiness and 60 s per
+target.
 Warm estimates use the detector-only measurements as a starting point with
 headroom for fewer CPU threads, SAM and I/O. Measure wall time and peak
 cgroup memory in the one install smoke. The fallback shares the same
@@ -212,11 +215,17 @@ The proposed thresholds are technical defaults pending the private quality check
 
 The [request schema](../../src/haynes_studio/schemas/studio.segmentation-request.v1.schema.json)
 and [result schema](../../src/haynes_studio/schemas/studio.segmentation-result.v1.schema.json)
-ship in the Python package. Send `POST /v1/segment` to
+ship in the Python package with a synthetic [point-hint request](../../src/haynes_studio/schemas/studio.segmentation-request.v1.example.json)
+and [ready result](../../src/haynes_studio/schemas/studio.segmentation-result.v1.example.json).
+Send `POST /v1/segment` to
 `/segmentation/segment.sock` with JSON `{attempt_id, request}` and media
 type `application/json`. The caller makes a private scratch directory under
 `/segmentation` named by a fresh 32-character lowercase hex ID and places
-the verified bytes in `input`. The 4 KiB body cap includes the envelope.
+the verified bytes in `input`. In the staged sidecar Pod the scratch volume
+uses group 1000. The render caller creates a group-writable setgid attempt
+directory (mode `2770`) and a group-readable `input` (mode `0640`).
+The sidecar's socket and outputs are accessible to that group. The 4 KiB
+body cap includes the envelope.
 The attempt ID is excluded from the canonical request hash. A direct point or
 box uses only SAM. For a text request, the DINO processor maps normalized boxes
 onto its resized content, which is unpadded at batch one. Clip before NMS and
@@ -273,7 +282,7 @@ available for rollback.
 `stat -f` returned `free-files=-1`. Budget a maximum **2 GiB and 64
 new entries** for staging and one installed profile. That would leave
 110,933,443,608,576 bytes at the observed baseline. Require a freshly
-confirmed reserve of **8 GiB and 1,024 creatable entries** before and after
+confirmed reserve of **32 GiB and 1,024 creatable entries** before and after
 staging. The storage owner needs to confirm the NAS file quota or equivalent
 capacity where NFS cannot report free inodes. The worker's node-backed
 `/tmp` reported about 432 GiB free and 265,724,127 free inodes at the same
@@ -289,9 +298,11 @@ Studio adapter and private-job runner, and model manifest schema. Build budget
 on the build filesystem throughout. Recheck that filesystem before the build.
 Publish the runtime image digest and its SBOM in the install handoff.
 
-Run as UID/GID 1000 with a read-only root, dropped capabilities,
-`RuntimeDefault` seccomp and privilege escalation disabled. Leave the model
-mount read-only and limit dedicated scratch to 256 MiB. Use the approved
+Run the smoke and sidecar as UID/GID 10001 with a read-only root, dropped
+capabilities, `RuntimeDefault` seccomp and privilege escalation disabled.
+Leave the model mount read-only and limit dedicated scratch to 256 MiB. The
+provisioner runs as 1000 and leaves its published weights readable by 10001.
+Use the approved
 low-priority render placement and a local Unix socket plus bounded scratch for
 one request at a time. The trusted render caller stages authorized bytes and
 owns the store writes and job fence. Give the companion only the selected
@@ -352,7 +363,7 @@ Keep prior assets and run evidence.
    the same completed request and verify the same references and no
    overwrite. For each real call record elapsed time, peak cgroup memory,
    model and image digests and stage outcome. Stop on any timeout (60 s),
-   the 16 GiB measuring allowance, invalid output or unexpected visible/hidden verdict.
+   the actual measuring memory limit, invalid output or unexpected visible/hidden verdict.
    Read back readiness and render-worker health. Keep media and exact
    private artifact locators in the private job record.
 4. For story 452, take **one authorized private miniature set** with one
@@ -370,11 +381,14 @@ Keep prior assets and run evidence.
    fixture. [Story 452](https://work.haynesnetwork.com/work_packages/452)
 
 **Evidence state.** The source tests use deterministic fake models and the
-CI image smoke uses tiny synthetic Torch modules with the pinned processors.
-Those runs exercise fixture geometry, byte verification, the wheel identities
-and local service. The shipped weights, measured portrait latency and memory,
-doll and prop accuracy, installed image digest, rollout health, rollback and
-usability require the corresponding install and private fixture runs. Free inodes are unreported over NFS; the coordinator accepted the
+CI image smoke uses tiny synthetic Torch modules with the pinned processors
+to check fixture geometry, byte verification, wheel identities and local
+service. A separate offline built-image step saves tiny random Grounding
+DINO and SAM 2 models, runs the production loader in both load modes and
+runs a forward pass with each class. Publisher checkpoint compatibility,
+measured portrait latency and memory, doll and prop accuracy, installed image
+digest, rollout health, rollback and usability require the corresponding
+install and private fixture runs. Free inodes are unreported over NFS. The coordinator accepted the
 small file-count budget in story 460, comment 9946. Story 452 owns adapter
 pickup and private quality evidence after the install. Installation smoke and private quality acceptance
 require their own evidence.

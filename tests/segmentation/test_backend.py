@@ -8,12 +8,16 @@ import threading
 from contextlib import nullcontext
 from dataclasses import replace
 from functools import partial
+from importlib.resources import files
 from io import BytesIO
+from json import loads
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 from PIL import Image
 
+from haynes_studio.schemas import validator_for
 from haynes_studio.segmentation import backend, smoke
 from haynes_studio.segmentation.backend import Engine
 from haynes_studio.segmentation.fixtures import Fixture, fixtures, visible_fraction
@@ -174,6 +178,29 @@ def test_grounding_uncertainty(example, candidates, reason):
     assert (outcome, mask, obs.executed) == (reason, None, ["dino"])
 
 
+def test_grounding_compares_against_runner_up(example):
+    _, request = example.request("prop")
+    candidates = [_box(), _box((40, 10, 64, 35), 0.86), _box((10, 30, 35, 48), 0.55)]
+    grounding = Grounding(candidates, example.image.size, example.image.size)
+    assert len(select_boxes(grounding)) == 3
+    obs, reason, mask = _measure(example.image, request, lambda *_: grounding)
+    assert (reason, mask, obs.executed) == ("ambiguous_match", None, ["dino"])
+
+
+@pytest.mark.parametrize(("runner_up", "reason"), [(0.79, None), (0.81, "ambiguous_match")])
+def test_grounding_requires_score_lead(example, runner_up, reason):
+    _, request = example.request("prop")
+    grounding = Grounding(
+        [_box(), _box((40, 10, 64, 35), runner_up)], example.image.size, example.image.size,
+    )
+    _, outcome, mask = _measure(example.image, request, lambda *_: grounding)
+    assert outcome == reason
+    if reason is None:
+        assert tight_box(mask) == [10, 10, 35, 35]
+    else:
+        assert mask is None
+
+
 def test_nms_and_projection(example):
     candidates = [_box((-2, 6.2, 22.2, 23.6)), _box((0, 6, 22, 23), 0.88)]
     grounding = Grounding(candidates, (128, 96), (128, 96))
@@ -249,6 +276,18 @@ def test_rgba_against_gray_and_nonzero_alpha(example):
     assert alpha.sum() == 1
     _, reason, mask = _measure(image, request, alpha=alpha)
     assert reason is None and tight_box(mask) == [11, 15, 12, 16]
+
+
+def test_competing_masks_agree_on_nontransparent_pixels(example):
+    _, request = example.request("prop")
+    best, _ = _synthetic_segmenter(example.image, {})
+    alpha = best[0] > 0
+    other = best.copy()
+    other[:, :10, :] = 1.0
+    _, reason, mask = _measure(
+        example.image, request, segmenter=lambda *_: (np.concatenate([best, other]), [0.90, 0.88]), alpha=alpha,
+    )
+    assert reason is None and np.array_equal(mask, alpha)
 
 
 @pytest.mark.parametrize("mutation", ["width", "logit", "score_count"])
@@ -476,3 +515,79 @@ def test_smoke_stops_after_unexpected_visibility(tmp_path, pins, monkeypatch):
     monkeypatch.setattr(smoke, "_smoke_run", failed_visibility)
     report = smoke.smoke(tmp_path, weights, ("mmap", "buffered"))
     assert observed == ["mmap"] and not report["passed"]
+
+
+@pytest.fixture
+def smoke_workload(pins, monkeypatch):
+    profile, weights = pins
+
+    def run(scratch, weights, profile, strategy, inputs, report):
+        report["cases"] = {"foreground": {"status": "ready"}}
+        report["verdicts"] = {"visibility": True}
+        return {"foreground": (b"result", b"mask")}
+
+    monkeypatch.setattr(Profile, "installed", lambda: profile)
+    monkeypatch.setattr(smoke, "fixtures", lambda: {"foreground": object()})
+    monkeypatch.setattr(smoke, "_smoke_run", run)
+    monkeypatch.setattr(smoke.os, "geteuid", lambda: 10001)
+    monkeypatch.setattr(smoke.os, "getegid", lambda: 10001)
+    monkeypatch.setattr(smoke.os, "statvfs", lambda _: SimpleNamespace(f_flag=os.ST_RDONLY))
+    monkeypatch.setattr(smoke, "cgroup_bytes", {"max": 16 * 1024**3, "peak": 8 * 1024**3}.get)
+    return weights
+
+
+def test_smoke_fails_when_buffered_output_changes_one_byte(tmp_path, smoke_workload, monkeypatch):
+    run = smoke._smoke_run
+
+    def changed_bytes(scratch, weights, profile, strategy, inputs, report):
+        results = run(scratch, weights, profile, strategy, inputs, report)
+        if strategy == "buffered":
+            results["foreground"] = (b"result", b"masK")
+        return results
+
+    assert smoke.smoke(tmp_path, smoke_workload, ("mmap", "buffered"))["passed"]
+    monkeypatch.setattr(smoke, "_smoke_run", changed_bytes)
+    report = smoke.smoke(tmp_path, smoke_workload, ("mmap", "buffered"))
+    assert report["verdicts"] == {
+        "workload": True, "byte_parity": False, "cgroup_allowance": True,
+        "all_strategies": True, "fixtures": True,
+    }
+    assert not report["passed"]
+
+
+def test_smoke_rejects_writable_weights(tmp_path, smoke_workload, monkeypatch):
+    monkeypatch.setattr(
+        smoke.os, "statvfs", lambda path: SimpleNamespace(f_flag=0 if path == smoke_workload else os.ST_RDONLY),
+    )
+    report = smoke.smoke(tmp_path, smoke_workload, ("mmap", "buffered"))
+    assert report["verdicts"]["workload"] is False
+    assert not report["passed"]
+
+
+@pytest.mark.parametrize(("strategies", "limit_gib", "passed"), [
+    (("mmap", "buffered"), 15, False),
+    (("mmap", "buffered"), 20, True),
+    (("mmap",), 10, True),
+    (("mmap",), 11, False),
+])
+def test_smoke_memory_allowance(tmp_path, smoke_workload, monkeypatch, strategies, limit_gib, passed):
+    monkeypatch.setattr(smoke, "RESOURCES", {
+        "measurement": {"limit_gib": 16}, "serving": {"limit_gib": 10},
+    })
+    limit = limit_gib * 1024**3
+    monkeypatch.setattr(smoke, "cgroup_bytes", {"max": limit, "peak": 8 * 1024**3}.get)
+    report = smoke.smoke(tmp_path, smoke_workload, strategies)
+    assert report["cgroup_limit_bytes"] == limit
+    assert report["verdicts"]["cgroup_allowance"] is passed and report["passed"] is passed
+
+
+def test_reference_examples():
+    examples = files("haynes_studio.schemas")
+    request = loads(examples.joinpath("studio.segmentation-request.v1.example.json").read_text(encoding="utf-8"))
+    result = loads(examples.joinpath("studio.segmentation-result.v1.example.json").read_text(encoding="utf-8"))
+    validator_for("studio.segmentation-request.v1.schema.json").validate(request)
+    validator_for("studio.segmentation-result.v1.schema.json").validate(result)
+    validate_request(request)
+    assert result["request_sha256"] == digest(canonical_json(request))
+    assert result["input"] == request["input"] and result["target"] == request["target"]
+    assert result["provenance"]["profile"]["id"] == request["profile"]

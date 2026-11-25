@@ -70,7 +70,6 @@ jobs:
             test "$(docker image inspect "$image" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$revision"
             case "$name" in
               studio-web) user=101:101 ;;
-              studio-segmentation) user=1000:1000 ;;
               *) user=10001:10001 ;;
             esac
             test "$(docker image inspect "$image" --format '{{.Config.User}}')" = "$user"
@@ -179,9 +178,21 @@ jobs:
           image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/haynes-studio-segmentation:sha-$GITHUB_SHA"
           docker run --rm --cpus=2 --network none --read-only --cap-drop=ALL \
             --security-opt=no-new-privileges \
-            --tmpfs /segmentation:rw,nosuid,nodev,uid=1000,gid=1000,mode=0700,size=256m \
+            --tmpfs /segmentation:rw,nosuid,nodev,uid=10001,gid=10001,mode=0700,size=256m \
             --mount "type=bind,src=$GITHUB_WORKSPACE/docker/smoke-segmentation.py,dst=/smoke-segmentation.py,readonly" \
             "$image" python /smoke-segmentation.py | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Smoke the production segmentation loader offline
+        shell: bash
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/haynes-studio-segmentation:sha-$GITHUB_SHA"
+          for strategy in mmap buffered; do
+            docker run --rm --cpus=2 --network none --read-only --cap-drop=ALL \
+              --security-opt=no-new-privileges \
+              --tmpfs /segmentation:rw,nosuid,nodev,uid=10001,gid=10001,mode=0700,size=256m \
+              --mount "type=bind,src=$GITHUB_WORKSPACE/docker/smoke-segmentation-loader.py,dst=/smoke-segmentation-loader.py,readonly" \
+              "$image" python /smoke-segmentation-loader.py "$strategy" | tee -a "$GITHUB_STEP_SUMMARY"
+          done
 
       - name: Save the segmentation runtime SBOM
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

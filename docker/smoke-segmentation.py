@@ -106,7 +106,7 @@ def factory(weights, phase, strategy):
 
 
 def main():
-    assert os.geteuid() == os.getegid() == 1000
+    assert os.geteuid() == os.getegid() == 10001
     assert os.statvfs("/").f_flag & os.ST_RDONLY
     assert not any(Path("/opt/studio-models").iterdir())
     assert sys.version_info[:2] == (3, 12)

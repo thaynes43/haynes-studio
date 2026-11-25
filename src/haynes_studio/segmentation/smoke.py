@@ -151,7 +151,7 @@ def smoke(scratch: Path, weights: Path, strategies: tuple[str, ...]) -> dict:
             "profile_sha256": digest(profile.manifest()), "image_digest": profile.image_digest,
             "models": profile.model_files(), "runtime": profile.runtime(),
         })
-        checks["workload"] = (os.geteuid() == os.getegid() == 1000
+        checks["workload"] = (os.geteuid() == os.getegid() == 10001
                               and bool(os.statvfs("/").f_flag & os.ST_RDONLY)
                               and bool(os.statvfs(weights).f_flag & os.ST_RDONLY))
         inputs = fixtures()
@@ -167,11 +167,13 @@ def smoke(scratch: Path, weights: Path, strategies: tuple[str, ...]) -> dict:
             if (run["verdicts"].get("visibility") is False
                     or any(case["status"] == "failed" for case in run["cases"].values())):
                 break
-        allowance = (RESOURCES["serving"] if len(strategies) == 1 else None) or RESOURCES["measurement"]
+        serving = RESOURCES["serving"] if len(strategies) == 1 else None
+        allowance = (serving or RESOURCES["measurement"])["limit_gib"] * 1024**3
         peak = cgroup_bytes("peak")
         limit = cgroup_bytes("max")
         checks["cgroup_allowance"] = (
-            limit == allowance["limit_gib"] * 1024**3 and peak is not None and peak <= limit
+            limit is not None and peak is not None and peak <= limit
+            and (limit == allowance if serving else limit >= allowance)
         )
         checks["all_strategies"] = len(report["runs"]) == len(strategies)
         checks["fixtures"] = all(
