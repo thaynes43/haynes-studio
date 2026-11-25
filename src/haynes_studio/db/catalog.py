@@ -183,6 +183,10 @@ def record_asset_version(conn: sa.Connection, document: dict, *, asset: Asset | 
     conn.execute(asset_versions.insert().values(id=version.id, asset_id=asset.id,
                                                number=version.number, state=version.state,
                                                received_sha256=received_sha256, document=document))
+    # An archive's locators describe historical inputs. Index only assets
+    # whose own import or creation path registers media.
+    if version.recorded_without_media:
+        return
     items = []
     if version.content is not None:
         items.append((version.content.locator, version.content.sha256, version.content.bytes))

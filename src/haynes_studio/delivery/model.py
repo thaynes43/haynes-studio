@@ -92,17 +92,24 @@ class MediaFile:
 
 
 @dataclass(frozen=True, slots=True)
-class Verification:
-    """What was checked: decoded frames against the expected count (TIME-11), the hashes
-    re-read, and the proxy's byte limit; a legacy delivery names its evidence file."""
+class RecoveredContainerMetadata:
+    frames: int
+    ledger_id: str
+    ledger_sha256: str
 
-    decoded_frames: int
+
+@dataclass(frozen=True, slots=True)
+class Verification:
+    """Re-read hashes and frame-count evidence, with the proxy size limit if applicable."""
+
+    decoded_frames: int | None
     expected_frames: int
     sha256_verified: bool
     proxy_under_bytes: int | None = None
     source: str | None = None
+    recovered_container_metadata_only: RecoveredContainerMetadata | None = None
 
-    _omit_none = ("proxy_under_bytes", "source")
+    _omit_none = ("decoded_frames", "proxy_under_bytes", "source", "recovered_container_metadata_only")
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,6 +146,7 @@ class Delivery:
         """The model of a document that has passed ``validate_delivery``."""
         doc = normalize(doc)
         verification = doc["verification"]
+        recovered = verification.get("recovered_container_metadata_only")
         legacy = doc["legacy"]
         return cls(
             schema=doc["schema"], id=doc["id"], run_id=doc["run_id"],
@@ -146,11 +154,13 @@ class Delivery:
             master=MediaFile.from_document(doc["master"]),
             proxy=MediaFile.from_document(doc["proxy"]),
             verification=Verification(
-                decoded_frames=verification["decoded_frames"],
+                decoded_frames=verification.get("decoded_frames"),
                 expected_frames=verification["expected_frames"],
                 sha256_verified=verification["sha256_verified"],
                 proxy_under_bytes=verification.get("proxy_under_bytes"),
-                source=verification.get("source")),
+                source=verification.get("source"),
+                recovered_container_metadata_only=None if recovered is None else
+                RecoveredContainerMetadata(**recovered)),
             legacy=None if legacy is None else LegacyLedger(
                 ledger_id=legacy["ledger_id"], kind=legacy["kind"], preset=legacy["preset"],
                 provenance=freeze(legacy["provenance"]), assets_ref=legacy["assets_ref"],

@@ -297,6 +297,7 @@ class AssetVersion:
     # (haynes_studio.motion.record.MotionRecord reads it). None for every other kind
     # and for a motion version recorded before the block existed.
     motion: Mapping[str, Any] | None = None
+    recorded_without_media: bool = False
 
     @classmethod
     def from_document(cls, doc: Mapping[str, Any]) -> AssetVersion:
@@ -309,7 +310,8 @@ class AssetVersion:
                    licence=Licence.from_document(doc["licence"]),
                    legacy=None if doc.get("legacy") is None else freeze(doc["legacy"]),
                    voice=BoardVoice.from_document(doc.get("voice")),
-                   motion=None if doc.get("motion") is None else freeze(doc["motion"]))
+                   motion=None if doc.get("motion") is None else freeze(doc["motion"]),
+                   recorded_without_media=doc.get("recorded_without_media", False))
 
     @property
     def source_key(self) -> str | None:
@@ -342,6 +344,8 @@ def version_document(version: AssetVersion, asset: Asset) -> dict[str, Any]:
         out["voice"] = to_document(version.voice)
     if version.motion is not None:
         out["motion"] = thaw(version.motion)
+    if version.recorded_without_media:
+        out["recorded_without_media"] = True
     return out
 
 
@@ -416,7 +420,7 @@ def content_fields(version: AssetVersion) -> dict[str, Any]:
     return {"kind": version.kind, "capabilities": sorted(version.capabilities),
             "content": to_document(version.content), "provenance": provenance,
             "legacy": thaw(version.legacy), "voice": to_document(version.voice),
-            "motion": thaw(version.motion)}
+            "motion": thaw(version.motion), "recorded_without_media": version.recorded_without_media}
 
 
 def take_offsets(lead_ms: int, gaps_ms: tuple[int, ...] | list[int],

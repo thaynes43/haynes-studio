@@ -27,6 +27,7 @@ from typing import Any
 from haynes_studio.canonical import Facts, Story, to_document, validate_story
 from haynes_studio.canonical.validate import QUEUE_RUN, SCHEMA_INVALID
 from haynes_studio.errors import INVALID, ROOT, WARNING, ContractError, pointer
+from haynes_studio.library.resolve import RECORDED_WITHOUT_MEDIA
 from haynes_studio.store import (
     BLOB_MISSING,
     HASH_MISMATCH,
@@ -62,6 +63,7 @@ class ResolvedVersion:
     may list its takes and track."""
 
     blobs: tuple[BlobRef, ...] = ()
+    recorded_without_media: bool = False
 
     @classmethod
     def of(cls, sha256: str, locator: str) -> ResolvedVersion:
@@ -213,6 +215,10 @@ def _blob_problems(story: Story, resolved: Mapping[str, ResolvedVersion],
             found.append((ASSET_UNRESOLVED, INVALID, path,
                           f"asset version {version_id} was not resolved by the library",
                           version_id, None))
+            continue
+        if version.recorded_without_media:
+            found.append((RECORDED_WITHOUT_MEDIA, INVALID, path,
+                          f"asset version {version_id} was recorded without media", version_id, None))
             continue
         if needs_bytes and not version.blobs:
             found.append((BLOB_MISSING, FAILED, path,
