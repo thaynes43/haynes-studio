@@ -265,7 +265,8 @@ token or digest.
 - The P-14 `WorkerRoute` authenticates a worker bearer token before reading
   the query or body of any `/internal/v1/work/*` route. A worker token provides
   a worker principal here. Public Studio routes accept agent keys or sessions.
-  The format catalog's read routes also accept worker tokens.
+  A worker's claim includes the pinned format recipe by value when the run has
+  a format pin.
 
 Protected routes authenticate before reading metadata request bodies. Query
 parameter names and values must be UTF-8 text without NUL characters.

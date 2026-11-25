@@ -75,16 +75,27 @@ def _keyed(match: re.Match) -> str:
     return key + sep + (dq or sq or "") + REDACTED + (dq_end or sq_end or "")
 
 
+_CREDENTIAL_REDACTIONS = (
+    (_PEM, REDACTED),
+    (_URL_USERINFO, r"\1" + REDACTED + "@"),
+    (_AWS_KEY_ID, REDACTED),
+    (_AUTH_SCHEME, r"\1\2" + REDACTED),
+    (_KEYED, _keyed),
+)
+
+
+def contains_credentials(text: str) -> bool:
+    """Does the text match a credential shape used by service redaction?"""
+    return any(pattern.search(text) for pattern, _ in _CREDENTIAL_REDACTIONS)
+
+
 def redact(raw: bytes | str | None) -> str:
     """Service stderr as printable text with credentials removed, uncut."""
     if not raw:
         return ""
     text = raw.decode("utf-8", "replace") if isinstance(raw, bytes) else raw
-    text = _PEM.sub(REDACTED, text)
-    text = _URL_USERINFO.sub(r"\1" + REDACTED + "@", text)
-    text = _AWS_KEY_ID.sub(REDACTED, text)
-    text = _AUTH_SCHEME.sub(lambda m: m.group(1) + m.group(2) + REDACTED, text)
-    text = _KEYED.sub(_keyed, text)
+    for pattern, replacement in _CREDENTIAL_REDACTIONS:
+        text = pattern.sub(replacement, text)
     return "".join(ch if ch.isprintable() or ch == "\n" else "?" for ch in text).strip()
 
 

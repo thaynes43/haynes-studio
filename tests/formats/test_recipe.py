@@ -52,9 +52,10 @@ def test_classifies_board_and_reports_a_buildable_but_disallowed_method(cast, li
     (lambda r: r["targets"][0].update(account_id="unexpected"), "format.target_invalid"),
     (lambda r: r["targets"][0]["rules"].update(aspect="9:0"), "schema.invalid"),
     (lambda r: r["targets"][0]["rules"].update(max_length_ms=-1), "schema.invalid"),
-    (lambda r: r["targets"][0].update(credential="schema-fixture"), "schema.unknown_field"),
+    (lambda r: r["targets"][0].update(credential="schema-fixture"), "format.credential"),
     (lambda r: r["targets"].append(copy.deepcopy(r["targets"][0])), "ref.duplicate"),
-    (lambda r: r["human_gates"].append("script"), "schema.invalid"),
+    (lambda r: r["human_gates"].append("go_live"), "schema.invalid"),
+    (lambda r: r["human_gates"].__setitem__(0, "script"), "schema.invalid"),
     (lambda r: r.update(schema="studio.format-recipe/v99"), "schema.unsupported"),
 ])
 def test_refuses_invalid_recipe(mutation, rule):
@@ -85,7 +86,10 @@ def test_format_openapi_exposes_recipe_shape_and_access():
     paths = document["paths"]
     assert paths["/v1/formats"]["post"]["x-studio-scope"] == "formats:write"
     assert paths["/v1/formats/{id}/versions"]["post"]["x-studio-scope"] == "formats:write"
-    assert paths["/v1/format-versions/{id}"]["get"]["x-studio-worker-read"]
+    for path in ("/v1/formats", "/v1/formats/{id}/versions", "/v1/format-versions/{id}"):
+        operation = paths[path]["get"]
+        assert operation["x-studio-scope"] == "read"
+        assert "x-studio-worker-read" not in operation
     schemas = document["components"]["schemas"]
     assert "targets" in schemas["FormatRecipe"]["required"]
     assert "warnings" in schemas["EstimateView"]["required"]

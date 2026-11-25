@@ -172,14 +172,14 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
     for model in (ErrorDetail, ErrorEnvelope):
         model.model_config["defer_build"] = False
         model.model_rebuild()
-    auth_router, protected_auth, current_actor, authenticated_route, approval_route, format_route = auth.build_router()
+    auth_router, protected_auth, current_actor, authenticated_route, approval_route = auth.build_router()
     app.include_router(auth_router)
     app.include_router(protected_auth)
     app.include_router(routes.build_router(current_actor, authenticated_route))
     app.include_router(media.build_router(current_actor, authenticated_route))
     app.include_router(run_routes.build_router(current_actor, authenticated_route))
     app.include_router(approval_routes.build_router(current_actor, approval_route))
-    app.include_router(format_routes.build_router(current_actor, format_route))
+    app.include_router(format_routes.build_router(current_actor, authenticated_route))
     app.include_router(run_routes.worker_router())
 
     @app.get("/healthz", status_code=204, response_class=Response, operation_id="healthz")

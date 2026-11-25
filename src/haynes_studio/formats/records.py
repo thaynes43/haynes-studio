@@ -12,7 +12,7 @@ from haynes_studio.db.schema import format_versions, formats
 from haynes_studio.delivery.model import MASTER_SIZES
 from haynes_studio.errors import Violation
 
-from .recipe import PIN_PATH, recipe_hash, validate_recipe
+from .recipe import PIN_PATH, credential_violation, recipe_hash, validate_recipe
 
 
 def _insert_version(conn: sa.Connection, format_id: str, number: int, recipe: dict) -> dict:
@@ -29,6 +29,9 @@ def _validated_recipe(recipe: dict, path: str = "") -> dict:
 
 
 def create(conn: sa.Connection, format_id: str, name: str, recipe: dict) -> dict | None:
+    credential = credential_violation({"id": format_id, "name": name})
+    if credential:
+        require_valid([credential])
     recipe = _validated_recipe(recipe, "/recipe")
     inserted = conn.scalar(insert(formats).values(id=format_id, name=name)
                            .on_conflict_do_nothing().returning(formats.c.id))

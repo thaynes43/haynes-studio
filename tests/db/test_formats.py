@@ -25,7 +25,7 @@ from tests.formats.fixtures import doll_short, wide
 
 from .test_run_queue import queue, queue_run, worker_api, worker_credentials
 from .test_studio_api import (
-    bearer, client, engine, owner_engine, register_agent, runtime_db, runtime_role, service,
+    bearer, client, engine, new_production, owner_engine, register_agent, runtime_db, runtime_role, service,
 )
 from .test_studio_mcp import admin, issue
 
@@ -111,7 +111,7 @@ def test_real_recipe_version_and_story_revision_are_frozen(queue):
     assert pin(q, None, revision=5, headers=agent).status_code == 200
 
 
-def test_writer_scope_is_explicit_and_workers_can_only_read_the_catalog(queue, admin, tmp_path):
+def test_writer_scope_is_explicit_and_workers_are_excluded_from_the_catalog(queue, admin, tmp_path):
     q = queue
     _, reader = register_agent(q.owner, {q.production_id: ["read", "draft:write"]})
     _, scoped = register_agent(q.owner, {q.production_id: ["draft:write"]})
@@ -124,19 +124,48 @@ def test_writer_scope_is_explicit_and_workers_can_only_read_the_catalog(queue, a
     add_path = f'/v1/formats/{format_["id"]}/versions'
     read_path = f'/v1/format-versions/{result["id"]}'
     anonymous = client(q.app)
-    for headers, expected in ((reader, 403), (worker, 403), ({}, 401)):
+    for headers, expected in ((reader, 403), (worker, 401), ({}, 401)):
         assert anonymous.post("/v1/formats", json=format_, headers=headers).status_code == expected
         assert anonymous.post(add_path, json=format_["recipe"], headers=headers).status_code == expected
     assert anonymous.get(read_path).status_code == 401
     assert anonymous.get(read_path, headers=scoped).status_code == 403
     assert anonymous.get(read_path, headers=reader).json() == result
-    assert anonymous.get(read_path, headers=worker).json() == result
+    for path in ("/v1/formats", add_path, read_path):
+        assert anonymous.get(path, headers=worker).status_code == 401
     assert anonymous.get("/v1/me", headers=worker).status_code == 401
     assert anonymous.post(add_path, json=format_["recipe"], headers=writer_headers).status_code == 201
     failure = admin("create", "--out", str(tmp_path / "ungrantable"), "--production", q.production_id,
                     "--scope", "go_live:approve", expect=1)
     assert failure == "key_admin.invalid_scope"
     assert not (tmp_path / "ungrantable").exists()
+
+
+def test_catalog_reveals_no_production_to_a_single_production_reader(queue):
+    q = queue
+    payload = doll_short()
+    version = create_format(q, payload)
+    _, reader = register_agent(q.owner, {q.production_id: ["read"]})
+    paths = ("/v1/formats", f'/v1/formats/{payload["id"]}/versions', f'/v1/format-versions/{version["id"]}')
+
+    def catalog():
+        replies = [q.browser.get(path, headers=reader) for path in paths]
+        assert all(reply.status_code == 200 for reply in replies)
+        return [reply.json() for reply in replies]
+
+    before = catalog()
+    other = new_production(q.browser, q.csrf)
+    other_path = f"/v1/productions/{other}"
+    pinned = q.browser.post(f"{other_path}/media-types/short/stories", headers=q.csrf,
+                            json={"title": "Private fixture", "format_version_id": version["id"]})
+    assert pinned.status_code == 201, pinned.text
+    assert q.browser.get(other_path, headers=reader).status_code == 403
+    assert q.browser.get(f'/v1/stories/{pinned.json()["id"]}', headers=reader).status_code == 403
+
+    assert catalog() == before == [
+        {"items": [{"id": payload["id"], "name": payload["name"]}], "next_cursor": None},
+        {"items": [{k: v for k, v in version.items() if k != "recipe"}], "next_cursor": None},
+        version,
+    ]
 
 
 def test_wide_format_length_and_target_maximum_do_not_block_queueing(queue):

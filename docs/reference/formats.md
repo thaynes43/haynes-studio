@@ -18,21 +18,45 @@ The account identifier and platform maximum are unset.
 | --- | --- | --- |
 | `POST /v1/formats` | Send `{id, name, recipe}`. Returns version 1 and its `Location`. | Person or `formats:write` |
 | `POST /v1/formats/{id}/versions` | Send the complete new recipe. Returns the new version and its `Location`. | Person or `formats:write` |
-| `GET /v1/formats` | Page of format slugs and names. | Person, `read`, or worker |
-| `GET /v1/formats/{id}/versions` | Page of version IDs, numbers and hashes. | Person, `read`, or worker |
-| `GET /v1/format-versions/{id}` | Version metadata and full recipe. | Person, `read`, or worker |
+| `GET /v1/formats` | Page of format slugs and names. | Person or `read` |
+| `GET /v1/formats/{id}/versions` | Page of version IDs, numbers and hashes. | Person or `read` |
+| `GET /v1/format-versions/{id}` | Version metadata and full recipe. | Person or `read` |
 | `PATCH /v1/stories/{id}` | Send `{format_version_id}` with the story's `If-Match`. Pass null to clear the pin. | `draft:write` for the story's production, or a person |
 
 List pages accept `limit` and `cursor`. Use `next_cursor` with the same path.
 The create request reserves its slug and version 1 in a single transaction.
 The slug and name stay fixed, and each successful append gets the next version
-number. Each version stays addressable directly by ID.
+number. Each version stays addressable directly by ID. The application provides no
+way to change or remove a version.
 
-The catalog is shared across productions. An agent's grant on any production opens
-catalog access for that scope. `formats:write` is explicit on each staging key's
-grant. A story edit still requires access to the story's own production. MCP exposes
-the three catalog reads and uses `studio_patch_story` to pin a format version with
-`draft:write`.
+Under provisional coordinator ruling CR-29, any signed-in person and any agent with
+`read` on at least one production may read the shared catalog. Formats contain no
+production links or identifiers. Workers receive the pinned recipe by value in the
+claim snapshot. Catalog access requires a person or agent identity. API writes from
+an agent require an explicit `formats:write` grant. MCP exposes only the three catalog
+reads. A story edit, including a format pin through `studio_patch_story`, still
+requires access to the story's own production.
+
+## Recipe limits
+
+Each version is limited to 64 KiB (65,536 bytes) of canonical UTF-8 JSON. A shot type
+may declare up to 3 methods. Each list of notes or style or cast rules may contain
+up to 32 entries. Each recipe may have up to 16 targets and must have exactly one
+human gate, `go_live`. Free-text fields are limited to 1,000 characters. Slugs,
+platform names and costume attribute names are limited to 64 characters, public
+account IDs to 128 characters, and target aspects to 11 characters. The schema
+tag, method names, gate and target states use fixed literals. The format name is
+limited to 100 characters.
+
+Check declarations use the check names and parameter names in the schema. The
+decal, wardrobe and mix checks listed there have numeric thresholds. Frame count
+comes from the build plan, and transcript tolerances come from the story. The
+current checks have no recipe-level string or boolean parameters.
+
+Keep credentials out of recipes and format names. The API refuses credential-like
+property names and string values that match the service redaction patterns. If a
+credential is stored, rotate it. An operator then removes the affected row using
+the schema owner's role and records the manual removal.
 
 ## Drafts and queued runs
 

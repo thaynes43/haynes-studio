@@ -57,8 +57,6 @@ def transport_models():
 
 def _require(actor, scope: str) -> None:
     # The format catalog is shared. Agent grants are still provisioned per production.
-    if scope == "read" and actor.principal.kind == "worker":
-        return
     allowed = actor.productions(scope)
     if allowed is not None and not allowed:
         raise forbidden()
@@ -75,9 +73,9 @@ def _location(response: Response, version: dict) -> dict:
     return version
 
 
-def build_router(CurrentActor, format_route):
+def build_router(CurrentActor, authenticated_route):
     router = APIRouter(prefix="/v1", tags=["formats"], responses=ERROR_RESPONSES,
-                       route_class=format_route)
+                       route_class=authenticated_route)
 
     @router.post("/formats", response_model=VersionView, status_code=201,
                  responses=VERSION_LOCATION, operation_id="create_format")

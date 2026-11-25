@@ -61,7 +61,7 @@
     ],
     "notes": [
       "Frame, doll and set rules, Kokoro voice and sparse sound style: docs/reference/doll-format.md.",
-      "Length: One More Meeting at 196 frames (8.166667 s) in titles/one-more-meeting/run-evidence.json and The Winter Menu at 1087 frames (45.2917 s) in titles/the-winter-menu/evidence-r4/timeline.json. Bounds are rounded outwards to whole milliseconds and are advisory under D45.",
+      "Length: One More Meeting at 196 frames (8.166667 s) in titles/one-more-meeting/run-evidence.json and The Winter Menu at 1087 frames (45.2917 s) in titles/the-winter-menu/evidence-r4/validation.json. Bounds are rounded outwards to whole milliseconds and are advisory under D45.",
       "Methods and set loops: D22–D24 in docs/proposals/0003-studio-plan.md and the buildable matrix in docs/contracts/studio-contracts-v1.md section 5.",
       "Yellowbirds declaration: titles/the-winter-menu/brief.md and the full-length sleeve correction in titles/the-winter-menu/video-e0/findings-layered.md.",
       "Wardrobe and minimum ECC: docs/reference/wardrobe-decal-checks.md. Other check parameters are supplied by the check implementation or the individual story.",

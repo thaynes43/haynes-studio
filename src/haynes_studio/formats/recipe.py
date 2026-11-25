@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from hashlib import sha256
 import re
 
+from haynes_studio.adapters.errors import contains_credentials
 from haynes_studio.canonical import FormatLength
 from haynes_studio.canonical.methods import BUILDABLE, UNAVAILABLE, status
 from haynes_studio.errors import Violation, pointer
@@ -13,16 +14,53 @@ from haynes_studio.store import canonical_json
 RECIPE_FILE = "studio.format-recipe.v1.schema.json"
 SLUG_PATTERN = r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*"
 PIN_PATH = "/format_version_id"
+MAX_RECIPE_BYTES = 64 * 1024
+_CREDENTIAL_NAME = re.compile(
+    r"token|secret|password|passwd|api[_-]?key|(?<![a-z0-9])key(?![a-z0-9])|"
+    r"cookie|credential|authorization|bearer|session", re.IGNORECASE | re.ASCII,
+)
 
 
 def valid_slug(slug: str) -> bool:
     return len(slug) <= 64 and re.fullmatch(SLUG_PATTERN, slug) is not None
 
 
+def credential_violation(document: Mapping) -> Violation | None:
+    stack = [((), document)]
+    while stack:
+        path, value = stack.pop()
+        if isinstance(value, Mapping):
+            for name, child in value.items():
+                if contains_credentials(name):
+                    # A name containing a credential cannot be included in the pointer.
+                    return Violation("format.credential", pointer(*path),
+                                     "A property name contains credential-like text")
+                child_path = (*path, name)
+                if _CREDENTIAL_NAME.search(name):
+                    return Violation("format.credential", pointer(*child_path),
+                                     "Credential-like property names are forbidden")
+                stack.append((child_path, child))
+        elif isinstance(value, (list, tuple)):
+            stack.extend(((*path, index), child) for index, child in enumerate(value))
+        elif isinstance(value, str) and contains_credentials(value):
+            return Violation("format.credential", pointer(*path),
+                             "Credential-like values are forbidden")
+    return None
+
+
 def validate_recipe(recipe: Mapping) -> list[Violation]:
+    credential = credential_violation(recipe)
+    if credential:
+        return [credential]
     found = schema_violations(RECIPE_FILE, recipe, default_rule="schema.invalid")
     if found:
         return found
+    try:
+        size = len(canonical_json(recipe))
+    except ValueError:
+        return [Violation("schema.invalid", "", "A recipe must be encodable as canonical JSON")]
+    if size > MAX_RECIPE_BYTES:
+        return [Violation("format.recipe_too_large", "", "A canonical recipe may contain at most 65536 bytes")]
     length = recipe["length"]
     if length["min_ms"] > length["max_ms"]:
         found.append(Violation("format.length_invalid", "/length/max_ms",
