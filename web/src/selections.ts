@@ -1,6 +1,6 @@
 import { ApiError, type StudioClient } from "./api/client";
 import type { components } from "./api/schema";
-import { parseRoute, safePath } from "./routes";
+import { assetsDestination, parseRoute, safePath } from "./routes";
 import { readProductionFilters, type ProductionFilters } from "./production-filters";
 
 const namespace = "web_shell";
@@ -54,7 +54,7 @@ export function readDestinations(values: SelectionDocument["values"]): Destinati
     const route = parseRoute(pathname, search);
     if (route.area !== key) continue;
     if (route.area === "assets" ? route.generate : route.page) continue;
-    result[key] = path;
+    result[key] = route.area === "assets" ? assetsDestination(route.context, route.filters) : path;
   }
   return result;
 }

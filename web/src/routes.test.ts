@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { assetsPath, parseRoute, safePath, treePath } from "./routes";
+import { assetSearchLimit, assetsPath, parseRoute, safePath, treePath } from "./routes";
 import { readDestinations } from "./selections";
 
 const production = "prd_01M79V9FC00000000000000001";
@@ -23,6 +23,14 @@ describe("shell routes", () => {
   test("dropping a scope removes all of its descendants", () => {
     expect(assetsPath({ production })).toBe(`/editor/assets?production=${production}`);
     expect(treePath("board", { production })).toBe(`/editor/board/${production}`);
+  });
+
+  test("caps a crafted Assets search query at the input limit", () => {
+    const prefix = "a".repeat(assetSearchLimit);
+    const query = new URLSearchParams({ q: `${prefix}extra` });
+    expect(parseRoute("/editor/assets", query.toString())).toMatchObject({
+      area: "assets", filters: { search: prefix },
+    });
   });
 
   test.each([

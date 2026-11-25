@@ -21,34 +21,43 @@ function ambiguous(error: unknown) {
 function useAssetPoll<T>(
   load: (signal: AbortSignal) => Promise<T>, active: (value: T) => boolean, enabled = true,
 ) {
-  const [value, setValue] = useState<T>();
-  const [error, setError] = useState<unknown>();
+  const [result, setResult] = useState<{ load: typeof load; value?: T; error?: unknown }>();
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     if (!enabled) return;
     const poller = pollRuns(document, {
       read: load,
       onData(next) {
-        setValue(next);
-        setError(undefined);
+        setResult({ load, value: next });
         return active(next);
       },
       onError(error) {
-        setError(error);
+        setResult((previous) => ({ load, value: previous?.load === load ? previous.value : undefined, error }));
         return ambiguous(error);
       },
     });
     return () => poller.stop();
   }, [active, attempt, enabled, load]);
-  return { value, error, retry: () => setAttempt((attempt) => attempt + 1) };
+  const current = result?.load === load ? result : undefined;
+  return { value: current?.value, error: current?.error, retry: () => setAttempt((attempt) => attempt + 1) };
 }
 
 const keepPollingLane = () => true;
-const keepPollingJob = (job: Awaited<ReturnType<typeof loadCandidateJob>>) => activeCandidate(job.status);
+type CandidateJobRecord = Awaited<ReturnType<typeof loadCandidateJob>>;
+const keepPollingJob = (job?: CandidateJobRecord) => job !== undefined && activeCandidate(job.status);
+
+export function useCandidateJob(api: StudioClient, id?: string) {
+  const load = useCallback((signal: AbortSignal) => id ? loadCandidateJob(api, id, signal) : Promise.resolve(undefined), [api, id]);
+  const { value, error, retry } = useAssetPoll(load, keepPollingJob, id !== undefined);
+  const refused = error != null && !ambiguous(error);
+  const active = id !== undefined && !refused && (!value || activeCandidate(value.status));
+  return { value: refused ? undefined : value, error, retry, refused, active };
+}
 
 function CandidateResult({ api, job, target, onPromoted }: {
-  api: StudioClient; job: Awaited<ReturnType<typeof loadCandidateJob>>; target?: AssetTarget; onPromoted: () => void;
+  api: StudioClient; job: CandidateJobRecord; target?: AssetTarget; onPromoted: () => void;
 }) {
+  const heading = useRef<HTMLHeadingElement>(null);
   const { id: jobId, result_version_id: versionId, target_id: assetId, asset_candidate: spec } = job;
   const productionId = spec?.production_id;
   const kind = spec?.kind;
@@ -58,45 +67,47 @@ function CandidateResult({ api, job, target, onPromoted }: {
     jobId, versionId, assetId, productionId, kind,
   }, signal), [api, jobId, versionId, assetId, productionId, kind]);
   const { result, retry } = useRequest(load);
+  function refresh() {
+    heading.current?.focus();
+    retry();
+  }
   return <section className="asset-candidates" aria-labelledby="asset-candidates-heading">
-    <h2 id="asset-candidates-heading">Candidates</h2>
+    <h2 ref={heading} id="asset-candidates-heading" tabIndex={-1}>Candidates</h2>
     {result.status === "loading" && <p role="status">Loading result…</p>}
-    {result.status === "failure" && <AssetProblem error={result.error} retry={retry} />}
+    {result.status === "failure" && <AssetProblem error={result.error} retry={refresh} />}
     {result.status === "success" && <CandidateReview key={result.data.id} version={result.data} jobId={jobId}
-      api={api} target={target} onPromoted={onPromoted} refresh={retry} />}
+      api={api} target={target} onPromoted={onPromoted} refresh={refresh} />}
   </section>;
 }
 
-function CandidateJob({ api, id, paused, target, onPromoted, onStatus }: {
-  api: StudioClient; id: string; paused: boolean; target?: AssetTarget;
-  onPromoted: () => void; onStatus: (id: string, active: boolean) => void;
+function CandidateJob({ api, status, paused, target, onPromoted }: {
+  api: StudioClient; status: ReturnType<typeof useCandidateJob>; paused: boolean; target?: AssetTarget;
+  onPromoted: () => void;
 }) {
-  const load = useCallback((signal: AbortSignal) => loadCandidateJob(api, id, signal), [api, id]);
-  const { value: job, error, retry } = useAssetPoll(load, keepPollingJob);
-  const active = !job || activeCandidate(job.status);
-  useEffect(() => { onStatus(id, active); }, [active, id, onStatus]);
+  const { value: job, error, retry } = status;
+  if (error instanceof ApiError && error.status === 404) return <p role="alert">Candidate job not found.</p>;
 
-  const label = !job ? "Reading candidate job…" : {
+  const label = job ? {
     queued: paused ? "Candidate queued · image lane paused" : "Candidate queued",
     running: "Candidate running",
     succeeded: "Candidate ready",
     failed: "Candidate failed",
     cancelled: "Candidate cancelled",
-  }[job.status];
+  }[job.status] : error == null ? "Reading candidate job…" : undefined;
 
   return <div className="asset-job">
-    <p role="status">{label}</p>
+    {label && <p role="status">{label}</p>}
     {error != null && <AssetProblem error={error} retry={retry} />}
     {job?.status === "failed" && job.error && <p role="alert">{job.error.message} · {job.error.code}</p>}
     {job?.status === "succeeded" && <CandidateResult api={api} job={job} target={target} onPromoted={onPromoted} />}
   </div>;
 }
 
-export function AssetGeneration({ api, generate, production, scopeReady, job, target, onJob, onPromoted }: {
+export function AssetGeneration({ api, generate, production, scopeReady, job, jobStatus, target, onJob, onPromoted }: {
   api: StudioClient; generate: boolean; production?: Production; scopeReady: boolean;
-  job?: string; target?: AssetTarget; onJob: (job?: string) => void; onPromoted: () => void;
+  job?: string; jobStatus: ReturnType<typeof useCandidateJob>; target?: AssetTarget;
+  onJob: (job?: string) => void; onPromoted: () => void;
 }) {
-  const [progress, setProgress] = useState<{ id: string; active: boolean }>();
   const [name, setName] = useState("");
   const [prompt, setPrompt] = useState("");
   const [kind, setKind] = useState<CandidateRequest["kind"]>("cast");
@@ -105,10 +116,9 @@ export function AssetGeneration({ api, generate, production, scopeReady, job, ta
   const [error, setError] = useState<unknown>();
   const request = useRef<AbortController | null>(null);
   const showJob = useRef(onJob);
-  const jobActive = job !== undefined && (progress?.id !== job || progress.active);
+  const { active: jobActive, refused } = jobStatus;
   const loadLane = useCallback((signal: AbortSignal) => loadImageLane(api, signal), [api]);
-  const lane = useAssetPoll(loadLane, keepPollingLane, generate || jobActive);
-  const onStatus = useCallback((id: string, active: boolean) => setProgress({ id, active }), []);
+  const lane = useAssetPoll(loadLane, keepPollingLane, jobActive || (generate && !refused));
 
   useEffect(() => () => request.current?.abort(), []);
   useLayoutEffect(() => { showJob.current = onJob; }, [onJob]);
@@ -132,7 +142,8 @@ export function AssetGeneration({ api, generate, production, scopeReady, job, ta
       showJob.current(queued.id);
     } catch (error) {
       if (!pending.signal.aborted) {
-        setPress(ambiguous(error) ? attempt : undefined);
+        if (ambiguous(error)) setPress(attempt);
+        else setPress(undefined);
         setError(error);
       }
     } finally {
@@ -145,9 +156,9 @@ export function AssetGeneration({ api, generate, production, scopeReady, job, ta
 
   return <div className={generate ? "asset-generation" : undefined}>
     {generate && <form className="asset-card asset-generate-form" onSubmit={submit} aria-label="Generate asset candidate">
-      <p role="status" className="asset-lane">
+      {(lane.value || !refused) && <p role="status" className="asset-lane">
         {lane.value ? (lane.value.paused ? "Image lane paused" : "Shared image lane open") : "Reading image lane…"}
-      </p>
+      </p>}
       {lane.error != null && <AssetProblem error={lane.error} retry={lane.retry} />}
       {scopeReady && <p className="muted">{production?.name ?? "Shared library"}</p>}
       <label>Name<input value={name} maxLength={100} required disabled={saving || Boolean(press)}
@@ -165,8 +176,8 @@ export function AssetGeneration({ api, generate, production, scopeReady, job, ta
       </button>
       {error != null && <AssetProblem error={error} />}
     </form>}
-    {job && <CandidateJob key={job} id={job} api={api} paused={lane.value?.paused === true} target={target}
-      onPromoted={onPromoted} onStatus={onStatus} />}
+    {job && <CandidateJob key={job} status={jobStatus} api={api} paused={lane.value?.paused === true} target={target}
+      onPromoted={onPromoted} />}
     {job && <div className="asset-actions"><button className="pill" type="button" disabled={saving || Boolean(press)}
       onClick={() => {
         document.getElementById("page-heading")?.focus();

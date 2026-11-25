@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { ApiError, type StudioClient } from "./api/client";
 import { promoteAsset } from "./asset-library-data";
@@ -45,11 +45,13 @@ export function CandidateReview({ api, version, jobId, target, onPromoted, refre
   const [error, setError] = useState<unknown>();
   const request = useRef<AbortController | null>(null);
   const receipt = useRef<HTMLParagraphElement>(null);
+  const dismissalHelp = useId();
   const stale = error instanceof ApiError && error.status === 409;
   const result = promoted ?? version;
   const isCandidate = result.state === "candidate";
-  const canPromote = !result.recorded_without_media && Boolean(result.content) &&
+  const promotable = !result.recorded_without_media && Boolean(result.content) &&
     (isCandidate || (result.state === "board" && result.kind === "photo"));
+  const canPromote = promotable && !declined;
 
   useEffect(() => () => request.current?.abort(), []);
   useEffect(() => {
@@ -57,7 +59,7 @@ export function CandidateReview({ api, version, jobId, target, onPromoted, refre
   }, [promoted]);
 
   async function promote() {
-    if (request.current || declined || !canPromote) return;
+    if (request.current || !canPromote) return;
     const pending = new AbortController();
     request.current = pending;
     setSaving(true);
@@ -80,19 +82,23 @@ export function CandidateReview({ api, version, jobId, target, onPromoted, refre
   const label = version.state === "board" ? "promotion" : "candidate review";
   return <article className="asset-card" aria-label={`${version.name} ${label}`}>
     <h3>{version.name}</h3>
-    <p className="muted">v{version.number} · {assetOrigins[version.provenance.origin]}</p>
-    <VersionDetails version={version} jobId={jobId} />
+    {!declined && <>
+      <p className="muted">v{version.number} · {assetOrigins[version.provenance.origin]}</p>
+      <VersionDetails version={version} jobId={jobId} />
+    </>}
     {result.state === "promoted" && <p role="status" ref={receipt} tabIndex={-1}>Promoted to library</p>}
     <UseAsset version={result} target={target} declined={isCandidate && declined} />
-    {canPromote && <div className="asset-actions">
-      {!declined && <button className="pill primary" type="button" aria-disabled={saving}
+    {promotable && <div className="asset-actions">
+      {canPromote && <button className="pill primary" type="button" aria-disabled={saving}
         onClick={() => void promote()}>{saving ? "Promoting…" : "Promote"}</button>}
-      {isCandidate && <button className="pill" type="button" aria-disabled={saving} onClick={() => {
+      {isCandidate && <button className="pill" type="button" aria-disabled={saving}
+        aria-describedby={declined ? undefined : dismissalHelp} onClick={() => {
         if (request.current) return;
         rememberDecline(version.id, !declined);
         setDeclined(!declined);
         setError(undefined);
-      }}>{declined ? "Review again" : "Decline"}</button>}
+      }}>{declined ? "Review again" : "Not now"}</button>}
+      {isCandidate && !declined && <span id={dismissalHelp} className="muted">Hides this candidate in this tab. Records nothing.</span>}
     </div>}
     {error != null && <AssetProblem error={error} retry={stale ? refresh : undefined} />}
   </article>;

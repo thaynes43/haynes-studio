@@ -88,6 +88,10 @@ export function assetsPath(context: Context = {}, generate = false, filters: Ass
   return (generate ? "/editor/assets/generate" : "/editor/assets") + (query.size ? "?" + query : "");
 }
 
+export function assetsDestination(context: Context, { scope, target, kind }: AssetFilters) {
+  return assetsPath(context, false, { scope, target, kind });
+}
+
 export function parseRoute(pathname: string, search = ""): Route {
   const missing = { area: "missing" } as const;
   if (pathname === "/" || pathname === "/productions") return { area: "productions", context: {} };

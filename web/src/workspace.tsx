@@ -6,7 +6,7 @@ import { AssetLibraryPage } from "./asset-library";
 import { EditorLanding, EditorPicker } from "./editor-entry";
 import { ProductionReview, ProductionStories } from "./production-review";
 import { boardLabel, loadRoute, type RouteData } from "./route-data";
-import { assetsPath, mediaKinds, parseRoute, routePath, treePath, type Route } from "./routes";
+import { assetsDestination, assetsPath, mediaKinds, parseRoute, routePath, treePath, type Route } from "./routes";
 import { RunBuild } from "./run-build";
 import { RunCompare } from "./run-compare";
 import { StoryRuns } from "./run-list";
@@ -198,7 +198,7 @@ export function Workspace({
   const inEditor = route.area === "editor" || route.area === "board" || route.area === "assets";
   const assets = route.area === "board" && route.context.production
     ? assetsPath(route.context)
-    : route.area === "assets" ? assetsPath(route.context, false, route.filters) : destinations.assets;
+    : route.area === "assets" ? assetsDestination(route.context, route.filters) : destinations.assets;
   const saveProblem = error == null ? null : <Problem saving error={error} retry={() => { void selections.retry(); }} />;
   let page: ReactNode;
   if (route.area === "board" && (!route.page || route.page === "photo") &&

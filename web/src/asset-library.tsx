@@ -3,12 +3,12 @@ import { Link, useNavigate } from "react-router";
 
 import type { StudioClient } from "./api/client";
 import { AssetProblem, CandidateReview } from "./asset-candidate-review";
-import { AssetGeneration } from "./asset-generation";
+import { AssetGeneration, useCandidateJob } from "./asset-generation";
 import { boardPhotoHistory, listAssetScope, loadAssetContext } from "./asset-library-data";
 import { assetKinds, assetOrigins, assetTarget, groupAssets, kindLabel, visibleAssetScope, widenAssetScope } from "./asset-library-model";
 import { LibraryVersion, type AssetTarget } from "./asset-version-card";
 import { loadBoard } from "./route-data";
-import { assetSearchLimit, assetsPath, routePath, treePath, type AssetFilters, type AssetScope, type AssetsRoute } from "./routes";
+import { assetSearchLimit, assetsDestination, assetsPath, routePath, treePath, type AssetFilters, type AssetScope, type AssetsRoute } from "./routes";
 import type { SelectionStore } from "./selections";
 import { Breadcrumbs, Empty, PageHeading, Problem } from "./shell-ui";
 import { boardPosition } from "./storyboard-timeline";
@@ -98,13 +98,17 @@ function AssetResults({ api, route, scope, story, change, target, revision }: {
   </>;
 }
 
-function UploadedPhotos({ api, board, target, onPromoted }: {
-  api: StudioClient; board: string; target?: AssetTarget; onPromoted: () => void;
+function UploadedPhotos({ api, board, target, onPromoted, focusHistory }: {
+  api: StudioClient; board: string; target?: AssetTarget; onPromoted: () => void; focusHistory: () => void;
 }) {
   const load = useCallback((signal: AbortSignal) => boardPhotoHistory(api, board, signal), [api, board]);
   const { result, retry } = useRequest(load);
+  function refresh() {
+    focusHistory();
+    retry();
+  }
   if (result.status === "loading") return <p role="status">Loading board photos…</p>;
-  if (result.status === "failure") return <AssetProblem error={result.error} retry={retry} />;
+  if (result.status === "failure") return <AssetProblem error={result.error} retry={refresh} />;
   const photos = result.data.filter((version) => version.kind === "photo" && version.state === "board" &&
     version.scope.board_id === board).sort((a, b) => b.number - a.number || b.id.localeCompare(a.id));
   return photos.length ? <ol className="asset-history">
@@ -112,7 +116,7 @@ function UploadedPhotos({ api, board, target, onPromoted }: {
       <details>
         <summary>{version.name} · v{version.number} · {assetOrigins[version.provenance.origin]}</summary>
         <div className="asset-version-detail">
-          <CandidateReview api={api} version={version} target={target} onPromoted={onPromoted} refresh={retry} />
+          <CandidateReview api={api} version={version} target={target} onPromoted={onPromoted} refresh={refresh} />
         </div>
       </details>
     </li>)}
@@ -131,6 +135,7 @@ export function AssetLibraryPage({ api, route, selections, before }: {
   const [catalogRevision, setCatalogRevision] = useState(0);
   const refresh = useCallback(() => setCatalogRevision((revision) => revision + 1), []);
   const [showHistory, setShowHistory] = useState(false);
+  const history = useRef<HTMLElement>(null);
   const stable = useMemo(() => ({ production, media, story }), [production, media, story]);
   const load = useCallback((signal: AbortSignal) => loadAssetContext(api, stable, signal), [api, stable]);
   const tree = useRequest(load);
@@ -142,22 +147,25 @@ export function AssetLibraryPage({ api, route, selections, before }: {
     ? loadBoard(api, story, validTargetId, signal) : Promise.resolve(undefined), [api, validTargetId, story]);
   const targetBoard = useRequest(loadTarget);
   const record = targetBoard.result.status === "success" ? targetBoard.result.data : undefined;
-  const target = targetScope && validTargetId && record?.id === validTargetId
+  const target = targetScope && validTargetId && record && record.id === validTargetId
     ? { scope: targetScope, board: record } : undefined;
   const targetReady = target !== undefined;
+  const jobStatus = useCandidateJob(api, filters.job);
+  const linkFilters = { ...filters, job: jobStatus.value?.id };
   const path = routePath(route);
-  const libraryPath = assetsPath(context, false, filters);
+  const libraryPath = assetsPath(context, false, linkFilters);
+  const destination = assetsDestination(context, filters);
 
   useEffect(() => {
     if (!ready || (targetId && !targetReady)) return;
-    selections.remember("assets", libraryPath);
-  }, [libraryPath, ready, selections, targetId, targetReady]);
+    selections.remember("assets", destination);
+  }, [destination, ready, selections, targetId, targetReady]);
 
   function change(next: Partial<AssetFilters>, replace = false) {
     void navigate(assetsPath(context, generate, { ...filters, ...next }), { replace, preventScrollReset: true });
   }
 
-  const atScope = (scope: AssetScope) => assetsPath(context, false, { ...filters, scope });
+  const atScope = (scope: AssetScope) => assetsPath(context, false, { ...linkFilters, scope });
   const trail = [{ label: "Editor", to: "/editor" }, { label: "Assets", to: atScope("library") }];
   if (scope !== "library" && data?.production) trail.push({ label: data.production.name, to: atScope("production") });
   if ((scope === "story" || scope === "board") && data?.story) {
@@ -175,7 +183,7 @@ export function AssetLibraryPage({ api, route, selections, before }: {
         <div className="asset-library-heading">
           <PageHeading key={generate ? "generate" : "library"}>{generate ? "Generate asset" : "Asset library"}</PageHeading>
           {generate ? <Link className="pill" to={libraryPath}>Back to library</Link>
-            : <Link className="pill primary" to={assetsPath(context, true, filters)}>Generate asset</Link>}
+            : <Link className="pill primary" to={assetsPath(context, true, linkFilters)}>Generate asset</Link>}
         </div>
         {before}
         {tree.result.status === "failure" && <Problem error={tree.result.error} retry={tree.retry} />}
@@ -193,7 +201,7 @@ export function AssetLibraryPage({ api, route, selections, before }: {
         </div>}
         {(generate || filters.job) && <AssetGeneration key={generate ? "generate" : "result"} api={api}
           generate={generate} production={scope === "library" ? undefined : data?.production}
-          scopeReady={scopeReady} job={filters.job} target={target} onJob={(job) => change({ job })}
+          scopeReady={scopeReady} job={filters.job} jobStatus={jobStatus} target={target} onJob={(job) => change({ job })}
           onPromoted={refresh} />}
         {!generate && <>
           {(scope === "library" || scope === "production" || ready) &&
@@ -202,8 +210,9 @@ export function AssetLibraryPage({ api, route, selections, before }: {
               change={change} target={target} revision={catalogRevision} />}
           {scope === "board" && board && data?.story?.board_order.includes(board) &&
             <details className="asset-board-history" onToggle={(event) => setShowHistory(event.currentTarget.open)}>
-              <summary>Board photo history</summary>
-              {showHistory && <UploadedPhotos api={api} board={board} target={target} onPromoted={refresh} />}
+              <summary ref={history}>Board photo history</summary>
+              {showHistory && <UploadedPhotos api={api} board={board} target={target} onPromoted={refresh}
+                focusHistory={() => history.current?.focus()} />}
             </details>}
         </>}
       </div>

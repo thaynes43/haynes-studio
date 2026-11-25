@@ -42,12 +42,14 @@ describe("asset library filters", () => {
     expect(visibleAssetScope({}, {})).toBe("library");
   });
 
-  test("keeps filter, target and candidate across a URL round trip and saved selections", () => {
+  test("keeps search and job in the URL and saves only the scope, kind and target filters", () => {
     const filters = { scope: "story", target: otherBoard, kind: "character_card", search: "café & tea #1", job } as const;
     const url = assetsPath(target, false, filters);
     expect(parse(url).filters).toEqual(filters);
     expect(routePath(parse(url))).toBe(url);
-    expect(readDestinations({ web_shell: { assets: url } }).assets).toBe(url);
+    expect(readDestinations({ web_shell: { assets: url } }).assets).toBe(assetsPath(target, false, {
+      scope: filters.scope, target: filters.target, kind: filters.kind,
+    }));
     expect(assetTarget(target, filters)?.board).toBe(otherBoard);
     expect(safePath(assetsPath(target, false, { ...filters, search: "茶".repeat(180) }))).toBeTruthy();
     expect(parse("/editor/assets?scope=board&target=bad&kind=%2Fetc&job=bad&q=a%5Cb").filters).toEqual({
@@ -70,7 +72,7 @@ describe("asset use and private previews", () => {
   test("only an eligible promoted still with media can return to the target board", () => {
     expect(assetUseProblem(version, target, false)).toBeUndefined();
     expect(assetUseProblem({ ...version, state: "candidate" }, target, false)).toBe("Promote before use");
-    expect(assetUseProblem({ ...version, state: "candidate" }, target, false, true)).toBe("Declined candidate");
+    expect(assetUseProblem({ ...version, state: "candidate" }, target, false, true)).toBe("Hidden in this tab");
     expect(assetUseProblem({ ...version, recorded_without_media: true }, target, false)).toBe("Recorded without media");
     expect(assetUseProblem({ ...version, scope: { production_id: null } }, target, false)).toBeUndefined();
     expect(assetUseProblem({ ...version, scope: { production_id: otherBoard } }, target, false)).toMatch(/Unavailable/);

@@ -42,14 +42,16 @@ opaque still and leave cutout, mask, keying and motion capability to their own s
 | Action | Version state afterward | Normal picker | Private result |
 |---|---|---|---|
 | Record a successful candidate job | `candidate` | Hidden | Version and PNG retained |
-| Decline the preview or generate again | `candidate` | Hidden | Previous version and PNG retained |
+| Choose Not now or generate again | `candidate` | Hidden | Previous version and PNG retained |
 | Explicit human `library.promote(library, version_id, by=..., now=...)` | `promoted` | Visible in scope | Same version, pin, provenance and capabilities |
 | Retry promotion | `promoted` | Visible in scope | Same record returned |
 
-Declining a preview leaves its existing `candidate` state. Generate again starts a
-new job and reserves a new asset ID. Promotion changes only the version's state. A
-board still pins a version ID. For a whole-frame reference photo, add the promoted
-version ID to `photo.input_asset_version_ids` and pass the draft to `plan_photo`.
+Choosing **Not now** hides the preview in the current tab and records no server
+decision (CR-14, provisional CR-44). **Review again** reopens it in that tab.
+Generate again starts a new job and reserves a new asset ID. Promotion changes
+only the version's state. A board still pins a version ID. For a whole-frame
+reference photo, add the promoted version ID to `photo.input_asset_version_ids`
+and pass the draft to `plan_photo`.
 [Board reference photos](studio-photo.md)
 
 ## API and UI integration
@@ -70,12 +72,13 @@ version ID to `photo.input_asset_version_ids` and pass the draft to `plan_photo`
   can widen the view to `story`, `production` or `library`. A story combines its
   direct pins and all its boards' references. `target` can select another board
   in that story. `q` and `kind` filter the versions returned for the scope.
-  Removing a scope chip keeps the target. Using a promoted still returns its exact
-  version ID to the composer.
+  Removing a scope chip keeps the target. The saved Assets destination keeps scope,
+  target and kind. Using a promoted still returns its exact version ID to the composer.
 - Assets uses the shared image lane read and follows the job in the `job` URL
-  parameter. Open a candidate's job link to review or promote its result. The API
-  exposes individual job results and has no candidate history listing. Decline
-  dismisses the result for this browser tab and retains the candidate on the server.
+  parameter. Open a candidate's job link to review or promote its result. If the
+  job read is refused, polling stops and a new request is available. Job IDs travel
+  between the library and generation views after a successful read. The API exposes
+  individual job results and has no candidate history listing.
   Promote sends a bodyless request keyed by the immutable version ID. Uploaded
   board photos are available through Board photo history and promote as a new
   reusable version.

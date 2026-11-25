@@ -28,6 +28,7 @@ const searchBox = (page: Page) => page.getByRole("searchbox", { name: "Search" }
 const kindBox = (page: Page) => page.getByRole("combobox", { name: "Kind" });
 const targetBox = (page: Page) => page.getByRole("combobox", { name: "Target board" });
 const composer = (page: Page) => page.locator(".photo-composer");
+const generationForm = (page: Page) => page.getByRole("form", { name: "Generate asset candidate" });
 const showPoll = (page: Page) => page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
 
 async function press(page: Page, element: ReturnType<Page["getByRole"]>) {
@@ -51,6 +52,13 @@ async function probeRange(page: Page, path: string, size: number) {
     return { status: response.status, range: response.headers.get("Content-Range"), bytes: (await response.arrayBuffer()).byteLength };
   }, path);
   expect(answer).toEqual({ status: 206, range: `bytes 0-7/${size}`, bytes: 8 });
+}
+
+function refuseStalePromotion(api: Mock["api"], versionId: string) {
+  api.failNext({ path: `/v1/asset-versions/${versionId}/promote`, method: "POST", status: 409, detail: {
+    status: "conflict", code: "conflict.revision", path: "", http_status: 409, request_id: "mock-promote-409",
+    message: "The result changed. Refresh it first.",
+  } });
 }
 
 for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 }]) {
@@ -106,15 +114,29 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       await expect(kindBox(page).getByRole("option", { name: "Character card" })).toHaveCount(1);
       await kindBox(page).selectOption("prop");
       await expect(card(page, "Dining bell")).toHaveCount(0);
-      await searchBox(page).fill("sOuP");
+      const selectionsWrites = () => mock.api.calls.filter((call) => call === "PUT /v1/me/selections").length;
+      await expect.poll(() => mock.api.selections.lena.values.web_shell).toMatchObject({
+        assets: assetsPath(boardContext, false, { scope: "library", kind: "prop" }),
+      });
+      const beforeSearch = selectionsWrites();
+      await searchBox(page).fill("sOu");
+      await expect(page).toHaveURL((url) => url.searchParams.get("q") === "sOu");
+      await expect(searchBox(page)).toHaveValue("sOu");
+      await searchBox(page).press("End");
+      await searchBox(page).press("P");
       await expect(list(page).getByRole("heading")).toHaveText(["Soup bowl"]);
+      await expect(page).toHaveURL((url) => url.searchParams.get("q") === "sOuP");
+      expect(selectionsWrites()).toBe(beforeSearch);
       await targetBox(page).selectOption(story.board_order[0]);
       await expect(card(page, "Soup bowl").getByText("Layered photos use board cast and set")).toBeVisible();
       const filtered = assetsPath(boardContext, false, {
         scope: "library", target: story.board_order[0], kind: "prop", search: "sOuP",
       });
       await expect(page).toHaveURL(filtered);
-      await expect.poll(() => mock.api.selections.lena.values.web_shell).toMatchObject({ assets: filtered });
+      await expect.poll(() => mock.api.selections.lena.values.web_shell).toMatchObject({
+        assets: assetsPath(boardContext, false, { scope: "library", target: story.board_order[0], kind: "prop" }),
+      });
+      expect(selectionsWrites()).toBe(beforeSearch + 1);
       await page.reload();
       await expect(searchBox(page)).toHaveValue("sOuP");
       await expect(kindBox(page)).toHaveValue("prop");
@@ -133,6 +155,43 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       await noOverflow(page, viewport.width);
     });
 
+    test("withholds board checks and actions while the newly selected target loads", async ({ page, mock }) => {
+      const layered = story.board_order[0];
+      await page.goto(productionRoute);
+      const ada = card(page, "Ada portrait");
+      await ada.getByText("v1 · Generated", { exact: true }).click();
+      const alreadyOnBoard = ada.getByText("Already on board", { exact: true });
+      await expect(alreadyOnBoard).toBeVisible();
+      const soup = card(page, "Soup bowl");
+      const useSoup = soup.getByRole("link", { name: "Use Soup bowl v1 on board" });
+      const oldLink = await useSoup.elementHandle();
+      const originalHref = await oldLink.getAttribute("href");
+      const boardPath = `/v1/boards/${layered}`;
+      let release = () => {};
+      const held = new Promise<void>((resolve) => { release = resolve; });
+      await page.route(boardPath, async (route) => {
+        await held;
+        await route.fallback();
+      });
+      const reading = page.waitForRequest((request) => new URL(request.url()).pathname === boardPath);
+      try {
+        await targetBox(page).selectOption(layered);
+        await reading;
+        await expect(page).toHaveURL((url) => url.searchParams.get("target") === layered);
+        expect(mock.api.calls).not.toContain(`GET ${boardPath}`);
+        await expect(alreadyOnBoard).toHaveCount(0);
+        await expect(useSoup).toHaveCount(0);
+        // A detached element keeps its last href, so this checks the render
+        // between selecting the target and the request's loading state.
+        expect(await oldLink.getAttribute("href")).toBe(originalHref);
+      } finally {
+        release();
+      }
+      await expect(soup.getByText("Layered photos use board cast and set")).toBeVisible();
+      await expect(alreadyOnBoard).toHaveCount(0);
+      await expect(useSoup).toHaveCount(0);
+    });
+
     test("shows upload and imported provenance and uses cookie-authenticated preview ranges", async ({ page, mock }) => {
       const sound = mock.api.assets!.versions.find((version) => version.id === librarySound)!;
       const audioPath = `/v1/media/${sound.content!.sha256}`;
@@ -149,7 +208,8 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       await expect(card(page, "Dining bell").getByText("fixture:dining-bell")).toBeVisible();
 
       await page.goto(browseRoute);
-      await page.getByText("Board photo history", { exact: true }).click();
+      const history = page.getByText("Board photo history", { exact: true });
+      await history.click();
       const upload = page.getByText("Board photo · v2 · Agent upload", { exact: true });
       await press(page, upload);
       const review = page.getByRole("article", { name: "Board photo promotion" });
@@ -162,7 +222,14 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       const versionPath = `/v1/asset-versions/${metadata.id}/media/${mock.media[1].hash}`;
       await expect(review.getByRole("img")).toHaveAttribute("src", versionPath);
       await probeRange(page, versionPath, mock.media[1].body.length);
-      await press(page, review.getByRole("button", { name: "Promote", exact: true }));
+      const promote = review.getByRole("button", { name: "Promote", exact: true });
+      refuseStalePromotion(mock.api, metadata.id);
+      await press(page, promote);
+      await expect(review.getByRole("alert")).toContainText("conflict.revision");
+      await press(page, review.getByRole("button", { name: "Retry" }));
+      await expect(history).toBeFocused();
+      await press(page, upload);
+      await press(page, promote);
       await expect(review.getByText("Promoted to library")).toBeFocused();
       await expect(review.getByRole("link", { name: "Use Board photo v1 on board" })).toBeVisible();
       expect(metadata.state).toBe("board");
@@ -173,13 +240,13 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       await noOverflow(page, viewport.width);
     });
 
-    test("replays one press, reads the lane and job, retains a declined candidate and promotes explicitly", async ({ page, mock }) => {
+    test("replays one press, prevents promotion after Not now and promotes explicitly after Review again", async ({ page, mock }) => {
       const assets = mock.api.assets!;
       assets.pause(true);
       assets.loseReply();
       await page.clock.install();
       await openGenerate(page);
-      const form = page.getByRole("form", { name: "Generate asset candidate" });
+      const form = generationForm(page);
       await expect(form.getByText("Image lane paused", { exact: true })).toBeVisible();
       await form.getByLabel("Name").fill("Soup ladle");
       await form.getByLabel("Kind").selectOption("prop");
@@ -207,13 +274,19 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       await expect(candidate.getByText("Promote before use", { exact: true })).toBeVisible();
       await expect(candidate.getByRole("link", { name: /Use/ })).toHaveCount(0);
 
-      await press(page, candidate.getByRole("button", { name: "Decline" }));
+      const notNow = candidate.getByRole("button", { name: "Not now" });
+      await expect(notNow).toHaveAccessibleDescription("Hides this candidate in this tab. Records nothing.");
+      await press(page, notNow);
       await expect(candidate.getByRole("button", { name: "Review again" })).toBeFocused();
-      await expect(candidate.getByText("Declined candidate", { exact: true })).toBeVisible();
+      await expect(candidate.getByText("Hidden in this tab", { exact: true })).toBeVisible();
+      const promote = candidate.getByRole("button", { name: "Promote", exact: true });
+      await expect(promote).toHaveCount(0);
+      await expect(candidate.getByRole("img")).toHaveCount(0);
       expect(version.state).toBe("candidate");
       expect(assets.promotions).toEqual([]);
       await page.reload();
-      await expect(candidate.getByText("Declined candidate", { exact: true })).toBeVisible();
+      await expect(candidate.getByText("Hidden in this tab", { exact: true })).toBeVisible();
+      await expect(promote).toHaveCount(0);
       const libraryJob = assetsPath(boardContext, false, { scope: "production", job: id });
       await page.getByRole("link", { name: "Back to library" }).click();
       await press(page, chip(page, "story"));
@@ -229,18 +302,15 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
         status: "forbidden", code: "auth.forbidden", path: "", http_status: 403, request_id: "mock-promote-403",
         message: "This credential cannot perform the operation",
       } });
-      const promote = candidate.getByRole("button", { name: "Promote", exact: true });
       await press(page, promote);
       await expect(candidate.getByRole("alert")).toContainText("auth.forbidden");
       await expect(candidate.getByRole("link", { name: /Use/ })).toHaveCount(0);
-      mock.api.failNext({ path: promotePath, method: "POST", status: 409, detail: {
-        status: "conflict", code: "conflict.revision", path: "", http_status: 409, request_id: "mock-promote-409",
-        message: "The result changed. Refresh it first.",
-      } });
+      refuseStalePromotion(mock.api, version.id);
       await press(page, promote);
       await expect(candidate.getByRole("alert")).toContainText("conflict.revision");
-      await candidate.getByRole("button", { name: "Retry" }).click();
+      await press(page, candidate.getByRole("button", { name: "Retry" }));
       await expect(candidate.getByRole("alert")).toHaveCount(0);
+      await expect(page.getByRole("heading", { name: "Candidates", exact: true })).toBeFocused();
 
       const resultPath = `GET /v1/jobs/${id}/result`;
       const resultReads = mock.api.calls.filter((call) => call === resultPath).length;
@@ -285,6 +355,76 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       await expect(page.getByRole("alert")).toContainText("image.unavailable");
       await expect(page.getByRole("button", { name: "Promote", exact: true })).toHaveCount(0);
       await noOverflow(page, viewport.width);
+    });
+
+    test("stops polling a missing job and allows a new candidate request", async ({ page, mock }) => {
+      const job = "job_01M79V9FC00000000000000001";
+      let jobReads = 0;
+      await page.route(`/v1/jobs/${job}`, (route) => {
+        jobReads++;
+        return route.fulfill({ status: 404 });
+      });
+      const laneReads = () => mock.api.calls.filter((call) => call === "GET /v1/queue/lanes").length;
+      await page.clock.install();
+      await page.goto(assetsPath(boardContext, false, { job }));
+      await expect(page.getByRole("alert")).toHaveText("Candidate job not found.");
+      await expect(page.getByText("Reading candidate job…", { exact: true })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: "Generate asset", exact: true })).toHaveAttribute("href", assetsPath(boardContext, true));
+      await expect(page.getByRole("navigation", { name: "Editor" }).getByRole("link", { name: "Assets" }))
+        .toHaveAttribute("href", browseRoute);
+      await expect.poll(() => mock.api.selections.lena.values.web_shell).toMatchObject({ assets: browseRoute });
+
+      await page.goto(assetsPath(boardContext, true, { job }));
+      await expect(page.getByRole("alert")).toHaveText("Candidate job not found.");
+      await expect(page.getByRole("link", { name: "Back to library" })).toHaveAttribute("href", browseRoute);
+      const before = laneReads();
+      await showPoll(page);
+      await page.clock.runFor(10_001);
+      expect(jobReads).toBe(2);
+      expect(laneReads()).toBe(before);
+
+      const form = generationForm(page);
+      await form.getByLabel("Name").fill("Soup ladle");
+      await form.getByLabel("Prompt").fill("A wooden ladle for the soup pot.");
+      const request = form.getByRole("button", { name: "Request candidate" });
+      await expect(request).toBeEnabled();
+      await request.click();
+      await expect(page.getByText("Candidate queued", { exact: true })).toBeVisible();
+      await expect(page).toHaveURL(assetsPath(boardContext, true, { job: mock.api.assets!.latestJob()!.id }));
+      expect(mock.api.selections.lena.values.web_shell).toMatchObject({ assets: browseRoute });
+    });
+
+    test("releases the press after a 422 and submits a new key and corrected body", async ({ page, mock }) => {
+      const path = "/v1/asset-jobs";
+      await openGenerate(page);
+      const form = generationForm(page);
+      const prompt = form.getByLabel("Prompt");
+      await form.getByLabel("Name").fill("Soup ladle");
+      await prompt.fill("The rejected prompt");
+      mock.api.failNext({ path, method: "POST", status: 500, detail: {
+        status: "internal", code: "request.failed", path: "", http_status: 500,
+        request_id: "mock-submit-500", message: "Reply failed",
+      } });
+      await form.getByRole("button", { name: "Request candidate" }).click();
+      const retry = form.getByRole("button", { name: "Retry candidate request" });
+      await expect(retry).toBeVisible();
+      mock.api.failNext({ path, method: "POST", status: 422, detail: {
+        status: "invalid", code: "schema.invalid", path: "prompt", http_status: 422,
+        request_id: "mock-submit-422", message: "Invalid prompt",
+      } });
+      const refused = page.waitForResponse((response) => new URL(response.url()).pathname === path && response.status() === 422);
+      await retry.click();
+      const rejected = (await refused).request();
+      await expect(form.getByRole("alert")).toContainText("schema.invalid");
+      await expect(prompt).toBeEditable();
+      await prompt.fill("A wooden ladle for the soup pot.");
+      await form.getByRole("button", { name: "Request candidate" }).click();
+      await expect(page.getByText("Candidate queued", { exact: true })).toBeVisible();
+      const [accepted] = mock.api.assets!.presses;
+      expect(mock.api.assets!.presses).toHaveLength(1);
+      expect(accepted.key).not.toBe(await rejected.headerValue("idempotency-key"));
+      expect(rejected.postDataJSON()).toMatchObject({ prompt: "The rejected prompt" });
+      expect(accepted.body).toMatchObject({ prompt: "A wooden ladle for the soup pot." });
     });
   });
 }

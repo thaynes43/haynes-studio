@@ -63,7 +63,7 @@ export function assetPreview(version: AssetVersion, jobId?: string) {
 
 export function assetUseProblem(version: AssetVersion, target?: PhotoBoardScope, layered = false, declined = false) {
   if (version.recorded_without_media) return "Recorded without media";
-  if (declined) return "Declined candidate";
+  if (declined) return "Hidden in this tab";
   if (version.state === "candidate") return "Promote before use";
   if (!target) return;
   if (version.state !== "promoted") return "Board version";
