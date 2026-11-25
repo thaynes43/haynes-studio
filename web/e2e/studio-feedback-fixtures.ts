@@ -50,11 +50,11 @@ export function feedbackFixtures(draft: Story, boards: Schemas["Board"][], runs:
     });
   }
 
-  function snapshot(route: Route, run: Schemas["RunView"]) {
+  function snapshot(route: Route, run: Pick<Schemas["RunView"], "snapshot">) {
     return route.fulfill({ headers: { etag: `"${run.snapshot.sha256}"` }, json: frozen });
   }
 
-  function present(route: Route, run: Schemas["RunView"], name: string) {
+  function present(route: Route, run: Pick<Schemas["RunView"], "id">, name: string) {
     const { target_id } = route.request().postDataJSON() as Schemas["CandidateWrite"];
     if (!target_id.trim()) return refuse(route, 422, "candidate.target_required", "Choose a target");
     if (!recipe.targets.some(({ id }) => id === target_id)) return refuse(route, 422, "candidate.target_unknown");

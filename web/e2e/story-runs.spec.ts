@@ -45,7 +45,7 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
   test.describe(`${viewport.width} × ${viewport.height}`, () => {
     test.use({ viewport });
 
-    test("builds two revisions in FIFO order while the draft stays editable, then plays and compares", async ({ page, api, media }) => {
+    test("builds two revisions in FIFO order, compares them, and approves only the older snapshot", async ({ page, api, media }) => {
       const queue = api.queue!;
       await openStory(page);
       await expect(build(page)).toBeInViewport();
@@ -182,10 +182,39 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       }
       await expectNoOverflow(page);
 
+      const firstSnapshot = queue.snapshots.get(first.id)!;
       queue.snapshots.delete(first.id);
       await page.reload();
       await expect(page.getByRole("region", { name: "Left run" })).toContainText("Snapshot not available.");
       await expect(page.getByLabel("Phone proxy")).toHaveCount(2);
+      queue.snapshots.set(first.id, firstSnapshot);
+
+      await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("button", { name: "Runs", exact: true }).click();
+      await run(page, 1).getByRole("button", { name: "View run" }).click();
+      await run(page, 1).getByRole("link", { name: "Review in Productions" }).click();
+      const firstReview = treePath("productions", { ...storyContext, run: first.id });
+      await expect(page).toHaveURL(firstReview);
+      const panel = page.getByRole("region", { name: "Go-live" });
+      await expect(panel.locator("code")).toHaveText(media.olderMaster.hash);
+      await page.getByRole("checkbox", { name: "Confirm the AI-generated platform setting" }).check();
+      await panel.getByRole("button", { name: "Approve for go-live", exact: true }).click();
+      await expect(panel.getByText("Go-live approval recorded.")).toBeVisible();
+      expect(api.approvalWrites).toEqual([{
+        run: first.id, body: { master_sha256: media.olderMaster.hash, platform_setting: true },
+      }]);
+      expect(queue.history(first.id)).toMatchObject([{
+        run_snapshot_sha256: first.snapshot.sha256, delivery_id: first.delivery_id, derived: { state: "active" },
+      }]);
+      expect(queue.history(second.id)).toEqual([]);
+
+      await page.reload();
+      await expect(page).toHaveURL(firstReview);
+      const links = page.getByRole("list", { name: "Story runs" });
+      await expect(links.getByRole("link", { name: /Run 1.*Finished.*Approved/ })).toHaveAttribute("aria-current", "true");
+      await links.getByRole("link", { name: /^Run 2 Finished$/ }).click();
+      await expect(panel.locator("code")).toHaveText(media.master.hash);
+      await expect(panel.getByRole("button", { name: "Approve for go-live", exact: true })).toBeDisabled();
+      await expectNoOverflow(page);
     });
 
     test("reuses a lost press key after a draft edit and uses a new key for the next build", async ({ page, api }) => {

@@ -1,6 +1,7 @@
 import { expect, test as base, type Page } from "@playwright/test";
 
 import { assetsPath, treePath } from "../src/routes";
+import { pollInterval } from "../src/run-polling";
 import { boardContext, mockStudio, story } from "./studio-api";
 import { knownHiddenCandidate, libraryRecorded, librarySound } from "./studio-asset-fixtures";
 import { castPin, generatePhotoMedia, photoVersionId, propPin, uploadDigest } from "./studio-photo-fixtures";
@@ -64,6 +65,32 @@ function refuseStalePromotion(api: Mock["api"], versionId: string) {
 for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 }]) {
   test.describe(`Assets ${viewport.width} × ${viewport.height}`, () => {
     test.use({ viewport });
+
+    test("keeps rapid search keys in the input and URL, including through history", async ({ page, mock }) => {
+      await page.goto(productionRoute);
+      await expect(card(page, "Soup bowl")).toBeVisible();
+      const search = searchBox(page);
+      const term = "Soup bowl";
+      // Send individual keys with no delay or assertion between them.
+      await search.pressSequentially(term);
+      await expect(search).toHaveValue(term);
+      await expect(page).toHaveURL((url) => url.searchParams.get("q") === term);
+      await expect(list(page).getByRole("heading")).toHaveText([term]);
+
+      await kindBox(page).selectOption("prop");
+      await expect(page).toHaveURL(assetsPath(boardContext, false, { scope: "production", kind: "prop", search: term }));
+      await expect.poll(() => mock.api.selections.lena.values.web_shell).toMatchObject({
+        assets: assetsPath(boardContext, false, { scope: "production", kind: "prop" }),
+      });
+      await search.fill("Recorded spoon");
+      await expect(list(page).getByRole("heading")).toHaveText(["Recorded spoon"]);
+      await page.goBack();
+      await expect(page).toHaveURL(assetsPath(boardContext, false, { scope: "production", search: term }));
+      await expect(search).toHaveValue(term);
+      await page.goForward();
+      await expect(search).toHaveValue("Recorded spoon");
+      await expect(list(page).getByRole("heading")).toHaveText(["Recorded spoon"]);
+    });
 
     test("opens from a board, widens by keyboard, restores URL and returns a promoted pin", async ({ page, mock }, info) => {
       await page.goto(photoRoute);
@@ -370,14 +397,13 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       await noOverflow(page, viewport.width);
     });
 
-    test("stops polling a missing job and allows a new candidate request", async ({ page, mock }) => {
+    test("stops polling a missing job but keeps the generate lane live and drops the job on filter change", async ({ page, mock }) => {
       const job = "job_01M79V9FC00000000000000001";
       let jobReads = 0;
       await page.route(`/v1/jobs/${job}`, (route) => {
         jobReads++;
         return route.fulfill({ status: 404 });
       });
-      const laneReads = () => mock.api.calls.filter((call) => call === "GET /v1/queue/lanes").length;
       await page.clock.install();
       await page.goto(assetsPath(boardContext, false, { job }));
       await expect(page.getByRole("alert")).toHaveText("Candidate job not found.");
@@ -390,21 +416,31 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       await page.goto(assetsPath(boardContext, true, { job }));
       await expect(page.getByRole("alert")).toHaveText("Candidate job not found.");
       await expect(page.getByRole("link", { name: "Back to library" })).toHaveAttribute("href", browseRoute);
-      const before = laneReads();
-      await showPoll(page);
-      await page.clock.runFor(10_001);
-      expect(jobReads).toBe(2);
-      expect(laneReads()).toBe(before);
-
       const form = generationForm(page);
+      await expect(form.getByRole("status")).toHaveText("Shared image lane open");
+      mock.api.assets!.pause(true);
+      const laneResponse = page.waitForResponse((response) => new URL(response.url()).pathname === "/v1/queue/lanes");
+      await page.clock.runFor(pollInterval);
+      expect((await laneResponse).status()).toBe(200);
+      await expect(form.getByRole("status")).toHaveText("Image lane paused");
+      expect(jobReads).toBe(2);
+
+      const target = story.board_order[0];
+      await targetBox(page).selectOption(target);
+      await expect(page).toHaveURL(assetsPath(boardContext, true, { target }));
+      await expect(page.getByText("Candidate job not found.")).toHaveCount(0);
+      expect(jobReads).toBe(2);
+
       await form.getByLabel("Name").fill("Soup ladle");
       await form.getByLabel("Prompt").fill("A wooden ladle for the soup pot.");
       const request = form.getByRole("button", { name: "Request candidate" });
       await expect(request).toBeEnabled();
       await request.click();
-      await expect(page.getByText("Candidate queued", { exact: true })).toBeVisible();
-      await expect(page).toHaveURL(assetsPath(boardContext, true, { job: mock.api.assets!.latestJob()!.id }));
-      expect(mock.api.selections.lena.values.web_shell).toMatchObject({ assets: browseRoute });
+      await expect(page.getByText("Candidate queued · image lane paused", { exact: true })).toBeVisible();
+      await expect(page).toHaveURL(assetsPath(boardContext, true, { target, job: mock.api.assets!.latestJob()!.id }));
+      await expect.poll(() => mock.api.selections.lena.values.web_shell).toMatchObject({
+        assets: assetsPath(boardContext, false, { target }),
+      });
     });
 
     test("releases the press after a 422 and submits a new key and corrected body", async ({ page, mock }) => {

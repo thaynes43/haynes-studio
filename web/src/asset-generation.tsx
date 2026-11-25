@@ -51,7 +51,8 @@ export function useCandidateJob(api: StudioClient, id?: string) {
   const { value, error, retry } = useAssetPoll(load, keepPollingJob, id !== undefined);
   const refused = error != null && !ambiguous(error);
   const active = id !== undefined && !refused && (!value || activeCandidate(value.status));
-  return { value: refused ? undefined : value, error, retry, refused, active };
+  const missing = error instanceof ApiError && error.status === 404;
+  return { value: refused ? undefined : value, error, retry, missing, active };
 }
 
 function CandidateResult({ api, job, target, onPromoted }: {
@@ -85,7 +86,7 @@ function CandidateJob({ api, status, paused, target, onPromoted }: {
   onPromoted: () => void;
 }) {
   const { value: job, error, retry } = status;
-  if (error instanceof ApiError && error.status === 404) return <p role="alert">Candidate job not found.</p>;
+  if (status.missing) return <p role="alert">Candidate job not found.</p>;
 
   const label = job ? {
     queued: paused ? "Candidate queued · image lane paused" : "Candidate queued",
@@ -116,9 +117,9 @@ export function AssetGeneration({ api, generate, production, scopeReady, job, jo
   const [error, setError] = useState<unknown>();
   const request = useRef<AbortController | null>(null);
   const showJob = useRef(onJob);
-  const { active: jobActive, refused } = jobStatus;
+  const { active: jobActive } = jobStatus;
   const loadLane = useCallback((signal: AbortSignal) => loadImageLane(api, signal), [api]);
-  const lane = useAssetPoll(loadLane, keepPollingLane, jobActive || (generate && !refused));
+  const lane = useAssetPoll(loadLane, keepPollingLane, generate || jobActive);
 
   useEffect(() => () => request.current?.abort(), []);
   useLayoutEffect(() => { showJob.current = onJob; }, [onJob]);
@@ -156,9 +157,9 @@ export function AssetGeneration({ api, generate, production, scopeReady, job, jo
 
   return <div className={generate ? "asset-generation" : undefined}>
     {generate && <form className="asset-card asset-generate-form" onSubmit={submit} aria-label="Generate asset candidate">
-      {(lane.value || !refused) && <p role="status" className="asset-lane">
+      <p role="status" className="asset-lane">
         {lane.value ? (lane.value.paused ? "Image lane paused" : "Shared image lane open") : "Reading image lane…"}
-      </p>}
+      </p>
       {lane.error != null && <AssetProblem error={lane.error} retry={lane.retry} />}
       {scopeReady && <p className="muted">{production?.name ?? "Shared library"}</p>}
       <label>Name<input value={name} maxLength={100} required disabled={saving || Boolean(press)}

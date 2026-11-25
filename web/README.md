@@ -16,6 +16,8 @@ Playwright builds and serves `dist/` on loopback, runs one Chromium worker and m
 the Studio API and login redirects. It also opens the standalone mockup. Results
 go to the OS temp directory. The 400 × 860 and 1280 × 900 tests assert the actual
 layout, navigation and focus. `pnpm build` emits the static app for story 433.
+The [behaviour matrix](../docs/reference/web-behaviour-matrix.md) maps the specs
+and documents the separate, opt-in installed playback check.
 
 ## Routes and state
 

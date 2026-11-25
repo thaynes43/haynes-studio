@@ -51,7 +51,7 @@ export function treePath(area: TreeArea, context: Context = {}, page?: BoardPage
 
 export const assetSearchLimit = 180;
 
-function assetSearch(value?: string) {
+export function assetSearch(value?: string) {
   // Match the API's login return-path rules for decoded query values.
   return value?.replace(/[\\\x00-\x1f\x7f]/g, "").slice(0, assetSearchLimit) || undefined;
 }
