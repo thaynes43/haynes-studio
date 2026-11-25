@@ -1418,6 +1418,430 @@
           }
         }
       ]
+    },
+    "segmentation": {
+      "story": "https://work.haynesnetwork.com/work_packages/460",
+      "status": "profile proposed, install not started",
+      "profiles": [
+        {
+          "key": "grounding-dino-tiny-sam2.1-tiny-cpu-v1",
+          "role": "primary",
+          "models": [
+            "grounding-dino-tiny",
+            "sam2.1-hiera-tiny"
+          ],
+          "download_bytes": 846220082
+        },
+        {
+          "key": "owlv2-base-sam2.1-tiny-cpu-v1",
+          "role": "fallback",
+          "models": [
+            "owlv2-base-patch16-ensemble",
+            "sam2.1-hiera-tiny"
+          ],
+          "download_bytes": 777420069
+        }
+      ],
+      "reference_pipeline": {
+        "name": "Grounded SAM 2",
+        "repository": "https://github.com/IDEA-Research/Grounded-SAM-2",
+        "source_revision": "b7a9c29f196edff0eb54dbe14588d7ae5e3dde28",
+        "licence": {
+          "name": "Apache-2.0",
+          "url": "https://github.com/IDEA-Research/Grounded-SAM-2/blob/b7a9c29f196edff0eb54dbe14588d7ae5e3dde28/LICENSE",
+          "commercial_use": "unknown",
+          "attribution_required": null,
+          "checked_at": "2026-11-25T04:46:46Z",
+          "checked_by": {
+            "kind": "agent_session",
+            "session": "haynes-studio-1125-043121",
+            "harness": "Codex",
+            "model": "gpt-6.2-sol"
+          },
+          "note": "Apache-2.0 requires retaining licence and applicable notices on redistribution of the licensed work. The checked source gives no separate generated-output commercial use or attribution terms."
+        },
+        "evidence": [
+          {
+            "url": "https://github.com/IDEA-Research/Grounded-SAM-2/blob/b7a9c29f196edff0eb54dbe14588d7ae5e3dde28/LICENSE",
+            "quote": "Apache License"
+          }
+        ],
+        "note": "Reference for local assembly of detector boxes with SAM masks. The Studio profile has no separate pipeline checkpoint and does not install the demo code."
+      },
+      "models": [
+        {
+          "key": "grounding-dino-tiny",
+          "name": "Grounding DINO Tiny",
+          "role": "open-vocabulary detector",
+          "repository": "IDEA-Research/grounding-dino-tiny",
+          "source_revision": "a2bb814dd30d776dcf7e30523b00659f4f141c71",
+          "outputs_commercial_use": "unknown",
+          "licence": {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "commercial_use": "unknown",
+            "attribution_required": null,
+            "checked_at": "2026-11-25T04:46:46Z",
+            "checked_by": {
+              "kind": "agent_session",
+              "session": "haynes-studio-1125-043121",
+              "harness": "Codex",
+              "model": "gpt-6.2-sol"
+            },
+            "note": "Apache-2.0 requires retaining licence and applicable notices on redistribution of the licensed work. The checked source gives no separate generated-output commercial use or attribution terms."
+          },
+          "evidence": [
+            {
+              "url": "https://huggingface.co/IDEA-Research/grounding-dino-tiny/blob/a2bb814dd30d776dcf7e30523b00659f4f141c71/README.md",
+              "quote": "license: apache-2.0"
+            }
+          ],
+          "weight": {
+            "name": "model.safetensors",
+            "source": "https://huggingface.co/IDEA-Research/grounding-dino-tiny/resolve/a2bb814dd30d776dcf7e30523b00659f4f141c71/model.safetensors",
+            "metadata": "https://huggingface.co/IDEA-Research/grounding-dino-tiny/blob/a2bb814dd30d776dcf7e30523b00659f4f141c71/model.safetensors",
+            "size_bytes": 689359096,
+            "published_sha256": "1a2412ef99bd74bcd3c2a246fa1e48581f8889a1300c9051974741314fc042f3"
+          },
+          "auxiliary": [
+            {
+              "name": "added_tokens.json",
+              "size_bytes": 82,
+              "sha256": "909e96cb32d92ce728a01bc99850cbba26196d74115c17ebeb019275412588f2"
+            },
+            {
+              "name": "config.json",
+              "size_bytes": 1644,
+              "sha256": "eec82c5ab66e16df12a9a212e68ac011779927c2536cf9078658e35d85f0c67a"
+            },
+            {
+              "name": "preprocessor_config.json",
+              "size_bytes": 457,
+              "sha256": "8454179ba95e2ad22947835aad7b45862a601fc0055ab88bf1ee70892d3aea60"
+            },
+            {
+              "name": "special_tokens_map.json",
+              "size_bytes": 125,
+              "sha256": "b6d346be366a7d1d48332dbc9fdf3bf8960b5d879522b7799ddba59e76237ee3"
+            },
+            {
+              "name": "tokenizer.json",
+              "size_bytes": 711396,
+              "sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66"
+            },
+            {
+              "name": "tokenizer_config.json",
+              "size_bytes": 1237,
+              "sha256": "d40ab645b68211910b9170d22433d43186a6ec8ee6fd10ba170524b25bf4fb56"
+            },
+            {
+              "name": "vocab.txt",
+              "size_bytes": 231508,
+              "sha256": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3"
+            }
+          ],
+          "weights_commercial_use": "allowed"
+        },
+        {
+          "key": "sam2.1-hiera-tiny",
+          "name": "SAM 2.1 Hiera Tiny",
+          "role": "promptable segmentation",
+          "repository": "facebook/sam2.1-hiera-tiny",
+          "source_revision": "de431c4043854a71d8101e17995dfe596bf101a5",
+          "outputs_commercial_use": "unknown",
+          "licence": {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "commercial_use": "unknown",
+            "attribution_required": null,
+            "checked_at": "2026-11-25T04:46:46Z",
+            "checked_by": {
+              "kind": "agent_session",
+              "session": "haynes-studio-1125-043121",
+              "harness": "Codex",
+              "model": "gpt-6.2-sol"
+            },
+            "note": "Apache-2.0 requires retaining licence and applicable notices on redistribution of the licensed work. The checked source gives no separate generated-output commercial use or attribution terms."
+          },
+          "evidence": [
+            {
+              "url": "https://huggingface.co/facebook/sam2.1-hiera-tiny/blob/de431c4043854a71d8101e17995dfe596bf101a5/README.md",
+              "quote": "license: apache-2.0"
+            }
+          ],
+          "weight": {
+            "name": "model.safetensors",
+            "source": "https://huggingface.co/facebook/sam2.1-hiera-tiny/resolve/de431c4043854a71d8101e17995dfe596bf101a5/model.safetensors",
+            "metadata": "https://huggingface.co/facebook/sam2.1-hiera-tiny/blob/de431c4043854a71d8101e17995dfe596bf101a5/model.safetensors",
+            "size_bytes": 155908064,
+            "published_sha256": "48c14467e5cf9e51870511feb72c89688e82dd74523142c0538b663e193ac2a7"
+          },
+          "auxiliary": [
+            {
+              "name": "config.json",
+              "size_bytes": 5695,
+              "sha256": "860aff9751b139d83a4ad7df1e5535416fded533e0ead02625edbefcb9953cce"
+            },
+            {
+              "name": "preprocessor_config.json",
+              "size_bytes": 683,
+              "sha256": "6ebf229ee259368ce4a8d4f2fe893a72b053023710853e257253939e601f583d"
+            },
+            {
+              "name": "processor_config.json",
+              "size_bytes": 95,
+              "sha256": "f8a68e865cfad115c1c2763f3d93eca7b1c622da06da2a9273eb437fb2389b6d"
+            }
+          ],
+          "weights_commercial_use": "allowed"
+        },
+        {
+          "key": "owlv2-base-patch16-ensemble",
+          "name": "OWLv2 Base Patch16 Ensemble",
+          "role": "open-vocabulary detector",
+          "repository": "google/owlv2-base-patch16-ensemble",
+          "source_revision": "cfd3195ba4ea9592eec887ded089f4c08eff231d",
+          "outputs_commercial_use": "unknown",
+          "licence": {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "commercial_use": "unknown",
+            "attribution_required": null,
+            "checked_at": "2026-11-25T04:46:46Z",
+            "checked_by": {
+              "kind": "agent_session",
+              "session": "haynes-studio-1125-043121",
+              "harness": "Codex",
+              "model": "gpt-6.2-sol"
+            },
+            "note": "Apache-2.0 requires retaining licence and applicable notices on redistribution of the licensed work. The checked source gives no separate generated-output commercial use or attribution terms."
+          },
+          "evidence": [
+            {
+              "url": "https://huggingface.co/google/owlv2-base-patch16-ensemble/blob/cfd3195ba4ea9592eec887ded089f4c08eff231d/README.md",
+              "quote": "license: apache-2.0"
+            }
+          ],
+          "weight": {
+            "name": "model.safetensors",
+            "source": "https://huggingface.co/google/owlv2-base-patch16-ensemble/resolve/cfd3195ba4ea9592eec887ded089f4c08eff231d/model.safetensors",
+            "metadata": "https://huggingface.co/google/owlv2-base-patch16-ensemble/blob/cfd3195ba4ea9592eec887ded089f4c08eff231d/model.safetensors",
+            "size_bytes": 619918824,
+            "published_sha256": "e1e130b9e404cf91a75ad45644c1da9d7fa5284085eecc864266a6923efb99e7"
+          },
+          "auxiliary": [
+            {
+              "name": "added_tokens.json",
+              "size_bytes": 67,
+              "sha256": "e5dc0da35d20111e8ff3fdfc03682beca23d5f94ed74331bce81786b2636a24f"
+            },
+            {
+              "name": "config.json",
+              "size_bytes": 414,
+              "sha256": "ba9df8c25a4b8461887dd0a93d9252c9cd84697fe8d49a9d8794ce409af9acb2"
+            },
+            {
+              "name": "merges.txt",
+              "size_bytes": 524619,
+              "sha256": "9fd691f7c8039210e0fced15865466c65820d09b63988b0174bfe25de299051a"
+            },
+            {
+              "name": "preprocessor_config.json",
+              "size_bytes": 425,
+              "sha256": "cf3e396635b797ee1a464e1b2836e98748f8edac19e89aaa2c93b55ac15b0064"
+            },
+            {
+              "name": "special_tokens_map.json",
+              "size_bytes": 121,
+              "sha256": "d6e2b9cf664efbad2d22998b8d3da986abcbeed3e0825ad33605c9401f9cf73e"
+            },
+            {
+              "name": "tokenizer_config.json",
+              "size_bytes": 1100,
+              "sha256": "b55cda6198e152ded427c8a9b3faf1cccf27a7fa080697a62f6ff143f511f44f"
+            },
+            {
+              "name": "vocab.json",
+              "size_bytes": 1059962,
+              "sha256": "e089ad92ba36837a0d31433e555c8f45fe601ab5c221d4f607ded32d9f7a4349"
+            }
+          ],
+          "weights_commercial_use": "allowed"
+        },
+        {
+          "key": "yunet-2023mar",
+          "name": "YuNet 2023 March",
+          "role": "closed-set face detector (comparison only)",
+          "repository": "opencv/opencv_zoo",
+          "source_revision": "eb9f4f2d4b79b58e5513b5d25d5f0243a8357bf4",
+          "outputs_commercial_use": "unknown",
+          "licence": {
+            "name": "MIT",
+            "url": "https://github.com/opencv/opencv_zoo/blob/eb9f4f2d4b79b58e5513b5d25d5f0243a8357bf4/models/face_detection_yunet/LICENSE",
+            "commercial_use": "unknown",
+            "attribution_required": null,
+            "checked_at": "2026-11-25T04:46:46Z",
+            "checked_by": {
+              "kind": "agent_session",
+              "session": "haynes-studio-1125-043121",
+              "harness": "Codex",
+              "model": "gpt-6.2-sol"
+            },
+            "note": "Keep the copyright and permission notice in copies or substantial portions of the licensed work. The checked source gives no separate generated-output commercial use or attribution terms."
+          },
+          "evidence": [
+            {
+              "url": "https://github.com/opencv/opencv_zoo/blob/eb9f4f2d4b79b58e5513b5d25d5f0243a8357bf4/models/face_detection_yunet/README.md",
+              "quote": "All files in this directory are licensed under MIT License."
+            }
+          ],
+          "weight": {
+            "name": "face_detection_yunet_2023mar.onnx",
+            "source": "https://media.githubusercontent.com/media/opencv/opencv_zoo/eb9f4f2d4b79b58e5513b5d25d5f0243a8357bf4/models/face_detection_yunet/face_detection_yunet_2023mar.onnx",
+            "metadata": "https://github.com/opencv/opencv_zoo/blob/eb9f4f2d4b79b58e5513b5d25d5f0243a8357bf4/models/face_detection_yunet/face_detection_yunet_2023mar.onnx",
+            "size_bytes": 232589,
+            "published_sha256": "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4"
+          },
+          "auxiliary": [],
+          "weights_commercial_use": "allowed"
+        }
+      ],
+      "runtime": {
+        "platform": "Linux amd64, CPython 3.12",
+        "base_image": "docker.io/library/python:3.12-slim-bookworm@sha256:44cf1793efa7c7a476bb0f2cff81443f4a072c90c1cb127e2924933daa3e8c64",
+        "components": [
+          {
+            "name": "PyTorch",
+            "version": "2.14.1+cpu",
+            "wheel_sha256": "5a6363570c753812540a05eb82380e329469cbe668643e88111414c12627711f",
+            "source": "https://download.pytorch.org/whl/cpu/torch/",
+            "evidence": [
+              {
+                "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/LICENSE",
+                "quote": "Redistribution and use in source and binary forms"
+              }
+            ],
+            "licence": {
+              "name": "BSD-3-Clause",
+              "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/LICENSE",
+              "commercial_use": "unknown",
+              "attribution_required": null,
+              "checked_at": "2026-11-25T04:46:46Z",
+              "checked_by": {
+                "kind": "agent_session",
+                "session": "haynes-studio-1125-043121",
+                "harness": "Codex",
+                "model": "gpt-6.2-sol"
+              },
+              "note": "BSD-3-Clause requires keeping the licence notices on redistribution and restricts endorsement. The distribution additionally includes separately licensed components. The checked source gives no separate generated-output commercial use or attribution terms."
+            }
+          },
+          {
+            "name": "TorchVision",
+            "version": "0.29.1+cpu",
+            "wheel_sha256": "ef220d4b21878c58947851beb7337382897159105f012f0c9c07bf7e84174d7e",
+            "source": "https://download.pytorch.org/whl/cpu/torchvision/",
+            "evidence": [
+              {
+                "url": "https://github.com/pytorch/vision/blob/v0.29.1/LICENSE",
+                "quote": "BSD 3-Clause License"
+              }
+            ],
+            "licence": {
+              "name": "BSD-3-Clause",
+              "url": "https://github.com/pytorch/vision/blob/v0.29.1/LICENSE",
+              "commercial_use": "unknown",
+              "attribution_required": null,
+              "checked_at": "2026-11-25T04:46:46Z",
+              "checked_by": {
+                "kind": "agent_session",
+                "session": "haynes-studio-1125-043121",
+                "harness": "Codex",
+                "model": "gpt-6.2-sol"
+              },
+              "note": "BSD-3-Clause requires keeping the licence notices on redistribution and restricts endorsement. The checked source gives no separate generated-output commercial use or attribution terms."
+            }
+          },
+          {
+            "name": "Transformers",
+            "version": "5.24.1",
+            "wheel_sha256": "505b39d3e45a3715f3acb81b858eb245ce1a462373b7f99e26f0dcd41ed4cd0f",
+            "source": "https://pypi.org/project/transformers/5.24.1/#files",
+            "evidence": [
+              {
+                "url": "https://github.com/huggingface/transformers/blob/v5.24.1/LICENSE",
+                "quote": "Apache License"
+              }
+            ],
+            "licence": {
+              "name": "Apache-2.0",
+              "url": "https://github.com/huggingface/transformers/blob/v5.24.1/LICENSE",
+              "commercial_use": "unknown",
+              "attribution_required": null,
+              "checked_at": "2026-11-25T04:46:46Z",
+              "checked_by": {
+                "kind": "agent_session",
+                "session": "haynes-studio-1125-043121",
+                "harness": "Codex",
+                "model": "gpt-6.2-sol"
+              },
+              "note": "Apache-2.0 requires retaining licence and applicable notices on redistribution of the licensed work. The checked source gives no separate generated-output commercial use or attribution terms."
+            }
+          },
+          {
+            "name": "Safetensors",
+            "version": "0.8.0",
+            "wheel_sha256": "fd6f3f93c9a0a7cc2788ee63fb763353d4bd2e89b0751bc78fcf7dda00bea774",
+            "source": "https://pypi.org/project/safetensors/0.8.0/#files",
+            "evidence": [
+              {
+                "url": "https://github.com/huggingface/safetensors/blob/v0.8.0/LICENSE",
+                "quote": "Apache License"
+              }
+            ],
+            "licence": {
+              "name": "Apache-2.0",
+              "url": "https://github.com/huggingface/safetensors/blob/v0.8.0/LICENSE",
+              "commercial_use": "unknown",
+              "attribution_required": null,
+              "checked_at": "2026-11-25T04:46:46Z",
+              "checked_by": {
+                "kind": "agent_session",
+                "session": "haynes-studio-1125-043121",
+                "harness": "Codex",
+                "model": "gpt-6.2-sol"
+              },
+              "note": "Apache-2.0 requires retaining licence and applicable notices on redistribution of the licensed work. The checked source gives no separate generated-output commercial use or attribution terms."
+            }
+          },
+          {
+            "name": "Pillow",
+            "version": "13.0.0",
+            "wheel_sha256": "42d63be3af4f9b951b199b0a9d23365d37ab14687e6d77b74940432c8515c4ca",
+            "source": "https://pypi.org/project/Pillow/13.0.0/#files",
+            "evidence": [
+              {
+                "url": "https://github.com/python-pillow/Pillow/blob/13.0.0/LICENSE",
+                "quote": "Pillow is licensed under the open source MIT-CMU License"
+              }
+            ],
+            "licence": {
+              "name": "MIT-CMU",
+              "url": "https://github.com/python-pillow/Pillow/blob/13.0.0/LICENSE",
+              "commercial_use": "unknown",
+              "attribution_required": null,
+              "checked_at": "2026-11-25T04:46:46Z",
+              "checked_by": {
+                "kind": "agent_session",
+                "session": "haynes-studio-1125-043121",
+                "harness": "Codex",
+                "model": "gpt-6.2-sol"
+              },
+              "note": "The Pillow project licence carries copyright and permission notice conditions. The distribution includes other licensed components. The checked source gives no separate generated-output commercial use or attribution terms."
+            }
+          }
+        ]
+      }
     }
   }
 }
