@@ -14,10 +14,16 @@ from .fixtures import fixtures, visible_fraction
 from .inference import box_iou
 from .memory import cgroup_bytes
 from .pixels import describe_mask, mask_iou, tight_box
-from .profile import PROFILE_ID, RESOURCES, SERVING_PROFILE_ID, WEIGHT_LOAD, Profile, SegmentationError, digest
+from .profile import (
+    PROFILE_ID, REQUEST_SECONDS, RESOURCES, SERVING_PROFILE_ID, WEIGHT_LOAD, Profile, SegmentationError, digest,
+)
 from .service import listening, local_call
 
 RESIDENT_GROWTH_BYTES = 64 * 1024**2
+SERVING_PASS_SUFFIXES = ("", "_repeat", "_third")
+STABILITY_PASSES = (2, 3)
+SERVING_RUN_SECONDS = 840  # Leave time for Job startup, cleanup, and the report within 900 s.
+CALL_TIMEOUT_SECONDS = REQUEST_SECONDS + 5
 
 
 def stage(scratch: Path, data: bytes, request: dict) -> dict:
@@ -33,7 +39,7 @@ def _call(scratch, socket, name, fixture):
     data, request = fixture.request(name)
     payload = stage(scratch, data, request)
     start = monotonic()
-    status, reply = local_call(socket, "POST", "/v1/segment", payload)
+    status, reply = local_call(socket, "POST", "/v1/segment", payload, timeout=CALL_TIMEOUT_SECONDS)
     elapsed_ms = round((monotonic() - start) * 1000)
     result = reply["result"]
     directory = scratch / payload["attempt_id"]
@@ -100,15 +106,18 @@ def _memory_stable(requests, case_count, pass_cgroup):
         return (type(first) is int and type(second) is int and first > 0 and second > 0
                 and second <= first + RESIDENT_GROWTH_BYTES)
 
+    reference, comparison = (number - 1 for number in STABILITY_PASSES)
+    first_requests = requests[reference * case_count:(reference + 1) * case_count]
+    second_requests = requests[comparison * case_count:(comparison + 1) * case_count]
     return (
-        len(requests) == 2 * case_count and len(pass_cgroup) == 2
-        and within_tolerance(*pass_cgroup)
+        len(requests) == len(SERVING_PASS_SUFFIXES) * case_count and len(pass_cgroup) == len(SERVING_PASS_SUFFIXES)
+        and within_tolerance(pass_cgroup[reference], pass_cgroup[comparison])
         and all(
             first.keys() == second.keys() and all(
                 within_tolerance(first[phase][key], second[phase][key])
                 for phase in first for key in ("resident_rss_bytes", "cgroup_resident_bytes")
             )
-            for first, second in zip(requests[:case_count], requests[case_count:], strict=True)
+            for first, second in zip(first_requests, second_requests, strict=True)
         )
     )
 
@@ -123,18 +132,25 @@ def _smoke_run(scratch, weights, profile, strategy, inputs, report, *, repeat=Fa
     pin = digest(profile.manifest())
     socket = scratch / "segment.sock"
     cold_start = monotonic()
+    deadline = cold_start + SERVING_RUN_SECONDS
     with Engine(scratch, weights, profile, memory=report["memory"], load_strategy=strategy) as engine:
         report["cold_load_ms"] = round((monotonic() - cold_start) * 1000)
         with listening(socket, engine):
             expected = {"profile_id": PROFILE_ID, "profile_sha256": pin, "device": "cpu"}
-            status, report["readiness"]["initial"] = local_call(socket, "GET", "/v1/ready")
+            status, report["readiness"]["initial"] = local_call(socket, "GET", "/v1/ready", timeout=5)
             checks["ready_initial"] = (status, report["readiness"]["initial"]) == (200, expected)
             if not checks["ready_initial"]:
                 return results
             cases = list(inputs.items())
-            for index, (name, fixture) in enumerate(cases * (2 if repeat else 1)):
-                repeated = index >= len(cases)
-                case = f"{name}_repeat" if repeated else name
+            suffixes = SERVING_PASS_SUFFIXES if repeat else ("",)
+            if repeat:
+                checks["time_budget"] = True
+            for index, (name, fixture) in enumerate(cases * len(suffixes)):
+                if repeat and monotonic() + CALL_TIMEOUT_SECONDS > deadline:
+                    checks["time_budget"] = False
+                    break
+                suffix = suffixes[index // len(cases)]
+                case = name + suffix
                 payload, status, result, png, mask, elapsed = _call(scratch, socket, name, fixture)
                 request_phases.append(_request_phases(fixture, result))
                 passes, metrics = _verdict(name, fixture, status, result, mask)
@@ -161,16 +177,16 @@ def _smoke_run(scratch, weights, profile, strategy, inputs, report, *, repeat=Fa
                     del parameters["weight_load"]
                     receipt = canonical_json(result)
                 results[case] = receipt, png
-                if repeated:
+                if suffix:
                     checks[f"{case}_byte_parity"] = results[case] == results[name]
                 if mask is not None:
                     masks[name] = mask
                 if result["status"] == "failed":
                     return results
-                if name == "foreground" and not repeated and strategy == WEIGHT_LOAD and passes:
+                if name == "foreground" and not suffix and strategy == WEIGHT_LOAD and passes:
                     old = scratch / payload["attempt_id"]
                     before = (old / "result.json").read_bytes(), (old / "mask.png").read_bytes()
-                    replay_status, _ = local_call(socket, "POST", "/v1/segment", payload)
+                    replay_status, _ = local_call(socket, "POST", "/v1/segment", payload, timeout=5)
                     checks["create_only_replay"] = (
                         replay_status == 400
                         and before == ((old / "result.json").read_bytes(), (old / "mask.png").read_bytes())
@@ -182,7 +198,6 @@ def _smoke_run(scratch, weights, profile, strategy, inputs, report, *, repeat=Fa
                             fresh_status == 200 and before == (canonical_json(fresh_result), fresh_png)
                         )
                 if (index + 1) % len(cases) == 0:
-                    suffix = "_repeat" if repeated else ""
                     checks[f"visibility{suffix}"] = False
                     if {"foreground", "visible_face", "hidden_prop"} <= masks.keys():
                         visible = visible_fraction(masks["visible_face"], masks["foreground"])
@@ -195,12 +210,13 @@ def _smoke_run(scratch, weights, profile, strategy, inputs, report, *, repeat=Fa
                         pass_cgroup.append(cgroup_bytes("current"))
                     if not checks[f"visibility{suffix}"]:
                         break
-            status, report["readiness"]["after"] = local_call(socket, "GET", "/v1/ready")
+            status, report["readiness"]["after"] = local_call(socket, "GET", "/v1/ready", timeout=5)
             checks["ready_after"] = (status, report["readiness"]["after"]) == (200, expected)
     checks["phase_memory"] = _phase_memory(report["memory"], request_phases, cgroup_bytes("max"))
     if repeat:
         report["memory"]["passes"] = {
-            "tolerance_bytes": RESIDENT_GROWTH_BYTES, "cgroup_resident_bytes": pass_cgroup,
+            "tolerance_bytes": RESIDENT_GROWTH_BYTES, "compared_passes": list(STABILITY_PASSES),
+            "cgroup_resident_bytes": pass_cgroup,
         }
         checks["memory_stable"] = checks["phase_memory"] and _memory_stable(
             report["memory"].get("requests", []), len(cases), pass_cgroup,
@@ -224,9 +240,8 @@ def smoke(scratch: Path, weights: Path, strategies: tuple[str, ...] = ()) -> dic
                               and bool(os.statvfs("/").f_flag & os.ST_RDONLY)
                               and bool(os.statvfs(weights).f_flag & os.ST_RDONLY))
         inputs = fixtures()
-        expected_cases = set(inputs)
-        if serving:
-            expected_cases.update(f"{name}_repeat" for name in inputs)
+        suffixes = SERVING_PASS_SUFFIXES if serving else ("",)
+        expected_cases = {name + suffix for name in inputs for suffix in suffixes}
         baseline = None
         for strategy in strategies:
             run = {}
