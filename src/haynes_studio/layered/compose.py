@@ -218,7 +218,11 @@ def camera(frame: PIL.Image.Image, cue: Mapping[str, Any] | None, t: float) -> P
     """The push-in of a camera cue at board time ``t`` s (``edit.camera``): from
     ``zoom_from`` at the cue's start to ``zoom_to`` after ``duration_ms``, eased out
     (cubic), toward ``center_px``; before the cue, ``zoom_from``."""
-    box = camera_box(frame.size, cue, t)
+    return frame_crop(frame, camera_box(frame.size, cue, t))
+
+
+def frame_crop(frame: PIL.Image.Image, box: tuple[int, int, int, int] | None) -> PIL.Image.Image:
+    """Apply the resolved camera crop to either a picture or a coverage channel."""
     return frame if box is None else frame.crop(box).resize(frame.size, PIL.Image.Resampling.BICUBIC)
 
 

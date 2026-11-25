@@ -4,8 +4,9 @@
 worker adapter and the layered visibility check. The
 [pinned CPU profile](segmentation-backend-profile.md#artifact-contract-for-story-452)
 defines the request and receipt schemas. Source tests use the real Unix-socket
-service with a fake graph and synthetic stills. They prove the artifact contract
-and the pixel counts. Model quality remains open pending the private trial.
+service with a fake graph and synthetic stills. A generated test compares
+visibility bounds with frames from `compose_photo`. Model quality remains
+open pending the private trial.
 
 ## Set and layout declarations
 
@@ -16,7 +17,7 @@ a new version even when the plate bytes are identical.
 
 | Entry | Fields |
 |---|---|
-| Foreground role | `key`, nullable `label`, positive `layer_order`, optional `hint`. Its mask identifies pixels of the set plate assigned to this depth for the source check. |
+| Foreground role | `key`, nullable `label`, positive `layer_order`, optional `hint`. The declaration identifies plate pixels intended for a future foreground layer. |
 | Focal prop | `key`, `label`, `depth`, `layer_order` when depth is known, optional `hint`. A prop with `depth: "background"` has order 0 and uses the plate. A prop with `depth: "foreground"` uses the plate and names its `foreground_role` and that role's order. A prop with `depth: "separate"` pins a `source_asset_version_id` with `rgba_cutout` and uses the slot in the layout preset named by its own key. `depth: "unspecified"` requires review. |
 
 Keys are unique across the two arrays and distinct from cast slots on the
@@ -30,11 +31,9 @@ owning set. An explicit hint is frozen with the request.
 
 A board layout opts in with `check_poses`, a list of
 `{"key": "baseline", "frame": 0}` objects. Keys are unique and frames are
-zero-based at the delivery rate, relative to the board. The renderer's
-`foreground` flag controls the legacy edge and feather layer. It draws no
-segmented role masks. Pre-build refuses boards that pin a set with foreground
-roles as `occlusion.render_unsupported`, including with `foreground: false`.
-Legacy boards keep the same rendering behavior.
+zero-based at the delivery rate, relative to the board. The `foreground`
+flag controls the legacy edge and feather redraw. Legacy boards keep the
+same rendering behavior.
 
 ## Worker and completion
 
@@ -74,33 +73,58 @@ identity namespace, leaving the same frozen request eligible for a later
 ready completion. `needs_hint` carries its stable reason to human review
 with zero usable masks. The source version stays read-only.
 
+Fresh and cached ready results go through the same adapter verification before
+the adapter constructs a `VerifiedObservation`. Verification binds the
+canonical receipt to the request's input and target, the frozen profile and the
+exact mask bytes. The visibility check accepts these observations and matches
+their identity to the production, source version, target, hint and profile for
+the pose. An unverified record supplies no geometry.
+
 ## Visibility check
 
-`evaluate_visibility` takes the pinned layout and library plus the worker's
-frozen still inputs, resolved layer moves and completed observations for each
-named pose. It resolves the camera from the board clock and checks every
-cast face and declared focal prop. It uses the compositor's centred set fit,
-slot crop origin, sprite size, placement, held pose and camera crop. For
-buildable layers it measures coverage from cast alpha and the legacy edge
-and feather foreground alpha in delivery framing. The standalone check can
-measure separate props at their declared positions against those layers.
-Those prop components do not supply occluder alpha. The standalone
-source check can also fit segmented role masks with the plate's centred cover
-and camera framing to test the declared depth arrangement. Those masks describe
-proposed layers, so the build refuses the set until the renderer supports them.
-Binary support is sampled at the centres of the framed output pixels. The
-total extends that grid before slot and frame clipping. Both visibility bounds
-subtract clipped support and known coverage at alpha 128 or greater from
-strictly higher layers. Shadows do not contribute. For the upper bound,
-unknown higher layers are absent. For the lower bound, they can cover all
-remaining support when there is no proven extent. A legacy redraw can restore
-overlapped background-prop pixels in the upper bound wherever its framed
-alpha is nonzero. The lower bound assumes no restoration. A baked-in
-foreground prop must fit inside its own named role.
+`evaluate_visibility` takes the pinned layout and library plus frozen stills,
+resolved cast moves and verified observations for each named delivery frame.
+It measures cast faces and props baked into the base plate. It follows
+`compose_photo` through the centred plate fit, cropped and resized cast
+sprites in board draw order, the enabled legacy edge and feather redraw,
+and finally the camera crop. At a named pose it uses the supplied cast moves
+and resolves the camera on the board clock.
+
+The check traces the binary target mask through the compositor's pixel
+operations. A cast trace retains the source cutout alpha inside that mask.
+Higher cast layers attenuate the trace by their rendered alpha. Shadows
+change lighting and leave the trace's surface coverage alone. The legacy
+foreground can cover a face or restore pixels of the same baked-in prop
+from the plate. A disabled foreground uses no observation. A pixel counts
+when the target's unoccluded rendered support and its composited contribution
+both reach 128 on the delivery grid. The denominator adds support lost to
+the slot and frame clips, sampled by extending the same grid with nearest
+pixel centres.
+
+An invalid or missing higher cast or foreground input is unknown. Before
+camera resampling, an unknown cast can leave the contribution unchanged or
+cover it completely. An unknown legacy foreground can leave the current
+contribution unchanged or replace it with the corresponding plate value.
+Known layers still apply in order. Bicubic camera resampling has negative
+weights, so a framed pixel that may sample an unknown contribution gets a
+conservative range. Pixels outside that footprint retain their exact value.
+With all inputs known, the two counts are equal to the rendered trace count.
+The renderer test generates cast order, translation, rotation, slot and frame
+clipping, camera pushes and legacy foreground states. It renders absent,
+fully covering and intermediate completions for each unknown layer and
+checks that every count lies within the reported bounds.
+
+Declared foreground roles cause `occlusion.render_unsupported` even
+with `foreground: false`. A separate prop and targets at or below its
+declared order cause `occlusion.separate_prop_unsupported`. An opted-in
+whole-frame layout causes `occlusion.layout_unsupported`. Affected targets
+return `unsupported` and pre-build refuses the board. These refusals have no
+override. Rendering and measuring the declared layers belongs to
+[story 968](https://work.haynesnetwork.com/work_packages/968).
 
 Each check records the target, pose, frame size, camera crop, evidence hashes,
-integer lower and upper visible pixel counts, total support, unknown occluders,
-possible restored pixel count and thresholds. An upper bound of at most 50%
+integer lower and upper visible pixel counts, total support, unknown occluders
+and thresholds. An upper bound of at most 50%
 is `hidden` and produces a blocking pre-build violation. A lower bound of at
 least 85% is `visible`. All other intervals are `uncertain` and can go to
 human review. If the target's own mask or pose is unavailable, the check
@@ -110,20 +134,42 @@ technical defaults pending the private trial.
 The worker stops an uncertain run for review before asking for any clip.
 Run details show the measurement and floors. A signed-in person can record
 a reason with the existing check override action. The override stores the
-full measurement, floors and evidence hashes. The check hashes the supplied
-receipt and mask bytes, still bytes and version IDs, pose frames, move values
-and hints before validation, including rejected inputs and the exact bits of
-non-finite moves. Selecting Build again can proceed when all uncertain checks
+full measurement, floors and evidence hashes. Selecting Build again can
+proceed when all uncertain checks
 have approved evidence for the same frozen inputs. The lookup excludes the
 previous snapshot's approval list. The new snapshot pins only the approved
 hashes matching the current checks.
 
+### Supplied-input equivalence
+
+The input pin hashes the layout, profile, frame size, supplied pose records
+and their observations, stills, moves and hints before applying geometry or
+request validation. Rejected input contributes to the pin. The result hash
+also binds the library pin, measurement and thresholds.
+
+- Mappings compare by the ordered sequence of typed keys and values supplied
+  by iteration. Two implementations with the same entries in the same order
+  are equivalent. Reordering hint keys changes the pin even when the normalized
+  service request would have the same digest.
+- Strings compare by Unicode code point sequence. The encoding preserves each
+  sequence, including its normalization form and any surrogate code points,
+  for evidence. U+1F600 and the literal pair U+D83D U+DE00 have different pins.
+  The normalized request still needs valid UTF-8 before it can name a verified
+  observation.
+- Bytes compare by their content hash. Null, a missing entry and empty bytes
+  are distinct. Lists and tuples have separate tags and compare elementwise.
+  Dataclass records compare by qualified class and field values in declaration
+  order.
+- Booleans, Python integers and Python floats have distinct encodings. Integer
+  magnitude and sign and all binary64 float bits, including signed zero and
+  NaN payload, contribute. NumPy scalars compare by dtype and stored value
+  bytes. Arrays additionally bind shape and the element sequence in row-major
+  order. Object dtype values recursively use the same encoding.
+
 ## Gaps
 
-- The renderer needs to draw the declared role masks in the frame before a
-  board that pins them can build.
 - The product lacks the segmentation job and frozen pose provider. Opted-in
-  boards get `uncertain` for missing geometry. A source check covers the
+  supported boards get `uncertain` for missing geometry. A source check covers the
   stills supplied for that pose. Cast moves and camera changes require
   evidence at each declared pose. A moving set needs the exact source frame
   bound to each pose.
@@ -131,11 +177,12 @@ hashes matching the current checks.
 ## Expected private quality trial
 
 A person must authorize one private miniature set plate with a near table,
-lectern or chair part, one named visible prop and at least one keyed doll
-cutout. Supply unobscured reference stills for the prop and face where
-needed. Pin the still hashes, trace the foreground and subjects in source
-coordinates, and label one baseline pose and a variant hiding a face or
-prop. Use the same inputs in both arrangements.
+lectern or chair part, one named visible prop baked into the plate and at
+least one keyed doll cutout. Use the legacy edge and feather if the prop or
+face needs a foreground redraw. Supply unobscured reference stills for the
+prop and face where needed. Pin the still hashes, trace the foreground and
+subjects in source coordinates, and label one baseline pose and a variant
+hiding a face or prop. Use the same inputs in both arrangements.
 
 Once the sidecar is installed and its measuring smoke and storage evidence
 are available, try each observation without a hint, then allow at most one

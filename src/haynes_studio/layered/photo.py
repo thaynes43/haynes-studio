@@ -90,10 +90,7 @@ def photo_inputs(story: Story, board: Board, *, blobs: Mapping[str, str], width:
         if entry.asset_version_id not in blobs:
             raise LayeredError(UNSUPPORTED, f"cast still {entry.asset_version_id} is not resolved")
         cast.append((entry.slot, blobs[entry.asset_version_id]))
-    foreground = None
-    if board.layout.foreground and story.set.foreground_edge_px is not None:
-        foreground = {"edge_px": [list(p) for p in story.set.foreground_edge_px],
-                      "feather_px": story.set.foreground_feather_px}
+    foreground = foreground_inputs(story, board)
     cue = next((c for c in reversed(board.cues) if isinstance(c, CameraCue)), None)
     camera = None if cue is None else {"zoom": cue.zoom_to, "center_px": list(cue.center_px)}
     return PhotoInputs(width=width, height=height, set=blobs[story.set.asset_version_id],
@@ -101,6 +98,14 @@ def photo_inputs(story: Story, board: Board, *, blobs: Mapping[str, str], width:
                        foreground=None if foreground is None else freeze(foreground),
                        camera=None if camera is None else freeze(camera),
                        matte_sizes=freeze(dict(matte_sizes)) if matte_sizes else None)
+
+
+def foreground_inputs(story: Story, board: Board) -> dict[str, Any] | None:
+    """The plate redraw the compositor actually uses for this board."""
+    if board.layout.foreground and story.set is not None and story.set.foreground_edge_px is not None:
+        return {"edge_px": [list(p) for p in story.set.foreground_edge_px],
+                "feather_px": story.set.foreground_feather_px}
+    return None
 
 
 def _image(data: bytes, what: str) -> PIL.Image.Image:

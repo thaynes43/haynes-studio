@@ -51,7 +51,7 @@ class SegmentationCompletion:
 
 @dataclass(frozen=True)
 class SegmentationOutcome:
-    """A current completion with read-back bytes. Only ready records carry a PNG."""
+    """A receipt and its bytes. Only adapter-verified ready records supply geometry."""
 
     completion: SegmentationCompletion
     png: bytes | None
@@ -60,6 +60,19 @@ class SegmentationOutcome:
     @property
     def action(self) -> str:
         return {"ready": "use_mask", "needs_hint": "review", "failed": "stop"}[self.completion.status]
+
+
+_VERIFIED_READY = object()
+
+
+@dataclass(frozen=True, init=False)
+class VerifiedObservation(SegmentationOutcome):
+    """A ready observation bound to its frozen request, verified by the adapter."""
+
+    def __init__(self, completion: SegmentationCompletion, png: bytes, receipt: bytes, *, _proof=None):
+        if _proof is not _VERIFIED_READY:
+            raise TypeError("Only the segmentation adapter can verify a ready observation")
+        super().__init__(completion, png, receipt)
 
 
 def decode_still(content: Content, data: bytes, *, plate: bool) -> Image.Image:
@@ -155,7 +168,7 @@ def _verify_support(pixels, alpha, request):
         raise SegmentationError("invalid_output")
 
 
-def _existing(store, completion, identity, request, profile, alpha):
+def _verified_ready(store, completion, identity, request, profile, alpha):
     if (completion.identity != identity or completion.status != "ready"
             or completion.reason is not None or completion.mask is None):
         raise SegmentationError("invalid_output")
@@ -169,14 +182,14 @@ def _existing(store, completion, identity, request, profile, alpha):
         raise SegmentationError("invalid_output") from None
     pixels = verify_result(request, result, png, profile)
     _verify_support(pixels, alpha, request)
-    return SegmentationOutcome(completion, png, receipt)
+    return VerifiedObservation(completion, png, receipt, _proof=_VERIFIED_READY)
 
 
 def _publish(store, identity, data, media_type, check_fence):
     check_fence()
     expected = digest(data)
     blob = store.publish(data, scope=identity.scope, media_type=media_type, expected_sha256=expected)
-    if blob.sha256 != expected or _read_blob(store, blob, identity.scope, media_type, len(data)) != data:
+    if blob.sha256 != expected:
         raise SegmentationError("store_failed")
     return blob
 
@@ -216,7 +229,7 @@ def run_segmentation_job(
             check_fence()
             existing = lookup_ready(identity)
             if existing is not None:
-                outcome = _existing(store, existing, identity, request, client.profile, alpha)
+                outcome = _verified_ready(store, existing, identity, request, client.profile, alpha)
                 check_fence()
                 return outcome
 
@@ -226,11 +239,14 @@ def run_segmentation_job(
             receipt_bytes = canonical_json(result)
             receipt = _publish(store, identity, receipt_bytes, JSON, check_fence)
             completion = SegmentationCompletion(identity, receipt, result["status"], result["reason"], mask)
-            check_fence()
             if completion.status == "ready":
+                outcome = _verified_ready(store, completion, identity, request, client.profile, alpha)
+                check_fence()
                 commit_completion(completion)
-            else:
-                record_failure(code=completion.reason, diagnostic=completion)
+                return outcome
+            _read_blob(store, receipt, identity.scope, JSON, MAX_REPLY)
+            check_fence()
+            record_failure(code=completion.reason, diagnostic=completion)
             return SegmentationOutcome(completion, png, receipt_bytes)
     except SegmentationError as error:
         code = error.reason

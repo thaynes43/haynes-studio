@@ -158,10 +158,7 @@ def _adapter_checks(story: Story, *, library: Library, facts: Facts, motion: Lay
             violations = layered_check(story, board, motion=None if motion is None else
                                        motion.boards.get(board.id), frame_size=frame_size,
                                        s2v_size=s2v_size if len(s2v_size) == 2 else None)
-        if config is not None and config["foreground"]:
-            violations.append(Violation("occlusion.render_unsupported", "/set/asset_version_id",
-                                        "This set declares foreground roles that the renderer cannot draw"))
-        elif config is not None or board.layout.check_poses is not None:
+        if config is not None or board.layout.check_poses is not None:
             # The product has no frozen pose provider yet. Missing evidence goes to review.
             checks = evaluate_visibility(story, board, library, frame_size=frame_size, poses={})
             violations += visibility_violations(checks)

@@ -24,7 +24,7 @@ from haynes_studio.db import drafts, identity, runs
 from haynes_studio.db.catalog import record_asset_version
 from haynes_studio.db.schema import run_wan_attempts, worker_lane_grants, worker_tokens
 from haynes_studio.library import Library
-from haynes_studio.layered.visibility import _result as visibility_result
+from haynes_studio.layered.visibility import SEPARATE_PROP_UNSUPPORTED, _result as visibility_result
 from haynes_studio.layered.visibility import evidence_sha256
 from haynes_studio.photo.plan import plan_photo
 from haynes_studio.queue.wan import GPU_REFUSALS, LanePaused, ProductClips, ProductWan, product_request
@@ -912,7 +912,7 @@ def test_visibility_review_can_build_only_after_a_matching_human_override(queue,
         assert stopped["error"]["code"] == "occlusion.review" and len(fake.puts()) == 1
 
 
-@pytest.mark.parametrize("fault", ["hidden", "tampered", "measured_status", "escalation"])
+@pytest.mark.parametrize("fault", ["hidden", "unsupported", "tampered", "measured_status", "escalation"])
 def test_invalid_visibility_check_cannot_use_the_override_endpoint(queue, fault):
     q = queue
     response = queue_run(q, "hidden-visibility")
@@ -923,7 +923,10 @@ def test_invalid_visibility_check_cannot_use_the_override_endpoint(queue, fault)
     visible = 200 if fault == "hidden" else 280
     evidence = visibility_result(board, "face", "a", CheckPose("still", 0), (64, 48), (0, 0, 64, 48),
                                  {"layout": "a" * 64}, lower=visible, upper=visible, total=400)
-    if fault == "tampered":
+    if fault == "unsupported":
+        evidence = visibility_result(board, "face", "a", CheckPose("still", 0), (64, 48), None,
+                                     {"layout": "a" * 64}, reason=SEPARATE_PROP_UNSUPPORTED)
+    elif fault == "tampered":
         evidence["thresholds"]["visible_min_percent"] = 90
     elif fault == "measured_status":
         evidence["measured"]["status"] = "hidden"

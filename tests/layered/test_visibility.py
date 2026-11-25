@@ -8,11 +8,13 @@ from __future__ import annotations
 
 from dataclasses import replace
 from io import BytesIO
+from types import MappingProxyType
 
 import numpy as np
 import pytest
 from PIL import Image, ImageDraw
 
+from haynes_studio.assets.occlusion import SegmentationOutcome, VerifiedObservation
 from haynes_studio.build import prebuild
 from haynes_studio.build.prebuild import VisibilityReviewRequired, prepare
 from haynes_studio.cache.plan import Toolchain
@@ -21,8 +23,8 @@ from haynes_studio.errors import ContractError
 from haynes_studio.layered import compose
 from haynes_studio.layered.photo import compose_photo
 from haynes_studio.layered.visibility import (
-    CHECK, THRESHOLDS, PoseGeometry, PoseStill, _Occluder, _result, _visible_bounds, evaluate_visibility,
-    visibility_violations,
+    CHECK, ROLE_UNSUPPORTED, SEPARATE_PROP_UNSUPPORTED, THRESHOLDS, PoseGeometry, PoseStill,
+    evaluate_visibility, visibility_violations,
 )
 from haynes_studio.layered.visibility_geometry import Projection, measure_support, set_plate_crop
 from haynes_studio.library import Library, Outcome
@@ -76,9 +78,10 @@ def declaration(table, prop_depth, prop_box, prop_id, prop_order):
     return {"foreground": foreground, "focal_props": [focal]}
 
 
-def scene(world, *, focus=TABLE, face_alpha=255, prop_depth=None, prop_box=FACE,
+def scene(world, *, focus=None, face_alpha=255, prop_depth=None, prop_box=FACE,
           prop_order=5, camera=None, slot_crop=None, legacy=False, second_pose=False, move=(0, 0, 0),
-          second_cast=False, role_order=30, role_key="table", prop_key="menu", second_prop_order=None):
+          second_cast=False, role_order=30, role_key="table", prop_key="menu", second_prop_order=None,
+          edge=None, feather=0):
     store, _, _ = world
     cast, rgba = library_image(store, cutout(alpha=face_alpha), "cast", production_id=fx.PRODUCTION)
     library = cast.library
@@ -88,8 +91,8 @@ def scene(world, *, focus=TABLE, face_alpha=255, prop_depth=None, prop_box=FACE,
                                        library=library, production_id=fx.PRODUCTION)
         library = prop.library
         component = PoseStill(prop.version.id, prop_rgba)
-    config = None if legacy else declaration(focus, prop_depth, prop_box,
-                                             None if component is None else component.version_id, prop_order)
+    config = None if legacy or focus is None and prop_depth is None else declaration(
+        focus, prop_depth, prop_box, None if component is None else component.version_id, prop_order)
     if config is not None:
         for role in config["foreground"]:
             role.update(key=role_key, layer_order=role_order)
@@ -119,8 +122,8 @@ def scene(world, *, focus=TABLE, face_alpha=255, prop_depth=None, prop_box=FACE,
             board["layout"]["check_poses"].append({"key": "wide", "frame": 12})
     document.update(boards=[board], board_order=[board["id"]], beds=[])
     document["set"].update(asset_version_id=plate.version.id, motion_asset_version_id=None,
-                           foreground_edge_px=[[0, 9], [64, 9]] if legacy else None,
-                           foreground_feather_px=1 if legacy else None)
+                           foreground_edge_px=[[0, 9], [64, 9]] if legacy else edge,
+                           foreground_feather_px=1 if legacy else feather if edge is not None else None)
     story = fx.load(document)
     cutouts = {key: PoseStill(version_id, rgba) for key, version_id in cast_entries}
     moves = dict.fromkeys(cutouts, move)
@@ -168,15 +171,19 @@ def counted(check, *, upper=None):
     return data["status"], lower, data["total_pixels"]
 
 
+def raw(outcome, **changes):
+    return replace(SegmentationOutcome(outcome.completion, outcome.png, outcome.receipt), **changes)
+
+
 @pytest.mark.parametrize(("foreground", "expected"), [
-    (TABLE, ("visible", 400, 400)),
-    (FACE, ("hidden", 0, 400)),
-    ((10, 10, 17, 30), ("uncertain", 260, 400)),
-    ((10, 10, 13, 30), ("visible", 340, 400)),
-    ((10, 10, 20, 30), ("hidden", 200, 400)),
+    (35, ("visible", 400, 400)),
+    (8, ("hidden", 0, 400)),
+    (22, ("uncertain", 260, 400)),
+    (26, ("visible", 340, 400)),
+    (19, ("hidden", 200, 400)),
 ])
 def test_exact_foreground_counts_and_floors(world, foreground, expected):
-    story, library, pose = scene(world, focus=foreground)
+    story, library, pose = scene(world, edge=[[0, foreground], [64, foreground]])
     (result,) = evaluated(world, story, library, {"still": observations(world, story, library, pose)})
     assert counted(result) == expected
     assert result["measured"]["target"] == {"kind": "face", "key": "a"}
@@ -232,11 +239,13 @@ def test_translated_rotated_support_matches_compositor(angle, zoom):
 
 
 @pytest.mark.parametrize(("alpha", "depth", "prop_box", "expected", "reason"), [
-    (127, "separate", FACE, ("visible", 400, 400), None),
-    (128, "separate", FACE, ("hidden", 0, 400), None),
+    (127, "background", FACE, ("visible", 400, 400), None),
+    (128, "background", FACE, ("hidden", 0, 400), None),
     (255, "background", FACE, ("hidden", 0, 400), None),
-    (255, "foreground", (12, 12, 28, 28), ("visible", 256, 256), None),
-    (255, "foreground", (12, 12, 34, 28), ("uncertain", 0, 0), "mask_straddles_depth"),
+    (127, "separate", FACE, ("unsupported", 0, 0), SEPARATE_PROP_UNSUPPORTED),
+    (128, "separate", FACE, ("unsupported", 0, 0), SEPARATE_PROP_UNSUPPORTED),
+    (255, "foreground", (12, 12, 28, 28), ("unsupported", 0, 0), ROLE_UNSUPPORTED),
+    (255, "foreground", (12, 12, 34, 28), ("unsupported", 0, 0), ROLE_UNSUPPORTED),
     (255, "unspecified", FACE, ("uncertain", 0, 0), "unspecified_depth"),
 ])
 def test_declared_prop_depth_and_alpha_without_shadows(world, alpha, depth, prop_box, expected, reason):
@@ -246,47 +255,47 @@ def test_declared_prop_depth_and_alpha_without_shadows(world, alpha, depth, prop
     assert counted(prop) == expected
     assert prop["measured"]["reason"] == reason
     if depth == "foreground":
-        assert counted(face) == ("hidden", 0, 400)
+        assert counted(face) == ("unsupported", 0, 0)
 
 
 def test_a_separate_prop_does_not_supply_unrendered_occluder_alpha(world):
-    story, library, pose = scene(world, focus=None, prop_depth="separate", prop_order=25, second_prop_order=15)
-    checks = evaluated(world, story, library, {"still": observations(world, story, library, pose)})
-    assert [check["measured"]["target"]["key"] for check in checks] == ["a", "menu", "card"]
-    assert [counted(check) for check in checks] == [("visible", 400, 400)] * 3
+    story, library, pose = scene(world, prop_depth="separate", prop_order=25, second_prop_order=15)
+    known = observations(world, story, library, pose)
+    missing = replace(known, cutouts={"a": known.cutouts["a"]},
+                      observations={("face", "a"): known.observations["face", "a"]})
+    for supplied in (known, missing):
+        checks = evaluated(world, story, library, {"still": supplied})
+        assert [check["measured"]["target"]["key"] for check in checks] == ["a", "menu", "card"]
+        assert [counted(check) for check in checks] == [("unsupported", 0, 0)] * 3
+        assert all(check["escalation"] is None for check in checks)
+        assert [v.rule for v in visibility_violations(checks)] == [SEPARATE_PROP_UNSUPPORTED]
 
 
-@pytest.mark.parametrize(("options", "reason"), [
-    ({"role_key": "a"}, "target_key_conflicts_with_cast"),
-    ({"role_order": 15, "second_cast": True}, "invalid_foreground_order"),
-    ({"role_order": 20, "second_cast": True}, "invalid_foreground_order"),
+@pytest.mark.parametrize("options", [
+    {"role_key": "a"},
+    {"role_order": 15, "second_cast": True},
+    {"role_order": 20, "second_cast": True},
 ])
-def test_invalid_foreground_is_unknown_only_above_its_targets(world, options, reason):
+def test_invalid_foreground_declarations_still_refuse_the_scene(world, options):
     story, library, pose = scene(world, focus=FACE, **options)
-    if options.get("second_cast"):
-        pose = replace(pose, moves={**pose.moves, "b": (32, 0, 0)})
-    first, *rest = evaluated(world, story, library, {"still": observations(world, story, library, pose)})
-    assert counted(first, upper=400) == ("uncertain", 0, 400)
-    assert first["measured"]["unknown_occluders"] == [
-        {"kind": "foreground", "key": options.get("role_key", "table"),
-         "layer_order": options.get("role_order", 30), "reason": reason},
-    ]
-    for higher in rest:
-        assert counted(higher) == ("visible", 400, 400)
-        assert higher["measured"]["unknown_occluders"] == []
+    checks = evaluated(world, story, library, {"still": pose})
+    assert all(counted(check) == ("unsupported", 0, 0) for check in checks)
+    assert [v.rule for v in visibility_violations(checks)] == [ROLE_UNSUPPORTED]
 
 
-@pytest.mark.parametrize(("options", "reason"), [
-    ({"prop_depth": "background", "prop_key": "a"}, "target_key_conflicts_with_cast"),
-    ({"prop_depth": "separate", "prop_order": 10}, "duplicate_layer_order"),
+@pytest.mark.parametrize(("options", "expected", "reason", "face_expected"), [
+    ({"prop_depth": "background", "prop_key": "a"},
+     ("uncertain", 0, 0), "target_key_conflicts_with_cast", ("visible", 400, 400)),
+    ({"prop_depth": "separate", "prop_order": 10},
+     ("unsupported", 0, 0), SEPARATE_PROP_UNSUPPORTED, ("unsupported", 0, 0)),
 ])
-def test_invalid_prop_declaration_only_invalidates_its_own_measurement(world, options, reason):
-    story, library, pose = scene(world, focus=None, **options)
+def test_invalid_prop_declaration(world, options, expected, reason, face_expected):
+    story, library, pose = scene(world, **options)
     supplied = observations(world, story, library, pose)
     face, prop = evaluated(world, story, library, {"still": supplied})
-    assert counted(prop) == ("uncertain", 0, 0)
+    assert counted(prop) == expected
     assert prop["measured"]["reason"] == reason
-    assert counted(face) == ("visible", 400, 400)
+    assert counted(face) == face_expected
 
 
 def test_additional_named_pose_must_supply_its_own_geometry(world):
@@ -306,14 +315,14 @@ def test_additional_named_pose_must_supply_its_own_geometry(world):
 
 @pytest.mark.parametrize("fault", ["mask", "request", "move", "pose", "input"])
 def test_invalid_geometry_never_becomes_buildable(world, fault):
-    story, library, pose = scene(world)
+    story, library, pose = scene(world, edge=[[0, 36], [64, 36]])
     pose = observations(world, story, library, pose)
     if fault in {"mask", "request"}:
         face = pose.observations["face", "a"]
         if fault == "mask":
-            face = replace(face, png=b"corrupt")
+            face = raw(face, png=b"corrupt")
         else:
-            face = replace(face, completion=replace(
+            face = raw(face, completion=replace(
                 face.completion, identity=replace(face.completion.identity, request_sha256="0" * 64)))
         pose = replace(pose, observations={**pose.observations, ("face", "a"): face})
     elif fault == "move":
@@ -326,7 +335,7 @@ def test_invalid_geometry_never_becomes_buildable(world, fault):
     if fault == "input":
         assert counted(result, upper=400) == ("uncertain", 0, 400)
         assert result["measured"]["unknown_occluders"] == [
-            {"kind": "foreground", "key": "table", "layer_order": 30, "reason": "invalid_input"},
+            {"kind": "foreground", "key": "legacy", "layer_order": 20, "reason": "invalid_input"},
         ]
     else:
         assert counted(result) == ("uncertain", 0, 0)
@@ -399,10 +408,10 @@ def test_different_invalid_mask_bytes_require_fresh_review(world, monkeypatch):
         pixels[10:30, 10 + offset:30] = True
         png = encode_mask(pixels)
         assert digest(png) != receipt.completion.mask.sha256
-        supplied = replace(pose, observations={target: replace(receipt, png=png)})
+        supplied = replace(pose, observations={target: raw(receipt, png=png)})
         (result,) = evaluated(world, story, library, {"still": supplied})
         assert counted(result) == ("uncertain", 0, 0)
-        assert result["measured"]["reason"] == "observation_mask_mismatch"
+        assert result["measured"]["reason"] == "unverified_observation"
         results.append(result)
 
     first, second = results
@@ -430,12 +439,14 @@ def test_different_rejected_receipt_hints_require_fresh_review(world, monkeypatc
     assert first.png == second.png and first.receipt != second.receipt
     # Keep the completion pin fixed in the third case to prove the supplied
     # receipt bytes are independently hashed, even for rejected observations.
-    supplied = [first, second, replace(first, receipt=second.receipt)]
+    supplied = [first, second, raw(first, receipt=second.receipt)]
     checks = [evaluated(world, story, library, {
         "still": replace(pose, observations={("face", "a"): outcome}),
     })[0] for outcome in supplied]
     assert len({check["artifact"] for check in checks}) == len(supplied)
-    assert {check["measured"]["reason"] for check in checks} == {"observation_pin_mismatch"}
+    assert [check["measured"]["reason"] for check in checks] == [
+        "observation_pin_mismatch", "observation_pin_mismatch", "unverified_observation",
+    ]
     monkeypatch.setattr(prebuild, "evaluate_visibility", lambda *args, **kwargs: [checks[1]])
     with pytest.raises(VisibilityReviewRequired):
         _prepare(world, story, library, visibility_overrides=(checks[0]["artifact"],)).ensure_buildable()
@@ -468,7 +479,7 @@ def test_rejected_supplied_inputs_change_the_evidence_digest(world, fault):
         variants = [replace(pose, hints={face: {"kind": "text", "text": value}}) for value in (" ", "  ")]
     elif fault == "absent PNG":
         receipt = pose.observations[face]
-        variants = [replace(pose, observations={**pose.observations, face: replace(receipt, png=value)})
+        variants = [replace(pose, observations={**pose.observations, face: raw(receipt, png=value)})
                     for value in (None, b"")]
     elif fault == "absent prop move":
         moves = {"a": pose.moves["a"]}
@@ -490,7 +501,8 @@ def test_rejected_supplied_inputs_change_the_evidence_digest(world, fault):
     if fault != "absent PNG":
         assert first["measured"] == second["measured"]
     if fault != "extra pose":
-        assert counted(first) == counted(second) == ("uncertain", 0, 0)
+        expected = "unsupported" if fault in ("prop version", "absent prop move") else "uncertain"
+        assert counted(first) == counted(second) == (expected, 0, 0)
 
 
 def test_a_receipt_with_wrong_bytes_cannot_supply_usable_mask(world):
@@ -498,10 +510,98 @@ def test_a_receipt_with_wrong_bytes_cannot_supply_usable_mask(world):
     pose = observations(world, story, library, pose)
     target = ("face", "a")
     outcome = pose.observations[target]
-    pose = replace(pose, observations={target: replace(outcome, receipt=b"wrong")})
+    pose = replace(pose, observations={target: raw(outcome, receipt=b"wrong")})
     (check,) = evaluated(world, story, library, {"still": pose})
     assert counted(check) == ("uncertain", 0, 0)
-    assert check["measured"]["reason"] == "observation_receipt_mismatch"
+    assert check["measured"]["reason"] == "unverified_observation"
+
+
+def test_a_different_targets_verified_receipt_cannot_be_relabelled(world):
+    story, library, pose = scene(world, second_cast=True)
+    pose = observations(world, story, library, pose)
+    a, b = pose.observations["face", "a"], pose.observations["face", "b"]
+    assert a.png == b.png and a.receipt != b.receipt
+    swapped = {("face", "a"): b, ("face", "b"): a}
+    checks = evaluated(world, story, library, {"still": replace(pose, observations=swapped)})
+    assert [check["measured"]["reason"] for check in checks] == ["observation_pin_mismatch"] * 2
+    forged = replace(a.completion, result=b.completion.result)
+    with pytest.raises(TypeError, match="Only the segmentation adapter"):
+        VerifiedObservation(forged, b.png, b.receipt)
+    with pytest.raises(TypeError, match="Only the segmentation adapter"):
+        replace(a, completion=forged, receipt=b.receipt)
+    supplied = replace(pose, observations={("face", "a"): raw(b, completion=forged)})
+    check, _ = evaluated(world, story, library, {"still": supplied})
+    assert check["measured"]["reason"] == "unverified_observation"
+    assert counted(check) == ("uncertain", 0, 0)
+
+
+@pytest.mark.parametrize("frame", [False, 0.0, np.int32(0)])
+def test_pose_requires_an_exact_integer_frame(world, frame):
+    story, library, pose = scene(world)
+    pose = observations(world, story, library, pose)
+    assert counted(evaluated(world, story, library, {"still": pose})[0]) == ("visible", 400, 400)
+    assert frame == pose.frame == 0
+    (check,) = evaluated(world, story, library, {"still": replace(pose, frame=frame)})
+    assert counted(check) == ("uncertain", 0, 0)
+    assert check["measured"]["reason"] == "missing_or_wrong_pose"
+
+
+@pytest.mark.parametrize("move", [{0: float("inf"), 1: None, 2: 50_000}, (0, "1", 2),
+                                  (0, float("inf"), 2), np.array([0, 1, 2])])
+def test_malformed_higher_cast_move_is_unknown(world, move):
+    story, library, pose = scene(world, second_cast=True)
+    pose = observations(world, story, library, pose)
+    known = replace(pose, moves={**pose.moves, "b": (32, 0, 0)})
+    assert counted(evaluated(world, story, library, {"still": known})[0]) == ("visible", 400, 400)
+    supplied = replace(pose, moves={"a": pose.moves["a"], "b": move})
+    first, second = evaluated(world, story, library, {"still": supplied})
+    assert counted(first, upper=400) == ("uncertain", 0, 400)
+    assert first["measured"]["unknown_occluders"] == [
+        {"kind": "cast", "key": "b", "layer_order": 20, "reason": "missing_or_invalid_move"},
+    ]
+    assert second["measured"]["reason"] == "missing_or_invalid_move"
+
+
+def test_numpy_scalar_move_does_not_stop_other_targets(world):
+    story, library, pose = scene(world, second_cast=True, edge=[[0, 8], [64, 8]])
+    pose = observations(world, story, library, pose)
+    moves = dict(pose.moves)
+    moves["a"] = (np.float32(0), 0, 0)
+    first, second = evaluated(world, story, library, {"still": replace(pose, moves=moves)})
+    assert counted(first) == counted(second) == ("hidden", 0, 400)
+
+
+def test_supplied_hint_order_and_surrogate_code_points_are_distinct_evidence(world):
+    story, library, pose = scene(world)
+    face = ("face", "a")
+    variants = [
+        (replace(pose, hints={face: hint}) for hint in
+         ({"kind": "text", "extra": True}, {"extra": True, "kind": "text"})),
+        (replace(pose, cutouts={"a": replace(pose.cutouts["a"], version_id=value)}) for value in
+         ("bad-\U0001f600", "bad-\ud83d\ude00")),
+    ]
+    for first, second in variants:
+        a = evaluated(world, story, library, {"still": first})[0]
+        b = evaluated(world, story, library, {"still": second})[0]
+        assert a["measured"] == b["measured"]
+        assert a["artifact_refs"]["inputs"] != b["artifact_refs"]["inputs"]
+        assert a["artifact"] != b["artifact"]
+
+
+def test_supplied_value_equivalence_keeps_types_and_numeric_bits(world):
+    story, library, pose = scene(world)
+    ordinary = replace(pose, hints={("face", "a"): {"kind": "box", "xyxy": [10, 10, 30, 30]}})
+    proxy = replace(ordinary, hints=MappingProxyType({
+        key: MappingProxyType(hint) for key, hint in ordinary.hints.items()
+    }))
+
+    def inputs(supplied):
+        return evaluated(world, story, library, {"still": supplied})[0]["artifact_refs"]["inputs"]
+
+    assert inputs(proxy) == inputs(ordinary)
+    variants = (0, 0.0, -0.0, False, np.float32(0), np.float64(0), np.float32(-0.0))
+    assert len({inputs(replace(pose, moves={"a": (value, 0, 0)})) for value in variants}) == len(variants)
+    assert inputs(replace(pose, moves={"a": [0, 0, 0]})) != inputs(pose)
 
 
 def test_rejected_nonfinite_frame_sizes_have_distinct_serializable_evidence(world):
@@ -516,14 +616,44 @@ def test_rejected_nonfinite_frame_sizes_have_distinct_serializable_evidence(worl
 
 
 def test_product_prebuild_refuses_declared_foreground_roles_even_when_disabled(world):
-    story, library, _ = scene(world)
+    story, library, pose = scene(world, focus=TABLE, prop_depth="foreground")
     (board,) = story.boards
     board = replace(board, layout=replace(board.layout, foreground=False))
-    before = _prepare(world, replace(story, boards=(board,)), library)
+    story = replace(story, boards=(board,))
+    supplied = observations(world, story, library, pose)
+    no_role = replace(supplied, observations={key: obs for key, obs in supplied.observations.items()
+                                             if key != ("foreground", "table")})
+    checks = evaluated(world, story, library, {"still": supplied})
+    assert [check["measured"] for check in checks] == [
+        check["measured"] for check in evaluated(world, story, library, {"still": no_role})
+    ]
+    assert [counted(check) for check in checks] == [("unsupported", 0, 0)] * 2
+    before = _prepare(world, story, library, visibility_overrides=tuple(check["artifact"] for check in checks))
     assert [p.rule for p in before.report.blocking] == ["occlusion.render_unsupported"]
     assert not before.pending_visibility
     with pytest.raises(PreflightError):
         before.ensure_buildable()
+
+
+def test_product_prebuild_refuses_separate_props_without_an_override(world):
+    story, library, pose = scene(world, prop_depth="separate", prop_order=25)
+    checks = evaluated(world, story, library, {"still": pose})
+    before = _prepare(world, story, library, visibility_overrides=tuple(check["artifact"] for check in checks))
+    assert [p.rule for p in before.report.blocking] == [SEPARATE_PROP_UNSUPPORTED]
+    assert not before.pending_visibility
+    with pytest.raises(PreflightError):
+        before.ensure_buildable()
+
+
+def test_disabled_legacy_foreground_has_no_observation_or_plate_requirement_for_faces(world):
+    story, library, pose = scene(world, edge=[[0, 8], [64, 8]])
+    pose = observations(world, story, library, pose)
+    (board,) = story.boards
+    disabled = replace(board, layout=replace(board.layout, foreground=False))
+    invalid_plate = replace(pose, plate=replace(pose.plate, data=b"unavailable"))
+    (check,) = evaluated(world, replace(story, boards=(disabled,)), library, {"still": invalid_plate})
+    assert counted(check) == ("visible", 400, 400)
+    assert check["measured"]["unknown_occluders"] == []
 
 
 def test_legacy_boards_keep_edge_feather_rendering_and_their_layout_document(world):
@@ -556,24 +686,26 @@ def test_separate_prop_setup_failure_keeps_the_legacy_hidden_face(world):
     face, _ = evaluated(world, story, library, {"still": pose})
     assert counted(face) == ("hidden", 0, 400)
 
-    # Prop setup can fail in several ways while the face is still measurable.
+    # A lower omitted prop is always refused; an upper face remains measurable.
     faults = (
-        (replace(pose, cutouts={"a": pose.cutouts["a"]}), "missing_or_wrong_layer"),
-        (replace(pose, cutouts={**pose.cutouts, "menu": pose.cutouts["a"]}), "missing_or_wrong_layer"),
-        (replace(pose, moves={"a": pose.moves["a"]}), "missing_or_invalid_move"),
-        (replace(pose, moves={**pose.moves, "menu": (10_001, 0, 0)}), "missing_or_invalid_move"),
-        (replace(pose, moves={**pose.moves, "menu": (10_002, 0, 0)}), "missing_or_invalid_move"),
-        (replace(pose, moves={**pose.moves, "menu": (float("inf"), 0, 0)}), "invalid_geometry"),
+        replace(pose, cutouts={"a": pose.cutouts["a"]}),
+        replace(pose, cutouts={**pose.cutouts, "menu": pose.cutouts["a"]}),
+        replace(pose, moves={"a": pose.moves["a"]}),
+        replace(pose, moves={**pose.moves, "menu": (10_001, 0, 0)}),
+        replace(pose, moves={**pose.moves, "menu": (10_002, 0, 0)}),
+        replace(pose, moves={**pose.moves, "menu": (float("inf"), 0, 0)}),
     )
     artifacts = set()
-    for bad_pose, reason in faults:
+    for bad_pose in faults:
         result = evaluated(world, story, library, {"still": bad_pose})
         hidden_face, broken_prop = result
         assert counted(hidden_face) == counted(face)
-        assert counted(broken_prop) == ("uncertain", 0, 0)
-        assert broken_prop["measured"]["reason"] == reason
+        assert counted(broken_prop) == ("unsupported", 0, 0)
+        assert broken_prop["measured"]["reason"] == SEPARATE_PROP_UNSUPPORTED
         artifacts.add(broken_prop["artifact"])
-        assert [problem.rule for problem in visibility_violations(result)] == ["occlusion.hidden"]
+        assert [problem.rule for problem in visibility_violations(result)] == [
+            "occlusion.hidden", SEPARATE_PROP_UNSUPPORTED,
+        ]
     assert len(artifacts) == len(faults)
 
 
@@ -614,8 +746,7 @@ def test_one_row_of_possible_legacy_restoration_keeps_the_menu_hidden(world):
                                       foreground_feather_px=0))
     face, menu = evaluated(world, story, library, {"still": observations(world, story, library, pose)})
     assert counted(face) == ("visible", 380, 400)
-    assert counted(menu, upper=20) == ("hidden", 0, 400)
-    assert menu["measured"]["possible_redraw_pixels"] == 20
+    assert counted(menu) == ("hidden", 20, 400)
     assert [v.rule for v in visibility_violations([face, menu])] == ["occlusion.hidden"]
 
 
@@ -624,8 +755,8 @@ def test_legacy_redraw_does_not_restore_a_separate_prop(world):
     story = replace(story, set=replace(story.set, foreground_edge_px=((0, 28), (64, 28)),
                                       foreground_feather_px=0))
     _, menu = evaluated(world, story, library, {"still": observations(world, story, library, pose)})
-    assert counted(menu) == ("hidden", 0, 400)
-    assert menu["measured"]["possible_redraw_pixels"] == 0
+    assert counted(menu) == ("unsupported", 0, 0)
+    assert menu["measured"]["reason"] == SEPARATE_PROP_UNSUPPORTED
 
 
 def test_a_missing_higher_cast_move_measures_the_background_menu_bounds(world):
@@ -639,46 +770,16 @@ def test_a_missing_higher_cast_move_measures_the_background_menu_bounds(world):
     ]
 
 
-def test_generated_arrangements_preserve_visibility_bounds(world):
-    story, _, _ = scene(world)
-    (board,) = story.boards
-    (pose,) = board.layout.check_poses
-    rng = np.random.default_rng(452)
-    size, order = (8, 6), 3
-    framing = (0, 0, *size)
-    hidden_cases = 0
-    for _ in range(100):
-        support = rng.random((6, 8)) < 0.9
-        total = int(support.sum())
-        layers = [_Occluder("cast", str(i), int(depth),
-                            (rng.random(support.shape) < rng.uniform(0, 0.8)).astype(np.uint8) * 255)
-                  for i, depth in enumerate(rng.integers(0, 8, size=4))]
-        known_lower, known_upper, _, _ = _visible_bounds(support, order, layers)
-        assert known_lower == known_upper
-        before = _result(board, "face", "a", pose, size, framing, {"inputs": "a" * 64},
-                         lower=known_lower, upper=known_upper, total=total)
-        unknown_layer = _Occluder("foreground", "unknown", int(rng.integers(0, 8)), reason="missing")
-        lower, upper, unknown, _ = _visible_bounds(support, order, [*layers, unknown_layer])
-        assert 0 <= lower <= upper <= known_upper <= total
-        assert unknown == ([unknown_layer.unknown()] if unknown_layer.order > order else [])
-        assert lower == (0 if unknown else known_lower)
-        after = _result(board, "face", "a", pose, size, framing, {"inputs": "a" * 64},
-                        lower=lower, upper=upper, total=total, unknown=unknown)
-        if before["measured"]["status"] == "hidden":
-            hidden_cases += 1
-            assert after["measured"]["status"] == "hidden"
-        assert _visible_bounds(support, order, layers)[:2] == (upper, upper)
-    assert hidden_cases > 0
-
-
-def test_legacy_foreground_keeps_face_measurement_when_prop_depth_is_ambiguous(world):
+@pytest.mark.parametrize("enabled", [True, False])
+def test_legacy_foreground_redraw_restores_the_baked_prop(world, enabled):
     story, library, pose = scene(world, focus=None, prop_depth="background")
     story = replace(story, set=replace(story.set, foreground_edge_px=((0, 9), (64, 9)),
                                       foreground_feather_px=1))
+    (board,) = story.boards
+    story = replace(story, boards=(replace(board, layout=replace(board.layout, foreground=enabled)),))
     face, prop = evaluated(world, story, library, {"still": observations(world, story, library, pose)})
-    assert counted(face) == ("hidden", 0, 400)
-    assert counted(prop, upper=400) == ("uncertain", 0, 400)
-    assert prop["measured"]["reason"] == "legacy_foreground_needs_depth_geometry"
+    hidden, visible = ("hidden", 0, 400), ("visible", 400, 400)
+    assert (counted(face), counted(prop)) == ((hidden, visible) if enabled else (visible, hidden))
 
 
 @pytest.mark.parametrize(("source", "size"), [((80, 60), (32, 32)), ((40, 64), (64, 48)), ((64, 48), (64, 48))])
@@ -711,7 +812,7 @@ def test_plate_cover_crop_uses_unclipped_prop_support(world):
 
 
 def test_static_plate_cannot_stand_in_for_a_promoted_set_loop(world):
-    story, library, pose = scene(world)
+    story, library, pose = scene(world, edge=[[0, 36], [64, 36]])
     pose = observations(world, story, library, pose)
     plate_hash = library.version(pose.plate.version_id).content.sha256
     clip = mf.version(mf.set_block(still_sha256=plate_hash), n=60, clip="a" * 64,
@@ -722,7 +823,7 @@ def test_static_plate_cannot_stand_in_for_a_promoted_set_loop(world):
     (check,) = evaluated(world, story, fuller, {"still": pose})
     assert counted(check, upper=400) == ("uncertain", 0, 400)
     assert check["measured"]["unknown_occluders"] == [
-        {"kind": "foreground", "key": "table", "layer_order": 30, "reason": "moving_plate_needs_pose_source"},
+        {"kind": "foreground", "key": "legacy", "layer_order": 20, "reason": "moving_plate_needs_pose_source"},
     ]
 
 

@@ -459,23 +459,41 @@ def test_cached_completion_with_wrong_identity_is_never_exposed(world):
     assert journal.failures == ["invalid_output"]
 
 
-@pytest.mark.parametrize("fault", ["length", "hash"])
-def test_cached_receipt_must_match_the_readback_descriptor(world, monkeypatch, fault):
+@pytest.mark.parametrize(("artifact", "fault"), [
+    ("result", "length"), ("result", "hash"), ("result", "media_type"),
+    ("mask", "length"), ("mask", "media_type"),
+])
+def test_cached_observation_must_match_the_readback_descriptor(world, monkeypatch, artifact, fault):
     store, client, weights = world
     source, _ = library_image(store, Image.new("RGB", SIZE), "set")
     journal = Journal()
     with Engine(client.scratch, weights, client.profile, factory=factory) as engine, listening(client.socket, engine):
         outcome = run(world, source, journal)
     completion = outcome.completion
-    blob = completion.result
-    if fault == "length":
-        wrong = replace(blob, bytes=blob.bytes + 1)
-    else:
-        wrong = replace(blob, sha256="9" * 64, locator=blob_locator(completion.identity.scope, "9" * 64, JSON))
-        open_blob = store.open
-        monkeypatch.setattr(store, "open", lambda locator: open_blob(blob.locator if locator == wrong.locator else locator))
-    cached = replace(completion, result=wrong)
+    blob = getattr(completion, artifact)
+    sha = "9" * 64 if fault == "hash" else blob.sha256
+    media_type = (PNG if artifact == "result" else JSON) if fault == "media_type" else blob.media_type
+    wrong = replace(blob, bytes=blob.bytes + (fault == "length"), sha256=sha, media_type=media_type,
+                    locator=blob_locator(completion.identity.scope, sha, media_type))
+    # Keep the stored bytes, scope, canonical request, identity and other blob
+    # fixed even if the changed descriptor needs another valid locator.
+    open_blob = store.open
+    monkeypatch.setattr(store, "open", lambda ref: open_blob(blob.locator if ref == wrong.locator else ref))
+    cached = replace(completion, **{artifact: wrong})
     assert run(world, source, journal, lookup_ready=lambda _: cached) is None
+    assert journal.failures == ["invalid_output"]
+
+
+def test_cached_receipt_for_another_target_cannot_verify_with_the_same_mask(world):
+    store, client, weights = world
+    source, _ = library_image(store, Image.new("RGB", SIZE), "set")
+    journal = Journal()
+    with Engine(client.scratch, weights, client.profile, factory=factory) as engine, listening(client.socket, engine):
+        first = run(world, source, journal, key="first")
+        second = run(world, source, journal, key="second")
+    assert first.completion.mask == second.completion.mask
+    graft = replace(first.completion, result=second.completion.result)
+    assert run(world, source, journal, key="first", lookup_ready=lambda _: graft) is None
     assert journal.failures == ["invalid_output"]
 
 

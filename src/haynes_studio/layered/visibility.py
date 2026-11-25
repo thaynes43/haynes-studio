@@ -3,22 +3,23 @@
 from __future__ import annotations
 
 import json
+import math
 import struct
 from collections.abc import Mapping
 from dataclasses import dataclass, field, fields, is_dataclass
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageChops
 
-from haynes_studio.assets.occlusion import SegmentationIdentity, SegmentationOutcome, decode_still, make_request
+from haynes_studio.assets.occlusion import SegmentationIdentity, VerifiedObservation, decode_still, make_request
 from haynes_studio.canonical.derive import board_clock, resolve_anchor
 from haynes_studio.canonical.model import Board, CameraCue, CheckPose, Story, to_document
 from haynes_studio.checks._evidence import result_document
 from haynes_studio.errors import ContractError, Violation, pointer
 from haynes_studio.layered import compose
 from haynes_studio.layered.errors import LayeredError
-from haynes_studio.layered.photo import still_geometry
-from haynes_studio.layered.visibility_geometry import Projection, frame_alpha, measure_support, set_plate_crop
+from haynes_studio.layered.photo import foreground_inputs, still_geometry
+from haynes_studio.layered.visibility_geometry import Projection, frame_bounds, measure_support, set_plate_crop
 from haynes_studio.library import AssetVersion, Library
 from haynes_studio.motion.record import LOOP, SET
 from haynes_studio.motion.resolve import candidates
@@ -32,6 +33,14 @@ from haynes_studio.timebase import DELIVERY_FPS
 
 CHECK = "occlusion.visibility"
 REVIEW_REQUIRED = "occlusion.review"
+ROLE_UNSUPPORTED = "occlusion.render_unsupported"
+SEPARATE_PROP_UNSUPPORTED = "occlusion.separate_prop_unsupported"
+LAYOUT_UNSUPPORTED = "occlusion.layout_unsupported"
+UNSUPPORTED_COMPONENTS = {
+    ROLE_UNSUPPORTED: ("/set/asset_version_id", "This set declares foreground roles the renderer cannot draw"),
+    SEPARATE_PROP_UNSUPPORTED: ("/set/asset_version_id", "This set declares separate props the renderer cannot draw"),
+    LAYOUT_UNSUPPORTED: ("/method", "Visibility requires the layered compositor"),
+}
 VERSION = "1"
 VISIBLE_MIN_PERCENT = 85
 HIDDEN_MAX_PERCENT = 50
@@ -60,8 +69,8 @@ class PoseGeometry:
     frame: int
     plate: PoseStill
     cutouts: Mapping[str, PoseStill]
-    moves: Mapping[str, tuple[float, float, float]]
-    observations: Mapping[tuple[str, str], SegmentationOutcome]
+    moves: Mapping[str, tuple[float, float, float] | list[float]]
+    observations: Mapping[tuple[str, str], VerifiedObservation]
     hints: Mapping[tuple[str, str], Mapping] = field(default_factory=dict)
 
 
@@ -71,6 +80,18 @@ class _Layer:
     version: AssetVersion
     image: Image.Image
     projection: Projection
+    placement: compose.Placement | None = None
+
+    def alpha(self, size, source):
+        """Use the compositor's sprite filters, padded plate and held pose."""
+        if self.placement is None:
+            return fit_set_plate(source, size)
+        sprite = Image.new("RGBA", source.size)
+        sprite.putalpha(source)
+        x0, y0, x1, y1 = self.projection.placed_box
+        sprite = sprite.crop(self.projection.source_box).resize((x1 - x0, y1 - y0), Image.Resampling.LANCZOS)
+        plate = compose.plate(sprite, self.placement, *size)
+        return compose.move_plate(plate, size, self.placement.pivot, self.projection.move).getchannel("A")
 
 
 @dataclass(frozen=True)
@@ -78,7 +99,7 @@ class _Occluder:
     kind: str
     key: str
     order: int
-    alpha: np.ndarray | None = None
+    alpha: Image.Image | None = None
     reason: str | None = None
 
     def unknown(self):
@@ -101,6 +122,8 @@ class _Frame:
         outcome = self.geometry.observations.get((kind, key))
         if outcome is None:
             raise _Review("missing_observation")
+        if type(outcome) is not VerifiedObservation:
+            raise _Review("unverified_observation")
         completion = outcome.completion
         source = {"sha256": layer.version.content.sha256,
                   "width": layer.image.width, "height": layer.image.height}
@@ -110,19 +133,7 @@ class _Frame:
                                         digest(canonical_json(request)), self.profile_sha256)
         if completion.identity != identity:
             raise _Review("observation_pin_mismatch")
-        if (completion.result.sha256 != digest(outcome.receipt)
-                or completion.result.bytes != len(outcome.receipt)
-                or completion.result.media_type != "application/json"):
-            raise _Review("observation_receipt_mismatch")
-        if completion.status != "ready" or completion.mask is None or outcome.png is None:
-            raise _Review(completion.reason or "missing_observation")
-        descriptor, mask = describe_mask(outcome.png, layer.image.size)
-        if (descriptor["sha256"] != completion.mask.sha256
-                or descriptor["bytes"] != completion.mask.bytes
-                or completion.mask.media_type != "image/png"):
-            raise _Review("observation_mask_mismatch")
-        if layer.order and (mask & (np.asarray(layer.image.getchannel("A")) == 0)).any():
-            raise _Review("observation_mask_mismatch")
+        _, mask = describe_mask(outcome.png, layer.image.size)
         return mask
 
 
@@ -153,27 +164,34 @@ def _camera_box(size, board, clock, frame):
     return box
 
 
-def _cutout(library, stage, key, order, source_id, kind, preset, *, story=None, entry=None):
+def _cast_move(value):
+    if (not isinstance(value, (tuple, list)) or len(value) != 3
+            or any(isinstance(n, bool) or not isinstance(n, (int, float, np.integer, np.floating))
+                   for n in value)):
+        raise _Review("missing_or_invalid_move")
+    if any(not -10_000 <= n <= 10_000 or not math.isfinite(n) for n in value):
+        raise _Review("missing_or_invalid_move")
+    return tuple(float(n) for n in value)
+
+
+def _cutout(library, stage, order, preset, story, entry):
     geometry = stage.geometry
+    key = entry.slot
     still = geometry.cutouts.get(key)
-    move = geometry.moves.get(key, ())
-    if still is None or still.version_id != source_id:
+    if still is None or still.version_id != entry.asset_version_id:
         raise _Review("missing_or_wrong_layer")
-    version, image = _layer_image(library, still, stage.production_id, kind, "rgba_cutout")
+    move = _cast_move(geometry.moves.get(key))
+    version, image = _layer_image(library, still, stage.production_id, "cast", "rgba_cutout")
     slot = compose.slot_of(preset, key)
     width, height = stage.size
     if slot.height > 2 * height or abs(slot.bottom) > 2 * height:
         raise _Review("invalid_slot_geometry")
-    matte = cast_matte_size(story, entry, version) if entry is not None else None
-    if matte is not None and matte["target_height_px"] > slot.bottom:
-        raise _Review("invalid_slot_geometry")
+    matte = cast_matte_size(story, entry, version)
     crop, dimensions, where = still_geometry(image, slot, key, width, height, matte)
     if max(dimensions) > 2 * max(stage.size):
         raise _Review("invalid_slot_geometry")
-    if len(move) != 3 or any(abs(compose._number(n, "move value")) > 10_000 for n in move):
-        raise _Review("missing_or_invalid_move")
     projection = Projection.sprite(crop, dimensions, where, stage.size, move)
-    return _Layer(order, version, image, projection), crop, dimensions, where
+    return _Layer(order, version, image, projection, where)
 
 
 def _background(story, library, set_id, stage):
@@ -188,130 +206,135 @@ def _background(story, library, set_id, stage):
     return _Layer(0, version, image, Projection.plate(set_plate_crop(image.size, stage.size), stage.size))
 
 
-def _role_mask(stage, background, role, cast):
-    if role["key"] in cast:
-        raise _Review("target_key_conflicts_with_cast")
-    if role["layer_order"] <= len(cast) * CAST_ORDER_STEP:
-        raise _Review("invalid_foreground_order")
-    return stage.mask(_require(background), "foreground", role["key"], role["label"], role.get("hint"))
-
-
 def _require(value):
     if isinstance(value, str):
         raise _Review(value)
     return value
 
 
-def _assemble(story, board, library, config, set_id, preset, stage):
-    """Resolve each layer independently so only higher occluders affect a target's bounds."""
-    cast, roles, occluders = {}, {}, []
-    width, height = stage.size
+def _assemble(story, board, library, set_id, preset, stage):
+    """Resolve each rendered layer independently in the compositor's draw order."""
+    cast, occluders = {}, []
     for index, entry in enumerate(board.cast, start=1):
         key, order = entry.slot, index * CAST_ORDER_STEP
         try:
-            layer, crop, dimensions, where = _cutout(
-                library, stage, key, order, entry.asset_version_id, "cast", preset, story=story, entry=entry,
-            )
+            layer = _cutout(library, stage, order, preset, story, entry)
+            alpha = layer.alpha(stage.size, layer.image.getchannel("A"))
         except _GEOMETRY_ERRORS as error:
             cast[key] = _reason(error)
             occluders.append(_Occluder("cast", key, order, reason=cast[key]))
-            continue
-        cast[key] = layer
-        try:
-            sprite = layer.image.crop(crop).resize(dimensions, Image.Resampling.LANCZOS)
-            plate = compose.plate(sprite, where, width, height)
-            posed = compose.move_plate(plate, stage.size, where.pivot, layer.projection.move)
-            alpha = frame_alpha(posed.getchannel("A"), stage.size, stage.framing)
+        else:
+            cast[key] = layer
             occluders.append(_Occluder("cast", key, order, alpha))
-        except _GEOMETRY_ERRORS as error:
-            occluders.append(_Occluder("cast", key, order, reason=_reason(error)))
 
     try:
         background = _background(story, library, set_id, stage)
     except _GEOMETRY_ERRORS as error:
         background = _reason(error)
-    for role in config["foreground"]:
-        key, order = role["key"], role["layer_order"]
-        try:
-            mask = _role_mask(stage, background, role, cast)
-        except _GEOMETRY_ERRORS as error:
-            roles[key] = _reason(error)
-        else:
-            roles[key] = mask
-        if board.layout.foreground:
-            try:
-                alpha = fit_set_plate(Image.fromarray(_require(roles[key]).astype(np.uint8) * 255), stage.size)
-                occluders.append(_Occluder("foreground", key, order, frame_alpha(alpha, stage.size, stage.framing)))
-            except _GEOMETRY_ERRORS as error:
-                occluders.append(_Occluder("foreground", key, order, reason=_reason(error)))
-
-    legacy = None
-    if (board.layout.foreground and not config["foreground"] and story.set is not None
-            and story.set.foreground_edge_px is not None):
-        order = 1 + max([len(board.cast) * CAST_ORDER_STEP,
-                         *(prop.get("layer_order", 0) for prop in config["focal_props"])])
-        try:
-            alpha = compose.foreground_alpha(story.set.foreground_edge_px, story.set.foreground_feather_px,
-                                             width, height)
-            legacy = _Occluder("foreground", "legacy", order, frame_alpha(alpha, stage.size, stage.framing))
-        except _GEOMETRY_ERRORS as error:
-            legacy = _Occluder("foreground", "legacy", order, reason=_reason(error))
-    return cast, background, roles, occluders, legacy
+    order = (len(board.cast) + 1) * CAST_ORDER_STEP
+    try:
+        foreground = foreground_inputs(story, board)
+        if foreground is not None:
+            _require(background)
+            edge, feather = foreground["edge_px"], foreground["feather_px"]
+            if (any(len(point) != 2 or any(not math.isfinite(n) for n in point) for point in edge)
+                    or any(a[0] >= b[0] for a, b in zip(edge, edge[1:]))
+                    or feather is not None and (not math.isfinite(feather) or feather < 0)):
+                raise _Review("invalid_foreground_geometry")
+            alpha = compose.foreground_alpha(edge, feather, *stage.size)
+            occluders.append(_Occluder("foreground", "legacy", order, alpha))
+    except _GEOMETRY_ERRORS as error:
+        occluders.append(_Occluder("foreground", "legacy", order, reason=_reason(error)))
+    return cast, background, occluders
 
 
-def _subject(stage, board, kind, key, prop, library, preset, cast, background, roles):
+def _unsupported_target(board, config, kind, key, prop, cast_orders):
+    if prop is not None and prop["depth"] == "separate":
+        return SEPARATE_PROP_UNSUPPORTED
+    if config["foreground"]:
+        return ROLE_UNSUPPORTED
+    if board.method.layer != "layered":
+        return LAYOUT_UNSUPPORTED
+    order = cast_orders.get(key, 0) if kind == "face" else 0
+    if any(item["depth"] == "separate" and item["layer_order"] >= order
+           for item in config["focal_props"]):
+        return SEPARATE_PROP_UNSUPPORTED
+    return None
+
+
+def _subject(stage, kind, key, prop, cast, background):
     if kind == "face":
         layer = _require(cast[key])
-        return stage.mask(layer, kind, key), layer, layer.order
+        return stage.mask(layer, kind, key), layer
+    if kind == "set":
+        _require(background)
+        raise _Review("missing_observation")
     if key in cast:
         raise _Review("target_key_conflicts_with_cast")
-    depth = prop["depth"]
-    if depth == "unspecified":
+    if prop["depth"] == "unspecified":
         raise _Review("unspecified_depth")
-    if depth == "separate":
-        order = prop["layer_order"]
-        if order in range(CAST_ORDER_STEP, (len(cast) + 1) * CAST_ORDER_STEP, CAST_ORDER_STEP):
-            raise _Review("duplicate_layer_order")
-        layer, *_ = _cutout(library, stage, key, order, prop["source_asset_version_id"], "prop", preset)
-        return stage.mask(layer, kind, key, prop["label"], prop.get("hint")), layer, order
     layer = _require(background)
-    mask = stage.mask(layer, kind, key, prop["label"], prop.get("hint"))
-    assigned_role = prop.get("foreground_role")
-    if assigned_role is not None and (mask & ~_require(roles[assigned_role])).any():
-        raise _Review("mask_straddles_depth")
-    order = prop["layer_order"] if assigned_role and board.layout.foreground else 0
-    return mask, layer, order
+    return stage.mask(layer, kind, key, prop["label"], prop.get("hint")), layer
 
 
-def _visible_bounds(kept, order, occluders, *, redraw=None):
-    """Count support with known coverage, possible coverage and possible plate restoration."""
-    visible = kept.copy()
+def _visible_bounds(marker, support, order, occluders, framing):
+    """Composite lower and upper target contributions in the renderer's order."""
+    lower, upper = marker.copy(), marker.copy()
     unknown = []
+    black = Image.new("L", marker.size)
     for layer in occluders:
         if layer.order <= order:
             continue
+        # The legacy foreground redraws the same set pixels. A face has no
+        # contribution on the set plate.
+        source = marker if layer.kind == "foreground" and order == 0 else black
         if layer.alpha is None:
             unknown.append(layer.unknown())
+            lower = ImageChops.darker(lower, source)
+            upper = ImageChops.lighter(upper, source)
         else:
-            visible &= layer.alpha < OCCLUDING_ALPHA
-    known = int(np.count_nonzero(visible))
-    # An unresolved occluder has no proven extent, so it may cover all kept support.
-    lower = 0 if unknown else known
-    if redraw is not None:
-        if redraw.alpha is None:
-            unknown.append(redraw.unknown())
-            visible = kept
-        else:
-            visible |= kept & (redraw.alpha > 0)
-    upper = int(np.count_nonzero(visible))
-    return lower, upper, unknown, upper - known
+            lower.paste(source, mask=layer.alpha)
+            upper.paste(source, mask=layer.alpha)
+    lo, hi = frame_bounds(lower, upper, framing)
+    return (int(np.count_nonzero(support & (lo >= OCCLUDING_ALPHA))),
+            int(np.count_nonzero(support & (hi >= OCCLUDING_ALPHA))), unknown)
+
+
+def _measure(stage, mask, layer, occluders):
+    total, kept = measure_support(mask, layer.projection, stage.size, stage.framing)
+    source = Image.fromarray(mask.astype(np.uint8) * 255)
+    unoccluded = layer.alpha(stage.size, source)
+    support = np.asarray(compose.frame_crop(unoccluded, stage.framing)) >= OCCLUDING_ALPHA
+    # The denominator includes support clipped out of the target, in addition to
+    # the support rasterized through the actual compositor inside the frame.
+    total += int(np.count_nonzero(support)) - int(np.count_nonzero(kept))
+    if not total:
+        raise _Review("no_sampled_support")
+    marker = unoccluded
+    if layer.placement is not None:
+        source_alpha = ImageChops.darker(source, layer.image.getchannel("A"))
+        if ImageChops.difference(source, source_alpha).getbbox() is not None:
+            marker = layer.alpha(stage.size, source_alpha)
+    lower, upper, unknown = _visible_bounds(marker, support, layer.order, occluders, stage.framing)
+    return lower, upper, total, unknown
 
 
 def _supplied_sha256(value) -> str:
-    """Hash supported input values before validation, preserving exact bytes and IEEE floats."""
+    """Hash supplied data, preserving mapping order, code points and numeric representation."""
     def encode(item):
-        if item is None or isinstance(item, (bool, str)):
+        if item is None or isinstance(item, bool):
             return item
+        if isinstance(item, np.generic):
+            dtype = item.dtype
+            data = encode(item.tolist()) if dtype.hasobject else item.tobytes().hex()
+            return ["numpy.scalar", encode(dtype.descr), data]
+        if isinstance(item, np.ndarray):
+            data = encode(item.tolist()) if item.dtype.hasobject else item.tobytes().hex()
+            return ["numpy.array", encode(item.dtype.descr), encode(item.shape), data]
+        if isinstance(item, str):
+            # JSON's ASCII escapes otherwise conflate a supplementary code point
+            # with the two literal surrogate code points.
+            return ["str", item.encode("utf-8", errors="surrogatepass").hex()]
         if isinstance(item, bytes):
             return ["bytes", digest(item)]
         if isinstance(item, int):
@@ -319,13 +342,13 @@ def _supplied_sha256(value) -> str:
         if isinstance(item, float):
             return ["float", struct.pack(">d", item).hex()]
         if isinstance(item, Mapping):
-            pairs = [(encode(key), encode(value)) for key, value in item.items()]
-            return ["mapping", sorted(pairs, key=lambda pair: json.dumps(pair[0], ensure_ascii=True))]
+            return ["mapping", [[encode(key), encode(value)] for key, value in item.items()]]
         if isinstance(item, (tuple, list)):
-            return [type(item).__name__, [encode(value) for value in item]]
+            return ["tuple" if isinstance(item, tuple) else "list", [encode(value) for value in item]]
         if is_dataclass(item):
-            return [type(item).__qualname__, [[field.name, encode(getattr(item, field.name))]
-                                              for field in fields(item)]]
+            cls = type(item)
+            return ["record", cls.__module__, cls.__qualname__,
+                    [[field.name, encode(getattr(item, field.name))] for field in fields(item)]]
         raise TypeError(f"Unsupported evidence input type: {type(item).__name__}")
 
     return digest(json.dumps(encode(value), ensure_ascii=True, separators=(",", ":")).encode("ascii"))
@@ -337,8 +360,10 @@ def evidence_sha256(evidence: dict) -> str:
 
 
 def _result(board, kind, key, pose, size, framing, refs, *, lower=0, upper=0, total=0,
-            unknown=(), restored=0, reason=None):
-    if not total:
+            unknown=(), reason=None):
+    if reason in UNSUPPORTED_COMPONENTS:
+        status = "unsupported"
+    elif not total:
         status = "uncertain"
     elif upper * 100 <= total * HIDDEN_MAX_PERCENT:
         status = "hidden"
@@ -348,18 +373,17 @@ def _result(board, kind, key, pose, size, framing, refs, *, lower=0, upper=0, to
         status = "uncertain"
         if unknown:
             reason = "unknown_occluders"
-        elif restored:
-            reason = "legacy_foreground_needs_depth_geometry"
         else:
             reason = "visibility_between_floors"
     evidence = result_document(
-        CHECK, VERSION, refs, {"visible": "pass", "hidden": "fail", "uncertain": "uncertain"}[status],
+        CHECK, VERSION, refs,
+        {"visible": "pass", "hidden": "fail", "uncertain": "uncertain", "unsupported": "fail"}[status],
         thresholds=dict(THRESHOLDS),
         measured={"board_id": board.id, "target": {"kind": kind, "key": key}, "pose": to_document(pose),
                   "framing": {"size_px": None if size is None else list(size),
                               "crop_xyxy": None if framing is None else list(framing)},
                   "visible_lower_pixels": lower, "visible_upper_pixels": upper, "total_pixels": total,
-                  "unknown_occluders": list(unknown), "possible_redraw_pixels": restored,
+                  "unknown_occluders": list(unknown),
                   "status": status, "reason": reason},
         issues=[] if reason is None else [reason],
         escalation={"action": "review", "check": CHECK} if status == "uncertain" else None,
@@ -406,21 +430,27 @@ def evaluate_visibility(
     if (isinstance(frame_size, (tuple, list)) and len(frame_size) == 2
             and all(type(n) is int and 0 < n <= 1920 for n in frame_size)):
         size = tuple(frame_size)
+    cast_orders = {entry.slot: index * CAST_ORDER_STEP for index, entry in enumerate(board.cast, start=1)}
     targets = [("face", entry.slot, None) for entry in board.cast]
     targets.extend(("prop", prop["key"], prop) for prop in config["focal_props"])
     if not targets:
         targets = [("set", "set", None)]
+    targets = [(*target, _unsupported_target(board, config, *target, cast_orders)) for target in targets]
+    if config["foreground"] and all(reason != ROLE_UNSUPPORTED for _, _, _, reason in targets):
+        targets.append(("set", "set", None, ROLE_UNSUPPORTED))
     requirements = board.layout.check_poses or (CheckPose("unspecified", 0),)
     results = []
     for pose in requirements:
         geometry = poses.get(pose.key)
         pose_refs = {**refs, "pose": _supplied_sha256((pose, pose_pins.get(pose.key)))}
         framing = None
+        if all(reason is not None for _, _, _, reason in targets):
+            results.extend(_result(board, kind, key, pose, size, framing, pose_refs, reason=reason)
+                           for kind, key, _, reason in targets)
+            continue
         try:
             if board.layout.check_poses is None:
                 raise _Review("missing_pose_declaration")
-            if board.method.layer != "layered":
-                raise _Review("unsupported_layout_method")
             if geometry is None or type(geometry.frame) is not int or geometry.frame != pose.frame:
                 raise _Review("missing_or_wrong_pose")
             clock = board_clock(board, library.facts(to_document(story)))
@@ -432,26 +462,20 @@ def evaluate_visibility(
                 raise _Review("invalid_frame_size")
             framing = _camera_box(size, board, clock, pose.frame)
         except _GEOMETRY_ERRORS as error:
-            results.extend(_result(board, kind, key, pose, size, framing, pose_refs, reason=_reason(error))
-                           for kind, key, _ in targets)
+            results.extend(_result(board, kind, key, pose, size, framing, pose_refs, reason=reason or _reason(error))
+                           for kind, key, _, reason in targets)
             continue
 
         stage = _Frame(size, framing, geometry, story.production_id, profile_sha256)
-        cast, background, roles, occluders, legacy = _assemble(story, board, library, config, set_id, preset, stage)
-        for kind, key, prop in targets:
+        cast, background, occluders = _assemble(story, board, library, set_id, preset, stage)
+        for kind, key, prop, reason in targets:
             try:
-                if kind == "set":
-                    _require(background)
-                    raise _Review("missing_observation")
-                mask, layer, order = _subject(stage, board, kind, key, prop, library, preset, cast, background, roles)
-                total, kept = measure_support(mask, layer.projection, size, framing)
-                if prop is not None and prop["depth"] == "background":
-                    lower, upper, unknown, restored = _visible_bounds(kept, order, occluders, redraw=legacy)
-                else:
-                    higher = occluders if legacy is None else [*occluders, legacy]
-                    lower, upper, unknown, restored = _visible_bounds(kept, order, higher)
+                if reason is not None:
+                    raise _Review(reason)
+                mask, layer = _subject(stage, kind, key, prop, cast, background)
+                lower, upper, total, unknown = _measure(stage, mask, layer, occluders)
                 result = _result(board, kind, key, pose, size, framing, pose_refs,
-                                 lower=lower, upper=upper, total=total, unknown=unknown, restored=restored)
+                                 lower=lower, upper=upper, total=total, unknown=unknown)
             except _GEOMETRY_ERRORS as error:
                 result = _result(board, kind, key, pose, size, framing, pose_refs, reason=_reason(error))
             results.append(result)
@@ -467,4 +491,9 @@ def visibility_violations(evidence: list[dict]) -> list[Violation]:
             key, pose = tested["target"]["key"], tested["pose"]["key"]
             out.append(Violation("occlusion.hidden", pointer("layout", "check_poses"),
                                  f"{key} is hidden at pose {pose}"))
+        elif tested["status"] == "unsupported":
+            rule = tested["reason"]
+            if not any(violation.rule == rule for violation in out):
+                path, message = UNSUPPORTED_COMPONENTS[rule]
+                out.append(Violation(rule, path, message))
     return out

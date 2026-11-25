@@ -6,7 +6,7 @@ import math
 from dataclasses import dataclass
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageChops, ImageFilter
 
 from haynes_studio.layered import compose
 
@@ -50,12 +50,21 @@ class Projection:
                    (where.cx, where.pivot[1]), move)
 
 
-def frame_alpha(alpha: Image.Image, size: tuple[int, int], framing) -> np.ndarray:
-    """A rendered layer's alpha with the camera applied, before any compositing."""
-    full_frame = (0, 0, *size)
-    if framing != full_frame:
-        alpha = alpha.crop(framing).resize(size, Image.Resampling.BICUBIC)
-    return np.asarray(alpha)
+def frame_bounds(lower: Image.Image, upper: Image.Image, framing):
+    """Enclose a contribution channel after the renderer's bicubic camera crop."""
+    if framing == (0, 0, *lower.size):
+        return np.asarray(lower), np.asarray(upper)
+    lo = np.asarray(compose.frame_crop(lower, framing)).copy()
+    hi = np.asarray(compose.frame_crop(upper, framing)).copy()
+    uncertain = ImageChops.difference(lower, upper).crop(framing).point(lambda v: 255 if v else 0)
+    if uncertain.getbbox() is not None:
+        # The camera only magnifies. Bicubic reads four taps per axis and has
+        # negative coefficients, so endpoints need not bound those output
+        # pixels whose filter can read a variable input. Widen only there.
+        reaches = uncertain.filter(ImageFilter.MaxFilter(5)).resize(lower.size, Image.Resampling.NEAREST)
+        variable = np.asarray(reaches) != 0
+        lo[variable], hi[variable] = 0, 255
+    return lo, hi
 
 
 def _map_box(source, destination):
@@ -79,8 +88,8 @@ def measure_support(mask: np.ndarray, projection: Projection, size: tuple[int, i
     """Return exact counts on the framed pixel grid before clips, and kept support.
 
     The same affine map continues outside the crop and frame for the denominator.
-    Binary geometry uses nearest-neighbour pixel centres. Only higher layers use
-    the compositor's interpolated alpha.
+    Binary geometry uses nearest-neighbour pixel centres for support lost to
+    clipping. Support inside the frame is counted from the rendered marker.
     """
     image = Image.fromarray(mask)
     x0, y0, x1, y1 = image.getbbox()
