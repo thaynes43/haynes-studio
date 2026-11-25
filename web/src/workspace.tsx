@@ -85,8 +85,7 @@ function RouteContents({ route, data }: { route: ContextRoute; data: RouteData }
           <Empty>Assets will appear here.</Empty>
         </>;
   }
-  const { area, page } = route;
-  if (page === "photo") return <Empty>Reference photo tools will appear here.</Empty>;
+  const { area } = route;
   if (media) {
     return data.stories?.length
       ? <Rows items={data.stories.map(({ id, title }) => ({
@@ -169,8 +168,8 @@ function ContextPage({
   );
 }
 
-function StoryboardPage({ api, production, media, story, board, selections, before }: StoryboardScope & {
-  api: StudioClient; board?: string; selections: SelectionStore; before?: ReactNode;
+function StoryboardPage({ api, production, media, story, board, photoRoute, selections, before }: StoryboardScope & {
+  api: StudioClient; board?: string; photoRoute: boolean; selections: SelectionStore; before?: ReactNode;
 }) {
   const scope = useMemo(() => ({ production, media, story }), [production, media, story]);
   const model = useStoryboard(api, scope, board);
@@ -181,17 +180,19 @@ function StoryboardPage({ api, production, media, story, board, selections, befo
   const data = result.status === "success" ? { production: result.data.production, story: draft?.story } : {};
   const trail = trailFor({ area: "board", context }, data);
   if (board === selected && selectedIndex >= 0) trail.push({ label: boardPosition(selectedIndex), to: current });
+  const photoPath = photoRoute && board === selected ? treePath("board", context, "photo") : undefined;
+  if (photoPath) trail.push({ label: "Reference photo", to: photoPath });
 
   useEffect(() => {
     if (draft && board === selected) selections.remember("board", current);
   }, [board, current, draft, selected, selections]);
 
-  return <ShellPage title={draft?.story.title ?? "Story"} trail={trail} current={current} before={before}
+  return <ShellPage title={draft?.story.title ?? "Story"} trail={trail} current={photoPath ?? current} before={before}
     action={draft && <RunBuild api={api} draft={draft} pending={model.pending} reload={model.reload} refresh={runs.refresh} />}>
     {result.status === "loading" && <p role="status" className="muted">Loading…</p>}
     {result.status === "failure" && <Problem error={result.error} retry={retry} />}
     {draft && <>
-      <StoryboardWorkspace api={api} model={model} scope={scope} />
+      <StoryboardWorkspace api={api} model={model} scope={scope} photoRoute={Boolean(photoPath)} />
       <div className="actions">
         {selected && <Link className="pill" to={treePath("board", { ...scope, board: selected }, "photo")}>Reference photo</Link>}
         <Link className="pill" to={treePath("board", scope, "runs")}>Runs</Link>
@@ -220,10 +221,11 @@ export function Workspace({
     : destinations.assets;
   const saveProblem = error == null ? null : <Problem saving error={error} retry={() => { void selections.retry(); }} />;
   let page: ReactNode;
-  if (route.area === "board" && !route.page && route.context.production && route.context.media && route.context.story) {
+  if (route.area === "board" && (!route.page || route.page === "photo") &&
+      route.context.production && route.context.media && route.context.story) {
     const { production, media, story, board } = route.context;
     page = <StoryboardPage key={treePath("board", { production, media, story })} api={api} production={production}
-      media={media} story={story} board={board} selections={selections} before={saveProblem} />;
+      media={media} story={story} board={board} photoRoute={route.page === "photo"} selections={selections} before={saveProblem} />;
   } else if ("context" in route) {
     page = <ContextPage key={location.key} api={api} route={route} selections={selections} before={saveProblem} />;
   } else {

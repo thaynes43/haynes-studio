@@ -1,5 +1,6 @@
 import { ApiError, type StudioClient } from "./api/client";
 import type { components } from "./api/schema";
+import { selectedPhotoUrl } from "./photo-composer-model";
 import { mediaUrl } from "./production-review-data";
 import { collectPages, loadBoard, type Board } from "./route-data";
 import type { MediaKind } from "./routes";
@@ -17,7 +18,7 @@ async function loadMedia(api: StudioClient, production: string, board: Board, si
   const photo = selected.find(({ kind, id }) => kind === "photo" && id === board.photo.current_version_id);
   const voice = selected.find(({ kind, id }) => kind === "board_voice" && id === board.voice.current_version_id);
   return {
-    photo: mediaUrl(photo?.content?.sha256),
+    photo: selectedPhotoUrl(photo),
     voice: mediaUrl(voice?.voice?.track?.sha256),
     voiceMs: voice?.voice?.speech_end_ms,
   };

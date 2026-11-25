@@ -2,11 +2,12 @@ import type { BrowserContext, Route } from "@playwright/test";
 import type { components, paths } from "../src/api/schema";
 import { treePath, type MediaKind } from "../src/routes";
 import { latestRun, photoVersion, reviewFixtures, voiceVersion } from "./studio-review-fixtures";
-import { mediaResponse, type ReviewMedia } from "./studio-review-media";
+import { mediaResponse, type ReviewMedia, type TestMedia } from "./studio-review-media";
 import { feedbackFixtures } from "./studio-feedback-fixtures";
 import { runFixtures } from "./studio-run-fixtures";
 import { formatFixture, inspectorBoards, voiceFixtures } from "./studio-inspector-fixtures";
 import { boardVersions, formatId, storyTiming } from "./studio-storyboard-fixtures";
+import { photoFixtures } from "./studio-photo-fixtures";
 
 type Schemas = components["schemas"];
 type BoardCreateBody = paths["/v1/stories/{id}/boards"]["post"]["requestBody"]["content"]["application/json"];
@@ -99,8 +100,9 @@ function nextId(first: string, number: number) {
 }
 
 export async function mockStudio(context: BrowserContext, baseURL: string, {
-  empty = false, reviewMedia, storyboardMedia, runMedia, inspector = false,
-}: { empty?: boolean; reviewMedia?: ReviewMedia; storyboardMedia?: Pick<ReviewMedia, "photo" | "voice">; runMedia?: ReviewMedia; inspector?: boolean } = {}) {
+  empty = false, reviewMedia, storyboardMedia, runMedia, inspector = false, photoMedia,
+}: { empty?: boolean; reviewMedia?: ReviewMedia; storyboardMedia?: Pick<ReviewMedia, "photo" | "voice">;
+  runMedia?: ReviewMedia; inspector?: boolean; photoMedia?: TestMedia[] } = {}) {
   let current: User | null = "lena";
   let next: User = "lena";
   let failure: Failure | undefined;
@@ -140,6 +142,7 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
   const draftMedia = runMedia ?? storyboardMedia ?? reviewMedia;
   const versions: Schemas["AssetVersion"][] = draftMedia ? boardVersions(production.id, firstBoard, draftMedia) : [];
   const voice = voiceFixtures(versions);
+  const photos = photoMedia && photoFixtures(versions, photoMedia, stories[0], boards.get(firstBoard.id)!, boards.get(closing.id)!);
   const contentEdits: Array<{ board: string; revision?: string; body: Schemas["BoardPatch"] }> = [];
   let lineNumber = 1;
   let noteNumber = 1;
@@ -490,7 +493,8 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
     }
     if (path === "/v1/queue/lanes" && method === "GET") {
       const items = (["run", "image", "voice"] as const).map((lane) => ({
-        lane, paused: lane === "voice" && voice.paused(), changed_at: null, changed_by: null,
+        lane, paused: lane === "voice" && voice.paused() || lane === "image" && Boolean(photos?.paused()),
+        changed_at: null, changed_by: null,
       }));
       return route.fulfill({ json: { items } satisfies Schemas["QueueStatus"] });
     }
@@ -501,7 +505,24 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
       if (!board || !draft || !draft.board_order.includes(board.id) || !visible[user].has(draft.production_id)) {
         return reject(route, 404, "not_found", "not_found");
       }
-      if (resource === "jobs" && method === "GET") return route.fulfill({ json: pageOf(voice.forBoard(id), cursor) });
+      if (resource === "jobs" && method === "GET") return route.fulfill({
+        json: pageOf([...voice.forBoard(id), ...(photos?.forBoard(id) ?? [])].sort((a, b) => a.id.localeCompare(b.id)), cursor),
+      });
+      if (resource === "photo-versions" && method === "GET") return route.fulfill({
+        json: pageOf(versions.filter(({ scope, kind }) => scope.board_id === id && kind === "photo"), cursor),
+      });
+      if (resource === "photo-jobs" && method === "POST" && photos) {
+        const key = headers["idempotency-key"];
+        const { seed } = request.postDataJSON() as Schemas["PhotoRequest"];
+        if (!key || !/^[!-~]{1,255}$/.test(key) || !Number.isSafeInteger(seed) || seed < 0) {
+          violations.push("Invalid photo request");
+          return reject(route, 422, "invalid", "schema.invalid");
+        }
+        const { job, created, lost, mismatch } = photos.submit(board, key, seed, user);
+        if (mismatch) return reject(route, 422, "invalid", "idempotency.mismatch");
+        if (lost) return reject(route, 500, "internal", "request.failed");
+        return route.fulfill({ status: created ? 202 : 200, headers: { location: `/v1/jobs/${job.id}` }, json: job });
+      }
       if (resource === "voice-versions" && method === "GET") return route.fulfill({
         json: pageOf(versions.filter(({ scope, kind }) => scope.board_id === id && kind === "board_voice"), cursor),
       });
@@ -525,7 +546,8 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
         const content_ms = timing.frames === null ? null : board.lines.length && version
           ? version.speech_end_ms + Number(board.timing.tail_ms) : Number(board.timing.hold_ms);
         return { ...board, derived: { content_ms, frames: timing.frames, film_start_frame: timing.film_start_frame,
-          timing_state: timing.state, voice_state, photo_state: board.photo.current_version_id ? "current" : "absent" } } satisfies Schemas["Board"];
+          timing_state: timing.state, voice_state,
+          photo_state: photos?.status(board) ?? (board.photo.current_version_id ? "current" : "absent") } } satisfies Schemas["Board"];
       };
       if (!resource && method === "GET") return route.fulfill({ headers: { etag: `"${board.revision}"` }, json: view() });
       if (!resource && method === "PATCH") {
@@ -533,6 +555,16 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
         contentEdits.push({ board: id, revision: headers["if-match"], body });
         const refused = requireRevision(route, board.revision);
         if (refused) return refused;
+        if (photos && body.photo) {
+          const picked = body.photo.current_version_id;
+          if (picked && picked !== board.photo.current_version_id && versions.some(({ id }) => id === picked)) {
+            const version = versions.find(({ id }) => id === picked)!;
+            if (version.recorded_without_media) return reject(route, 422, "invalid", "asset.recorded_without_media");
+            if (version.kind !== "photo" || version.scope.board_id !== board.id) {
+              return reject(route, 422, "invalid", "asset.scope_mismatch");
+            }
+          }
+        }
         const proposed = { ...board, ...body };
         if (proposed.method.motion === "s2v" && !proposed.lines.length) {
           return reject(route, 422, "invalid", "method.s2v_needs_line",
@@ -561,6 +593,13 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
     if (path.startsWith("/v1/asset-versions/") && (method === "GET" || method === "HEAD")) {
       const [, , , id, resource, hash] = path.split("/");
       const version = versions.find((version) => version.id === id);
+      const photoFile = photos?.files.get(hash);
+      if (resource === "media" && version?.kind === "photo" && version.scope.production_id &&
+          visible[user].has(version.scope.production_id) && !version.recorded_without_media &&
+          version.content?.sha256 === hash && photoFile) {
+        if (url.search) violations.push("Unexpected query on private media");
+        return route.fulfill(mediaResponse(route, photoFile));
+      }
       const file = voice.files.get(hash) ?? (draftMedia?.voice.hash === hash ? draftMedia.voice : undefined);
       if (resource !== "media" || !version?.voice || !file || !version.scope.production_id ||
           !visible[user].has(version.scope.production_id) || (version.voice.track?.sha256 !== hash &&
@@ -571,11 +610,25 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
     if (path === "/v1/assets" && method === "GET") {
       const boardId = url.searchParams.get("board");
       const productionId = url.searchParams.get("production");
+      if (photos && !boardId && productionId && visible[user].has(productionId)) {
+        return route.fulfill({ json: pageOf(photos.catalog.filter(({ scope, state }) =>
+          state === "promoted" && (scope.production_id === null || scope.production_id === productionId)), cursor) });
+      }
       const draft = stories.find(({ board_order }) => boardId && board_order.includes(boardId));
       if (!draft || !visible[user].has(draft.production_id) || (productionId && productionId !== draft.production_id)) {
         return reject(route, 404, "not_found", "not_found");
       }
       return route.fulfill({ json: pageOf(versions.filter((version) => version.scope.board_id === boardId), cursor) });
+    }
+    if (path.startsWith("/v1/media/") && photos && (method === "GET" || method === "HEAD")) {
+      const hash = path.slice("/v1/media/".length);
+      const file = photos.files.get(hash);
+      const pinned = [...boards.values()].some((board) => versions.some((version) =>
+        version.id === board.photo.current_version_id && !version.recorded_without_media &&
+        version.content?.sha256 === hash && version.scope.production_id && visible[user].has(version.scope.production_id)));
+      if (!file || !pinned) return reject(route, 404, "not_found", "not_found");
+      if (url.search) violations.push("Unexpected query on private media");
+      return route.fulfill(mediaResponse(route, file));
     }
     if (path.startsWith("/v1/media/") && (draftMedia || inspector) && (method === "GET" || method === "HEAD")) {
       const file = voice.files.get(path.slice("/v1/media/".length)) ??
@@ -685,7 +738,8 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
   });
 
   return {
-    calls, violations, writes, selections, loginRequests, approvalWrites, boardWrites, queue, contentEdits, voice, feedback,
+    calls, violations, writes, selections, loginRequests, approvalWrites, boardWrites, queue, contentEdits, voice, feedback, photos,
+    completePhoto: (id: string, boardId: string) => photos!.complete(id, boards.get(boardId)!),
     completeVoice: (id: string, boardId: string, duration: number) => voice.complete(id, boards.get(boardId)!, stories[0], duration),
     expire: () => { current = null; },
     signInAs: (user: User) => { next = user; },

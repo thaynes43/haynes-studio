@@ -1,0 +1,32 @@
+.photo-composer-state { margin-inline-start: 8px; color: var(--muted); font-size: .8rem; }
+.photo-composer-fields { overflow-wrap: anywhere; }
+.photo-composer-picture {
+  display: block;
+  max-width: 100%;
+  max-height: 210px;
+  width: auto;
+  height: auto;
+  border-radius: 6px;
+  background: #191c19;
+}
+.photo-chips, .photo-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.photo-chips, .photo-versions { list-style: none; margin: 0; padding: 0; }
+.photo-chips > li { min-width: 0; max-width: 100%; }
+.photo-chips .pill { overflow-wrap: anywhere; text-align: start; }
+.photo-composer select { text-overflow: ellipsis; }
+.photo-layers ul { margin: 4px 0; padding-inline-start: 18px; }
+.photo-input-conflict { display: grid; gap: 6px; }
+.photo-version-picker { display: grid; gap: 5px; min-width: 0; }
+.photo-version {
+  display: grid;
+  gap: 5px;
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+}
+.photo-version .pill { justify-self: start; }
+.photo-version summary { cursor: pointer; padding-block: 4px; }
+.photo-version-detail { display: grid; gap: 5px; }
+.photo-provenance { display: grid; gap: 4px; margin: 0; }
+.photo-provenance dt { color: var(--muted); }
+.photo-provenance dd { margin: 0; }
+.photo-provenance dd code { display: block; }
