@@ -118,7 +118,7 @@ class MediaFence(Payload):
 
 
 class MatteRelease(MediaFence):
-    reason: Literal["connect", "busy"] | None = None
+    reason: Literal["connect", "busy", "readiness"] | None = None
 
 
 class MediaHeartbeat(MediaFence):

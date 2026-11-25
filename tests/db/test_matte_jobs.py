@@ -383,6 +383,7 @@ def test_matte_backend_and_size_refusals_leave_no_candidates(matte_studio, matte
             identifier = success(request(s, payload(original, matte_format, slot), code), 202)["id"]
             assert worker.tick()
             assert_failed(s, identifier, code)
+            assert row_of(s, identifier)["matte_releases"] == 0
 
 
 def test_matte_waits_for_pinned_sidecar_then_runs_in_order(
@@ -471,6 +472,49 @@ def test_matte_untracked_busy_requeues_even_at_release_limit(
             assert row_of(s, second)["fence"] == 0
             assert f"Waiting for the matting sidecar ({BUSY})" in caplog.messages
         assert worker.tick() and job(s, first)["status"] == "succeeded"
+
+
+@pytest.mark.parametrize("outages", [1, 4])
+def test_matte_engine_loading_at_submission_counts_as_readiness_outage(
+    matte_studio, matte_format, matte_client, monkeypatch, outages,
+):
+    s = matte_studio
+    local, weights = matte_client
+    body = payload(opaque(s, scope=s.production_id), matte_format)
+    first, second = [success(request(s, body, key), 202)["id"] for key in ("loading", "following")]
+    call = matting.local_call
+
+    def during_recovery(path, method, *args, **kwargs):
+        if method != "POST":
+            return call(path, method, *args, **kwargs)
+        assert row_of(s, first)["dispatched"]
+        # Model the engine's replacement-load state after the readiness probes.
+        # The real Unix handler and engine produce the refusal.
+        with backend._lock, monkeypatch.context() as patch:
+            patch.setattr(backend, "_digest", None)
+            reply = call(path, method, *args, **kwargs)
+        assert reply == (503, {"code": NOT_FOUND})
+        return reply
+
+    with Engine(local.scratch, weights, PROFILE, factory=load_fake) as backend, listening(local.socket, backend):
+        with monkeypatch.context() as patch:
+            patch.setattr(matting, "local_call", during_recovery)
+            for attempt in range(1, outages + 1):
+                worker = MediaWorker(worker_api(s, lane="matte"), lane="matte", store=s.store, client=local)
+                assert not worker.tick()
+                row = row_of(s, first)
+                assert row["fence"] == attempt and row["matte_releases"] == min(attempt, 3)
+                assert row["claim_until"] is None and row["worker_id"] is None and not row["dispatched"]
+                assert row_of(s, second)["fence"] == 0
+                assert not list(local.scratch.glob(".studio-matting-*"))
+                if attempt <= 3:
+                    view = job(s, first)
+                    assert view["status"] == "queued" and view["error"] is None
+        if outages == 4:
+            assert_failed(s, first, "matting.sidecar_unavailable")
+        else:
+            assert worker.tick() and job(s, first)["status"] == "succeeded"
+            assert row_of(s, second)["fence"] == 0
 
 
 @pytest.mark.parametrize("disconnects", [1, 4])
@@ -627,7 +671,10 @@ def test_matte_slow_publish_reply_leaves_time_for_sidecar_first_byte(
         assert row_of(s, identifier)["matte_releases"] == 0
 
 
-def test_matte_timeout_after_dispatch_is_recorded(matte_studio, matte_format, matte_client, monkeypatch):
+@pytest.mark.parametrize(("socket_error", "code"), [(TimeoutError, TIMEOUT), (ConnectionResetError, NOT_FOUND)])
+def test_matte_uncertain_socket_result_after_dispatch_is_recorded(
+    matte_studio, matte_format, matte_client, monkeypatch, socket_error, code,
+):
     s = matte_studio
     local, weights = matte_client
     body = payload(opaque(s, scope=s.production_id), matte_format)
@@ -649,16 +696,18 @@ def test_matte_timeout_after_dispatch_is_recorded(matte_studio, matte_format, ma
             nonlocal sent
             if method == "POST":
                 sent = True
-                raise TimeoutError
+                raise socket_error
             if sent:
                 raise FileNotFoundError
             return real_call(path, method, *args, **kwargs)
 
         monkeypatch.setattr(matting, "local_call", deadline)
-        timed = success(request(s, body, "timeout"), 202)["id"]
+        identifier = success(request(s, body, "uncertain"), 202)["id"]
         assert worker.tick()
-        assert "next sweep" in assert_failed(s, timed, TIMEOUT)
-        row = row_of(s, timed)
+        message = assert_failed(s, identifier, code)
+        if code == TIMEOUT:
+            assert "next sweep" in message
+        row = row_of(s, identifier)
         assert row["dispatched"] and row["matte_releases"] == 0
         assert waits[0] == matting.POST_QUIESCENCE_SECONDS
         marker, = local.scratch.glob(".studio-matting-*")

@@ -30,6 +30,7 @@ BUSY_INTERVAL = 5
 POST_QUIESCENCE_SECONDS = REQUEST_SECONDS + 3
 PROBE_SECONDS = 1
 ATTEMPT_MARKER = re.compile(r"\.studio-matting-([0-9a-f]{32})")
+_PRE_INFERENCE_RELEASES = {BUSY: "busy", NOT_FOUND: "readiness"}
 
 
 def failure(code: str, message: str = "The matting service could not complete the request") -> AdapterError:
@@ -230,12 +231,13 @@ class MattingClient:
                     # The socket never opened. There can be no late writes.
                     raise
                 except AdapterError as error:
-                    # This reply comes from the engine's lock acquisition,
-                    # before it hands the request to its inference process.
-                    if before_dispatch is not None and error.code == BUSY:
-                        raise MattingUnavailable(error.code, error.label, error.message,
-                                                 release_reason="busy") from None
+                    # _call verifies the status and body of confirmed replies.
+                    # These two refusals precede the handoff to inference.
                     unconfirmed = isinstance(error, _UnconfirmedReply)
+                    reason = _PRE_INFERENCE_RELEASES.get(error.code)
+                    if before_dispatch is not None and not unconfirmed and reason is not None:
+                        raise MattingUnavailable(error.code, error.label, error.message,
+                                                 release_reason=reason) from None
                     if unconfirmed or error.code == TIMEOUT:
                         clean = False
                         os.utime(marker_fd)
