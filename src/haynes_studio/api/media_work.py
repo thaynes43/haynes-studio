@@ -10,6 +10,7 @@ from haynes_studio.store import StoreError
 from haynes_studio.voice.jobs import fail, succeed
 from haynes_studio.voice.model import Job
 
+from .auth import require_worker_lane
 from .errors import APIError
 from .media_completion import complete_candidate, complete_photo, complete_voice, invalid_result
 from .routes import _id
@@ -32,8 +33,9 @@ def claim(conn, worker_id, lane):
 
 
 def lock(conn, request, body):
+    lane = require_worker_lane(request, "voice", "image")
     return jobs.lock_claim(conn, _id(body.job_id, "job", "/job_id"),
-                           request.state.principal.worker_id, body.fence)
+                           request.state.principal.worker_id, body.fence, lane=lane)
 
 
 def complete(conn, request, body):

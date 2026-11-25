@@ -741,6 +741,7 @@ def test_archive_record_requires_a_root_version_at_commit(studio, engine):
 
 
 def test_archive_migration_downgrades_and_upgrades_cleanly(owner_engine, runtime_role):
+    # Name the revision: "-1" would only undo whatever migration is newest.
     migrate(owner_engine, "downgrade", "0009_release_packages")
     try:
         with owner_engine.connect() as conn:

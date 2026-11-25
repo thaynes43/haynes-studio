@@ -3,7 +3,7 @@
 from alembic import op
 
 revision = "0012_release_constraints"
-down_revision = "0010_staging_archive"
+down_revision = "0011_worker_lane_grants"
 branch_labels = None
 depends_on = None
 

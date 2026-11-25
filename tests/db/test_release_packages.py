@@ -253,7 +253,7 @@ def test_upgrade_populated_publication_history(setup, runtime_role, duplicate):
     publication = succeed(publish(s, run, body))
     item = get(s, run)
     competing_id = Minter().mint("pub")
-    migrate(s.owner, "downgrade", "-1")
+    migrate(s.owner, "downgrade", "0011_worker_lane_grants")  # the revision before 0012, by name
     try:
         if duplicate:
             with s.owner.begin() as conn:
