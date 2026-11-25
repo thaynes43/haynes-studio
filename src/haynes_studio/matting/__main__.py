@@ -11,7 +11,7 @@ from threading import Event
 
 from haynes_studio.store import canonical_json
 
-from .profile import COMMAND_FAILED, PROFILE_ID, PROVIDER, MatteError, Profile
+from .profile import COMMAND_FAILED, PROFILE_ID, PROVIDER, MatteError, Profile, SessionSettings
 
 
 def _serve(scratch: Path, weights: Path) -> None:
@@ -37,7 +37,12 @@ def main() -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("serve")
     commands.add_parser("ready")
-    commands.add_parser("smoke")
+    measure = commands.add_parser("smoke")
+    measure.add_argument("--no-cpu-arena", action="store_true")
+    measure.add_argument("--no-memory-pattern", action="store_true")
+    measure.add_argument("--graph-optimization", choices=("all", "extended", "basic", "disabled"), default="all")
+    measure.add_argument("--arena-growth", choices=("default", "same-as-requested"), default="default")
+    measure.add_argument("--shrink-cpu-arena", action="store_true")
     commands.add_parser("profile")
     args = parser.parse_args()
     scratch, weights = Path("/matting"), Path("/weights")
@@ -56,7 +61,14 @@ def main() -> int:
         else:
             from .smoke import smoke
 
-            report = smoke(scratch, weights)
+            if args.no_cpu_arena and (args.arena_growth != "default" or args.shrink_cpu_arena):
+                measure.error("arena growth and shrinkage require the CPU arena")
+            settings = SessionSettings(
+                cpu_arena=not args.no_cpu_arena, memory_pattern=not args.no_memory_pattern,
+                graph_optimization=args.graph_optimization, arena_growth=args.arena_growth,
+                shrink_cpu_arena=args.shrink_cpu_arena,
+            )
+            report = smoke(scratch, weights, settings)
             print(canonical_json(report).decode(), flush=True)
             return 0 if report["passed"] else 1
     except (MatteError, OSError) as error:

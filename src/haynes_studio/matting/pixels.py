@@ -23,6 +23,13 @@ PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 def decode_source(data: bytes, source: dict) -> Image.Image:
     if len(data) != source["bytes"] or sha256(data).hexdigest() != source["sha256"]:
         raise MatteError(REQUEST_INVALID)
+    if source["media_type"] == "image/png" and (
+        not data.startswith(PNG_SIGNATURE) or data[8:16] != b"\x00\x00\x00\x0dIHDR"
+        or data[24:26] != b"\x08\x02"
+    ):
+        # Pillow exposes RGB16 PNGs as RGB after narrowing the samples.
+        # IHDR must declare 8-bit truecolour before decoding.
+        raise MatteError(REQUEST_INVALID)
     formats = {"image/jpeg": "JPEG", "image/png": "PNG"}
     try:
         with Image.open(BytesIO(data), formats=[formats[source["media_type"]]]) as image:
