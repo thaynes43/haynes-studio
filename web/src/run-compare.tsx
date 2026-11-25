@@ -13,13 +13,14 @@ import { useRequest } from "./use-request";
 import { useRunList } from "./use-run-list";
 
 function useSnapshot(api: StudioClient, run: RunView) {
-  const { story_id, snapshot: { sha256, board_count, story_revision } } = run;
+  const { id, story_id, snapshot: { sha256, board_count, story_revision } } = run;
   const load = useCallback(async (signal: AbortSignal) => ({
-    sha256,
-    data: await loadFrozenSnapshot(api, { story_id, snapshot: { sha256, board_count, story_revision } }, signal),
-  }), [api, story_id, sha256, board_count, story_revision]);
+    id, sha256,
+    data: await loadFrozenSnapshot(api, { id, story_id, snapshot: { sha256, board_count, story_revision } }, signal),
+  }), [api, id, story_id, sha256, board_count, story_revision]);
   const { result, retry } = useRequest(load);
-  const current = result.status === "success" && result.data.sha256 !== sha256 ? { status: "loading" as const } : result;
+  const current = result.status === "success" && (result.data.id !== id || result.data.sha256 !== sha256)
+    ? { status: "loading" as const } : result;
   return { result: current, retry, data: current.status === "success" ? current.data.data : undefined };
 }
 

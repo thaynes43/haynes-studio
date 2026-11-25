@@ -20,8 +20,8 @@ Set `STUDIO_GO_LIVE_APPROVER_SUBJECTS` to a JSON array of verified OIDC subject
 strings for the exact `STUDIO_OIDC_ISSUER`. It defaults to `[]` and the API
 refuses every approver until a subject is configured. The approver must also be
 able to sign in through the normal subject or group policy. Agent keys and
-worker tokens have no approval authority. Both operations require the session
-cookie and `X-Studio-CSRF`.
+worker tokens are refused by the review and decision routes. The writes require
+the session cookie and `X-Studio-CSRF`. The review needs only the session cookie.
 
 The API records the ID token's verified `auth_time` when present and the
 callback time otherwise. Provider timestamps ahead of the callback use the
@@ -32,6 +32,23 @@ the API returns `approval.sign_in_again`, send the user to
 `GET /auth/login?fresh=true&return_to=<encoded-path>`. This requests OIDC
 reauthentication and records the return path on the one-use login attempt. A
 failed callback redirects to `/?auth_error=<code>`.
+
+## Read a run's review
+
+`GET /v1/runs/{id}/go-live-approvals` uses the same production read scope and
+`Cache-Control: private, no-store` as the run. Unknown and inaccessible runs
+return the same 404. The response includes `run_id`, the delivered
+`master_sha256` or null, newest-first `approvals` with their derived withdrawal
+state, and `release_checks` previewed with the synthetic-content setting on.
+The preview can be partial or null when checks fail.
+
+`approve` and `withdraw` each have `allowed: true` or
+`allowed: false` with the corresponding write's refusal `code`. An in-scope
+reader still gets HTTP 200 and the available evidence when refused a decision.
+With no active record, the review's withdrawal code is
+`approval.already_withdrawn` for an otherwise eligible caller. The review reads
+run, delivery and decision records in one PostgreSQL snapshot. Each write
+checks current identity and eligibility again.
 
 ## Record a decision
 

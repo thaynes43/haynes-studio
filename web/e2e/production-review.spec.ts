@@ -246,15 +246,6 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
   });
 }
 
-reviewTest("existing API without an approval read endpoint leaves playback available", async ({ page, api }) => {
-  api.disableApprovalRead();
-  await page.goto(runPath(latestRun));
-  await expect(goLive(page)).toContainText("Go-live review is unavailable.");
-  await expect(page.locator("video")).toHaveAttribute("src", mediaUrl(reviewMedia.proxy.hash));
-  await expect(approve(page)).toHaveCount(0);
-  expect(api.approvalWrites).toHaveLength(0);
-});
-
 reviewTest("a write refusal displays the returned code's reason without replaying the write", async ({ page, api }) => {
   await page.goto(runPath(oldRun));
   await confirmSetting(page).check();

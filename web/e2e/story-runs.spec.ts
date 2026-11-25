@@ -161,7 +161,17 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       await expect(page).toHaveURL(new RegExp(`${storyPath}/runs/compare$`));
       await expect(page.getByRole("combobox", { name: "Left run", exact: true })).toHaveValue(first.id);
       await expect(page.getByRole("combobox", { name: "Right run", exact: true })).toHaveValue(second.id);
-      await expect(page.getByText("Snapshot not available.")).toHaveCount(2);
+      const comparison = page.getByRole("region", { name: "Board comparison" });
+      await expect(comparison).toBeVisible();
+      const row = (id: string) => comparison.getByRole("article").filter({ hasText: id });
+      await expect(row(addedId)).toContainText("Added");
+      await expect(row(initial.board_order[1])).toContainText("Removed");
+      await expect(row(firstBoardId)).toContainText("Reordered");
+      await expect(row(firstBoardId)).toContainText("Script · Photo version · Voice version · Method");
+      await expect(row(firstBoardId)).toContainText(photoTwo);
+      await expect(row(firstBoardId)).toContainText(voiceTwo);
+      expect(api.calls).toContain(`GET /v1/runs/${first.id}/snapshot`);
+      expect(api.calls).toContain(`GET /v1/runs/${second.id}/snapshot`);
       await expect(page.getByLabel("Phone proxy")).toHaveCount(2);
       const left = (await page.getByRole("region", { name: "Left run" }).boundingBox())!;
       const right = (await page.getByRole("region", { name: "Right run" }).boundingBox())!;
@@ -171,6 +181,11 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
         expect(right.x).toBeGreaterThanOrEqual(left.x + left.width);
       }
       await expectNoOverflow(page);
+
+      queue.snapshots.delete(first.id);
+      await page.reload();
+      await expect(page.getByRole("region", { name: "Left run" })).toContainText("Snapshot not available.");
+      await expect(page.getByLabel("Phone proxy")).toHaveCount(2);
     });
 
     test("reuses a lost press key after a draft edit and uses a new key for the next build", async ({ page, api }) => {

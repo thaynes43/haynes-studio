@@ -63,6 +63,11 @@ def test_openapi_has_resolved_canonical_shapes_errors_and_security():
     assert schemas["RunView"]["properties"]["queue_wait"]["anyOf"][0]["$ref"].endswith("/QueueWait")
     assert document["paths"]["/v1/stories/{id}/runs"]["post"]["x-studio-scope"] == "runs:queue"
     assert document["paths"]["/v1/runs/{id}"]["get"]["x-studio-scope"] == "read"
+    snapshot = document["paths"]["/v1/runs/{id}/snapshot"]["get"]
+    assert snapshot["security"] == document["paths"]["/v1/runs/{id}"]["get"]["security"]
+    assert snapshot["x-studio-scope"] == "read"
+    assert snapshot["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith("/RunSnapshot")
+    assert "ETag" in snapshot["responses"]["200"]["headers"]
     overrides = document["paths"]["/v1/runs/{id}/checks/{check}/overrides"]["post"]
     assert overrides["x-studio-scope"] == "runs:queue"
     assert overrides["security"] == [{"StudioSession": []}]

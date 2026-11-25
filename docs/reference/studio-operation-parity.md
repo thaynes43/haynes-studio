@@ -45,9 +45,10 @@ for request and response details. This map covers the API used by
 | `list_runs` | `GET /stories/{id}/runs` | `studio_list_runs` | read | [410](https://work.haynesnetwork.com/work_packages/410), [419](https://work.haynesnetwork.com/work_packages/419) |
 | `get_run` (status, progress, stages, checks) | `GET /runs/{id}` | `studio_get_run` | read | [410](https://work.haynesnetwork.com/work_packages/410), [430](https://work.haynesnetwork.com/work_packages/430) |
 | `cancel_run` | `POST /runs/{id}/cancel` | `studio_cancel_run` | runs:queue | [410](https://work.haynesnetwork.com/work_packages/410) |
-| `compare_runs` (boards matched by stable ID) | Planned `GET /runs/compare?left=&right=` | — | read | [419](https://work.haynesnetwork.com/work_packages/419) |
+| `get_run_snapshot` (comparison pairs board IDs in the browser) | `GET /runs/{id}/snapshot` | — | read | [419](https://work.haynesnetwork.com/work_packages/419), [958](https://work.haynesnetwork.com/work_packages/958) |
 | `record_check_override` (with a reason; never a release check) | `POST /runs/{id}/checks/{check}/overrides` | Reserved `studio_override_check` (people only in v1) | Signed-in person | [410](https://work.haynesnetwork.com/work_packages/410), [450](https://work.haynesnetwork.com/work_packages/450) |
 | `get_delivery` | `GET /runs/{id}/delivery` | `studio_get_delivery` | read | [381](https://work.haynesnetwork.com/work_packages/381), [409](https://work.haynesnetwork.com/work_packages/409) |
+| `get_go_live_approvals` | `GET /runs/{id}/go-live-approvals` | — | Signed-in person with production read access | [958](https://work.haynesnetwork.com/work_packages/958) |
 | `approve_go_live` | `POST /runs/{id}/go-live-approvals` | — | go_live:approve | [412](https://work.haynesnetwork.com/work_packages/412) |
 | `withdraw_go_live` | `POST /go-live-approvals/{id}/withdraw` | — | go_live:approve | [412](https://work.haynesnetwork.com/work_packages/412) |
 | `record_publication` | Planned `POST /runs/{id}/publications` | — | human | [449](https://work.haynesnetwork.com/work_packages/449) |
@@ -65,3 +66,7 @@ job status and metadata. For photo and voice history, the web can get hashes
 from the job result or board version lists, then use the people-only job or
 version preview for ranged playback. A board-scoped version can be read via
 `/v1/media/{sha256}` only while a current draft references it.
+
+Agent patches, moves and removals through HTTP or MCP use the same draft
+guard. Older and imported boards without server-recorded local creation
+require the [revision acknowledgment](agent-drafting.md#re-drafts-and-receipts).

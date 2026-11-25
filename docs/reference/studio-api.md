@@ -160,6 +160,10 @@ GRANT SELECT, INSERT ON studio.asset_promotions, studio.queue_lane_events TO stu
 -- Applied by revision 0006_format_recipes.
 GRANT SELECT, INSERT ON studio.formats, studio.format_versions TO studio_app;
 GRANT UPDATE (format_version_id) ON studio.stories TO studio_app;
+
+-- Applied by revision 0007_escalation_packages.
+GRANT SELECT, INSERT ON studio.escalation_check_failures, studio.escalation_packages,
+    studio.escalation_events TO studio_app;
 ```
 
 Revision `0004_go_live_approvals` uses the PostgreSQL UTF-8 `und-x-icu`
@@ -310,6 +314,15 @@ Selections are a per-subject JSON object in a `values` envelope. The empty
 selection has revision 0. PUT replaces the object and advances its revision.
 Story lists and reads expose `latest_finished_run`, `approved` and `published`.
 See [Story and run status](go-live.md#story-and-run-status).
+
+`GET /v1/runs/{id}/snapshot` returns the original `studio.run-snapshot/v1` bytes
+with `Content-Type: application/json` and the quoted SHA-256 as a strong `ETag`.
+People and agent keys with production `read` can use it. The run view,
+snapshot and people-only [go-live review](go-live.md#read-a-runs-review) use
+the same scope, `Cache-Control: private, no-store`, and 404 `not_found` for
+unknown or inaccessible runs. An accessible run without a frozen snapshot,
+such as a recovered import, returns 404 `run.snapshot_missing`. The browser
+verifies the bytes against the recorded hash before comparing board IDs.
 
 The catalog serves visible canonical versions through `GET /v1/assets`.
 Filter by kind, one or more labels, production or board. The board filter

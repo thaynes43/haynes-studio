@@ -45,7 +45,8 @@ class FixtureArchive:
 
 def make_archive(parent, *, recovered=False, production_id=None, story_id=None, delivery_id=None,
                  board_id=None, note_id=None, story_source_key=None, board_source_key=None,
-                 asset_id=None, asset_version_id=None, asset_source_key=None, with_shared_asset=False):
+                 asset_id=None, asset_version_id=None, asset_source_key=None, with_shared_asset=False,
+                 board_creator=None):
     parent.mkdir(exist_ok=True)
     archive = parent / ("recovered-cut" if recovered else "canonical-cut")
     archive.mkdir()
@@ -92,6 +93,8 @@ def make_archive(parent, *, recovered=False, production_id=None, story_id=None, 
                         "input_asset_version_ids": [shared_asset["id"]] if shared_asset else []},
                  cast=[], layout={"preset": "default", "foreground": False},
                  method={"layer": "whole_frame", "motion": "i2v"}, seeds={"i2v:frame": 1})
+    if board_creator is not None:
+        board.update(created_by=board_creator, drafted_by=board_creator)
     story.update(id=story_id, production_id=production_id, origin=story_origin, board_order=[board_id],
                  boards=[board], cast=[], narrator_voice_version_id=None, set=None, beds=[],
                  layouts={"default": {}}, motion_style=None, title=name)
