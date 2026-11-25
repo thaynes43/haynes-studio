@@ -54,7 +54,13 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       await unpublished.click();
       await approvedFilter.click();
       await expect(mediaRows).toHaveText([/Ready for release/, /Released and approved/]);
+      const filtered = page.waitForResponse((response) => {
+        const { pathname, searchParams } = new URL(response.url());
+        return pathname === `/v1/productions/${production.id}/media-types/short/stories` &&
+          searchParams.get("publication") === "published" && searchParams.get("approved") === "true";
+      });
       await published.click();
+      expect((await filtered).status()).toBe(200);
       await expect(mediaRows).toHaveText([/Released and approved/]);
       await unpublished.click();
       await expect(published).toHaveAttribute("aria-pressed", "false");

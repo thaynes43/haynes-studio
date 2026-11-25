@@ -9,7 +9,7 @@ import { assetKinds, assetOrigins, assetTarget, groupAssets, kindLabel, visibleA
 import { LibraryVersion, type AssetTarget } from "./asset-version-card";
 import { loadBoard } from "./route-data";
 import {
-  assetSearchLimit, assetsDestination, assetsPath, liveAssetFilters, routePath, treePath,
+  assetSearch, assetSearchLimit, assetsDestination, assetsPath, liveAssetFilters, routePath, treePath,
   type AssetFilters, type AssetScope, type AssetsRoute,
 } from "./routes";
 import type { SelectionStore } from "./selections";
@@ -54,6 +54,12 @@ function AssetResults({ api, route, scope, story, change, target, revision }: {
   change: ChangeFilters; target?: AssetTarget; revision: number;
 }) {
   const { context, filters } = route;
+  const [search, setSearch] = useState(filters.search ?? "");
+  useLayoutEffect(() => {
+    // Skip intermediate router renders while rapid typing has already moved the address on.
+    const current = liveAssetFilters(filters, window.location.pathname, window.location.search);
+    if (current.search === filters.search) setSearch(filters.search ?? "");
+  }, [filters]);
   const { production, board } = context;
   const load = useCallback((signal: AbortSignal) => listAssetScope(api, scope, { production, board }, story, signal),
     [api, scope, production, board, story]);
@@ -66,7 +72,7 @@ function AssetResults({ api, route, scope, story, change, target, revision }: {
     }
   }, [retry, revision]);
   const versions = result.status === "success" ? result.data : [];
-  const groups = groupAssets(versions, filters);
+  const groups = groupAssets(versions, { ...filters, search });
   const kinds = assetKinds(versions);
   const unavailableKind = filters.kind && !kinds.some((kind) => kind === filters.kind);
 
@@ -74,7 +80,11 @@ function AssetResults({ api, route, scope, story, change, target, revision }: {
     <div className="asset-controls">
       <label htmlFor="asset-search">Search
         <input id="asset-search" type="search" maxLength={assetSearchLimit} placeholder="Name or label"
-          value={filters.search ?? ""} onChange={(event) => change({ search: event.currentTarget.value }, true)} />
+          value={search} onChange={(event) => {
+            const value = assetSearch(event.currentTarget.value);
+            setSearch(value ?? "");
+            change({ search: value }, true);
+          }} />
       </label>
       <label>Kind <select value={filters.kind ?? ""} onChange={(event) => change({ kind: event.currentTarget.value || undefined })}>
         <option value="">All kinds</option>
@@ -166,7 +176,8 @@ export function AssetLibraryPage({ api, route, selections, before }: {
 
   function change(next: Partial<AssetFilters>, replace = false) {
     const current = liveAssetFilters(filters, window.location.pathname, window.location.search);
-    void navigate(assetsPath(context, generate, { ...current, ...next }), { replace, preventScrollReset: true });
+    const job = jobStatus.missing && current.job === filters.job ? undefined : current.job;
+    void navigate(assetsPath(context, generate, { ...current, job, ...next }), { replace, preventScrollReset: true });
   }
 
   const atScope = (scope: AssetScope) => assetsPath(context, false, { ...linkFilters, scope });

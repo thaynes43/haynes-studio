@@ -74,6 +74,13 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       }
       await release.getByRole("textbox", { name: "Public location" }).fill(location);
       const record = release.getByRole("button", { name: "Record publication" });
+      // Approval and package actions are Studio-only. A person records the external
+      // publication separately, even after visiting another run and coming back.
+      await expect(page.getByRole("button", { name: "Publish", exact: true })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: "Publish", exact: true })).toHaveCount(0);
+      await expect(page.getByText("Unpublished", { exact: true })).toBeVisible();
+      expect(api.calls.filter((call) => call.endsWith("/publications"))).toEqual([]);
+      expect(api.violations).toEqual([]); // The contract mock rejects every external request.
       const keys: (string | undefined)[] = [];
       if (viewport.width === 1280) {
         await page.route(`**/v1/runs/${oldRun}/publications`, async (route) => {
