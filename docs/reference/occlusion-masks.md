@@ -89,31 +89,34 @@ source check can also fit segmented role masks with the plate's centred cover
 and camera framing to test the declared depth arrangement. Those masks describe
 proposed layers, so the build refuses the set until the renderer supports them.
 Binary support is sampled at the centres of the framed output pixels. The
-denominator extends that grid before slot and frame clipping. The check removes
-clipped pixels and pixels with alpha of at least 128 in any measured layer strictly above it.
-Shadows do not contribute. A baked-in foreground prop must be entirely within
-its named role and unambiguous across the other roles. Its own layer and all
-layers beneath it cannot occlude it. A baked background prop needs depth
-geometry where the legacy foreground redraw intersects its projected support.
-A mask spanning depth layers requires a person to supply a better hint or
-layer assignment. A separate prop's setup failure affects its own check.
+total extends that grid before slot and frame clipping. Both visibility bounds
+subtract clipped support and known coverage at alpha 128 or greater from
+strictly higher layers. Shadows do not contribute. For the upper bound,
+unknown higher layers are absent. For the lower bound, they can cover all
+remaining support when there is no proven extent. A legacy redraw can restore
+overlapped background-prop pixels in the upper bound wherever its framed
+alpha is nonzero. The lower bound assumes no restoration. A baked-in
+foreground prop must fit inside its own named role.
 
 Each check records the target, pose, frame size, camera crop, evidence hashes,
-integer visible and total pixel counts, status and thresholds. A measured
-fraction of at least 85% is `visible`. A fraction of at most 50% is `hidden`
-and produces a blocking pre-build violation. Only `uncertain` can be
-overridden. The interval between the floors and missing or invalid geometry
-yield `uncertain` with the existing technical check review action. Unmeasurable
-cases record zero for both counts and a reason. The floors are proposed
+integer lower and upper visible pixel counts, total support, unknown occluders,
+possible restored pixel count and thresholds. An upper bound of at most 50%
+is `hidden` and produces a blocking pre-build violation. A lower bound of at
+least 85% is `visible`. All other intervals are `uncertain` and can go to
+human review. If the target's own mask or pose is unavailable, the check
+records zero counts and the target's reason. The floors are proposed
 technical defaults pending the private trial.
 
 The worker stops an uncertain run for review before asking for any clip.
 Run details show the measurement and floors. A signed-in person can record
 a reason with the existing check override action. The override stores the
-full measurement, floors and evidence hashes, including the supplied bytes'
-digest when a mask fails validation. Selecting Build again can proceed when
-all uncertain checks have approved evidence for the exact same frozen inputs.
-The new snapshot pins the approved evidence hashes.
+full measurement, floors and evidence hashes. The check hashes the supplied
+receipt and mask bytes, still bytes and version IDs, pose frames, move values
+and hints before validation, including rejected inputs and the exact bits of
+non-finite moves. Selecting Build again can proceed when all uncertain checks
+have approved evidence for the same frozen inputs. The lookup excludes the
+previous snapshot's approval list. The new snapshot pins only the approved
+hashes matching the current checks.
 
 ## Gaps
 

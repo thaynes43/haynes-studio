@@ -362,15 +362,20 @@ def finish(conn, row, now, actor, target, reason, fields, *, wait_reason=None,
     return _save(conn, row, document=doc, **defer, **_clear_claim())
 
 
-def visibility_approvals(conn, story_id, snapshot_sha256, artifacts):
+def visibility_approvals(conn, story_id, snapshot, artifacts):
     """Reuse human overrides only for the same frozen build inputs and evidence."""
-    return tuple(conn.scalars(sa.select(run_check_overrides.c.artifact).distinct().join(
+    candidates = conn.execute(sa.select(run_check_overrides.c.artifact, runs.c.snapshot).join(
         runs, runs.c.id == run_check_overrides.c.run_id,
     ).where(
-        runs.c.story_id == story_id, runs.c.document["snapshot"]["sha256"].astext == snapshot_sha256,
+        runs.c.story_id == story_id,
         run_check_overrides.c.document["check"].astext == VISIBILITY_CHECK,
         run_check_overrides.c.artifact.in_(artifacts),
-    )))
+    ))
+    # Compare canonical bytes because PostgreSQL JSONB equality equates 1 and 1.0.
+    frozen_inputs = canonical_json(snapshot)
+    return tuple(sorted({artifact for artifact, previous in candidates if canonical_json({
+        key: value for key, value in previous.items() if key != "visibility_overrides"
+    }) == frozen_inputs}))
 
 
 def _override_evidence(check):

@@ -118,17 +118,26 @@ function OverrideCheck({ api, detail, check, artifact, onRecorded }: {
 
 function VisibilityMeasurement({ evidence }: { evidence: unknown }) {
   const { measured, thresholds } = readObject(evidence);
-  const { target, pose, total_pixels, visible_pixels, reason } = readObject(measured);
+  const { target, pose, total_pixels, visible_lower_pixels, visible_upper_pixels, visible_pixels,
+    unknown_occluders, reason } = readObject(measured);
+  const lower = visible_lower_pixels ?? visible_pixels;
+  const upper = visible_upper_pixels ?? visible_pixels;
   const { key } = readObject(target);
   const { key: poseKey } = readObject(pose);
   const { visible_min_percent, hidden_max_percent } = readObject(thresholds);
   if (typeof key !== "string" || typeof poseKey !== "string" || typeof total_pixels !== "number" ||
-      typeof visible_pixels !== "number" || typeof visible_min_percent !== "number" ||
+      typeof lower !== "number" || typeof upper !== "number" || typeof visible_min_percent !== "number" ||
       typeof hidden_max_percent !== "number") return null;
+  const count = lower === upper ? lower : `${lower}–${upper}`;
+  const unknown = Array.isArray(unknown_occluders) ? unknown_occluders.flatMap((occluder: unknown) => {
+    const { key } = readObject(occluder);
+    return typeof key === "string" ? [key] : [];
+  }) : [];
   return <div>
-    <p>{key} at {poseKey} · {total_pixels > 0 ? `${visible_pixels} of ${total_pixels} pixels visible`
+    <p>{key} at {poseKey} · {total_pixels > 0 ? `${count} of ${total_pixels} pixels visible`
       : "Geometry unavailable"} · visible ≥ {visible_min_percent}%, hidden ≤ {hidden_max_percent}%</p>
     {total_pixels === 0 && typeof reason === "string" && <p>{reason.replaceAll("_", " ")}</p>}
+    {unknown.length > 0 && <p>Unmeasured occluders · {unknown.join(", ")}</p>}
   </div>;
 }
 

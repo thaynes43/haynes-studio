@@ -239,7 +239,7 @@ def build_router(CurrentActor, authenticated_route):
                 data, sha = snapshot_bytes(frozen)
                 if prepared.visibility_review:
                     artifacts = {check["artifact"] for check in prepared.visibility_review}
-                    approved = runs.visibility_approvals(conn, id, sha, artifacts)
+                    approved = runs.visibility_approvals(conn, id, frozen, artifacts)
                     if len(approved) == len(artifacts):
                         prepared = replace(prepared, visibility_overrides=approved)
                         frozen, library = inputs.freeze(prepared, studio=request.app.state.build_revision)

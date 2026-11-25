@@ -376,26 +376,32 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       const first = queue.runs[0];
       const artifact = "a".repeat(64);
       const thresholds = { visible_min_percent: 85, hidden_max_percent: 50 };
-      const measured = { target: { key: "a" }, pose: { key: "still" }, visible_pixels: 280, total_pixels: 400 };
+      const measured = { target: { key: "a" }, pose: { key: "still" }, total_pixels: 400 };
       queue.advance(first.id, "running", "Worker started");
       queue.advance(first.id, "failed", "Review the uncertain visibility check", {
         checks: [
           { check: "occlusion.visibility", result: "fail", artifact,
-            actual: { result: "uncertain", measured, thresholds } },
+            actual: { result: "uncertain", measured: {
+              ...measured, visible_lower_pixels: 0, visible_upper_pixels: 280,
+              unknown_occluders: [{ key: "table" }],
+            }, thresholds } },
           { check: "occlusion.visibility", result: "fail", artifact: "b".repeat(64),
-            actual: { result: "fail", measured: { ...measured, visible_pixels: 200 }, thresholds } },
+            actual: { result: "fail", measured: {
+              ...measured, visible_lower_pixels: 200, visible_upper_pixels: 200,
+            }, thresholds } },
         ],
       });
       await poll(page);
       const card = run(page, 1);
       await card.getByRole("button", { name: "Details" }).click();
-      await expect(card).toContainText("280 of 400 pixels visible · visible ≥ 85%, hidden ≤ 50%");
+      await expect(card).toContainText("0–280 of 400 pixels visible · visible ≥ 85%, hidden ≤ 50%");
+      await expect(card).toContainText("Unmeasured occluders · table");
       await expect(card).toContainText("200 of 400 pixels visible");
       await expect(card.getByRole("button", { name: "Record override" })).toHaveCount(1);
       await card.getByRole("textbox", { name: "Reason for visibility override" }).fill("The face is readable.");
       await card.getByRole("button", { name: "Record override" }).click();
       await expect(card).toContainText("occlusion.visibility · Overridden");
-      await expect(card).toContainText("280 of 400 pixels visible");
+      await expect(card).toContainText("0–280 of 400 pixels visible");
       await expect(card.getByRole("button", { name: "Record override" })).toHaveCount(0);
     });
   });

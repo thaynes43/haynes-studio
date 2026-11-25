@@ -816,7 +816,7 @@ def test_visibility_review_can_build_only_after_a_matching_human_override(queue,
     def measure(story, board, library, *, frame_size, poses):
         return [visibility_result(board, "face", "a", CheckPose("still", 0), frame_size,
                                   (0, 0, *frame_size), {"layout": "1" * 64, "face:a:mask": mask_sha},
-                                  visible=280, total=400)]
+                                  lower=280, upper=280, total=400)]
 
     monkeypatch.setattr(prebuild, "evaluate_visibility", measure)
     # A pose-only opt-in exercises the product queue while the pose provider is pending.
@@ -840,7 +840,8 @@ def test_visibility_review_can_build_only_after_a_matching_human_override(queue,
         assert stopped["status"] == "failed" and stopped["error"]["code"] == "occlusion.review"
         assert not fake.events and stopped["delivery_id"] is None
         (check,) = stopped["checks"]
-        assert check["actual"]["measured"]["visible_pixels"] == 280
+        assert check["actual"]["measured"]["visible_lower_pixels"] == 280
+        assert check["actual"]["measured"]["visible_upper_pixels"] == 280
         url = f"/v1/runs/{original}/checks/occlusion.visibility/overrides"
         body = {"artifact": check["artifact"], "reason": "The face is readable at the held pose"}
         _, agent = register_agent(q.owner, {q.production_id: ["runs:queue"]})
@@ -867,17 +868,34 @@ def test_visibility_review_can_build_only_after_a_matching_human_override(queue,
         assert q.browser.get(f"/v1/runs/{frozen_id}/snapshot").json()["visibility_overrides"] == [check["artifact"]]
         mask_sha = "3" * 64
         assert worker.tick()
-        stopped, _ = read_run(q, frozen_id)
+        stopped, etag = read_run(q, frozen_id)
         assert stopped["status"] == "failed"
         assert stopped["error"]["code"] == "occlusion.review" and not fake.events
-        assert stopped["checks"][0]["artifact"] != check["artifact"]
+        (new_check,) = stopped["checks"]
+        new_artifact = new_check["artifact"]
+        assert new_artifact != check["artifact"]
+        recorded = q.browser.post(f"/v1/runs/{frozen_id}/checks/occlusion.visibility/overrides",
+                                  json={"artifact": new_artifact, "reason": "Reviewed the new measurement"},
+                                  headers={**q.csrf, "If-Match": etag})
+        assert recorded.status_code == 201, recorded.text
+        assert recorded.json()["evidence"] == new_check["actual"]
 
+        approved_b = queue_run(q, "approved-b-changes-back-to-a", rev=5)
+        assert approved_b.status_code == 201, approved_b.text
+        b_run_id = approved_b.json()["id"]
+        assert q.browser.get(f"/v1/runs/{b_run_id}/snapshot").json()["visibility_overrides"] == [new_artifact]
         mask_sha = "2" * 64
+        assert worker.tick()
+        stopped, _ = read_run(q, b_run_id)
+        assert stopped["error"]["code"] == "occlusion.review" and not fake.events
+        assert stopped["checks"][0]["artifact"] == check["artifact"]
+
+        mask_sha = "3" * 64
         allowed = queue_run(q, "approved-visibility", rev=5)
         assert allowed.status_code == 201, allowed.text
         run_id = allowed.json()["id"]
         frozen = q.browser.get(f"/v1/runs/{run_id}/snapshot").json()
-        assert frozen["visibility_overrides"] == [check["artifact"]]
+        assert frozen["visibility_overrides"] == [new_artifact]
         assert worker.tick()
         built, _ = read_run(q, run_id)
         assert built["status"] == "succeeded", built["error"]
@@ -904,7 +922,7 @@ def test_invalid_visibility_check_cannot_use_the_override_endpoint(queue, fault)
     board = Board.from_document(claim.body["snapshot"]["story"]["boards"][0])
     visible = 200 if fault == "hidden" else 280
     evidence = visibility_result(board, "face", "a", CheckPose("still", 0), (64, 48), (0, 0, 64, 48),
-                                 {"layout": "a" * 64}, visible=visible, total=400)
+                                 {"layout": "a" * 64}, lower=visible, upper=visible, total=400)
     if fault == "tampered":
         evidence["thresholds"]["visible_min_percent"] = 90
     elif fault == "measured_status":

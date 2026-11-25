@@ -55,6 +55,7 @@ class SegmentationOutcome:
 
     completion: SegmentationCompletion
     png: bytes | None
+    receipt: bytes
 
     @property
     def action(self) -> str:
@@ -168,7 +169,7 @@ def _existing(store, completion, identity, request, profile, alpha):
         raise SegmentationError("invalid_output") from None
     pixels = verify_result(request, result, png, profile)
     _verify_support(pixels, alpha, request)
-    return SegmentationOutcome(completion, png)
+    return SegmentationOutcome(completion, png, receipt)
 
 
 def _publish(store, identity, data, media_type, check_fence):
@@ -222,14 +223,15 @@ def run_segmentation_job(
             result, png, pixels = client.run_locked(request, data, check_fence)
             _verify_support(pixels, alpha, request)
             mask = None if png is None else _publish(store, identity, png, PNG, check_fence)
-            receipt = _publish(store, identity, canonical_json(result), JSON, check_fence)
+            receipt_bytes = canonical_json(result)
+            receipt = _publish(store, identity, receipt_bytes, JSON, check_fence)
             completion = SegmentationCompletion(identity, receipt, result["status"], result["reason"], mask)
             check_fence()
             if completion.status == "ready":
                 commit_completion(completion)
             else:
                 record_failure(code=completion.reason, diagnostic=completion)
-            return SegmentationOutcome(completion, png)
+            return SegmentationOutcome(completion, png, receipt_bytes)
     except SegmentationError as error:
         code = error.reason
     except (StoreError, OSError):

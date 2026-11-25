@@ -31,7 +31,7 @@ from haynes_studio.segmentation.inference import Candidate, Grounding
 from haynes_studio.segmentation.pixels import encode_mask
 from haynes_studio.segmentation.profile import SegmentationError, digest
 from haynes_studio.segmentation.service import listening
-from haynes_studio.store import LocalStore, StoreError, canonical_json
+from haynes_studio.store import LocalStore, StoreError, blob_locator, canonical_json
 from tests.assets.test_candidates import BY, NOW, PRODUCTION_ID
 from tests.segmentation.test_backend import pins  # noqa: F401
 
@@ -290,8 +290,21 @@ def test_fifo_at_scratch_lock_is_reported_as_invalid(world):
     assert not journal.completions
 
 
+def test_directory_at_scratch_lock_is_reported_as_invalid(world):
+    store, client, _ = world
+    source, _ = library_image(store, Image.new("RGB", SIZE), "set")
+    lock = client.scratch / ".studio-segmentation.lock"
+    lock.mkdir()
+    journal = Journal()
+
+    assert run(world, source, journal) is None
+    assert journal.failures == ["lock_path_invalid"]
+    assert lock.is_dir() and not journal.completions
+
+
 @pytest.mark.parametrize("mutation", [
     "width", "height", "non_binary", "digest", "missing", "result", "pin", "prompt", "sam_hint",
+    "input", "target", "request_sha256",
 ])
 def test_tampered_artifacts_never_complete(world, monkeypatch, mutation):
     store, client, weights = world
@@ -312,6 +325,14 @@ def test_tampered_artifacts_never_complete(world, monkeypatch, mutation):
             result_file.write_bytes(canonical_json(result))
         elif mutation == "digest":
             result["mask"]["sha256"] = "9" * 64
+            result_file.write_bytes(canonical_json(result))
+        elif mutation in {"input", "target", "request_sha256"}:
+            if mutation == "input":
+                result["input"]["sha256"] = "9" * 64
+            elif mutation == "target":
+                result["target"]["key"] = "another"
+            else:
+                result["request_sha256"] = "9" * 64
             result_file.write_bytes(canonical_json(result))
         elif mutation in {"prompt", "sam_hint"}:
             result["provenance"]["parameters"][mutation] = (
@@ -355,6 +376,25 @@ def test_missing_service_wrong_readiness_and_refused_version(world):
         SegmentationClient(client.profile, "9" * 64)
     assert journal.failures == ["profile_unavailable", "input_unavailable", "profile_unavailable"]
     assert not journal.completions
+
+
+@pytest.mark.parametrize(("field", "value"), [
+    ("profile_id", "other"), ("profile_sha256", "9" * 64), ("device", "cuda"), ("extra", True),
+])
+def test_readiness_requires_the_exact_frozen_response(world, monkeypatch, field, value):
+    store, client, weights = world
+    source, _ = library_image(store, Image.new("RGB", SIZE), "set")
+    journal = Journal()
+    original = adapter.local_call
+
+    def altered(socket, method, route, payload, **kwargs):
+        status, body = original(socket, method, route, payload, **kwargs)
+        return (status, {**body, field: value}) if route == "/v1/ready" else (status, body)
+
+    monkeypatch.setattr(adapter, "local_call", altered)
+    with Engine(client.scratch, weights, client.profile, factory=factory) as engine, listening(client.socket, engine):
+        assert run(world, source, journal) is None
+    assert journal.failures == ["profile_unavailable"] and not journal.completions
 
 
 @pytest.mark.parametrize("stage", [PNG, JSON, "completion", "stale"])
@@ -413,7 +453,29 @@ def test_cached_completion_with_wrong_identity_is_never_exposed(world):
     journal = Journal()
     with Engine(client.scratch, weights, client.profile, factory=factory) as engine, listening(client.socket, engine):
         outcome = run(world, source, journal)
-    assert run(world, source, journal, label="other prop", lookup_ready=lambda _: outcome.completion) is None
+    completion = outcome.completion
+    wrong = replace(completion, identity=replace(completion.identity, source_version_id="other version"))
+    assert run(world, source, journal, lookup_ready=lambda _: wrong) is None
+    assert journal.failures == ["invalid_output"]
+
+
+@pytest.mark.parametrize("fault", ["length", "hash"])
+def test_cached_receipt_must_match_the_readback_descriptor(world, monkeypatch, fault):
+    store, client, weights = world
+    source, _ = library_image(store, Image.new("RGB", SIZE), "set")
+    journal = Journal()
+    with Engine(client.scratch, weights, client.profile, factory=factory) as engine, listening(client.socket, engine):
+        outcome = run(world, source, journal)
+    completion = outcome.completion
+    blob = completion.result
+    if fault == "length":
+        wrong = replace(blob, bytes=blob.bytes + 1)
+    else:
+        wrong = replace(blob, sha256="9" * 64, locator=blob_locator(completion.identity.scope, "9" * 64, JSON))
+        open_blob = store.open
+        monkeypatch.setattr(store, "open", lambda locator: open_blob(blob.locator if locator == wrong.locator else locator))
+    cached = replace(completion, result=wrong)
+    assert run(world, source, journal, lookup_ready=lambda _: cached) is None
     assert journal.failures == ["invalid_output"]
 
 
