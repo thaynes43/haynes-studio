@@ -4,7 +4,7 @@
 its bundled FFmpeg and x264) and every adapter, compositor, mixer and pinned service
 snippet the run used. ``engines`` lists each engine that made something the film
 holds or checks it, from the **model licence register**
-(``docs/reference/model-licences.json``, story 809): its files with their hashes (as the
+(``haynes_studio/model_licences.json``, story 809): its files with their hashes (as the
 engine reported them when it did, else the register's) and licences, its licence (the
 register's entry, the most restrictive of its files), its profile and the hardware it
 ran on. ``inputs_externally_generated`` lists every input version with the D42 marker.

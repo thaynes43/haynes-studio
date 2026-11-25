@@ -8,12 +8,14 @@ import re
 PREFIX = "worker_"
 MAX_SECRET_LENGTH = 128 - len(PREFIX)
 _SECRET = re.compile(rf"[A-Za-z0-9]{{48,{MAX_SECRET_LENGTH}}}")
-_LEGACY_SECRET = re.compile(r"[A-Za-z0-9_-]{43,128}")
+_BEARER = re.compile(rf"{PREFIX}{_SECRET.pattern}")
 
 
-def worker_bearer(secret: str, *, allow_legacy: bool = False) -> str:
+def worker_bearer(secret: str) -> str:
     if _SECRET.fullmatch(secret):
         return PREFIX + secret
-    if allow_legacy and _LEGACY_SECRET.fullmatch(secret):
-        return secret
     raise ValueError("Invalid worker secret format")
+
+
+def valid_worker_bearer(token: str) -> bool:
+    return _BEARER.fullmatch(token) is not None

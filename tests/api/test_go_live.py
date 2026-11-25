@@ -71,6 +71,12 @@ def test_approver_configuration_defaults_empty_and_rejects_wrong_type(monkeypatc
     monkeypatch.setenv("STUDIO_GO_LIVE_FRESHNESS_SECONDS", "60")
     assert from_environment().go_live_approver_subjects == {"one"}
     assert from_environment().go_live_freshness_seconds == 60
+    monkeypatch.setenv("STUDIO_GO_LIVE_FRESHNESS_SECONDS", "3600")
+    assert from_environment().go_live_freshness_seconds == 3600
+    monkeypatch.setenv("STUDIO_GO_LIVE_FRESHNESS_SECONDS", "3601")
+    with pytest.raises(ValueError, match="between 1 and 3600"):
+        from_environment()
+    monkeypatch.setenv("STUDIO_GO_LIVE_FRESHNESS_SECONDS", "60")
     monkeypatch.setenv("STUDIO_GO_LIVE_APPROVER_SUBJECTS", '{"sub": "one"}')
     with pytest.raises(ValueError, match="JSON array"):
         from_environment()

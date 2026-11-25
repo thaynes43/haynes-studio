@@ -19,6 +19,7 @@ from haynes_studio.canonical.model import Principal
 from haynes_studio.db import identity
 from haynes_studio.db.engine import snapshot
 from haynes_studio.golive.policy import require_approver
+from haynes_studio.queue.worker_tokens import valid_worker_bearer
 
 from .config import OIDCSettings
 from .errors import APIError, ERROR_RESPONSES, forbidden, unauthenticated
@@ -66,7 +67,7 @@ def worker_access(request: Request) -> Principal:
     if len(headers) != 1:
         raise unauthenticated()
     scheme, token = get_authorization_scheme_param(headers[0])
-    if scheme.lower() != "bearer" or not token:
+    if scheme.lower() != "bearer" or not valid_worker_bearer(token):
         raise unauthenticated()
     with snapshot(request.app.state.engine) as conn:
         worker_id = identity.get_worker(conn, token)
@@ -174,7 +175,7 @@ def build_router():
             with snapshot(request.app.state.engine) as conn:
                 agent = identity.get_agent(conn, authorization.credentials)
                 worker = (identity.get_worker(conn, authorization.credentials)
-                          if approval and agent is None else None)
+                          if approval and agent is None and valid_worker_bearer(authorization.credentials) else None)
             if worker is not None:
                 request.state.principal = Principal(kind="worker", worker_id=worker)
                 raise forbidden("approval.worker_not_permitted", "Worker tokens cannot approve go-live")

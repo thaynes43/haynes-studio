@@ -6,7 +6,9 @@ import ssl
 from contextlib import asynccontextmanager
 from http.cookiejar import CookieJar, DefaultCookiePolicy
 from ipaddress import ip_address
+from io import BytesIO
 from pathlib import Path
+from threading import Lock
 
 import httpx
 from mcp.server.lowlevel import Server
@@ -16,14 +18,16 @@ from mcp.types import CallToolResult, TextContent
 from pydantic import ValidationError
 from starlette.applications import Starlette
 from starlette.datastructures import MutableHeaders
-from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.requests import ClientDisconnect, Request
+from starlette.responses import JSONResponse, PlainTextResponse
 from starlette.routing import Route
 
 from haynes_studio.agent_tokens import AGENT_TOKEN_PATTERN
 from haynes_studio.canonical.jsonvalues import too_deep
 from haynes_studio.errors import pointer
+from haynes_studio.photo_limits import TIMEOUT_CODE, TIMEOUT_MESSAGE, UploadBodyLimits, UploadBodyTimeout
 
+from .arguments import MAX_UPLOAD_BASE64, UploadPhoto
 from .tools import OPERATIONS
 from .upstream import Problem, StudioAPI, auth_required, json_text
 
@@ -31,6 +35,9 @@ VERSION = "1.0.0"
 MAX_ARGUMENT_BYTES = 64 * 1024
 MAX_RESULT_BYTES = 128 * 1024
 MAX_REQUEST_BYTES = 256 * 1024
+MAX_UPLOAD_REQUEST_BYTES = MAX_UPLOAD_BASE64 + MAX_REQUEST_BYTES
+UPLOAD_TOOL = "studio_upload_photo"
+_upload_slot = Lock()
 LOCAL_HOSTS = ("127.0.0.1", "127.0.0.1:*", "localhost", "localhost:*", "[::1]", "[::1]:*")
 _BEARER = re.compile(rf"(?i:Bearer) {AGENT_TOKEN_PATTERN}")
 _DNS_LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
@@ -48,8 +55,12 @@ def _tool_result(document: dict, *, error: bool = False) -> CallToolResult:
 def _validate_arguments(model, values):
     if too_deep(values):
         raise Problem(422, "schema.invalid", "Tool arguments may nest to 64 levels")
+    # The raw media field is independently bounded by the upload schema. The
+    # regular metadata budget still applies to the rest of the request.
+    metadata = ({key: value for key, value in values.items() if key != "data_base64"}
+                if model is UploadPhoto and isinstance(values, dict) else values)
     try:
-        size = len(json_text(values).encode("utf-8"))
+        size = len(json_text(metadata).encode("utf-8"))
     except (UnicodeError, ValueError, OverflowError):
         raise Problem(422, "schema.invalid", "Expected strict UTF-8 JSON arguments") from None
     if size > MAX_ARGUMENT_BYTES:
@@ -68,10 +79,11 @@ def _validate_arguments(model, values):
 
 
 class Endpoint:
-    def __init__(self, manager, api, security):
+    def __init__(self, manager, api, security, *, upload=False):
         self.manager = manager
         self.api = api
         self.security = TransportSecurityMiddleware(security)
+        self.upload = upload
 
     async def __call__(self, scope, receive, send):
         request = Request(scope, receive)
@@ -88,6 +100,12 @@ class Endpoint:
             principal = reply.document.get("principal")
             if not isinstance(principal, dict) or principal.get("kind") != "agent":
                 raise auth_required()
+            if self.upload and request.method == "POST":
+                grants = reply.document.get("production_scopes")
+                if not isinstance(grants, dict) or not any(
+                    isinstance(scopes, list) and "assets:upload" in scopes for scopes in grants.values()
+                ):
+                    raise Problem(403, "auth.forbidden", "A production upload grant is required")
         except Problem as problem:
             status = problem.error["http_status"]
             headers = {"Cache-Control": "no-store"}
@@ -100,7 +118,62 @@ class Endpoint:
                 MutableHeaders(scope=message)["Cache-Control"] = "no-store"
             await send(message)
 
-        await self.manager.handle_request(scope, receive, send_response)
+        request.state.upload_endpoint = self.upload
+        if not self.upload or request.method != "POST":
+            return await self.manager.handle_request(scope, receive, send_response)
+        if not _upload_slot.acquire(blocking=False):
+            problem = Problem(503, "photo.upload_busy", "Another photo upload is in progress. Retry shortly")
+            response = JSONResponse({"error": problem.error}, status_code=503, headers={"Retry-After": "1"})
+            return await response(scope, receive, send_response)
+        try:
+            await self.manager.handle_request(scope, receive, send_response)
+        finally:
+            _upload_slot.release()
+
+
+class UploadSessionManager(StreamableHTTPSessionManager):
+    """Give the SDK one bounded body, without retaining a second encoded copy."""
+
+    def __init__(self, *args, body_limits: UploadBodyLimits, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.body_limits = body_limits
+
+    async def handle_request(self, scope, receive, send):
+        request = Request(scope, receive)
+        too_large = PlainTextResponse("Request body too large", status_code=413)
+        try:
+            declared = int(request.headers.get("content-length", "0"))
+        except ValueError:
+            declared = 0
+        limit = self.max_request_body_size if request.method == "POST" else MAX_REQUEST_BYTES
+        if declared > limit:
+            return await too_large(scope, receive, send)
+
+        try:
+            with BytesIO() as buffer:
+                async for chunk in self.body_limits.stream(request):
+                    if buffer.tell() + len(chunk) > limit:
+                        return await too_large(scope, receive, send)
+                    buffer.write(chunk)
+                body = buffer.getvalue()
+        except ClientDisconnect:
+            return
+        except UploadBodyTimeout:
+            problem = Problem(408, TIMEOUT_CODE, TIMEOUT_MESSAGE)
+            response = JSONResponse({"error": problem.error}, status_code=408)
+            return await response(scope, receive, send)
+
+        async def replay():
+            nonlocal body
+            if body is None:
+                return await receive()
+            message = {"type": "http.request", "body": body, "more_body": False}
+            body = None
+            return message
+
+        # The SDK's bounded ASGI wrapper collects a bytearray and retains it
+        # throughout dispatch. This route supplies its own bounded body instead.
+        await self._handle_request(scope, replay, send)
 
 
 def _loopback(host: str) -> bool:
@@ -125,6 +198,7 @@ def _api_origin(url: str) -> httpx.URL:
 def create_app(api_url: str, *, allowed_hosts: tuple[str, ...] = LOCAL_HOSTS,
                allowed_origins: tuple[str, ...] = (),
                api_ca_file: str | Path | None = None,
+               upload_body_limits: UploadBodyLimits = UploadBodyLimits(),
                api_transport: httpx.AsyncBaseTransport | None = None) -> Starlette:
     """Configure the API origin and the streamable HTTP transport."""
     # Share connections, with no upstream cookie persistence or environment proxies.
@@ -137,21 +211,22 @@ def create_app(api_url: str, *, allowed_hosts: tuple[str, ...] = LOCAL_HOSTS,
     )
     api = StudioAPI(client)
     server = Server("studio-mcp", version=VERSION)
-    schemas = [operation.schema(name) for name, operation in OPERATIONS.items()]
+    schemas = [operation.schema(name) for name, operation in OPERATIONS.items() if name != UPLOAD_TOOL]
+    upload_schema = OPERATIONS[UPLOAD_TOOL].schema(UPLOAD_TOOL)
 
     @server.list_tools()
     async def list_tools():
-        return schemas
+        return [upload_schema] if server.request_context.request.state.upload_endpoint else schemas
 
     @server.call_tool(validate_input=False)
     async def call_tool(name, raw):
         reply = None
         try:
-            operation = OPERATIONS.get(name)
-            if operation is None:
-                raise Problem(404, "tool.not_found", "This Studio tool is unavailable")
-            arguments = _validate_arguments(operation.arguments, raw)
             request = server.request_context.request
+            operation = OPERATIONS.get(name)
+            if operation is None or (name == UPLOAD_TOOL) != request.state.upload_endpoint:
+                raise Problem(404, "tool.not_found", "This Studio tool is unavailable on this endpoint")
+            arguments = _validate_arguments(operation.arguments, raw)
             reply = await operation.call(api, request.headers["authorization"], arguments)
             document = operation.project(reply, arguments)
             if len(json_text(document).encode("utf-8")) > MAX_RESULT_BYTES:
@@ -175,12 +250,19 @@ def create_app(api_url: str, *, allowed_hosts: tuple[str, ...] = LOCAL_HOSTS,
         server, json_response=True, stateless=True, security_settings=security,
         max_request_body_size=MAX_REQUEST_BYTES,
     )
+    upload_manager = UploadSessionManager(
+        server, json_response=True, stateless=True, security_settings=security,
+        max_request_body_size=MAX_UPLOAD_REQUEST_BYTES, body_limits=upload_body_limits,
+    )
 
     @asynccontextmanager
     async def lifespan(_):
-        async with client, manager.run():
+        async with client, manager.run(), upload_manager.run():
             yield
 
-    app = Starlette(routes=[Route("/mcp", Endpoint(manager, api, security))], lifespan=lifespan)
+    app = Starlette(routes=[
+        Route("/mcp", Endpoint(manager, api, security)),
+        Route("/mcp/upload", Endpoint(upload_manager, api, security, upload=True)),
+    ], lifespan=lifespan)
     app.router.redirect_slashes = False
     return app

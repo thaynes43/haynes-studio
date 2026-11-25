@@ -10,7 +10,7 @@ copied: locators are computed from the hashes, and whether the bytes exist is th
 resolver's injected question.
 
 Every version takes its licence object from the model licence register (story 809,
-``docs/reference/model-licences.json``): the entry of its role whose recorded name the
+``haynes_studio/model_licences.json``): the entry of its role whose recorded name the
 version's model or service text contains. A version no entry matches, or more than one,
 gets ``commercial_use: unknown`` with the reason. The register records a conditional
 term as ``unknown`` in its licence object and ``conditional`` in the entry's
@@ -57,13 +57,14 @@ from haynes_studio.library.model import (
     take_offsets,
     take_signature,
 )
+from haynes_studio.model_register import load_model_register
 
 EVIDENCE_MISMATCH = "legacy.evidence_mismatch"  # proposal: two public records disagree
 ASSET_VERSION = "asset_version"
 CUTOUT_TOOL = "poc/cutout.py"
 MEDIA_TYPES = {".png": "image/png", ".wav": "audio/wav", ".jpg": "image/jpeg",
                ".webp": "image/webp", ".mp4": "video/mp4"}
-REGISTER_PATH = "docs/reference/model-licences.json"  # from the repository root (story 809)
+REGISTER_PATH = "src/haynes_studio/model_licences.json"  # the wheel's source, from the repo root
 CONDITIONAL, UNKNOWN = "conditional", "unknown"  # commercial_use values (section 7)
 TRACK_NOTE = "Legacy kept one WAV per line; no assembled board track exists."
 # poc/studio.py synthesize() sent only a voice and text, so the Kokoro server's default
@@ -157,9 +158,9 @@ def _names(name: str, text: str) -> bool:
     return re.search(pattern, text) is not None
 
 
-def load_licence_register(path: str | Path) -> LicenceRegister:
-    """Read the register (``REGISTER_PATH`` in a checkout): JSON text only."""
-    return LicenceRegister.from_document(read_json(Path(path)).document)
+def load_licence_register(path: str | Path | None = None) -> LicenceRegister:
+    """Read the shipped register, an environment override, or an explicit JSON path."""
+    return LicenceRegister.from_document(load_model_register(path))
 
 
 @dataclass(frozen=True)

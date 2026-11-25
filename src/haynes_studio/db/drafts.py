@@ -7,6 +7,7 @@ Board numbers and nested IDs survive removal in the database.
 
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
+from typing import Literal
 
 import sqlalchemy as sa
 from pydantic import ValidationError
@@ -21,8 +22,13 @@ from haynes_studio.canonical.jsonvalues import normalize
 from haynes_studio.drafting.declaration import DraftDeclaration, RedraftDeclaration
 from haynes_studio.errors import ContractError, Violation, pointer
 from haynes_studio.golive import records as go_live
+from haynes_studio.library.library import require_media
 from haynes_studio.library.resolve import resolve, story_references
 
+from haynes_studio.photo.plan import photo_facts
+from haynes_studio.voice import Engine, voice_facts
+
+from .jobs import active_for_story
 from .catalog import ProductionScope, load_library, record_asset_version
 from .problems import DraftProtected, NotFound, require_revision, require_valid
 from .schema import boards, draft_ids, media_types, productions, stories, story_asset_refs
@@ -128,10 +134,11 @@ def story_production(conn: sa.Connection, id_: str) -> str:
     return result
 
 
-def board_story(conn: sa.Connection, id_: str) -> str:
-    result = conn.scalar(sa.select(boards.c.story_id).where(
-        boards.c.id == id_, boards.c.tombstone.is_(False),
-    ))
+def board_story(conn: sa.Connection, id_: str, *, include_tombstone=False) -> str:
+    stmt = sa.select(boards.c.story_id).where(boards.c.id == id_)
+    if not include_tombstone:
+        stmt = stmt.where(boards.c.tombstone.is_(False))
+    result = conn.scalar(stmt)
     if result is None:
         raise NotFound
     return result
@@ -169,11 +176,17 @@ class Draft:
         library = load_library(conn, {ref.version_id for ref in refs}, self.story["production_id"])
         return refs, library
 
+    def facts(self, conn, document, library):
+        return voice_facts(library, document, active_for_story(conn, self.story["id"]),
+                           current_engine=Engine().signing_name).merged(
+            photo_facts(Story.from_document(document), library),
+        )
+
     def summary(self, conn: sa.Connection, status=None) -> dict:
         doc = self.exchange()
         _, library = self._library(conn, doc)
         story = Story.from_document(doc)
-        derived = story_derived(story, story.ordered_boards(), library.facts(doc),
+        derived = story_derived(story, story.ordered_boards(), self.facts(conn, doc, library),
                                 highest_number_issued=self.highest_board)
         if status is None:
             stmt = go_live.story_status_query().where(stories.c.id == self.story["id"])
@@ -187,16 +200,17 @@ class Draft:
             raise NotFound
         doc = self.exchange()
         _, library = self._library(conn, doc)
-        derived = boards_derived(Story.from_document(doc).ordered_boards(), library.facts(doc))
+        derived = boards_derived(Story.from_document(doc).ordered_boards(), self.facts(conn, doc, library))
         index = self.story["board_order"].index(id_)
         return {**self.boards[id_], "derived": to_document(derived[index])}
 
     def timing(self, conn: sa.Connection) -> dict:
         doc = self.exchange()
         _, library = self._library(conn, doc)
-        return to_document(timing_summary(doc, facts=library.facts(doc)))
+        return to_document(timing_summary(doc, facts=self.facts(conn, doc, library)))
 
-    def validate(self, conn: sa.Connection) -> set[str]:
+    def validate(self, conn: sa.Connection, *, board: dict | None = None,
+                 previous: dict | None = None) -> set[str]:
         doc = self.exchange()
         require_valid(validate_story(doc, context="write"))
         refs, library = self._library(conn, doc)
@@ -216,6 +230,12 @@ class Draft:
                 problems.append(Violation("asset.scope_mismatch", ref.path,
                                           "That version is outside this draft or board"))
         require_valid(problems)
+        if board is not None:
+            for kind in ("photo", "voice"):
+                version_id = (board.get(kind) or {}).get("current_version_id")
+                previous_id = ((previous or {}).get(kind) or {}).get("current_version_id")
+                if version_id is not None and version_id != previous_id:
+                    require_media(library.get(version_id), f"/{kind}/current_version_id")
         require_valid(validate_story(doc, context="write", facts=library.facts(doc)))
         return {ref.version_id for ref in refs}
 
@@ -376,9 +396,11 @@ def _board_changed(held: dict, by: dict, reason: str, now: str,
         key: held[key] for key in _PERSON_EDIT_FIELDS if key in held
     }
     if by["kind"] == "human":
-        protection.update(person_edit=reason, person_edit_revision=updated["revision"])
+        if reason != "media" or "person_edit" not in protection:
+            protection.update(person_edit="content" if reason == "media" else reason,
+                              person_edit_revision=updated["revision"])
     elif by["kind"] == "agent":
-        if (stamp is not None and reason == "reordered" and held["drafted_by"] == by
+        if (stamp is not None and reason in ("reordered", "media") and held["drafted_by"] == by
                 and stamp["board_revision"] == held["revision"]):
             protection.setdefault("applied_board_revision", held["revision"])
             protection["board_revision"] = updated["revision"]
@@ -447,7 +469,7 @@ def add_board(conn: sa.Connection, id_: str, revision: int, fields: dict, by: di
     updated = _advance(draft, {"board_order": [*draft.story["board_order"], id_board]}, now)
     updated.boards = {**draft.boards, id_board: doc}
     updated.highest_board = number
-    refs = updated.validate(conn)
+    refs = updated.validate(conn, board=doc)
     _reserve_ids(conn, _child_ids(doc, BOARD_CHILDREN))
     _insert_board(conn, doc)
     _save_story(conn, updated, refs)
@@ -484,9 +506,34 @@ def edit_board(conn: sa.Connection, story_id: str, id_: str, revision: int,
             **_draft_stamp(declaration, doc["revision"], now),
             **{key: history[key] for key in _PERSON_EDIT_FIELDS if key in history},
         }
+    return _replace_board(conn, draft, held, doc, now)
+
+
+def select_board_media(conn: sa.Connection, draft: Draft, board_id: str, kind: Literal["photo", "voice"],
+                       version_id: str, by: dict) -> int | None:
+    """Attach a current result to the locked board under its person-edit protection."""
+    held = draft.boards[board_id]
+    try:
+        _check_board_write(held, by, acknowledgment=None)
+    except DraftProtected:
+        return None
+    media = held[kind]
+    protection = held.get("draft_application", held)
+    person_adopting = by["kind"] == "human" and "person_edit" not in protection
+    if media["current_version_id"] == version_id and not person_adopting:
+        return held["revision"]
+    now = timestamp()
+    doc = {**_board_changed(held, by, "media", now),
+           kind: {**media, "current_version_id": version_id}}
+    _replace_board(conn, draft, held, doc, now)
+    return doc["revision"]
+
+
+def _replace_board(conn, draft, held, doc, now):
+    id_ = held["id"]
     updated = _advance(draft, {}, now)
     updated.boards = {**draft.boards, id_: doc}
-    refs = updated.validate(conn)
+    refs = updated.validate(conn, board=doc, previous=held)
     _reserve_ids(conn, _child_ids(doc, BOARD_CHILDREN) - _child_ids(held, BOARD_CHILDREN))
     conn.execute(boards.update().where(boards.c.id == id_).values(document=doc))
     _save_story(conn, updated, refs)
@@ -626,3 +673,12 @@ def _insert_imported_draft(conn: sa.Connection, doc: dict, versions: list[dict])
     draft = get_draft(conn, doc["id"])
     _references(conn, doc["id"], draft.validate(conn))
     return draft
+
+
+def board_snapshot(conn, draft, board_id, additional=()):
+    board = draft.boards.get(board_id)
+    if board is None:
+        raise NotFound
+    story = {**draft.story, "boards": [board], "board_order": [board_id]}
+    refs = {ref.version_id for ref in story_references(story)}
+    return story, load_library(conn, refs.union(additional), story["production_id"])

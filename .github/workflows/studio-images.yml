@@ -77,12 +77,33 @@ jobs:
           image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/haynes-studio:sha-$GITHUB_SHA"
           run=(docker run --rm --cpus=2 --read-only --tmpfs /tmp:rw,nosuid,nodev,mode=1777)
           "${run[@]}" --network none "$image" studio --help >/dev/null
-          "${run[@]}" --network none "$image" python -c '
-          import ssl
+          "${run[@]}" --network none --workdir /tmp "$image" python -c '
+          import json, os, ssl, tempfile
+          from pathlib import Path
           import haynes_studio, av, cv2, httpx, imageio_ffmpeg, numpy, scipy.ndimage
+          from haynes_studio.api.approval_routes import licence_register
+          from haynes_studio.library.winter_menu import load_licence_register
+          from haynes_studio.model_register import load_model_register
+          from haynes_studio.queue import worker
           assert ssl.create_default_context().get_ca_certs()
           httpx.create_ssl_context(verify=True)
           assert imageio_ffmpeg.get_ffmpeg_version()
+          assert "site-packages" in haynes_studio.__file__
+          register = load_model_register()
+          expected = {engine["key"] for engine in register["engines"]}
+          assert {"kokoro", "wan-ti2v", "wan-s2v"} <= expected
+          assert set(licence_register().engines) == expected
+          assert {engine.key for engine in load_licence_register().engines} == expected
+          assert worker.load_model_register() == register
+          with tempfile.TemporaryDirectory() as directory:
+              override = Path(directory) / "models.json"
+              register["engines"] = [dict(register["engines"][0], key="image-smoke")]
+              override.write_text(json.dumps(register), encoding="utf-8")
+              os.environ["STUDIO_MODEL_REGISTER"] = str(override)
+              licence_register.cache_clear()
+              assert set(licence_register().engines) == {"image-smoke"}
+              assert {engine.key for engine in load_licence_register().engines} == {"image-smoke"}
+              assert worker.load_model_register() == register
           '
           "${run[@]}" --network none "$image" studio-api openapi \
             | jq -e '(.openapi | startswith("3.1.")) and (.paths["/v1/me"] != null)' >/dev/null

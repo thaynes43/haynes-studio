@@ -12,10 +12,10 @@ from math import isqrt
 from PIL import Image, ImageOps
 
 from haynes_studio.errors import ContractError, Violation
+from haynes_studio.photo_limits import MAX_UPLOAD_BYTES
 
 PNG = "image/png"
 IMAGE_TYPES = {PNG: "PNG", "image/jpeg": "JPEG", "image/webp": "WEBP"}
-MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 MAX_SIDE = 4096
 HEX_SHA256 = re.compile(r"[0-9a-f]{64}")
 INVALID_IMAGE = "photo.image_invalid"
@@ -62,9 +62,15 @@ def decode(data: bytes, media_type: str, path: str) -> Image.Image:
             if getattr(image, "is_animated", False):
                 raise error(INVALID_IMAGE, path, "expected a single still image")
             image.load()
-            rgba = ImageOps.exif_transpose(image).convert("RGBA")
+            ImageOps.exif_transpose(image, in_place=True)
+            if image.mode == "RGB" and not image.has_transparency_data:
+                image.info.clear()
+                return image
+            rgba = image if image.mode == "RGBA" else image.convert("RGBA")
+            if rgba is not image:
+                image.close()
             clean = Image.new("RGB", rgba.size, "white")
-            clean.paste(rgba, mask=rgba.getchannel("A"))
+            clean.paste(rgba, mask=rgba)
             return clean
     except ContractError:
         raise

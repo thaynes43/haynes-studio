@@ -11,8 +11,25 @@ from haynes_studio.canonical.model import Principal
 from haynes_studio.errors import ContractError
 from haynes_studio.library import Library
 from haynes_studio.photo import ExternalProvenance, can_select_photo, import_photo, plan_photo, record_photo
+from haynes_studio.photo_limits import UploadBodyLimits
 from haynes_studio.photo.validation import MAX_UPLOAD_BYTES
 from tests.photo.conftest import BY, NOW, PNG
+
+
+@pytest.mark.parametrize(("configured", "expected"), [(None, 90), ("15", 15), ("120", 120), ("300", 300)])
+def test_upload_body_deadline_from_environment(monkeypatch, configured, expected):
+    if configured is None:
+        monkeypatch.delenv("STUDIO_UPLOAD_BODY_SECONDS", raising=False)
+    else:
+        monkeypatch.setenv("STUDIO_UPLOAD_BODY_SECONDS", configured)
+    assert UploadBodyLimits.from_environment().total_seconds == expected
+
+
+@pytest.mark.parametrize("configured", ["14", "301", "90.5", ""])
+def test_upload_body_deadline_rejects_invalid_configuration(monkeypatch, configured):
+    monkeypatch.setenv("STUDIO_UPLOAD_BODY_SECONDS", configured)
+    with pytest.raises(ValueError, match="STUDIO_UPLOAD_BODY_SECONDS"):
+        UploadBodyLimits.from_environment()
 
 
 def declaration(ids=()) -> ExternalProvenance:
@@ -93,6 +110,24 @@ def test_duplicate_bytes_keep_independent_version_records(world, tmp_path):
     assert second.library.document(first.version.id) == prior
     assert second.version.provenance["generator"]["prompt"] == "Another actual prompt."
     assert library.get(first.version.id) is None
+
+
+@pytest.mark.parametrize(("mode", "color", "transparent", "expected"), [
+    ("RGB", (255, 0, 0), None, (255, 0, 0)),
+    ("RGB", (255, 0, 0), (255, 0, 0), (255, 255, 255)),
+    ("RGBA", (255, 0, 0, 128), None, (255, 127, 127)),
+])
+def test_upload_strips_icc_profile_and_composites_transparency(world, mode, color, transparent, expected):
+    story, board, library, _, _, _ = world
+    raw = io.BytesIO()
+    options = {"transparency": transparent} if transparent is not None else {}
+    with Image.new(mode, (12, 24), color) as image:
+        image.save(raw, format="PNG", icc_profile=b"test profile", **options)
+    prepared = import_photo(plan_photo(story, board, library), library, data=raw.getvalue(),
+                            media_type=PNG, declared=declaration(), by=BY)
+    with Image.open(io.BytesIO(prepared.image.png)) as image:
+        assert image.mode == "RGB" and image.getpixel((0, 0)) == expected
+        assert not image.info
 
 
 @pytest.mark.parametrize(("changes", "rule"), [

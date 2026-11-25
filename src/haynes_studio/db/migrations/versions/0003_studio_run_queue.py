@@ -2,7 +2,7 @@
 
 from alembic import op
 
-from haynes_studio.db.grants import RUNTIME_GRANTS, grant_runtime
+from haynes_studio.db.grants import RUN_QUEUE_GRANTS, grant_runtime
 
 revision = "0003_studio_run_queue"
 down_revision = "0002_active_agent_grants"
@@ -80,7 +80,7 @@ def upgrade():
             PRIMARY KEY (run_id, artifact)
         )
     """)
-    grant_runtime(RUNTIME_GRANTS, schema_usage=True)
+    grant_runtime(RUN_QUEUE_GRANTS, schema_usage=True)
 
 
 

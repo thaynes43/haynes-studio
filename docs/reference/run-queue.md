@@ -23,9 +23,10 @@ A repeated enqueue with the same story, actor, key and revision returns 200 and
 the same run ID, including after a draft edit. Reusing that key with a different
 revision returns 422 `idempotency.mismatch`. A new key with a stale draft or run
 ETag returns 409 `conflict.revision`. Preflight reports unavailable methods as
-422. Draft CRUD and enqueue stay available during worker outages. Voice and photo job
-tracking arrives in story [430](https://work.haynesnetwork.com/work_packages/430),
-which supplies live job facts to the queue's metadata preflight.
+422. Draft CRUD and enqueue stay available during worker outages. Build preflight
+checks pending voice and photo jobs and requires current whole-frame I2V
+photos. The [media workers](media-jobs.md) claim the voice and image lanes
+independently.
 
 The estimate reports GPU and CPU wall-time ranges in seconds. Method rows name
 the method, the number of I2V jobs or S2V chunks and that method's GPU range.
@@ -68,7 +69,7 @@ most one claim.
 | `STUDIO_BUILD_STAGE_ROOT` | A separate, shared private directory. API and workers see the same per-run staging files. The worker needs write access here. |
 | `STUDIO_BUILD_REVISION` | Match the API's `git:<commit>` so the worker serves the snapshot's build revision. |
 | `STUDIO_BUILD_IMAGE_DIGEST` | Optional immutable image digest recorded in run provenance. |
-| `STUDIO_MODEL_REGISTER` | Path to the image's pinned [model licence register](model-licences.json). |
+| `STUDIO_MODEL_REGISTER` | Optional path overriding the [model licence register](../../src/haynes_studio/model_licences.json) shipped in the installed package. Use the same override on API and workers. |
 | `STUDIO_ASR_HOST`, `STUDIO_ASR_PORT` | Host and port of the configured Wyoming ASR service. The default port is 10300. |
 | `STUDIO_THREADS` | Set to 2. The worker uses one orchestrator and the existing two-thread media settings. |
 
@@ -159,10 +160,14 @@ lost reply to a `busy` write is resolved from the persisted outcome or Wan's
 terminal job record.
 
 The worker checks `GET /v1/ready` for readiness and active video or Foley work
-before every PUT. When Wan records a terminal pre-admission refusal for foreign
-ComfyUI work, hot GPUs or busy GPUs, Studio marks the attempt `busy` and queues
-the same run at the head. Its next attempt uses a new ID because that job never
-reached the engine. A `worker_busy` HTTP response without a job record keeps
+before every PUT. When Wan records a terminal refusal with `admission_code`
+`gpu_busy`, `gpu_warm`, `engine_busy`, `lease_held`, `local_model_handover`
+or `local_model_unavailable`, Studio marks the attempt `busy` and queues the
+same run at the head. The next attempt gets a new ID because the refused
+request did not reach the engine. Older job records use the exact legacy
+messages for foreign ComfyUI work, busy GPUs and warm GPUs when the code
+field is absent. `pre_admission_failed` and unfamiliar codes keep the run
+and its recorded attempt held for inspection. A `worker_busy` HTTP response without a job record keeps
 the same ID. Admission refusals back off for 60, 120 and at most 240 seconds on
 the database clock. Success resets the refusal count. Other ordinary waits
 use 15 seconds. A reported render hold or unexpected work observed during
@@ -175,6 +180,7 @@ restart failure allows one fresh attempt per claim before yielding.
 | `wan.ambiguous_submit` | Reconciliation still found no record after a same-ID replay. Keep the head and retry reconciliation. |
 | `wan.cancel_waiting_for_absence` | Cancellation is pending for a sent ID. Hold the FIFO head and check the same ID for a second absence after the safety window. |
 | `wan.foreign_engine_queue`, `wan.busy` | Honor the admission cooldown. Use a new ID only after a recorded terminal refusal. |
+| `wan.pre_admission_failed`, `wan.admission_unknown` | Hold the run and retain its sent attempt for inspection. |
 | `wan.id_conflict`, `wan.submit_rejected` | Fail the attempt and run on a conflicting ID or another definite PUT client error. |
 | `wan.graph_mismatch`, `wan.result_invalid`, `wan.clip_invalid` | Fail the attempt and run with expected and actual evidence for the terminal result. Verification covers the graph pin, byte count, SHA-256, decode, dimensions, frame count and rate. |
 | `work.revision_mismatch` | Fail the run if its frozen Studio revision differs from the worker. Queue a new run to capture the current immutable snapshot. Earlier verified clips in the same production are reused through the cache when their input and profile keys still match. |
