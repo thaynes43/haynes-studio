@@ -19,6 +19,7 @@ from haynes_studio.segmentation.backend import _create_file, _read_file, attempt
 from haynes_studio.segmentation.inference import RESULT_SCHEMA, _prompt
 from haynes_studio.segmentation.pixels import describe_mask, tight_box
 from haynes_studio.segmentation.profile import (
+    MASK_FLOOR,
     PROFILE_ID,
     REQUEST_SECONDS,
     Profile,
@@ -97,6 +98,9 @@ def verify_result(request: dict, result: object, mask: bytes | None, profile: Pr
         raise SegmentationError("invalid_output")
     _check_parameters(request, applied, direct, result)
     if status == "ready" and mask is not None:
+        score = result["scores"]["mask_iou"]
+        if score is None or not score >= MASK_FLOOR:
+            raise SegmentationError("invalid_output")
         descriptor, pixels = describe_mask(mask, size)
         if (canonical_json(result["mask"]) != canonical_json(descriptor)
                 or canonical_json(result["box_xyxy"]) != canonical_json(tight_box(pixels))):

@@ -138,7 +138,9 @@ def make_request(source: dict, *, kind: str, key: str, label: str | None,
 
 
 def _read_blob(store, blob, scope, media_type, limit):
-    if (parse_locator(blob.locator).scope != scope or blob.media_type != media_type
+    locator = parse_locator(blob.locator)
+    if (locator.scope != scope or locator.sha256 != blob.sha256
+            or locator.media_type != blob.media_type or blob.media_type != media_type
             or not 0 < blob.bytes <= limit):
         raise SegmentationError("invalid_output")
     with store.open(blob.locator) as stream:
@@ -269,7 +271,7 @@ def run_segmentation_job(
                 production_id, source_version_id, digest(canonical_json(request)), client.profile_sha256,
             )
             check_fence()
-            existing = lookup_ready(identity)
+            existing = lookup_ready(deepcopy(identity))
             if existing is not None:
                 outcome = _verified_ready(store, existing, identity, request, client.profile, alpha)
                 check_fence()

@@ -400,6 +400,26 @@ def test_archive_apply_can_update_plain_draft_by_same_agent(studio):
     ]
 
 
+@pytest.mark.parametrize("person", [False, True], ids=["agent", "person-applying-agent-draft"])
+def test_archive_revision_without_poses_preserves_board_declaration(studio, person):
+    first = draft(studio, "First", "one")
+    poses = [{"key": "studio", "frame": 0}]
+    first["boards"][0]["fields"]["layout"]["check_poses"] = poses
+    archive = stage(studio, first)
+    initial = apply(studio, archive["head_version_id"], 1)
+    assert initial.status_code == 200, initial.text
+    board_id = initial.json()["boards"][0]["board_id"]
+
+    legacy = draft(studio, "Second", "one")
+    legacy["boards"][0]["fields"]["layout"]["foreground"] = False
+    new_version = revise(studio, archive["id"], archive["head_version_id"], legacy)
+    updated = apply(studio, new_version, initial.json()["revision"], person=person)
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["boards"][0]["reason"] == "updated"
+    held = studio.browser.get(board_path(board_id)).json()
+    assert held["layout"] == {"preset": "default", "foreground": False, "check_poses": poses}
+
+
 @pytest.mark.parametrize("isolate_redraft_guard", [False, True], ids=["per-board", "mutation"])
 def test_apply_refuses_another_agents_board(studio, owner_engine, monkeypatch, isolate_redraft_guard):
     archive = stage(studio, draft(studio, "First", "one"))

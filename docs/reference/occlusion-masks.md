@@ -20,7 +20,10 @@ version. [Library version identity](studio-library.md#what-a-version-is)
 Keys are unique across both arrays. Foreground roles and separate props use unique
 positive layer orders up to 1024, increasing toward the camera. Labels and text
 hints use trimmed NFC text without control characters. Point and box hints use
-normalized source still coordinates.
+normalized source still coordinates. A point must lie inside the still. A box
+must have positive width and height, and its right and bottom edges may reach
+the still's edges. Import checks each recorded dimension of the plate or the
+referenced separate prop still.
 
 | Focal prop depth | Associated fields |
 |---|---|
@@ -33,7 +36,10 @@ A board can add `layout.check_poses` with 1–16 `{key, frame}` objects, for exa
 `{"key": "baseline", "frame": 0}`. Keys are unique within the board. Frame indices
 are non-negative integers, zero-based at the delivery rate and relative to the
 board. The existing `layout.foreground` flag controls the legacy edge and feather
-redraw.
+redraw. Agent layout edits and archived draft revisions preserve existing poses
+when their payload omits them. An escalation responder may echo the current
+poses. A person can revise the declaration through the board edit endpoint and
+replace an opted-in set pin through the story edit endpoint.
 
 ## Segmentation adapter
 
@@ -59,6 +65,7 @@ length and hash against the completion, and checks the receipt's request and
 profile identities. It binds the PNG to the receipt's mask descriptor and checks
 its dimensions, binary pixels, bounding box and support on the source. Only that
 verification can construct a `VerifiedObservation` with usable mask data.
+A ready receipt also needs a mask score at or above the pinned profile's floor.
 
 The worker publishes the mask and receipt create-only and commits the ready
 record under its current claim after read-back verification. Non-ready receipts

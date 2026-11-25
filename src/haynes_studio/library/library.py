@@ -29,7 +29,7 @@ from typing import Any
 
 from haynes_studio.canonical.facts import Facts, PhotoVersionFacts, VoiceVersionFacts
 from haynes_studio.canonical.ids import Minter, is_id
-from haynes_studio.canonical.jsonvalues import normalize
+from haynes_studio.canonical.jsonvalues import normalize, too_deep
 from haynes_studio.canonical.model import Principal, require_human, to_document
 from haynes_studio.errors import ContractError, Violation, blocking, pointer
 from haynes_studio.library.model import (
@@ -125,6 +125,7 @@ class Library:
         versions' joined fields; they must agree). Every document must validate."""
         assets: dict[str, Asset] = {}
         versions = []
+        opted_in = []
         for i, document in enumerate(documents):
             problems = blocking(validate_asset_version(document))
             if problems:
@@ -134,7 +135,16 @@ class Library:
                 raise _error("schema.invalid", pointer(i, "asset_id"),
                              "versions of one asset disagree on its kind, name, scope, labels "
                              "or attributes")
-            versions.append(AssetVersion.from_document(document))
+            version = AssetVersion.from_document(document)
+            versions.append(version)
+            if version.occlusion is not None:
+                opted_in.append((i, document))
+        if opted_in:
+            content = {version.id: version.content for version in versions}
+            for i, document in opted_in:
+                problems = blocking(validate_asset_version(document, source_content=content.get))
+                if problems:
+                    raise ContractError(f"<version {i}>", problems)
         return cls.build(assets.values(), versions)
 
     # Lookups --------------------------------------------------------------------------
@@ -388,6 +398,8 @@ def import_version(library: Library, request: VersionRequest, *, by: Principal, 
                          f"the library holds versions {numbers} of {asset.id}, a slice; import "
                          "into the whole library so no number is reused")
         number = len(numbers) + 1
+    if too_deep(request.occlusion):
+        raise _error("schema.invalid", "/occlusion", "the declaration is nested too deeply")
     candidate = AssetVersion(
         id=request.version_id or "asv_00000000000000000000000000", asset_id=asset.id,
         number=number, kind=request.kind, state=request.state,
@@ -397,7 +409,13 @@ def import_version(library: Library, request: VersionRequest, *, by: Principal, 
         voice=request.voice,
         motion=None if request.motion is None else freeze(normalize(dict(request.motion))),
         recorded_without_media=request.recorded_without_media,
-        occlusion=None if request.occlusion is None else freeze(normalize(dict(request.occlusion))))
+        occlusion=freeze(normalize(request.occlusion)))
+    if candidate.occlusion is not None:
+        def source_content(version_id: str) -> Content | None:
+            source = library.get(version_id)
+            return source.content if source is not None else None
+
+        _check(candidate, asset, source_content=source_content)
     wanted = pin(candidate, asset)
     for existing in library.versions_of(asset.id):
         if pin(existing, asset) != wanted:
@@ -413,7 +431,8 @@ def import_version(library: Library, request: VersionRequest, *, by: Principal, 
         return Outcome(library=library, version=existing, created=False)
     version_id = _fresh(library, request.version_id, "asv", minter, "/version_id")
     version = replace(candidate, id=version_id)
-    _check(version, asset)
+    if candidate.occlusion is None:
+        _check(version, asset)
     return Outcome(library=library._with(asset=asset, version=version), version=version,
                    created=True)
 
@@ -456,8 +475,11 @@ def _same_asset(asset: Asset, request: VersionRequest) -> None:
                      "the source key names an asset with other attributes")
 
 
-def _check(version: AssetVersion, asset: Asset) -> None:
-    problems = blocking(validate_asset_version(version_document(version, asset), context="write"))
+def _check(version: AssetVersion, asset: Asset, *,
+           source_content: Callable[[str], Content | None] | None = None) -> None:
+    problems = blocking(validate_asset_version(
+        version_document(version, asset), context="write", source_content=source_content,
+    ))
     if problems:
         raise ContractError(version.id, problems)
 

@@ -19,8 +19,9 @@ from haynes_studio.api.auth import SESSION_COOKIE
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.canonical.model import Board, Story
 from haynes_studio.db import drafts, identity, runs
-from haynes_studio.db.catalog import record_asset_version
+from haynes_studio.db.catalog import record_asset_version, version_library
 from haynes_studio.db.schema import run_wan_attempts, worker_lane_grants, worker_tokens
+from haynes_studio.errors import ContractError
 from haynes_studio.library import Library
 from haynes_studio.photo.plan import plan_photo
 from haynes_studio.queue.wan import GPU_REFUSALS, LanePaused, ProductClips, ProductWan, product_request
@@ -801,6 +802,23 @@ def test_only_a_person_can_append_an_override_without_mutating_the_run(queue):
     assert result.json()["by"]["kind"] == "human"
 
 
+def set_version(q, config=None):
+    blob = q.store.publish(q.png, scope=q.production_id, media_type="image/png")
+    plate = still_version(144, blob.sha256, kind="set")
+    plate.update(id=Minter().mint("asv"), asset_id=Minter().mint("ast"), legacy=None,
+                 scope={"production_id": q.production_id},
+                 content={**blob.to_document(), "width": 144, "height": 256})
+    plate["provenance"]["source_key"] = f"fixture:{plate['id']}"
+    if config is not None:
+        plate["occlusion"] = config
+    return plate
+
+
+def set_pins(plate):
+    return {"asset_version_id": plate["id"], "motion_asset_version_id": None,
+            "foreground_edge_px": None, "foreground_feather_px": None, "legacy_fire": None}
+
+
 @pytest.mark.parametrize("opt_in", ["foreground", "focal_props", "check_poses", "set_and_board"])
 def test_opted_in_build_is_refused_for_people_and_agents(queue, opt_in):
     q = queue
@@ -825,23 +843,15 @@ def test_opted_in_build_is_refused_for_people_and_agents(queue, opt_in):
 
     story_path = f"/v1/stories/{q.story_id}"
     if opt_in != "check_poses":
-        blob = q.store.publish(q.png, scope=q.production_id, media_type="image/png")
         config = {"foreground": [], "focal_props": []}
         if opt_in == "focal_props":
             config["focal_props"] = [{"key": "menu", "label": "menu", "depth": "background", "layer_order": 0}]
         else:
             config["foreground"] = [{"key": "counter", "label": "counter", "layer_order": 30}]
-        plate = still_version(144, blob.sha256, kind="set")
-        plate.update(id=Minter().mint("asv"), asset_id=Minter().mint("ast"), legacy=None,
-                     scope={"production_id": q.production_id}, occlusion=config,
-                     content={**blob.to_document(), "width": 144, "height": 256})
-        plate["provenance"]["source_key"] = f"fixture:{plate['id']}"
+        plate = set_version(q, config)
         with q.engine.begin() as conn:
             record_asset_version(conn, plate)
-        edit = q.browser.patch(story_path, headers={**q.csrf, "If-Match": "3"}, json={"set": {
-            "asset_version_id": plate["id"], "motion_asset_version_id": None,
-            "foreground_edge_px": None, "foreground_feather_px": None, "legacy_fire": None,
-        }})
+        edit = q.browser.patch(story_path, headers={**q.csrf, "If-Match": "3"}, json={"set": set_pins(plate)})
         assert edit.status_code == 200, edit.text
     if opt_in in ("check_poses", "set_and_board"):
         edit = q.browser.patch(f"/v1/boards/{q.board_id}", headers={**q.csrf, "If-Match": "2"}, json={"layout": {
@@ -866,6 +876,80 @@ def test_opted_in_build_is_refused_for_people_and_agents(queue, opt_in):
         assert not problem.get("evidence")
     assert worker_api(q).claim() is None
     assert [row["id"] for row in q.browser.get(f"{story_path}/runs").json()["items"]] == [run_id]
+
+
+def test_catalog_import_cannot_replace_opted_in_set_version(queue):
+    q = queue
+    role = {"key": "counter", "label": "counter", "layer_order": 30}
+    prop = {"key": "menu", "label": "menu", "depth": "background", "layer_order": 0}
+    config = {"foreground": [role], "focal_props": [prop]}
+    plate = set_version(q, config)
+    with q.engine.begin() as conn:
+        record_asset_version(conn, plate)
+        record_asset_version(conn, plate)
+    story_path = f"/v1/stories/{q.story_id}"
+    edited = q.browser.patch(story_path, headers={**q.csrf, "If-Match": "3"}, json={"set": set_pins(plate)})
+    assert edited.status_code == 200, edited.text
+
+    legacy = {key: value for key, value in plate.items() if key != "occlusion"}
+    for document in (legacy, {**plate, "occlusion": {**config, "foreground": []}},
+                     {**plate, "occlusion": {**config, "focal_props": []}}):
+        with pytest.raises(ContractError) as caught, q.engine.begin() as conn:
+            record_asset_version(conn, document)
+        assert [(v.rule, v.path) for v in caught.value.violations] == [("ref.duplicate", "/id")]
+    with q.engine.begin() as conn:
+        new_version = {**legacy, "id": Minter().mint("asv"), "number": 2}
+        record_asset_version(conn, new_version)
+        library = version_library(conn, asset_id=plate["asset_id"])
+    assert library.document(plate["id"])["occlusion"] == config
+    assert "occlusion" not in library.document(new_version["id"])
+    assert q.browser.get(story_path).json()["set"] == set_pins(plate)
+    refused = queue_run(q, "catalog-version-advanced", rev=edited.json()["revision"])
+    assert refused.status_code == 422 and refused.json()["error"]["code"] == "occlusion.check_unavailable"
+
+
+def test_catalog_import_validates_hint_against_known_separate_prop_still(queue):
+    q = queue
+    cutout = set_version(q)
+    cutout.update(kind="prop", capabilities=["rgba_cutout"])
+    cutout["content"].update(width=32, height=32)
+    prop = {"key": "menu", "label": "menu", "depth": "separate", "layer_order": 30,
+            "source_asset_version_id": cutout["id"], "hint": {"kind": "point", "xy": [32, 10]}}
+    plate = set_version(q, {"foreground": [], "focal_props": [prop]})
+    with q.engine.begin() as conn:
+        record_asset_version(conn, cutout)
+    with pytest.raises(ContractError) as caught, q.engine.begin() as conn:
+        record_asset_version(conn, plate)
+    assert [(v.rule, v.path) for v in caught.value.violations] == [
+        ("schema.invalid", "/occlusion/focal_props/0/hint/xy"),
+    ]
+    prop["hint"]["xy"][0] = 31
+    with q.engine.begin() as conn:
+        record_asset_version(conn, plate)
+
+
+def test_draft_import_checks_separate_hint_before_registering_either_version(queue):
+    q = queue
+    with q.engine.begin() as conn:
+        production = drafts.production(conn, q.production_id)
+        exchange = drafts.get_draft(conn, q.story_id).exchange()
+    exchange.update(id=Minter().mint("sty"), title="Imported draft", boards=[], board_order=[])
+    plate = set_version(q)
+    cutout = set_version(q)
+    # Registering in asset order alone could miss the still that follows the set.
+    plate["asset_id"], cutout["asset_id"] = sorted((plate["asset_id"], cutout["asset_id"]))
+    cutout.update(kind="prop", capabilities=["rgba_cutout"])
+    cutout["content"].update(width=32, height=32)
+    prop = {"key": "menu", "label": "menu", "depth": "separate", "layer_order": 30,
+            "source_asset_version_id": cutout["id"], "hint": {"kind": "point", "xy": [32, 10]}}
+    plate["occlusion"] = {"foreground": [], "focal_props": [prop]}
+    with pytest.raises(ContractError) as caught, q.engine.begin() as conn:
+        drafts.import_draft(conn, production, exchange, [plate, cutout])
+    assert [v.path for v in caught.value.violations] == ["/occlusion/focal_props/0/hint/xy"]
+    assert q.browser.get(f"/v1/stories/{exchange['id']}").status_code == 404
+    prop["hint"]["xy"][0] = 31
+    with q.engine.begin() as conn:
+        assert drafts.import_draft(conn, production, exchange, [plate, cutout]).story["id"] == exchange["id"]
 
 
 def add_sound_bed(q, tmp_path):

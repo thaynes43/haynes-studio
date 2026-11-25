@@ -24,6 +24,7 @@ from PIL import Image
 from haynes_studio.adapters import segmentation as adapter
 from haynes_studio.adapters.segmentation import SegmentationClient
 from haynes_studio.assets.occlusion import SegmentationOutcome, VerifiedObservation, run_segmentation_job
+from haynes_studio.errors import ContractError
 from haynes_studio.library import EMPTY, Content, Library, Scope, VersionRequest, import_version, validate_asset_version
 from haynes_studio.library.model import Licence
 from haynes_studio.segmentation.backend import Engine
@@ -48,7 +49,7 @@ def png(image):
 
 
 def library_image(store, image, kind, *, library=EMPTY, key=None, config=None,
-                  production_id=PRODUCTION_ID):
+                  production_id=PRODUCTION_ID, **overrides):
     data = png(image)
     blob = store.publish(data, scope=production_id or "library", media_type=PNG)
     content = Content(blob.sha256, blob.bytes, PNG, blob.locator, *image.size)
@@ -59,7 +60,7 @@ def library_image(store, image, kind, *, library=EMPTY, key=None, config=None,
                     "generator": {"role": "image"}, "external": None},
         licence=Licence.unknown("Synthetic fixture"), occlusion=config,
     )
-    recorded = import_version(library, request, by=BY, now=NOW)
+    recorded = import_version(library, replace(request, **overrides), by=BY, now=NOW)
     return recorded, data
 
 
@@ -717,6 +718,109 @@ def test_set_declarations_validate_kind_keys_and_depth(world):
     cast, _ = library_image(store, Image.new("RGBA", SIZE), "cast")
     assert [(v.rule, v.path) for v in validate_asset_version({**cast.library.document(cast.version.id), "occlusion": valid})] == [
         ("asset.capability_mismatch", "/occlusion"),
+    ]
+
+
+@pytest.mark.parametrize(("group", "fields", "path"), [
+    ("foreground", {"key": "shelf\n"}, "/key"),
+    ("foreground", {"label": "\ud800"}, "/label"),
+    ("foreground", {"label": "cafe\u0301"}, "/label"),
+    ("foreground", {"hint": {"kind": "text", "text": "warm\tlight"}}, "/hint/text"),
+    ("foreground", {"hint": {"kind": "box", "xyxy": [30, 10, 10, 20]}}, "/hint/xyxy"),
+    ("foreground", {"hint": {"kind": "box", "xyxy": [10, 30, 20, 10]}}, "/hint/xyxy"),
+    ("foreground", {"hint": {"kind": "box", "xyxy": [30, 10, 30, 20]}}, "/hint/xyxy"),
+    ("foreground", {"hint": {"kind": "box", "xyxy": [10, 30, 20, 30]}}, "/hint/xyxy"),
+    ("foreground", {"hint": {"kind": "box", "xyxy": [0, 0, 65, 48]}}, "/hint/xyxy"),
+    ("foreground", {"hint": {"kind": "box", "xyxy": [0, 0, 64, 49]}}, "/hint/xyxy"),
+    ("foreground", {"hint": {"kind": "point", "xy": [64, 10]}}, "/hint/xy"),
+    ("focal_props", {"hint": {"kind": "point", "xy": [10, 48]}}, "/hint/xy"),
+    ("focal_props", {"depth": "background", "layer_order": 1}, ""),
+    ("focal_props", {"depth": "separate", "layer_order": 1}, ""),
+    ("focal_props", {"depth": "unspecified", "layer_order": 0}, ""),
+])
+def test_import_validates_declaration_before_hashing(world, monkeypatch, group, fields, path):
+    store, _, _ = world
+    entry = {"key": "shelf", "label": "shelf", "layer_order": 30}
+    if group == "focal_props":
+        entry.update(depth="background", layer_order=0)
+    block = {"foreground": [], "focal_props": [], group: [{**entry, **fields}]}
+    monkeypatch.setattr("haynes_studio.library.library.pin", lambda *_: pytest.fail("hashed invalid declaration"))
+    with pytest.raises(ContractError) as caught:
+        library_image(store, Image.new("RGB", SIZE), "set", config=block)
+    assert [(v.rule, v.path) for v in caught.value.violations] == [("schema.invalid", f"/occlusion/{group}/0{path}")]
+
+
+def test_set_import_freezes_declarations_and_refuses_replacing_a_version(world):
+    store, _, _ = world
+    image = Image.new("RGB", SIZE)
+    role = {"key": "shelf", "label": "shelf", "layer_order": 10.0,
+            "hint": {"kind": "point", "xy": [12.0, 13.0]}}
+    prop = {"key": "menu", "label": "menu", "depth": "background", "layer_order": 0}
+    block = {"foreground": [role], "focal_props": [prop]}
+    first, _ = library_image(store, image, "set", config=block)
+    saved = first.library.document(first.version.id)
+    first_pin = first.library.pin(first.version.id)
+    role["hint"]["xy"][0] = 14
+    prop["label"] = "new menu"
+    assert first.library.document(first.version.id) == saved
+    assert first.library.pin(first.version.id) == first_pin
+    assert type(first.version.occlusion["foreground"][0]["layer_order"]) is int
+    assert first.version.occlusion["foreground"][0]["hint"]["xy"] == (12, 13)
+    with pytest.raises(TypeError):
+        first.version.occlusion["foreground"][0]["key"] = "rewritten"
+
+    for revised in (block, {**block, "foreground": []}, {**block, "focal_props": []}, None):
+        with pytest.raises(ContractError) as caught:
+            library_image(store, image, "set", library=first.library, config=revised,
+                          version_id=first.version.id)
+        assert [(v.rule, v.path) for v in caught.value.violations] == [("ref.duplicate", "/version_id")]
+    second, _ = library_image(store, image, "set", library=first.library)
+    assert second.version.id != first.version.id and second.version.number == 2
+    assert second.version.occlusion is None
+    assert second.library.document(first.version.id) == saved
+
+
+def test_existing_version_comparison_includes_declaration_even_if_pins_match(world, monkeypatch):
+    store, _, _ = world
+    image = Image.new("RGB", SIZE)
+    role = {"key": "shelf", "label": "shelf", "layer_order": 10}
+    config = {"foreground": [role], "focal_props": []}
+    first, _ = library_image(store, image, "set", config=config)
+    monkeypatch.setattr("haynes_studio.library.library.pin", lambda *_: "matching pin")
+    changed = {**config, "foreground": [{**role, "label": "counter"}]}
+    with pytest.raises(ContractError) as caught:
+        library_image(store, image, "set", library=first.library, config=changed)
+    assert caught.value.violations[0].rule == "idempotency.mismatch"
+
+
+def test_focal_prop_hint_uses_the_separate_still_dimensions(world):
+    store, _, _ = world
+    cutout, _ = library_image(store, Image.new("RGBA", (32, 32)), "prop")
+    prop = {"key": "menu", "label": "menu", "depth": "separate", "layer_order": 10,
+            "source_asset_version_id": cutout.version.id, "hint": {"kind": "box", "xyxy": [0, 0, 32, 32]}}
+    role = {"key": "shelf", "label": None, "layer_order": 10}
+    block = {"foreground": [], "focal_props": [prop]}
+    image = Image.new("RGB", SIZE)
+    assert library_image(store, image, "set", library=cutout.library, config=block)[0].created
+    with pytest.raises(ContractError) as caught:
+        library_image(store, image, "set", library=cutout.library, config={**block, "foreground": [role]})
+    assert [(v.rule, v.path) for v in caught.value.violations] == [
+        ("ref.duplicate", "/occlusion/focal_props/0/layer_order"),
+    ]
+    prop["hint"]["xyxy"][2] = 33
+    with pytest.raises(ContractError) as caught:
+        library_image(store, image, "set", library=cutout.library, config=block)
+    assert [(v.rule, v.path) for v in caught.value.violations] == [
+        ("schema.invalid", "/occlusion/focal_props/0/hint/xyxy"),
+    ]
+    # Archive imports can refer to a still whose dimensions have not been recorded.
+    standalone, _ = library_image(store, image, "set", config=block)
+    assert standalone.created
+    with pytest.raises(ContractError) as caught:
+        Library.from_version_documents([standalone.library.document(standalone.version.id),
+                                        cutout.library.document(cutout.version.id)])
+    assert [(v.rule, v.path) for v in caught.value.violations] == [
+        ("schema.invalid", "/occlusion/focal_props/0/hint/xyxy"),
     ]
 
 

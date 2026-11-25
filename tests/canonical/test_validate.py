@@ -112,6 +112,14 @@ def test_check_pose_keys_are_unique_and_round_trip():
     ]
 
 
+def test_check_pose_key_cannot_end_with_a_newline():
+    board = example("valid/story-winter-menu-r4.json")["boards"][0]
+    board["layout"]["check_poses"] = [{"key": "still\n", "frame": 0}]
+    assert blocking(validate_board(board)) == [
+        ("schema.invalid", "invalid", "/layout/check_poses/0/key"),
+    ]
+
+
 @pytest.mark.parametrize("frame", [False, 0.0, np.int32(0), -1])
 def test_pose_requires_an_exact_integer_frame(frame):
     assert CheckPose("still", 0).frame == 0

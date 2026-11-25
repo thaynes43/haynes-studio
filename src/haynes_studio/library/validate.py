@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from haynes_studio.canonical.validate import (
@@ -42,6 +42,7 @@ from haynes_studio.library.model import (
     LAYER_CAPABILITIES,
     MEDIA_EXTENSIONS,
     OPAQUE_CAPABILITIES,
+    Content,
     is_stock_voice,
     measured_ms,
     stock_voice_id,
@@ -74,15 +75,17 @@ def validate_asset(document: Any, *, context: str = READ) -> list[Violation]:
     return _sorted(found)
 
 
-def validate_asset_version(document: Any, *, context: str = READ) -> list[Violation]:
-    """Every rule a ``studio.asset-version/v1`` document breaks, sorted by path."""
+def validate_asset_version(
+    document: Any, *, context: str = READ, source_content: Callable[[str], Content | None] | None = None,
+) -> list[Violation]:
+    """Check the version and use available dimensions from separately referenced stills."""
     _check_context(context)
     document, stop = _prepare(document, ASSET_VERSION_SCHEMA)
     if stop is not None:
         return stop
     found = schema_violations(ASSET_VERSION_FILE, document, default_rule=SCHEMA_INVALID)
     if not _blocking(found):
-        found += _asset_rules(document) + _version_rules(document)
+        found += _asset_rules(document) + _version_rules(document, source_content)
     return _sorted(found)
 
 
@@ -102,7 +105,7 @@ def _asset_rules(doc: Mapping[str, Any]) -> list[Violation]:
 # Version fields -----------------------------------------------------------------------------
 
 
-def _version_rules(doc: Mapping[str, Any]) -> list[Violation]:
+def _version_rules(doc: Mapping[str, Any], source_content) -> list[Violation]:
     found: list[Violation] = []
     kind, scope, content = doc["kind"], doc["scope"], doc["content"]
     if kind == "voice":
@@ -116,7 +119,7 @@ def _version_rules(doc: Mapping[str, Any]) -> list[Violation]:
     if doc.get("motion") is not None:
         found += motion_block_problems(doc)  # story 457: haynes_studio.motion.check
     if "occlusion" in doc:
-        found += _occlusion(doc)
+        found += _occlusion(doc, source_content)
     legacy = doc["legacy"]
     if legacy is not None and legacy["source_key"] != doc["provenance"].get("source_key"):
         found.append(_v(SCHEMA_INVALID, "/legacy/source_key",
@@ -124,7 +127,7 @@ def _version_rules(doc: Mapping[str, Any]) -> list[Violation]:
     return found
 
 
-def _occlusion(doc: Mapping[str, Any]) -> list[Violation]:
+def _occlusion(doc: Mapping[str, Any], source_content) -> list[Violation]:
     if doc["kind"] != "set" or "opaque_plate" not in doc["capabilities"]:
         return [_v(CAPABILITY_MISMATCH, "/occlusion", "occlusion declarations need an opaque set plate")]
     block = doc["occlusion"]
@@ -132,6 +135,7 @@ def _occlusion(doc: Mapping[str, Any]) -> list[Violation]:
         return [_v(SCHEMA_INVALID, "/occlusion", "declare a foreground role or focal prop")]
     found = []
     keys, orders = [], []
+    plate = doc["content"] or {}
     foreground = {role["key"]: role["layer_order"] for role in block["foreground"]}
     for group in ("foreground", "focal_props"):
         for i, target in enumerate(block[group]):
@@ -148,6 +152,24 @@ def _occlusion(doc: Mapping[str, Any]) -> list[Violation]:
                 if value is not None and (value != value.strip() or not unicodedata.is_normalized("NFC", value)
                                           or any(unicodedata.category(c).startswith("C") for c in value)):
                     found.append(_v(SCHEMA_INVALID, path, "use trimmed NFC text without control characters"))
+            if hint and hint["kind"] != "text":
+                width, height = plate.get("width"), plate.get("height")
+                if target.get("depth") == "separate":
+                    source = target.get("source_asset_version_id")
+                    still = source_content(source) if source_content is not None and source else None
+                    width, height = (still.width, still.height) if still is not None else (None, None)
+                if hint["kind"] == "point":
+                    coordinate_field = "xy"
+                    x, y = hint[coordinate_field]
+                    valid = (width is None or x < width) and (height is None or y < height)
+                else:
+                    coordinate_field = "xyxy"
+                    x, y, right, bottom = hint[coordinate_field]
+                    valid = (x < right and y < bottom and (width is None or right <= width)
+                             and (height is None or bottom <= height))
+                if not valid:
+                    found.append(_v(SCHEMA_INVALID, f"{at}/hint/{coordinate_field}",
+                                    "use a point inside the still or a positive-area box within it"))
             order = target.get("layer_order")
             if group == "foreground":
                 orders.append((at + "/layer_order", order))
