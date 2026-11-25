@@ -48,6 +48,7 @@ studio-api-admin = "haynes_studio.api.key_admin:main"
 studio-mcp = "haynes_studio.mcp.__main__:main"
 studio-worker = "haynes_studio.queue.worker:main"
 studio-matting = "haynes_studio.matting.__main__:main"
+studio-segmentation = "haynes_studio.segmentation.__main__:main"
 
 [dependency-groups]
 # Test and development tools only. A story that needs a runtime library adds it to
@@ -63,6 +64,20 @@ matting = [
     "scipy>=1.16,<1.17",
     "onnxruntime==1.32.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
+
+segmentation = [
+    "jsonschema>=4.23,<5",
+    "numpy>=2.4,<2.5",
+    "Pillow==13.0.0",
+    "torch==2.14.1+cpu; python_version == '3.12' and sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "torchvision==0.29.1+cpu; python_version == '3.12' and sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "transformers==5.24.1; python_version == '3.12' and sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "safetensors==0.8.0; python_version == '3.12' and sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+
+[tool.uv.sources]
+torch = { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.14.1%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl" }
+torchvision = { url = "https://download-r2.pytorch.org/whl/cpu/torchvision-0.29.1%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haynes_studio"]

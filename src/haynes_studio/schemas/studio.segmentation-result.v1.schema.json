@@ -1,0 +1,378 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://haynes-studio.invalid/schemas/studio.segmentation-result.v1.schema.json",
+  "title": "Studio segmentation result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "request_sha256",
+    "input",
+    "target",
+    "status",
+    "reason",
+    "box_xyxy",
+    "detector_box_xyxy",
+    "scores",
+    "mask",
+    "provenance"
+  ],
+  "properties": {
+    "schema": {
+      "const": "studio.segmentation-result/v1"
+    },
+    "request_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "input": {
+      "$ref": "https://haynes-studio.invalid/schemas/studio.segmentation-request.v1.schema.json#/$defs/source"
+    },
+    "target": {
+      "$ref": "https://haynes-studio.invalid/schemas/studio.segmentation-request.v1.schema.json#/$defs/target"
+    },
+    "status": {
+      "enum": [
+        "ready",
+        "needs_hint",
+        "failed"
+      ]
+    },
+    "reason": {
+      "enum": [
+        null,
+        "no_match",
+        "ambiguous_match",
+        "foreground_depth_ambiguous",
+        "too_small",
+        "mask_uncertain",
+        "invalid_input",
+        "input_unavailable",
+        "profile_unavailable",
+        "timeout",
+        "inference_failed",
+        "invalid_output",
+        "store_failed"
+      ]
+    },
+    "box_xyxy": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1920
+          }
+        }
+      ]
+    },
+    "detector_box_xyxy": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1920
+          }
+        }
+      ]
+    },
+    "scores": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "detector",
+        "mask_iou"
+      ],
+      "properties": {
+        "detector": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "mask_iou": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "mask": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sha256",
+            "bytes",
+            "width",
+            "height",
+            "media_type"
+          ],
+          "properties": {
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 8388608
+            },
+            "width": {
+              "type": "integer",
+              "minimum": 32,
+              "maximum": 1920
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 32,
+              "maximum": 1920
+            },
+            "media_type": {
+              "const": "image/png"
+            }
+          }
+        }
+      ]
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "models",
+        "runtime",
+        "device",
+        "image_digest",
+        "parameters"
+      ],
+      "properties": {
+        "profile": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "sha256"
+          ],
+          "properties": {
+            "id": {
+              "const": "grounding-dino-tiny-sam2.1-tiny-cpu-v1"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        },
+        "models": {
+          "type": "array",
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "repository",
+              "revision",
+              "file",
+              "weight_sha256",
+              "config_manifest_sha256"
+            ],
+            "properties": {
+              "repository": {
+                "type": "string",
+                "minLength": 1
+              },
+              "revision": {
+                "type": "string",
+                "minLength": 1
+              },
+              "file": {
+                "const": "model.safetensors"
+              },
+              "weight_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "config_manifest_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          }
+        },
+        "runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "lock_sha256",
+            "libraries"
+          ],
+          "properties": {
+            "lock_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "libraries": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "device": {
+          "const": "cpu"
+        },
+        "image_digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "parameters": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "ready"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "reason": {
+            "enum": [
+              null
+            ]
+          },
+          "box_xyxy": {
+            "type": "array",
+            "minItems": 4,
+            "maxItems": 4,
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1920
+            }
+          },
+          "mask": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "sha256",
+              "bytes",
+              "width",
+              "height",
+              "media_type"
+            ],
+            "properties": {
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 8388608
+              },
+              "width": {
+                "type": "integer",
+                "minimum": 32,
+                "maximum": 1920
+              },
+              "height": {
+                "type": "integer",
+                "minimum": 32,
+                "maximum": 1920
+              },
+              "media_type": {
+                "const": "image/png"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "needs_hint"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "reason": {
+            "enum": [
+              "no_match",
+              "ambiguous_match",
+              "foreground_depth_ambiguous",
+              "too_small",
+              "mask_uncertain"
+            ]
+          },
+          "box_xyxy": {
+            "type": "null"
+          },
+          "mask": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "failed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "reason": {
+            "enum": [
+              "invalid_input",
+              "input_unavailable",
+              "profile_unavailable",
+              "timeout",
+              "inference_failed",
+              "invalid_output",
+              "store_failed"
+            ]
+          },
+          "box_xyxy": {
+            "type": "null"
+          },
+          "mask": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
+}
