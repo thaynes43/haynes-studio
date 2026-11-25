@@ -25,6 +25,15 @@ requiring installed/usable evidence is not ready because its source PR merged.
 Do not turn artifact dependencies into whole-epic Accepted barriers: E3 source can
 start from E1 source contracts; E1 live acceptance can use partial E3 installation.
 
+**2026-11-25 deployment checkpoint.** Studio `f30445f` is installed with the
+queue worker and two private imports. Automated scoped playback passed. Human
+sign-in and phone review, an actual queue completion and the isolated restore
+remain open. Agent credentials wait for default board protection in the next
+app pin. The go-live approver list is empty. Local-model admission is dormant
+with both weights verified. Story 446 is held for the dev-env interface and
+stored-evidence work. Read current tracker evidence before dispatch.
+[Contract evidence](../contracts/studio-contracts-v1.md#installed-and-published-state).
+
 ## Vocabulary and fixed infrastructure
 
 | Term | Meaning |
@@ -37,7 +46,7 @@ start from E1 source contracts; E1 live acceptance can use partial E3 installati
 | Voice/photo asset | Immutable version made before Build, with input signature/hash. Measured voice sets duration plus agreed pad; silent board uses hold. Mockup's 0.25 s/25 fps are not production decisions. |
 | Direction | Editable notes. Free text is not an executable shell, guaranteed cue interpretation or new renderer capability. Structured cue mapping belongs to R01. |
 | Lease / image lane | The existing Wan API compute lease, including unknown-work checks, governs Wan/Foley/local load/infer/unload on talosw01; no second GPU scheduler. Comfy images use a separate household-first lane on comfyui-0/talosm03. |
-| studio-render | Existing `ai/deploy/studio-render` on talosw01, <=24 vCPUs, low priority, <=22 workers; media `/studio`. Session CPU <=2 threads, render workers 1, ffmpeg threads 2. |
+| studio-render / studio-worker | 20 vCPUs offline and 4 for the serial queue worker on talosw01, both low priority (D18 and ruling 22). Up to 18 offline workers, media `/studio`. Session CPU <=2 threads, render workers 1, ffmpeg threads 2. |
 | Stores / access | Media `gasha01:/hdd-nfs-repl/data/studio`, metadata/queue in `studio` on 3-instance `database/postgres16`. No app-local state volumes. LAN-only, every request authenticated; human Authentik OIDC, scoped agent MCP keys. |
 | Availability | API/web >=2 replicas spread across nodes with PDBs. talosw01 loss pauses builds while app stays up. NFS availability/backup is a separate dependency, not guaranteed by replicas. |
 

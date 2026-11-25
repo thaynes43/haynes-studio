@@ -158,9 +158,9 @@ the local-model profile is absent.
 | `local_model_unavailable` | A local-model status needed for admission was unavailable. | Retry with a new ID after the sidecar can supply status. |
 | `pre_admission_failed` | A different error occurred before the engine started, such as an invalid inference budget. | Inspect the error and resolve the cause before making a new request. |
 
-Continue to poll the same ID after an ambiguous reply. The two Studio clients
-read these refusals differently, and both still read the `error` text, not the
-code:
+Continue to poll the same ID after an ambiguous reply. The installed
+`f30445f` queue and the command-line client classify refusals from the
+`error` text:
 
 - The run queue (`src/haynes_studio/queue/wan.py`) treats the ComfyUI
   foreign-queue text and the two Rack GPU texts (busy, and above the
@@ -174,9 +174,11 @@ code:
   `adapter.job_failed` with "inspect before any further render". It does not
   back off by itself.
 
-Story https://work.haynesnetwork.com/work_packages/430 moves the run queue to
-`admission_code`. A Wan or Foley admission check that sees foreign engine work
-preserves it and refuses that attempt without latching a new hold.
+Merged story [430](https://work.haynesnetwork.com/work_packages/430) moves
+the queue to `admission_code` with a legacy text fallback when no code is
+present. It awaits the next app pin. A Wan or Foley admission check that
+sees foreign engine work preserves it and refuses that attempt without
+latching a new hold.
 
 ## Legacy cleanup
 
@@ -189,11 +191,12 @@ lease can be released and the next legacy job can proceed.
 
 ## Local-model requests
 
-The additive v1 operations are defined in story 441. Hosting and activation are
-tracked separately in story 442. The routes become available after the companion
-Wan API rollout. A deployment of that version without a local-model profile
-returns HTTP 503 `local_model_not_installed` from these routes. Use the same
-internal Service as for the video and Foley product jobs. [Story 441](https://work.haynesnetwork.com/work_packages/441) · [Story 442](https://work.haynesnetwork.com/work_packages/442)
+Story 441 defines the additive v1 operations. Story 442 installed their code
+dormant at haynes-ops `79fa01b5`, published the sidecar image and verified
+both pilot files. The local-model routes return HTTP 503
+`local_model_not_installed` until the sidecar and profile are activated.
+Use the same internal Service as for the video and Foley product jobs.
+[Story 441](https://work.haynesnetwork.com/work_packages/441) · [Story 442](https://work.haynesnetwork.com/work_packages/442)
 
 | Operation | Request |
 | --- | --- |
@@ -265,8 +268,8 @@ stay loaded while both cards meet the admission limits.
 | A job needs the resident card | The Wan lease stays held across unload, memory verification and engine submission. Both-card jobs and Foley on the model card use this handover. Wan's `queued` acknowledgment records the request. ComfyUI submission waits for the configured card to reach the unloaded memory ceiling. |
 | Wan or Foley owns compute | The local request receives `worker_busy`. A replay or status read can still return its existing record. |
 | The API loses a sidecar reply or restarts | The sidecar keeps a copy of the same lease until work ends. Once the lease is available, the API matches the original request ID to the sidecar receipt and checks residency. A recorded request proved absent fails with `submission_lost`. |
-| A profile is mounted and the sidecar is unavailable | Wan and Foley skip the sidecar status read when the residency file is absent. The worker writes pending state before a load can reach the sidecar. An existing record requires sidecar status before handover. |
+| A profile is mounted and residency needs checking | A live child with no residency journal latches a hold. Without either, ordinary idle engine cache is allowed. An unavailable sidecar refuses work needing residency evidence without adding a hold. |
 | A model operation exceeds its deadline or the child dies | The supervisor kills a timed-out child and reaps it before recording the receipt or releasing its copy of the lease. The request reports `operation_timeout` or `backend_exited` after the card passes its unloaded memory check. |
 | The supervisor dies | A replacement starts unloaded. A fresh idle card sample at or below the unloaded ceiling verifies that the card is clear. A pending request then fails with `sidecar_restarted`. Unavailable status blocks new GPU work while residency is uncertain. |
-| Unload ends the model process | The supervisor waits for child exit. Fresh idle memory at or below the unloaded ceiling completes the handover proof. If memory cannot be verified, the worker records a residency hold that survives API restarts. |
-| Engine work is unknown or the render hold is set | Existing engine work is preserved. Wan and Foley refuse their admission attempt. A malformed or nonempty engine queue when handling a direct local-model request can latch a hold. A transient queue read failure refuses that attempt. |
+| Unload ends the model process | The supervisor reaps the process group. A fresh idle sample at or below the configured ceiling and no more than 4 MiB above the recorded baseline proves release. Otherwise a residency hold survives API restarts. |
+| Engine work is unknown or the render hold is set | Existing engine work is preserved. Wan and Foley refuse their admission attempt. A well-formed foreign queue returns `engine_busy` and keeps the prior reservation. Malformed queue responses fail closed. A transient queue read failure refuses the attempt. |

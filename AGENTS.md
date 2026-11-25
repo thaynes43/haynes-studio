@@ -9,9 +9,15 @@ Haynes Studio makes short-form comedy videos (currently the **doll short** forma
 on in-cluster GPU, TTS and ASR services. The manual proof of concept is complete.
 E1 built and archived two shorts privately. Its acceptance is open. The saga has
 been in execution since 2026-11-24. E2 asset work and E3 API, web and MCP source
-have landed. App deployment ([434](https://work.haynesnetwork.com/work_packages/434))
-and authenticated phone playback ([944](https://work.haynesnetwork.com/work_packages/944))
-were both open as of the sixth contract amendment. Each epic ends with a usable demo.
+have landed. The LAN app and queue worker are installed, and scoped range reads
+of both imported films passed. Human sign-in and phone playback
+([944](https://work.haynesnetwork.com/work_packages/944)) remain open.
+Each epic ends with a usable demo.
+The 24-vCPU and 22-worker figures in the Heavy CPU work rule predate the
+queue-worker rollout. The installed talosw01 split is 20 vCPUs for offline
+render and 4 for the queue worker.
+[Current render limits](docs/reference/services.md#studio-render-cpu-work).
+[Installed evidence](docs/contracts/studio-contracts-v1.md#installed-and-published-state).
 
 Start with:
 

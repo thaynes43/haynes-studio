@@ -144,7 +144,7 @@ target lock. The PoC scripts are unchanged and will use that environment too.
 3. Use the worker's ready venv (`python` on its `PATH`) and run under `nice -n 10`.
    `OPERATOR_ISS` and `OPERATOR_SUB` are the existing operator's issuer and subject;
    do not invent an identity. The example starts one process; `--workers` may be
-   increased up to 22 within the worker's 24-vCPU limit. Keep per-process library
+   increased up to 18 at the worker's 20-vCPU limit. Keep per-process library
    threads bounded:
 
    ```bash

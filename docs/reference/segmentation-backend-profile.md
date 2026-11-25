@@ -3,8 +3,10 @@
 **Proposed 2026-11-25** for [story 460](https://work.haynesnetwork.com/work_packages/460).
 Use **Grounding DINO Tiny + SAM 2.1 Hiera Tiny** on CPU. Keep **OWLv2 Base
 Patch16 Ensemble + the same SAM 2.1** as a fallback if grounding is the part
-that fails the bounded quality check. The coordinator selects one profile before
-the install session. Both profiles leave the Wan queue available for builds.
+that fails the bounded quality check, on a new ruling. Provisional
+[ruling 34](../contracts/studio-contracts-v1.md#ruling-34) selects the primary
+without a separate face detector. Installation and private quality proof
+remain open. Both profiles leave the Wan queue available for builds.
 
 The layered doll format puts cutouts behind parts of a set photograph. E0
 showed why the foreground edge, the doll faces and the focal prop need checks
@@ -254,9 +256,9 @@ weights and per-request scratch. A socket call supplies the fixed request with
 a caller-owned staging handle, never an arbitrary file path. Give it no
 network listener, token, GPU device or runtime download.
 
-The live deployment limit was 20 vCPUs and 32 GiB on 2026-11-25. D18 and the
-service reference list the earlier 24-vCPU limit, with up to 22 render
-workers. Preserve the observed combined limit. If the companion takes 2
+The live offline render limit was 20 vCPUs and 32 GiB on 2026-11-25,
+within D18's 24-vCPU allocation shared with the 4-vCPU queue worker.
+Preserve the observed combined limit. If the companion takes 2
 vCPUs and 8 GiB, the render container has 18 vCPUs and 24 GiB. Cap its
 `--workers` at 16 while that split is active, leaving two vCPUs for encoder
 and coordination overhead. Check existing render health and headroom before
@@ -320,7 +322,8 @@ Keep prior assets and run evidence.
 
 **Evidence state.** Source proposal and read-only placement/headroom evidence.
 Matching portrait latency, peak RAM/VRAM, model behavior on dolls and toy
-props, NAS inode reserve, image digest, rollback, install health and usability
-remain to be verified. The coordinator's profile ruling precedes install and
-story 452 adapter pickup. Installation smoke and private quality acceptance
+props, image digest, rollback, install health and usability remain to be
+verified. Free inodes are unreported over NFS; the coordinator accepted the
+small file-count budget in story 460, comment 9946. Story 452 owns adapter
+pickup and private quality evidence after the install. Installation smoke and private quality acceptance
 require their own evidence.
