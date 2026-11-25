@@ -528,6 +528,25 @@ def test_agent_cannot_read_unselected_board_photo_by_hash(studio, tmp_path):
     assert s.browser.get(f"/v1/asset-versions/{doc['id']}/media/{digest}").status_code == 200
 
 
+def test_upload_selects_current_media_and_preserves_person_edit_protection(studio, tmp_path):
+    s = studio
+    board = board_in(s)
+    before = patch(s, board, {"title": "A person's draft title"})
+    _, editor = register_agent(s.owner, {s.production_id: ["draft:write"]})
+    path = f"/v1/boards/{board}"
+    denied = s.agent.patch(path, headers={**editor, "If-Match": str(before["revision"])},
+                           json={"title": "An agent draft title"})
+    assert denied.status_code == 409 and denied.json()["error"]["code"] == "draft.protected"
+
+    uploaded = success(upload(s, board, image_file(tmp_path)), 201)
+    after = current_board(s, board)
+    assert uploaded["selected"]
+    assert after["photo"]["current_version_id"] == uploaded["version"]["id"]
+    assert after["revision"] == before["revision"] + 1
+    for field in ("title", "drafted_by", "person_edit", "person_edit_revision"):
+        assert after[field] == before[field]
+
+
 @pytest.mark.parametrize("scope", ["another-board", "another-production"])
 def test_worker_cannot_complete_voice_for_another_scope(studio, scope):
     s = studio

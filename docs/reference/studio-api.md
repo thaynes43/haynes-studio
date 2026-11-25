@@ -378,6 +378,9 @@ or remote location. A valid upload immediately returns 201 with `version`,
 during validation, the API keeps the upload with `selected: false` and a null
 `board_revision`.
 
+Automatic selection of a current job or upload result keeps the board's
+draft provenance and person-edit protection.
+
 An API process accepts one upload at a time. A concurrent upload returns 503
 `photo.upload_busy` with `Retry-After`. Retry using the current board revision
 if another upload selected a version in the meantime.

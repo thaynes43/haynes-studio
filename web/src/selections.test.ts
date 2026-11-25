@@ -10,7 +10,9 @@ const origin = "https://studio.example.invalid";
 test("retries a stale revision and serializes changes without replacing other preferences", async () => {
   type Schemas = components["schemas"];
   const vars = {
-    server: { revision: 2, values: { editor_inspector: { open: true }, web_shell: { future: true } } } as Schemas["Selections"],
+    server: { revision: 2, values: { editor_inspector: { open: true }, web_shell: {
+      future: true, production_filters: { "/another-media": { approved: true } },
+    } } } as Schemas["Selections"],
     writes: [] as Array<{ etag: string | null; values: Schemas["SelectionWrite"]["values"] }>,
   };
   const send: typeof fetch = async (input) => {
@@ -44,16 +46,28 @@ test("retries a stale revision and serializes changes without replacing other pr
   const selections = createSelections(api.client, { etag: '"1"', values: {} });
   const reviewed = treePath("productions", { production });
   const selected = treePath("board", { production, media: "short" });
+  const shorts = treePath("productions", { production, media: "short" });
+  const videos = treePath("productions", { production, media: "video" });
 
   selections.remember("productions", reviewed);
   selections.remember("board", selected);
+  selections.rememberProductionFilters(shorts, { publication: "unpublished" });
+  selections.rememberProductionFilters(videos, { approved: true });
+  selections.rememberProductionFilters(shorts, { publication: "unpublished", approved: true });
   expect(selections.snapshot().destinations).toMatchObject({ productions: reviewed, board: selected });
 
   await vi.waitFor(() => expect(vars.server.revision).toBe(4));
   expect(vars.writes.map(({ etag }) => etag)).toEqual(['"1"', '"2"', '"3"']);
   expect(vars.server.values).toEqual({
     editor_inspector: { open: true },
-    web_shell: { future: true, productions: reviewed, board: selected },
+    web_shell: {
+      future: true, productions: reviewed, board: selected,
+      production_filters: {
+        "/another-media": { approved: true },
+        [shorts]: { publication: "unpublished", approved: true },
+        [videos]: { approved: true },
+      },
+    },
   });
   expect(selections.snapshot().error).toBeUndefined();
 });

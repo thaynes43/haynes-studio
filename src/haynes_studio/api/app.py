@@ -1,5 +1,6 @@
 """FastAPI assembly. Startup configuration is supplied by the process environment."""
 
+import hmac
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -17,7 +18,7 @@ from starlette.exceptions import HTTPException
 
 from haynes_studio.db import runs
 from haynes_studio.db.engine import connect_engine
-from haynes_studio.db.problems import NotFound, StaleRevision
+from haynes_studio.db.problems import DraftProtected, NotFound, StaleRevision
 from haynes_studio.db.schema import go_live_approvals, media_job_lanes, queue_lane_events, run_lane, sessions
 from haynes_studio.errors import ContractError, pointer
 from haynes_studio.store.local import LocalStore
@@ -102,8 +103,18 @@ def _errors(app: FastAPI):
     @app.exception_handler(StaleRevision)
     async def stale(request: Request, error: StaleRevision):
         return await api_error(request, APIError(
-            409, "conflict.revision", "The record has changed", path="/revision",
+            409, "conflict.revision", "The record has changed", path=error.path,
             current_revision=error.current, headers={"ETag": f'"{error.current}"'},
+        ))
+
+    @app.exception_handler(DraftProtected)
+    async def draft_protected(request: Request, error: DraftProtected):
+        message = ("A person edited this board" if error.person_edit else
+                   "The board no longer matches this key's agent draft baseline")
+        return await api_error(request, APIError(
+            409, "draft.protected", message, path=error.path,
+            board_id=error.board_id, current_revision=error.current_revision,
+            person_edit=error.person_edit, person_edit_revision=error.person_edit_revision,
         ))
 
     @app.exception_handler(runs.IdempotencyMismatch)
@@ -148,6 +159,10 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
     app = FastAPI(title="Haynes Studio API", version="1.0.0", lifespan=lifespan,
                   docs_url=None, redoc_url=None, openapi_url=None, redirect_slashes=False)
     app.state.engine, app.state.store, app.state.oidc = engine, store, oidc
+    if oidc is not None:
+        # Use a purpose-specific signing key shared by replicas with the same identity configuration.
+        app.state.board_read_key = hmac.digest(
+            oidc.settings.client_secret.encode(), b"haynes-studio board read token v1", "sha256")
     app.state.build_revision = run_routes.build_revision_from_environment()
     app.state.build_stage_root = build_stage_root
     _errors(app)

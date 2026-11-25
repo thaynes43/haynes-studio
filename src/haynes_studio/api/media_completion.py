@@ -54,7 +54,7 @@ def _read_image(store, production, digest):
 
 def record_board_photo(conn, store, draft, prepared, by, now):
     plan = prepared.plan
-    board_id, story_id = plan.scope.board_id, plan.scope.story_id
+    board_id = plan.scope.board_id
     board = draft.boards.get(board_id)
     story, model, library = None, None, Library()
     if board is not None:
@@ -71,16 +71,8 @@ def record_board_photo(conn, store, draft, prepared, by, now):
                                  received_sha256=received)
     selected = can_select_photo(version, plan, model, None if model is None else model.boards[0],
                                 outcome.library)
-    revision = _select(conn, story_id, board, "photo", version.id) if selected else None
+    revision = drafts.select_board_media(conn, draft, board_id, "photo", version.id) if selected else None
     return document, revision
-
-
-def _select(conn, story_id, board, kind, version_id):
-    if board[kind]["current_version_id"] == version_id:
-        return board["revision"]
-    update = {kind: {**board[kind], "current_version_id": version_id}}
-    result = drafts.edit_board(conn, story_id, board["id"], board["revision"], update)
-    return result.boards[board["id"]]["revision"]
 
 
 def complete_voice(conn, store, row, job, result):
@@ -117,7 +109,7 @@ def complete_voice(conn, store, row, job, result):
         selected = (current_id in (version.id, row["inputs"]["selected_version_id"])
                     and is_current(job, story, library))
         if selected:
-            _select(conn, row["story_id"], board, "voice", version.id)
+            drafts.select_board_media(conn, draft, board["id"], "voice", version.id)
     return version.id, selected
 
 

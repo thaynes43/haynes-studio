@@ -25,7 +25,22 @@ def test_openapi_has_resolved_canonical_shapes_errors_and_security():
     schemas = document["components"]["schemas"]
     assert "boards" not in schemas["Story"]["properties"]
     assert "derived" in schemas["Board"]["properties"]
-    assert "derived" not in schemas["BoardWrite"]["properties"]
+    for name in ("BoardCreate", "BoardPatch"):
+        assert "derived" not in schemas[name]["properties"]
+    create = document["paths"]["/v1/stories/{id}/boards"]["post"]
+    update = document["paths"]["/v1/boards/{id}"]["patch"]
+    assert create["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("/BoardCreate")
+    assert update["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("/BoardPatch")
+    create_fields = schemas["BoardCreate"]["properties"]
+    update_fields = schemas["BoardPatch"]["properties"]
+    assert set(create_fields["draft_application"]["required"]) == {
+        "board_key", "draft_sha256", "model", "session",
+    }
+    assert set(update_fields["draft_application"]["required"]) == {
+        "board_key", "draft_sha256", "model", "session", "previous_draft_sha256", "story_revision",
+    }
+    assert "acknowledge_person_edit" not in create_fields
+    assert "acknowledge_person_edit" in update_fields
     assert schemas["StoryCreate"]["required"] == ["title"]
     assert "id" not in schemas["NoteInput"]["required"]
     assert "/internal/v1/work/claim" not in document["paths"]

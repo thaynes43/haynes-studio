@@ -5,6 +5,9 @@ from copy import deepcopy
 from fastapi import FastAPI
 
 from haynes_studio.db.drafts import BOARD_FIELDS, STORY_FIELDS
+from haynes_studio.drafting.declaration import (
+    DraftDeclaration, PersonEditAcknowledgment, RedraftDeclaration,
+)
 from haynes_studio.schemas import load_schema
 
 from .models import ExternalPhotoDeclaration
@@ -71,20 +74,34 @@ def _child_input(schemas, source: str, child: str):
 def _write_schemas(schemas):
     schemas["StoryCreate"] = _write("StoryCreate", schemas["Story"], STORY_FIELDS, ("title",))
     schemas["StoryPatch"] = _write("StoryPatch", schemas["Story"], STORY_FIELDS)
-    schemas["BoardWrite"] = _write("BoardWrite", schemas["Board"], BOARD_FIELDS)
     for shape in ("StoryCreate", "StoryPatch"):
         ref = _child_input(schemas, "bed_cue", "BedInput")
         schemas[shape]["properties"]["beds"]["items"] = ref
-    line = schemas["BoardWrite"]["properties"]["lines"]["items"]
+    board = _write("BoardCreate", schemas["Board"], BOARD_FIELDS)
+    fields = board["properties"]
+    line = fields["lines"]["items"]
     line["required"].remove("id")
-    line["properties"]["id"]["description"] = "Omit for a new line. Preserve an existing line ID."
+    line["properties"]["id"]["description"] = (
+        "Omit for a new line or preserve an existing line ID. An agent draft declaration "
+        "also allows a fresh line ID to anchor a cue in the same write."
+    )
     note = _child_input(schemas, "note", "NoteInput")
-    schemas["BoardWrite"]["properties"]["notes"]["items"] = note
+    fields["notes"]["items"] = note
     cue = deepcopy(schemas["StudioDefs_board_cue"])
     for branch, kind in zip(cue["allOf"], ("sound", "move", "camera"), strict=True):
         branch["then"] = _child_input(schemas, f"{kind}_cue", f"{kind.title()}CueInput")
     schemas["BoardCueInput"] = cue
-    schemas["BoardWrite"]["properties"]["cues"]["items"] = {"$ref": "#/components/schemas/BoardCueInput"}
+    fields["cues"]["items"] = {"$ref": "#/components/schemas/BoardCueInput"}
+    fields["draft_application"] = {"description": "Agent only.", **DraftDeclaration.model_json_schema()}
+    schemas["BoardCreate"] = board
+    schemas["PersonEditAcknowledgment"] = PersonEditAcknowledgment.model_json_schema()
+    schemas["BoardPatch"] = {
+        **board, "title": "BoardPatch", "properties": {
+            **fields,
+            "draft_application": {"description": "Agent only.", **RedraftDeclaration.model_json_schema()},
+            "acknowledge_person_edit": {"$ref": "#/components/schemas/PersonEditAcknowledgment"},
+        },
+    }
 
 
 _HUMAN_OPERATIONS = {"get_selections", "put_selections", "create_production", "enable_media_type",

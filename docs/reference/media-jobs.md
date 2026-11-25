@@ -60,8 +60,8 @@ Linux `VmHWM` measured the peak resident memory of each process.
 
 | Process | Startup RSS high-water | Upload peak RSS | Configured container limit |
 | --- | ---: | ---: | ---: |
-| MCP | 59,324 KiB (58 MiB) | 177,428 KiB (173 MiB) | 192 MiB |
-| API | 190,624 KiB (186 MiB) | 353,708 KiB (345 MiB) | 320 MiB |
+| MCP | 59,692 KiB (58 MiB) | 177,788 KiB (174 MiB) | 192 MiB |
+| API | 190,656 KiB (186 MiB) | 353,656 KiB (345 MiB) | 320 MiB |
 
 The API peak exceeds 320 MiB. Size the API container above this measurement
 with headroom for other requests and container overhead before enabling

@@ -86,6 +86,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/asset-jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Candidate */
+        post: operations["generate_asset_candidate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/asset-versions/{id}/media/{sha256}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Version Media */
+        get: operations["get_version_media"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        /** Get Version Media */
+        head: operations["head_version_media"];
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/asset-versions/{id}/promote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Promote */
+        post: operations["promote_asset_version"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/assets": {
         parameters: {
             query?: never;
@@ -137,6 +189,161 @@ export interface paths {
         head?: never;
         /** Update Board */
         patch: operations["update_board"];
+        trace?: never;
+    };
+    "/v1/boards/{id}/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Jobs */
+        get: operations["list_board_jobs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/boards/{id}/photo-jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Photo */
+        post: operations["generate_board_photo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/boards/{id}/photo-versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Versions */
+        get: operations["list_board_photo_versions"];
+        put?: never;
+        /** Upload Photo */
+        post: operations["upload_board_photo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/boards/{id}/voice-jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Voice */
+        post: operations["generate_board_voice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/boards/{id}/voice-versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Versions */
+        get: operations["list_board_voice_versions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/go-live-approvals/{id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Withdraw Go Live */
+        post: operations["withdraw_go_live"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/jobs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Job */
+        get: operations["get_job"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/jobs/{id}/media/{sha256}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Job Media */
+        get: operations["get_job_media"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        /** Get Job Media */
+        head: operations["head_job_media"];
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/jobs/{id}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Job Result */
+        get: operations["get_job_result"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/v1/me": {
@@ -262,6 +469,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/queue/lanes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Queue Lanes */
+        get: operations["get_queue_lanes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/queue/lanes/{lane}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Queue Lane */
+        put: operations["set_queue_lane"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/runs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Run */
+        get: operations["get_run"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/runs/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Run */
+        post: operations["cancel_run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/runs/{id}/checks/{check}/overrides": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record Check Override */
+        post: operations["record_check_override"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/runs/{id}/delivery": {
         parameters: {
             query?: never;
@@ -273,6 +565,23 @@ export interface paths {
         get: operations["get_delivery"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/runs/{id}/go-live-approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve Go Live */
+        post: operations["approve_go_live"];
         delete?: never;
         options?: never;
         head?: never;
@@ -331,6 +640,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/stories/{id}/estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Estimate Run */
+        get: operations["estimate_run"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/stories/{id}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Runs */
+        get: operations["list_runs"];
+        put?: never;
+        /** Queue Run */
+        post: operations["queue_run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/stories/{id}/timing": {
         parameters: {
             query?: never;
@@ -352,6 +696,63 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ApprovalState */
+        ApprovalState: {
+            /** Publication Ids */
+            publication_ids: string[];
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "active" | "withdrawn";
+            /** Withdrawal */
+            withdrawal: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+        };
+        /** ApprovalView */
+        ApprovalView: {
+            /** Approved At */
+            approved_at: string;
+            /** Approver */
+            approver: {
+                [key: string]: string;
+            };
+            /** Approver Display Name */
+            approver_display_name: string | null;
+            /** Auth Time */
+            auth_time: string;
+            /** Delivery Id */
+            delivery_id: string;
+            derived: components["schemas"]["ApprovalState"];
+            /** Id */
+            id: string;
+            /** Master Sha256 */
+            master_sha256: string;
+            /** Release Checks */
+            release_checks: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /** Run Id */
+            run_id: string;
+            /** Run Snapshot Sha256 */
+            run_snapshot_sha256: string;
+            /**
+             * Schema
+             * @constant
+             */
+            schema: "studio.go-live-approval/v1";
+        };
+        /** ApprovalWrite */
+        ApprovalWrite: {
+            /** Master Sha256 */
+            master_sha256: string;
+            /**
+             * Platform Setting
+             * @default false
+             */
+            platform_setting: boolean;
+        };
         /** studio.asset/v1: a library item; its versions are studio.asset-version/v1 (contract section 9) */
         Asset: {
             attributes: components["schemas"]["Asset_attributes"];
@@ -595,6 +996,18 @@ export interface components {
                 /** @enum {unknown} */
                 voice_state: "not_needed" | "absent" | "generating" | "current" | "stale";
             };
+            draft_application?: {
+                applied_at: components["schemas"]["StudioDefs_timestamp"];
+                applied_board_revision?: components["schemas"]["StudioDefs_positive"];
+                board_key: string;
+                board_revision: components["schemas"]["StudioDefs_positive"];
+                draft_sha256: string;
+                model: string;
+                person_edit?: components["schemas"]["Board_person_edit"];
+                person_edit_acknowledgments?: components["schemas"]["Board_person_edit_acknowledgments"];
+                person_edit_revision?: components["schemas"]["StudioDefs_positive"];
+                session: string;
+            };
             drafted_by: components["schemas"]["StudioDefs_principal"];
             duration_ms?: components["schemas"]["StudioDefs_duration_is_derived"];
             id: components["schemas"]["StudioDefs_brd_id"];
@@ -622,6 +1035,9 @@ export interface components {
                 manifest: string;
                 source_key: components["schemas"]["StudioDefs_source_key"];
             } | null;
+            person_edit?: components["schemas"]["Board_person_edit"];
+            person_edit_acknowledgments?: components["schemas"]["Board_person_edit_acknowledgments"];
+            person_edit_revision?: components["schemas"]["StudioDefs_positive"];
             photo: {
                 current_version_id: components["schemas"]["StudioDefs_asv_id_or_null"];
                 input_asset_version_ids: components["schemas"]["StudioDefs_asv_id"][];
@@ -649,17 +1065,8 @@ export interface components {
                 style: unknown;
             };
         };
-        BoardCueInput: {
-            /** @enum {unknown} */
-            type: "sound" | "move" | "camera";
-        } & (unknown & unknown & unknown);
-        /** BoardOrder */
-        BoardOrder: {
-            /** Board Order */
-            board_order: string[];
-        };
-        /** BoardWrite */
-        BoardWrite: {
+        /** BoardCreate */
+        BoardCreate: {
             cast?: {
                 asset_version_id: components["schemas"]["StudioDefs_asv_id"];
                 /** @description Optional pin of this cast still's motion loop (story 457, proposal): a library motion version with a motion block. Absent: the one promoted loop of the still. */
@@ -667,13 +1074,27 @@ export interface components {
                 slot: components["schemas"]["StudioDefs_slot"];
             }[];
             cues?: components["schemas"]["BoardCueInput"][];
+            /**
+             * DraftDeclaration
+             * @description Agent only.
+             */
+            draft_application?: {
+                /** Board Key */
+                board_key: string;
+                /** Draft Sha256 */
+                draft_sha256: string;
+                /** Model */
+                model: string;
+                /** Session */
+                session: string;
+            };
             layout?: {
                 foreground: boolean;
                 preset: string;
             };
             lines?: {
                 gap_before_ms: unknown;
-                /** @description Omit for a new line. Preserve an existing line ID. */
+                /** @description Omit for a new line or preserve an existing line ID. An agent draft declaration also allows a fresh line ID to anchor a cue in the same write. */
                 id?: components["schemas"]["StudioDefs_lin_id"];
                 speaker: components["schemas"]["StudioDefs_speaker"];
                 text: string;
@@ -707,6 +1128,98 @@ export interface components {
                 style: unknown;
             };
         };
+        BoardCueInput: {
+            /** @enum {unknown} */
+            type: "sound" | "move" | "camera";
+        } & (unknown & unknown & unknown);
+        /** BoardOrder */
+        BoardOrder: {
+            /** Acknowledge Person Edit */
+            acknowledge_person_edit?: {
+                [key: string]: components["schemas"]["PersonEditAcknowledgment"];
+            } | null;
+            /** Board Order */
+            board_order: string[];
+        };
+        /** BoardPatch */
+        BoardPatch: {
+            acknowledge_person_edit?: components["schemas"]["PersonEditAcknowledgment"];
+            cast?: {
+                asset_version_id: components["schemas"]["StudioDefs_asv_id"];
+                /** @description Optional pin of this cast still's motion loop (story 457, proposal): a library motion version with a motion block. Absent: the one promoted loop of the still. */
+                motion_asset_version_id?: components["schemas"]["StudioDefs_asv_id"];
+                slot: components["schemas"]["StudioDefs_slot"];
+            }[];
+            cues?: components["schemas"]["BoardCueInput"][];
+            /**
+             * RedraftDeclaration
+             * @description Agent only.
+             */
+            draft_application?: {
+                /** Board Key */
+                board_key: string;
+                /** Draft Sha256 */
+                draft_sha256: string;
+                /** Model */
+                model: string;
+                /** Previous Draft Sha256 */
+                previous_draft_sha256: string;
+                /** Session */
+                session: string;
+                /** Story Revision */
+                story_revision: number;
+            };
+            layout?: {
+                foreground: boolean;
+                preset: string;
+            };
+            lines?: {
+                gap_before_ms: unknown;
+                /** @description Omit for a new line or preserve an existing line ID. An agent draft declaration also allows a fresh line ID to anchor a cue in the same write. */
+                id?: components["schemas"]["StudioDefs_lin_id"];
+                speaker: components["schemas"]["StudioDefs_speaker"];
+                text: string;
+            }[] & (unknown & unknown);
+            method?: {
+                /** @enum {unknown} */
+                layer: "layered" | "whole_frame";
+                /** @enum {unknown} */
+                motion: "s2v" | "i2v";
+            };
+            notes?: components["schemas"]["NoteInput"][];
+            photo?: {
+                current_version_id: components["schemas"]["StudioDefs_asv_id_or_null"];
+                input_asset_version_ids: components["schemas"]["StudioDefs_asv_id"][];
+                prompt: string | null;
+            };
+            seeds?: {
+                [key: string]: number;
+            };
+            timing?: {
+                content_ms?: components["schemas"]["StudioDefs_duration_is_derived"];
+                duration_ms?: components["schemas"]["StudioDefs_duration_is_derived"];
+                frames?: components["schemas"]["StudioDefs_duration_is_derived"];
+                hold_ms: unknown;
+                lead_ms: unknown;
+                tail_ms: unknown;
+            };
+            title?: string;
+            voice?: {
+                current_version_id: unknown;
+                style: unknown;
+            };
+        };
+        /** BoardRemoval */
+        BoardRemoval: {
+            acknowledge_person_edit?: components["schemas"]["PersonEditAcknowledgment"] | null;
+        };
+        /** @enum {unknown} */
+        Board_person_edit: "content" | "reordered" | "removed";
+        Board_person_edit_acknowledgments: {
+            acknowledged_at: components["schemas"]["StudioDefs_timestamp"];
+            board_revision: components["schemas"]["StudioDefs_positive"];
+            key_id: string;
+        }[];
         CameraCueInput: {
             anchor: components["schemas"]["StudioDefs_anchor"];
             center_px: [
@@ -722,6 +1235,52 @@ export interface components {
             type: "camera";
             zoom_from: number;
             zoom_to: number;
+        };
+        /** CandidateRequest */
+        CandidateRequest: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "cast" | "costume" | "set" | "prop";
+            /** Labels */
+            labels?: string[];
+            /** Name */
+            name: string;
+            /** Production Id */
+            production_id?: string | null;
+            /** Prompt */
+            prompt: string;
+            /**
+             * Seed
+             * @default 0
+             */
+            seed: number;
+        };
+        /** CheckOverride */
+        CheckOverride: {
+            /** Artifact */
+            artifact: string;
+            /** Reason */
+            reason: string;
+        };
+        /** CheckOverrideView */
+        CheckOverrideView: {
+            /** Artifact */
+            artifact: string;
+            /** At */
+            at: string;
+            /** By */
+            by: {
+                [key: string]: unknown;
+            };
+            /**
+             * Check
+             * @constant
+             */
+            check: "layered.decal_gate";
+            /** Reason */
+            reason: string;
         };
         /**
          * studio.delivery/v1: a run's verified master and phone proxy (contract section 8)
@@ -784,16 +1343,28 @@ export interface components {
         };
         /** ErrorDetail */
         ErrorDetail: {
+            /** Board Id */
+            board_id?: string | null;
             /** Code */
             code: string;
             /** Current Revision */
             current_revision?: number | null;
+            /** Evidence */
+            evidence?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+            /** Existing Entity Id */
+            existing_entity_id?: string | null;
             /** Http Status */
             http_status: number;
             /** Message */
             message: string;
             /** Path */
             path: string;
+            /** Person Edit */
+            person_edit?: ("content" | "reordered" | "removed") | null;
+            /** Person Edit Revision */
+            person_edit_revision?: number | null;
             /** Request Id */
             request_id: string;
             /**
@@ -806,6 +1377,37 @@ export interface components {
         ErrorEnvelope: {
             error: components["schemas"]["ErrorDetail"];
         };
+        /** EstimateRange */
+        EstimateRange: {
+            /** Basis */
+            basis: string;
+            /** Cpu Wall S */
+            cpu_wall_s: [
+                number,
+                number
+            ] | null;
+            /** Gpu Wall S */
+            gpu_wall_s: [
+                number,
+                number
+            ] | null;
+            /**
+             * Uncertain
+             * @constant
+             */
+            uncertain: true;
+        };
+        /** EstimateView */
+        EstimateView: {
+            estimate: components["schemas"]["EstimateRange"];
+            /** Methods */
+            methods: components["schemas"]["MethodEstimate"][];
+            /** Problems */
+            problems: {
+                [key: string]: unknown;
+            }[];
+            queue_wait: components["schemas"]["QueueWait"];
+        };
         /**
          * ExternalPhotoDeclaration
          * @description D42 client-declared provenance for the upload transport in story 430.
@@ -815,13 +1417,127 @@ export interface components {
             harness: string;
             /** Model */
             model: string;
+            /**
+             * Paid Api
+             * @constant
+             */
+            paid_api: false;
             /** Prompt */
             prompt: string;
             /** Session */
             session: string;
             /** Source Asset Version Ids */
-            source_asset_version_ids?: string[];
+            source_asset_version_ids: string[];
+            /**
+             * Upload Sha256
+             * @default null
+             */
+            upload_sha256: string | null;
         };
+        /** JobStatus */
+        JobStatus: {
+            /** Error */
+            error: {
+                [key: string]: unknown;
+            } | null;
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "voice" | "photo" | "asset_candidate";
+            /** Result Is Current */
+            result_is_current: boolean | null;
+            /** Result Version Id */
+            result_version_id: string | null;
+            /**
+             * Schema
+             * @constant
+             */
+            schema: "studio.job/v1";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+            /** Target Id */
+            target_id: string;
+            /** Updated At */
+            updated_at: string;
+        };
+        /**
+         * studio.job/v1: one asynchronous job (voice, photo, asset candidate), contract section 2 and VOICE-4
+         * @description The contract's fields are id, kind, target_id, input_signature, status, result_version_id, result_is_current and error. created_by, created_at, updated_at, the error object's shape and the voice block are proposals of story 405.
+         */
+        JobView: {
+            asset_candidate?: {
+                /** @enum {unknown} */
+                kind: "cast" | "costume" | "set" | "prop";
+                labels: string[];
+                model: string;
+                name: string;
+                production_id: components["schemas"]["StudioDefs_prd_id"] | null;
+                prompt: string;
+                request_size: number[];
+                seed: number;
+            };
+            created_at: components["schemas"]["StudioDefs_timestamp"];
+            created_by: components["schemas"]["StudioDefs_principal"];
+            error: null | components["schemas"]["JobView_error"];
+            id: components["schemas"]["JobView_job_id"];
+            input_signature: components["schemas"]["AssetVersion_signature"];
+            /** @enum {unknown} */
+            kind: "voice" | "photo" | "asset_candidate";
+            photo?: {
+                /** @enum {unknown} */
+                layer: "layered" | "whole_frame";
+                model: string | null;
+                photo_input_signature: components["schemas"]["AssetVersion_signature"];
+                production_id: components["schemas"]["StudioDefs_prd_id"];
+                prompt: string | null;
+                seed: number | null;
+                selected_version_id: components["schemas"]["StudioDefs_asv_id_or_null"];
+                source_assets: {
+                    sha256: string;
+                    version_id: components["schemas"]["StudioDefs_asv_id"];
+                }[];
+                story_id: components["schemas"]["StudioDefs_sty_id"];
+            };
+            result_is_current: boolean | null;
+            result_version_id: components["schemas"]["StudioDefs_asv_id_or_null"];
+            /** @constant */
+            schema: "studio.job/v1";
+            /** @enum {unknown} */
+            status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+            target_id: components["schemas"]["StudioDefs_id"];
+            updated_at: components["schemas"]["StudioDefs_timestamp"];
+            voice?: Record<string, never> | null;
+        } & (unknown & unknown & unknown & unknown & unknown & unknown);
+        JobView_error: {
+            code: string;
+            message: string;
+        };
+        JobView_job_id: string;
+        JobView_voice_input: {
+            engine: string;
+            gaps_ms: components["schemas"]["JobView_voice_ms"][];
+            lead_ms: components["schemas"]["JobView_voice_ms"];
+            lines: components["schemas"]["JobView_voice_line"][];
+            model: string;
+            name: string;
+            production_id: components["schemas"]["StudioDefs_prd_id"];
+            story_id: components["schemas"]["StudioDefs_sty_id"];
+        };
+        JobView_voice_line: {
+            line_id: components["schemas"]["StudioDefs_lin_id"];
+            signature: components["schemas"]["AssetVersion_signature"];
+            speaker: components["schemas"]["StudioDefs_speaker"];
+            text: components["schemas"]["StudioDefs_text_line"];
+            voice_id: string;
+            voice_version_id: components["schemas"]["StudioDefs_asv_id"];
+        };
+        JobView_voice_ms: components["schemas"]["StudioDefs_ms"];
         JsonValue: unknown;
         /** Me */
         Me: {
@@ -837,6 +1553,18 @@ export interface components {
             production_scopes?: {
                 [key: string]: string[];
             } | null;
+        };
+        /** MethodEstimate */
+        MethodEstimate: {
+            /** Chunks */
+            chunks: number;
+            /** Gpu Wall S */
+            gpu_wall_s: [
+                number,
+                number
+            ];
+            /** Method */
+            method: string;
         };
         MoveCueInput: {
             anchor: components["schemas"]["StudioDefs_anchor"];
@@ -864,10 +1592,24 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** Page[JobStatus] */
+        Page_JobStatus_: {
+            /** Items */
+            items: components["schemas"]["JobStatus"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** Page[Production] */
         Page_Production_: {
             /** Items */
             items: components["schemas"]["Production"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** Page[RunView] */
+        Page_RunView_: {
+            /** Items */
+            items: components["schemas"]["RunView"][];
             /** Next Cursor */
             next_cursor: string | null;
         };
@@ -877,6 +1619,29 @@ export interface components {
             items: components["schemas"]["Story"][];
             /** Next Cursor */
             next_cursor: string | null;
+        };
+        /** PersonEditAcknowledgment */
+        PersonEditAcknowledgment: {
+            /** Board Revision */
+            board_revision: number;
+            /** Read Token */
+            read_token: string;
+        };
+        /** PhotoRequest */
+        PhotoRequest: {
+            /**
+             * Seed
+             * @default 0
+             */
+            seed: number;
+        };
+        /** PhotoUploadView */
+        PhotoUploadView: {
+            /** Board Revision */
+            board_revision: number | null;
+            /** Selected */
+            selected: boolean;
+            version: components["schemas"]["AssetVersion"];
         };
         /** studio.production/v1: a themed collection (contract section 1, D28) */
         Production: {
@@ -907,6 +1672,243 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** QueueLaneStatus */
+        QueueLaneStatus: {
+            /** Changed At */
+            changed_at: string | null;
+            /** Changed By */
+            changed_by: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Lane
+             * @enum {string}
+             */
+            lane: "run" | "image" | "voice";
+            /** Paused */
+            paused: boolean;
+        };
+        /** QueueLaneUpdate */
+        QueueLaneUpdate: {
+            /** Paused */
+            paused: boolean;
+        };
+        /** QueueStatus */
+        QueueStatus: {
+            /** Items */
+            items: components["schemas"]["QueueLaneStatus"][];
+        };
+        /** QueueWait */
+        QueueWait: {
+            /** Ahead */
+            ahead: number;
+            /** Basis */
+            basis: string;
+            /**
+             * Uncertain
+             * @constant
+             */
+            uncertain: true;
+            /** Wall S */
+            wall_s: [
+                number,
+                number
+            ] | null;
+        };
+        /**
+         * studio.run/v1: one build of one story snapshot (contract sections 7 and 8, D30)
+         * @description The contract's fields are id, story_id, number, status with wait_reason, the snapshot (its sha256, the story revision, the board count and the blob's locator), queued_by, queued_at, idempotency_key, the estimate, progress, stages, outputs, checks, provenance (toolchain, engines, inputs_externally_generated, usage, public credits), delivery_id, legacy, started_at and finished_at. Story 406 proposes the rest: transitions (every status change with time, actor and reason), error (the code, board and stage a failed run stopped at), phase, and the per-board and per-check detail fields listed below.
+         */
+        RunView: {
+            active_approval_id: string | null;
+            cancel_requested: boolean;
+            check_overrides?: components["schemas"]["CheckOverrideView"][];
+            checks: components["schemas"]["RunView_check"][] | null;
+            delivery_id: components["schemas"]["StudioDefs_dlv_id_or_null"];
+            error?: Record<string, never> | null;
+            estimate?: {
+                basis: string;
+                cpu_wall_s?: null | [
+                    number,
+                    number
+                ];
+                gpu_wall_s?: null | [
+                    number,
+                    number
+                ];
+                uncertain: boolean;
+            } | null;
+            estimate_methods: components["schemas"]["MethodEstimate"][];
+            finished_at?: null | components["schemas"]["StudioDefs_timestamp"];
+            id: components["schemas"]["StudioDefs_run_id"];
+            idempotency_key: null | string;
+            legacy: Record<string, never> | null;
+            number: components["schemas"]["StudioDefs_positive"];
+            outputs: Record<string, never> | null;
+            /** @enum {unknown} */
+            phase?: "all" | "service" | "offline";
+            progress: {
+                percent: number;
+                stage: null | string;
+            };
+            provenance: Record<string, never> | null;
+            queue_wait: components["schemas"]["QueueWait"] | null;
+            queued_at: components["schemas"]["StudioDefs_timestamp"];
+            queued_by: components["schemas"]["StudioDefs_principal"];
+            revision: number;
+            /** @constant */
+            schema: "studio.run/v1";
+            snapshot: {
+                board_count: components["schemas"]["StudioDefs_count"];
+                locator: string;
+                sha256: string;
+                story_revision: number;
+            };
+            stages: components["schemas"]["RunView_board_stage"][];
+            started_at?: null | components["schemas"]["StudioDefs_timestamp"];
+            /** @enum {unknown} */
+            status: "queued" | "running" | "succeeded" | "failed" | "cancelled" | "held" | "imported";
+            story_id: components["schemas"]["StudioDefs_sty_id"];
+            transitions?: components["schemas"]["RunView_transition"][];
+            /** @enum {unknown} */
+            wait_reason: null | "lease_busy" | "gpu_unavailable";
+            wan_attempts?: {
+                attempt: number;
+                job_id: string;
+                /** @enum {unknown} */
+                kind: "i2v" | "s2v";
+                /** @enum {unknown} */
+                state: "reserved" | "sent" | "succeeded" | "failed" | "restart_failed" | "busy";
+            }[];
+        } & (unknown & unknown);
+        RunView_artifact: {
+            key: string;
+            kind: string;
+            made: boolean;
+            name: string;
+            seconds?: number | null;
+            sha256: string | null;
+        };
+        RunView_board_stage: {
+            artifacts?: components["schemas"]["RunView_artifact"][];
+            board_id: components["schemas"]["StudioDefs_brd_id"];
+            board_number?: components["schemas"]["StudioDefs_positive"];
+            checks?: components["schemas"]["RunView_check"][];
+            clips: components["schemas"]["RunView_clip"][];
+            compositor?: string;
+            film_start_frame: components["schemas"]["StudioDefs_count"];
+            frames: components["schemas"]["StudioDefs_positive"];
+            method: {
+                /** @enum {unknown} */
+                layer: "layered" | "whole_frame" | "rigid_cutout";
+                /** @enum {unknown} */
+                motion: "s2v" | "i2v" | "none";
+            };
+            render_s?: number | null;
+            report?: Record<string, never> | null;
+            segment_key?: string | null;
+            segment_note?: string;
+            segment_sha256: string | null;
+        };
+        RunView_check: {
+            actual?: unknown;
+            artifact?: string;
+            board_id?: components["schemas"]["StudioDefs_brd_id"];
+            check: string;
+            expected?: unknown;
+            key?: string;
+            measured?: unknown;
+            override?: {
+                by: components["schemas"]["StudioDefs_principal"];
+                reason: string;
+            };
+            /** @enum {unknown} */
+            result: "pass" | "pass_with_tolerances" | "fail" | "overridden";
+            sha256?: string | null;
+            slot?: components["schemas"]["StudioDefs_slot"];
+            threshold?: number;
+            thresholds?: unknown;
+            tolerances_used?: string[];
+            value?: number;
+            version?: string;
+        };
+        RunView_clip: {
+            chunks?: number | null;
+            clips?: Record<string, never>[];
+            engine?: null | string;
+            engine_job_id?: null | string;
+            files_sha256?: Record<string, never> | null;
+            fps?: number | null;
+            frames?: number | null;
+            held_frames?: number | null;
+            key?: string;
+            library_version_id?: components["schemas"]["StudioDefs_asv_id_or_null"];
+            made?: boolean;
+            render_s?: number | null;
+            requested_length?: number | null;
+            /** @enum {unknown} */
+            role: "s2v_clip" | "i2v_clip" | "doll_clip" | "set_loop" | "whole_frame_clip";
+            seed?: number | null;
+            sha256: string | null;
+            slot?: null | components["schemas"]["StudioDefs_slot"];
+            source_frames_used?: number | null;
+            trimmed?: number | null;
+        };
+        RunView_engine: {
+            files?: components["schemas"]["RunView_engine_file"][];
+            hardware: null | string;
+            key: string;
+            licence: Record<string, never> | null;
+            name: string;
+            profile?: Record<string, never> | null;
+            /** @enum {unknown} */
+            role: "video" | "voice" | "sound" | "image" | "writer" | "composite" | "check";
+            used_by?: string[];
+        };
+        RunView_engine_file: {
+            licence: components["schemas"]["AssetVersion_licence"];
+            name: string;
+            sha256: null | string;
+        };
+        RunView_outputs: {
+            /** @constant */
+            fps: 24;
+            frames: components["schemas"]["StudioDefs_count"];
+            keys?: Record<string, never>;
+            master_sha256?: string | null;
+            mix_sha256?: string | null;
+            note?: string;
+            picture_sha256?: string | null;
+            placement?: Record<string, never> | null;
+            proxy_sha256?: string | null;
+        };
+        RunView_provenance: {
+            engines: components["schemas"]["RunView_engine"][];
+            hardware?: Record<string, never>[];
+            inputs_externally_generated: unknown[];
+            public: {
+                /** @constant */
+                ai_generated: true;
+                credits: {
+                    engine_key: string;
+                    text: string;
+                }[];
+                derived_from_roles?: ("video" | "voice" | "sound")[];
+            };
+            toolchain: {
+                studio: string;
+            };
+            usage: Record<string, never> | null;
+        };
+        RunView_transition: {
+            at: components["schemas"]["StudioDefs_timestamp"];
+            by: components["schemas"]["StudioDefs_principal"];
+            /** @enum {unknown} */
+            from: null | "queued" | "running" | "held";
+            reason: string;
+            /** @enum {unknown} */
+            to: "queued" | "running" | "succeeded" | "failed" | "cancelled" | "held";
+        };
         /** SelectionWrite */
         SelectionWrite: {
             /** Values */
@@ -935,6 +1937,7 @@ export interface components {
         };
         /** studio.story/v1: one video, its boards in order (contract section 2) */
         Story: {
+            approved: boolean;
             beds: components["schemas"]["StudioDefs_bed_cue"][];
             board_order: components["schemas"]["StudioDefs_brd_id"][];
             cast: {
@@ -963,6 +1966,14 @@ export interface components {
             };
             format_version_id: components["schemas"]["StudioDefs_fmv_id_or_null"];
             id: components["schemas"]["StudioDefs_sty_id"];
+            latest_finished_run: {
+                active_approval_id: string | null;
+                /** Format: date-time */
+                finished_at: string;
+                id: string;
+                /** @enum {unknown} */
+                status: "succeeded" | "failed" | "cancelled";
+            } | null;
             layouts: {
                 [key: string]: Record<string, never>;
             };
@@ -981,6 +1992,7 @@ export interface components {
                 tracker: string | null;
             } | null;
             production_id: components["schemas"]["StudioDefs_prd_id"];
+            published: boolean;
             revision: components["schemas"]["StudioDefs_positive"];
             /** @constant */
             schema: "studio.story/v1";
@@ -1121,6 +2133,7 @@ export interface components {
         StudioDefs_count: number;
         StudioDefs_cue_id: string;
         StudioDefs_dlv_id: string;
+        StudioDefs_dlv_id_or_null: string | null;
         StudioDefs_duration_is_derived: unknown;
         StudioDefs_fmv_id: string;
         StudioDefs_fmv_id_or_null: string | null;
@@ -1131,6 +2144,7 @@ export interface components {
             kind: "human";
             sub: string;
         };
+        StudioDefs_id: string;
         StudioDefs_level: number;
         StudioDefs_lin_id: string;
         /** @enum {unknown} */
@@ -1222,6 +2236,8 @@ export interface components {
             story_revision: components["schemas"]["StudioDefs_positive"];
             warnings: components["schemas"]["StudioDefs_warning"][];
         };
+        /** VoiceRequest */
+        VoiceRequest: Record<string, never>;
     };
     responses: never;
     parameters: never;
@@ -1233,9 +2249,9 @@ export type $defs = Record<string, never>;
 export interface operations {
     callback: {
         parameters: {
-            query: {
-                state: string;
-                code?: string | null;
+            query?: {
+                state?: string;
+                code?: string;
             };
             header?: never;
             path?: never;
@@ -1285,7 +2301,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -1344,7 +2360,10 @@ export interface operations {
     };
     login: {
         parameters: {
-            query?: never;
+            query?: {
+                return_to?: string;
+                fresh?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1393,7 +2412,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -1504,7 +2523,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -1610,6 +2629,514 @@ export interface operations {
             };
         };
     };
+    generate_asset_candidate: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                /** @description Required on unsafe methods when authenticating with the session cookie */
+                "X-Studio-CSRF"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CandidateRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description Job status path */
+                    Location?: string;
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobStatus"];
+                };
+            };
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    /** @description Job status path */
+                    Location?: string;
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobStatus"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_version_media: {
+        parameters: {
+            query?: never;
+            header?: {
+                Range?: string | null;
+                "If-Range"?: string | null;
+            };
+            path: {
+                id: string;
+                sha256: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Complete media file */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description Single byte range */
+            206: {
+                headers: {
+                    "Accept-Ranges"?: string;
+                    "Content-Range"?: string;
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Range cannot be satisfied */
+            416: {
+                headers: {
+                    "Content-Range"?: string;
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    head_version_media: {
+        parameters: {
+            query?: never;
+            header?: {
+                Range?: string | null;
+                "If-Range"?: string | null;
+            };
+            path: {
+                id: string;
+                sha256: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Complete media file */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Single byte range */
+            206: {
+                headers: {
+                    "Accept-Ranges"?: string;
+                    "Content-Range"?: string;
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Range cannot be satisfied */
+            416: {
+                headers: {
+                    "Content-Range"?: string;
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    promote_asset_version: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required on unsafe methods when authenticating with the session cookie */
+                "X-Studio-CSRF"?: string | null;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetVersion"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     search_assets: {
         parameters: {
             query?: {
@@ -1671,7 +3198,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -1787,7 +3314,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -1862,6 +3389,8 @@ export interface operations {
                     ETag?: string;
                     /** @description Server-generated request ID, also used in errors and access logs */
                     "X-Request-ID"?: string;
+                    /** @description For agent reads. Bound to the agent key, board ID and board revision. */
+                    "X-Studio-Board-Read-Token"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -1901,7 +3430,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -1972,7 +3501,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["BoardRemoval"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             204: {
@@ -2016,7 +3549,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -2089,7 +3622,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BoardWrite"];
+                "application/json": components["schemas"]["BoardPatch"];
             };
         };
         responses: {
@@ -2139,7 +3672,1349 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_board_jobs: {
+        parameters: {
+            query?: {
+                /** @description Pass next_cursor from the previous page under the same filters */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_JobStatus_"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    generate_board_photo: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                /** @description Required on unsafe methods when authenticating with the session cookie */
+                "X-Studio-CSRF"?: string | null;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhotoRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description Job status path */
+                    Location?: string;
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobStatus"];
+                };
+            };
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    /** @description Job status path */
+                    Location?: string;
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobStatus"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_board_photo_versions: {
+        parameters: {
+            query?: {
+                /** @description Pass next_cursor from the previous page under the same filters */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AssetVersion_"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    upload_board_photo: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Current integer revision, quoted as an ETag, for example "3" */
+                "If-Match": string;
+                /** @description Strict ASCII JSON with Unicode escapes. See ExternalPhotoDeclaration. */
+                "X-Studio-Photo-Provenance": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "image/jpeg": string;
+                "image/png": string;
+                "image/webp": string;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    /** @description The entity revision */
+                    ETag?: string;
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhotoUploadView"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    generate_board_voice: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                /** @description Required on unsafe methods when authenticating with the session cookie */
+                "X-Studio-CSRF"?: string | null;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoiceRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description Job status path */
+                    Location?: string;
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobStatus"];
+                };
+            };
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    /** @description Job status path */
+                    Location?: string;
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobStatus"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_board_voice_versions: {
+        parameters: {
+            query?: {
+                /** @description Pass next_cursor from the previous page under the same filters */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AssetVersion_"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    withdraw_go_live: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required on unsafe methods when authenticating with the session cookie */
+                "X-Studio-CSRF"?: string | null;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalView"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_job: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobView"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_job_media: {
+        parameters: {
+            query?: never;
+            header?: {
+                Range?: string | null;
+                "If-Range"?: string | null;
+            };
+            path: {
+                id: string;
+                sha256: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Complete media file */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description Single byte range */
+            206: {
+                headers: {
+                    "Accept-Ranges"?: string;
+                    "Content-Range"?: string;
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Range cannot be satisfied */
+            416: {
+                headers: {
+                    "Content-Range"?: string;
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    head_job_media: {
+        parameters: {
+            query?: never;
+            header?: {
+                Range?: string | null;
+                "If-Range"?: string | null;
+            };
+            path: {
+                id: string;
+                sha256: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Complete media file */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Single byte range */
+            206: {
+                headers: {
+                    "Accept-Ranges"?: string;
+                    "Content-Range"?: string;
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Range cannot be satisfied */
+            416: {
+                headers: {
+                    "Content-Range"?: string;
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_job_result: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetVersion"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -2249,7 +5124,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -2361,7 +5236,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -2482,7 +5357,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -2610,7 +5485,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -2740,7 +5615,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -2854,7 +5729,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -2973,7 +5848,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -3087,7 +5962,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -3207,7 +6082,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -3326,7 +6201,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -3448,7 +6323,591 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_queue_lanes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueueStatus"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    set_queue_lane: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required on unsafe methods when authenticating with the session cookie */
+                "X-Studio-CSRF"?: string | null;
+            };
+            path: {
+                lane: "run" | "image" | "voice";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueueLaneUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueueLaneStatus"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description The entity revision */
+                    ETag?: string;
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunView"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    cancel_run: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Current integer revision, quoted as an ETag, for example "3" */
+                "If-Match": string;
+                /** @description Required on unsafe methods when authenticating with the session cookie */
+                "X-Studio-CSRF"?: string | null;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description The entity revision */
+                    ETag?: string;
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunView"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    record_check_override: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Current integer revision, quoted as an ETag, for example "3" */
+                "If-Match": string;
+                /** @description Required on unsafe methods when authenticating with the session cookie */
+                "X-Studio-CSRF"?: string | null;
+            };
+            path: {
+                id: string;
+                check: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckOverride"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckOverrideView"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -3560,7 +7019,126 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    approve_go_live: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required on unsafe methods when authenticating with the session cookie */
+                "X-Studio-CSRF"?: string | null;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApprovalWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalView"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -3674,7 +7252,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -3797,7 +7375,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -3920,7 +7498,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -3993,7 +7571,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BoardWrite"];
+                "application/json": components["schemas"]["BoardCreate"];
             };
         };
         responses: {
@@ -4043,7 +7621,366 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    estimate_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EstimateView"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_runs: {
+        parameters: {
+            query?: {
+                /** @description Pass next_cursor from the previous page under the same filters */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_RunView_"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    queue_run: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Current integer revision, quoted as an ETag, for example "3" */
+                "If-Match": string;
+                "Idempotency-Key": string;
+                /** @description Required on unsafe methods when authenticating with the session cookie */
+                "X-Studio-CSRF"?: string | null;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description The entity revision */
+                    ETag?: string;
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    /** @description The entity revision */
+                    ETag?: string;
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunView"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -4155,7 +8092,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */

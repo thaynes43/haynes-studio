@@ -9,6 +9,7 @@ from uuid import uuid4
 import httpx
 
 from haynes_studio.canonical.jsonvalues import too_deep
+from haynes_studio.drafting.declaration import READ_TOKEN_HEADER
 from haynes_studio.jsonio import parse_strict
 
 MAX_API_BYTES = 8 * 1024 * 1024
@@ -21,6 +22,7 @@ STATUSES = {
 ERROR_STATUSES = frozenset(STATUSES.values()) | {"unavailable"}
 _CODE = re.compile(r"[a-z][a-z0-9_.-]{0,95}")
 _REQUEST_ID = re.compile(r"[A-Za-z0-9_-]{1,96}")
+_READ_TOKEN = re.compile(r"[0-9a-f]{64}")
 
 
 def json_text(data: object) -> str:
@@ -104,6 +106,7 @@ async def _read_json(response: httpx.Response):
 class Reply:
     document: dict
     request_id: str | None
+    board_read_token: str | None = None
 
 
 class StudioAPI:
@@ -143,7 +146,7 @@ class StudioAPI:
                     raise _error(response, document, request_id)
                 if not isinstance(document, dict):
                     raise Problem.internal(request_id)
-                return Reply(document, request_id)
+                return Reply(document, request_id, _checked(response.headers.get(READ_TOKEN_HEADER), _READ_TOKEN))
             finally:
                 await response.aclose()
         except (httpx.TimeoutException, httpx.NetworkError, httpx.ProxyError, httpx.RemoteProtocolError):
