@@ -49,6 +49,9 @@ class WorkerAPI:
         body = self._post("claim", None if lane == "run" else {"lane": lane})
         return None if body is None else (ClaimAPI if lane == "run" else MediaClaimAPI)(self, body)
 
+    def settle_expired_matte(self):
+        self._post("claim", {"lane": "matte", "settle_only": True})
+
 
 class ClaimAPI:
     def __init__(self, api, body):
@@ -88,6 +91,9 @@ class MediaClaimAPI(ClaimAPI):
 
     def heartbeat(self, progress=None):
         return self._post("heartbeat")
+
+    def release(self, *, reason=None):
+        self._post("release-matte", **({"reason": reason} if reason is not None else {}))
 
     def fail(self, *, code, message):
         return self._post("fail", code=code, message=message)

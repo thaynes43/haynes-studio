@@ -1,14 +1,16 @@
 import { ApiError, type StudioClient } from "./api/client";
 import type { components } from "./api/schema";
+import { isJobId } from "./asset-library-model";
 import type { AssetVersion } from "./photo-composer-model";
 import { collectPages, loadProduction, type Production } from "./route-data";
 import type { AssetScope, Context } from "./routes";
 
 type Story = components["schemas"]["Story"];
-type AssetStory = Pick<Story, "id" | "title" | "board_order" | "narrator_voice_version_id" | "cast" | "beds"> & {
+type AssetStory = Pick<Story, "id" | "title" | "format_version_id" | "board_order" | "narrator_voice_version_id" | "cast" | "beds"> & {
   set: Pick<NonNullable<Story["set"]>, "asset_version_id" | "motion_asset_version_id"> | null;
 };
 export type CandidateRequest = components["schemas"]["CandidateRequest"];
+export type MatteRequest = components["schemas"]["MatteRequest"];
 export type CandidateStatus = components["schemas"]["JobStatus"];
 
 export async function loadAssetContext(api: StudioClient, context: Context, signal: AbortSignal):
@@ -75,39 +77,60 @@ export async function queueCandidate(api: StudioClient, body: CandidateRequest, 
   const { data } = await api.POST("/v1/asset-jobs", {
     signal, params: { header: { "Idempotency-Key": key } }, body,
   });
-  if (!data || data.kind !== "asset_candidate" || !/^job_[0-7][0-9A-HJKMNP-TV-Z]{25}$/.test(data.id)) {
+  if (!data || data.kind !== "asset_candidate" || !isJobId(data.id)) {
     throw new ApiError(500);
   }
   return data;
 }
 
+export async function queueMatte(api: StudioClient, body: MatteRequest, key: string, signal: AbortSignal) {
+  const { data } = await api.POST("/v1/asset-jobs/matte", {
+    signal, params: { header: { "Idempotency-Key": key } }, body,
+  });
+  if (!data || data.kind !== "matte" || !isJobId(data.id) || data.target_id !== body.source_version_id) {
+    throw new ApiError(500);
+  }
+  return data;
+}
+
+export async function loadMatteFormat(api: StudioClient, id: string, signal: AbortSignal) {
+  const { data } = await api.GET("/v1/format-versions/{id}", { signal, params: { path: { id } } });
+  if (!data || data.id !== id) throw new ApiError(404);
+  return data;
+}
+
 export async function loadCandidateJob(api: StudioClient, id: string, signal: AbortSignal) {
   const { data: job } = await api.GET("/v1/jobs/{id}", { signal, params: { path: { id } } });
-  if (!job || job.id !== id || job.kind !== "asset_candidate" || !job.asset_candidate) throw new ApiError(404);
+  if (!job || job.id !== id || !(
+    (job.kind === "asset_candidate" && job.asset_candidate) ||
+    (job.kind === "matte" && job.matte?.source_version_id === job.target_id)
+  )) throw new ApiError(404);
   return job;
 }
 
 type CandidateResultRef = {
   jobId: string;
   versionId: string | null;
-  assetId: string;
+  assetId?: string;
+  sourceVersionId?: string;
   productionId?: string | null;
   kind?: CandidateRequest["kind"];
 };
 
 export async function loadCandidateResult(api: StudioClient, source: CandidateResultRef, signal: AbortSignal) {
   const { data } = await api.GET("/v1/jobs/{id}/result", { signal, params: { path: { id: source.jobId } } });
-  if (!data || data.id !== source.versionId || data.asset_id !== source.assetId ||
+  if (!data || data.id !== source.versionId || (source.assetId && data.asset_id !== source.assetId) ||
       data.scope.production_id !== source.productionId || data.kind !== source.kind ||
       (data.state !== "candidate" && data.state !== "promoted")) throw new ApiError(500);
+  if (source.sourceVersionId && (!data.capabilities.includes("rgba_cutout") || !data.capabilities.includes("mask") ||
+      !data.provenance.generator.source_asset_version_ids?.includes(source.sourceVersionId))) throw new ApiError(500);
   return data;
 }
 
-export async function loadImageLane(api: StudioClient, signal: AbortSignal) {
+export async function loadAssetLanes(api: StudioClient, signal: AbortSignal) {
   const { data } = await api.GET("/v1/queue/lanes", { signal });
-  const lane = data?.items.find(({ lane }) => lane === "image");
-  if (!lane) throw new ApiError(500);
-  return lane;
+  if (!data) throw new ApiError(500);
+  return { image: data.items.find(({ lane }) => lane === "image"), matte: data.items.find(({ lane }) => lane === "matte") };
 }
 
 export async function promoteAsset(api: StudioClient, version: AssetVersion, signal: AbortSignal) {

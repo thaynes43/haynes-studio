@@ -2,6 +2,7 @@
 
 from haynes_studio.adapters.comfyui import TextToImage
 from haynes_studio.assets.candidate import plan_candidate
+from haynes_studio.assets.matte import MatteTarget, matte_kind
 from haynes_studio.canonical.model import Story
 from haynes_studio.errors import ContractError, Violation
 from haynes_studio.library import Library
@@ -48,6 +49,21 @@ def checked_candidate(job, frozen):
     return plan
 
 
+def matte_signature(frozen, target):
+    source = frozen["source"]
+    # Promotion and mutable labels do not change the bytes or the normalization.
+    pin = {field: source[field] for field in ("id", "content", "scope", "kind", "capabilities")}
+    return signature({"schema": "studio.matte-job-inputs/v1", "source": pin,
+                      "normalization": target.document()})
+
+
+def checked_matte(job, frozen):
+    target = MatteTarget.from_recipe(frozen["format_version"], frozen["slot"])
+    if frozen["source"]["id"] != job.target_id or matte_signature(frozen, target) != job.input_signature:
+        raise ContractError(job.id, [Violation("job.input_changed", "", "The frozen matte inputs changed")])
+    return target
+
+
 def provenance(document, frozen):
     """Expose the job inputs people and agents need to diagnose stale or failed work."""
     from haynes_studio.voice.model import Job
@@ -55,6 +71,15 @@ def provenance(document, frozen):
     if document["kind"] == "voice":
         return {}
     job = Job.from_document(document)
+    if job.kind == "matte":
+        target = checked_matte(job, frozen)
+        source = frozen["source"]
+        return {"matte": {
+            "source_version_id": source["id"], "source_sha256": source["content"]["sha256"],
+            "production_id": source["scope"]["production_id"], "kind": matte_kind(source["kind"]),
+            "format_version_id": target.format_version_id, "format_sha256": target.format_sha256,
+            "slot": target.slot, "target_height_px": target.height,
+        }}
     if job.kind == "photo":
         plan = checked_photo(job, frozen)
         return {"photo": {

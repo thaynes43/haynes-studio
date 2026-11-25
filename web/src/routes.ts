@@ -18,6 +18,7 @@ export type AssetFilters = {
   kind?: string;
   search?: string;
   job?: string;
+  jobKind?: "matte";
 };
 export type AssetsRoute = { area: "assets"; context: Context; generate: boolean; filters: AssetFilters };
 
@@ -84,7 +85,10 @@ export function assetsPath(context: Context = {}, generate = false, filters: Ass
   if (filters.kind && isAssetKind(filters.kind)) query.set("kind", filters.kind);
   const search = assetSearch(filters.search);
   if (search) query.set("q", search);
-  if (filters.job && isId(filters.job, "job")) query.set("job", filters.job);
+  if (filters.job && isId(filters.job, "job")) {
+    query.set("job", filters.job);
+    if (filters.jobKind === "matte") query.set("job_kind", "matte");
+  }
   return (generate ? "/editor/assets/generate" : "/editor/assets") + (query.size ? "?" + query : "");
 }
 
@@ -136,6 +140,7 @@ export function parseRoute(pathname: string, search = ""): Route {
         kind: isAssetKind(kind) ? kind : undefined,
         search: assetSearch(query.get("q") ?? undefined),
         job: isId(job, "job") ? job : undefined,
+        jobKind: isId(job, "job") && query.get("job_kind") === "matte" ? "matte" : undefined,
       },
     };
   }

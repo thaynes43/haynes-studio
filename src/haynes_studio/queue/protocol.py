@@ -1,6 +1,6 @@
 """JSON payloads shared by Studio's API and the queue worker."""
 
-from typing import Annotated, Literal
+from typing import Annotated, Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
@@ -102,16 +102,23 @@ class WorkFailure(ClaimFence):
     admission_busy: bool = False
 
 
-WorkLane = Literal["run", "image", "voice"]
+WorkLane = Literal["run", "image", "voice", "matte"]
+WORK_LANES = get_args(WorkLane)
+MEDIA_LANES = tuple(lane for lane in WORK_LANES if lane != "run")
 
 
 class WorkClaim(Payload):
     lane: WorkLane = "run"
+    settle_only: bool = False
 
 
 class MediaFence(Payload):
     job_id: str
     fence: Annotated[int, Field(ge=1, lt=2**63)]
+
+
+class MatteRelease(MediaFence):
+    reason: Literal["connect", "busy", "readiness"] | None = None
 
 
 class MediaHeartbeat(MediaFence):
@@ -128,8 +135,12 @@ class VoiceEvidence(Payload):
     version: dict
 
 
+class MatteEvidence(Payload):
+    matte_version: dict
+
+
 class MediaCompletion(MediaFence):
-    result: VoiceEvidence | ImageEvidence | None
+    result: VoiceEvidence | ImageEvidence | MatteEvidence | None
 
 
 class MediaFailure(MediaFence):

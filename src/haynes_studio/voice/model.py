@@ -31,8 +31,8 @@ from haynes_studio.timebase import HOLD_MAX_MS
 JOB_SCHEMA = "studio.job/v1"
 JOB_FILE = "studio.job.v1.schema.json"
 
-VOICE, PHOTO, ASSET_CANDIDATE = "voice", "photo", "asset_candidate"
-JOB_KINDS = (VOICE, PHOTO, ASSET_CANDIDATE)
+VOICE, PHOTO, ASSET_CANDIDATE, MATTE = "voice", "photo", "asset_candidate", "matte"
+JOB_KINDS = (VOICE, PHOTO, ASSET_CANDIDATE, MATTE)
 QUEUED, RUNNING, SUCCEEDED, FAILED, CANCELLED = (
     "queued", "running", "succeeded", "failed", "cancelled")
 STATUSES = (QUEUED, RUNNING, SUCCEEDED, FAILED, CANCELLED)
@@ -185,7 +185,7 @@ class Job:
 
 __all__ = [
     "ASSEMBLER", "ASSET_CANDIDATE", "CANCELLED", "FAILED", "GAP_MAX_MS", "IN_FLIGHT", "JOB_FILE",
-    "JOB_KINDS", "JOB_SCHEMA", "KOKORO_SERVICE", "LEAD_MAX_MS", "LINES_MAX", "PHOTO", "QUEUED", "RUNNING",
+    "JOB_KINDS", "JOB_SCHEMA", "KOKORO_SERVICE", "LEAD_MAX_MS", "LINES_MAX", "MATTE", "PHOTO", "QUEUED", "RUNNING",
     "SPEED", "STATUSES", "SUCCEEDED", "TAKE_MAX_MS", "TERMINAL", "TRACK_MAX_MS", "VOICE", "Engine",
     "Job", "JobError", "VoiceInput", "VoiceLine", "line_signature",
 ]

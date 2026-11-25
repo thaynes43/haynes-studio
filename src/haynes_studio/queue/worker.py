@@ -241,7 +241,10 @@ def _serve(worker, once):
 
 
 def _media_main(options, parser, progress):
+    from haynes_studio.adapters.errors import AdapterError
+    from haynes_studio.adapters.matting import MattingClient
     from haynes_studio.library.winter_menu import load_licence_register
+    from haynes_studio.matting.profile import MatteError, Profile
 
     from .media_services import ComfyHTTP, WyomingKokoro
     from .media_worker import MediaWorker
@@ -251,8 +254,10 @@ def _media_main(options, parser, progress):
             origin = service_url(os.environ["STUDIO_API_URL"])
             token = worker_bearer(os.environ["STUDIO_WORKER_TOKEN"])
             store = LocalStore(os.environ["STUDIO_STORE_ROOT"])
-            register = load_licence_register()
-            if options.lane == "image":
+            register = None if options.lane == "matte" else load_licence_register()
+            if options.lane == "matte":
+                client = MattingClient(Profile.installed(), os.environ["STUDIO_MATTING_PROFILE_SHA256"])
+            elif options.lane == "image":
                 url = service_url(os.environ["STUDIO_COMFYUI_URL"])
                 image_http = resources.enter_context(httpx.Client(base_url=url, trust_env=False, timeout=60))
                 client = ComfyHTTP(image_http, progress=progress)
@@ -263,6 +268,8 @@ def _media_main(options, parser, progress):
                 client = WyomingKokoro(os.environ["STUDIO_TTS_HOST"], port)
         except KeyError as error:
             parser.error(f"{error.args[0]} is required")
+        except (AdapterError, MatteError) as error:
+            parser.error(f"Worker matting configuration is invalid ({error.code})")
         except (OSError, ValueError) as error:
             parser.error(f"Worker configuration is invalid ({type(error).__name__})")
         api = resources.enter_context(httpx.Client(base_url=origin, trust_env=False, timeout=15,
@@ -273,7 +280,7 @@ def _media_main(options, parser, progress):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--lane", choices=("run", "image", "voice"), default="run")
+    parser.add_argument("--lane", choices=("run", "image", "voice", "matte"), default="run")
     parser.add_argument("--once", action="store_true", help="Process at most one claim and exit")
     parser.add_argument("--progress-file", default=os.getenv("STUDIO_WORKER_PROGRESS_FILE"),
                         help="Main-thread progress marker (or STUDIO_WORKER_PROGRESS_FILE)")

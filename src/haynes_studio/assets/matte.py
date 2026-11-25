@@ -8,7 +8,7 @@ from io import BytesIO
 from PIL import Image
 
 from haynes_studio.adapters.errors import COMMAND_FAILED, REQUEST_INVALID, AdapterError
-from haynes_studio.adapters.matting import MattingClient, failure
+from haynes_studio.adapters.matting import MattingClient, MattingUnavailable, failure
 from haynes_studio.canonical.ids import is_id, ulid
 from haynes_studio.canonical.model import Principal, to_document
 from haynes_studio.errors import ContractError
@@ -52,6 +52,23 @@ class MatteTarget:
     def document(self) -> dict:
         return {"policy": SIZE_POLICY, "format_version_id": self.format_version_id,
                 "format_sha256": self.format_sha256, "slot": self.slot, "target_height_px": self.height}
+
+
+def matte_kind(kind: str) -> str:
+    # A library photo's explicitly chosen cast slot gives the cutout a cast identity.
+    return "cast" if kind == "photo" else kind
+
+
+def matte_identity(request: Mapping, target: MatteTarget) -> tuple[str, str, str]:
+    identity = {field: request[field] for field in ("source", "profile_id", "profile_sha256", "parameters")}
+    key = "matting:" + sha256(canonical_json({"input": identity, "target": target.document()})).hexdigest()
+    return key, _stable_id("ast", key), _stable_id("asv", key)
+
+
+def matte_outputs(version: AssetVersion) -> tuple[Content | None, ...]:
+    params = version.provenance["generator"]["params"]
+    return (version.content, Content.from_document(params.get("mask")),
+            Content.from_document(params.get("receipt_blob")))
 
 
 def _read_source(store: Store, version: AssetVersion, production_id: str | None) -> tuple[dict, bytes]:
@@ -101,9 +118,7 @@ def _existing(library: Library, key: str, asset_id: str, version_id: str) -> Ass
 
 def _recorded_outputs(version: AssetVersion, store: Store) -> tuple[tuple[Content, ...], tuple[Content, ...]]:
     try:
-        params = version.provenance["generator"]["params"]
-        outputs = (version.content, Content.from_document(params.get("mask")),
-                   Content.from_document(params.get("receipt_blob")))
+        outputs = matte_outputs(version)
     except (KeyError, TypeError):
         raise failure(IDEMPOTENCY_MISMATCH, "The recorded matte has an invalid descriptor") from None
     missing = []
@@ -132,16 +147,15 @@ def _content(data: bytes, media_type: str, production_id: str | None, **size) ->
 def _make_candidate(
     library: Library, *, source_version_id: str, job_id: str, production_id: str | None,
     format_version: Mapping, slot: str, by: Principal, now: str, store: Store, client: MattingClient,
-    check_fence: Callable[[], None], chroma_rgb: tuple[int, int, int] | None, output_store: Store,
+    check_fence: Callable[[], None], before_dispatch: Callable[[], None] | None,
+    chroma_rgb: tuple[int, int, int] | None, output_store: Store,
 ) -> Outcome:
     version = library.get(source_version_id)
     require_media(version, "/source_version_id")
     if version is None or version.content is None:
         raise failure(REQUEST_INVALID, "The pinned source version has no media")
     asset = library.asset_of(source_version_id)
-    # A promoted library photo is opaque-only. Its explicitly chosen cast
-    # slot makes the derived candidate a cast asset with its own identity.
-    kind = "cast" if asset.kind == "photo" else asset.kind
+    kind = matte_kind(asset.kind)
     if (not is_id(job_id, "job") or asset.scope.production_id != production_id
             or asset.scope.story_id is not None or asset.scope.board_id is not None
             or not version.has("opaque_photo")
@@ -152,8 +166,7 @@ def _make_candidate(
     identity = {"source": source, "profile_id": PROFILE_ID, "profile_sha256": client.profile_sha256,
                 "parameters": {"chroma_rgb": None if chroma_rgb is None else list(chroma_rgb),
                                "target_height_px": target.height}}
-    key = "matting:" + sha256(canonical_json({"input": identity, "target": target.document()})).hexdigest()
-    asset_id, version_id = _stable_id("ast", key), _stable_id("asv", key)
+    key, asset_id, version_id = matte_identity(identity, target)
     check_fence()
     existing = _existing(library, key, asset_id, version_id)
     if existing is not None:
@@ -168,7 +181,7 @@ def _make_candidate(
             raise failure(IDEMPOTENCY_MISMATCH, "The recorded matte has an invalid receipt") from None
 
     request = {"schema": "studio.matte-request/v1", "job_id": job_id, **identity}
-    receipt, artifacts = client.run(request, data, check_fence=check_fence)
+    receipt, artifacts = client.run(request, data, check_fence=check_fence, before_dispatch=before_dispatch)
     canvas = source["width"], source["height"]
     MatteSize.measured(receipt["shape"], canvas, target.height)
 
@@ -228,6 +241,7 @@ def run_matte_job(
     library: Library, *, source_version_id: str, job_id: str, production_id: str | None,
     format_version: Mapping, slot: str, by: Principal, now: str, store: Store, client: MattingClient,
     check_fence: Callable[[], None], record_failure: Callable[..., None],
+    before_dispatch: Callable[[], None] | None = None,
     chroma_rgb: tuple[int, int, int] | None = None, output_store: Store | None = None,
 ) -> Outcome | None:
     """Run in the worker beside the sidecar, from an admitted, frozen asset job.
@@ -236,15 +250,18 @@ def run_matte_job(
     when supplied. The caller owns the claim and commits the returned library
     outcome behind its fence, after making all three blobs authoritative.
     Blob writes alone do not publish a candidate. Fence loss propagates.
+    A worker that supplies a dispatch callback also handles predispatch outages.
     """
     try:
         return _make_candidate(
             library, source_version_id=source_version_id, job_id=job_id, production_id=production_id,
             format_version=format_version, slot=slot, by=by, now=now, store=store, client=client,
-            check_fence=check_fence, chroma_rgb=chroma_rgb,
+            check_fence=check_fence, before_dispatch=before_dispatch, chroma_rgb=chroma_rgb,
             output_store=store if output_store is None else output_store,
         )
     except (AdapterError, StoreError) as error:
+        if before_dispatch is not None and isinstance(error, MattingUnavailable):
+            raise
         record_failure(code=error.code, message=str(error)[:500] if isinstance(error, AdapterError)
                        else "The private store could not verify or publish the matte")
     except ContractError as error:

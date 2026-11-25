@@ -177,6 +177,9 @@ GRANT SELECT, INSERT ON studio.archive_records, studio.archive_versions TO studi
 
 -- Applied by revision 0011_worker_lane_grants.
 GRANT SELECT ON studio.worker_lane_grants TO studio_app;
+
+-- Applied by revision 0013_matte_jobs.
+GRANT UPDATE (matte_releases) ON studio.media_jobs TO studio_app;
 ```
 
 Revision `0004_go_live_approvals` uses the PostgreSQL UTF-8 `und-x-icu`
@@ -217,7 +220,7 @@ main process output can be logged by Kubernetes even with a TTY. See
 
 Run the worker token command after migrating to head. Use the migration identity
 in `STUDIO_MIGRATION_DATABASE_URL` to register a new worker ID with one lane
-(`run`, `voice` or `image`). A dedicated non-owner token administrator with
+(`run`, `voice`, `image` or `matte`). A dedicated non-owner token administrator with
 the grants below can register or rotate tokens for a bound ID, list, and revoke.
 The lane grant read permission is needed for registration and listing.
 The runtime role can read lane grants. The worker process itself uses the
@@ -387,7 +390,8 @@ transport available to each caller. Paths here start at `/v1`.
 | `POST /boards/{id}/voice-jobs` | `assets:generate` | `{}`. Freezes the saved board's voice input. |
 | `POST /boards/{id}/photo-jobs` | `assets:generate` | `{"seed": 0}`, with an optional seed from 0 to 2⁵³−1. Freezes the saved photo plan and its current selection. |
 | `POST /asset-jobs` | Signed-in person | `kind` (`cast`, `costume`, `set` or `prop`), `name`, `prompt`, optional `production_id`, `labels` and `seed`. Omit the production or use null to generate a global candidate. |
-| `GET /jobs/{id}` | `read`; candidates are people-only | Canonical `studio.job/v1` with frozen input provenance. |
+| `POST /asset-jobs/matte` | Signed-in person | `{source_version_id, format_version_id, slot}`. Queues a cutout from an opaque library version for an enabled cast slot. |
+| `GET /jobs/{id}` | `read` on the job's production or signed-in person | Canonical `studio.job/v1` with frozen input provenance. Image candidate and shared-library matte status requires a person. |
 | `GET /boards/{id}/jobs` | `read` | Cursor page of compact job statuses. |
 | `GET /boards/{id}/voice-versions`, `GET /boards/{id}/photo-versions` | `read` | Cursor page of this board's immutable versions. |
 | `GET /jobs/{id}/result` | Signed-in person | Result version with content or track hashes. Returns 404 until a result exists. |
@@ -409,6 +413,23 @@ terminal job record intact. Build preflight
 reports `asset.generating` while a board job is active and `photo.stale` if a
 whole-frame I2V board has a signed photo for different inputs or an unsigned
 legacy selection.
+
+### Matte requests and reads
+
+Send `Idempotency-Key` and the session CSRF header for `POST /asset-jobs/matte`.
+The source must be a library asset version with `opaque_photo` and a stored
+PNG or JPEG locator. The slot is one lowercase letter present in
+`cast.matte_slots` on the named format version. The source's scope determines
+the job and output scope. The request carries only canonical IDs and slot.
+
+The job has `kind: matte`, the source's `asv_` ID as `target_id`, and an input
+signature over the source and recipe pins. GET adds the `matte` block with
+`source_version_id`, `source_sha256`, `production_id`, output `kind`,
+`format_version_id`, `format_sha256`, `slot` and `target_height_px`.
+A production-scoped agent key with `read` can read that status through
+HTTP or `studio_get_job`. A signed-in person can also read, preview and
+promote the candidate, and can read shared-library job status.
+[Candidate flow](asset-candidates.md#cut-out-an-existing-still)
 
 ### D42 photo upload
 
@@ -460,13 +481,13 @@ Photo inputs, new photo and voice selections, promotions and uploads that
 reference an archive's recorded-only media return 422
 `asset.recorded_without_media`.
 
-The internal image and voice workers use the [same claim protocol as builds](media-jobs.md).
+The internal image, voice and matte workers use the [same claim protocol as builds](media-jobs.md).
 
 ## Queue controls
 
-Signed-in people can see all three lanes at `GET /v1/queue/lanes`. Set
+Signed-in people can see all four lanes at `GET /v1/queue/lanes`. Set
 `{"paused":true}` or `{"paused":false}` with `PUT /v1/queue/lanes/{lane}`
-for `run`, `voice` or `image`. The write requires `X-Studio-CSRF`.
+for `run`, `voice`, `image` or `matte`. The write requires `X-Studio-CSRF`.
 The response and lane list show `paused`, `changed_by` and `changed_at`.
 An untouched lane starts open with null change fields. Repeating its current
 setting returns the previous decision. Each transition appends a decision.

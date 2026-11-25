@@ -1,7 +1,7 @@
 # Studio API and MCP reference
 
 API **1.0.0**, OpenAPI **3.1.0**, studio-mcp **1.0.0**.
-Source contract build SHA-256 `d48a726285874b9f17ba650a86b18b9347f447e65b2b6c29a8e2d2d043bcb2d1`.
+Source contract build SHA-256 `5bb62c6e602cfea2225d8dc874f150ec5590e37240bce2f0bebb0d76d5c7d3d3`.
 The build digest identifies the offline OpenAPI export, MCP tool descriptors and excluded worker route index.
 
 Regenerate this page and its schema data when a PR changes an operation, tool or schema.
@@ -114,7 +114,8 @@ check the board revision before resending. [Photo upload](studio-api.md#d42-phot
 ## Asynchronous jobs and polling
 
 Generation returns `202` with a job ID and `Location`, or `200` on replay. Poll
-`GET /v1/jobs/{id}` or `studio_get_job` for board jobs. Check the terminal
+`GET /v1/jobs/{id}` or `studio_get_job` for board jobs and production-scoped
+matte jobs. Check the terminal
 status and `result_is_current` before using a version. A job can succeed and
 retain its result without changing the board. A person can inspect a private
 candidate result and promote it separately. Queueing a run freezes the story
@@ -140,7 +141,7 @@ recipes are limited to 64 KiB of canonical JSON and saved run snapshot reads to
 16 MiB. See [Studio MCP limits](studio-mcp.md#tools-and-revisions) and
 [archive limits](staging-archive.md#operations).
 
-## HTTP operations (80)
+## HTTP operations (81)
 
 [Schema data](api-reference-data/schemas.json) holds the named HTTP types under `components.schemas`.
 Run `uv run --locked studio-api openapi` for the full document, including parameter constraints and response headers.
@@ -254,6 +255,7 @@ Error status shows the statuses declared by OpenAPI, including shared responses.
 | Method and path | Operation ID | Access | Parameters | Request body | Success | Error status |
 | --- | --- | --- | --- | --- | --- | --- |
 | `POST /v1/asset-jobs` | `generate_asset_candidate` | Person | Header `Idempotency-Key`*, `X-Studio-CSRF` | `CandidateRequest` | 200 `JobStatus`<br>202 `JobStatus` | 401, 403, 404, 409, 413, 422, 500, 503 |
+| `POST /v1/asset-jobs/matte` | `request_matte` | Person | Header `Idempotency-Key`*, `X-Studio-CSRF` | `MatteRequest` | 200 `JobStatus`<br>202 `JobStatus` | 401, 403, 404, 409, 413, 422, 500, 503 |
 | `POST /v1/asset-versions/{id}/promote` | `promote_asset_version` | Person | Path `id`*<br>Header `X-Studio-CSRF` | — | 200 `AssetVersion` | 401, 403, 404, 409, 413, 422, 500, 503 |
 | `GET /v1/boards/{id}/jobs` | `list_board_jobs` | Person or Agent with `read` | Path `id`*<br>Query `cursor`, `limit` | — | 200 `Page_JobStatus_` | 401, 403, 404, 409, 413, 422, 500, 503 |
 | `POST /v1/boards/{id}/photo-jobs` | `generate_board_photo` | Person or Agent with `assets:generate` | Path `id`*<br>Header `Idempotency-Key`*, `X-Studio-CSRF` | `PhotoRequest` | 200 `JobStatus`<br>202 `JobStatus` | 401, 403, 404, 409, 413, 422, 500, 503 |
@@ -261,7 +263,7 @@ Error status shows the statuses declared by OpenAPI, including shared responses.
 | `POST /v1/boards/{id}/photo-versions` | `upload_board_photo` | Agent with `assets:upload` | Path `id`*<br>Header `If-Match`*, `X-Studio-Photo-Provenance`* (`ExternalPhotoDeclaration`) | bytes (`image/jpeg`, `image/png`, `image/webp`) | 201 `PhotoUploadView` | 401, 403, 404, 408, 409, 413, 422, 500, 503 |
 | `POST /v1/boards/{id}/voice-jobs` | `generate_board_voice` | Person or Agent with `assets:generate` | Path `id`*<br>Header `Idempotency-Key`*, `X-Studio-CSRF` | `VoiceRequest` | 200 `JobStatus`<br>202 `JobStatus` | 401, 403, 404, 409, 413, 422, 500, 503 |
 | `GET /v1/boards/{id}/voice-versions` | `list_board_voice_versions` | Person or Agent with `read` | Path `id`*<br>Query `cursor`, `limit` | — | 200 `Page_AssetVersion_` | 401, 403, 404, 409, 413, 422, 500, 503 |
-| `GET /v1/jobs/{id}` | `get_job` | Person or Agent with `read` (board jobs) | Path `id`* | — | 200 `JobView` | 401, 403, 404, 409, 413, 422, 500, 503 |
+| `GET /v1/jobs/{id}` | `get_job` | Person or Agent with `read` (board and production-scoped matte jobs) | Path `id`* | — | 200 `JobView` | 401, 403, 404, 409, 413, 422, 500, 503 |
 | `GET /v1/jobs/{id}/result` | `get_job_result` | Person | Path `id`* | — | 200 `AssetVersion` | 401, 403, 404, 409, 413, 422, 500, 503 |
 
 ### Probes
@@ -323,6 +325,7 @@ HEAD responses carry status and headers without an error body.
 | Operation | HTTP status | Stable `error.code` values |
 | --- | --- | --- |
 | `login` | 422 | `auth.return_to_invalid` |
+| `request_matte` | 422 | `adapter.request_invalid`, `idempotency.mismatch` |
 | `create_production` | 409 | `production.name_duplicate` |
 | `create_story`, `update_story` | 409 | `story.title_duplicate` |
 | `get_production`, `list_stories`, `create_story`, `get_story`, `update_story`, `get_story_timing`, `get_board`, `create_board`, `update_board`, `reorder_boards`, `remove_board` | 422 | `id.malformed`, `id.type_mismatch` |
@@ -455,6 +458,7 @@ They describe individual request or response parts. Use the HTTP or MCP table fo
 | `GET /healthz` | `healthz` | Service probes. [API boundaries](../contracts/studio-contracts-v1.md#12-api-ui-and-mcp-boundaries). |
 | `GET /readyz` | `readyz` | Service probes. [API boundaries](../contracts/studio-contracts-v1.md#12-api-ui-and-mcp-boundaries). |
 | `POST /v1/asset-jobs` | `generate_asset_candidate` | Signed-in person required. [Asset candidates](asset-candidates.md#api-and-ui-integration). |
+| `POST /v1/asset-jobs/matte` | `request_matte` | Signed-in person required. Production-scoped status is available via studio_get_job. [Matte requests](studio-api.md#matte-requests-and-reads). |
 | `GET /v1/asset-versions/{id}/media/{sha256}` | `get_version_media` | MCP returns compact metadata and excludes byte reads. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41). |
 | `HEAD /v1/asset-versions/{id}/media/{sha256}` | `head_version_media` | MCP returns compact metadata and excludes byte reads. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41). |
 | `POST /v1/asset-versions/{id}/promote` | `promote_asset_version` | Signed-in person required. [Asset candidates](asset-candidates.md#api-and-ui-integration). |
@@ -503,6 +507,7 @@ They describe individual request or response parts. Use the HTTP or MCP table fo
 | `POST /internal/v1/work/fail` | `fail_work` | Internal worker protocol excluded from OpenAPI. [Run queue](run-queue.md#claims-and-reconciliation) and [media workers](media-jobs.md#claims-and-results). |
 | `POST /internal/v1/work/heartbeat` | `heartbeat_work` | Internal worker protocol excluded from OpenAPI. [Run queue](run-queue.md#claims-and-reconciliation) and [media workers](media-jobs.md#claims-and-results). |
 | `POST /internal/v1/work/publish` | `publish_work` | Internal worker protocol excluded from OpenAPI. [Run queue](run-queue.md#claims-and-reconciliation) and [media workers](media-jobs.md#claims-and-results). |
+| `POST /internal/v1/work/release-matte` | `release_matte_work` | Internal worker protocol excluded from OpenAPI. [Run queue](run-queue.md#claims-and-reconciliation) and [media workers](media-jobs.md#claims-and-results). |
 | `POST /internal/v1/work/resume` | `resume_work` | Internal worker protocol excluded from OpenAPI. [Run queue](run-queue.md#claims-and-reconciliation) and [media workers](media-jobs.md#claims-and-results). |
 
 ### MCP tools with no API operation
@@ -524,4 +529,5 @@ They require a worker bearer, its lane grant and the current claim fence for cla
 | `POST /internal/v1/work/fail` | `fail_work` | Worker | Internal worker protocol excluded from OpenAPI. [Run queue](run-queue.md#claims-and-reconciliation) and [media workers](media-jobs.md#claims-and-results). |
 | `POST /internal/v1/work/heartbeat` | `heartbeat_work` | Worker | Internal worker protocol excluded from OpenAPI. [Run queue](run-queue.md#claims-and-reconciliation) and [media workers](media-jobs.md#claims-and-results). |
 | `POST /internal/v1/work/publish` | `publish_work` | Worker | Internal worker protocol excluded from OpenAPI. [Run queue](run-queue.md#claims-and-reconciliation) and [media workers](media-jobs.md#claims-and-results). |
+| `POST /internal/v1/work/release-matte` | `release_matte_work` | Worker | Internal worker protocol excluded from OpenAPI. [Run queue](run-queue.md#claims-and-reconciliation) and [media workers](media-jobs.md#claims-and-results). |
 | `POST /internal/v1/work/resume` | `resume_work` | Worker | Internal worker protocol excluded from OpenAPI. [Run queue](run-queue.md#claims-and-reconciliation) and [media workers](media-jobs.md#claims-and-results). |

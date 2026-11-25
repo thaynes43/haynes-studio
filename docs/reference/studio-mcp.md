@@ -45,7 +45,7 @@ as `studio-mcp` version `1.0.0`.
 | `studio_search_assets`, `studio_get_asset` | `read` | Visible asset version summaries with their immutable version numbers. Asset detail includes the asset revision. |
 | `studio_generate_voice`, `studio_generate_photo` | `assets:generate` | Compact job status for a saved board. Photo accepts an optional seed. |
 | `studio_upload_photo` at `/mcp/upload` | `assets:upload` | Upload result with the version ID, selection flag and resulting board revision. Takes `board_id`, `revision`, `media_type`, `data_base64` and `provenance`. |
-| `studio_get_job` | `read` | Compact voice or photo job status, input signature and result version ID. |
+| `studio_get_job` | `read` | Compact voice, photo or matte job status, input signature and result version ID. Matte adds its source and format pins and cast slot. |
 | `studio_estimate_run`, `studio_list_runs`, `studio_get_run` | `read` | Story estimate and blockers, a page of runs, or run status with progress, stages and checks. |
 | `studio_queue_run`, `studio_cancel_run` | `runs:queue` | Run status and revision. Queue takes the current story revision. Cancel takes the current run revision. |
 | `studio_get_delivery` | `read` | Immutable delivery metadata including hashes, sizes and frame counts. |
@@ -56,6 +56,10 @@ as `studio-mcp` version `1.0.0`.
 | `studio_apply_archive_storyboard` | `archive:read` and `draft:write` | The new story revision and a per-board receipt. |
 
 See [staging archive](staging-archive.md) for request fields and version conflicts.
+
+Matte status requires `read` on the source production. Shared-library matte
+status, requests, previews and promotion use the human session routes.
+[Matte HTTP operations](studio-api.md#matte-requests-and-reads)
 
 Patch replaces each supplied field. For `lines`, `cues` or `notes`, keep
 unchanged entries and their IDs in a replacement array. Omit an ID when adding

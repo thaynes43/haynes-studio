@@ -315,7 +315,7 @@ def board_versions(conn, board_id, kind, after, limit):
     return [_version(row) for row in conn.execute(stmt.order_by(asset_versions.c.id).limit(limit))]
 
 
-def version_library(conn, *, version_id=None, asset_id=None, source_key=None):
+def version_library(conn, *, version_id=None, version_ids=None, asset_id=None, source_key=None):
     stmt = _joined_versions()
     identities = []
     if source_key is not None:
@@ -327,6 +327,8 @@ def version_library(conn, *, version_id=None, asset_id=None, source_key=None):
         stmt = stmt.where(sa.or_(*identities))
     if version_id is not None:
         stmt = stmt.where(asset_versions.c.id == version_id)
+    if version_ids is not None:
+        stmt = stmt.where(asset_versions.c.id.in_(version_ids))
     return Library.from_version_documents(_version(row) for row in conn.execute(stmt))
 
 
@@ -337,7 +339,7 @@ def preview_media(conn, version_id: str, sha256: str, allowed: ProductionScope, 
             _catalog_scope(allowed))
     if job is not None:
         stmt = stmt.where(assets.c.production_id.is_not_distinct_from(job["production_id"]))
-    if job is None or job["kind"] != "asset_candidate":
+    if job is None or job["kind"] not in ("asset_candidate", "matte"):
         stmt = stmt.where(sa.or_(_version_state() == CANDIDATE,
                                 assets.c.kind.in_(("photo", "board_voice"))))
     return conn.execute(stmt).all()

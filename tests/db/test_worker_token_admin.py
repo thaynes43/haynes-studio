@@ -128,7 +128,7 @@ def test_lane_migration_retains_existing_tokens_on_upgrade_and_downgrade(studio_
     revoked = worker_bearer(_secret(64))
     rows.append({"digest": digest(revoked), "worker_id": "studio-worker", "revoked_at": datetime.now(UTC)})
     try:
-        migrate(migration, target="head-1", runtime_role=runtime_role[0])
+        migrate(migration, target="0010_staging_archive", runtime_role=runtime_role[0])
         with migration.begin() as conn:
             conn.execute(worker_tokens.insert(), rows)
             prior = list(conn.execute(sa.select(worker_tokens).order_by(worker_tokens.c.digest)))

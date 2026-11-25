@@ -154,7 +154,7 @@ worker_tokens = sa.Table("worker_tokens", metadata, digest(),
 worker_lane_grants = sa.Table("worker_lane_grants", metadata,
                              sa.Column("worker_id", sa.Text, primary_key=True),
                              sa.Column("lane", sa.Text, nullable=False),
-                             sa.CheckConstraint("lane IN ('run', 'voice', 'image')"))
+                             sa.CheckConstraint("lane IN ('run', 'voice', 'image', 'matte')"))
 
 
 run_lane = sa.Table("run_lane", metadata,
@@ -220,6 +220,7 @@ media_jobs = sa.Table(
     sa.Column("inputs", JSONB, nullable=False), document(),
     sa.Column("worker_id", sa.Text),
     sa.Column("fence", sa.BigInteger, nullable=False),
+    sa.Column("matte_releases", sa.SmallInteger, nullable=False),
     sa.Column("claim_until", sa.DateTime(timezone=True)),
     sa.Column("dispatched", sa.Boolean, nullable=False),
 )

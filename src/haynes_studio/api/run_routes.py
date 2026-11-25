@@ -24,8 +24,8 @@ from haynes_studio.escalation import storage as escalation_storage
 from haynes_studio.library.resolve import story_references
 from haynes_studio.queue import inputs
 from haynes_studio.queue.protocol import (
-    SHA256, ClaimFence, Heartbeat, JobId, Payload, Progress, Reason, Reservation, WanResult,
-    MediaCompletion, MediaFailure, MediaFence, MediaHeartbeat, WorkAttempt, WorkClaim,
+    MEDIA_LANES, SHA256, WORK_LANES, ClaimFence, Heartbeat, JobId, Payload, Progress, Reason, Reservation, WanResult,
+    MatteRelease, MediaCompletion, MediaFailure, MediaFence, MediaHeartbeat, WorkAttempt, WorkClaim,
     WorkCompletion, WorkFailure, WorkLane, WorkReserve,
 )
 from haynes_studio.queue.staging import BuildStageStore, publish_staged_delivery
@@ -115,7 +115,7 @@ def transport_models():
         RunView, Page[RunView], QueueWait, EstimateRange, MethodEstimate, EstimateView,
         CheckOverride, CheckOverrideView, ClaimFence, Progress, Heartbeat, Reservation,
         WanResult, WorkReserve, WorkAttempt, WorkCompletion, WorkFailure, WorkClaim,
-        MediaFence, MediaHeartbeat, MediaCompletion, MediaFailure,
+        MediaFence, MediaHeartbeat, MediaCompletion, MediaFailure, MatteRelease,
         QueueLaneUpdate, QueueLaneStatus, QueueStatus,
     )
 
@@ -342,8 +342,15 @@ def _delivery(conn, request, row, body):
 
 class WorkRoute(WorkerRoute):
     async def before_validation(self, request):
-        if self.operation_id in {"reserve_wan_attempt", "update_wan_attempt"}:
+        if self.operation_id in {"resume_work", "reserve_wan_attempt", "update_wan_attempt"}:
             require_worker_lane(request, "run")
+        elif self.operation_id == "release_matte_work":
+            require_worker_lane(request, "matte")
+        elif self.operation_id == "claim_work":
+            raw = await request.body()
+            body = await request.json() if raw else None
+            if isinstance(body, dict) and (lane := body.get("lane", "run")) in WORK_LANES:
+                require_worker_lane(request, lane)
         elif self.operation_id in {"heartbeat_work", "publish_work", "complete_work", "fail_work"}:
             # A job_id without a run_id selects media work. A malformed request
             # without that discriminator follows the run-lane default.
@@ -354,7 +361,7 @@ class WorkRoute(WorkerRoute):
                 require_worker_lane(request, "run")
                 raise
             if isinstance(body, dict) and "job_id" in body and "run_id" not in body:
-                require_worker_lane(request, "voice", "image")
+                require_worker_lane(request, *MEDIA_LANES)
             else:
                 require_worker_lane(request, "run")
 
@@ -369,7 +376,12 @@ def worker_router():
         require_worker_lane(request, lane)
         worker_id = request.state.principal.worker_id
         with request.app.state.engine.begin() as conn:
-            claim = runs.claim(conn, worker_id) if lane == "run" else media_work.claim(conn, worker_id, lane)
+            if body is not None and body.settle_only:
+                require_worker_lane(request, "matte")
+                jobs.claim(conn, worker_id, lane, settle_only=True)
+                claim = None
+            else:
+                claim = runs.claim(conn, worker_id) if lane == "run" else media_work.claim(conn, worker_id, lane)
         return claim if claim is not None else Response(status_code=204)
 
     @router.post("/heartbeat", operation_id="heartbeat_work")
@@ -433,6 +445,14 @@ def worker_router():
             require_valid(validate_run(row["document"]))
             _delivery(conn, request, row, body)
             return runs.view(conn, row, detail=False)
+
+    @router.post("/release-matte", status_code=204, operation_id="release_matte_work")
+    def release_matte_work(body: MatteRelease, request: Request):
+        require_worker_lane(request, "matte")
+        with request.app.state.engine.begin() as conn:
+            row, now = media_work.lock(conn, request, body)
+            jobs.release_matte(conn, row, now, reason=body.reason)
+        return Response(status_code=204)
 
     @router.post("/fail", operation_id="fail_work")
     def fail_work(body: WorkFailure | MediaFailure, request: Request):

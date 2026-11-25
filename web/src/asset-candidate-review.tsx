@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { ApiError, type StudioClient } from "./api/client";
 import { promoteAsset } from "./asset-library-data";
 import { assetOrigins } from "./asset-library-model";
-import { UseAsset, VersionDetails, type AssetTarget } from "./asset-version-card";
+import { CutOutAction, UseAsset, VersionDetails, type AssetTarget, type SelectCutout } from "./asset-version-card";
 import type { AssetVersion } from "./photo-composer-model";
 import { Problem } from "./shell-ui";
 
@@ -35,9 +35,9 @@ export function AssetProblem({ error, retry }: { error: unknown; retry?: () => v
   return <Problem error={error} retry={retry} message={message} />;
 }
 
-export function CandidateReview({ api, version, jobId, target, onPromoted, refresh }: {
+export function CandidateReview({ api, version, jobId, target, onPromoted, refresh, onCutout }: {
   api: StudioClient; version: AssetVersion; jobId?: string; target?: AssetTarget;
-  onPromoted: () => void; refresh?: () => void;
+  onPromoted: () => void; refresh?: () => void; onCutout?: SelectCutout;
 }) {
   const [promoted, setPromoted] = useState<AssetVersion>();
   const [declined, setDeclined] = useState(() => version.state === "candidate" && wasDeclined(version.id));
@@ -100,6 +100,7 @@ export function CandidateReview({ api, version, jobId, target, onPromoted, refre
       }}>{declined ? "Review again" : "Not now"}</button>}
       {isCandidate && !declined && <span id={dismissalHelp} className="muted">Hides this candidate in this tab. Records nothing.</span>}
     </div>}
+    {!declined && <CutOutAction version={result} onCutout={onCutout} />}
     {error != null && <AssetProblem error={error} retry={stale ? refresh : undefined} />}
   </article>;
 }
