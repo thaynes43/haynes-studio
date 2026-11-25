@@ -169,9 +169,9 @@ def require_current_delivery(document, evidence):
 
 
 def publication_for_target(conn, index):
-    return conn.scalar(sa.select(publications.c.document).join(release_packages)
-                       .where(release_packages.c.run_id == index["run_id"],
-                              release_packages.c.target_id == index["target_id"]))
+    return conn.scalar(sa.select(publications.c.document).where(
+        publications.c.run_id == index["run_id"], publications.c.target_id == index["target_id"],
+    ))
 
 
 def publication_replay(conn, run_id, actor, key, digest, location, published_at):
@@ -187,6 +187,9 @@ def publication_replay(conn, run_id, actor, key, digest, location, published_at)
 
 
 def record_publication(conn, digest, approval, location, who, display_name, when, published_at, key):
+    # The route already verified this immutable package under the run lock.
+    target_id = conn.execute(sa.select(release_packages.c.target_id)
+                             .where(release_packages.c.sha256 == digest)).scalar_one()
     document = {
         "schema": "studio.publication/v1", "id": Minter().mint("pub"),
         "package_sha256": digest, "approval_id": approval["id"],
@@ -196,6 +199,6 @@ def record_publication(conn, digest, approval, location, who, display_name, when
     }
     conn.execute(publications.insert().values(
         id=document["id"], package_sha256=digest, approval_id=approval["id"], run_id=approval["run_id"],
-        idempotency_actor=actor_key(who), idempotency_key=key, document=document,
+        target_id=target_id, idempotency_actor=actor_key(who), idempotency_key=key, document=document,
     ))
     return document
