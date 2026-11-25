@@ -42,9 +42,10 @@ def test_documented_runtime_table_grants_match_alembic():
     assert _table_privileges(documented) == _table_privileges(RUNTIME_GRANTS)
 
 
-def test_job_operations_is_the_only_head_and_follows_go_live():
+def test_format_recipes_is_the_only_head_and_follows_job_operations():
     migrations = ScriptDirectory(str(MIGRATIONS))
-    assert len(migrations.get_heads()) == 1
+    assert migrations.get_heads() == ["0006_format_recipes"]
+    assert migrations.get_revision("0006_format_recipes").down_revision == "0005_job_operations"
     assert migrations.get_revision("0005_job_operations").down_revision == "0004_go_live_approvals"
 
 

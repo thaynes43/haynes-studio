@@ -75,16 +75,74 @@ def _keyed(match: re.Match) -> str:
     return key + sep + (dq or sq or "") + REDACTED + (dq_end or sq_end or "")
 
 
+_CREDENTIAL_REDACTIONS = (
+    (_PEM, REDACTED),
+    (_URL_USERINFO, r"\1" + REDACTED + "@"),
+    (_AWS_KEY_ID, REDACTED),
+    (_AUTH_SCHEME, r"\1\2" + REDACTED),
+    (_KEYED, _keyed),
+)
+
+
+def contains_credentials(text: str) -> bool:
+    """Does the text match a credential shape used by service redaction?"""
+    return any(pattern.search(text) for pattern, _ in _CREDENTIAL_REDACTIONS)
+
+
+# Redaction may over-match: hiding "Basic shots" in a log line costs nothing. Refusing a
+# sentence a person wrote does, so for prose the two word-led shapes count only when what
+# follows looks like a secret rather than like the next word of the sentence.
+_TOKEN_RUN = re.compile(r"[A-Za-z0-9+/_.~=-]{16,}")
+_WORD_RUN = re.compile(r"[^\s\"',;}]+")
+
+
+def _token_shaped(run: str) -> bool:
+    """16 or more token characters with a digit, or 32 or more in mixed case."""
+    return any(
+        any(ch.isdigit() for ch in found)
+        or (len(found) >= 32 and found != found.lower() and found != found.upper())
+        for found in _TOKEN_RUN.findall(run))
+
+
+def _password_shaped(run: str) -> bool:
+    """One unbroken run of 8 or more characters with a letter and a digit."""
+    return (len(run) >= 8 and any(ch.isdigit() for ch in run)
+            and any(ch.isalpha() for ch in run))
+
+
+def contains_credentials_in_prose(text: str) -> bool:
+    """Like :func:`contains_credentials`, for free text a person writes.
+
+    A PEM block, URL userinfo and an AWS key id count as they are. ``bearer``, ``basic``
+    or ``token`` followed by a word counts only when that word is token-shaped, so
+    "Basic shots stay ambient" and "one token per line" pass. A keyed value counts when
+    it is assigned with ``=``, or when its first word (inside quotes or not) is
+    token-shaped or password-shaped, so "keep the cookie: crumbly" passes and
+    "password: hunter22" does not. A short or split secret is not caught: this is a
+    guard against pasting, not a scanner.
+    """
+    if _PEM.search(text) or _URL_USERINFO.search(text) or _AWS_KEY_ID.search(text):
+        return True
+    for match in _AUTH_SCHEME.finditer(text):
+        if _token_shaped(match.group(0)[len(match.group(1)) + len(match.group(2)):]):
+            return True
+    for match in _KEYED.finditer(text):
+        key, sep = match.group(1), match.group(2)
+        if "=" in sep:
+            return True
+        word = _WORD_RUN.match(match.group(0)[len(key) + len(sep):].lstrip("\"'"))
+        if word and (_token_shaped(word.group(0)) or _password_shaped(word.group(0))):
+            return True
+    return False
+
+
 def redact(raw: bytes | str | None) -> str:
     """Service stderr as printable text with credentials removed, uncut."""
     if not raw:
         return ""
     text = raw.decode("utf-8", "replace") if isinstance(raw, bytes) else raw
-    text = _PEM.sub(REDACTED, text)
-    text = _URL_USERINFO.sub(r"\1" + REDACTED + "@", text)
-    text = _AWS_KEY_ID.sub(REDACTED, text)
-    text = _AUTH_SCHEME.sub(lambda m: m.group(1) + m.group(2) + REDACTED, text)
-    text = _KEYED.sub(_keyed, text)
+    for pattern, replacement in _CREDENTIAL_REDACTIONS:
+        text = pattern.sub(replacement, text)
     return "".join(ch if ch.isprintable() or ch == "\n" else "?" for ch in text).strip()
 
 

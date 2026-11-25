@@ -48,12 +48,16 @@ as `studio-mcp` version `1.0.0`.
 | `studio_estimate_run`, `studio_list_runs`, `studio_get_run` | `read` | Story estimate and blockers, a page of runs, or run status with progress, stages and checks. |
 | `studio_queue_run`, `studio_cancel_run` | `runs:queue` | Run status and revision. Queue takes the current story revision. Cancel takes the current run revision. |
 | `studio_get_delivery` | `read` | Immutable delivery metadata including hashes, sizes and frame counts. |
+| `studio_list_formats` | `read` | Shared format names and slugs. |
+| `studio_list_format_versions`, `studio_get_format_version` | `read` | Version IDs and hashes, or the pinned recipe by ID. |
 
 Patch replaces each supplied field. For `lines`, `cues` or `notes`, keep
 unchanged entries and their IDs in a replacement array. Omit an ID when adding
 an entry and leave an entry out to remove it. Re-read the board for IDs assigned
 on write. Pin asset version IDs returned from the catalog in the corresponding
 story or board fields. The API resolves the pins and their scopes on write.
+Use `studio_patch_story` with `patch.format_version_id` and the current story
+revision to pin a [format recipe](formats.md).
 
 Each board mutation advances its story's revision in the same API transaction.
 After patch or remove, re-read the story before a story-level edit. MCP sends
@@ -148,8 +152,9 @@ uv run --no-sync studio-api-admin revoke "$KEY_ID"
 ```
 
 Repeat flags to grant the specified scopes to each production ID. The
-agent scopes are `read`, `draft:write`, `assets:generate`, `assets:upload`
-and `runs:queue`. Go-live approval is reserved for people. Expiry is optional
+agent scopes are `read`, `draft:write`, `assets:generate`, `assets:upload`,
+`runs:queue` and `formats:write`. Format authoring uses the API with an explicit
+`formats:write` grant. Go-live approval is reserved for people. Expiry is optional
 and must include a timezone when supplied. Registering the same key with
 the same productions, scopes and expiry returns its existing key ID.
 Changed grants or expiry require `--replace-grants`, which replaces the full

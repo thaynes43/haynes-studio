@@ -1,0 +1,17 @@
+{
+  "id": "wide-synthetic",
+  "name": "Synthetic 16:9",
+  "recipe": {
+    "schema": "studio.format-recipe/v1",
+    "frame": {"width": 1920, "height": 1080, "fps": 24},
+    "length": {"min_ms": 250, "max_ms": 400},
+    "shot_types": {"ambient": [{"layer": "whole_frame", "motion": "i2v"}]},
+    "cast": {"rules": [], "team_costumes": {}},
+    "voice": {"engine": null, "style": []},
+    "audio": {"style": [], "line_rms_dbfs": null, "master_lufs": null, "true_peak_dbtp": null},
+    "checks": {},
+    "human_gates": ["go_live"],
+    "targets": [],
+    "notes": ["Synthetic format for source and DB tests."]
+  }
+}

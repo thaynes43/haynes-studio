@@ -280,6 +280,17 @@ OPERATIONS = {
     "studio_get_delivery": Operation(
         "Read the master and proxy metadata of a delivery by run ID.", args.Delivery,
         "GET", "/v1/runs/{run_id}/delivery", delivery_detail),
+    "studio_list_formats": Operation(
+        "List shared Studio format recipes by name and slug.", args.ListFormats,
+        "GET", "/v1/formats", page(lambda item: pick(item, "id", "name")), _PAGE),
+    "studio_list_format_versions": Operation(
+        "List immutable version IDs, numbers and recipe hashes for a format.", args.ListFormatVersions,
+        "GET", "/v1/formats/{format_id}/versions",
+        page(lambda item: pick(item, "id", "format_id", "number", "sha256")), _PAGE),
+    "studio_get_format_version": Operation(
+        "Read a recipe by version ID. To pin it, use studio_patch_story with format_version_id.",
+        args.FormatVersion, "GET", "/v1/format-versions/{version_id}",
+        lambda reply, _: pick(reply.document, "id", "format_id", "number", "sha256", "recipe")),
     "studio_generate_voice": Operation(
         "Queue voice for the saved board and return job status. Reuse the idempotency key on a retry.",
         args.GenerateVoice, "POST", "/v1/boards/{board_id}/voice-jobs", job_detail,

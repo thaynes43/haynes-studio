@@ -29,6 +29,16 @@
         "board_order"
       ]
     },
+    "format_version": {
+      "type": "object",
+      "required": ["id", "sha256", "recipe"],
+      "properties": {
+        "id": {"$ref": "studio.defs.v1.schema.json#/$defs/fmv_id"},
+        "sha256": {"$ref": "studio.defs.v1.schema.json#/$defs/sha256"},
+        "recipe": {"$ref": "studio.format-recipe.v1.schema.json"}
+      },
+      "additionalProperties": false
+    },
     "resolved_asset_versions": {
       "type": "array",
       "items": {

@@ -6,7 +6,9 @@ from dataclasses import asdict
 from haynes_studio.build.pipeline import media_format
 from haynes_studio.build.prebuild import make_snapshot, prepare
 from haynes_studio.cache.plan import Toolchain
-from haynes_studio.canonical.derive import board_clock
+from haynes_studio.canonical.derive import board_clock, length_warning
+from haynes_studio.canonical.model import to_document
+from haynes_studio.formats.recipe import format_length
 from haynes_studio.library.model import version_document
 from haynes_studio.render.clock import S2V_CHUNK, i2v_clip_lengths, s2v_request_frames
 from haynes_studio.voice import Engine
@@ -19,11 +21,11 @@ BASIS = ("E0 The Winter Menu: TI2V clips, lightning S2V chunks and CPU compositi
          "Cold-cache estimate. Shared GPU load, cooldown, reuse and retries vary.")
 
 
-def prepare_queue(story, library, *, jobs=()):
+def prepare_queue(story, library, *, jobs=(), format_version=None):
     media = media_format(story["media_kind"])
     return prepare(story, library=library, store=None, toolchain=Toolchain(),
                    frame_size=(media.width, media.height), current_engine=Engine().signing_name,
-                   jobs=jobs, check_photo_currency=True)
+                   jobs=jobs, check_photo_currency=True, format_version=format_version)
 
 
 def freeze(prepared, *, studio):
@@ -46,10 +48,12 @@ def estimate(prepared):
     chunks = Counter()
     frames = Counter()
     unknown = False
+    complete = True
     for board in prepared.story.ordered_boards():
         timing = board_clock(board, prepared.facts)
         if timing is None:
             unknown = True
+            complete = False
             continue
         layer, motion = board.method.layer, board.method.motion
         frames[layer] += timing.frames
@@ -73,10 +77,13 @@ def estimate(prepared):
     methods = [{"method": method, "chunks": count,
                 "gpu_wall_s": [count * bound for bound in GPU_SECONDS.get(method, (0, 0))]}
                for method, count in sorted(chunks.items())]
+    length = format_length(prepared.format_version)
+    warning = length_warning(sum(frames.values()), complete, length)
     return {"estimate": {"gpu_wall_s": None if unknown else gpu,
                          "cpu_wall_s": None if unknown else cpu,
                          "basis": BASIS, "uncertain": True},
             "methods": methods,
+            "warnings": [to_document(warning)] if warning else [],
             "problems": [asdict(problem) for problem in prepared.report.blocking]}
 
 

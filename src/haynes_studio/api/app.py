@@ -19,12 +19,14 @@ from starlette.exceptions import HTTPException
 from haynes_studio.db import runs
 from haynes_studio.db.engine import connect_engine
 from haynes_studio.db.problems import DraftProtected, NotFound, StaleRevision
-from haynes_studio.db.schema import go_live_approvals, media_job_lanes, queue_lane_events, run_lane, sessions
+from haynes_studio.db.schema import (
+    format_versions, go_live_approvals, media_job_lanes, queue_lane_events, run_lane, sessions,
+)
 from haynes_studio.errors import ContractError, pointer
 from haynes_studio.photo_limits import UploadBodyLimits
 from haynes_studio.store.local import LocalStore
 
-from . import approval_routes, auth, job_routes, media, routes, run_routes
+from . import approval_routes, auth, format_routes, job_routes, media, routes, run_routes
 from .config import DEFAULT_STORE_FRESHNESS_SECONDS, from_environment, store_freshness_from_environment
 from .errors import APIError, ErrorDetail, ErrorEnvelope, STATUS, error_response, missing
 from .models import build_models
@@ -172,6 +174,7 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
     app.add_middleware(RequestContextMiddleware)
 
     build_models(*run_routes.transport_models(), *job_routes.transport_models(),
+                 *format_routes.transport_models(),
                  approval_routes.ApprovalWrite, approval_routes.ApprovalState,
                  approval_routes.ApprovalView)
     for model in (ErrorDetail, ErrorEnvelope):
@@ -185,6 +188,7 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
     app.include_router(run_routes.build_router(current_actor, authenticated_route))
     app.include_router(job_routes.build_router(current_actor, authenticated_route))
     app.include_router(approval_routes.build_router(current_actor, approval_route))
+    app.include_router(format_routes.build_router(current_actor, authenticated_route))
     app.include_router(run_routes.worker_router())
 
     @app.get("/healthz", status_code=204, response_class=Response, operation_id="healthz")
@@ -201,6 +205,7 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
                 conn.execute(sa.select(media_job_lanes.c.lane).limit(0))
                 conn.execute(sa.select(queue_lane_events.c.lane).limit(0))
                 conn.execute(sa.select(go_live_approvals.c.id).limit(0))
+                conn.execute(sa.select(format_versions.c.id).limit(0))
         except (SQLAlchemyError, OSError):
             return False
         return True

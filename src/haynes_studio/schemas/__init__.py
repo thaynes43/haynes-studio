@@ -123,6 +123,12 @@ def _message(error: ValidationError, schema: dict[str, Any]) -> str:
         return f"must match {value}"
     if keyword in ("minLength", "minItems", "minProperties"):
         return "must not be empty" if value == 1 else f"must have at least {value} entries"
+    if keyword == "maxLength":
+        return f"must have at most {value} characters"
+    if keyword in ("maxItems", "maxProperties"):
+        return "must have at most 1 entry" if value == 1 else f"must have at most {value} entries"
+    if keyword == "uniqueItems":
+        return "must have unique entries"
     if keyword == "items" and value is False:
         return f"must have exactly {len(schema.get('prefixItems', []))} items"
     if keyword in ("required", "dependentRequired"):
