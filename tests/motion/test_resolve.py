@@ -91,6 +91,15 @@ def test_a_pin_is_used_and_gives_the_same_clip():
     assert pinned.cast[0].identity == unpinned.cast[0].identity
 
 
+def test_imported_motion_pin_reports_recorded_without_media():
+    lib = library({**loop_a(), "recorded_without_media": True})
+    verify = Verify()
+    result = resolve_board(board(entry("a", pin=LOOP_A)), lib, verify)
+    assert result.cast == ()
+    assert problems(result) == {("asset.recorded_without_media", "/cast/0/motion_asset_version_id")}
+    assert "was recorded without media" in result.problems[0].message
+
+
 def test_which_frames_and_keying_inputs():
     clip = resolve_board(board(entry("a")), standard(), Verify()).cast[0]
     phase = loop_phase(ident("brd", 1), "a", 240)
@@ -208,8 +217,10 @@ def test_every_code_is_named_once():
     assert len(set(CODES)) == len(CODES)
     seen = {rule for case in CASES.values() for rule, _ in case[3]}
     assert seen <= set(CODES)
-    # Tested below: scope with a production, the drive track with resolve_timed.
-    assert set(CODES) - seen == {"asset.scope_mismatch", "motion.drive_track_mismatch"}
+    # Tested separately: an imported pin, scope with a production and the timed drive track.
+    assert set(CODES) - seen == {
+        "asset.recorded_without_media", "asset.scope_mismatch", "motion.drive_track_mismatch",
+    }
 
 
 def test_the_set_pin_is_checked():

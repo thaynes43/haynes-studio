@@ -1,9 +1,11 @@
 """Exercise the import CLI, real PostgreSQL grants and the real media API."""
 
+from dataclasses import replace
 import hashlib
 import json
+import os
 from pathlib import Path
-from dataclasses import replace
+import stat
 import warnings
 
 import psycopg
@@ -14,16 +16,20 @@ import sqlalchemy as sa
 
 from haynes_studio.api.key_admin import run as admin
 from haynes_studio.api.oidc import random_secret
+from haynes_studio.canonical.ids import Minter
 from haynes_studio.db import drafts, runs
 from haynes_studio.db.engine import connect_engine
 from haynes_studio.db.migrate import migrate
-from haynes_studio.db.schema import asset_versions, deliveries, productions, run_lane, stories
+from haynes_studio.db.schema import asset_media, asset_versions, deliveries, productions, run_lane, stories
 from haynes_studio.db.schema import runs as run_rows
+from haynes_studio.importer import production as production_import
 from haynes_studio.store import LocalStore, StagingLeftoverWarning
+from tests.build_story.fixtures import OPERATOR, example
 from tests.db.test_studio_api import (
     client, engine, new_production, register_agent, runtime_role, service, sign_in,
 )
-from tests.importer.production_fixture import make_archive
+from tests.importer.production_fixture import FRAMES, make_archive
+from tests.queue.fake_wan import Clock
 from tests.support.database import new_schema_name
 
 pytestmark = pytest.mark.db
@@ -149,12 +155,17 @@ def test_import_replay_and_production_scoped_media(operator, service, owner_engi
     response = browser.get(f'/v1/runs/{result["run_id"]}/delivery', headers=headers)
     assert response.status_code == 200
     delivery = response.json()
+    if recovered:
+        assert "decoded_frames" not in delivery["verification"]
+        assert delivery["verification"]["recovered_container_metadata_only"] == {
+            "frames": FRAMES, "ledger_id": "a" * 32, "ledger_sha256": before["ledger.json"]["sha256"],
+        }
     for role, name in (("master", "final.mp4"), ("proxy", "proxy.mp4")):
         assert {k: delivery[role][k] for k in ("sha256", "bytes")} == before[name]
         assert_private_ranges(browser, headers, wrong, delivery[role], (fixture.root / name).read_bytes())
     if not recovered:
         asset = browser.get(f'/v1/assets/{fixture.asset["asset_id"]}', headers=headers).json()
-        assert asset["versions"] == [fixture.asset]
+        assert asset["versions"] == [{**fixture.asset, "recorded_without_media": True}]
     before_paths = file_paths(store)
     with owner_engine.connect() as conn:
         previous = dict(runs.get(conn, result["run_id"]))
@@ -168,6 +179,129 @@ def test_import_replay_and_production_scoped_media(operator, service, owner_engi
         assert conn.scalar(sa.select(run_lane.c.next_position)) == lane
     assert file_paths(store) == before_paths
     assert fixture.files() == before
+
+
+def test_replay_after_production_rename(operator, owner_engine, service, tmp_path, capsys):
+    _, store, _ = service
+    fixture = make_archive(tmp_path / "job", recovered=True)
+    assert admin(fixture.args()) == 0
+    original = json.loads(capsys.readouterr().out)
+    with owner_engine.begin() as conn:
+        row = dict(runs.get(conn, fixture.run["id"]))
+        production = conn.scalar(sa.select(productions.c.document).where(
+            productions.c.id == fixture.production_id))
+        renamed = {**production, "name": "Renamed after import", "revision": 2}
+        conn.execute(productions.update().where(productions.c.id == fixture.production_id)
+                     .values(document=renamed))
+        lane = conn.scalar(sa.select(run_lane.c.next_position))
+    paths = file_paths(store)
+    assert admin(fixture.args()) == 0
+    assert json.loads(capsys.readouterr().out) == {**original, "status": "already_imported"}
+    with owner_engine.connect() as conn:
+        assert drafts.production(conn, fixture.production_id)["name"] == renamed["name"]
+        assert dict(runs.get(conn, fixture.run["id"])) == row
+        assert conn.scalar(sa.select(run_lane.c.next_position)) == lane
+    assert file_paths(store) == paths
+
+
+def test_matching_production_collision_leaves_existing_production_alone(
+        operator, service, owner_engine, tmp_path, capsys):
+    _, store, _ = service
+    fixture = make_archive(tmp_path / "job")
+    with owner_engine.begin() as conn:
+        held = seed_matching_production(conn, fixture)
+        lane = conn.scalar(sa.select(run_lane.c.next_position))
+    assert admin(fixture.args()) == 1
+    assert capsys.readouterr().err.strip() == "import_production.identity_conflict"
+    assert file_paths(store) == set()
+    with owner_engine.connect() as conn:
+        assert drafts.production(conn, fixture.production_id) == held
+        assert conn.scalar(sa.select(stories.c.id).where(stories.c.production_id == fixture.production_id)) is None
+        assert conn.scalar(sa.select(run_lane.c.next_position)) == lane
+
+
+def seed_matching_production(conn, fixture):
+    # Use an ordinary production document with a matching ID, name and media profile.
+    document = {**example("production.json"), "id": fixture.production_id, "name": fixture.name}
+    document["media_types"] = [item for item in document["media_types"] if item["kind"] == "short"]
+    assert document["media_types"]
+    drafts._insert_production(conn, document)
+    return document
+
+
+@pytest.mark.parametrize("collision", [
+    "story_id", "story_source_key", "board_id", "board_source_key", "note_id",
+    "asset_id", "asset_version_id", "asset_source_key", "directory", "receipt",
+])
+def test_conflicting_archive_identities_refused_before_publication(
+        operator, service, owner_engine, tmp_path, capsys, collision):
+    _, store, _ = service
+    ids = Minter()
+    identities = {
+        "story_id": ids.mint("sty"), "board_id": ids.mint("brd"), "note_id": ids.mint("nte"),
+        "asset_id": ids.mint("ast"), "asset_version_id": ids.mint("asv"),
+        "story_source_key": f'fixture:{ids.mint("sty")}',
+        "board_source_key": f'fixture:{ids.mint("brd")}',
+        "asset_source_key": f'fixture:{ids.mint("ast")}',
+    }
+    same_identity = {collision: identities[collision]} if collision in identities else {}
+    first = make_archive(tmp_path / "first", **same_identity)
+    assert admin(first.args()) == 0
+    capsys.readouterr()
+    before = file_paths(store)
+    if collision == "directory":
+        first.root = first.root.rename(first.root.with_name("different-cut"))
+        another = first
+    elif collision == "receipt":
+        (first.root / "wan-clip.json").write_text('{"changed":true}')
+        first.receipt.write_text(json.dumps(first.files()))
+        another = first
+    else:
+        another = make_archive(tmp_path / "another", **same_identity)
+    with owner_engine.connect() as conn:
+        row = dict(runs.get(conn, first.run["id"]))
+        lane = conn.scalar(sa.select(run_lane.c.next_position))
+    assert admin(another.args()) == 1
+    assert capsys.readouterr().err.strip() == "import_production.identity_conflict"
+    with owner_engine.connect() as conn:
+        assert dict(runs.get(conn, first.run["id"])) == row
+        assert conn.scalar(sa.select(run_lane.c.next_position)) == lane
+    assert file_paths(store) == before
+
+
+def test_imported_pins_are_private_and_block_rebuild(operator, service, owner_engine, tmp_path, capsys):
+    app, _, issuer = service
+    fixture = make_archive(tmp_path / "job", with_shared_asset=True)
+    assert admin(fixture.args()) == 0
+    capsys.readouterr()
+    version_ids = [fixture.asset["id"], fixture.shared_asset["id"]]
+    with owner_engine.connect() as conn:
+        assert runs.get(conn, fixture.run["id"])["frozen_library"] == [fixture.asset, fixture.shared_asset]
+        assert conn.scalars(sa.select(asset_media.c.version_id).where(
+            asset_media.c.version_id.in_(version_ids))).all() == []
+    with client(app) as browser:
+        csrf = sign_in(browser, issuer)
+        other = new_production(browser, csrf)
+        _, right = register_agent(owner_engine, {fixture.production_id: ["read", "runs:queue"]})
+        _, wrong = register_agent(owner_engine, {other: ["read"]})
+        url = f'/v1/assets/{fixture.shared_asset["asset_id"]}'
+        response = browser.get(url, headers=right)
+        assert response.status_code == 200
+        scoped = {"production_id": fixture.production_id}
+        assert response.json()["asset"]["scope"] == scoped
+        assert response.json()["versions"] == [
+            {**fixture.shared_asset, "scope": scoped, "recorded_without_media": True},
+        ]
+        assert browser.get(url, headers=wrong).status_code == 404
+        url = f'/v1/stories/{fixture.run["story_id"]}'
+        estimate = browser.get(f"{url}/estimate", headers=right)
+        assert estimate.status_code == 200
+        assert {p["rule"] for p in estimate.json()["problems"]} == {"asset.recorded_without_media"}
+        assert {p["asset_version_id"] for p in estimate.json()["problems"]} == set(version_ids)
+        assert all(p["message"].endswith("was recorded without media") for p in estimate.json()["problems"])
+        queued = browser.post(f"{url}/runs", headers={**right, "Idempotency-Key": "blocked-rebuild",
+                                                      "If-Match": str(fixture.snapshot["story"]["revision"])})
+        assert queued.status_code == 422
 
 
 def test_delivery_identity_collision_rolls_back_new_rows_and_store(operator, service, owner_engine,
@@ -189,6 +323,114 @@ def test_delivery_identity_collision_rolls_back_new_rows_and_store(operator, ser
         assert conn.scalar(sa.select(deliveries.c.run_id).where(deliveries.c.id == first.delivery_id)) == first.run["id"]
         assert conn.scalar(sa.select(run_lane.c.next_position)) == lane
     assert file_paths(store) == before
+
+
+def test_queue_can_claim_and_enqueue_during_publication(operator, owner_engine, monkeypatch,
+                                                        tmp_path, capsys):
+    fixture = make_archive(tmp_path / "job")
+    monkeypatch.setattr(runs, "database_time", Clock().db_time)
+    with owner_engine.begin() as conn:
+        production = drafts.create_production(conn, "Queue fixture", [], OPERATOR)
+        drafts.enable_media_type(conn, production["id"], "short", production["revision"])
+        draft = drafts.create_story(conn, production["id"], "short", {"title": "Queue draft"}, OPERATOR)
+        existing = enqueue_fixture(conn, draft, "before-publication")
+
+    publish = LocalStore.publish
+    enqueued = []
+
+    def slow_publish(self, source, *, scope, media_type, expected_sha256):
+        class PausedCopy:
+            sent_first_chunk = False
+
+            def read(self, size):
+                if not self.sent_first_chunk:
+                    self.sent_first_chunk = True
+                    return source.read(32)
+                if not enqueued:
+                    with owner_engine.begin() as other:
+                        other.exec_driver_sql("SET LOCAL lock_timeout = '250ms'")
+                        claim = runs.claim(other, "fixture-worker")
+                        enqueued.append(enqueue_fixture(other, draft, "during-publication"))
+                        assert claim is not None and claim["run"]["id"] == existing["id"]
+                        assert other.scalar(sa.select(stories.c.id).where(
+                            stories.c.id == fixture.run["story_id"])) is None
+                return source.read(size)
+
+        stream = source if enqueued else PausedCopy()
+        return publish(self, stream, scope=scope, media_type=media_type, expected_sha256=expected_sha256)
+
+    monkeypatch.setattr(LocalStore, "publish", slow_publish)
+    assert admin(fixture.args()) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "imported"
+    with owner_engine.connect() as conn:
+        assert runs.get(conn, existing["id"])["document"]["status"] == "running"
+        assert runs.get(conn, fixture.run["id"])["position"] == enqueued[0]["position"] + 1
+
+
+def enqueue_fixture(conn, draft, key):
+    return runs.enqueue(conn, snapshot={"story": draft.exchange()}, snapshot_sha256="f" * 64,
+                        library=[], actor=OPERATOR, key=key, estimate={"estimate": None, "methods": []})
+
+
+def test_same_archive_committed_during_publication_is_a_replay(
+        operator, owner_engine, monkeypatch, tmp_path, capsys):
+    fixture = make_archive(tmp_path / "job")
+    publish = production_import._publish
+    with owner_engine.connect() as conn:
+        lane = conn.scalar(sa.select(run_lane.c.next_position))
+
+    def publish_after_another_import(*args, **kwargs):
+        with monkeypatch.context() as patch:
+            patch.setattr(production_import, "_publish", publish)
+            assert admin(fixture.args()) == 0
+        return publish(*args, **kwargs)
+
+    monkeypatch.setattr(production_import, "_publish", publish_after_another_import)
+    assert admin(fixture.args()) == 0
+    first, second = map(json.loads, capsys.readouterr().out.splitlines())
+    assert first["status"] == "imported"
+    assert second == {**first, "status": "already_imported"}
+    with owner_engine.connect() as conn:
+        assert conn.scalar(sa.select(run_lane.c.next_position)) == lane + 1
+
+
+@pytest.mark.parametrize("window", ["during_publication", "after_final_check"])
+def test_import_refuses_production_collision_after_initial_check(
+        operator, service, owner_engine, monkeypatch, tmp_path, capsys, window):
+    _, store, _ = service
+    fixture = make_archive(tmp_path / "job")
+    persist = production_import._persist
+    publish = production_import._publish
+    held = []
+
+    def occupy_production():
+        with owner_engine.begin() as other:
+            other.exec_driver_sql("SET LOCAL lock_timeout = '250ms'")
+            held.append(seed_matching_production(other, fixture))
+
+    def publish_then_compete(*args, **kwargs):
+        publish(*args, **kwargs)
+        if window == "during_publication":
+            occupy_production()
+
+    def persist_with_race(*args, **kwargs):
+        assert window == "after_final_check", "final identity check must refuse before insertion"
+        occupy_production()
+        persist(*args, **kwargs)
+
+    monkeypatch.setattr(production_import, "_publish", publish_then_compete)
+    monkeypatch.setattr(production_import, "_persist", persist_with_race)
+    with owner_engine.connect() as conn:
+        lane = conn.scalar(sa.select(run_lane.c.next_position))
+    assert admin(fixture.args()) == 1
+    assert capsys.readouterr().err.strip() == "import_production.identity_conflict"
+    with owner_engine.connect() as conn:
+        assert drafts.production(conn, fixture.production_id) == held[0]
+        for table, identity in ((stories, fixture.run["story_id"]), (run_rows, fixture.run["id"]),
+                                (deliveries, fixture.delivery_id), (asset_versions, fixture.asset["id"])):
+            assert conn.scalar(sa.select(table.c.id).where(table.c.id == identity)) is None
+        assert conn.scalar(sa.select(run_lane.c.next_position)) == lane
+    assert len(list(Path(store.root).rglob("*.mp4"))) == 2
 
 
 def test_runtime_role_refused(operator, runtime_db, service, owner_engine, monkeypatch, tmp_path, capsys):
@@ -236,3 +478,48 @@ def test_retry_after_store_failure(operator, service, owner_engine, monkeypatch,
     assert json.loads(result.out)["staging_leftovers"] == 1
     assert len(list(Path(store.root).rglob("*.mp4"))) == 2
     assert fixture.files() == files
+
+
+def test_in_place_media_change_after_archive_verification(
+        operator, service, owner_engine, monkeypatch, tmp_path, capsys):
+    _, store, _ = service
+    fixture = make_archive(tmp_path / "job")
+    publish = LocalStore.publish
+    master = fixture.root / "final.mp4"
+    original_inode = master.stat().st_ino
+    original = master.read_bytes()
+    changed = original[:-1] + bytes([original[-1] ^ 1])
+
+    def change_then_publish(self, source, *, scope, media_type, expected_sha256):
+        assert os.fstat(source.fileno()).st_ino == original_inode
+        master.write_bytes(changed)
+        assert master.stat().st_ino == original_inode
+        return publish(self, source, scope=scope, media_type=media_type, expected_sha256=expected_sha256)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(LocalStore, "publish", change_then_publish)
+        assert admin(fixture.args()) == 1
+    assert capsys.readouterr().err.strip() == "import_production.failed"
+    assert not list(Path(store.root).rglob("*.mp4"))
+    with owner_engine.connect() as conn, pytest.raises(drafts.NotFound):
+        drafts.production(conn, fixture.production_id)
+    master.write_bytes(original)
+    assert admin(fixture.args()) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "imported"
+
+
+def test_import_from_read_only_archive(operator, tmp_path, capsys):
+    fixture = make_archive(tmp_path / "job")
+    original = fixture.files()
+    members = list(fixture.root.iterdir())
+    modes = {path: stat.S_IMODE(path.stat().st_mode) for path in [fixture.root, *members]}
+    try:
+        for path, mode in modes.items():
+            path.chmod(mode & ~0o222)
+        assert admin(fixture.args()) == 0
+        assert json.loads(capsys.readouterr().out)["status"] == "imported"
+        assert fixture.files() == original
+        assert all(stat.S_IMODE(path.stat().st_mode) == (mode & ~0o222) for path, mode in modes.items())
+    finally:
+        for path, mode in modes.items():
+            path.chmod(mode)

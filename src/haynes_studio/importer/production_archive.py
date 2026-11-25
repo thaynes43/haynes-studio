@@ -195,7 +195,8 @@ def _canonical(docs: dict, receipt: dict, run: dict, production_id: str, kind: s
              held_snapshot["board_count"])):
         raise ImportProblem("snapshot_mismatch", "snapshot.json")
     delivery = docs["delivery.json"]
-    if blocking(validate_delivery(delivery)):
+    if (blocking(validate_delivery(delivery))
+            or "recovered_container_metadata_only" in delivery["verification"]):
         raise ImportProblem("delivery_invalid", "delivery.json")
     if delivery["id"] != run["delivery_id"] or delivery["run_id"] != run["id"]:
         raise ImportProblem("delivery_identity", "delivery.json")
@@ -217,7 +218,7 @@ def _canonical(docs: dict, receipt: dict, run: dict, production_id: str, kind: s
 
 
 def _check_recovered_media(handle: BinaryIO, size: tuple[int, int], frames: int, name: str) -> None:
-    """The original frame-count check is archived. Check the recovered MP4's profile."""
+    """Read the recovered MP4's stream headers without decoding frames."""
     try:
         if handle.read(8)[4:] != b"ftyp":
             raise ImportProblem("recovered_profile", name)
@@ -289,7 +290,10 @@ def _recovered(docs: dict, receipt: dict, members: dict, run: dict, production_i
         "schema": DELIVERY_SCHEMA, "id": run["delivery_id"], "run_id": run["id"],
         "created_at": run["finished_at"], "store": {"adapter": "local", "writable": True},
         **published, "legacy": None, "verification": {
-            "decoded_frames": frames, "expected_frames": frames, "sha256_verified": True,
+            "recovered_container_metadata_only": {
+                "frames": frames, "ledger_id": ledger.id, "ledger_sha256": receipt["ledger.json"]["sha256"],
+            },
+            "expected_frames": frames, "sha256_verified": True,
             "proxy_under_bytes": proxy_byte_limit(frames),
         },
     }

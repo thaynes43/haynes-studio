@@ -426,12 +426,37 @@ def remove_board(conn: sa.Connection, story_id: str, id_: str, revision: int) ->
     _save_story(conn, updated, refs)
 
 
+def _import_child_ids(exchange: dict) -> set[str]:
+    return _child_ids(exchange, ("beds",)).union(
+        *(_child_ids(board, BOARD_CHILDREN) for board in exchange["boards"]),
+    )
+
+
+def check_new_import(conn: sa.Connection, exchange: dict) -> None:
+    """Check the draft identities before a create-only import publishes its files."""
+    board_docs = exchange["boards"]
+    story_match = stories.c.id == exchange["id"]
+    story_key = (exchange.get("origin") or {}).get("source_key")
+    if story_key is not None:
+        story_match = sa.or_(story_match, stories.c.source_key == story_key)
+    board_keys = [(board.get("origin") or {}).get("source_key") for board in board_docs]
+    checks = (
+        sa.exists().where(productions.c.id == exchange["production_id"]),
+        sa.exists().where(story_match),
+        sa.exists().where(sa.or_(boards.c.id.in_(board["id"] for board in board_docs),
+                                 boards.c.source_key.in_(key for key in board_keys if key is not None))),
+        sa.exists().where(draft_ids.c.id.in_(_import_child_ids(exchange))),
+    )
+    if conn.scalar(sa.select(sa.or_(*checks))):
+        raise invalid("ref.duplicate", "", "An archive draft identity is already in use")
+
+
 def import_draft(conn: sa.Connection, production_doc: dict, exchange: dict,
-                 versions: list[dict]) -> Draft:
+                 versions: list[dict], *, create_only: bool = False) -> Draft:
     """Import the canonical CLI exchange and library into Postgres in one transaction.
 
-    Existing imported drafts are returned intact. This is a trusted server-side
-    adapter for CLI records and is deliberately absent from the HTTP surface.
+    Existing imported drafts are returned intact unless create_only is set. An
+    archive import uses create_only to require a fresh production and draft.
     """
     production_doc = normalize(production_doc)
     doc = normalize(exchange)
@@ -440,6 +465,10 @@ def import_draft(conn: sa.Connection, production_doc: dict, exchange: dict,
                                                            for p in production_doc["media_types"]]))
     if "boards" not in doc or doc["production_id"] != production_doc["id"]:
         raise invalid("ref.unknown", "/production_id", "The exchange must include its boards and production")
+    if create_only:
+        # Plain inserts also refuse conflicts committed after the identity check.
+        _insert_production(conn, production_doc)
+        return _insert_imported_draft(conn, doc, versions)
     by_source = (doc.get("origin") or {}).get("source_key")
     # Serialize duplicate imports, including the same source claimed by another production.
     for identity, namespace in ((by_source or doc["id"], 410), (production_doc["id"], 409)):
@@ -463,14 +492,17 @@ def import_draft(conn: sa.Connection, production_doc: dict, exchange: dict,
             raise invalid("legacy.import_map_mismatch", "/origin",
                           "The import identity already belongs to another draft")
         return held
+    return _insert_imported_draft(conn, doc, versions)
+
+
+def _insert_imported_draft(conn: sa.Connection, doc: dict, versions: list[dict]) -> Draft:
+    ids = _import_child_ids(doc)
     board_docs = doc.pop("boards")
     doc.pop("derived", None)
     _insert_story(conn, doc)
-    ids = _child_ids(doc, ("beds",))
     for board in board_docs:
         board.pop("derived", None)
         _insert_board(conn, board)
-        ids |= _child_ids(board, BOARD_CHILDREN)
     _reserve_ids(conn, ids)
     for version in sorted(versions, key=lambda item: (item["asset_id"], item["number"])):
         record_asset_version(conn, version)

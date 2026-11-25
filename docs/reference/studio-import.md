@@ -41,20 +41,38 @@ additional provenance JSON file in the receipt. One More Meeting includes
 refuses missing or unlisted entries, extra media, symlinks in the archive path
 or inventory, and non-regular members. It checks every byte against the receipt
 and corroborates the run, snapshot, asset pins and delivery before connecting
-to PostgreSQL or publishing any bytes. The snapshot and delivery media are
-published create-only. The catalog registers the asset versions pinned in the
-snapshot from their archived documents. Those documents describe source assets
-whose bytes live outside this delivery archive.
+to PostgreSQL or publishing any bytes.
 
 The Winter Menu's quieter-gavel archive has five files. It contains the
 historical run, recovery delivery, private-view ledger, master and proxy.
 Its original snapshot, full asset versions and delivery document were lost.
 `--recovered` checks the two MP4s against the receipt, run, recovery record and
-ledger. It creates a story entry for playback with an empty board list, records
+ledger. The delivery records `recovered_container_metadata_only` with the
+container-reported frame count and the bound ledger's ID and hash. The two media
+records carry the hashes, sizes, frame rate and codecs checked by the command.
+It creates a story entry for playback with an empty board list, records
 the same run and delivery IDs, and retains the historical snapshot locator and
 hash in the run document. `runs.snapshot` stores JSON null and `runs.frozen_library`
 stores an empty array for this layout. The registered delivery describes the
 verified recovery outputs. See the [recovery evidence](../../titles/the-winter-menu/e1-build/recovery-20261121/README.md).
+
+## What the command writes
+
+The command can run while the queue is in use. Workers can claim runs and callers
+can enqueue while the store copies and verifies files.
+
+1. A short PostgreSQL transaction checks the migration role and identifies a new
+   import, a replay from the same archive, or a conflict. A refusal at this step
+   leaves the database and store untouched. A production with the same ID must
+   already have the matching archive import marker and source identity to qualify
+   for replay.
+2. The command publishes the master, proxy and canonical snapshot create-only,
+   outside any database transaction. A failure can leave complete, unreferenced
+   blobs and store staging files. A retry verifies and reuses complete blobs.
+3. A short PostgreSQL transaction rechecks identities, inserts the catalog
+   records and gives the terminal run a position in the shared queue. A conflict
+   or failure rolls back the rows. Complete blobs from step 2 remain subject to
+   the store's existing retention rule.
 
 ## Read the result
 
@@ -62,16 +80,20 @@ The command emits one JSON line on success with the status, production, story,
 run and delivery IDs, archive counts and bytes, and the master and proxy sizes
 and hashes. A repeat with the same archive directory name and receipt checks the
 immutable run and delivery and re-hashes the published blobs. It exits 0 with
-`already_imported`. If a published blob disappeared or changed, the command
-returns an error. A conflicting identity rolls back the database transaction and
-exits nonzero. Store writes happen after the database identity checks and before
-commit. An interrupted write can leave complete, unreferenced blobs, which a
-retry verifies and reuses. Keep them under the store's existing retention rule.
+`already_imported` even after a production rename. A missing or changed blob or
+a conflicting identity causes a nonzero exit.
 If the store reports staging leftovers on success, the JSON includes their count.
 
 Read the delivery with `GET /v1/runs/{id}/delivery` and the two MP4s with
 `GET /v1/media/{sha256}`. Media authorization follows the production that owns
 the delivery. The API supports byte ranges. [Private playback](studio-api.md#private-playback)
+
+The imported story is readable and its finished delivery plays in the studio.
+The archive records the pinned input versions as `recorded_without_media`. Pins
+from the shared library are cataloged in the imported production's scope. To
+rebuild, import the inputs through their own asset paths and pin the resulting
+versions in the draft. A recovered archive also requires reconstructing the lost
+boards.
 
 Imported runs retain their original terminal status and have
 `legacy.archive_import` in the run document. Its fields are `source_directory`
@@ -90,10 +112,9 @@ issued by this command.
 | Permission | Objects used |
 | --- | --- |
 | Database `CONNECT` and schema `USAGE` | The configured Studio database and schema |
-| `SELECT` and `INSERT` | `productions`, `media_types`, `stories`, `boards`, `assets`, `asset_versions`, `asset_sources`, `runs` and `deliveries` |
-| `INSERT` | `draft_ids`, `asset_media`, `delivery_media` and `story_asset_refs` |
+| `SELECT` and `INSERT` | `productions`, `stories`, `boards`, `draft_ids`, `assets`, `asset_versions`, `asset_sources`, `runs` and `deliveries` |
+| `INSERT` | `media_types`, `delivery_media` and `story_asset_refs` |
 | `SELECT` and `DELETE` | `story_asset_refs` |
-| `UPDATE (document)` | `stories`, for row locking |
 | `SELECT` and `UPDATE (next_position)` | `run_lane`, to allocate a pagination position for the terminal run |
 | Standard PostgreSQL function execution | Transaction advisory locks, current schema and database clock |
 

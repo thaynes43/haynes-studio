@@ -32,6 +32,7 @@ class FixtureArchive:
     snapshot: dict
     asset: dict
     recovered: bool
+    shared_asset: dict | None
 
     def args(self):
         args = ["import-production", str(self.root), "--receipt", str(self.receipt),
@@ -42,7 +43,9 @@ class FixtureArchive:
         return {path.name: facts(path) for path in self.root.iterdir()}
 
 
-def make_archive(parent, *, recovered=False, delivery_id=None):
+def make_archive(parent, *, recovered=False, production_id=None, story_id=None, delivery_id=None,
+                 board_id=None, note_id=None, story_source_key=None, board_source_key=None,
+                 asset_id=None, asset_version_id=None, asset_source_key=None, with_shared_asset=False):
     parent.mkdir(exist_ok=True)
     archive = parent / ("recovered-cut" if recovered else "canonical-cut")
     archive.mkdir()
@@ -53,34 +56,51 @@ def make_archive(parent, *, recovered=False, delivery_id=None):
         return path
 
     ids = Minter()
-    production_id, story_id, board_id = (ids.mint(kind) for kind in ("prd", "sty", "brd"))
+    production_id = production_id or ids.mint("prd")
+    story_id = story_id or ids.mint("sty")
+    board_id = board_id or ids.mint("brd")
     name = f"{NAME} {production_id}"
     run_id = ids.mint("run")
     delivery_id = delivery_id or ids.mint("dlv")
     asset = example("asset-version-photo-external.json")
-    asset.update(id=ids.mint("asv"), asset_id=ids.mint("ast"), scope={
+    asset.update(id=asset_version_id or ids.mint("asv"), asset_id=asset_id or ids.mint("ast"), scope={
         "production_id": production_id, "story_id": story_id, "board_id": board_id,
     })
     content = asset["content"]
     content["locator"] = blob_locator(production_id, content["sha256"], content["media_type"])
     asset["provenance"]["generator"]["source_asset_version_ids"] = []
+    if asset_source_key is not None:
+        asset["provenance"]["source_key"] = asset_source_key
+    shared_asset = None
+    if with_shared_asset:
+        shared_asset = example("asset-version-cast.json")
+        shared_asset.update(id=ids.mint("asv"), asset_id=ids.mint("ast"), scope={"production_id": None})
+        content = shared_asset["content"]
+        content["locator"] = blob_locator("library", content["sha256"], content["media_type"])
+    versions = [asset, shared_asset] if shared_asset is not None else [asset]
     story = example("story-winter-menu-r4.json")
     story.pop("derived", None)
     board = story["boards"][0]
+    story_origin = {**story["origin"], "source_key": story_source_key} if story_source_key else None
+    board_origin = {**board["origin"], "source_key": board_source_key} if board_source_key else None
     board.pop("derived", None)
-    board.update(id=board_id, story_id=story_id, title="Synthetic board", lines=[], origin=None,
+    board.update(id=board_id, story_id=story_id, title="Synthetic board", lines=[], origin=board_origin,
+                 notes=[{"id": note_id, "text": "Synthetic note"}] if note_id else [],
                  timing={"lead_ms": None, "tail_ms": None, "hold_ms": 125},
                  voice={"style": None, "current_version_id": None},
                  photo={"current_version_id": asset["id"], "prompt": None,
-                        "input_asset_version_ids": []},
+                        "input_asset_version_ids": [shared_asset["id"]] if shared_asset else []},
                  cast=[], layout={"preset": "default", "foreground": False},
                  method={"layer": "whole_frame", "motion": "i2v"}, seeds={"i2v:frame": 1})
-    story.update(id=story_id, production_id=production_id, origin=None, board_order=[board_id],
+    story.update(id=story_id, production_id=production_id, origin=story_origin, board_order=[board_id],
                  boards=[board], cast=[], narrator_voice_version_id=None, set=None, beds=[],
                  layouts={"default": {}}, motion_style=None, title=name)
     snapshot = {
         "schema": "studio.run-snapshot/v1", "story": story,
-        "resolved_asset_versions": [{"id": asset["id"], "kind": "photo", "sha256": content["sha256"]}],
+        "resolved_asset_versions": [
+            {"id": version["id"], "kind": version["kind"], "sha256": version["content"]["sha256"]}
+            for version in versions
+        ],
         "toolchain_request": {"studio": "git:fixture"},
     }
     snapshot_hash = hashlib.sha256(canonical_json(snapshot)).hexdigest()
@@ -137,11 +157,11 @@ def make_archive(parent, *, recovered=False, delivery_id=None):
                                  locator=blob_locator(production_id, record["sha256"], "application/json"))
         write("delivery-stage.json", StageRecord(production_id, run_id, "delivery", blobs).to_document())
         write("snapshot.json", snapshot)
-        write("asset-versions.json", [asset])
+        write("asset-versions.json", versions)
         write("transcript-run.json", {"fixture": "transcript-run"})
         write("wan-clip.json", {"fixture": "wan-clip"})
         write("wan-service-run.json", {"fixture": "wan-service-run"})
     fixture = FixtureArchive(archive, parent / "receipt.json", name, production_id, run, delivery_id,
-                             snapshot, asset, recovered)
+                             snapshot, asset, recovered, shared_asset)
     fixture.receipt.write_bytes(canonical_json(fixture.files()))
     return fixture

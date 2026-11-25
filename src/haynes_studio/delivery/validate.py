@@ -14,8 +14,7 @@ cannot:
   first two digits, the extension ``.mp4``; master and proxy are in one production's
   folder, never the library (``store.locator_invalid``);
 - the master is a media kind's delivery size, and the proxy that kind's proxy size;
-- TIME-11: the master's frames, the decoded frames and the expected frames agree,
-  and the proxy has as many frames as the master;
+- TIME-11: the master, proxy, frame-count evidence and expected frames agree;
 - the proxy is under ``proxy_under_bytes``, which is the limit for its frame count;
 - a legacy block's URL names its own ledger.
 
@@ -77,13 +76,17 @@ def _rules(doc: Mapping[str, Any]) -> list[Violation]:
         found.append(Violation(SCHEMA_INVALID, "/proxy/width",
                                f"the proxy of a {kind} is {width}x{height} (P-10)"))
     frames = master["frames"]
-    for at, value, what in [("/verification/decoded_frames", verification["decoded_frames"],
-                             "the decoded frames"),
-                            ("/verification/expected_frames", verification["expected_frames"],
-                             "the expected frames")]:
+    recovered = verification.get("recovered_container_metadata_only")
+    counts = [("/verification/expected_frames", verification["expected_frames"], "expected")]
+    if recovered is None:
+        counts.append(("/verification/decoded_frames", verification["decoded_frames"], "decoded"))
+    else:
+        counts.append(("/verification/recovered_container_metadata_only/frames",
+                       recovered["frames"], "container-reported"))
+    for at, value, what in counts:
         if value != frames:
             found.append(Violation(SCHEMA_INVALID, at,
-                                   f"{what} must equal the master's {frames} frames (TIME-11)"))
+                                   f"the {what} frames must equal the master's {frames} frames (TIME-11)"))
     if proxy is not None:
         if proxy["frames"] != frames:
             found.append(Violation(SCHEMA_INVALID, "/proxy/frames",

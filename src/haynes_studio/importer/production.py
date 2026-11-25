@@ -14,7 +14,7 @@ from haynes_studio.canonical.jsonvalues import normalize
 from haynes_studio.db import catalog, drafts, runs
 from haynes_studio.db.engine import connect_engine
 from haynes_studio.db.problems import NotFound, require_valid
-from haynes_studio.db.schema import deliveries, run_lane
+from haynes_studio.db.schema import asset_sources, asset_versions, assets, deliveries, run_lane
 from haynes_studio.db.schema import runs as run_rows
 from haynes_studio.errors import ContractError
 from haynes_studio.store import MISMATCH, PRESENT, LocalStore, StagingLeftoverWarning, StoreError
@@ -22,6 +22,7 @@ from haynes_studio.store import MISMATCH, PRESENT, LocalStore, StagingLeftoverWa
 from .production_archive import Archive, ImportProblem, verify_archive
 
 IMPORT_ACTOR = "studio.archive_import"
+
 
 def add_arguments(parser) -> None:
     parser.add_argument("archive", type=Path, metavar="ARCHIVE")
@@ -35,7 +36,7 @@ def add_arguments(parser) -> None:
 
 def _require_migrator(conn: sa.Connection) -> None:
     # Revision 0003's API role already has many of the same DML grants. Restrict
-    # this offline command to the migration identity by checking schema ownership.
+    # this operator command to the migration identity by checking schema ownership.
     if not conn.scalar(sa.text("""
         SELECT nspowner = current_user::regrole
         FROM pg_namespace
@@ -56,18 +57,6 @@ def _production(archive: Archive, name: str, kind: str) -> dict:
             "enabled_at": story["created_at"],
         }],
     }
-
-
-def _check_production(conn: sa.Connection, expected: dict) -> None:
-    try:
-        current = drafts.production(conn, expected["id"])
-    except NotFound:
-        return
-    want = expected["media_types"][0]
-    profile = next((item for item in current["media_types"] if item["kind"] == want["kind"]), None)
-    if (current["name"] != expected["name"] or profile is None
-            or any(profile[key] != want[key] for key in ("aspect", "width", "height", "fps"))):
-        raise ImportProblem("identity_conflict")
 
 
 def _draft_document(archive: Archive) -> dict:
@@ -113,26 +102,50 @@ def _already_imported(conn: sa.Connection, archive: Archive, row) -> bool:
     return True
 
 
-def _persist(conn: sa.Connection, archive: Archive, production: dict) -> None:
-    story = _draft_document(archive)
-    # The trusted import takes its usual advisory locks and also handles an
-    # existing story with the same source key. Compare under those locks.
-    draft = drafts.import_draft(conn, production, story, archive.versions)
-    _check_production(conn, production)
-    if draft.exchange() != story:
+def _check_identities(conn: sa.Connection, archive: Archive, story: dict) -> bool:
+    # Only one transaction for a run ID can check identities or commit at a
+    # time. Distinct run IDs still contend on the unique keys at insertion.
+    run_id = archive.run["id"]
+    conn.execute(sa.select(sa.func.pg_advisory_xact_lock(sa.func.hashtextextended(run_id, 957))))
+    row = conn.execute(sa.select(run_rows).where(run_rows.c.id == run_id)).mappings().one_or_none()
+    if _already_imported(conn, archive, row):
+        return True
+    # The run and its marker are the existing production's proof of origin.
+    # A new import must own a fresh production, even if its name matches.
+    drafts.check_new_import(conn, story)
+    keys = [version["provenance"].get("source_key") for version in archive.versions]
+    checks = (
+        sa.exists().where(sa.or_(deliveries.c.run_id == run_id,
+                                 deliveries.c.id == archive.delivery["id"])),
+        sa.exists().where(assets.c.id.in_(version["asset_id"] for version in archive.versions)),
+        sa.exists().where(asset_versions.c.id.in_(version["id"] for version in archive.versions)),
+        sa.exists().where(asset_sources.c.source_key.in_(key for key in keys if key is not None)),
+    )
+    if conn.scalar(sa.select(sa.or_(*checks))):
         raise ImportProblem("identity_conflict")
-    # import_draft returns an existing draft intact. Register its pins as well,
-    # with the catalog's immutable identity and scope checks.
-    for version in sorted(archive.versions, key=lambda item: (item["asset_id"], item["number"])):
-        catalog.record_asset_version(conn, version)
+    return False
 
-    # Allocate from the same lane as enqueue, after locking the story. A
-    # terminal run gets a pagination position but no claim or Wan attempts.
+
+def _catalog_versions(archive: Archive) -> list[dict]:
+    versions = []
+    for archived in archive.versions:
+        version = {**archived, "recorded_without_media": True}
+        if version["scope"]["production_id"] is None:
+            version["scope"] = {**version["scope"], "production_id": archive.production_id}
+        versions.append(version)
+    return versions
+
+
+def _persist(conn: sa.Connection, archive: Archive, production: dict, story: dict) -> None:
+    drafts.import_draft(conn, production, story, _catalog_versions(archive), create_only=True)
+    catalog.record_delivery(conn, story["id"], archive.delivery)
+    document = _imported_run(archive, runs.timestamp(runs.database_time(conn)))
+    require_valid(validate_run(document))
+
+    # Take the lane only when the terminal run is ready to insert.
     position = conn.scalar(sa.select(run_lane.c.next_position).with_for_update())
     if position is None:
         raise ImportProblem("schema_required")
-    document = _imported_run(archive, runs.timestamp(runs.database_time(conn)))
-    require_valid(validate_run(document))
     conn.execute(run_rows.insert().values(
         id=document["id"], story_id=story["id"], production_id=archive.production_id,
         number=document["number"], position=position, idempotency_actor=IMPORT_ACTOR,
@@ -140,7 +153,6 @@ def _persist(conn: sa.Connection, archive: Archive, production: dict) -> None:
         estimate_methods=[], document=document,
     ))
     conn.execute(run_lane.update().values(next_position=position + 1))
-    catalog.record_delivery(conn, story["id"], archive.delivery)
 
 
 def _store_for(archive: Archive, root: Path) -> LocalStore:
@@ -170,23 +182,20 @@ def _publish(store: LocalStore, archive: Archive, *, replay: bool) -> None:
             raise ImportProblem("store_conflict", member)
 
 
-def _import(conn: sa.Connection, archive: Archive, root: Path, name: str, kind: str) -> bool:
-    _require_migrator(conn)
-    # Serialize repeats before inspecting the run. The draft helper separately
-    # serializes story/production imports and the lane orders concurrent enqueues.
-    run_id = archive.run["id"]
-    conn.execute(sa.select(sa.func.pg_advisory_xact_lock(sa.func.hashtextextended(run_id, 957))))
-    row = conn.execute(sa.select(run_rows).where(run_rows.c.id == run_id)).mappings().one_or_none()
-    replay = _already_imported(conn, archive, row)
+def _import(engine: sa.Engine, archive: Archive, root: Path, name: str, kind: str) -> bool:
     production = _production(archive, name, kind)
-    _check_production(conn, production)
-    store = _store_for(archive, root)
-    if not replay:
-        _persist(conn, archive, production)
-    # Complete all DB identity checks first. The transaction becomes visible
-    # only after the create-only blobs are durable.
-    _publish(store, archive, replay=replay)
-    return replay
+    story = _draft_document(archive)
+    with engine.begin() as conn:
+        _require_migrator(conn)
+        replay = _check_identities(conn, archive, story)
+    _publish(_store_for(archive, root), archive, replay=replay)
+    if replay:
+        return True
+    with engine.begin() as conn:
+        replay = _check_identities(conn, archive, story)
+        if not replay:
+            _persist(conn, archive, production, story)
+        return replay
 
 
 def run(options) -> int:
@@ -204,9 +213,9 @@ def run(options) -> int:
             engine = connect_engine(dsn, os.getenv("STUDIO_DATABASE_SCHEMA", "studio"))
             # A completed publish may warn about its staging name. Report only
             # the count so the CLI never exposes a destination path.
-            with warnings.catch_warnings(record=True) as notices, engine.begin() as conn:
+            with warnings.catch_warnings(record=True) as notices:
                 warnings.simplefilter("always", StagingLeftoverWarning)
-                replay = _import(conn, archive, Path(root), options.name, options.media_type)
+                replay = _import(engine, archive, Path(root), options.name, options.media_type)
             result = {
                 "status": "already_imported" if replay else "imported",
                 "production_id": archive.production_id, "story_id": archive.story["id"],

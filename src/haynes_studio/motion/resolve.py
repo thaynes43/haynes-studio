@@ -33,6 +33,7 @@ Problems, each with its own code (codes beyond the contract are **proposals**):
 | ``motion.keying_missing`` | invalid | a doll clip with no keying inputs recorded |
 | ``motion.identity_mismatch`` | invalid | a recorded key is not what the record's inputs give (a corrupt record) |
 | ``motion.drive_track_mismatch`` | invalid | a timed clip made for another board length |
+| ``asset.recorded_without_media`` | invalid | a production archive supplied the clip's record only |
 | ``asset.bytes_missing`` | invalid | the store does not hold the clip |
 | ``store.hash_mismatch`` | failed | the store holds other bytes at the clip's locator (corrupt) |
 
@@ -53,7 +54,9 @@ from haynes_studio.canonical.jsonvalues import normalize
 from haynes_studio.errors import Violation, blocking, pointer
 from haynes_studio.library.library import REF_UNKNOWN, Library
 from haynes_studio.library.model import PROMOTED, AssetVersion
-from haynes_studio.library.resolve import BYTES_MISSING, KIND_MISMATCH, SCOPE_MISMATCH
+from haynes_studio.library.resolve import (
+    BYTES_MISSING, KIND_MISMATCH, RECORDED_WITHOUT_MEDIA, SCOPE_MISMATCH,
+)
 from haynes_studio.motion.check import CAPABILITY_MISMATCH, IDENTITY_MISMATCH, identity_problems
 from haynes_studio.motion.identity import MotionIdentity, motion_identity
 from haynes_studio.motion.record import DOLL, LOOP, SET, SUBJECT_CAPABILITY, TIMED, MotionRecord
@@ -72,7 +75,7 @@ FAILED = "failed"
 
 CODES = (REF_UNKNOWN, KIND_MISMATCH, SCOPE_MISMATCH, RECORD_MISSING, CLIP_ABSENT, CLIP_AMBIGUOUS, TIMED_NOT_LOOP,
          CAPABILITY_MISMATCH, STILL_MISMATCH, KEYING_MISSING, IDENTITY_MISMATCH,
-         DRIVE_TRACK_MISMATCH, BYTES_MISSING, HASH_MISMATCH)
+         DRIVE_TRACK_MISMATCH, RECORDED_WITHOUT_MEDIA, BYTES_MISSING, HASH_MISMATCH)
 
 Verify = Callable[[str, str], str]
 """``verify(locator, sha256)``: ``present``, ``missing`` or ``mismatch`` (story 379)."""
@@ -198,6 +201,8 @@ def _clip(library: Library, version: AssetVersion, *, path: str, slot: str, use:
     if version.kind != "motion":
         return None, [_v(KIND_MISMATCH, path, f"{version.id} is a {version.kind}; this field "
                                                "needs a motion")]
+    if version.recorded_without_media:
+        return None, [_v(RECORDED_WITHOUT_MEDIA, path, f"asset version {version.id} was recorded without media")]
     record = _record(version)
     if record is None:
         return None, [_v(RECORD_MISSING, path, f"{version.id} has no motion block: nothing says "
