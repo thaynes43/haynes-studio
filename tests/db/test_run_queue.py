@@ -25,6 +25,7 @@ from haynes_studio.db.catalog import record_asset_version
 from haynes_studio.db.schema import run_wan_attempts, worker_lane_grants, worker_tokens
 from haynes_studio.library import Library
 from haynes_studio.layered.visibility import _result as visibility_result
+from haynes_studio.layered.visibility import evidence_sha256
 from haynes_studio.photo.plan import plan_photo
 from haynes_studio.queue.wan import GPU_REFUSALS, LanePaused, ProductClips, ProductWan, product_request
 from haynes_studio.queue.worker import BuildWorker
@@ -837,7 +838,7 @@ def test_visibility_review_can_build_only_after_a_matching_human_override(queue,
         assert worker.tick()
         stopped, etag = read_run(q, original)
         assert stopped["status"] == "failed" and stopped["error"]["code"] == "occlusion.review"
-        assert not fake.puts() and stopped["delivery_id"] is None
+        assert not fake.events and stopped["delivery_id"] is None
         (check,) = stopped["checks"]
         assert check["actual"]["measured"]["visible_pixels"] == 280
         url = f"/v1/runs/{original}/checks/occlusion.visibility/overrides"
@@ -852,9 +853,23 @@ def test_visibility_review_can_build_only_after_a_matching_human_override(queue,
         mask_sha = "3" * 64
         changed = queue_run(q, "changed-evidence", rev=5)
         assert changed.status_code == 201, changed.text
+        changed_id = changed.json()["id"]
+        assert "visibility_overrides" not in q.browser.get(f"/v1/runs/{changed_id}/snapshot").json()
         assert worker.tick()
-        stopped, _ = read_run(q, changed.json()["id"])
+        stopped, _ = read_run(q, changed_id)
         assert stopped["error"]["code"] == "occlusion.review" and not fake.puts()
+        assert stopped["checks"][0]["artifact"] != check["artifact"]
+
+        mask_sha = "2" * 64
+        frozen_approval = queue_run(q, "evidence-changes-after-queue", rev=5)
+        assert frozen_approval.status_code == 201, frozen_approval.text
+        frozen_id = frozen_approval.json()["id"]
+        assert q.browser.get(f"/v1/runs/{frozen_id}/snapshot").json()["visibility_overrides"] == [check["artifact"]]
+        mask_sha = "3" * 64
+        assert worker.tick()
+        stopped, _ = read_run(q, frozen_id)
+        assert stopped["status"] == "failed"
+        assert stopped["error"]["code"] == "occlusion.review" and not fake.events
         assert stopped["checks"][0]["artifact"] != check["artifact"]
 
         mask_sha = "2" * 64
@@ -879,7 +894,7 @@ def test_visibility_review_can_build_only_after_a_matching_human_override(queue,
         assert stopped["error"]["code"] == "occlusion.review" and len(fake.puts()) == 1
 
 
-@pytest.mark.parametrize("fault", ["hidden", "tampered"])
+@pytest.mark.parametrize("fault", ["hidden", "tampered", "measured_status", "escalation"])
 def test_invalid_visibility_check_cannot_use_the_override_endpoint(queue, fault):
     q = queue
     response = queue_run(q, "hidden-visibility")
@@ -892,6 +907,12 @@ def test_invalid_visibility_check_cannot_use_the_override_endpoint(queue, fault)
                                  {"layout": "a" * 64}, visible=visible, total=400)
     if fault == "tampered":
         evidence["thresholds"]["visible_min_percent"] = 90
+    elif fault == "measured_status":
+        evidence["measured"]["status"] = "hidden"
+        evidence["artifact"] = evidence_sha256(evidence)
+    elif fault == "escalation":
+        evidence["escalation"] = None
+        evidence["artifact"] = evidence_sha256(evidence)
     claim.fail(status="failed", reason="Fixture failed check", checks=[as_run_check(evidence)])
     _, etag = read_run(q, run_id)
     response = q.browser.post(f"/v1/runs/{run_id}/checks/occlusion.visibility/overrides",

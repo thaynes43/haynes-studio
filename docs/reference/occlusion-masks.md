@@ -94,8 +94,9 @@ clipped pixels and pixels with alpha of at least 128 in any measured layer stric
 Shadows do not contribute. A baked-in foreground prop must be entirely within
 its named role and unambiguous across the other roles. Its own layer and all
 layers beneath it cannot occlude it. A baked background prop needs depth
-geometry when the legacy foreground redraws the plate. A mask spanning depth
-layers requires a person to supply a better hint or layer assignment.
+geometry where the legacy foreground redraw intersects its projected support.
+A mask spanning depth layers requires a person to supply a better hint or
+layer assignment. A separate prop's setup failure affects its own check.
 
 Each check records the target, pose, frame size, camera crop, evidence hashes,
 integer visible and total pixel counts, status and thresholds. A measured
@@ -109,9 +110,10 @@ technical defaults pending the private trial.
 The worker stops an uncertain run for review before asking for any clip.
 Run details show the measurement and floors. A signed-in person can record
 a reason with the existing check override action. The override stores the
-full measurement, floors and evidence hashes. Selecting Build again can
-proceed when all uncertain checks have approved evidence for the exact same
-frozen inputs. The new snapshot pins the approved evidence hashes.
+full measurement, floors and evidence hashes, including the supplied bytes'
+digest when a mask fails validation. Selecting Build again can proceed when
+all uncertain checks have approved evidence for the exact same frozen inputs.
+The new snapshot pins the approved evidence hashes.
 
 ## Gaps
 

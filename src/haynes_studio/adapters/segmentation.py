@@ -8,7 +8,7 @@ import re
 import stat
 from collections.abc import Callable
 from contextlib import contextmanager
-from errno import EISDIR, ELOOP
+from errno import EISDIR, ELOOP, ENXIO
 from fcntl import LOCK_EX, LOCK_NB, flock
 from pathlib import Path
 from time import sleep, time
@@ -129,7 +129,7 @@ class SegmentationClient:
             fd = os.open(self.scratch / ".studio-segmentation.lock",
                          os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, 0o660)
         except OSError as error:
-            if error.errno in (ELOOP, EISDIR):
+            if error.errno in (ELOOP, EISDIR, ENXIO):
                 raise SegmentationError("lock_path_invalid") from None
             raise
         try:

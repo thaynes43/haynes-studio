@@ -29,6 +29,8 @@ from haynes_studio.library.model import locator_for
 from haynes_studio.photo.plan import plan_photo
 from haynes_studio.render.delivery_profile import fit_set_plate
 from haynes_studio.segmentation.backend import Engine
+from haynes_studio.segmentation.pixels import encode_mask
+from haynes_studio.segmentation.profile import digest
 from haynes_studio.segmentation.service import listening
 from haynes_studio.stages.preflight import PreflightError
 from tests.assets.test_occlusion import (
@@ -328,6 +330,35 @@ def test_measured_face_build_gate_respects_only_uncertain_overrides(world, monke
         after.ensure_buildable()
 
 
+def test_different_invalid_mask_bytes_require_fresh_review(world, monkeypatch):
+    story, library, pose = opted_in_legacy(world)
+    pose = observations(world, story, library, pose)
+    target = ("face", "a")
+    receipt = pose.observations[target]
+    results = []
+    for offset in (1, 2):
+        pixels = np.zeros((SIZE[1], SIZE[0]), dtype=bool)
+        pixels[10:30, 10 + offset:30] = True
+        png = encode_mask(pixels)
+        assert digest(png) != receipt.completion.mask.sha256
+        supplied = replace(pose, observations={target: replace(receipt, png=png)})
+        (result,) = evaluated(world, story, library, {"still": supplied})
+        assert counted(result) == ("uncertain", 0, 0)
+        assert result["measured"]["reason"] == "observation_mask_mismatch"
+        assert result["artifact_refs"]["face:a:mask"] == digest(png)
+        results.append(result)
+
+    first, second = results
+    assert first["artifact"] != second["artifact"]
+    monkeypatch.setattr(prebuild, "evaluate_visibility", lambda *args, **kwargs: [first])
+    approval = (first["artifact"],)
+    _prepare(world, story, library, visibility_overrides=approval).ensure_buildable()
+    monkeypatch.setattr(prebuild, "evaluate_visibility", lambda *args, **kwargs: [second])
+    with pytest.raises(VisibilityReviewRequired) as refused:
+        _prepare(world, story, library, visibility_overrides=approval).ensure_buildable()
+    assert refused.value.checks[0]["actual"] == second
+
+
 def test_product_prebuild_refuses_declared_foreground_roles_even_when_disabled(world):
     story, library, _ = scene(world)
     (board,) = story.boards
@@ -359,6 +390,51 @@ def test_legacy_boards_keep_edge_feather_rendering_and_their_layout_document(wor
     checked = replace(story, boards=(board,))
     (check,) = evaluated(world, checked, library, {"still": observations(world, checked, library, pose)})
     assert counted(check) == ("hidden", 0, 400)
+
+
+def test_separate_prop_setup_failure_keeps_the_legacy_hidden_face(world):
+    story, library, pose = scene(world, focus=None, prop_depth="separate")
+    story = replace(story, set=replace(story.set, foreground_edge_px=((0, 9), (64, 9)),
+                                      foreground_feather_px=1))
+    pose = observations(world, story, library, pose)
+    face, _ = evaluated(world, story, library, {"still": pose})
+    assert counted(face) == ("hidden", 0, 400)
+
+    # Prop setup can fail in several ways while the face is still measurable.
+    faults = (
+        (replace(pose, cutouts={"a": pose.cutouts["a"]}), "missing_or_wrong_layer"),
+        (replace(pose, cutouts={**pose.cutouts, "menu": pose.cutouts["a"]}), "missing_or_wrong_layer"),
+        (replace(pose, moves={"a": pose.moves["a"]}), "missing_or_invalid_move"),
+        (replace(pose, moves={**pose.moves, "menu": (10_001, 0, 0)}), "missing_or_invalid_move"),
+        (replace(pose, moves={**pose.moves, "menu": (10_002, 0, 0)}), "missing_or_invalid_move"),
+        (replace(pose, moves={**pose.moves, "menu": (float("inf"), 0, 0)}), "invalid_geometry"),
+    )
+    artifacts = set()
+    for bad_pose, reason in faults:
+        result = evaluated(world, story, library, {"still": bad_pose})
+        hidden_face, broken_prop = result
+        assert counted(hidden_face) == counted(face)
+        assert hidden_face["artifact"] == face["artifact"]
+        assert counted(broken_prop) == ("uncertain", 0, 0)
+        assert broken_prop["measured"]["reason"] == reason
+        artifacts.add(broken_prop["artifact"])
+        assert [problem.rule for problem in visibility_violations(result)] == ["occlusion.hidden"]
+    assert len(artifacts) == len(faults)
+
+
+def test_disjoint_legacy_foreground_keeps_the_background_menu_hidden(world):
+    story, library, pose = scene(world, focus=None, prop_depth="background")
+    pose = observations(world, story, library, pose)
+    _, menu = evaluated(world, story, library, {"still": pose})
+    assert counted(menu) == ("hidden", 0, 400)
+
+    # Vary the slope, height and feather while keeping the redraw off the menu.
+    for left, right, feather in ((36, 36, 1), (33, 42, 3), (42, 35, 4), (30, 30, 0)):
+        edged = replace(story, set=replace(story.set, foreground_edge_px=((0, left), (64, right)),
+                                          foreground_feather_px=feather))
+        results = evaluated(world, edged, library, {"still": pose})
+        assert counted(results[1]) == counted(menu)
+        assert [problem.rule for problem in visibility_violations(results)] == ["occlusion.hidden"]
 
 
 def test_legacy_foreground_keeps_face_measurement_when_prop_depth_is_ambiguous(world):

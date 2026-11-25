@@ -7,6 +7,8 @@ nothing about detector quality on a miniature set.
 from __future__ import annotations
 
 import multiprocessing
+import os
+import socket
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from functools import partial
@@ -255,6 +257,36 @@ def test_symlink_at_scratch_lock_is_reported_without_following_it(world):
     assert run(world, source, journal) is None
     assert journal.failures == ["lock_path_invalid"]
     assert lock.is_symlink() and not target.exists()
+    assert not journal.completions
+
+
+def test_socket_at_scratch_lock_is_reported_as_invalid(world):
+    store, client, weights = world
+    source, _ = library_image(store, Image.new("RGB", SIZE), "set")
+    journal = Journal()
+    with TemporaryDirectory(prefix="s452-") as directory:
+        scratch = Path(directory)
+        lock = scratch / ".studio-segmentation.lock"
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+            sock.bind(str(lock))
+        client = SegmentationClient(client.profile, client.profile_sha256, scratch=scratch)
+
+        assert run((store, client, weights), source, journal) is None
+        assert lock.is_socket()
+    assert journal.failures == ["lock_path_invalid"]
+    assert not journal.completions
+
+
+def test_fifo_at_scratch_lock_is_reported_as_invalid(world):
+    store, client, _ = world
+    source, _ = library_image(store, Image.new("RGB", SIZE), "set")
+    lock = client.scratch / ".studio-segmentation.lock"
+    os.mkfifo(lock)
+    journal = Journal()
+
+    assert run(world, source, journal) is None
+    assert journal.failures == ["lock_path_invalid"]
+    assert lock.is_fifo()
     assert not journal.completions
 
 
