@@ -1,0 +1,127 @@
+{
+  "archive": {
+    "tool": "studio_create_archive_record",
+    "value": {
+      "production_id": "prd_00000000000000000000000001",
+      "kind": "brief",
+      "title": "The Button Museum",
+      "text": "A doll arranges buttons by the sounds they make.",
+      "provenance": {"origin": "original"},
+      "idempotency_key": "museum-brief-1"
+    }
+  },
+  "authentication": {
+    "operation": "login",
+    "part": "parameter",
+    "in": "query",
+    "name": "return_to",
+    "value": "/productions"
+  },
+  "boards": {
+    "tool": "studio_add_board",
+    "value": {
+      "story_id": "sty_00000000000000000000000002",
+      "revision": 3,
+      "fields": {"title": "The empty display case"}
+    }
+  },
+  "deliveries": {
+    "tool": "studio_get_delivery",
+    "value": {"run_id": "run_00000000000000000000000003"}
+  },
+  "escalations": {
+    "operation": "authorize_escalation",
+    "part": "request",
+    "value": {"acknowledge_board_ids": ["brd_00000000000000000000000004"]}
+  },
+  "feedback": {
+    "operation": "add_candidate_feedback",
+    "part": "request",
+    "value": {
+      "text": "Hold on the empty display case for the final beat.",
+      "board_ids": ["brd_00000000000000000000000004"]
+    }
+  },
+  "formats": {
+    "tool": "studio_list_format_versions",
+    "value": {"format_id": "doll-short", "limit": 5}
+  },
+  "go-live": {
+    "operation": "approve_go_live",
+    "part": "request",
+    "value": {
+      "master_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "platform_setting": true
+    }
+  },
+  "identity": {
+    "operation": "get_me",
+    "part": "response",
+    "status": "200",
+    "value": {
+      "principal": {"kind": "agent", "key_id": "key_01M79V9FC00000000000000005"},
+      "production_scopes": {"prd_00000000000000000000000001": ["read"]}
+    }
+  },
+  "library": {
+    "tool": "studio_search_assets",
+    "value": {"kind": "prop", "label": ["museum"], "limit": 5}
+  },
+  "media": {
+    "operation": "get_media",
+    "part": "parameter",
+    "in": "header",
+    "name": "Range",
+    "value": "bytes=0-4095"
+  },
+  "media jobs": {
+    "tool": "studio_generate_photo",
+    "value": {
+      "board_id": "brd_00000000000000000000000004",
+      "idempotency_key": "display-case-photo-1",
+      "seed": 17
+    }
+  },
+  "photo upload": {
+    "operation": "upload_board_photo",
+    "part": "parameter",
+    "in": "header",
+    "name": "X-Studio-Photo-Provenance",
+    "value": {
+      "model": "synthetic-illustrator",
+      "prompt": "A miniature display case with one ceramic button",
+      "session": "fixture-session",
+      "harness": "fixture-agent",
+      "source_asset_version_ids": ["asv_00000000000000000000000006"],
+      "paid_api": false
+    }
+  },
+  "probes": {
+    "operation": "healthz",
+    "part": "empty response",
+    "status": "204"
+  },
+  "productions": {
+    "operation": "create_production",
+    "part": "request",
+    "value": {"name": "Button Museum", "labels": ["fixture"]}
+  },
+  "release": {
+    "operation": "prepare_release_package",
+    "part": "request",
+    "value": {"target_id": "shorts-pilot"}
+  },
+  "runs": {
+    "tool": "studio_queue_run",
+    "value": {
+      "story_id": "sty_00000000000000000000000002",
+      "revision": 4,
+      "idempotency_key": "museum-run-1"
+    }
+  },
+  "stories": {
+    "operation": "create_story",
+    "part": "request",
+    "value": {"title": "The Button Museum"}
+  }
+}
