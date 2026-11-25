@@ -46,18 +46,14 @@ callback opens Productions.
 ## OpenAPI types
 
 `pnpm generate:api` runs `uv run --locked studio-api openapi` from the repository
-root and generates `src/api/schema.ts` with the locked `openapi-typescript`. To
-generate from a separate API revision, pass its exported JSON path instead. The
-initial source for this shell is [OP409](https://work.haynesnetwork.com/work_packages/409)
-commit `b730c1e2231b2c12bbbb30e763215beccd284158`:
+root and generates `src/api/schema.ts` with the locked `openapi-typescript`.
+Commit the generated file alongside API changes. The browser CI job checks
+that it matches the repository's OpenAPI output. Run the generator from the
+repository root.
 
 ```sh
-# From the repository root, after fetching the OP409 branch.
-api_snapshot=$(mktemp -d)
-git archive b730c1e2231b2c12bbbb30e763215beccd284158 | tar -x -C "$api_snapshot"
-(cd "$api_snapshot" && uv run --locked studio-api openapi) > "$api_snapshot/openapi.json"
-pnpm --dir web generate:api "$api_snapshot/openapi.json"
+pnpm --dir web generate:api
 ```
 
-The exported OpenAPI JSON has SHA-256
-`4b893a4709fd507db5efa1517e9a537d3e0446fff1b36819156e3d4d3b2c91db`.
+For a local comparison with another API revision, pass the path to its exported
+OpenAPI JSON.

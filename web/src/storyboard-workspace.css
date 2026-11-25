@@ -1,0 +1,119 @@
+.storyboard-workspace {
+  display: grid;
+  grid-template-areas: "stage" "timeline";
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.storyboard-stage {
+  grid-area: stage;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #101110;
+  color: #eeefee;
+  color-scheme: dark;
+}
+
+.storyboard-stage > .empty { padding: 16px; color: #b9bcb9; }
+.storyboard-stage-meta {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #383b38;
+  color: #c6c9c6;
+  font: .78rem/1.5 ui-monospace, monospace;
+  overflow-wrap: anywhere;
+}
+
+.storyboard-preview { display: grid; place-items: center; padding: 16px; }
+.storyboard-picture {
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  place-items: center;
+  background: #191c19;
+  border: 1px solid #3d433d;
+  border-radius: 4px;
+  min-width: 0;
+}
+.storyboard-picture-short { width: min(56%, 192px); aspect-ratio: 9 / 16; }
+.storyboard-picture-video { width: min(100%, 580px); aspect-ratio: 16 / 9; }
+.storyboard-picture img, .storyboard-thumb img {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: contain;
+  border-radius: inherit;
+}
+.storyboard-placeholder { text-align: center; padding: 8px; color: #c6c9c6; }
+.storyboard-placeholder h2 { margin: 0; color: #eeefee; font-size: 1.1rem; }
+.storyboard-placeholder p { margin-top: 3px; font-size: .8rem; }
+
+.storyboard-voice { display: grid; gap: 6px; padding: 8px 12px; border-top: 1px solid #383b38; }
+.storyboard-voice audio { width: 100%; max-width: 100%; min-width: 0; }
+.storyboard-duration { display: flex; align-items: center; gap: 10px; font-size: .78rem; color: #c6c9c6; }
+.storyboard-duration span:first-child { flex: 1; height: 4px; border-radius: 3px; background: #878e87; }
+
+.storyboard-timeline {
+  grid-area: timeline;
+  min-width: 0;
+  padding: 11px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.storyboard-timeline-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.storyboard-timeline-heading h2 { margin: 0; font-size: 1rem; }
+.storyboard-length { display: flex; flex-wrap: wrap; gap: 3px 10px; font-size: .82rem; font-variant-numeric: tabular-nums; }
+.storyboard-length span + span, .storyboard-warning, .storyboard-status { color: var(--muted); }
+.storyboard-warning, .storyboard-status { font-size: .85rem; margin-top: 8px; }
+.storyboard-status:empty { margin: 0; }
+
+.storyboard-filmstrip {
+  display: flex;
+  gap: 8px;
+  margin: 6px 0 8px;
+  padding: 6px 6px 10px;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  list-style: none;
+}
+.storyboard-filmstrip > li { flex: 0 0 112px; min-width: 0; }
+.storyboard-filmstrip a {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  color: var(--ink);
+  background: var(--page);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px;
+  text-decoration: none;
+  font-size: .8rem;
+  text-align: center;
+}
+.storyboard-filmstrip a[aria-current] { border-color: var(--accent-text); box-shadow: inset 0 0 0 1px var(--accent-text); }
+.storyboard-filmstrip a:hover { border-color: var(--accent-text); }
+.storyboard-filmstrip a > span { color: var(--muted); font-variant-numeric: tabular-nums; }
+.storyboard-thumb { height: 56px; background: #191c19; border-radius: 4px; }
+.storyboard-thumb > span { display: block; margin: 6px auto; height: calc(100% - 12px); aspect-ratio: 3 / 4; border: 1px solid #525852; border-radius: 2px; }
+.storyboard-controls { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.storyboard-controls .pill[aria-disabled="true"] { opacity: .55; cursor: default; }
+.storyboard-inspector { display: none; }
+
+@media (min-width: 960px) {
+  .storyboard-workspace {
+    grid-template-areas: "stage inspector" "timeline inspector";
+    grid-template-columns: minmax(0, 1fr) clamp(260px, 27vw, 336px);
+  }
+  .storyboard-inspector {
+    display: block;
+    grid-area: inspector;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+  }
+}

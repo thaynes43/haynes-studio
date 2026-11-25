@@ -53,6 +53,9 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=f"studio {__version__}")
     commands = parser.add_subparsers(dest="command", metavar="COMMAND", required=True)
+    from haynes_studio.drafting.cli import add_command
+
+    add_command(commands)
 
     legacy = commands.add_parser(
         "legacy", help="read legacy PoC manifests and evidence (read-only)",

@@ -6,6 +6,8 @@ from typing import Annotated, Any, Generic, Literal, TypeVar
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, StringConstraints
 from pydantic.root_model import RootModel
 
+from haynes_studio.drafting.declaration import PersonEditAcknowledgment
+
 MediaKind = Literal["short", "video"]
 Identifier = Annotated[str, StringConstraints(min_length=30, max_length=30)]
 Title = Annotated[str, StringConstraints(min_length=1, max_length=80)]
@@ -47,12 +49,21 @@ class StoryPatch(Document):
     pass
 
 
-class BoardWrite(Document):
+class BoardCreate(Document):
     pass
+
+
+class BoardPatch(Document):
+    pass
+
+
+class BoardRemoval(Body):
+    acknowledge_person_edit: PersonEditAcknowledgment | None = None
 
 
 class BoardOrder(Body):
     board_order: list[Identifier]
+    acknowledge_person_edit: dict[Identifier, PersonEditAcknowledgment] | None = None
 
 
 class SelectionWrite(Body):
@@ -116,7 +127,7 @@ class AssetDetail(TransportModel):
 def build_models(*additional: type[BaseModel]) -> None:
     """Build the deferred models before FastAPI attaches route-specific field metadata."""
     for model in (
-        ProductionCreate, StoryCreate, StoryPatch, BoardWrite, BoardOrder, SelectionWrite,
+        ProductionCreate, StoryCreate, StoryPatch, BoardCreate, BoardPatch, BoardRemoval, BoardOrder, SelectionWrite,
         Selections, Me, ExternalPhotoDeclaration, Production, Story, Board, Timing,
         AssetVersion, Delivery, AssetDetail, Page[Production], Page[Story], Page[AssetVersion],
         *additional,

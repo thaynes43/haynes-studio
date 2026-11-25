@@ -36,7 +36,7 @@ as `studio-mcp` version `1.0.0`.
 | `studio_get_story_summary` | `read` | Story ID and revision, board count, timing totals and a page of ordered board IDs. Optional `fields` selects editable story fields. |
 | `studio_get_story_timing` | `read` | Story revision, frame totals, warnings, build blocker count and a page of board timings. |
 | `studio_create_story`, `studio_patch_story` | `draft:write` | Story summary and revision. Create takes `fields` with a title, and patch takes `patch` and the current story revision. |
-| `studio_get_board` | `read` | Board ID, story ID, revision, timing metadata and editable fields. Optional `fields` narrows the selection. |
+| `studio_get_board` | `read` | Board ID, story ID, revision, `read_token`, timing metadata and editable fields. Optional `fields` narrows the selection. |
 | `studio_add_board` | `draft:write` | Board summary and resulting story revision. Takes the current story revision and a `fields` object. Use `{}` for defaults. |
 | `studio_patch_board` | `draft:write` | Board summary and resulting board revision. Takes the current board revision and a `patch` object. |
 | `studio_reorder_boards` | `draft:write` | Story summary and resulting revision. Takes the current story revision and every active board ID in the desired order. |
@@ -66,6 +66,33 @@ validation `rule` for each failing field. Authentication and API
 failures during the protocol request's key check return HTTP errors before tool
 dispatch. `service_unavailable` is 503, `internal` is 500, and `unavailable` at
 422 is a method capability error.
+
+Creating, patching, reordering or removing a board as a person records a
+`person_edit` marker. Stamped boards carry it in `draft_application`.
+Unstamped boards carry it at the top level. An agent patch, reorder that moves
+the board, or tombstone of a board with that marker returns `409 draft.protected`
+unless acknowledged. The error includes `board_id`, `current_revision` and
+`person_edit_revision` for a person edit. Older stamps can have a null edit
+revision. A re-draft also returns `draft.protected` if its key differs from
+the authenticated key in `drafted_by` and it lacks an acknowledgment. Use an
+acknowledgment only when a person asks for changes to that board by ID.
+
+Read the named board with `studio_get_board` and send
+`acknowledge_person_edit: {board_revision, read_token}` inside a
+`studio_patch_board` patch or at the top level of `studio_remove_board`
+arguments. For `studio_reorder_boards`, send `acknowledge_person_edit`
+at the top level as a map from each protected board ID being moved to its
+acknowledgment. The token binds the read to the agent key, board and revision.
+The normal write revision is still required. The HTTP equivalent gets the
+token from the `X-Studio-Board-Read-Token` response header and sends the
+same field in the JSON request body.
+
+The server-managed `person_edit_acknowledgments` history sits alongside the
+marker. It records the key ID, timestamp and board revision replaced by
+each acknowledged write. A patch or later re-draft preserves the history and
+person edit marker. A reorder by the key that stamped an unchanged board
+keeps its stamp current. A person can patch, reorder or remove boards without
+using these fields.
 
 Lists and ordered board/timing pages default to 10 items with a maximum of 20.
 Pass back `next_cursor` as `cursor` with the same filters until it is null.

@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://haynes-studio.invalid/schemas/studio.agent-draft.v1.schema.json",
+  "title": "studio.agent-draft/v1: board proposals for one prepared story",
+  "type": "object",
+  "required": ["schema", "production_id", "story_id", "model", "session", "set", "boards"],
+  "properties": {
+    "schema": {"const": "studio.agent-draft/v1"},
+    "production_id": {"$ref": "studio.defs.v1.schema.json#/$defs/prd_id"},
+    "story_id": {"$ref": "studio.defs.v1.schema.json#/$defs/sty_id"},
+    "model": {"$ref": "#/$defs/label"},
+    "session": {"$ref": "#/$defs/label"},
+    "usage": {
+      "type": "object",
+      "properties": {
+        "input_tokens": {"$ref": "#/$defs/tokens"},
+        "output_tokens": {"$ref": "#/$defs/tokens"},
+        "cost_usd": {"type": ["number", "null"], "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "set": {
+      "type": ["object", "null"],
+      "required": ["asset_version_id"],
+      "properties": {
+        "asset_version_id": {"$ref": "studio.defs.v1.schema.json#/$defs/asv_id_or_null"},
+        "motion_asset_version_id": {"$ref": "studio.defs.v1.schema.json#/$defs/asv_id_or_null"}
+      },
+      "additionalProperties": false
+    },
+    "boards": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "required": ["key", "fields"],
+        "properties": {
+          "key": {"$ref": "#/$defs/key"},
+          "fields": {"$ref": "#/$defs/fields"}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "label": {"type": "string", "minLength": 1, "maxLength": 200, "not": {"pattern": "[\u0000-\u001f\u007f]"}},
+    "key": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+      "not": {"pattern": "[^a-z0-9_-]"}
+    },
+    "tokens": {"type": ["integer", "null"], "minimum": 0},
+    "fields": {
+      "type": "object",
+      "required": ["title", "lines", "timing", "voice", "cast", "layout", "method", "cues", "notes"],
+      "properties": {
+        "title": {"$ref": "studio.board.v1.schema.json#/properties/title"},
+        "lines": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "type": "object",
+            "required": ["speaker", "text", "gap_before_ms"],
+            "properties": {
+              "key": {"$ref": "#/$defs/key"},
+              "speaker": {"$ref": "studio.defs.v1.schema.json#/$defs/speaker"},
+              "text": {"type": "string", "minLength": 1, "maxLength": 1200},
+              "gap_before_ms": {"type": ["integer", "null"]}
+            },
+            "additionalProperties": false
+          }
+        },
+        "timing": {"$ref": "studio.board.v1.schema.json#/properties/timing"},
+        "voice": {"enum": ["cast", "narrator", null]},
+        "photo": {
+          "type": "object",
+          "required": ["prompt", "input_asset_version_ids"],
+          "properties": {
+            "prompt": {"type": ["string", "null"], "maxLength": 1800},
+            "input_asset_version_ids": {"type": "array", "items": {"$ref": "studio.defs.v1.schema.json#/$defs/asv_id"}}
+          },
+          "additionalProperties": false
+        },
+        "cast": {"$ref": "studio.board.v1.schema.json#/properties/cast"},
+        "layout": {"$ref": "studio.board.v1.schema.json#/properties/layout"},
+        "method": {"$ref": "studio.board.v1.schema.json#/properties/method"},
+        "seeds": {"$ref": "studio.board.v1.schema.json#/properties/seeds"},
+        "cues": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "not": {"required": ["id"]},
+            "required": ["type", "anchor"],
+            "properties": {
+              "anchor": {
+                "oneOf": [
+                  {"type": "object", "required": ["at_ms"], "properties": {"at_ms": {"type": "integer"}}, "additionalProperties": false},
+                  {"type": "object", "required": ["after_line", "offset_ms"], "properties": {"after_line": {"type": "string"}, "offset_ms": {"type": "integer"}}, "additionalProperties": false}
+                ]
+              }
+            }
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["text"],
+            "properties": {"text": {"type": "string"}},
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
