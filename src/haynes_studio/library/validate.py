@@ -35,7 +35,7 @@ from haynes_studio.canonical.validate import (
     _sorted,
 )
 from haynes_studio.canonical.occlusion import unavailable
-from haynes_studio.errors import Violation, pointer
+from haynes_studio.errors import ContractError, Violation, pointer
 from haynes_studio.library.model import (
     ASSET_SCHEMA,
     ASSET_VERSION_SCHEMA,
@@ -82,33 +82,42 @@ def validate_asset_version(
 ) -> list[Violation]:
     """Check the version and use available dimensions from separately referenced stills."""
     _check_context(context)
+    return _version_validation(document, context, source_content)[1]
+
+
+def version_write_document(
+    document: Any, *, source_content: Callable[[str], Content | None] | None = None,
+) -> dict[str, Any]:
+    """The canonical version for a sink. CR-61 applies to both raw and typed input."""
+    document, problems = _version_validation(document, WRITE, source_content)
+    if _blocking(problems):
+        raise ContractError("<asset version>", problems)
+    return document
+
+
+def _version_validation(document, context, source_content):
+    original = document
     document, stop = _prepare(document, ASSET_VERSION_SCHEMA)
     if stop is not None:
-        return stop
-    if context == WRITE:
-        document = version_write_document(document)
+        return document, stop
+    if context == WRITE and "occlusion" in document and _empty_declaration(document["occlusion"]):
+        document.pop("occlusion")
+        original = {key: value for key, value in original.items() if key != "occlusion"}
     found = schema_violations(ASSET_VERSION_FILE, document, default_rule=SCHEMA_INVALID)
     if not _blocking(found):
         found += _asset_rules(document) + _version_rules(document, source_content)
         if context == WRITE and "occlusion" in document and not _blocking(found):
             found.append(unavailable("/occlusion"))
-    return _sorted(found)
+    return original, _sorted(found)
 
 
-def empty_declaration(block: Any) -> bool:
+def _empty_declaration(block: Any) -> bool:
     """Recognize a null, an empty list or a block with both target lists empty."""
     if isinstance(block, Mapping):
         return block.keys() == {"foreground", "focal_props"} and all(
             isinstance(entries, (list, tuple)) and not entries for entries in block.values()
         )
     return block is None or (isinstance(block, (list, tuple)) and not block)
-
-
-def version_write_document(document):
-    """Omit empty declarations and leave other input for validation."""
-    if isinstance(document, Mapping) and "occlusion" in document and empty_declaration(document["occlusion"]):
-        return {key: value for key, value in document.items() if key != "occlusion"}
-    return document
 
 
 # Asset fields (shared by both documents) ---------------------------------------------------

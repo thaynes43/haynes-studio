@@ -209,7 +209,7 @@ class Draft:
         _, library = self._library(conn, doc)
         derived = boards_derived(Story.from_document(doc).ordered_boards(), self.facts(conn, doc, library))
         index = self.story["board_order"].index(id_)
-        return {**self.boards[id_], "derived": to_document(derived[index])}
+        return {**board_write_document(self.boards[id_]), "derived": to_document(derived[index])}
 
     def timing(self, conn: sa.Connection) -> dict:
         doc = self.exchange()
@@ -333,10 +333,12 @@ def _insert_story(conn, doc):
 
 
 def _insert_board(conn, doc):
+    doc = board_write_document(doc)
     conn.execute(boards.insert().values(
         id=doc["id"], story_id=doc["story_id"], number=doc["number"],
         source_key=(doc.get("origin") or {}).get("source_key"), document=doc,
     ))
+    return doc
 
 
 def create_story(conn: sa.Connection, production_id: str, kind: str, fields: dict, by: dict) -> Draft:
@@ -481,7 +483,7 @@ def add_board(conn: sa.Connection, id_: str, revision: int, fields: dict, by: di
     draft = get_draft(conn, id_, lock=True)
     require_revision(draft.story["revision"], revision)
     _exact_fields(fields, BOARD_FIELDS)
-    fields, declaration = _draft_declaration(board_write_document(fields), by, DraftDeclaration)
+    fields, declaration = _draft_declaration(fields, by, DraftDeclaration)
     minter = Minter()
     id_board, now = minter.mint("brd"), timestamp()
     number = draft.highest_board + 1
@@ -531,7 +533,7 @@ def add_board(conn: sa.Connection, id_: str, revision: int, fields: dict, by: di
     updated.highest_board = number
     refs = updated.validate(conn, board=doc)
     _reserve_ids(conn, _child_ids(doc, BOARD_CHILDREN))
-    _insert_board(conn, doc)
+    updated.boards[id_board] = _insert_board(conn, doc)
     _save_story(conn, updated, refs)
     return updated, id_board
 
@@ -545,7 +547,7 @@ def edit_board(conn: sa.Connection, story_id: str, id_: str, revision: int,
         raise NotFound
     require_revision(held["revision"], revision)
     _exact_fields(fields, BOARD_FIELDS)
-    fields, declaration = _draft_declaration(board_write_document(fields), by, RedraftDeclaration)
+    fields, declaration = _draft_declaration(fields, by, RedraftDeclaration)
     if archive_stamp is None:
         _check_board_write(held, by, acknowledgment)
     else:
@@ -600,6 +602,7 @@ def select_board_media(conn: sa.Connection, draft: Draft, board_id: str, kind: L
 
 
 def _replace_board(conn, draft, held, doc, now):
+    doc = board_write_document(doc)
     id_ = held["id"]
     updated = _advance(draft, {}, now)
     updated.boards = {**draft.boards, id_: doc}
@@ -631,7 +634,9 @@ def reorder(conn: sa.Connection, id_: str, revision: int, order: list[str], by: 
         _check_board_write(held, by, acknowledgment)
         if (acknowledgment is not None or by["kind"] == "human"
                 or "draft_application" in held or "person_edit" in held):
-            updated.boards[id_board] = _board_changed(held, by, "reordered", now, acknowledgment)
+            updated.boards[id_board] = board_write_document(
+                _board_changed(held, by, "reordered", now, acknowledgment),
+            )
             changed.append(id_board)
     refs = updated.validate(conn)
     for id_board in changed:
@@ -656,7 +661,7 @@ def remove_board(conn: sa.Connection, story_id: str, id_: str, revision: int, by
     updated.boards = {board_id: doc for board_id, doc in draft.boards.items() if board_id != id_}
     refs = updated.validate(conn)
     conn.execute(boards.update().where(boards.c.id == id_).values(
-        tombstone=True, document=_board_changed(held, by, "removed", now, acknowledgment),
+        tombstone=True, document=board_write_document(_board_changed(held, by, "removed", now, acknowledgment)),
     ))
     _save_story(conn, updated, refs)
 
@@ -756,6 +761,6 @@ def board_snapshot(conn, draft, board_id, additional=()):
     board = draft.boards.get(board_id)
     if board is None:
         raise NotFound
-    story = {**draft.story, "boards": [board], "board_order": [board_id]}
+    story = {**draft.story, "boards": [board_write_document(board)], "board_order": [board_id]}
     refs = {ref.version_id for ref in story_references(story)}
     return story, load_library(conn, refs.union(additional), story["production_id"])

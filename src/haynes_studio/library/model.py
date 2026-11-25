@@ -21,7 +21,7 @@ from __future__ import annotations
 import hashlib
 import json
 import unicodedata
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import Any
@@ -330,9 +330,9 @@ class AssetVersion:
         return replace(self, state=state)
 
 
-def version_document(version: AssetVersion, asset: Asset) -> dict[str, Any]:
-    """The ``studio.asset-version/v1`` document a read returns: the version's own
-    fields joined with its asset's kind, name, scope, labels and attributes."""
+def version_document(version: AssetVersion, asset: Asset, *,
+                     source_content: Callable[[str], Content | None] | None = None) -> dict[str, Any]:
+    """Join the version and asset fields for canonical output under CR-61."""
     out = {
         "schema": ASSET_VERSION_SCHEMA, "id": version.id, "asset_id": version.asset_id,
         "number": version.number, "kind": version.kind, "name": asset.name,
@@ -349,7 +349,10 @@ def version_document(version: AssetVersion, asset: Asset) -> dict[str, Any]:
     if version.recorded_without_media:
         out["recorded_without_media"] = True
     if version.occlusion is not None:
+        from haynes_studio.library.validate import version_write_document
+
         out["occlusion"] = thaw(version.occlusion)
+        return version_write_document(out, source_content=source_content)
     return out
 
 

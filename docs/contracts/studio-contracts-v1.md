@@ -1354,7 +1354,9 @@ pins, terminal run and delivery index. A new import requires unused production
 and catalog IDs. It never adopts an existing production or a shared version.
 An exact replay verifies existing blobs without writing. It survives a
 production display-name edit but requires the original archive basename and
-receipt digest. The recovered five-file layout keeps the original snapshot
+receipt digest. If empty pose lists need to be omitted, the imported run pins
+the canonical snapshot and records the verified source snapshot's pin in the
+archive import audit. The recovered five-file layout keeps the original snapshot
 hash and locator, stores JSON null in `runs.snapshot`, leaves the frozen library
 empty, and creates no reconstructed boards. Recovery evidence describes
 container metadata, not decoded frames.

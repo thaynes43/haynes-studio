@@ -21,6 +21,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from haynes_studio.canonical import validate_story
+from haynes_studio.canonical.occlusion import story_write_document
 from haynes_studio.canonical.validate import (
     READ,
     REF_DUPLICATE,
@@ -73,6 +74,13 @@ def _credits(document: Mapping[str, Any]) -> list[Violation]:
             out.append(Violation(CREDIT_OUTSIDE, path, f"a public credit names a video, voice or "
                                  f"sound engine (D44); {credit['engine_key']!r} is {role}"))
     return out
+
+
+def snapshot_write_document(snapshot: Any) -> Any:
+    """Canonical snapshot output with the same board policy as an editable draft."""
+    story = snapshot.get("story") if isinstance(snapshot, Mapping) else None
+    canonical = story_write_document(story, prefix="/story")
+    return snapshot if story is canonical else {**snapshot, "story": canonical}
 
 
 def validate_run_snapshot(document: Any, *, context: str = READ) -> list[Violation]:

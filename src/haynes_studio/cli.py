@@ -620,7 +620,7 @@ def _operator(args: argparse.Namespace, command: str, err: TextIO) -> dict | Non
     return to_document(Principal(kind="cli", command=command, operator=operator))
 
 
-def _read_inputs(args: argparse.Namespace):
+def _read_inputs(args: argparse.Namespace, *, context: str = "read"):
     """The draft story and the library from their files."""
     from haynes_studio.library import Library
     story = read_json(args.story).document
@@ -631,7 +631,11 @@ def _read_inputs(args: argparse.Namespace):
     if too_deep(versions) or not isinstance(versions, list):
         raise ContractError(args.library, [Violation("schema.invalid", "", "a library file "
                                                      "holds a JSON array of asset versions")])
-    return story, Library.from_version_documents(versions)
+    if context == "write":
+        from haynes_studio.canonical.occlusion import story_write_document
+
+        story = story_write_document(story)
+    return story, Library.from_version_documents(versions, context=context)
 
 
 def _store(root: str):
@@ -650,13 +654,14 @@ def _voice(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
     if existing:
         print(f"studio: will not overwrite {', '.join(existing)}", file=err)
         return USAGE
-    story, library = _read_inputs(args)
+    story, library = _read_inputs(args, context="write")
     result = make_story_voices(story, library, store=_store(args.store),
                                speech=args.clients.speech(), by=operator, now=_now(),
                                licences=load_licence_register(args.register))
+    documents = ((STORY_OUT, result.story), (LIBRARY_OUT, result.library.documents()))
     out_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
-    for name, document in ((STORY_OUT, result.story), (LIBRARY_OUT, result.library.documents())):
+    for name, document in documents:
         try:
             _create(out_dir / name, document)
         except OSError as error:

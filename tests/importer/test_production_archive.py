@@ -168,6 +168,7 @@ def rewrite_snapshot(fixture):
     ("set", "asset_versions asset-versions.json /1/occlusion occlusion.check_unavailable"),
     ("reversed-box", "asset_versions asset-versions.json /1/occlusion/foreground/0/hint/xyxy schema.invalid"),
     ("outside-point", "asset_versions asset-versions.json /1/occlusion/focal_props/0/hint/xy schema.invalid"),
+    ("malformed", "asset_versions asset-versions.json /1 schema.invalid"),
 ])
 def test_archive_checks_visibility_declarations_before_publication(tmp_path, monkeypatch, capsys,
                                                                  declaration, error):
@@ -178,7 +179,7 @@ def test_archive_checks_visibility_declarations_before_publication(tmp_path, mon
     else:
         block = {"foreground": [{"key": "shelf", "label": None, "layer_order": 10}], "focal_props": []}
         plate = archive_set(fixture, block)
-        versions = [fixture.asset, plate]
+        versions = [fixture.asset, [] if declaration == "malformed" else plate]
         if declaration == "reversed-box":
             block["foreground"][0]["hint"] = {"kind": "box", "xyxy": [20, 0, 10, 10]}
         if declaration == "outside-point":
@@ -218,4 +219,6 @@ def test_archive_empty_declarations_are_omitted_in_editable_view(tmp_path):
                         recovered=False) as archive:
         assert "check_poses" not in archive.story["boards"][0]["layout"]
         assert "occlusion" not in archive.versions[1]
-        assert archive.snapshot == fixture.snapshot
+        assert archive.snapshot["story"] == archive.story
+        assert archive.snapshot_pin["sha256"] != fixture.run["snapshot"]["sha256"]
+        assert archive.members["snapshot.json"].read() == canonical_json(fixture.snapshot)

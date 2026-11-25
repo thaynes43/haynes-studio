@@ -17,6 +17,7 @@ from types import MappingProxyType
 from typing import Any
 
 from haynes_studio.canonical.jsonvalues import integral, normalize
+from haynes_studio.canonical.occlusion import board_write_document
 from haynes_studio.jsonio import freeze, thaw
 
 BOARD_SCHEMA = "studio.board/v1"
@@ -41,7 +42,7 @@ def to_document(value: Any) -> Any:
             if field_value is None and item.name in omit:
                 continue
             out[item.name] = to_document(field_value)
-        return out
+        return board_write_document(out) if isinstance(value, Board) else out
     if isinstance(value, MappingProxyType | dict):
         return {key: to_document(item) for key, item in value.items()}
     if isinstance(value, tuple | list):

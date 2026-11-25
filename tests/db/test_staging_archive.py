@@ -465,6 +465,10 @@ def test_storyboard_apply_omits_empty_pose_list(studio, empty):
     document = draft(studio, "No visibility request", "one")
     document["boards"][0]["fields"]["layout"]["check_poses"] = empty
     archive = stage(studio, document)
+    stored = studio.browser.get(version_path(archive["head_version_id"])).json()
+    layout = json.loads(stored["text"])["boards"][0]["fields"]["layout"]
+    assert "check_poses" not in layout
+    assert stored["sha256"] == hashlib.sha256(stored["text"].encode()).hexdigest()
     applied = apply(studio, archive["head_version_id"], 1)
     assert applied.status_code == 200, applied.text
     board, = applied.json()["boards"]

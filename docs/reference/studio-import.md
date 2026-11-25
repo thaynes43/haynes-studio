@@ -66,9 +66,11 @@ can enqueue while the store copies and verifies files.
    leaves the database and store untouched. A production with the same ID must
    already have the matching archive import marker and source identity to qualify
    for replay.
-2. The command publishes the master, proxy and canonical snapshot create-only,
+2. The command publishes the master, proxy and verified source snapshot create-only,
    outside any database transaction. A failure can leave complete, unreferenced
    blobs and store staging files. A retry verifies and reuses complete blobs.
+   If empty pose fields were removed, it also publishes the canonical snapshot
+   that the imported run serves.
 3. A short PostgreSQL transaction rechecks identities, inserts the catalog
    records and gives the terminal run a position in the shared queue. A conflict
    or failure rolls back the rows. Complete blobs from step 2 remain subject to
@@ -118,7 +120,9 @@ Imported runs retain their original terminal status and have
 `legacy.archive_import` in the run document. Its fields are `source_directory`
 (the basename), `source_kind` (`canonical` or `recovered`), `receipt_sha256`
 (the SHA-256 of the canonical JSON inventory) and `imported_at` (UTC database
-time). The existing [go-live check](go-live.md) refuses either layout through
+time). When a snapshot is normalized, `source_snapshot` records the verified
+source pin, including its locator and digest. The existing
+[go-live check](go-live.md) refuses either layout through
 the populated `legacy` block and returns `approval.legacy_run`.
 
 ## Database privileges

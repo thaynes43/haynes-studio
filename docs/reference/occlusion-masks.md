@@ -44,15 +44,18 @@ redraw.
 Under provisional ruling CR-61, people and agent keys receive
 `occlusion.check_unavailable` when they try to save a visibility declaration.
 The rule covers draft edits over HTTP and MCP, including escalation responders,
-storyboard staging and apply, library imports, asset version registration and
-revision, and production archive verification and apply. Structural and hint
+storyboard staging and apply, `studio voice`, private import with `--library`,
+asset version registration and revision, and production archive verification and
+apply. Structural and hint
 validation still reports malformed fields. Production archive errors identify the
 member and field, including the zero-based asset version index.
 
 A null or empty `check_poses` list is omitted from the saved layout. A null or
 empty `occlusion` list, or an `occlusion` object with both target arrays empty,
-is omitted from the saved asset version. Archived source text and frozen
-snapshots retain their original bytes for verification.
+is omitted from the saved asset version. Staged storyboard text is re-encoded if
+an empty field is removed. An imported run pins the normalized snapshot for
+playback and retains the verified source snapshot under its original locator,
+recorded in the run's archive import audit.
 
 ## Segmentation adapter
 

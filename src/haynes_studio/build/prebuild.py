@@ -27,7 +27,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from haynes_studio.build.validate import SNAPSHOT_SCHEMA, validate_run_snapshot
+from haynes_studio.build.validate import SNAPSHOT_SCHEMA, snapshot_write_document, validate_run_snapshot
 from haynes_studio.cache.plan import LayeredMotion, Toolchain
 from haynes_studio.canonical import Facts, Story, load_story
 from haynes_studio.canonical.derive import board_clock
@@ -263,6 +263,7 @@ def make_snapshot(prepared: Prepared, library: Library, *, studio: str) -> dict[
     if prepared.format_version is not None:
         snapshot["format_version"] = {key: copy.deepcopy(prepared.format_version[key])
                                       for key in ("id", "sha256", "recipe")}
+    snapshot = snapshot_write_document(snapshot)
     problems = blocking(validate_run_snapshot(snapshot, context=WRITE))
     if problems:  # the story passed its own checks; a snapshot that fails is a bug here
         raise AssertionError("; ".join(str(problem) for problem in problems))

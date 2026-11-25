@@ -48,9 +48,7 @@ from haynes_studio.library.model import (
     pin,
     version_document,
 )
-from haynes_studio.library.validate import (
-    empty_declaration, validate_asset, validate_asset_version, version_write_document,
-)
+from haynes_studio.library.validate import validate_asset, validate_asset_version, version_write_document
 from haynes_studio.jsonio import freeze
 
 # Rule codes beyond the contract's rule index are proposals of story 382.
@@ -138,12 +136,25 @@ class Library:
         assets: dict[str, Asset] = {}
         versions = []
         opted_in = []
+        documents = list(documents)
+
+        def source_content(version_id: str) -> Content | None:
+            for source in documents:
+                if (isinstance(source, Mapping) and source.get("id") == version_id
+                        and not blocking(validate_asset_version(source))):
+                    return Content.from_document(source["content"])
+            return None
+
         for i, document in enumerate(documents):
             if context == WRITE:
-                document = version_write_document(document)
-            problems = blocking(validate_asset_version(document))
-            if problems:
-                raise VersionDocumentError(i, problems)
+                try:
+                    document = version_write_document(document, source_content=source_content)
+                except ContractError as error:
+                    raise VersionDocumentError(i, error.violations) from None
+            else:
+                problems = blocking(validate_asset_version(document))
+                if problems:
+                    raise VersionDocumentError(i, problems)
             asset = Asset.from_version_document(document)
             if assets.setdefault(asset.id, asset) != asset:
                 raise _error("schema.invalid", pointer(i, "asset_id"),
@@ -417,7 +428,6 @@ def import_version(library: Library, request: VersionRequest, *, by: Principal, 
         number = len(numbers) + 1
     if too_deep(request.occlusion):
         raise _error("schema.invalid", "/occlusion", "the declaration is nested too deeply")
-    occlusion = None if empty_declaration(request.occlusion) else freeze(normalize(request.occlusion))
     candidate = AssetVersion(
         id=request.version_id or "asv_00000000000000000000000000", asset_id=asset.id,
         number=number, kind=request.kind, state=request.state,
@@ -427,20 +437,20 @@ def import_version(library: Library, request: VersionRequest, *, by: Principal, 
         voice=request.voice,
         motion=None if request.motion is None else freeze(normalize(dict(request.motion))),
         recorded_without_media=request.recorded_without_media,
-        occlusion=occlusion)
+        occlusion=request.occlusion)
     if candidate.occlusion is not None:
         def referenced_content(version_id: str) -> Content | None:
             source = library.get(version_id)
-            content = source.content if source is not None else None
-            if content is not None and content.width is not None:
-                return content
-            return source_content(version_id) if source_content is not None else content
+            held = source.content if source is not None else None
+            measured = source_content(version_id) if source_content is not None else None
+            return _with_dimensions(held, measured)
 
-        _check(candidate, asset, source_content=referenced_content)
+        # Use the canonical value before computing immutable identity.
+        declaration = version_document(candidate, asset, source_content=referenced_content).get("occlusion")
+        candidate = replace(candidate, occlusion=freeze(declaration))
     wanted = pin(candidate, asset)
-    for existing in library.versions_of(asset.id):
-        if pin(existing, asset) != wanted:
-            continue
+    existing = _matching_version(library, asset, wanted)
+    if existing is not None:
         if not _same_content(existing, candidate):
             raise _error(IDEMPOTENCY_MISMATCH, pointer("versions", existing.id),
                          f"{existing.id} already holds these bytes under {source_key!r} with "
@@ -452,13 +462,24 @@ def import_version(library: Library, request: VersionRequest, *, by: Principal, 
         return Outcome(library=library, version=existing, created=False)
     version_id = _fresh(library, request.version_id, "asv", minter, "/version_id")
     version = replace(candidate, id=version_id)
-    if candidate.occlusion is None:
-        _check(version, asset)
+    _check(version, asset)
     return Outcome(library=library._with(asset=asset, version=version), version=version,
                    created=True)
 
 
 MEASURED = ("bytes", "width", "height")  # what the store measures from the bytes
+
+
+def _matching_version(library: Library, asset: Asset, wanted: str) -> AssetVersion | None:
+    return next((v for v in library.versions_of(asset.id) if pin(v, asset) == wanted), None)
+
+
+def _with_dimensions(held: Content | None, measured: Content | None) -> Content | None:
+    if held is None or measured is None:
+        return held or measured
+    return replace(held,
+                   width=measured.width if held.width is None else held.width,
+                   height=measured.height if held.height is None else held.height)
 
 
 def _same_content(existing: AssetVersion, candidate: AssetVersion) -> bool:
@@ -496,13 +517,8 @@ def _same_asset(asset: Asset, request: VersionRequest) -> None:
                      "the source key names an asset with other attributes")
 
 
-def _check(version: AssetVersion, asset: Asset, *,
-           source_content: Callable[[str], Content | None] | None = None) -> None:
-    problems = blocking(validate_asset_version(
-        version_document(version, asset), context="write", source_content=source_content,
-    ))
-    if problems:
-        raise ContractError(version.id, problems)
+def _check(version: AssetVersion, asset: Asset) -> None:
+    version_write_document(version_document(version, asset))
 
 
 # Promotion and labels ---------------------------------------------------------------------
@@ -567,9 +583,30 @@ def import_all(library: Library, requests: Iterable[VersionRequest], *, by: Prin
     """:func:`import_version` in input order, with still dimensions from the whole batch."""
     minter = minter or Minter()
     requests = list(requests)
-    content = {request.version_id: request.content for request in requests
-               if request.version_id is not None and request.content is not None
-               and request.content.width is not None}
+    content = {}
+    still_ids = {}
+    for request in requests:
+        measured = request.content
+        if measured is None:
+            continue
+        version_id = request.version_id
+        source_key = request.provenance.get("source_key")
+        if (isinstance(source_key, str) and source_key
+                and isinstance(measured.media_type, str) and measured.media_type.startswith("image/")):
+            identity = (source_key, request.kind, measured.sha256)
+            if version_id is not None:
+                still_ids.setdefault(identity, version_id)
+            elif measured.width is not None or measured.height is not None:
+                # An omitted still ID can be resolved by an earlier request
+                # or by the same source key and pin lookup as import_version.
+                version_id = still_ids.get(identity)
+                if version_id is None:
+                    asset = library.by_source_key(source_key)
+                    if asset is not None and asset.kind == request.kind:
+                        held = _matching_version(library, asset, measured.sha256)
+                        version_id = held.id if held is not None else None
+        if version_id is not None and (measured.width is not None or measured.height is not None):
+            content[version_id] = _with_dimensions(content.get(version_id), measured)
     outcomes = []
     for request in requests:
         outcome = import_version(library, request, by=by, now=now, minter=minter,

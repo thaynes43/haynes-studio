@@ -15,10 +15,7 @@ import av
 
 from haynes_studio.adapters.errors import AdapterError
 from haynes_studio.adapters.wan_ledger import record_from_document
-from haynes_studio.build.prebuild import draft_document
-from haynes_studio.build.validate import validate_run, validate_run_snapshot
-from haynes_studio.canonical import validate_story
-from haynes_studio.canonical.occlusion import story_write_document
+from haynes_studio.build.validate import snapshot_write_document, validate_run, validate_run_snapshot
 from haynes_studio.delivery.model import (
     AAC, DELIVERY_SCHEMA, FPS, H264, MASTER_SIZES, MP4, PROXY_SIZES, proxy_byte_limit,
 )
@@ -63,14 +60,28 @@ class Archive:
     story: dict
     snapshot: dict | None
     versions: list[dict]
+    snapshot_data: bytes | None
+
+    @property
+    def snapshot_pin(self) -> dict:
+        """The published run pin. The original pin remains in the verified source run."""
+        pin = self.run["snapshot"]
+        if self.snapshot_data is None:
+            return pin
+        digest = hashlib.sha256(self.snapshot_data).hexdigest()
+        return {**pin, "sha256": digest,
+                "locator": blob_locator(self.production_id, digest, "application/json")}
 
     @property
     def marker(self) -> dict:
-        return {
+        marker = {
             "source_directory": self.directory.name,
             "receipt_sha256": hashlib.sha256(canonical_json(self.receipt)).hexdigest(),
             "source_kind": "canonical" if self.snapshot is not None else "recovered",
         }
+        if self.snapshot_data is not None:
+            marker["source_snapshot"] = self.run["snapshot"]
+        return marker
 
     @property
     def publications(self) -> dict[str, tuple[str, str]]:
@@ -162,17 +173,16 @@ def _matches(facts: dict, document: object) -> bool:
 
 
 def _pins(snapshot: dict, value: object) -> list[dict]:
-    if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
+    if not isinstance(value, list):
         raise ImportProblem("asset_versions", "asset-versions.json")
-    documents = [version_write_document(item) for item in value]
     try:
-        library = Library.from_version_documents(documents, context="write")
+        library = Library.from_version_documents(value, context="write")
     except VersionDocumentError as error:
         raise ImportProblem("asset_versions", "asset-versions.json",
                             violation=error.violations[0], prefix=pointer(error.index)) from None
     except ContractError:
         raise ImportProblem("asset_versions", "asset-versions.json") from None
-    by_id = {item["id"]: item for item in documents}
+    by_id = {item["id"]: item for item in value}
     pinned = []
     for entry in snapshot["resolved_asset_versions"]:
         version = library.get(entry["id"])
@@ -192,28 +202,22 @@ def _pins(snapshot: dict, value: object) -> list[dict]:
                 or asset.scope.board_id not in (None, *snapshot["story"]["board_order"])
                 or version.state == "candidate"):
             raise ImportProblem("asset_pin", "asset-versions.json")
-        pinned.append(by_id[version.id])
+        pinned.append(version_write_document(by_id[version.id]))
     return pinned
 
 
 def _canonical(docs: dict, receipt: dict, run: dict, production_id: str, kind: str):
-    snapshot = docs["snapshot.json"]
-    # Validate the editable view. The original snapshot bytes are still verified
-    # below and remain the frozen archive evidence.
-    story = snapshot.get("story") if isinstance(snapshot, dict) else None
-    cleaned = story_write_document(story)
-    validation = snapshot if cleaned is story else {**snapshot, "story": cleaned}
-    if blocking(validate_run_snapshot(validation)):
+    source = docs["snapshot.json"]
+    try:
+        snapshot = snapshot_write_document(source)
+    except ContractError as error:
+        raise ImportProblem("snapshot_invalid", "snapshot.json", violation=error.violations[0]) from None
+    if blocking(validate_run_snapshot(snapshot)):
         raise ImportProblem("snapshot_invalid", "snapshot.json")
-    story = cleaned
-    if any("check_poses" in board["layout"] for board in story["boards"]):
-        problems = blocking(validate_story(draft_document(story), context="write"))
-        if problems:
-            raise ImportProblem("snapshot_invalid", "snapshot.json",
-                                violation=problems[0], prefix="/story")
+    story = snapshot["story"]
     held_snapshot = run["snapshot"]
     if (receipt["snapshot.json"]["sha256"] != held_snapshot["sha256"]
-            or hashlib.sha256(canonical_json(snapshot)).hexdigest() != held_snapshot["sha256"]
+            or hashlib.sha256(canonical_json(source)).hexdigest() != held_snapshot["sha256"]
             or (story["id"], story["production_id"], story["media_kind"], story["revision"],
                 len(story["boards"])) !=
             (run["story_id"], production_id, kind, held_snapshot["story_revision"],
@@ -381,4 +385,7 @@ def verify_archive(directory: Path, receipt_path: Path, *, name: str, kind: str,
                 raise ImportProblem("media_mismatch", member)
         if (delivery["master"]["width"], delivery["master"]["height"]) != MASTER_SIZES[kind]:
             raise ImportProblem("media_kind", "delivery.json")
-        yield Archive(directory, receipt, members, run, delivery, production_id, story, snapshot, versions)
+        snapshot_data = (canonical_json(snapshot)
+                         if snapshot is not None and snapshot is not docs["snapshot.json"] else None)
+        yield Archive(directory, receipt, members, run, delivery, production_id, story, snapshot, versions,
+                      snapshot_data)

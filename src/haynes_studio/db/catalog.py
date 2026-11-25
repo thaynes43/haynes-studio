@@ -11,7 +11,7 @@ from haynes_studio.delivery.validate import validate_delivery
 from haynes_studio.errors import ContractError, Violation
 from haynes_studio.library.library import Library, promote
 from haynes_studio.library.model import BOARD, CANDIDATE, PROMOTED, Asset, AssetVersion, Content, version_document
-from haynes_studio.library.validate import validate_asset, validate_asset_version, version_write_document
+from haynes_studio.library.validate import validate_asset, version_write_document
 from haynes_studio.store.layout import blob_locator, is_sha256, parse_locator
 
 from .problems import NotFound, require_valid
@@ -56,6 +56,19 @@ def _version(row):
                             Asset.from_document(row.asset))
 
 
+def _load_versions(rows, library: Library | None = None) -> Library:
+    """Hydrate stored inputs for validation, including declarations inserted out of band."""
+    joined = ("name", "scope", "labels", "attributes")
+    loaded = Library.from_version_documents(
+        {**row.document, **{key: row.asset[key] for key in joined}, "state": row.state}
+        for row in rows
+    )
+    if library is None:
+        return loaded
+    return Library.build({**library.assets, **loaded.assets}.values(),
+                         {**library.versions, **loaded.versions}.values())
+
+
 def load_library(conn: sa.Connection, version_ids: Collection[str], production_id: str) -> Library:
     if not version_ids:
         return Library()
@@ -63,7 +76,7 @@ def load_library(conn: sa.Connection, version_ids: Collection[str], production_i
         _catalog_scope({production_id}), asset_versions.c.id.in_(version_ids),
         _version_state() != CANDIDATE,
     ))
-    return Library.from_version_documents(_version(row) for row in rows)
+    return _load_versions(rows)
 
 
 def find_assets(conn: sa.Connection, allowed: ProductionScope, *, kind: str | None,
@@ -135,8 +148,7 @@ def record_asset_version(conn: sa.Connection, document: dict, *, asset: Asset | 
             sa.select(asset_versions.c.document["content"]).where(asset_versions.c.id == version_id),
         ))
 
-    document = version_write_document(document)
-    require_valid(validate_asset_version(document, context="write", source_content=source_content))
+    document = version_write_document(document, source_content=source_content)
     version = AssetVersion.from_document(document)
     if received_sha256 is not None and (
         version.kind != "photo" or version.origin != "uploaded" or not is_sha256(received_sha256)
@@ -297,8 +309,7 @@ def build_library(conn: sa.Connection, story: dict, version_ids: Collection[str]
         asset_versions.c.document["motion"]["still_sha256"].astext.in_(stills),
         asset_versions.c.id.not_in(version_ids),
     ))
-    documents = [version_document(v, library.asset_of(v.id)) for v in library.versions.values()]
-    return Library.from_version_documents([*documents, *(_version(row) for row in rows)])
+    return _load_versions(rows, library)
 
 
 def board_library(conn, library: Library, board_id: str, *kinds: str) -> Library:
@@ -306,11 +317,7 @@ def board_library(conn, library: Library, board_id: str, *kinds: str) -> Library
         assets.c.board_id == board_id, assets.c.kind.in_(kinds),
         _version_state() != CANDIDATE,
     ))
-    documents = {v.id: version_document(v, library.asset_of(v.id)) for v in library.versions.values()}
-    for row in rows:
-        doc = _version(row)
-        documents[doc["id"]] = doc
-    return Library.from_version_documents(documents.values())
+    return _load_versions(rows, library)
 
 
 def board_versions(conn, board_id, kind, after, limit):
@@ -335,7 +342,7 @@ def version_library(conn, *, version_id=None, version_ids=None, asset_id=None, s
         stmt = stmt.where(asset_versions.c.id == version_id)
     if version_ids is not None:
         stmt = stmt.where(asset_versions.c.id.in_(version_ids))
-    return Library.from_version_documents(_version(row) for row in conn.execute(stmt))
+    return _load_versions(conn.execute(stmt))
 
 
 def preview_media(conn, version_id: str, sha256: str, allowed: ProductionScope, *, job=None):

@@ -685,21 +685,26 @@ def test_transport_timeout_keeps_scratch_quarantined_and_publishes_nothing(world
     assert not attempt.exists()
 
 
-def test_declared_set_version_round_trips_and_binds_the_pin(world):
+def test_declared_set_version_binds_the_pin_and_refuses_serialization(world):
     store, _, _ = world
     image = Image.new("RGB", SIZE)
     declarations = {"foreground": [{"key": "shelf", "label": "shelf", "layer_order": 50}],
                     "focal_props": [{"key": "menu", "label": "menu", "depth": "foreground",
                                      "foreground_role": "shelf", "layer_order": 50}]}
-    first, _ = declared_image(store, image, declarations)
-    original = first.library.document(first.version.id)
+    plain, _ = library_image(store, image, "set")
+    version_id = plain.version.id
+    original = plain.library.document(version_id)
+    first = Library.from_version_documents([{**original, "occlusion": declarations}])
     changed = {**original, "occlusion": {**declarations, "foreground": [
         {**declarations["foreground"][0], "hint": {"kind": "point", "xy": [20, 20]}}]}}
     reloaded = Library.from_version_documents([changed])
-    assert reloaded.document(first.version.id) == changed
-    assert first.library.pin(first.version.id) != reloaded.pin(first.version.id)
+    assert reloaded.version(version_id).occlusion["foreground"][0]["hint"]["xy"] == (20, 20)
+    assert first.pin(version_id) != reloaded.pin(version_id)
     declarations["foreground"][0]["label"] = "mutated input"
-    assert first.library.document(first.version.id) == original
+    assert first.version(version_id).occlusion["foreground"][0]["label"] == "shelf"
+    for library in (first, reloaded):
+        with pytest.raises(ContractError, match="occlusion.check_unavailable"):
+            library.document(version_id)
 
 
 def test_legacy_asset_version_serializes_byte_for_byte():
@@ -811,18 +816,38 @@ def test_set_import_bounds_nesting_before_hashing(world, monkeypatch):
 
 @pytest.mark.parametrize("prop_first", [True, False], ids=["prop-first", "set-first"])
 @pytest.mark.parametrize("inside", [False, True], ids=["outside", "inside"])
-def test_batch_validates_separate_prop_hint_against_still_in_either_order(world, prop_first, inside):
+@pytest.mark.parametrize("dimensions", ["both", "height", "width"])
+@pytest.mark.parametrize("identity", ["explicit-id", "stored-id", "earlier-batch-id"])
+def test_batch_validates_separate_prop_hint_against_still_in_either_order(
+    world, prop_first, inside, dimensions, identity,
+):
     store, _, _ = world
     prop, _ = image_request(store, Image.new("RGBA", (32, 32)), "prop")
-    prop = replace(prop, version_id=Minter().mint("asv"))
+    library = EMPTY
+    prefix = []
+    if identity == "stored-id":
+        legacy = replace(prop, content=replace(prop.content, width=None, height=None))
+        first = import_version(library, legacy, by=BY, now=NOW)
+        library, version_id = first.library, first.version.id
+    elif identity == "earlier-batch-id":
+        version_id = Minter().mint("asv")
+        prefix.append(replace(prop, version_id=version_id, content=replace(prop.content, width=None, height=None)))
+    else:
+        version_id = Minter().mint("asv")
+        prop = replace(prop, version_id=version_id)
+    if dimensions == "height":
+        prop = replace(prop, content=replace(prop.content, width=None))
+    elif dimensions == "width":
+        prop = replace(prop, content=replace(prop.content, height=None))
+    axis_value = 31 if inside else 32
     target = {"key": "menu", "label": "menu", "depth": "separate", "layer_order": 10,
-              "source_asset_version_id": prop.version_id,
-              "hint": {"kind": "point", "xy": [31 if inside else 32, 10]}}
+              "source_asset_version_id": version_id,
+              "hint": {"kind": "point", "xy": [10, axis_value] if dimensions == "height" else [axis_value, 10]}}
     plate, _ = image_request(store, Image.new("RGB", SIZE), "set")
     plate = replace(plate, occlusion={"foreground": [], "focal_props": [target]})
     requests = [prop, plate] if prop_first else [plate, prop]
     with pytest.raises(ContractError) as caught:
-        import_all(EMPTY, iter(requests), by=BY, now=NOW)
+        import_all(library, iter(prefix + requests), by=BY, now=NOW)
     expected = (("occlusion.check_unavailable", "/occlusion") if inside else
                 ("schema.invalid", "/occlusion/focal_props/0/hint/xy"))
     assert [(v.rule, v.path) for v in caught.value.violations] == [expected]

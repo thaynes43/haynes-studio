@@ -19,7 +19,6 @@ accepted, so a malformed document never raises. Rules that need the asset librar
 
 from __future__ import annotations
 
-import re
 import unicodedata
 from collections.abc import Collection, Iterable, Mapping
 from typing import Any
@@ -50,8 +49,8 @@ from haynes_studio.canonical.model import (
     Board,
     FormatLength,
 )
-from haynes_studio.canonical.occlusion import board_write_document, story_write_document, unavailable
-from haynes_studio.errors import INVALID, WARNING, Violation, pointer
+from haynes_studio.canonical.occlusion import POSE_PATH, board_write_document, pose_problems, story_write_document
+from haynes_studio.errors import INVALID, WARNING, ContractError, Violation, pointer
 from haynes_studio.schemas import UNKNOWN_FIELD, schema_violations
 
 READ, WRITE, QUEUE_RUN = "read", "write", "queue_run"
@@ -160,7 +159,10 @@ def validate_board(document: Any, *, context: str = READ, facts: Facts | None = 
     if stop is not None:
         return stop
     if context == WRITE:
-        document = board_write_document(document)
+        try:
+            document = board_write_document(document)
+        except ContractError as error:
+            return _sorted(error.violations)
     found = _no_derived(document, context) + _schema(BOARD_SCHEMA, document)
     if not _blocking(found):
         found += board_rules(document, "", context=context, facts=facts or NO_FACTS,
@@ -236,13 +238,8 @@ def board_rules(document: Mapping, prefix: str, *, context: str, facts: Facts,
                         f"layout preset {board.layout.preset!r} is not in the story's layouts"))
     found += _duplicates(((at("cast", i, "slot"), e.slot) for i, e in enumerate(board.cast)),
                          "cast slot")
-    poses = board.layout.check_poses or ()
-    found += _duplicates(((at("layout", "check_poses", i, "key"), pose.key)
-                          for i, pose in enumerate(poses)), "check pose key")
-    for i, pose in enumerate(poses):
-        if re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", pose.key) is None:
-            found.append(_v(SCHEMA_INVALID, at("layout", "check_poses", i, "key"),
-                            "the pose key must match the segmentation target grammar"))
+    found += [_v(v.rule, prefix + POSE_PATH + v.path, v.message)
+              for v in pose_problems(document["layout"].get("check_poses", ()))]
     if check_ids:
         found += _duplicates(_board_ids(board, prefix), "ID")
 
@@ -280,8 +277,6 @@ def board_rules(document: Mapping, prefix: str, *, context: str, facts: Facts,
 
     if context == QUEUE_RUN:
         found += _queue_board(board, at, facts)
-    if poses and context == WRITE and not _blocking(found):
-        found.append(unavailable(at("layout", "check_poses")))
     return found
 
 
@@ -334,7 +329,10 @@ def validate_story(document: Any, *, context: str = READ, facts: Facts | None = 
     if stop is not None:
         return stop
     if context == WRITE:
-        document = story_write_document(document)
+        try:
+            document = story_write_document(document)
+        except ContractError as error:
+            return _sorted(error.violations)
     facts = facts or NO_FACTS
     found = _no_derived(document, context)
     boards = document.get("boards")

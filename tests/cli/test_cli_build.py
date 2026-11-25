@@ -14,9 +14,11 @@ import pytest
 import haynes_studio.build as studio_build
 from haynes_studio.adapters.fakes import FakeRunner, FakeWan
 from haynes_studio.cli import Clients, main
-from haynes_studio.store import StoreError
+from haynes_studio.store import LocalStore, StoreError
 from haynes_studio.store.errors import COLLISION
 from tests.build_story import fixtures as f
+from tests.cli.test_operators import AGENT_FLAGS
+from tests.motion.fixtures import still_version
 
 WAN_STORY = ["--wan-story", "https://work.haynesnetwork.com/work_packages/851"]
 OPERATOR = ["--operator-iss", "https://authentik.example.invalid/application/o/haynes-studio/",
@@ -90,6 +92,79 @@ def test_voice_makes_the_board_voices_and_writes_new_files(setup):
     refused = run_cli("voice", *args(world, files / "story.json", files / "library.json",
                                      "--out", str(files / "voiced")), clients=fakes.clients())
     assert refused[0] == 2 and "will not overwrite" in refused[2]
+
+
+@pytest.mark.parametrize("flags", [OPERATOR, AGENT_FLAGS], ids=["person", "agent-session"])
+@pytest.mark.parametrize("field", ["check_poses", "occlusion"])
+def test_voice_refuses_visibility_before_creating_outputs(tmp_path, flags, field):
+    story = f.story_document()
+    story["boards"] = [f.board_of(story, f.B3)]  # silent board, no synthesis needed
+    story["board_order"] = [f.B3]
+    plate = still_version(200, "b" * 64, kind="set")
+    if field == "check_poses":
+        story["boards"][0]["layout"]["check_poses"] = [{"key": "still", "frame": 0}]
+    else:
+        plate["occlusion"] = {
+            "foreground": [{"key": "shelf", "label": None, "layer_order": 10}], "focal_props": [],
+        }
+    story_path, library_path = tmp_path / "input.json", tmp_path / "versions.json"
+    story_path.write_text(json.dumps(story))
+    library_path.write_text(json.dumps([plate]))
+    target, store = tmp_path / "out", tmp_path / "store"
+    store.mkdir()
+    before = set(tmp_path.rglob("*"))
+    fakes = Fakes()
+    code, out, err = run_cli("voice", "--story", str(story_path), "--library", str(library_path),
+                             "--store", str(store), "--out", str(target), *flags, clients=fakes.clients())
+    assert code != 0 and out == "" and "occlusion.check_unavailable" in err
+    assert f"/{field}" in err and "The visibility check is not installed" in err
+    assert not fakes.speech_runs and set(tmp_path.rglob("*")) == before
+
+
+@pytest.mark.parametrize("empty", [None, []])
+def test_voice_serializes_empty_visibility_fields_like_omission(tmp_path, empty):
+    story = f.story_document()
+    story["board_order"], story["boards"] = [f.B3], [f.board_of(story, f.B3)]
+    layout = story["boards"][0]["layout"]
+    plate = still_version(200, "b" * 64, kind="set")
+    story_path, library_path = tmp_path / "input.json", tmp_path / "versions.json"
+    store = tmp_path / "store"
+    store.mkdir()
+    written = []
+    for index in (0, 1):
+        if index:
+            layout["check_poses"], plate["occlusion"] = empty, empty
+        story_path.write_text(json.dumps(story))
+        library_path.write_text(json.dumps([plate]))
+        target = tmp_path / f"out-{index}"
+        code, _, err = run_cli("voice", "--story", str(story_path), "--library", str(library_path),
+                              "--store", str(store), "--out", str(target),
+                              *OPERATOR, clients=Fakes().clients())
+        assert code == 0, err
+        written.append([(target / name).read_bytes() for name in ("story.json", "library.json")])
+    assert written[0] == written[1]
+
+
+@pytest.mark.parametrize("field", ["check_poses", "occlusion"])
+def test_offline_build_refuses_existing_opt_in_before_writing_snapshot(tmp_path, field):
+    story = f.story_document()
+    plate = still_version(200, "b" * 64, kind="set")
+    plate["id"] = story["set"]["asset_version_id"]
+    if field == "check_poses":
+        story["boards"][0]["layout"]["check_poses"] = [{"key": "still", "frame": 0}]
+    else:
+        plate["occlusion"] = {
+            "foreground": [{"key": "shelf", "label": None, "layer_order": 10}], "focal_props": [],
+        }
+    story_path, library_path = tmp_path / "input.json", tmp_path / "versions.json"
+    story_path.write_text(json.dumps(story))
+    library_path.write_text(json.dumps([plate]))
+    store = tmp_path / "store"
+    store.mkdir()
+    code, out, err = run_cli("build", "--offline", "--story", str(story_path), "--library", str(library_path),
+                             "--store", str(store), *OPERATOR, clients=Fakes().clients())
+    assert code != 0 and not out and "occlusion.check_unavailable" in err
+    assert not studio_build.local_run_ids(LocalStore(store), f.PRODUCTION)
 
 
 def test_the_service_phase_and_a_full_build_need_a_wan_story_and_make_no_run(setup):

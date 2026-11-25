@@ -12,6 +12,7 @@ from haynes_studio.canonical.occlusion import board_write_document
 from haynes_studio.errors import ContractError, Violation, pointer
 from haynes_studio.jsonio import freeze, parse_strict
 from haynes_studio.schemas import schema_violations
+from haynes_studio.store import canonical_json
 
 SCHEMA = "studio.agent-draft/v1"
 MAX_DOCUMENT_BYTES = 4 * 1024 * 1024
@@ -51,6 +52,11 @@ class Draft:
     set_pins: Mapping | None
     usage: Mapping
     boards: tuple[Proposal, ...]
+    _archive_bytes: bytes
+
+    def archive_bytes(self) -> bytes:
+        self.require_valid_boards()
+        return self._archive_bytes
 
     def require_valid_boards(self) -> None:
         violations = [violation for board in self.boards for violation in board.problems()]
@@ -76,11 +82,20 @@ class Draft:
             json.dumps(raw, ensure_ascii=False, allow_nan=False).encode("utf-8")
         except UnicodeError:
             raise _invalid("schema.invalid", "", "Draft contains an invalid Unicode scalar") from None
-        raw = normalize(raw)
+        changed = False
         if isinstance(raw, dict) and isinstance(raw.get("boards"), list):
             for item in raw["boards"]:
                 if isinstance(item, dict) and "fields" in item:
-                    item["fields"] = board_write_document(item["fields"])
+                    fields = item["fields"]
+                    try:
+                        item["fields"] = board_write_document(fields)
+                    except ContractError:
+                        # Parsing is also used to inspect a draft. The proposal's
+                        # write validation reports this with its indexed path.
+                        continue
+                    changed |= item["fields"] is not fields
+        archive_bytes = canonical_json(raw) if changed else data
+        raw = normalize(raw)
         violations = schema_violations("studio.agent-draft.v1.schema.json", raw,
                                        default_rule="schema.invalid")
         if violations:
@@ -93,7 +108,7 @@ class Draft:
         usage = {key: raw.get("usage", {}).get(key)
                  for key in ("input_tokens", "output_tokens", "cost_usd")}
         return cls(hashlib.sha256(data).hexdigest(), raw["production_id"], raw["story_id"],
-                   raw["model"], raw["session"], freeze(raw["set"]), freeze(usage), boards)
+                   raw["model"], raw["session"], freeze(raw["set"]), freeze(usage), boards, archive_bytes)
 
 
 def _invalid(rule: str, path: str, message: str) -> ContractError:
