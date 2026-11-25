@@ -830,6 +830,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/runs/{id}/release-packages/{digest}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download Release Package */
+        get: operations["download_release_package"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/runs/{id}/snapshot": {
         parameters: {
             query?: never;
@@ -1040,6 +1057,41 @@ export interface components {
             id: string;
             /** Master Sha256 */
             master_sha256: string;
+            /** Release Checks */
+            release_checks: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /** Run Id */
+            run_id: string;
+            /** Run Snapshot Sha256 */
+            run_snapshot_sha256: string;
+            /**
+             * Schema
+             * @constant
+             */
+            schema: "studio.go-live-approval/v1";
+        };
+        /** ApprovalResult */
+        ApprovalResult: {
+            /** Approved At */
+            approved_at: string;
+            /** Approver */
+            approver: {
+                [key: string]: string;
+            };
+            /** Approver Display Name */
+            approver_display_name: string | null;
+            /** Auth Time */
+            auth_time: string;
+            /** Delivery Id */
+            delivery_id: string;
+            derived: components["schemas"]["ApprovalState"];
+            /** Id */
+            id: string;
+            /** Master Sha256 */
+            master_sha256: string;
+            /** Package Evidence Older */
+            package_evidence_older?: true | null;
             /** Release Checks */
             release_checks: {
                 [key: string]: components["schemas"]["JsonValue"];
@@ -2481,7 +2533,7 @@ export interface components {
         /** PublicationSummary */
         PublicationSummary: {
             /** Approval Id */
-            approval_id: string;
+            approval_id?: string | null;
             /** Id */
             id: string;
             /** Location */
@@ -2498,7 +2550,7 @@ export interface components {
              */
             recorded_at: string;
             /** Recorded By Display Name */
-            recorded_by_display_name: string | null;
+            recorded_by_display_name?: string | null;
             /** Run Id */
             run_id: string;
             /**
@@ -2620,11 +2672,16 @@ export interface components {
         /** ReleasePackageView */
         ReleasePackageView: {
             /** Approval Id */
-            approval_id: string | null;
+            approval_id?: string | null;
             /** Bytes */
             bytes: number;
+            /**
+             * Evidence Status
+             * @enum {string}
+             */
+            evidence_status: "current" | "older" | "stale" | "unavailable";
             /** Held Reason */
-            held_reason: "release.approval_required" | null;
+            held_reason: string | null;
             package: components["schemas"]["ReleasePackage"];
             publication: components["schemas"]["PublicationSummary"] | null;
             /** Record Publication */
@@ -2639,6 +2696,8 @@ export interface components {
         };
         /** ReleasePackageWrite */
         ReleasePackageWrite: {
+            /** Package Sha256 */
+            package_sha256?: string | null;
             /** Target Id */
             target_id: string;
         };
@@ -9966,7 +10025,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApprovalView"];
+                    "application/json": components["schemas"]["ApprovalResult"];
                 };
             };
             /** @description Authentication required */
@@ -10062,7 +10121,8 @@ export interface operations {
     record_publication: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
+                "Idempotency-Key": string;
                 /** @description Required on unsafe methods when authenticating with the session cookie */
                 "X-Studio-CSRF"?: string | null;
             };
@@ -10077,6 +10137,17 @@ export interface operations {
             };
         };
         responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Publication"];
+                };
+            };
             /** @description Successful Response */
             201: {
                 headers: {
@@ -10328,6 +10399,119 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReleasePackageReceipt"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    download_release_package: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                digest: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Authentication required */
