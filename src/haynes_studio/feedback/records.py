@@ -94,9 +94,11 @@ def start_iteration(conn, candidate, revision, note_ids, actor):
     return _iteration_view({**record, "run_id": candidate["run_id"]})
 
 
-def clear_iteration(conn, story_id, revision, actor):
-    row = conn.execute(sa.select(stories.c.document, stories.c.feedback_iteration_id)
-                       .where(stories.c.id == story_id).with_for_update()).one_or_none()
+def clear_iteration(conn, story_id, revision, actor, *, production_ids):
+    stmt = sa.select(stories.c.document, stories.c.feedback_iteration_id).where(stories.c.id == story_id)
+    if production_ids is not None:
+        stmt = stmt.where(stories.c.production_id.in_(production_ids))
+    row = conn.execute(stmt.with_for_update()).one_or_none()
     if row is None:
         raise NotFound
     story, iteration_id = row

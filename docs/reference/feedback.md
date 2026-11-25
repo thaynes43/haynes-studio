@@ -25,7 +25,7 @@ for another explicit start.
 | `GET /v1/stories/{id}/candidates` | Cursor page of candidates with their notes and direct answering runs. Use optional `run_id` to select that run's candidates. The response includes the current iteration, story revision and its ETag. | Production `read` |
 | `POST /v1/candidates/{id}/feedback` | Send `{text, board_ids?, replaces_id?}`. Returns the appended `fbk_` note with HTTP 201. | Signed-in person |
 | `POST /v1/candidates/{id}/iterations` | Send `{note_ids}` and the current story ETag in `If-Match`. Returns HTTP 201, the iteration and the next revision and ETag. | Signed-in person |
-| `DELETE /v1/stories/{id}/feedback-iteration` | Send the current story ETag in `If-Match`. Returns the revision, ETag and whether the reference was cleared. | Signed-in person |
+| `DELETE /v1/stories/{id}/feedback-iteration` | Send the current story ETag in `If-Match`. Returns the revision, ETag and whether the reference was cleared. A scope miss returns 404. | Signed-in person with production `draft:write` |
 | `GET /v1/runs/{id}` | Returns `answers: {candidate_id, run_id, note_ids}` when its draft named feedback. Here `run_id` names the earlier run. The story's run list includes the same field. | Production `read` |
 
 Run and candidate reads return 404 for an unknown or inaccessible production

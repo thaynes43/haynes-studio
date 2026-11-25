@@ -8,6 +8,7 @@ import pytest
 import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 
+from haynes_studio.api.auth import Actor
 from haynes_studio.build.validate import validate_run
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.db import runs
@@ -17,7 +18,7 @@ from tests.db.test_formats import create_format, pin
 from tests.db.test_go_live import finished_fixture
 from tests.db.test_run_queue import queue, queue_run, worker_credentials
 from tests.db.test_studio_api import (
-    client, engine, new_production, owner_engine, register_agent, runtime_db, runtime_role, service,
+    client, engine, new_production, owner_engine, register_agent, runtime_db, runtime_role, service, sign_in,
 )
 from tests.formats.fixtures import doll_short
 
@@ -257,6 +258,27 @@ def test_db_refuses_to_reference_another_storys_iteration(queue, engine):
     with pytest.raises(IntegrityError) as denied, engine.begin() as conn:
         conn.execute(stories.update().where(stories.c.id == other).values(feedback_iteration_id=iteration))
     assert denied.value.orig.diag.constraint_name == "stories_feedback_iteration_same_story"
+
+
+def test_clear_iteration_hides_stories_outside_the_persons_draft_scope(queue, monkeypatch):
+    q = queue
+    run, _, target = queue_formatted(q)
+    candidate = body(present(q, run, target), 201)
+    saved = body(note(q, candidate, "Retain this", boards=[q.board_id]), 201)
+    started = body(start(q, candidate, 4, [saved["id"]]), 201)
+    other = new_production(q.browser, q.csrf)
+    outsider = client(q.app)
+    csrf = sign_in(outsider, q.issuer, "two")
+    original = Actor.productions
+    monkeypatch.setattr(Actor, "productions", lambda actor, scope: (
+        frozenset({other}) if actor.principal.sub == "two" and scope == "draft:write" else original(actor, scope)
+    ))
+    base = f"/v1/stories/{q.story_id}"
+    for revision in ("4", "5"):
+        refuse(outsider.delete(base + "/feedback-iteration", headers={**csrf, "If-Match": revision}), 404, "not_found")
+    current = body(q.browser.get(base + "/candidates"), 200)
+    assert current["revision"] == started["revision"]
+    assert current["iteration"] == started["iteration"]
 
 
 @pytest.mark.parametrize("table", [run_candidates, candidate_feedback, feedback_iterations],

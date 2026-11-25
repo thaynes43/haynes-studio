@@ -225,7 +225,10 @@ def build_router(CurrentActor, authenticated_route):
                                  actor: CurrentActor, if_match: IfMatch):
         _person(actor)
         with request.app.state.engine.begin() as conn:
-            result = records.clear_iteration(conn, _id(id, "sty"), _revision(if_match), _by(actor))
+            result = records.clear_iteration(
+                conn, _id(id, "sty"), _revision(if_match), _by(actor),
+                production_ids=actor.productions("draft:write"),
+            )
             return _etag(response, result)
 
     return router
