@@ -51,6 +51,16 @@ class Draft:
     usage: Mapping
     boards: tuple[Proposal, ...]
 
+    def require_valid_boards(self) -> None:
+        violations = [violation for board in self.boards for violation in board.problems()]
+        if violations:
+            raise ContractError("<agent draft>", violations)
+
+    def require_set(self, story_set: Mapping | None) -> None:
+        pins = ("asset_version_id", "motion_asset_version_id")
+        if any((story_set or {}).get(pin) != (self.set_pins or {}).get(pin) for pin in pins):
+            raise _invalid("draft.set_changed", "/set", "The story's pinned set differs from the draft")
+
     @classmethod
     def parse(cls, data: bytes) -> "Draft":
         if len(data) > MAX_DOCUMENT_BYTES:

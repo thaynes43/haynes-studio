@@ -47,7 +47,6 @@ stories = sa.Table(
     "stories", metadata, identifier(), sa.Column("production_id", sa.Text, nullable=False),
     sa.Column("media_kind", sa.Text, nullable=False),
     sa.Column("source_key", sa.Text, unique=True), document(),
-    sa.Column("published", sa.Boolean, nullable=False, server_default=sa.false()),
     foreign("format_version_id", "format_versions.id", nullable=True),
     sa.Column("feedback_iteration_id", sa.Text, sa.ForeignKey(
         "feedback_iterations.id", name="stories_feedback_iteration_fk", use_alter=True,
@@ -152,6 +151,10 @@ worker_tokens = sa.Table("worker_tokens", metadata, digest(),
                          sa.Column("worker_id", sa.Text, nullable=False),
                          sa.Column("expires_at", sa.DateTime(timezone=True)),
                          sa.Column("revoked_at", sa.DateTime(timezone=True)))
+worker_lane_grants = sa.Table("worker_lane_grants", metadata,
+                             sa.Column("worker_id", sa.Text, primary_key=True),
+                             sa.Column("lane", sa.Text, nullable=False),
+                             sa.CheckConstraint("lane IN ('run', 'voice', 'image')"))
 
 
 run_lane = sa.Table("run_lane", metadata,
@@ -228,6 +231,30 @@ go_live_withdrawals = sa.Table("go_live_withdrawals", metadata,
     foreign("approval_id", "go_live_approvals.id", primary_key=True), document(),
 )
 
+release_packages = sa.Table(
+    "release_packages", metadata, sa.Column("sha256", sa.String(64), primary_key=True),
+    foreign("run_id", "runs.id"), sa.Column("target_id", sa.Text, nullable=False),
+    sa.Column("bytes", sa.BigInteger, nullable=False),
+    sa.Column("document_bytes", sa.LargeBinary, nullable=False),
+    sa.Column("position", sa.BigInteger, sa.Identity(always=True), nullable=False),
+    sa.CheckConstraint("octet_length(document_bytes) = bytes", name="release_packages_document_length"),
+    sa.UniqueConstraint("sha256", "run_id", "target_id", name="release_packages_run_target_key"),
+)
+publications = sa.Table(
+    "publications", metadata, identifier(),
+    sa.Column("package_sha256", sa.String(64), nullable=False, unique=True),
+    foreign("approval_id", "go_live_approvals.id"), foreign("run_id", "runs.id"),
+    sa.Column("target_id", sa.Text, nullable=False),
+    sa.Column("idempotency_actor", sa.Text, nullable=False),
+    sa.Column("idempotency_key", sa.Text, nullable=False), document(),
+    sa.UniqueConstraint("run_id", "idempotency_actor", "idempotency_key"),
+    sa.UniqueConstraint("run_id", "target_id", name="publications_run_target_key"),
+    sa.ForeignKeyConstraint(
+        ("package_sha256", "run_id", "target_id"),
+        ("release_packages.sha256", "release_packages.run_id", "release_packages.target_id"),
+        name="publications_package_run_target_fkey",
+    ),
+)
 
 run_candidates = sa.Table(
     "run_candidates", metadata, identifier(), foreign("run_id", "runs.id"),
@@ -252,4 +279,34 @@ feedback_iterations = sa.Table(
     sa.Column("started_by", JSONB, nullable=False),
     sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("started_revision", sa.BigInteger, nullable=False),
+)
+feedback_iteration_clears = sa.Table(
+    "feedback_iteration_clears", metadata, foreign("story_id", "stories.id", primary_key=True),
+    sa.Column("revision", sa.BigInteger, primary_key=True),
+    foreign("iteration_id", "feedback_iterations.id"), document(),
+)
+
+archive_records = sa.Table(
+    "archive_records", metadata, sa.Column("id", sa.Text(collation="C"), primary_key=True),
+    foreign("production_id", "productions.id"),
+    sa.Column("kind", sa.Text, nullable=False),
+    sa.Column("title", sa.Text, nullable=False),
+    sa.Index("archive_records_production_id", "production_id", "id"),
+)
+archive_versions = sa.Table(
+    "archive_versions", metadata, identifier(), foreign("record_id", "archive_records.id"),
+    sa.Column("number", sa.BigInteger, nullable=False),
+    sa.Column("revises_version_id", sa.Text, unique=True),
+    sa.Column("text", sa.Text, nullable=False),
+    sa.Column("bytes", sa.Integer, nullable=False),
+    sa.Column("sha256", sa.String(64), nullable=False),
+    foreign("format_version_id", "format_versions.id", nullable=True),
+    sa.Column("provenance", JSONB, nullable=False),
+    sa.Column("written_by", JSONB, nullable=False),
+    sa.Column("written_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("request_key_sha256", sa.String(64), nullable=False, unique=True),
+    sa.Column("request_sha256", sa.String(64), nullable=False),
+    sa.UniqueConstraint("record_id", "number"),
+    sa.UniqueConstraint("record_id", "id"),
+    sa.ForeignKeyConstraint(["record_id", "revises_version_id"], ["archive_versions.record_id", "archive_versions.id"]),
 )

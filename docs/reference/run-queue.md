@@ -123,9 +123,12 @@ stateDiagram-v2
 ```
 
 The internal routes are POSTs under `/internal/v1/work`. All authenticate the
-worker before reading a request body or query. The worker begins with
-`/claim` (204 if there is no claimable head), renews with `/heartbeat` and
-uses `/resume` only after checking a held claim. `/attempts` reserves a job
+worker before reading a request body or query. The worker needs a
+[`run` lane grant](studio-api.md#worker-token-administration). POST
+`/claim` with an empty body to select `run` (204 if there is no claimable head).
+An unbound worker or a worker requesting a lane it lacks gets 403
+`work.lane_forbidden` before claim processing. The worker renews with
+`/heartbeat` and uses `/resume` only after checking a held claim. `/attempts` reserves a job
 and `/attempts/{job_id}` records the fenced send marker or a proven outcome. `/publish`
 fences publication. `/complete` verifies and registers the resulting delivery,
 and `/fail` records failure, cancellation, a hold or a wait. Losing a lease

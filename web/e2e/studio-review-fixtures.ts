@@ -84,7 +84,9 @@ export function reviewFixtures(story: Schemas["Story"], media: ReviewMedia) {
     const active = records.some((record) => record.derived.state === "active");
     const checks: ReleaseChecks | null = delivered && !releaseRefusal ? {
       delivery: { result: "pass", delivery_id: delivered.id, master_sha256: master, verification: delivered.verification },
-      licences: { result: "pass", rows: [{ engine_key: "video-local", state: "unknown" }] },
+      licences: { result: "pass", rows: [{ engine_key: "video-local", state: "unknown",
+        register_entry: { licence: { name: "Local model terms", commercial_use: "unknown",
+          note: "Terms are pending verification." } } }] },
       ai_label: { result: "pass", platform_setting: true, description_line: true, description },
     } : releaseRefusal === "approval.licence_missing" ? {
       licences: { result: "fail", rows: [{ engine_key: "video-local", state: "missing" }] },

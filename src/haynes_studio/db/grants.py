@@ -84,6 +84,18 @@ FEEDBACK_GRANTS = (
     ("UPDATE (feedback_iteration_id)", ("stories",)),
 )
 
+RELEASE_GRANTS = (
+    ("SELECT, INSERT", ("release_packages", "publications", "feedback_iteration_clears")),
+)
+
+ARCHIVE_GRANTS = (
+    ("SELECT, INSERT", ("archive_records", "archive_versions")),
+)
+
+WORKER_LANE_GRANTS = (("SELECT", ("worker_lane_grants",)),)
+
+
 RUNTIME_GRANTS = (
     RUN_QUEUE_GRANTS + GO_LIVE_GRANTS + JOB_GRANTS + FORMAT_GRANTS + ESCALATION_GRANTS + FEEDBACK_GRANTS
+    + RELEASE_GRANTS + ARCHIVE_GRANTS + WORKER_LANE_GRANTS
 )

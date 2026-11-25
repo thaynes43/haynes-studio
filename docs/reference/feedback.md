@@ -25,6 +25,7 @@ for another explicit start.
 | `GET /v1/stories/{id}/candidates` | Cursor page of candidates with their notes and direct answering runs. Use optional `run_id` to select that run's candidates. The response includes the current iteration, story revision and its ETag. | Production `read` |
 | `POST /v1/candidates/{id}/feedback` | Send `{text, board_ids?, replaces_id?}`. Returns the appended `fbk_` note with HTTP 201. | Signed-in person |
 | `POST /v1/candidates/{id}/iterations` | Send `{note_ids}` and the current story ETag in `If-Match`. Returns HTTP 201, the iteration and the next revision and ETag. | Signed-in person |
+| `DELETE /v1/stories/{id}/feedback-iteration` | Send the current story ETag in `If-Match`. Returns the revision, ETag and whether the reference was cleared. A scope miss returns 404. | Signed-in person with production `draft:write` |
 | `GET /v1/runs/{id}` | Returns `answers: {candidate_id, run_id, note_ids}` when its draft named feedback. Here `run_id` names the earlier run. The story's run list includes the same field. | Production `read` |
 
 Run and candidate reads return 404 for an unknown or inaccessible production
@@ -39,8 +40,14 @@ advances the current story revision and records the selected feedback under
 the same lock as board writes. The editor continues from that draft, with the
 existing agent acknowledgments for protected boards. Every subsequent enqueue
 from the draft records the selected feedback until a person starts another
-iteration. A repeated enqueue uses the original run's idempotency record.
+iteration or clears it. Clearing advances the story revision and records who
+cleared the reference and when. Earlier runs and their notes remain in the
+history. A repeated enqueue uses the original run's idempotency record.
 Each run's go-live history is scoped to its own ID and exact master.
+
+To resolve `answers` via MCP, call `studio_list_candidates` with the run's
+`story_id`, `answers.candidate_id` and batches of up to ten `answers.note_ids`.
+The same filters are available on the REST candidate list.
 
 ## Refusals
 
