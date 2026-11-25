@@ -56,7 +56,9 @@ after verification. Record and exact version reads both return 404 for unknown
 IDs and for IDs outside the caller's `archive:read` grants. A local shepherd calls
 `studio_get_archive_version` with the `version_id` from its handoff. Its
 `archive:read` grant allows it to check the returned `sha256` over the UTF-8
-bytes and retrieve an earlier version after another revision is staged.
+bytes and retrieve an earlier version after another revision is staged. Adding a version and applying a storyboard follow the same rule: a
+record or version the caller cannot see answers 404 like an unknown ID. A caller
+that can see it but lacks the scope the operation needs gets 403.
 
 For example, call `studio_create_archive_record` with these arguments after
 substituting the production ID. Save `version.id` from the result.

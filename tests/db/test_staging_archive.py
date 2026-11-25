@@ -256,17 +256,32 @@ def test_scopes_and_production_confinement_for_every_api_operation_and_tool(stud
         ("studio_apply_archive_storyboard", "POST", version_path(version) + "/apply", apply, draft_write,
          {"version_id": version, "story_id": studio.story, "revision": 1}),
     ]
+    # A caller that cannot see a record or version gets 404, as for an unknown ID. A
+    # caller that can see it but lacks the scope for the operation gets 403.
+    hidden_from_foreign = {"studio_get_archive_record", "studio_get_archive_version",
+                           "studio_add_archive_version", "studio_apply_archive_storyboard"}
+    hidden_without_scope = {"studio_get_archive_record", "studio_get_archive_version",
+                            "studio_apply_archive_storyboard"}
     http = client(studio.api)
     for tool, method, path, payload, no_scope, arguments in operations:
-        denied = 404 if tool in {"studio_get_archive_record", "studio_get_archive_version"} else 403
-        for headers, status in ((foreign, denied), (no_scope, denied), (revoked, 401), (worker_headers, 401)):
+        outside = 404 if tool in hidden_from_foreign else 403
+        denied = 404 if tool in hidden_without_scope else 403
+        for headers, status in ((foreign, outside), (no_scope, denied), (revoked, 401), (worker_headers, 401)):
             response = http.request(method, path, json=payload, headers={
                 **headers, "Idempotency-Key": "refused", "If-Match": '"1"',
             })
             assert response.status_code == status, (tool, response.json())
-    for headers in (elsewhere, read):
+    # `elsewhere` may draft here but cannot read this archive: the version is hidden.
+    # `read` can read it but may not draft: refused, not hidden.
+    for headers, status in ((elsewhere, 404), (read, 403)):
         assert http.post(version_path(version) + "/apply", json=apply,
-                         headers={**headers, "If-Match": '"1"'}).status_code == 403
+                         headers={**headers, "If-Match": '"1"'}).status_code == status
+    unknown_record, unknown_version = Minter().mint("arc"), Minter().mint("arv")
+    for headers in (foreign, studio.headers):
+        assert http.post(record_path(unknown_record) + "/versions", json=append, headers={
+            **headers, "Idempotency-Key": "unknown"}).status_code == 404
+        assert http.post(version_path(unknown_version) + "/apply", json=apply,
+                         headers={**headers, "If-Match": '"1"'}).status_code == 404
     assert http.get(version_path(version), headers=read).json()["text"] == body["text"]
     assert http.post(version_path(version) + "/apply", json={"story_id": studio.other_story},
                      headers={**studio.headers, "If-Match": '"1"'}).status_code == 404
@@ -276,23 +291,24 @@ def test_scopes_and_production_confinement_for_every_api_operation_and_tool(stud
             transport=httpx.ASGITransport(app=studio.mcp),
         ) as http:
             for tool, _, _, _, no_scope, arguments in operations:
-                denied = 404 if tool in {"studio_get_archive_record", "studio_get_archive_version"} else 403
+                outside = 404 if tool in hidden_from_foreign else 403
+                denied = 404 if tool in hidden_without_scope else 403
                 if tool in {"studio_create_archive_record", "studio_add_archive_version"}:
                     arguments = {**arguments, "idempotency_key": "refused"}
-                for headers in (foreign, no_scope):
+                for headers, status in ((foreign, outside), (no_scope, denied)):
                     async with connect(studio.mcp, headers["Authorization"]) as session:
-                        assert (await fail(session, tool, **arguments))["http_status"] == denied
+                        assert (await fail(session, tool, **arguments))["http_status"] == status
                 for headers in (revoked, worker_headers):
                     response = await http.post(MCP_URL, headers={
                         **headers, "Accept": "application/json, text/event-stream",
                     }, json={"jsonrpc": "2.0", "id": 1, "method": "tools/call",
                              "params": {"name": tool, "arguments": arguments}})
                     assert response.status_code == 401
-            for headers in (elsewhere, read):
+            for headers, status in ((elsewhere, 404), (read, 403)):
                 async with connect(studio.mcp, headers["Authorization"]) as session:
                     error = await fail(session, "studio_apply_archive_storyboard", version_id=version,
                                        story_id=studio.story, revision=1)
-                    assert error["http_status"] == 403
+                    assert error["http_status"] == status
 
     asyncio.run(scenario())
     assert studio.browser.get(story_path(studio)).json()["board_order"] == []

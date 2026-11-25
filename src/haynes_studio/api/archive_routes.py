@@ -250,6 +250,12 @@ def _audit(action, record, version, request, story_id=None):
     access_log.info("%s", json.dumps(event, separators=(",", ":")))
 
 
+def _visible(actor):
+    """Productions whose archive the caller can see at all. None means every production."""
+    read, write = actor.productions("archive:read"), actor.productions("archive:write")
+    return None if read is None or write is None else read | write
+
+
 def _location(response, version):
     response.headers["Location"] = f'/v1/archive-versions/{version["id"]}'
 
@@ -294,7 +300,8 @@ def build_router(CurrentActor, authenticated_route):
         record_id = _id(id, "arc")
         principal = to_document(actor.principal)
         with request.app.state.engine.begin() as conn:
-            record = archive.record(conn, record_id)
+            # A record the caller cannot see answers like an unknown one.
+            record = archive.record(conn, record_id, _visible(actor))
             actor.require("archive:write", record["production_id"])
             key_hash = archive.request_key("append", record_id, principal, idempotency_key)
             request_hash = _request_hash(body.model_dump())
@@ -351,9 +358,9 @@ def build_router(CurrentActor, authenticated_route):
     def apply_version(id: str, body: ArchiveApply, request: Request, response: Response,
                       actor: CurrentActor, if_match: IfMatch):
         with request.app.state.engine.begin() as conn:
-            record = archive.version_record(conn, _id(id, "arv"))
+            # A version the caller cannot read answers like an unknown one.
+            record = archive.version_record(conn, _id(id, "arv"), actor.productions("archive:read"))
             production_id = record["production_id"]
-            actor.require("archive:read", production_id)
             actor.require("draft:write", production_id)
             story_id = _id(body.story_id, "sty", "/story_id")
             if drafts.story_production(conn, story_id) != production_id:
