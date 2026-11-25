@@ -23,8 +23,8 @@ from .profile import (
 )
 from .service import listening, local_call
 
-# studio-matting-smoke-01-r2, story 459 comment 9969. The receipt and
-# request signature include the profile pin and change with a new build.
+# studio-matting-smoke-02-r3, story 459 comment 9985, matched 01-r2 byte for byte.
+# The receipt and request signature include the profile pin and change with a new build.
 INSTALLED_FIXTURE_HASHES = {
     "bust": {
         "source": "765d8d4cf8b625840e5e6620d3f6d25eb5365a50a40753db45270ab666087b89",

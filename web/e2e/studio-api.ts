@@ -9,6 +9,7 @@ import { runFixtures } from "./studio-run-fixtures";
 import { formatFixture, inspectorBoards, voiceFixtures } from "./studio-inspector-fixtures";
 import { boardVersions, formatId, storyTiming } from "./studio-storyboard-fixtures";
 import { photoFixtures } from "./studio-photo-fixtures";
+import { assetFixtures } from "./studio-asset-fixtures";
 
 type Schemas = components["schemas"];
 type BoardCreateBody = paths["/v1/stories/{id}/boards"]["post"]["requestBody"]["content"]["application/json"];
@@ -102,8 +103,10 @@ function nextId(first: string, number: number) {
 
 export async function mockStudio(context: BrowserContext, baseURL: string, {
   empty = false, reviewMedia, storyboardMedia, runMedia, inspector = false, photoMedia, releaseMaximum,
+  assetLibrary = false,
 }: { empty?: boolean; reviewMedia?: ReviewMedia; storyboardMedia?: Pick<ReviewMedia, "photo" | "voice">;
-  runMedia?: ReviewMedia; inspector?: boolean; photoMedia?: TestMedia[]; releaseMaximum?: number } = {}) {
+  runMedia?: ReviewMedia; inspector?: boolean; photoMedia?: TestMedia[]; releaseMaximum?: number;
+  assetLibrary?: boolean } = {}) {
   let current: User | null = "lena";
   let next: User = "lena";
   let failure: Failure | undefined;
@@ -144,6 +147,8 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
   const versions: Schemas["AssetVersion"][] = draftMedia ? boardVersions(production.id, firstBoard, draftMedia) : [];
   const voice = voiceFixtures(versions);
   const photos = photoMedia && photoFixtures(versions, photoMedia, stories[0], boards.get(firstBoard.id)!, boards.get(closing.id)!);
+  const assets = assetLibrary && photoMedia
+    ? assetFixtures(versions, photoMedia, stories[0], boards.get(firstBoard.id)!) : undefined;
   const contentEdits: Array<{ board: string; revision?: string; body: Schemas["BoardPatch"] }> = [];
   let lineNumber = 1;
   let noteNumber = 1;
@@ -496,11 +501,13 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
     }
     if (path === "/v1/queue/lanes" && method === "GET") {
       const items = (["run", "image", "voice"] as const).map((lane) => ({
-        lane, paused: lane === "voice" && voice.paused() || lane === "image" && Boolean(photos?.paused()),
+        lane, paused: lane === "voice" && voice.paused() || lane === "image" && Boolean(photos?.paused() || assets?.paused()),
         changed_at: null, changed_by: null,
       }));
       return route.fulfill({ json: { items } satisfies Schemas["QueueStatus"] });
     }
+    const assetResponse = assets?.respond(route, url, visible[user], boards, user, photos?.files);
+    if (assetResponse) return assetResponse;
     if (path.startsWith("/v1/boards/")) {
       const [, , , id, resource] = path.split("/");
       const board = boards.get(id);
@@ -616,6 +623,11 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
       if (photos && !boardId && productionId && visible[user].has(productionId)) {
         return route.fulfill({ json: pageOf(photos.catalog.filter(({ scope, state }) =>
           state === "promoted" && (scope.production_id === null || scope.production_id === productionId)), cursor) });
+      }
+      if (!boardId && (!productionId || visible[user].has(productionId))) {
+        return route.fulfill({ json: pageOf(versions.filter(({ state, scope }) => state !== "candidate" &&
+          (scope.production_id === null || (visible[user].has(scope.production_id) &&
+            (!productionId || productionId === scope.production_id)))), cursor) });
       }
       const draft = stories.find(({ board_order }) => boardId && board_order.includes(boardId));
       if (!draft || !visible[user].has(draft.production_id) || (productionId && productionId !== draft.production_id)) {
@@ -746,7 +758,7 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
   });
 
   return {
-    calls, violations, writes, selections, loginRequests, approvalWrites, boardWrites, queue, contentEdits, voice, feedback, photos,
+    calls, violations, writes, selections, loginRequests, approvalWrites, boardWrites, queue, contentEdits, voice, feedback, photos, assets,
     completePhoto: (id: string, boardId: string) => photos!.complete(id, boards.get(boardId)!),
     completeVoice: (id: string, boardId: string, duration: number) => voice.complete(id, boards.get(boardId)!, stories[0], duration),
     expire: () => { current = null; },
