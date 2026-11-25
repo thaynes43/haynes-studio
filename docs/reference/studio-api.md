@@ -56,6 +56,8 @@ or recover metadata to an isolated database for inspection.
 | `STUDIO_OIDC_CACHE_TTL_SECONDS` | Cache lifetime for OIDC discovery and signing keys, 1–3600 seconds. Default 300. |
 | `STUDIO_OIDC_FAILURE_TTL_SECONDS` | Cooldown after a failed discovery or signing key fetch, 1–60 seconds. Default 10. |
 | `STUDIO_SESSION_SECONDS` | Absolute lifetime of an API session, 60–86400 seconds. Default 28800. |
+| `STUDIO_GO_LIVE_APPROVER_SUBJECTS` | JSON array of approver subjects scoped to the configured OIDC issuer. Default `[]`. |
+| `STUDIO_GO_LIVE_FRESHNESS_SECONDS` | Maximum age of sign-in for approval and withdrawal, 1–86400 seconds. Default 900. |
 
 Use TLS for browser requests. Configure Authentik with
 `STUDIO_PUBLIC_ORIGIN + /auth/callback`, `client_secret_basic`, PKCE S256 and
@@ -87,10 +89,10 @@ verified ID token when its subject matches the subject allowlist or its
 Subjects on the allowlist may sign in regardless of the group claim. A verified
 token that matches neither rule receives HTTP 403 `auth.subject_forbidden`.
 Groups grant Studio sign-in only. Go-live approval uses its own issuer and
-subject allowlist under contract section 11.
+subject allowlist. See [Go-live approvals](go-live.md).
 
 `GET /healthz` returns 204 independently of the database and store. `GET /readyz`
-returns 204 when the metadata and run queue tables are reachable and the last completed store
+returns 204 when the session, run queue and approval tables are reachable and the last completed store
 check succeeded within the freshness window. It returns 503 if there is no
 completed check, the last check failed, or its success is stale. A readiness
 request starts one background store check per process when there is no result
@@ -144,7 +146,17 @@ GRANT SELECT, INSERT ON studio.runs, studio.run_wan_attempts,
 GRANT UPDATE (document, revision, worker_id, fence, claim_until, retry_at,
     admission_refusals, cancel_requested, publishing) ON studio.runs TO studio_app;
 GRANT UPDATE (state, outcome) ON studio.run_wan_attempts TO studio_app;
+
+-- Applied by revision 0004.
+GRANT SELECT, INSERT ON studio.go_live_approvals, studio.go_live_withdrawals TO studio_app;
 ```
+
+Revision `0004_go_live_approvals` uses the PostgreSQL UTF-8 `und-x-icu`
+collation to lower-case NFC names. The schema owner's trigger maintains the
+name reservations. The runtime role has no direct grants on `draft_names`.
+The migration prints the affected IDs for pre-existing collisions and keeps
+every display name. A collided name remains reserved while any of those
+records uses it.
 
 Agent key provisioning supports the migration role and a dedicated, non-owner
 `studio_key_admin` role. For a dedicated role, grant only the privileges below
@@ -165,23 +177,63 @@ Agent keys have a canonical `key_` ID and one row per
 `(key_id, production_id, scope)` grant. Migration `0002_active_agent_grants`
 marks existing grants active. Run the upgraded API before replacing grants
 with the CLI. Replacement disables omitted rows and enables the requested
-ones in one transaction, with no DELETE privilege.
+ones in one transaction, with no DELETE privilege. Registration of a revoked
+key returns `key_admin.key_revoked`.
 
-Agent keys and worker credentials store a lowercase SHA-256 digest of a
-unique, random secret. The API and MCP accept 43-character unpadded base64url
-agent keys generated from 32 random bytes and externally generated keys of
-48–128 ASCII alphanumeric characters. Worker credentials retain their
-base64url format and have a `worker_id`. Use `revoked_at` or `expires_at` to
-disable a credential. See [agent key administration](studio-mcp.md#agent-key-administration)
-for the file-based CLI. Workers call the internal API through the story 410
-transport and need no database account.
+Agent `create --out` writes the new `0600` file after the database commits.
+Use `create` without `--out` only from an interactive `kubectl exec`. A pod's
+main process output can be logged by Kubernetes even with a TTY. See
+[agent key administration](studio-mcp.md#agent-key-administration).
+
+### Worker token administration
+
+Run the worker token command after migrating to head. Use the migration identity
+or a dedicated non-owner role in `STUDIO_MIGRATION_DATABASE_URL`. The command
+requires these grants and refuses the API runtime role. The worker process itself
+uses the internal HTTP API and needs no database account.
+
+```sql
+GRANT CONNECT ON DATABASE studio TO studio_worker_token_admin;
+GRANT USAGE ON SCHEMA studio TO studio_worker_token_admin;
+GRANT SELECT (digest, worker_id, expires_at, revoked_at), INSERT (digest, worker_id),
+    UPDATE (revoked_at) ON studio.worker_tokens TO studio_worker_token_admin;
+```
+
+Mount the External Secrets Password generator's value as a file. Use 48–121
+ASCII alphanumeric characters and an optional final newline. Supply the same
+generated value to the worker in `STUDIO_WORKER_TOKEN`. The worker prepends
+`worker_` to the bearer it sends to `/internal/v1/work/*`, and administration
+stores only the lowercase SHA-256 digest of that bearer and its worker ID.
+Send the `worker_` prefix too when checking authentication directly over HTTP.
+Agent keys use the agent-key table and public routes. The API and MCP accept
+43-character unpadded base64url agent keys generated from 32 random bytes and
+externally generated agent keys of 48–128 ASCII alphanumeric characters.
+
+```sh
+uv run --no-sync studio-api-admin worker-token register \
+  --worker-id "$WORKER_ID" --token-file "$MOUNTED_TOKEN_FILE"
+uv run --no-sync studio-api-admin worker-token list
+uv run --no-sync studio-api-admin worker-token revoke "$WORKER_ID"
+```
+
+Use 1–63 ASCII letters, digits, dots, underscores or hyphens for the worker ID,
+starting with a letter or digit. Registering the same token for the same worker
+ID is idempotent. A new token for an existing ID requires `--replace`, which
+revokes the old token in the same transaction. A token already associated with a
+different worker ID or revoked cannot be reused. List reports worker IDs, expiry
+and revocation dates, including prior rows after replacement. Revoke is idempotent
+and disables all tokens for the ID. Command output and audit events contain no
+token or digest.
 
 ## Browser, agent and worker requests
 
-- `GET /auth/login` initiates the OIDC code flow. The callback consumes one
+- `GET /auth/login` initiates the OIDC code flow. It accepts an optional
+  2,048-character same-origin `return_to` path with an optional query and an
+  optional `fresh=true` for OIDC reauthentication. The callback consumes one
   browser-bound attempt and verifies the issuer, signing key, audience, time,
   nonce and subject. It creates an API session with a Secure, HttpOnly,
-  SameSite=Lax `__Host-studio-session` cookie and redirects to `/`.
+  SameSite=Lax `__Host-studio-session` cookie and redirects to the recorded
+  path, default `/`. A callback failure redirects to `/?auth_error=<code>`.
   The database holds the cookie digest. Discovery, token exchange and claim
   validation happen in the API process. Subject sessions require the subject
   to remain on the configured allowlist. Group-only sessions bind their
@@ -221,7 +273,11 @@ write returns HTTP 409 with `conflict.revision` and `current_revision`.
 
 Productions start at revision 1. Enabling a media type takes the production's
 revision and returns the updated production. Story creation begins with a
-title and optional draft fields. A story response contains ordered board IDs.
+title and optional draft fields. Production names are unique. Story titles are
+unique within a production and media type. Both comparisons trim whitespace,
+apply NFC and lowercase the result. A collision returns HTTP 409 with
+`production.name_duplicate` or `story.title_duplicate` and `existing_entity_id`.
+A story response contains ordered board IDs.
 Fetch each board by ID. Creating a board or reordering uses the story's
 revision. Editing or tombstoning uses the board's revision. Changing a board
 also advances the story revision. A tombstone preserves its board number,
@@ -236,7 +292,8 @@ default to layered S2V. Explicit methods are still validated.
 
 Selections are a per-subject JSON object in a `values` envelope. The empty
 selection has revision 0. PUT replaces the object and advances its revision.
-For the initial API, all draft stories are unpublished and unapproved.
+Story lists and reads expose `latest_finished_run`, `approved` and `published`.
+See [Story and run status](go-live.md#story-and-run-status).
 
 The catalog serves visible canonical versions through `GET /v1/assets`.
 Filter by kind, one or more labels, production or board. The board filter

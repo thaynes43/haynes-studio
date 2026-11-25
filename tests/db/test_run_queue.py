@@ -58,7 +58,7 @@ def queue(service, engine, owner_engine, monkeypatch, tmp_path):
     stage_root.mkdir()
     app.state.build_stage_root = stage_root
     with owner_engine.begin() as conn:
-        conn.exec_driver_sql("TRUNCATE run_check_overrides, run_wan_attempts, runs")
+        conn.exec_driver_sql("TRUNCATE go_live_withdrawals, go_live_approvals, run_check_overrides, run_wan_attempts, runs")
         conn.exec_driver_sql("UPDATE run_lane SET next_position = 1, worker_seen_at = NULL")
     clock = Clock()
     monkeypatch.setattr(runs, "database_time", clock.db_time)
@@ -438,7 +438,7 @@ def test_ambiguous_put_replays_only_after_reading_the_same_id(queue, monkeypatch
     assert worker_api(q).claim().identity["run_id"] == second
 
 
-@pytest.mark.parametrize("disposition", ["running", "succeeded", "foreign", "unknown"])
+@pytest.mark.parametrize("disposition", ["running", "succeeded", "foreign"])
 def test_cancel_reconciles_running_or_held_attempt_and_releases(queue, disposition):
     q = queue
     first, second = [queue_run(q, key).json()["id"] for key in ("cancel", "next")]
@@ -454,8 +454,7 @@ def test_cancel_reconciles_running_or_held_attempt_and_releases(queue, dispositi
     with fake.client() as wan_http:
         product = ProductWan(wan_http)
         product.stage(q.png, body["image_sha256"], "png")
-        if disposition != "unknown":
-            product.submit(attempt)
+        product.submit(attempt)
         if disposition == "running":
             fake.jobs[job_id]["state"] = "running"
             # First status read shows active engine work, the second is terminal.
@@ -463,7 +462,7 @@ def test_cancel_reconciles_running_or_held_attempt_and_releases(queue, dispositi
                 fake.before_get = lambda _: fake.jobs[job].update(state="succeeded")
 
             fake.before_get = finish_after_first_read
-        if disposition in ("foreign", "unknown"):
+        if disposition == "foreign":
             old.fail(status="held", reason="Recorded attempt still needs reconciliation",
                      admission_busy=True)
         _, etag = read_run(q, first)
@@ -481,6 +480,68 @@ def test_cancel_reconciles_running_or_held_attempt_and_releases(queue, dispositi
     assert cancelled["status"] == "cancelled"
     assert cancelled["wan_attempts"][0]["state"] == "cancelled"
     assert worker_api(q).claim().identity["run_id"] == second
+
+
+def _cancel_pending_send(q):
+    first, second = [queue_run(q, key).json()["id"] for key in ("cancel", "next")]
+    claim = worker_api(q).claim()
+    attempt = claim.reserve("i2v", product_request(request_for(q)))
+    claim.attempt(attempt["job_id"], "sent")
+    _, etag = read_run(q, first)
+    assert cancel(q, first, etag).json()["cancel_requested"]
+    q.clock.advance(91)
+    return first, second, attempt
+
+
+def test_cancel_unknown_sent_job_holds_until_two_absences_are_110_seconds_apart(queue):
+    q = queue
+    first, second, attempt = _cancel_pending_send(q)
+    job_id = attempt["job_id"]
+    fake = FakeWan()
+    reads = []
+    fake.before_get = lambda id_: reads.append((id_, q.clock.monotonic()))
+    with fake.client() as wan_http:
+        assert clip_worker(q, wan_http).tick()
+        held, _ = read_run(q, first)
+        assert held["status"] == "held" and held["cancel_requested"]
+        assert held["error"]["code"] == "wan.cancel_waiting_for_absence"
+        assert "claim lease and PUT timeout" in held["error"]["message"]
+        assert held["wan_attempts"][0]["state"] == "sent"
+        assert worker_api(q).claim() is None
+
+        # A fresh worker observes another 404 before the cutoff and keeps the
+        # previous observation across the hold it writes.
+        q.clock.advance(95)
+        assert clip_worker(q, wan_http).tick()
+        assert read_run(q, first)[0]["status"] == "held"
+        assert worker_api(q).claim() is None
+        q.clock.advance(15)
+        assert clip_worker(q, wan_http).tick()
+
+    assert reads == [(job_id, reads[0][1] + elapsed) for elapsed in (0, 95, 110)]
+    assert fake.events == [("GET", f"/v1/jobs/i2v/{job_id}")] * 3
+    assert fake.submissions == []
+    settled, _ = read_run(q, first)
+    assert settled["status"] == "cancelled" and settled["wan_attempts"][0]["state"] == "cancelled"
+    assert worker_api(q).claim().identity["run_id"] == second
+
+
+def test_cancel_unknown_sent_job_restarts_absence_window_after_inconclusive_read(queue):
+    q = queue
+    first, _, attempt = _cancel_pending_send(q)
+    fake = FakeWan()
+    with fake.client() as wan_http:
+        assert clip_worker(q, wan_http).tick()
+        q.clock.advance(110)
+        fake.poll_misses = 1
+        assert clip_worker(q, wan_http).tick()
+        assert read_run(q, first)[0]["status"] == "held"
+        q.clock.advance(110)
+        assert clip_worker(q, wan_http).tick()
+
+    assert fake.events == [("GET", f"/v1/jobs/i2v/{attempt['job_id']}")] * 4
+    assert fake.submissions == []
+    assert read_run(q, first)[0]["status"] == "cancelled"
 
 
 def test_pending_wan_attempt_cannot_be_settled_by_unrelated_failure(queue):
@@ -522,6 +583,7 @@ def test_cancel_between_readiness_and_put_prevents_new_wan_send(queue):
         worker.wan.ready = ready_then_cancel
         assert worker.tick()
     assert fake.puts() == []
+    assert all("/v1/jobs/" not in path for _, path in fake.events)
     assert read_run(q, one)[0]["status"] == "cancelled"
     assert worker_api(q).claim().identity["run_id"] == two
 

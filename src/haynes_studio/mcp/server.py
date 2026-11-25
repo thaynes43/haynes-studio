@@ -34,7 +34,7 @@ MAX_REQUEST_BYTES = 256 * 1024
 LOCAL_HOSTS = ("127.0.0.1", "127.0.0.1:*", "localhost", "localhost:*", "[::1]", "[::1]:*")
 _BEARER = re.compile(rf"(?i:Bearer) {AGENT_TOKEN_PATTERN}")
 _DNS_LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
-_CLUSTER_SERVICE = re.compile(rf"{_DNS_LABEL}\.{_DNS_LABEL}\.svc(?:\.cluster\.local\.?)?")
+_CLUSTER_SERVICE = re.compile(rf"{_DNS_LABEL}\.{_DNS_LABEL}\.svc\.cluster\.local\.?")
 logger = logging.getLogger(__name__)
 
 

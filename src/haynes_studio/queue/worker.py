@@ -26,6 +26,7 @@ from .protocol import STORY_PATTERN
 from .staging import BuildStageStore
 from .wan import AttemptFailed, BuildCancelled, LanePaused, ProductClips, ProductWan
 from .worker_api import WorkerAPI, WorkerAPIError, service_url
+from .worker_tokens import worker_bearer
 
 logger = logging.getLogger(__name__)
 HEARTBEAT_SECONDS = 15
@@ -219,7 +220,7 @@ def main():
         stage_root = Path(os.environ["STUDIO_BUILD_STAGE_ROOT"])
         if not stage_root.is_dir() or stage_root.resolve() == Path(store.root).resolve():
             raise ValueError("STUDIO_BUILD_STAGE_ROOT must be a separate existing directory")
-        token = os.environ["STUDIO_WORKER_TOKEN"]
+        token = worker_bearer(os.environ["STUDIO_WORKER_TOKEN"], allow_legacy=True)
         transcriber = WyomingTranscriber(os.environ["STUDIO_ASR_HOST"], int(os.getenv("STUDIO_ASR_PORT", "10300")))
     except KeyError as error:
         parser.error(f"{error.args[0]} is required")

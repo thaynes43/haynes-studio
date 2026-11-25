@@ -164,11 +164,9 @@ def build_router(CurrentActor, authenticated_route):
         actor.require("read", _id(id, "prd"))
         after = _cursor(cursor, "sty")
         with snapshot(request.app.state.engine) as conn:
-            # Release states arrive with the go-live and publication stories.
-            if publication == "published" or approved is True:
-                drafts.check_media_type(conn, id, kind)
-                return _page([], limit)
-            return _page(drafts.list_stories(conn, id, kind, after, limit + 1), limit)
+            published = publication == "published" if publication is not None else None
+            return _page(drafts.list_stories(conn, id, kind, after, limit + 1,
+                                            published=published, approved=approved), limit)
 
 
     @router.post("/productions/{id}/media-types/{kind}/stories", tags=["stories"],

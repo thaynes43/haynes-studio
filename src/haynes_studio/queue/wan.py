@@ -1,5 +1,6 @@
 """Durable reconciliation of one Wan product request through the Studio worker API."""
 
+from datetime import datetime, timedelta
 from fractions import Fraction
 from hashlib import sha256
 from time import monotonic, sleep
@@ -8,6 +9,7 @@ import httpx
 
 from haynes_studio.adapters import pinned, wan
 from haynes_studio.build.errors import BuildError, BuildInterrupted, RunHeld
+from haynes_studio.db.runs import LEASE
 from haynes_studio.store import is_sha256
 
 from .protocol import API_VERSION, PROFILES
@@ -16,6 +18,9 @@ MAX_CLIP_BYTES = 512 * 1024 * 1024
 MAX_UPLOAD_BYTES = 19_999_999
 POLL_SECONDS = 5
 POLL_LIMIT_SECONDS = 1260
+PUT_TIMEOUT_SECONDS = 20
+CANCEL_ABSENCE_WINDOW = LEASE + timedelta(seconds=PUT_TIMEOUT_SECONDS)
+CANCEL_ABSENCE_CODE = "wan.cancel_waiting_for_absence"
 RESTART_ERROR = "Worker restarted; job was not replayed"
 FOREIGN_ENGINE_QUEUE = "RuntimeError: ComfyUI already has a job; refusing a competing request"
 GPU_REFUSALS = (
@@ -30,10 +35,10 @@ EXPECTED_PROFILES = {
 
 
 class LanePaused(RunHeld):
-    def __init__(self, code, message, *, job_id=None, wait_reason=None, admission_busy=False):
+    def __init__(self, code, message, *, job_id=None, wait_reason=None, admission_busy=False, detail=None):
         self.wait_reason = wait_reason
         self.admission_busy = admission_busy
-        super().__init__(code, message, job_id=job_id, detail={},
+        super().__init__(code, message, job_id=job_id, detail=detail or {},
                          check="Reconcile the recorded job and check Wan readiness", stage="wan")
 
 
@@ -135,7 +140,7 @@ class ProductWan:
         """Send only the persisted job ID and body. Ambiguous responses require a read."""
         job_id = attempt["job_id"]
         try:
-            response = self.client.put(_path(attempt), json=attempt["request"])
+            response = self.client.put(_path(attempt), json=attempt["request"], timeout=PUT_TIMEOUT_SECONDS)
         except (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout) as error:
             raise LanePaused("wan.submit_not_sent", "The connection failed before the request was sent",
                              job_id=job_id) from error
@@ -306,7 +311,7 @@ class ProductClips:
             if clip is not None:
                 self.downloaded[attempt["job_id"]] = clip
 
-    def _send(self, attempt):
+    def _send(self, attempt, *, first_send=False):
         # Inputs were staged before the fenced sent marker. A takeover can use
         # the same request even if the previous worker's PUT is still in flight.
         try:
@@ -315,6 +320,9 @@ class ProductClips:
             error.wait_reason = None
             raise
         if self.progress("wan_submitting", drain=True):
+            if first_send:
+                # This claim just wrote the sent marker and has made no PUT.
+                raise BuildCancelled(attempt["job_id"])
             return
         try:
             self.transport.submit(attempt)
@@ -323,17 +331,42 @@ class ProductClips:
         except BuildError as error:
             raise AttemptFailed(attempt["job_id"], error) from error
 
+    def _first_cancel_miss(self, job_id):
+        error = self.claim.body["run"].get("error") or {}
+        if error.get("code") == CANCEL_ABSENCE_CODE:
+            for problem in error.get("problems", ()):
+                if problem.get("job_id") == job_id:
+                    return problem.get("first_missing_lease_until")
+        return None
+
+    def _cancel_missing_sent_job(self, job_id, first_miss):
+        # A claim starts before its Wan read. The first lease timestamp is from
+        # a heartbeat after the first read. Comparing the two lease deadlines
+        # gives a conservative elapsed time on the same database clock, even
+        # if a different worker took over between observations.
+        if first_miss is not None:
+            claimed_until = datetime.fromisoformat(self.claim.body["claim_until"])
+            if claimed_until - datetime.fromisoformat(first_miss) >= CANCEL_ABSENCE_WINDOW:
+                raise BuildCancelled(job_id)
+        else:
+            first_miss = self.claim.heartbeat()["claim_until"]
+        raise LanePaused(CANCEL_ABSENCE_CODE,
+                         "Waiting for Wan to confirm the sent job is still absent after the claim lease and PUT timeout",
+                         job_id=job_id, detail={"first_missing_lease_until": first_miss})
+
     def _poll(self, attempt):
         job_id = attempt["job_id"]
         deadline = self.clock() + POLL_LIMIT_SECONDS
         first_miss = None
         misses = 0
         replayed = False
+        first_cancel_miss = self._first_cancel_miss(job_id)
         while self.clock() < deadline:
             cancelling = self.progress("wan_poll", drain=True)
             try:
                 body = self.transport.status(attempt)
             except httpx.RequestError:
+                first_cancel_miss = None
                 now = self.clock()
                 first_miss = now if first_miss is None else first_miss
                 misses += 1
@@ -345,7 +378,10 @@ class ProductClips:
             first_miss, misses = None, 0
             state = None if body is None else body["state"]
             if cancelling and state in (None, "succeeded", "failed"):
+                if state is None and attempt["state"] == "sent":
+                    self._cancel_missing_sent_job(job_id, first_cancel_miss)
                 raise BuildCancelled(job_id if attempt["state"] == "sent" else None)
+            first_cancel_miss = None
             if body is None:
                 if attempt["state"] == "succeeded":
                     raise BuildError("wan.result_changed", "Wan no longer reports a verified result", stage="wan")
@@ -424,7 +460,7 @@ class ProductClips:
                 self.progress("wan_submitting")
                 self.claim.attempt(job_id, "sent")
                 attempt = {**attempt, "state": "sent"}
-                self._send(attempt)
+                self._send(attempt, first_send=True)
             if job_id in self.downloaded:
                 return self.downloaded.pop(job_id)
             clip = self._poll(attempt)

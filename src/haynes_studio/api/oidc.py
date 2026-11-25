@@ -120,7 +120,7 @@ class OIDC:
         finally:
             self._jwks_lock.release()
 
-    def authorize(self, state: str, nonce: str, verifier: str) -> str:
+    def authorize(self, state: str, nonce: str, verifier: str, *, fresh: bool = False) -> str:
         challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest())
         metadata = self._metadata()
         try:
@@ -130,6 +130,7 @@ class OIDC:
                 "state": state, "nonce": nonce,
                 "code_challenge": challenge.decode("ascii").rstrip("="),
                 "code_challenge_method": "S256",
+                **({"prompt": "login"} if fresh else {}),
             })
         except ValueError as error:
             raise APIError(503, "auth.provider_unavailable", "OIDC discovery is unavailable") from error
