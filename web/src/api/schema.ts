@@ -688,13 +688,8 @@ export interface components {
                 board_revision: components["schemas"]["StudioDefs_positive"];
                 draft_sha256: string;
                 model: string;
-                /** @enum {unknown} */
-                person_edit?: "content" | "reordered" | "removed";
-                person_edit_acknowledgments?: {
-                    acknowledged_at: components["schemas"]["StudioDefs_timestamp"];
-                    board_revision: components["schemas"]["StudioDefs_positive"];
-                    key_id: string;
-                }[];
+                person_edit?: components["schemas"]["Board_person_edit"];
+                person_edit_acknowledgments?: components["schemas"]["Board_person_edit_acknowledgments"];
                 person_edit_revision?: components["schemas"]["StudioDefs_positive"];
                 session: string;
             };
@@ -725,6 +720,9 @@ export interface components {
                 manifest: string;
                 source_key: components["schemas"]["StudioDefs_source_key"];
             } | null;
+            person_edit?: components["schemas"]["Board_person_edit"];
+            person_edit_acknowledgments?: components["schemas"]["Board_person_edit_acknowledgments"];
+            person_edit_revision?: components["schemas"]["StudioDefs_positive"];
             photo: {
                 current_version_id: components["schemas"]["StudioDefs_asv_id_or_null"];
                 input_asset_version_ids: components["schemas"]["StudioDefs_asv_id"][];
@@ -900,6 +898,13 @@ export interface components {
         BoardRemoval: {
             acknowledge_person_edit?: components["schemas"]["PersonEditAcknowledgment"] | null;
         };
+        /** @enum {unknown} */
+        Board_person_edit: "content" | "reordered" | "removed";
+        Board_person_edit_acknowledgments: {
+            acknowledged_at: components["schemas"]["StudioDefs_timestamp"];
+            board_revision: components["schemas"]["StudioDefs_positive"];
+            key_id: string;
+        }[];
         CameraCueInput: {
             anchor: components["schemas"]["StudioDefs_anchor"];
             center_px: [
