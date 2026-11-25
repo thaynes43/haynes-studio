@@ -1247,6 +1247,177 @@
           "note": "The GGUF card applies Apache-2.0 to the files. The redistribution notice conditions concern the licensed work. Generated-output commercial use and attribution were not specified in the checked text."
         }
       }
-    ]
+    ],
+    "matting": {
+      "story": "https://work.haynesnetwork.com/work_packages/459",
+      "status": "profile proposed, install not started",
+      "runtime": {
+        "name": "ONNX Runtime 1.32.0 CPU",
+        "source": "https://pypi.org/project/onnxruntime/1.32.0/",
+        "file": "onnxruntime-1.32.0-cp312-cp312-manylinux_2_28_x86_64.whl",
+        "size_bytes": 27780211,
+        "sha256": "99e1074c4b2197accd5073052a465361be17b89c093b8ffb6e6bd8f986c52df8",
+        "evidence": [
+          {
+            "url": "https://pypi.org/project/onnxruntime/1.32.0/",
+            "quote": "MIT License"
+          }
+        ],
+        "licence": {
+          "name": "MIT",
+          "url": "https://github.com/microsoft/onnxruntime/blob/main/LICENSE",
+          "commercial_use": "unknown",
+          "attribution_required": null,
+          "checked_at": "2026-11-25T04:20:49Z",
+          "checked_by": {
+            "kind": "agent_session",
+            "session": "haynes-studio-1125-040756",
+            "harness": "Codex",
+            "model": "gpt-6.2-sol"
+          },
+          "note": "MIT covers runtime code. Retain the MIT notice and the wheel's third-party notices. Separate output terms are unspecified."
+        }
+      },
+      "engines": [
+        {
+          "key": "birefnet-lite-ort-cpu-v1",
+          "role": "composite",
+          "name": "BiRefNet Lite FP32 on ONNX Runtime 1.32.0 CPU",
+          "recorded_as": [
+            "birefnet-lite-ort-cpu-v1"
+          ],
+          "where": "Proposed for the Studio CPU allocation on talosw01",
+          "makes": "RGBA still cutouts and alpha masks",
+          "for_tom": null,
+          "outputs_commercial_use": "unknown",
+          "files": [
+            "birefnet-lite-ort-cpu-v1-weights"
+          ],
+          "licence": {
+            "name": "MIT",
+            "url": "https://github.com/ZhengPeng7/BiRefNet/blob/f7079632d681ecf12161fcea8905682934e59e51/LICENSE",
+            "commercial_use": "unknown",
+            "attribution_required": null,
+            "checked_at": "2026-11-25T04:20:49Z",
+            "checked_by": {
+              "kind": "agent_session",
+              "session": "haynes-studio-1125-040756",
+              "harness": "Codex",
+              "model": "gpt-6.2-sol"
+            },
+            "note": "The MIT tags allow use of the weights with notice retention for substantial copies. This licence object describes outputs. Separate output-use and output attribution terms are unknown."
+          }
+        },
+        {
+          "key": "bria-rmbg-1.4-ort-cpu-v1",
+          "role": "composite",
+          "name": "BRIA RMBG 1.4 FP32 on ONNX Runtime 1.32.0 CPU",
+          "recorded_as": [
+            "bria-rmbg-1.4-ort-cpu-v1"
+          ],
+          "where": "Proposed for the Studio CPU allocation on talosw01",
+          "makes": "RGBA still cutouts and alpha masks",
+          "for_tom": null,
+          "outputs_commercial_use": "unknown",
+          "files": [
+            "bria-rmbg-1.4-ort-cpu-v1-weights"
+          ],
+          "licence": {
+            "name": "bria-rmbg-1.4",
+            "url": "https://huggingface.co/briaai/RMBG-1.4/raw/da1d078376e6691105a5530a374a010627fc60b5/README.md",
+            "commercial_use": "unknown",
+            "attribution_required": null,
+            "checked_at": "2026-11-25T04:20:49Z",
+            "checked_by": {
+              "kind": "agent_session",
+              "session": "haynes-studio-1125-040756",
+              "harness": "Codex",
+              "model": "gpt-6.2-sol"
+            },
+            "note": "Weight use under the public offer is non-commercial. Commercial model use requires a separate BRIA agreement. This licence object describes outputs. The linked agreement returned 404, so the exact Creative Commons variant, separate output-use terms and attribution are unknown."
+          }
+        }
+      ],
+      "files": [
+        {
+          "key": "birefnet-lite-ort-cpu-v1-weights",
+          "engine": "birefnet-lite-ort-cpu-v1",
+          "name": "onnx/model.onnx",
+          "recorded_as": [
+            "onnx/model.onnx"
+          ],
+          "kind": "still background-removal model weights and graph (ONNX FP32)",
+          "source": "https://huggingface.co/onnx-community/BiRefNet_lite-ONNX/resolve/de15b22ba131738a16dff04aab8bdf8dc32e3ac1/onnx/model.onnx",
+          "source_revision": "de15b22ba131738a16dff04aab8bdf8dc32e3ac1",
+          "sha256": "5600024376f572a557870a5eb0afb1e5961636bef4e1e22132025467d0f03333",
+          "size_bytes": 224005088,
+          "pin_note": "Hugging Face LFS metadata at the pinned revision. Verify the provisioned bytes during install.",
+          "upstream": "https://huggingface.co/ZhengPeng7/BiRefNet_lite",
+          "weights_commercial_use": "allowed",
+          "outputs_commercial_use": "unknown",
+          "evidence": [
+            {
+              "url": "https://huggingface.co/onnx-community/BiRefNet_lite-ONNX/blob/de15b22ba131738a16dff04aab8bdf8dc32e3ac1/README.md",
+              "quote": "license: mit"
+            },
+            {
+              "url": "https://huggingface.co/ZhengPeng7/BiRefNet_lite/blob/aa62cd87eafb9cc43056d08ef3615a14628b831d/README.md",
+              "quote": "license: mit"
+            }
+          ],
+          "licence": {
+            "name": "MIT",
+            "url": "https://github.com/ZhengPeng7/BiRefNet/blob/f7079632d681ecf12161fcea8905682934e59e51/LICENSE",
+            "commercial_use": "unknown",
+            "attribution_required": null,
+            "checked_at": "2026-11-25T04:20:49Z",
+            "checked_by": {
+              "kind": "agent_session",
+              "session": "haynes-studio-1125-040756",
+              "harness": "Codex",
+              "model": "gpt-6.2-sol"
+            },
+            "note": "The MIT tags allow use of the weights with notice retention for substantial copies. This licence object describes outputs. Separate output-use and output attribution terms are unknown."
+          }
+        },
+        {
+          "key": "bria-rmbg-1.4-ort-cpu-v1-weights",
+          "engine": "bria-rmbg-1.4-ort-cpu-v1",
+          "name": "onnx/model.onnx",
+          "recorded_as": [
+            "onnx/model.onnx"
+          ],
+          "kind": "still background-removal model weights and graph (ONNX FP32)",
+          "source": "https://huggingface.co/briaai/RMBG-1.4/resolve/da1d078376e6691105a5530a374a010627fc60b5/onnx/model.onnx",
+          "source_revision": "da1d078376e6691105a5530a374a010627fc60b5",
+          "sha256": "8cafcf770b06757c4eaced21b1a88e57fd2b66de01b8045f35f01535ba742e0f",
+          "size_bytes": 176153355,
+          "pin_note": "Hugging Face LFS metadata at the pinned revision. Verify the provisioned bytes during install.",
+          "upstream": "https://huggingface.co/briaai/RMBG-1.4",
+          "weights_commercial_use": "noncommercial",
+          "outputs_commercial_use": "unknown",
+          "evidence": [
+            {
+              "url": "https://huggingface.co/briaai/RMBG-1.4/raw/da1d078376e6691105a5530a374a010627fc60b5/README.md",
+              "quote": "source-available model for non-commercial use"
+            }
+          ],
+          "licence": {
+            "name": "bria-rmbg-1.4",
+            "url": "https://huggingface.co/briaai/RMBG-1.4/raw/da1d078376e6691105a5530a374a010627fc60b5/README.md",
+            "commercial_use": "unknown",
+            "attribution_required": null,
+            "checked_at": "2026-11-25T04:20:49Z",
+            "checked_by": {
+              "kind": "agent_session",
+              "session": "haynes-studio-1125-040756",
+              "harness": "Codex",
+              "model": "gpt-6.2-sol"
+            },
+            "note": "Weight use under the public offer is non-commercial. Commercial model use requires a separate BRIA agreement. This licence object describes outputs. The linked agreement returned 404, so the exact Creative Commons variant, separate output-use terms and attribution are unknown."
+          }
+        }
+      ]
+    }
   }
 }
