@@ -20,7 +20,7 @@ from haynes_studio.segmentation.profile import MASK_FLOOR, PROFILE_ID, Segmentat
 from haynes_studio.store import Blob, blob_locator, canonical_json
 from tests.assets.test_candidates import PRODUCTION_ID
 from tests.assets.test_occlusion import (
-    JSON, PNG, SIZE, Journal, StaleClaim, detector, library_image, run, segmenter,
+    JSON, PNG, SIZE, Journal, StaleClaim, declared_image, detector, library_image, run, segmenter,
     world,  # noqa: F401
 )
 from tests.segmentation.test_backend import pins  # noqa: F401
@@ -181,12 +181,11 @@ def test_request_validation_and_text_canonicalization_precede_cache_lookup(world
 def test_declared_separate_prop_cannot_be_observed_from_the_plate(world):
     store, _, _ = world
     cutout, _ = library_image(store, Image.new("RGBA", SIZE), "prop")
-    original, _ = library_image(
-        store, Image.new("RGB", SIZE), "set", library=cutout.library,
-        config={"foreground": [], "focal_props": [{
+    original, _ = declared_image(
+        store, Image.new("RGB", SIZE), {"foreground": [], "focal_props": [{
             "key": "centre", "label": "menu", "depth": "separate",
             "layer_order": 2, "source_asset_version_id": cutout.version.id,
-        }]},
+        }]}, library=cutout.library,
     )
     journal = Journal()
     assert run(world, original, journal, lookup_ready=accessed_unexpectedly) is None

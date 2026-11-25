@@ -23,14 +23,17 @@ from haynes_studio.db.migrate import migrate
 from haynes_studio.db.schema import asset_media, asset_versions, deliveries, productions, run_lane, stories
 from haynes_studio.db.schema import runs as run_rows
 from haynes_studio.drafting.declaration import READ_TOKEN_HEADER
+from haynes_studio.errors import ContractError
 from haynes_studio.importer import production as production_import
+from haynes_studio.importer.production_archive import verify_archive
 from haynes_studio.store import LocalStore, StagingLeftoverWarning
 from tests.build_story.fixtures import OPERATOR, example
 from tests.db.test_studio_api import (
     client, engine, new_production, register_agent, runtime_role, service, sign_in,
 )
 from tests.db.test_media_jobs import PROVENANCE, image_file
-from tests.importer.production_fixture import FRAMES, make_archive
+from tests.importer.production_fixture import FRAMES, KIND, make_archive
+from tests.importer.test_production_archive import archive_set
 from tests.queue.fake_wan import Clock
 from tests.support.database import new_schema_name
 
@@ -107,6 +110,35 @@ def assert_private_ranges(browser, headers, wrong_headers, media, expected_bytes
     assert hashlib.sha256(b"".join(chunks)).hexdigest() == media["sha256"]
     tail = browser.get(url, headers={**headers, "Range": "bytes=-31"})
     assert tail.status_code == 206 and tail.content == expected_bytes[-31:]
+
+
+@pytest.mark.parametrize("field", ["check_poses", "occlusion"])
+@pytest.mark.parametrize("author", ["person", "agent"])
+def test_production_archive_apply_rechecks_visibility_before_commit(owner_engine, tmp_path, field, author):
+    creator = OPERATOR if author == "person" else {"kind": "agent", "key_id": Minter().mint("key")}
+    fixture = make_archive(tmp_path / "job", board_creator=creator)
+    with verify_archive(fixture.root, fixture.receipt, name=fixture.name, kind=KIND,
+                        recovered=False) as checked:
+        production = production_import._production(checked, fixture.name, KIND)
+        story = production_import._draft_document(checked)
+        if field == "check_poses":
+            story["boards"][0]["layout"]["check_poses"] = [{"key": "still", "frame": 0}]
+            path = "/boards/0/layout/check_poses"
+        else:
+            plate = archive_set(fixture, {
+                "foreground": [{"key": "shelf", "label": None, "layer_order": 10}], "focal_props": [],
+            })
+            plate["provenance"]["created_by"] = creator
+            checked.versions.append(plate)
+            path = "/occlusion"
+        with pytest.raises(ContractError) as caught, owner_engine.begin() as conn:
+            production_import._persist(conn, checked, production, story)
+        assert [(v.rule, v.path) for v in caught.value.violations] == [
+            ("occlusion.check_unavailable", path),
+        ]
+
+    with owner_engine.connect() as conn:
+        assert conn.scalar(sa.select(productions.c.id).where(productions.c.id == fixture.production_id)) is None
 
 
 @pytest.mark.parametrize("recovered", [False, True])

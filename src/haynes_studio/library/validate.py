@@ -12,8 +12,8 @@ code here runs only on a document the schema accepted and checks what one field
 cannot: a stock voice ID, a locator that names the content's own hash and production,
 capabilities that fit the kind and the media type, and a board voice's take offsets.
 
-Contexts: ``read`` and ``write`` check the same rules (neither type has a ``derived``
-block, so ``derived`` is an unknown field everywhere); ``queue_run`` adds nothing.
+The write context also applies the current visibility opt-in policy. Neither type
+has a ``derived`` block. The queue context adds no rules.
 """
 
 from __future__ import annotations
@@ -27,12 +27,14 @@ from haynes_studio.canonical.validate import (
     READ,
     REF_DUPLICATE,
     SCHEMA_INVALID,
+    WRITE,
     _blocking,
     _check_context,
     _duplicates,
     _prepare,
     _sorted,
 )
+from haynes_studio.canonical.occlusion import unavailable
 from haynes_studio.errors import Violation, pointer
 from haynes_studio.library.model import (
     ASSET_SCHEMA,
@@ -83,10 +85,30 @@ def validate_asset_version(
     document, stop = _prepare(document, ASSET_VERSION_SCHEMA)
     if stop is not None:
         return stop
+    if context == WRITE:
+        document = version_write_document(document)
     found = schema_violations(ASSET_VERSION_FILE, document, default_rule=SCHEMA_INVALID)
     if not _blocking(found):
         found += _asset_rules(document) + _version_rules(document, source_content)
+        if context == WRITE and "occlusion" in document and not _blocking(found):
+            found.append(unavailable("/occlusion"))
     return _sorted(found)
+
+
+def empty_declaration(block: Any) -> bool:
+    """Recognize a null, an empty list or a block with both target lists empty."""
+    if isinstance(block, Mapping):
+        return block.keys() == {"foreground", "focal_props"} and all(
+            isinstance(entries, (list, tuple)) and not entries for entries in block.values()
+        )
+    return block is None or (isinstance(block, (list, tuple)) and not block)
+
+
+def version_write_document(document):
+    """Omit empty declarations and leave other input for validation."""
+    if isinstance(document, Mapping) and "occlusion" in document and empty_declaration(document["occlusion"]):
+        return {key: value for key, value in document.items() if key != "occlusion"}
+    return document
 
 
 # Asset fields (shared by both documents) ---------------------------------------------------

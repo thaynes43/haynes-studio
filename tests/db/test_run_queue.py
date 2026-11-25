@@ -20,7 +20,7 @@ from haynes_studio.canonical.ids import Minter
 from haynes_studio.canonical.model import Board, Story
 from haynes_studio.db import drafts, identity, runs
 from haynes_studio.db.catalog import record_asset_version, version_library
-from haynes_studio.db.schema import run_wan_attempts, worker_lane_grants, worker_tokens
+from haynes_studio.db.schema import asset_versions, boards, run_wan_attempts, worker_lane_grants, worker_tokens
 from haynes_studio.errors import ContractError
 from haynes_studio.library import Library
 from haynes_studio.photo.plan import plan_photo
@@ -848,16 +848,20 @@ def test_opted_in_build_is_refused_for_people_and_agents(queue, opt_in):
             config["focal_props"] = [{"key": "menu", "label": "menu", "depth": "background", "layer_order": 0}]
         else:
             config["foreground"] = [{"key": "counter", "label": "counter", "layer_order": 30}]
-        plate = set_version(q, config)
+        plate = set_version(q)
         with q.engine.begin() as conn:
             record_asset_version(conn, plate)
         edit = q.browser.patch(story_path, headers={**q.csrf, "If-Match": "3"}, json={"set": set_pins(plate)})
         assert edit.status_code == 200, edit.text
+        with q.owner.begin() as conn:
+            conn.execute(asset_versions.update().where(asset_versions.c.id == plate["id"]).values(
+                document={**plate, "occlusion": config},
+            ))
     if opt_in in ("check_poses", "set_and_board"):
-        edit = q.browser.patch(f"/v1/boards/{q.board_id}", headers={**q.csrf, "If-Match": "2"}, json={"layout": {
-            "preset": "default", "foreground": False, "check_poses": [{"key": "still", "frame": 0}],
-        }})
-        assert edit.status_code == 200, edit.text
+        with q.owner.begin() as conn:
+            board = drafts.get_draft(conn, q.story_id).boards[q.board_id]
+            board["layout"]["check_poses"] = [{"key": "still", "frame": 0}]
+            conn.execute(boards.update().where(boards.c.id == q.board_id).values(document=board))
 
     rev = q.browser.get(story_path).json()["revision"]
     _, agent = register_agent(q.owner, {q.production_id: ["read", "runs:queue"]})
@@ -878,34 +882,35 @@ def test_opted_in_build_is_refused_for_people_and_agents(queue, opt_in):
     assert [row["id"] for row in q.browser.get(f"{story_path}/runs").json()["items"]] == [run_id]
 
 
-def test_catalog_import_cannot_replace_opted_in_set_version(queue):
+@pytest.mark.parametrize("actor", ["person", "agent"])
+@pytest.mark.parametrize("revision", [False, True], ids=["first-version", "new-version"])
+def test_catalog_registration_refuses_visibility_declarations(queue, actor, revision):
     q = queue
+    plate = set_version(q)
+    if actor == "agent":
+        plate["provenance"]["created_by"] = {"kind": "agent", "key_id": Minter().mint("key")}
+    if revision:
+        with q.engine.begin() as conn:
+            record_asset_version(conn, plate)
+        plate = {**plate, "id": Minter().mint("asv"), "number": 2}
     role = {"key": "counter", "label": "counter", "layer_order": 30}
-    prop = {"key": "menu", "label": "menu", "depth": "background", "layer_order": 0}
-    config = {"foreground": [role], "focal_props": [prop]}
-    plate = set_version(q, config)
+    block = {"foreground": [role], "focal_props": []}
+    with pytest.raises(ContractError) as caught, q.engine.begin() as conn:
+        record_asset_version(conn, {**plate, "occlusion": block})
+    assert [(v.rule, v.status, v.path) for v in caught.value.violations] == [
+        ("occlusion.check_unavailable", "unavailable", "/occlusion"),
+    ]
     with q.engine.begin() as conn:
-        record_asset_version(conn, plate)
-        record_asset_version(conn, plate)
-    story_path = f"/v1/stories/{q.story_id}"
-    edited = q.browser.patch(story_path, headers={**q.csrf, "If-Match": "3"}, json={"set": set_pins(plate)})
-    assert edited.status_code == 200, edited.text
+        assert version_library(conn, version_id=plate["id"]).get(plate["id"]) is None
 
-    legacy = {key: value for key, value in plate.items() if key != "occlusion"}
-    for document in (legacy, {**plate, "occlusion": {**config, "foreground": []}},
-                     {**plate, "occlusion": {**config, "focal_props": []}}):
-        with pytest.raises(ContractError) as caught, q.engine.begin() as conn:
-            record_asset_version(conn, document)
-        assert [(v.rule, v.path) for v in caught.value.violations] == [("ref.duplicate", "/id")]
-    with q.engine.begin() as conn:
-        new_version = {**legacy, "id": Minter().mint("asv"), "number": 2}
-        record_asset_version(conn, new_version)
-        library = version_library(conn, asset_id=plate["asset_id"])
-    assert library.document(plate["id"])["occlusion"] == config
-    assert "occlusion" not in library.document(new_version["id"])
-    assert q.browser.get(story_path).json()["set"] == set_pins(plate)
-    refused = queue_run(q, "catalog-version-advanced", rev=edited.json()["revision"])
-    assert refused.status_code == 422 and refused.json()["error"]["code"] == "occlusion.check_unavailable"
+
+@pytest.mark.parametrize("empty", [None, [], {"foreground": [], "focal_props": []}])
+def test_catalog_registration_omits_empty_visibility_declarations(queue, empty):
+    plate = set_version(queue)
+    with queue.engine.begin() as conn:
+        record_asset_version(conn, {**plate, "occlusion": empty})
+        held = conn.scalar(sa.select(asset_versions.c.document).where(asset_versions.c.id == plate["id"]))
+    assert held == plate
 
 
 def test_catalog_import_validates_hint_against_known_separate_prop_still(queue):
@@ -924,8 +929,11 @@ def test_catalog_import_validates_hint_against_known_separate_prop_still(queue):
         ("schema.invalid", "/occlusion/focal_props/0/hint/xy"),
     ]
     prop["hint"]["xy"][0] = 31
-    with q.engine.begin() as conn:
+    with pytest.raises(ContractError) as caught, q.engine.begin() as conn:
         record_asset_version(conn, plate)
+    assert [(v.rule, v.path) for v in caught.value.violations] == [
+        ("occlusion.check_unavailable", "/occlusion"),
+    ]
 
 
 def test_draft_import_checks_separate_hint_before_registering_either_version(queue):
@@ -948,8 +956,12 @@ def test_draft_import_checks_separate_hint_before_registering_either_version(que
     assert [v.path for v in caught.value.violations] == ["/occlusion/focal_props/0/hint/xy"]
     assert q.browser.get(f"/v1/stories/{exchange['id']}").status_code == 404
     prop["hint"]["xy"][0] = 31
-    with q.engine.begin() as conn:
-        assert drafts.import_draft(conn, production, exchange, [plate, cutout]).story["id"] == exchange["id"]
+    with pytest.raises(ContractError) as caught, q.engine.begin() as conn:
+        drafts.import_draft(conn, production, exchange, [plate, cutout])
+    assert [(v.rule, v.path) for v in caught.value.violations] == [
+        ("occlusion.check_unavailable", "/occlusion"),
+    ]
+    assert q.browser.get(f"/v1/stories/{exchange['id']}").status_code == 404
 
 
 def add_sound_bed(q, tmp_path):

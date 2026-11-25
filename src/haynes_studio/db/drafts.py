@@ -19,6 +19,7 @@ from haynes_studio.canonical import (
 )
 from haynes_studio.canonical.ids import Minter, is_id
 from haynes_studio.canonical.jsonvalues import normalize
+from haynes_studio.canonical.occlusion import board_write_document, story_write_document
 from haynes_studio.drafting.declaration import DraftDeclaration, RedraftDeclaration
 from haynes_studio.errors import ContractError, Violation, pointer
 from haynes_studio.formats import records as format_records
@@ -463,19 +464,10 @@ def _board_changed(held: dict, by: dict, reason: str, now: str,
     return updated
 
 
-def edit_story(conn: sa.Connection, id_: str, revision: int, fields: dict, by: dict) -> Draft:
+def edit_story(conn: sa.Connection, id_: str, revision: int, fields: dict) -> Draft:
     draft = get_draft(conn, id_, lock=True)
     require_revision(draft.story["revision"], revision)
     _exact_fields(fields, STORY_FIELDS)
-    if by["kind"] == "agent" and "set" in fields:
-        current = (draft.story["set"] or {}).get("asset_version_id")
-        new_set = fields["set"]
-        new_pin = new_set.get("asset_version_id") if isinstance(new_set, dict) else None
-        if current is not None and current != new_pin:
-            version = load_library(conn, {current}, draft.story["production_id"]).get(current)
-            if version is not None and version.occlusion is not None:
-                raise invalid("draft.set_occlusion_protected", "/set/asset_version_id",
-                              "An agent cannot replace an opted-in set pin")
     fields = _with_child_ids(fields, draft.story, {"beds": "cue"}, Minter())
     updated = _advance(draft, fields, timestamp())
     refs = updated.validate(conn)
@@ -489,7 +481,7 @@ def add_board(conn: sa.Connection, id_: str, revision: int, fields: dict, by: di
     draft = get_draft(conn, id_, lock=True)
     require_revision(draft.story["revision"], revision)
     _exact_fields(fields, BOARD_FIELDS)
-    fields, declaration = _draft_declaration(fields, by, DraftDeclaration)
+    fields, declaration = _draft_declaration(board_write_document(fields), by, DraftDeclaration)
     minter = Minter()
     id_board, now = minter.mint("brd"), timestamp()
     number = draft.highest_board + 1
@@ -546,14 +538,14 @@ def add_board(conn: sa.Connection, id_: str, revision: int, fields: dict, by: di
 
 def edit_board(conn: sa.Connection, story_id: str, id_: str, revision: int,
                fields: dict, by: dict, *, acknowledgment: int | None = None,
-               archive_stamp: ArchiveStamp | None = None, escalation_edit: bool = False) -> Draft:
+               archive_stamp: ArchiveStamp | None = None) -> Draft:
     draft = get_draft(conn, story_id, lock=True)
     held = draft.boards.get(id_)
     if held is None:
         raise NotFound
     require_revision(held["revision"], revision)
     _exact_fields(fields, BOARD_FIELDS)
-    fields, declaration = _draft_declaration(fields, by, RedraftDeclaration)
+    fields, declaration = _draft_declaration(board_write_document(fields), by, RedraftDeclaration)
     if archive_stamp is None:
         _check_board_write(held, by, acknowledgment)
     else:
@@ -568,20 +560,6 @@ def edit_board(conn: sa.Connection, story_id: str, id_: str, revision: int,
                     previous.get("board_revision") != revision
                     or held["drafted_by"] != by))):
             raise DraftProtected(held)
-    # Older clients and archived drafts replace layout using only preset and
-    # foreground. Carry poses forward under the same lock as the revision check.
-    layout = fields.get("layout")
-    if isinstance(layout, dict) and (by["kind"] == "agent" or archive_stamp is not None):
-        current = held["layout"]
-        if "check_poses" in layout:
-            protection = held.get("draft_application", held)
-            person_edited = "person_edit" in protection or "person_edit" in held
-            agent_unowned = by["kind"] == "agent" and (person_edited or held["drafted_by"] != by)
-            if (escalation_edit or agent_unowned) and layout["check_poses"] != current.get("check_poses"):
-                raise invalid("draft.check_poses_protected", "/layout/check_poses",
-                              "This edit cannot change the board's check poses")
-        elif "check_poses" in current:
-            fields = {**fields, "layout": {**layout, "check_poses": current["check_poses"]}}
     fields = _with_child_ids(fields, held, BOARD_CHILDREN, Minter(),
                              allow_new_line_ids=declaration is not None or archive_stamp is not None)
     now = timestamp()
@@ -716,7 +694,7 @@ def import_draft(conn: sa.Connection, production_doc: dict, exchange: dict,
     archive import uses create_only to require a fresh production and draft.
     """
     production_doc = normalize(production_doc)
-    doc = normalize(exchange)
+    doc = story_write_document(normalize(exchange))
     require_valid(validate_production(production_doc))
     require_valid(validate_story(doc, enabled_media_kinds=[p["kind"]
                                                            for p in production_doc["media_types"]]))
@@ -755,7 +733,7 @@ def import_draft(conn: sa.Connection, production_doc: dict, exchange: dict,
 def _insert_imported_draft(conn: sa.Connection, doc: dict, versions: list[dict]) -> Draft:
     if any("occlusion" in version for version in versions):
         # Separate stills can appear later in the archive than the set using them.
-        Library.from_version_documents(versions)
+        Library.from_version_documents(versions, context="write")
     ids = _import_child_ids(doc)
     board_docs = doc.pop("boards")
     doc.pop("derived", None)

@@ -360,7 +360,7 @@ Full instances: [`story-winter-menu-r4.json`](examples/valid/story-winter-menu-r
 | `voice` | `{style, current_version_id}` | style `cast` or `narrator`, null on a silent board |
 | `photo` | `{current_version_id, prompt, input_asset_version_ids}` | prompt up to 1800 characters; inputs are the composer's assets |
 | `cast[]` | `{slot, asset_version_id, motion_asset_version_id}` | draw order; one still per slot (expression); the optional motion pin names the doll loop the slot plays (section 9, story 457) |
-| `layout` | `{preset, foreground, check_poses?}` | `preset` must exist in story `layouts`. Optional `check_poses` holds 1–16 `{key, frame}` objects with unique keys and zero-based delivery frames relative to the board. [Set and layout declarations](../reference/occlusion-masks.md#set-and-layout-declarations) |
+| `layout` | `{preset, foreground, check_poses?}` | `preset` must exist in story `layouts`. Optional `check_poses` holds 1–16 `{key, frame}` objects with unique keys and zero-based delivery frames relative to the board. CR-61 refuses nonempty poses on write with `occlusion.check_unavailable` until the visibility check is available. Writers omit a null or empty list. [Set and layout declarations](../reference/occlusion-masks.md#set-and-layout-declarations) |
 | `method` | `{layer, motion}` | section 5 |
 | `seeds` | `{"s2v:<slot>": int, "i2v:frame": int}` | section 4 |
 | `cues[]`, `notes[]` | section 6 | |
@@ -1052,9 +1052,13 @@ Cue types (P-09):
 
 ### Asset versions
 
-An `opaque_plate` set version can declare an optional immutable `occlusion` block
-with `foreground` roles and `focal_props`. It must declare at least one target.
-The version identity binds the declarations and the plate content hash.
+The contract defines an optional immutable `occlusion` block on an `opaque_plate`
+set version, with `foreground` roles and `focal_props`. The version identity
+binds the plate content hash and the declaration, which holds at least one target.
+CR-61 refuses opt-ins on write with `occlusion.check_unavailable` until the
+visibility check is available. Writers omit a null, an empty list, or a block with
+both target lists empty. Pre-build also refuses a story that already carries
+poses or pins a declared set.
 [Set and layout declarations](../reference/occlusion-masks.md#set-and-layout-declarations)
 
 `provenance` on every asset version

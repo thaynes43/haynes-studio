@@ -1,5 +1,6 @@
 """The admin entry point refuses invalid archives before opening a destination."""
 
+import hashlib
 import json
 
 import pytest
@@ -12,8 +13,10 @@ from haynes_studio.importer.production_archive import verify_archive
 from haynes_studio.library import Library
 from haynes_studio.library.resolve import resolve
 from haynes_studio.library.validate import validate_asset_version
+from haynes_studio.store import blob_locator, canonical_json
 from tests.build_story.fixtures import example
 from tests.importer.production_fixture import FRAMES, KIND, make_archive
+from tests.motion.fixtures import still_version
 
 
 @pytest.mark.parametrize(("damage", "error"), [
@@ -141,3 +144,78 @@ def test_resolver_skips_byte_check_for_recorded_pin(tmp_path):
                      lambda *_: pytest.fail("a recorded pin must not probe the store"))
     assert result.complete
     assert result.version_ids() == {fixture.asset["id"]}
+
+
+def archive_set(fixture, occlusion):
+    plate = still_version(200, "b" * 64, kind="set")
+    plate["scope"] = {"production_id": fixture.production_id}
+    plate["content"].update(width=64, height=48,
+                            locator=blob_locator(fixture.production_id, "b" * 64, "image/png"))
+    return {**plate, "occlusion": occlusion}
+
+
+def rewrite_snapshot(fixture):
+    data = canonical_json(fixture.snapshot)
+    digest = hashlib.sha256(data).hexdigest()
+    fixture.run["snapshot"].update(sha256=digest,
+                                   locator=blob_locator(fixture.production_id, digest, "application/json"))
+    (fixture.root / "snapshot.json").write_bytes(data)
+    (fixture.root / "run.json").write_bytes(canonical_json(fixture.run))
+
+
+@pytest.mark.parametrize(("declaration", "error"), [
+    ("board", "snapshot_invalid snapshot.json /story/boards/0/layout/check_poses occlusion.check_unavailable"),
+    ("set", "asset_versions asset-versions.json /1/occlusion occlusion.check_unavailable"),
+    ("reversed-box", "asset_versions asset-versions.json /1/occlusion/foreground/0/hint/xyxy schema.invalid"),
+    ("outside-point", "asset_versions asset-versions.json /1/occlusion/focal_props/0/hint/xy schema.invalid"),
+])
+def test_archive_checks_visibility_declarations_before_publication(tmp_path, monkeypatch, capsys,
+                                                                 declaration, error):
+    fixture = make_archive(tmp_path / "job")
+    if declaration == "board":
+        fixture.snapshot["story"]["boards"][0]["layout"]["check_poses"] = [{"key": "still", "frame": 0}]
+        rewrite_snapshot(fixture)
+    else:
+        block = {"foreground": [{"key": "shelf", "label": None, "layer_order": 10}], "focal_props": []}
+        plate = archive_set(fixture, block)
+        versions = [fixture.asset, plate]
+        if declaration == "reversed-box":
+            block["foreground"][0]["hint"] = {"kind": "box", "xyxy": [20, 0, 10, 10]}
+        if declaration == "outside-point":
+            prop = still_version(201, "c" * 64)
+            prop.update(kind="prop", scope=plate["scope"])
+            prop["content"].update(width=32, height=32,
+                                   locator=blob_locator(fixture.production_id, "c" * 64, "image/png"))
+            versions.append(prop)
+            block["focal_props"] = [{
+                "key": "menu", "label": "menu", "depth": "separate", "layer_order": 20,
+                "source_asset_version_id": prop["id"], "hint": {"kind": "point", "xy": [32, 10]},
+            }]
+        (fixture.root / "asset-versions.json").write_bytes(canonical_json(versions))
+    fixture.receipt.write_bytes(canonical_json(fixture.files()))
+
+    monkeypatch.setenv("STUDIO_MIGRATION_DATABASE_URL", "unused dsn")
+    dest = tmp_path / "empty-store"
+    monkeypatch.setenv("STUDIO_STORE_ROOT", str(dest))
+    assert run(fixture.args()) == 1
+    result = capsys.readouterr()
+    assert result.out == "" and result.err.strip() == f"import_production.{error}"
+    assert not dest.exists()
+
+
+def test_archive_empty_declarations_are_omitted_in_editable_view(tmp_path):
+    fixture = make_archive(tmp_path / "job")
+    fixture.snapshot["story"]["boards"][0]["layout"]["check_poses"] = []
+    plate = archive_set(fixture, None)
+    fixture.snapshot["resolved_asset_versions"].append({
+        "id": plate["id"], "kind": plate["kind"], "sha256": plate["content"]["sha256"],
+    })
+    rewrite_snapshot(fixture)
+    (fixture.root / "asset-versions.json").write_bytes(canonical_json([fixture.asset, plate]))
+    fixture.receipt.write_bytes(canonical_json(fixture.files()))
+
+    with verify_archive(fixture.root, fixture.receipt, name=fixture.name, kind=KIND,
+                        recovered=False) as archive:
+        assert "check_poses" not in archive.story["boards"][0]["layout"]
+        assert "occlusion" not in archive.versions[1]
+        assert archive.snapshot == fixture.snapshot

@@ -31,6 +31,7 @@ from haynes_studio.canonical.facts import Facts, PhotoVersionFacts, VoiceVersion
 from haynes_studio.canonical.ids import Minter, is_id
 from haynes_studio.canonical.jsonvalues import normalize, too_deep
 from haynes_studio.canonical.model import Principal, require_human, to_document
+from haynes_studio.canonical.validate import READ, WRITE
 from haynes_studio.errors import ContractError, Violation, blocking, pointer
 from haynes_studio.library.model import (
     BOARD,
@@ -47,7 +48,9 @@ from haynes_studio.library.model import (
     pin,
     version_document,
 )
-from haynes_studio.library.validate import validate_asset, validate_asset_version
+from haynes_studio.library.validate import (
+    empty_declaration, validate_asset, validate_asset_version, version_write_document,
+)
 from haynes_studio.jsonio import freeze
 
 # Rule codes beyond the contract's rule index are proposals of story 382.
@@ -71,6 +74,14 @@ def require_media(version: AssetVersion | None, path: str) -> None:
     """Refuse an archive record where an operation needs the version's media."""
     if version is not None and version.recorded_without_media:
         raise _error(RECORDED_WITHOUT_MEDIA, path, f"{version.id} was recorded without media")
+
+
+class VersionDocumentError(ContractError):
+    """A validation error tied to an input document's position in a version batch."""
+
+    def __init__(self, index: int, problems: Iterable[Violation]):
+        self.index = index
+        super().__init__(f"<version {index}>", problems)
 
 
 @dataclass(frozen=True)
@@ -120,16 +131,19 @@ class Library:
                    versions=MappingProxyType({v.id: v for v in versions}))
 
     @classmethod
-    def from_version_documents(cls, documents: Iterable[Mapping[str, Any]]) -> Library:
+    def from_version_documents(cls, documents: Iterable[Mapping[str, Any]], *,
+                               context: str = READ) -> Library:
         """A library from ``studio.asset-version/v1`` documents alone (each asset from its
         versions' joined fields; they must agree). Every document must validate."""
         assets: dict[str, Asset] = {}
         versions = []
         opted_in = []
         for i, document in enumerate(documents):
+            if context == WRITE:
+                document = version_write_document(document)
             problems = blocking(validate_asset_version(document))
             if problems:
-                raise ContractError(f"<version {i}>", problems)
+                raise VersionDocumentError(i, problems)
             asset = Asset.from_version_document(document)
             if assets.setdefault(asset.id, asset) != asset:
                 raise _error("schema.invalid", pointer(i, "asset_id"),
@@ -142,9 +156,11 @@ class Library:
         if opted_in:
             content = {version.id: version.content for version in versions}
             for i, document in opted_in:
-                problems = blocking(validate_asset_version(document, source_content=content.get))
+                problems = blocking(validate_asset_version(
+                    document, context=context, source_content=content.get,
+                ))
                 if problems:
-                    raise ContractError(f"<version {i}>", problems)
+                    raise VersionDocumentError(i, problems)
         return cls.build(assets.values(), versions)
 
     # Lookups --------------------------------------------------------------------------
@@ -365,7 +381,8 @@ class Outcome:
 
 
 def import_version(library: Library, request: VersionRequest, *, by: Principal, now: str,
-                   minter: Minter | None = None) -> Outcome:
+                   minter: Minter | None = None,
+                   source_content: Callable[[str], Content | None] | None = None) -> Outcome:
     """Import one version by source key (section 9). Raises :class:`ContractError` for
     a request without a source key, a source key that names an asset of another kind
     or other attributes, the same bytes with other immutable fields
@@ -400,6 +417,7 @@ def import_version(library: Library, request: VersionRequest, *, by: Principal, 
         number = len(numbers) + 1
     if too_deep(request.occlusion):
         raise _error("schema.invalid", "/occlusion", "the declaration is nested too deeply")
+    occlusion = None if empty_declaration(request.occlusion) else freeze(normalize(request.occlusion))
     candidate = AssetVersion(
         id=request.version_id or "asv_00000000000000000000000000", asset_id=asset.id,
         number=number, kind=request.kind, state=request.state,
@@ -409,13 +427,16 @@ def import_version(library: Library, request: VersionRequest, *, by: Principal, 
         voice=request.voice,
         motion=None if request.motion is None else freeze(normalize(dict(request.motion))),
         recorded_without_media=request.recorded_without_media,
-        occlusion=freeze(normalize(request.occlusion)))
+        occlusion=occlusion)
     if candidate.occlusion is not None:
-        def source_content(version_id: str) -> Content | None:
+        def referenced_content(version_id: str) -> Content | None:
             source = library.get(version_id)
-            return source.content if source is not None else None
+            content = source.content if source is not None else None
+            if content is not None and content.width is not None:
+                return content
+            return source_content(version_id) if source_content is not None else content
 
-        _check(candidate, asset, source_content=source_content)
+        _check(candidate, asset, source_content=referenced_content)
     wanted = pin(candidate, asset)
     for existing in library.versions_of(asset.id):
         if pin(existing, asset) != wanted:
@@ -543,11 +564,16 @@ def set_labels(library: Library, asset_id: str, labels: Iterable[str], *, now: s
 
 def import_all(library: Library, requests: Iterable[VersionRequest], *, by: Principal, now: str,
                minter: Minter | None = None) -> tuple[Library, list[Outcome]]:
-    """:func:`import_version` for each request in order."""
+    """:func:`import_version` in input order, with still dimensions from the whole batch."""
     minter = minter or Minter()
+    requests = list(requests)
+    content = {request.version_id: request.content for request in requests
+               if request.version_id is not None and request.content is not None
+               and request.content.width is not None}
     outcomes = []
     for request in requests:
-        outcome = import_version(library, request, by=by, now=now, minter=minter)
+        outcome = import_version(library, request, by=by, now=now, minter=minter,
+                                 source_content=content.get)
         library = outcome.library
         outcomes.append(outcome)
     return library, outcomes

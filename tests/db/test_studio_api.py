@@ -681,13 +681,6 @@ def test_winter_menu_metadata_round_trips_and_reimport_preserves_edits(service, 
     edit = browser.patch(path, json={"title": "Revised fixture title"},
                          headers={**csrf, "If-Match": result.headers["etag"]})
     assert edit.status_code == 200, edit.text
-    first_board = original["boards"][0]
-    board_path = f"/v1/boards/{first_board['id']}"
-    poses = [{"key": "wide", "frame": 0}]
-    current = browser.get(board_path)
-    opted_in = browser.patch(board_path, json={"layout": {**first_board["layout"], "check_poses": poses}},
-                            headers={**csrf, "If-Match": current.headers["etag"]})
-    assert opted_in.status_code == 200, opted_in.text
     edited_story_revision = browser.get(path).json()["revision"]
     duplicate = copy.deepcopy(original)
     duplicate["id"] = Minter().mint("sty")
@@ -698,7 +691,6 @@ def test_winter_menu_metadata_round_trips_and_reimport_preserves_edits(service, 
         assert resumed["id"] == original["id"]
         assert resumed["revision"] == edited_story_revision
     assert browser.get(path).json()["title"] == "Revised fixture title"
-    assert browser.get(board_path).json()["layout"]["check_poses"] == poses
     board = next(board for board in original["boards"] if board["cast"])
     response = browser.get("/v1/assets", params={"production": production["id"], "board": board["id"]})
     assert response.status_code == 200, response.text

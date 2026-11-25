@@ -50,6 +50,7 @@ from haynes_studio.canonical.model import (
     Board,
     FormatLength,
 )
+from haynes_studio.canonical.occlusion import board_write_document, story_write_document, unavailable
 from haynes_studio.errors import INVALID, WARNING, Violation, pointer
 from haynes_studio.schemas import UNKNOWN_FIELD, schema_violations
 
@@ -158,6 +159,8 @@ def validate_board(document: Any, *, context: str = READ, facts: Facts | None = 
     document, stop = _prepare(document, BOARD_SCHEMA)
     if stop is not None:
         return stop
+    if context == WRITE:
+        document = board_write_document(document)
     found = _no_derived(document, context) + _schema(BOARD_SCHEMA, document)
     if not _blocking(found):
         found += board_rules(document, "", context=context, facts=facts or NO_FACTS,
@@ -277,6 +280,8 @@ def board_rules(document: Mapping, prefix: str, *, context: str, facts: Facts,
 
     if context == QUEUE_RUN:
         found += _queue_board(board, at, facts)
+    if poses and context == WRITE and not _blocking(found):
+        found.append(unavailable(at("layout", "check_poses")))
     return found
 
 
@@ -328,6 +333,8 @@ def validate_story(document: Any, *, context: str = READ, facts: Facts | None = 
     document, stop = _prepare(document, STORY_SCHEMA)
     if stop is not None:
         return stop
+    if context == WRITE:
+        document = story_write_document(document)
     facts = facts or NO_FACTS
     found = _no_derived(document, context)
     boards = document.get("boards")

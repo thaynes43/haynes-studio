@@ -4,6 +4,7 @@ from collections.abc import Iterator, Mapping
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 import hashlib
+import json
 import os
 from pathlib import Path
 import re
@@ -14,14 +15,19 @@ import av
 
 from haynes_studio.adapters.errors import AdapterError
 from haynes_studio.adapters.wan_ledger import record_from_document
+from haynes_studio.build.prebuild import draft_document
 from haynes_studio.build.validate import validate_run, validate_run_snapshot
+from haynes_studio.canonical import validate_story
+from haynes_studio.canonical.occlusion import story_write_document
 from haynes_studio.delivery.model import (
     AAC, DELIVERY_SCHEMA, FPS, H264, MASTER_SIZES, MP4, PROXY_SIZES, proxy_byte_limit,
 )
 from haynes_studio.delivery.validate import validate_delivery
-from haynes_studio.errors import ContractError, blocking
+from haynes_studio.errors import ContractError, Violation, blocking, pointer
 from haynes_studio.jsonio import parse_strict
 from haynes_studio.library import Library
+from haynes_studio.library.library import VersionDocumentError
+from haynes_studio.library.validate import version_write_document
 from haynes_studio.store import StageRecord, StoreError, blob_locator, canonical_json, is_sha256, parse_locator
 
 MEDIA = {"master": "final.mp4", "proxy": "proxy.mp4"}
@@ -35,10 +41,15 @@ MAX_FILES = 64
 
 
 class ImportProblem(Exception):
-    """An operator-facing code and, optionally, a checked archive member name."""
+    """An operator-facing code with optional member and field information."""
 
-    def __init__(self, code: str, member: str | None = None):
-        super().__init__(f"import_production.{code}" + (f" {member}" if member else ""))
+    def __init__(self, code: str, member: str | None = None, *,
+                 violation: Violation | None = None, prefix: str = ""):
+        message = f"import_production.{code}" + (f" {member}" if member else "")
+        if violation is not None:
+            path = json.dumps(prefix + violation.path, ensure_ascii=True)[1:-1]
+            message += f" {path} {violation.rule}"
+        super().__init__(message)
 
 
 @dataclass(frozen=True)
@@ -153,11 +164,15 @@ def _matches(facts: dict, document: object) -> bool:
 def _pins(snapshot: dict, value: object) -> list[dict]:
     if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
         raise ImportProblem("asset_versions", "asset-versions.json")
+    documents = [version_write_document(item) for item in value]
     try:
-        library = Library.from_version_documents(value)
+        library = Library.from_version_documents(documents, context="write")
+    except VersionDocumentError as error:
+        raise ImportProblem("asset_versions", "asset-versions.json",
+                            violation=error.violations[0], prefix=pointer(error.index)) from None
     except ContractError:
         raise ImportProblem("asset_versions", "asset-versions.json") from None
-    by_id = {item["id"]: item for item in value}
+    by_id = {item["id"]: item for item in documents}
     pinned = []
     for entry in snapshot["resolved_asset_versions"]:
         version = library.get(entry["id"])
@@ -183,9 +198,19 @@ def _pins(snapshot: dict, value: object) -> list[dict]:
 
 def _canonical(docs: dict, receipt: dict, run: dict, production_id: str, kind: str):
     snapshot = docs["snapshot.json"]
-    if blocking(validate_run_snapshot(snapshot)):
+    # Validate the editable view. The original snapshot bytes are still verified
+    # below and remain the frozen archive evidence.
+    story = snapshot.get("story") if isinstance(snapshot, dict) else None
+    cleaned = story_write_document(story)
+    validation = snapshot if cleaned is story else {**snapshot, "story": cleaned}
+    if blocking(validate_run_snapshot(validation)):
         raise ImportProblem("snapshot_invalid", "snapshot.json")
-    story = snapshot["story"]
+    story = cleaned
+    if any("check_poses" in board["layout"] for board in story["boards"]):
+        problems = blocking(validate_story(draft_document(story), context="write"))
+        if problems:
+            raise ImportProblem("snapshot_invalid", "snapshot.json",
+                                violation=problems[0], prefix="/story")
     held_snapshot = run["snapshot"]
     if (receipt["snapshot.json"]["sha256"] != held_snapshot["sha256"]
             or hashlib.sha256(canonical_json(snapshot)).hexdigest() != held_snapshot["sha256"]

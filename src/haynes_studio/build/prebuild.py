@@ -31,6 +31,7 @@ from haynes_studio.build.validate import SNAPSHOT_SCHEMA, validate_run_snapshot
 from haynes_studio.cache.plan import LayeredMotion, Toolchain
 from haynes_studio.canonical import Facts, Story, load_story
 from haynes_studio.canonical.derive import board_clock
+from haynes_studio.canonical.occlusion import OCCLUSION_UNAVAILABLE, VISIBILITY_UNAVAILABLE
 from haynes_studio.canonical.validate import UNAVAILABLE, WRITE
 from haynes_studio.errors import WARNING, blocking
 from haynes_studio.formats.recipe import PIN_PATH, method_violation
@@ -55,7 +56,6 @@ from haynes_studio.voice import voice_facts
 from haynes_studio.wholeframe import check_board as wholeframe_check
 
 WAV = "audio/wav"
-OCCLUSION_UNAVAILABLE = "occlusion.check_unavailable"
 
 
 @dataclass(frozen=True)
@@ -154,7 +154,7 @@ def _metadata_present(_locator, _sha):
 
 def _occlusion_refusal(story: Story, library: Library) -> Problem | None:
     """Stop opted-in stories at pre-build until the renderer can check them."""
-    message = "The visibility check is not installed"
+    message = VISIBILITY_UNAVAILABLE
     if story.set is not None and story.set.asset_version_id is not None:
         plate = library.get(story.set.asset_version_id)
         if plate is not None and plate.occlusion is not None:
@@ -183,8 +183,8 @@ def prepare(document: Mapping[str, Any], *, library: Library, store: Store | Non
     production = document.get("production_id")
     resolved = resolved_versions(resolution, library, production) if isinstance(production, str) else {}
     try:
-        story = load_story(document, context=WRITE, source="<story>")
-    except Exception as error:  # a draft that breaks a write rule: the check lists it
+        story = load_story(document, source="<story>")
+    except Exception as error:  # a draft that breaks a document rule: the check lists it
         story = None
         problems = tuple(Problem(v.rule, v.status, v.path, v.message, field=v.path)
                          for v in getattr(error, "violations", ()))

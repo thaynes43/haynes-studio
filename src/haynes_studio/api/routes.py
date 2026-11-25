@@ -197,8 +197,7 @@ def build_router(CurrentActor, authenticated_route):
                      if_match: IfMatch):
         with request.app.state.engine.begin() as conn:
             _story_access(conn, actor, "draft:write", id)
-            doc = drafts.edit_story(conn, id, _revision(if_match), body.root,
-                                    to_document(actor.principal)).summary(conn)
+            doc = drafts.edit_story(conn, id, _revision(if_match), body.root).summary(conn)
         return _etag(response, doc)
 
 
@@ -246,8 +245,7 @@ def build_router(CurrentActor, authenticated_route):
         with request.app.state.engine.begin() as conn:
             story_id = _board_access(conn, actor, "draft:write", id)
             fields = dict(body.root)
-            escalation_edit = responder.is_responder(actor.principal.key_id)
-            if escalation_edit:
+            if responder.is_responder(actor.principal.key_id):
                 responder.require_patch(conn, actor.principal.key_id, story_id, id, fields)
             ack = None
             if "acknowledge_person_edit" in fields:
@@ -260,7 +258,6 @@ def build_router(CurrentActor, authenticated_route):
             doc = drafts.edit_board(
                 conn, story_id, id, _revision(if_match), fields, to_document(actor.principal),
                 acknowledgment=_acknowledged_revision(request, actor, id, ack),
-                escalation_edit=escalation_edit,
             ).board(conn, id)
         return _etag(response, doc)
 

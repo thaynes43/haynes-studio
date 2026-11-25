@@ -8,6 +8,7 @@ from dataclasses import dataclass, replace
 from haynes_studio.canonical import validate_board
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.canonical.jsonvalues import normalize, too_deep
+from haynes_studio.canonical.occlusion import board_write_document
 from haynes_studio.errors import ContractError, Violation, pointer
 from haynes_studio.jsonio import freeze, parse_strict
 from haynes_studio.schemas import schema_violations
@@ -76,6 +77,10 @@ class Draft:
         except UnicodeError:
             raise _invalid("schema.invalid", "", "Draft contains an invalid Unicode scalar") from None
         raw = normalize(raw)
+        if isinstance(raw, dict) and isinstance(raw.get("boards"), list):
+            for item in raw["boards"]:
+                if isinstance(item, dict) and "fields" in item:
+                    item["fields"] = board_write_document(item["fields"])
         violations = schema_violations("studio.agent-draft.v1.schema.json", raw,
                                        default_rule="schema.invalid")
         if violations:

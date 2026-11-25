@@ -6,11 +6,11 @@ service. [Service request and result schemas](segmentation-backend-profile.md#ar
 
 ## Set and layout declarations
 
-An `opaque_plate` set version may carry an immutable `occlusion` object with
-`foreground` and `focal_props` arrays. Each array holds up to 16 entries and at
-least one must be nonempty. The set version pin includes the plate's content hash
-and these declarations, so editing a role, depth or stored hint creates a new
-version. [Library version identity](studio-library.md#what-a-version-is)
+The asset-version contract defines an optional immutable `occlusion` object for
+an `opaque_plate` set version. It has `foreground` and `focal_props` arrays.
+Each holds up to 16 entries and at least one must be nonempty in a stored
+declaration. The version pin binds the plate's content hash and the declaration.
+[Library version identity](studio-library.md#what-a-version-is)
 
 | Entry | Fields |
 |---|---|
@@ -20,10 +20,11 @@ version. [Library version identity](studio-library.md#what-a-version-is)
 Keys are unique across both arrays. Foreground roles and separate props use unique
 positive layer orders up to 1024, increasing toward the camera. Labels and text
 hints use trimmed NFC text without control characters. Point and box hints use
-normalized source still coordinates. A point must lie inside the still. A box
+source still pixel coordinates. A point must lie inside the still. A box
 must have positive width and height, and its right and bottom edges may reach
 the still's edges. Import checks each recorded dimension of the plate or the
-referenced separate prop still.
+referenced separate prop still, including dimensions known anywhere in an import
+batch.
 
 | Focal prop depth | Associated fields |
 |---|---|
@@ -32,14 +33,26 @@ referenced separate prop still.
 | `separate` | Positive `layer_order` and a `source_asset_version_id` for the separate prop still. |
 | `unspecified` | Omit `layer_order`, `foreground_role` and `source_asset_version_id`. |
 
-A board can add `layout.check_poses` with 1–16 `{key, frame}` objects, for example
+The board contract defines optional `layout.check_poses` with 1–16 `{key, frame}` objects, for example
 `{"key": "baseline", "frame": 0}`. Keys are unique within the board. Frame indices
 are non-negative integers, zero-based at the delivery rate and relative to the
 board. The existing `layout.foreground` flag controls the legacy edge and feather
-redraw. Agent layout edits and archived draft revisions preserve existing poses
-when their payload omits them. An escalation responder may echo the current
-poses. A person can revise the declaration through the board edit endpoint and
-replace an opted-in set pin through the story edit endpoint.
+redraw.
+
+## Write refusal
+
+Under provisional ruling CR-61, people and agent keys receive
+`occlusion.check_unavailable` when they try to save a visibility declaration.
+The rule covers draft edits over HTTP and MCP, including escalation responders,
+storyboard staging and apply, library imports, asset version registration and
+revision, and production archive verification and apply. Structural and hint
+validation still reports malformed fields. Production archive errors identify the
+member and field, including the zero-based asset version index.
+
+A null or empty `check_poses` list is omitted from the saved layout. A null or
+empty `occlusion` list, or an `occlusion` object with both target arrays empty,
+is omitted from the saved asset version. Archived source text and frozen
+snapshots retain their original bytes for verification.
 
 ## Segmentation adapter
 
@@ -75,8 +88,8 @@ real Unix socket with a fake graph and synthetic stills.
 
 ## Pre-build refusal
 
-A story with a set that declares a foreground role or focal prop, or a board
-that declares check poses, is refused before build with
+A declaration supplied outside the write paths is still refused before build
+when the story pins the set or carries a board with check poses. It returns
 `occlusion.check_unavailable` and the message “The visibility check is not
 installed”. This applies even with `layout.foreground` disabled. People and
 agent keys receive the same refusal. The refusal carries no verdict and has no

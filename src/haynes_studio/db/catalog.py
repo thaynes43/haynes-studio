@@ -11,7 +11,7 @@ from haynes_studio.delivery.validate import validate_delivery
 from haynes_studio.errors import ContractError, Violation
 from haynes_studio.library.library import Library, promote
 from haynes_studio.library.model import BOARD, CANDIDATE, PROMOTED, Asset, AssetVersion, Content, version_document
-from haynes_studio.library.validate import validate_asset, validate_asset_version
+from haynes_studio.library.validate import validate_asset, validate_asset_version, version_write_document
 from haynes_studio.store.layout import blob_locator, is_sha256, parse_locator
 
 from .problems import NotFound, require_valid
@@ -135,7 +135,8 @@ def record_asset_version(conn: sa.Connection, document: dict, *, asset: Asset | 
             sa.select(asset_versions.c.document["content"]).where(asset_versions.c.id == version_id),
         ))
 
-    require_valid(validate_asset_version(document, source_content=source_content))
+    document = version_write_document(document)
+    require_valid(validate_asset_version(document, context="write", source_content=source_content))
     version = AssetVersion.from_document(document)
     if received_sha256 is not None and (
         version.kind != "photo" or version.origin != "uploaded" or not is_sha256(received_sha256)
