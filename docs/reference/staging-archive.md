@@ -47,6 +47,11 @@ current `head_version_id`. If another revision arrived first, the API returns
 return the original receipt with HTTP 200. A new write returns 201. Reusing a
 key with different input returns 422 `idempotency.mismatch`.
 
+PostgreSQL requires one parentless version numbered 1 for each record.
+Each later version must name the preceding version in that same record as
+its parent. This lets the ancestry check use version numbers to identify
+descendants.
+
 List records and version metadata with `cursor` and `limit`. Record detail
 lists newest versions first. Version metadata includes the writer, timestamp,
 parent ID, byte count, digest, provenance and optional format pin. An exact

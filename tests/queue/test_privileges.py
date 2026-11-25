@@ -42,9 +42,10 @@ def test_documented_runtime_table_grants_match_alembic():
     assert _table_privileges(documented) == _table_privileges(RUNTIME_GRANTS)
 
 
-def test_staging_archive_is_the_only_head_and_follows_release_packages():
+def test_release_constraints_is_the_only_head():
     migrations = ScriptDirectory(str(MIGRATIONS))
-    assert migrations.get_heads() == ["0010_staging_archive"]
+    assert migrations.get_heads() == ["0012_release_constraints"]
+    assert migrations.get_revision("0012_release_constraints").down_revision == "0010_staging_archive"
     assert migrations.get_revision("0010_staging_archive").down_revision == "0009_release_packages"
     assert migrations.get_revision("0009_release_packages").down_revision == "0008_candidate_feedback"
     assert migrations.get_revision("0008_candidate_feedback").down_revision == "0007_escalation_packages"

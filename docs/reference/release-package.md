@@ -74,6 +74,13 @@ copy. The response derives state and publication outside the hashed record.
 Changed evidence produces a new package hash, with earlier versions retained.
 Approve, withdraw, prepare and record all serialize on the run row.
 
+Migration `0012_release_constraints` checks the stored byte count against the
+canonical document and enforces one publication per run and target across all
+package versions. It backfills each publication's target from the package it
+names and requires the run and target to match that package. If duplicate
+publications already exist for a run and target, the migration aborts and
+preserves the publication history.
+
 The private store holds a download copy at the content-addressed path. A missing
 copy returns `503 release.store_unavailable`. Repeat preparation with identical
 evidence or specify the package hash to rebuild the copy from the database

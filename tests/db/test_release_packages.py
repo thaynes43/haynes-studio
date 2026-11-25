@@ -14,7 +14,8 @@ from haynes_studio.build.provenance import Use
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.db import runs
 from haynes_studio.db.catalog import record_delivery
-from haynes_studio.db.schema import go_live_approvals, publications, release_packages, runs as run_table
+from haynes_studio.db.migrate import migrate
+from haynes_studio.db.schema import go_live_approvals, publications, release_packages
 from haynes_studio.formats.recipe import recipe_hash
 from haynes_studio.golive import packages, records
 from haynes_studio.golive.checks import licence_register
@@ -80,7 +81,17 @@ def refuse(response, status, code):
     return response.json()["error"]
 
 
-def test_package_bytes_are_stable_and_common_evidence_is_pinned(setup, monkeypatch):
+def alternate_package(conn, document):
+    data = canonical_json({**document, "description": "Updated fixture evidence"})
+    digest = sha256(data).hexdigest()
+    conn.execute(release_packages.insert().values(
+        sha256=digest, run_id=document["run_id"], target_id=document["target"]["id"],
+        bytes=len(data), document_bytes=data,
+    ))
+    return digest
+
+
+def test_package_bytes_are_stable_and_approval_rechecks_common_evidence(setup, monkeypatch):
     s = setup
     run, target = target_fixture(s, extra_uses={
         "controlfoley": Use("sound", hardware="Fixture sound GPU"),
@@ -175,26 +186,102 @@ def test_share_copy_integrity_does_not_block_approval_or_listing(setup, damage):
     assert s.browser.get(url).content == copy.read_bytes() == original
 
 
-@pytest.mark.parametrize("damage", ["document", "length"])
-def test_canonical_record_integrity_blocks_reads_and_approval(setup, damage):
+def test_canonical_record_integrity_blocks_reads_and_approval(setup):
     s = setup
     run, target = target_fixture(s)
     receipt = succeed(prepare(s, run, target))
     digest = receipt["sha256"]
     copy = copy_path(s, digest)
     document = get(s, run)["package"]
-    if damage == "document":
-        changed = {"document_bytes": canonical_json({**document, "description": "X" + document["description"][1:]})}
-        assert len(changed["document_bytes"]) == receipt["bytes"]
-    else:
-        changed = {"bytes": receipt["bytes"] + 1}
+    changed = canonical_json({**document, "description": "X" + document["description"][1:]})
+    assert len(changed) == receipt["bytes"]
     with s.owner.begin() as conn:
-        conn.execute(release_packages.update().where(release_packages.c.sha256 == digest).values(**changed))
+        conn.execute(release_packages.update().where(release_packages.c.sha256 == digest)
+                     .values(document_bytes=changed))
     assert copy.read_bytes() == canonical_json(document)
     refuse(s.browser.get(path(run)), 503, "release.package_record_changed")
     refuse(s.browser.get(download_path(run, digest)), 503, "release.package_record_changed")
     refuse(s.browser.post(run.path, json=run.body, headers=s.csrf), 503, "release.package_record_changed")
     assert s.browser.get(run.path).json()["approvals"] == []
+
+
+def test_runtime_cannot_insert_a_package_with_the_wrong_byte_count(setup, engine):
+    run, target = target_fixture(setup)
+    data = canonical_json({"run_id": run.id, "target": {"id": target}})
+    with pytest.raises(sa.exc.IntegrityError) as rejected, engine.begin() as conn:
+        conn.execute(release_packages.insert().values(
+            sha256=sha256(data).hexdigest(), run_id=run.id, target_id=target, bytes=len(data) + 1, document_bytes=data,
+        ))
+    assert rejected.value.orig.diag.constraint_name == "release_packages_document_length"
+
+
+def test_runtime_publication_is_unique_and_bound_to_its_package(setup, engine):
+    s = setup
+    run, target = target_fixture(s)
+    other = finished_fixture(s)
+    receipt = succeed(prepare(s, run, target))
+    approval = succeed(s.browser.post(run.path, json=run.body, headers=s.csrf))
+    publication = succeed(publish(s, run, {"package_sha256": receipt["sha256"], "location": "Fixture publication"}))
+    document = get(s, run)["package"]
+    with engine.begin() as conn:
+        new_digest = alternate_package(conn, document)
+
+    for run_id, target_id, constraint in (
+        (run.id, target, "publications_run_target_key"),
+        (run.id, target + "-wrong", "publications_package_run_target_fkey"),
+        (other.id, target, "publications_package_run_target_fkey"),
+    ):
+        with pytest.raises(sa.exc.IntegrityError) as rejected, engine.begin() as conn:
+            conn.execute(publications.insert().values(
+                id=Minter().mint("pub"), package_sha256=new_digest, approval_id=approval["id"],
+                run_id=run_id, target_id=target_id, idempotency_actor="fixture",
+                idempotency_key="direct-insert", document={},
+            ))
+        assert rejected.value.orig.diag.constraint_name == constraint
+    with engine.connect() as conn:
+        assert conn.execute(sa.select(publications.c.id, publications.c.target_id)
+                            .where(publications.c.run_id == run.id)).one() == (publication["id"], target)
+
+
+@pytest.mark.parametrize("duplicate", [False, True], ids=["backfill", "duplicate"])
+def test_upgrade_populated_publication_history(setup, runtime_role, duplicate):
+    s = setup
+    run, target = target_fixture(s)
+    receipt = succeed(prepare(s, run, target))
+    approval = succeed(s.browser.post(run.path, json=run.body, headers=s.csrf))
+    body = {"package_sha256": receipt["sha256"], "location": "Fixture publication"}
+    publication = succeed(publish(s, run, body))
+    item = get(s, run)
+    competing_id = Minter().mint("pub")
+    migrate(s.owner, "downgrade", "-1")
+    try:
+        if duplicate:
+            with s.owner.begin() as conn:
+                digest = alternate_package(conn, item["package"])
+                conn.execute(publications.insert().values(
+                    id=competing_id, package_sha256=digest, approval_id=approval["id"], run_id=run.id,
+                    idempotency_actor="fixture", idempotency_key="legacy-duplicate",
+                    document={**publication, "id": competing_id, "package_sha256": digest},
+                ))
+            with pytest.raises(ValueError, match="multiple publications share a run and target"):
+                migrate(s.owner, runtime_role=runtime_role[0])
+            with s.owner.connect() as conn:
+                assert "target_id" not in {col["name"] for col in sa.inspect(conn).get_columns("publications")}
+                assert set(conn.scalars(sa.select(publications.c.id).where(publications.c.run_id == run.id))) == {
+                    publication["id"], competing_id,
+                }
+    finally:
+        if duplicate:
+            # Restore the shared fixture after verifying both legacy records survived.
+            with s.owner.begin() as conn:
+                conn.execute(publications.delete().where(publications.c.id == competing_id))
+        migrate(s.owner, runtime_role=runtime_role[0])
+
+    with s.owner.connect() as conn:
+        assert conn.execute(sa.select(publications.c.target_id, publications.c.document)
+                            .where(publications.c.id == publication["id"])).one() == (target, publication)
+    assert get(s, run)["publication"] == item["publication"]
+    assert succeed(publish(s, run, body), 200) == publication
 
 
 @pytest.mark.parametrize("changed", ["engine-removed", "file-removed", "file-pin"])
@@ -460,7 +547,6 @@ def test_publication_and_withdrawal_serialize_on_the_run(setup, monkeypatch, fir
     withdraw_path = f"/v1/go-live-approvals/{approval['id']}/withdraw"
 
     staged = Event()
-    competing = Event()
     finish = Event()
     guarded_module, guarded_name = (
         (packages, "record_publication") if first == "publication" else (records, "record_withdrawal")
@@ -473,43 +559,49 @@ def test_publication_and_withdrawal_serialize_on_the_run(setup, monkeypatch, fir
         assert finish.wait(10)
         return insert(*args, **kwargs)
 
-    def watch_competing_read(conn, run_id, **kwargs):
-        if run_id == run.id and staged.is_set():
-            competing.set()
-        return get_run(conn, run_id, **kwargs)
+    lock_errors = []
+
+    def bound_competing_read(conn, run_id, **kwargs):
+        if run_id != run.id or not staged.is_set() or finish.is_set():
+            return get_run(conn, run_id, **kwargs)
+        conn.exec_driver_sql("SET LOCAL lock_timeout = '250ms'")
+        try:
+            return get_run(conn, run_id, **kwargs)
+        except sa.exc.OperationalError as error:
+            # Capture the run read's error so an insert/FK lock cannot satisfy the test.
+            lock_errors.append(error.orig.sqlstate)
+            raise
+
+    def withdraw():
+        return other_browser.post(withdraw_path, headers=other_csrf)
+
+    def record():
+        return publish(s, run, body)
+
+    first_write, second_write = (record, withdraw) if first == "publication" else (withdraw, record)
 
     monkeypatch.setattr(guarded_module, guarded_name, pause_before_insert)
-    monkeypatch.setattr(runs, "get", watch_competing_read)
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        if first == "publication":
-            publication = pool.submit(publish, s, run, body)
-        else:
-            withdrawal = pool.submit(s.browser.post, withdraw_path, headers=s.csrf)
+    monkeypatch.setattr(runs, "get", bound_competing_read)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        first_response = pool.submit(first_write)
         try:
             assert staged.wait(5)
-            # Probe before the insert, when only the explicit run lock can hold the row.
-            with pytest.raises(sa.exc.OperationalError) as locked, s.owner.begin() as conn:
-                conn.execute(sa.select(run_table.c.id).where(run_table.c.id == run.id).with_for_update(nowait=True))
-            assert locked.value.orig.sqlstate == "55P03"
-            if first == "publication":
-                withdrawal = pool.submit(other_browser.post, withdraw_path, headers=other_csrf)
-            else:
-                publication = pool.submit(publish, s, run, body, browser=other_browser, headers=other_csrf)
-            assert competing.wait(5)
+            refuse(second_write(), 503, "database.failed")
+            assert lock_errors == ["55P03"]
         finally:
             finish.set()
-        withdrawn = succeed(withdrawal.result(timeout=10))
-        response = publication.result(timeout=10)
-        if first == "publication":
-            drop = succeed(response)
-            assert drop["approval_id"] == approval["id"]
-            assert datetime.fromisoformat(drop["recorded_at"]) <= datetime.fromisoformat(
-                withdrawn["derived"]["withdrawal"]["withdrawn_at"],
-            )
-            assert withdrawn["derived"]["publication_ids"] == [drop["id"]]
-        else:
-            refuse(response, 409, "release.approval_required")
-            assert withdrawn["derived"]["publication_ids"] == []
+        first_result = succeed(first_response.result(timeout=10))
+    second_response = second_write()
+    if first == "publication":
+        withdrawn = succeed(second_response)
+        assert first_result["approval_id"] == approval["id"]
+        assert datetime.fromisoformat(first_result["recorded_at"]) <= datetime.fromisoformat(
+            withdrawn["derived"]["withdrawal"]["withdrawn_at"],
+        )
+        assert withdrawn["derived"]["publication_ids"] == [first_result["id"]]
+    else:
+        refuse(second_response, 409, "release.approval_required")
+        assert first_result["derived"]["publication_ids"] == []
     with s.owner.connect() as conn:
         count = conn.scalar(sa.select(sa.func.count()).select_from(publications)
                             .where(publications.c.run_id == run.id))

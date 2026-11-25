@@ -18,7 +18,7 @@ from haynes_studio.api.transport import access_log
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.db import drafts, identity
 from haynes_studio.db.migrate import migrate
-from haynes_studio.db.schema import archive_versions, worker_tokens
+from haynes_studio.db.schema import archive_records, archive_versions, worker_tokens
 from haynes_studio.mcp.server import create_app
 from haynes_studio.queue.worker_tokens import worker_bearer
 from tests.formats.fixtures import doll_short
@@ -715,8 +715,33 @@ def test_archive_runtime_cannot_change_or_delete_rows(engine):
         assert isinstance(denied.value.orig, psycopg.errors.InsufficientPrivilege)
 
 
+def test_archive_runtime_cannot_insert_a_version_that_skips_its_parent_number(studio, engine):
+    response = post(studio, create_path(studio.production), entry(), "root-for-gap")
+    assert response.status_code == 201, response.json()
+    record = response.json()
+    text = "An archive version that skips number two."
+    data = text.encode("utf-8")
+    with pytest.raises(sa.exc.IntegrityError) as rejected, engine.begin() as conn:
+        conn.execute(archive_versions.insert().values(
+            id=Minter().mint("arv"), record_id=record["id"], number=3, revises_version_id=record["version"]["id"],
+            text=text, bytes=len(data), sha256=hashlib.sha256(data).hexdigest(), provenance=ORIGINAL,
+            written_by={"kind": "agent"}, written_at=sa.func.clock_timestamp(),
+            request_key_sha256=hashlib.sha256(record["id"].encode()).hexdigest(),
+            request_sha256=hashlib.sha256(data).hexdigest(),
+        ))
+    assert rejected.value.orig.diag.constraint_name == "archive_versions_contiguous_parent_fkey"
+
+
+def test_archive_record_requires_a_root_version_at_commit(studio, engine):
+    with pytest.raises(sa.exc.IntegrityError) as rejected, engine.begin() as conn:
+        conn.execute(archive_records.insert().values(
+            id=Minter().mint("arc"), production_id=studio.production, kind="brief", title="Missing first version",
+        ))
+    assert rejected.value.orig.diag.constraint_name == "archive_records_root_version_fkey"
+
+
 def test_archive_migration_downgrades_and_upgrades_cleanly(owner_engine, runtime_role):
-    migrate(owner_engine, "downgrade", "-1")
+    migrate(owner_engine, "downgrade", "0009_release_packages")
     try:
         with owner_engine.connect() as conn:
             inspector = sa.inspect(conn)
