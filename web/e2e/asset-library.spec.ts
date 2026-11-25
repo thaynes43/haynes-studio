@@ -226,7 +226,20 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       refuseStalePromotion(mock.api, metadata.id);
       await press(page, promote);
       await expect(review.getByRole("alert")).toContainText("conflict.revision");
-      await press(page, review.getByRole("button", { name: "Retry" }));
+      let release = () => {};
+      const held = new Promise<void>((resolve) => { release = resolve; });
+      await page.route(`/v1/boards/${boardContext.board}/photo-versions`, async (route) => {
+        await held;
+        await route.fallback();
+      });
+      try {
+        await press(page, review.getByRole("button", { name: "Retry" }));
+        await expect(page.getByText("Loading board photos…", { exact: true })).toBeVisible();
+        await expect(history).toBeFocused();
+      } finally {
+        release();
+      }
+      await expect(upload).toBeVisible();
       await expect(history).toBeFocused();
       await press(page, upload);
       await press(page, promote);
