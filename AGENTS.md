@@ -13,7 +13,10 @@ have landed. The LAN app and queue worker are installed, and scoped range reads
 of both imported films passed. Human sign-in and phone playback
 ([944](https://work.haynesnetwork.com/work_packages/944)) remain open.
 Each epic ends with a usable demo.
-The installed talosw01 split is 20 vCPUs for offline render and 4 for the queue worker.
+The 24-vCPU and 22-worker figures in the Heavy CPU work rule predate the
+queue-worker rollout. The installed talosw01 split is 20 vCPUs for offline
+render and 4 for the queue worker.
+[Current render limits](docs/reference/services.md#studio-render-cpu-work).
 [Installed evidence](docs/contracts/studio-contracts-v1.md#installed-and-published-state).
 
 Start with:
