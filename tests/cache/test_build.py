@@ -1,7 +1,7 @@
 """Segments and the film picture through the store (story 380), on synthetic media.
 
 The four-board fixture (223 frames at 360x640, 9.3 s) is rendered by the synthetic
-renderer, encoded at two threads, published as completed stages and spliced. Clips,
+renderer, encoded at one thread, published as completed stages and spliced. Clips,
 voices and the mix are never made (their hashes are stand-ins); only picture is.
 Decoded frames are compared, never encoded bytes.
 """
