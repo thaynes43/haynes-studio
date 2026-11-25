@@ -53,7 +53,8 @@ bytes. On a protected board the new photo is saved unselected.
 
 One MCP process and one API process each admit a single D42 upload. A
 concurrent upload gets HTTP 503 `photo.upload_busy` before the process reads
-its body. Ordinary MCP requests at `/mcp` keep their 256 KiB cap. Use
+its body. Requests at `/mcp` have a 256 KiB cap, with a 2 MiB cap for the two
+[archive text write tools](studio-mcp.md#tools-and-revisions). Use
 `/mcp/upload` for the upload tool.
 
 A local test on CPython 3.11.2 used separate Uvicorn processes over loopback,

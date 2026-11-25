@@ -8,6 +8,7 @@ from typing import get_args
 
 from mcp.types import Tool as MCPTool, ToolAnnotations
 
+from haynes_studio.api.archive_routes import MAX_TEXT_BYTES
 from haynes_studio.photo_limits import MAX_UPLOAD_BYTES
 
 from . import arguments as args
@@ -168,13 +169,17 @@ class Operation:
     body: str | tuple[str, ...] | None = None
     expect: int | tuple[int, ...] = 200
     job_input: tuple[str, ...] | None = None
+    argument_limit: int | None = None
+    result_limit: int | None = None
+    idempotent: bool = False
 
     def schema(self, name: str) -> MCPTool:
         return MCPTool(
             name=name, description=self.description, inputSchema=self.arguments.model_json_schema(),
             annotations=ToolAnnotations(
                 readOnlyHint=self.method == "GET", destructiveHint=self.method in {"PATCH", "PUT", "DELETE"},
-                idempotentHint=True if self.job_input is not None or self.arguments is args.QueueRun else None,
+                idempotentHint=True if (self.idempotent or self.job_input is not None
+                                        or self.arguments is args.QueueRun) else None,
                 openWorldHint=False,
             ),
         )
@@ -237,6 +242,9 @@ def upload_detail(reply, _):
 
 
 _PAGE = ("cursor", "limit")
+_ARCHIVE_TEXT_BODY = ("text", "format_version_id", "provenance")
+# JSON may escape text bytes. Reserve space for the worst escape expansion and metadata.
+ARCHIVE_TOOL_BYTES = 6 * MAX_TEXT_BYTES + 64 * 1024
 OPERATIONS = {
     "studio_list_productions": Operation(
         "List productions visible to this key, with a cursor for the next page.",
@@ -308,6 +316,30 @@ OPERATIONS = {
         "Read a recipe by version ID. To pin it, use studio_patch_story with format_version_id.",
         args.FormatVersion, "GET", "/v1/format-versions/{version_id}",
         lambda reply, _: pick(reply.document, "id", "format_id", "number", "sha256", "recipe")),
+    "studio_create_archive_record": Operation(
+        "Stage the first immutable text version in a production. Reuse the idempotency key on a retry.",
+        args.CreateArchiveRecord, "POST", "/v1/productions/{production_id}/archive-records", raw_detail,
+        body=("kind", "title", *_ARCHIVE_TEXT_BODY), expect=(200, 201),
+        argument_limit=ARCHIVE_TOOL_BYTES, idempotent=True),
+    "studio_add_archive_version": Operation(
+        "Append immutable text to a record at its current version ID. Reuse the idempotency key on a retry.",
+        args.AddArchiveVersion, "POST", "/v1/archive-records/{record_id}/versions", raw_detail,
+        body=("revises_version_id", *_ARCHIVE_TEXT_BODY), expect=(200, 201),
+        argument_limit=ARCHIVE_TOOL_BYTES, idempotent=True),
+    "studio_list_archive_records": Operation(
+        "List archive records and their newest version IDs for one production.",
+        args.ListArchiveRecords, "GET", "/v1/productions/{production_id}/archive-records", raw_detail, _PAGE),
+    "studio_get_archive_record": Operation(
+        "Read an archive record and a page of version metadata, newest first.",
+        args.ArchiveRecord, "GET", "/v1/archive-records/{record_id}", raw_detail, _PAGE),
+    "studio_get_archive_version": Operation(
+        "Read the exact immutable text and provenance of an archive version by ID.",
+        args.ArchiveVersion, "GET", "/v1/archive-versions/{version_id}", raw_detail,
+        result_limit=ARCHIVE_TOOL_BYTES),
+    "studio_apply_archive_storyboard": Operation(
+        "Apply a pinned storyboard at the current story revision and report protected boards.",
+        args.ApplyArchiveStoryboard, "POST", "/v1/archive-versions/{version_id}/apply", raw_detail,
+        body=("story_id",), result_limit=ARCHIVE_TOOL_BYTES),
     "studio_generate_voice": Operation(
         "Queue voice for the saved board and return job status. Reuse the idempotency key on a retry.",
         args.GenerateVoice, "POST", "/v1/boards/{board_id}/voice-jobs", job_detail,

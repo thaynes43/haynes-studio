@@ -1,5 +1,6 @@
 """Stateless Streamable HTTP server for the scoped Studio tools."""
 
+import json
 import logging
 import re
 import ssl
@@ -14,6 +15,7 @@ import httpx
 from mcp.server.lowlevel import Server
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.server.transport_security import TransportSecurityMiddleware, TransportSecuritySettings
+from mcp.shared import session as sdk_session
 from mcp.types import CallToolResult, TextContent
 from pydantic import ValidationError
 from starlette.applications import Starlette
@@ -35,7 +37,10 @@ VERSION = "1.0.0"
 MAX_ARGUMENT_BYTES = 64 * 1024
 MAX_RESULT_BYTES = 128 * 1024
 MAX_REQUEST_BYTES = 256 * 1024
-MAX_UPLOAD_REQUEST_BYTES = MAX_UPLOAD_BASE64 + MAX_REQUEST_BYTES
+MAX_ARCHIVE_REQUEST_BYTES = 2 * 1024 * 1024
+ARCHIVE_TEXT_TOOLS = {"studio_create_archive_record", "studio_add_archive_version"}
+MAX_UPLOAD_METADATA_BYTES = 256 * 1024
+MAX_UPLOAD_REQUEST_BYTES = MAX_UPLOAD_BASE64 + MAX_UPLOAD_METADATA_BYTES
 UPLOAD_TOOL = "studio_upload_photo"
 _upload_slot = Lock()
 LOCAL_HOSTS = ("127.0.0.1", "127.0.0.1:*", "localhost", "localhost:*", "[::1]", "[::1]:*")
@@ -43,6 +48,21 @@ _BEARER = re.compile(rf"(?i:Bearer) {AGENT_TOKEN_PATTERN}")
 _DNS_LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
 _CLUSTER_SERVICE = re.compile(rf"{_DNS_LABEL}\.{_DNS_LABEL}\.svc\.cluster\.local\.?")
 logger = logging.getLogger(__name__)
+
+_SDK_VALIDATION_LOGS = (
+    "Failed to validate request:", "Message that failed validation:", "Failed to validate notification:",
+)
+_SDK_MESSAGE_LOGS = ("Received message:", "Received exception from stream:")
+
+
+def _hide_sdk_payloads(record: logging.LogRecord) -> bool:
+    # The pinned SDK includes invalid inputs in root logging and message values in
+    # its low-level logger. Keep the events without rendering any wire content.
+    prefixes = (_SDK_VALIDATION_LOGS if record.pathname == sdk_session.__file__
+                else _SDK_MESSAGE_LOGS if record.name == Server.__module__ else ())
+    if isinstance(record.msg, str) and record.msg.startswith(prefixes):
+        record.msg, record.args = record.msg.partition(":")[0], ()
+    return True
 
 
 def _tool_result(document: dict, *, error: bool = False) -> CallToolResult:
@@ -52,7 +72,7 @@ def _tool_result(document: dict, *, error: bool = False) -> CallToolResult:
     )
 
 
-def _validate_arguments(model, values):
+def _validate_arguments(model, values, limit=MAX_ARGUMENT_BYTES):
     if too_deep(values):
         raise Problem(422, "schema.invalid", "Tool arguments may nest to 64 levels")
     # The raw media field is independently bounded by the upload schema. The
@@ -63,8 +83,8 @@ def _validate_arguments(model, values):
         size = len(json_text(metadata).encode("utf-8"))
     except (UnicodeError, ValueError, OverflowError):
         raise Problem(422, "schema.invalid", "Expected strict UTF-8 JSON arguments") from None
-    if size > MAX_ARGUMENT_BYTES:
-        raise Problem(413, "request.too_large", "Tool arguments are limited to 64 KiB")
+    if size > limit:
+        raise Problem(413, "request.too_large", f"Tool arguments are limited to {limit // 1024} KiB")
     try:
         return model.model_validate(values)
     except ValidationError as error:
@@ -131,6 +151,64 @@ class Endpoint:
             _upload_slot.release()
 
 
+def _archive_text_call(body: bytes) -> bool:
+    try:
+        message = json.loads(body)
+    except (ValueError, RecursionError):
+        return False
+    if (not isinstance(message, dict) or message.get("jsonrpc") != "2.0"
+            or message.get("method") != "tools/call" or type(message.get("id")) not in (int, str)):
+        return False
+    params = message.get("params")
+    name = params.get("name") if isinstance(params, dict) else None
+    return isinstance(name, str) and name in ARCHIVE_TEXT_TOOLS
+
+
+class ToolSessionManager(StreamableHTTPSessionManager):
+    async def handle_request(self, scope, receive, send):
+        request = Request(scope, receive)
+        if request.method != "POST":
+            return await super().handle_request(scope, receive, send)
+
+        too_large = PlainTextResponse("Request body too large", status_code=413)
+        try:
+            declared = int(request.headers.get("content-length", "0"))
+        except ValueError:
+            declared = 0
+        if declared > MAX_ARCHIVE_REQUEST_BYTES:
+            return await too_large(scope, receive, send)
+
+        # Classify the call only after bounding its wire bytes. A large body
+        # must name an archive text writer before the SDK can dispatch it.
+        try:
+            with BytesIO() as buffer:
+                async for chunk in request.stream():
+                    if buffer.tell() + len(chunk) > MAX_ARCHIVE_REQUEST_BYTES:
+                        return await too_large(scope, receive, send)
+                    buffer.write(chunk)
+                body = buffer.getvalue()
+        except ClientDisconnect:
+            return
+        if len(body) > MAX_REQUEST_BYTES and not _archive_text_call(body):
+            return await too_large(scope, receive, send)
+
+        replay = _replay_body(body, receive)
+        del body
+        await self._handle_request(scope, replay, send)
+
+
+def _replay_body(body, receive):
+    async def replay():
+        nonlocal body
+        if body is None:
+            return await receive()
+        message = {"type": "http.request", "body": body, "more_body": False}
+        body = None
+        return message
+
+    return replay
+
+
 class UploadSessionManager(StreamableHTTPSessionManager):
     """Give the SDK one bounded body, without retaining a second encoded copy."""
 
@@ -145,7 +223,7 @@ class UploadSessionManager(StreamableHTTPSessionManager):
             declared = int(request.headers.get("content-length", "0"))
         except ValueError:
             declared = 0
-        limit = self.max_request_body_size if request.method == "POST" else MAX_REQUEST_BYTES
+        limit = self.max_request_body_size if request.method == "POST" else MAX_UPLOAD_METADATA_BYTES
         if declared > limit:
             return await too_large(scope, receive, send)
 
@@ -163,16 +241,10 @@ class UploadSessionManager(StreamableHTTPSessionManager):
             response = JSONResponse({"error": problem.error}, status_code=408)
             return await response(scope, receive, send)
 
-        async def replay():
-            nonlocal body
-            if body is None:
-                return await receive()
-            message = {"type": "http.request", "body": body, "more_body": False}
-            body = None
-            return message
-
         # The SDK's bounded ASGI wrapper collects a bytearray and retains it
         # throughout dispatch. This route supplies its own bounded body instead.
+        replay = _replay_body(body, receive)
+        del body
         await self._handle_request(scope, replay, send)
 
 
@@ -201,6 +273,8 @@ def create_app(api_url: str, *, allowed_hosts: tuple[str, ...] = LOCAL_HOSTS,
                upload_body_limits: UploadBodyLimits = UploadBodyLimits(),
                api_transport: httpx.AsyncBaseTransport | None = None) -> Starlette:
     """Configure the API origin and the streamable HTTP transport."""
+    logging.getLogger().addFilter(_hide_sdk_payloads)
+    logging.getLogger(Server.__module__).addFilter(_hide_sdk_payloads)
     # Share connections, with no upstream cookie persistence or environment proxies.
     origin = _api_origin(api_url)
     verify = ssl.create_default_context(cafile=str(api_ca_file)) if api_ca_file is not None else True
@@ -226,12 +300,13 @@ def create_app(api_url: str, *, allowed_hosts: tuple[str, ...] = LOCAL_HOSTS,
             operation = OPERATIONS.get(name)
             if operation is None or (name == UPLOAD_TOOL) != request.state.upload_endpoint:
                 raise Problem(404, "tool.not_found", "This Studio tool is unavailable on this endpoint")
-            arguments = _validate_arguments(operation.arguments, raw)
+            arguments = _validate_arguments(operation.arguments, raw, operation.argument_limit or MAX_ARGUMENT_BYTES)
             reply = await operation.call(api, request.headers["authorization"], arguments)
             document = operation.project(reply, arguments)
-            if len(json_text(document).encode("utf-8")) > MAX_RESULT_BYTES:
+            limit = operation.result_limit or MAX_RESULT_BYTES
+            if len(json_text(document).encode("utf-8")) > limit:
                 raise Problem(413, "result.too_large",
-                              "Result exceeds 128 KiB. Read fewer fields or a smaller page",
+                              f"Result exceeds {limit // 1024} KiB. Read fewer fields or a smaller page",
                               request_id=reply.request_id)
             return _tool_result(document)
         except Problem as problem:
@@ -246,7 +321,7 @@ def create_app(api_url: str, *, allowed_hosts: tuple[str, ...] = LOCAL_HOSTS,
     security = TransportSecuritySettings(
         allowed_hosts=list(allowed_hosts), allowed_origins=list(allowed_origins),
     )
-    manager = StreamableHTTPSessionManager(
+    manager = ToolSessionManager(
         server, json_response=True, stateless=True, security_settings=security,
         max_request_body_size=MAX_REQUEST_BYTES,
     )
