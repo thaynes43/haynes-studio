@@ -4,7 +4,7 @@ import asyncio
 import hashlib
 import json
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from threading import Event
 
 import httpx
@@ -16,12 +16,13 @@ from haynes_studio.canonical.ids import Minter
 from haynes_studio.db import identity, runs
 from haynes_studio.db.schema import agent_grants, agent_keys, run_check_overrides
 from haynes_studio.escalation import lifecycle, storage
-from haynes_studio.escalation.package import digest
+from haynes_studio.escalation.package import VALID_FOR, digest
 from haynes_studio.escalation.settings import Settings
 from haynes_studio.mcp.server import create_app as create_mcp
 from haynes_studio.store import canonical_json
 
-from tests.db.test_run_queue import queue, queue_run, read_run, worker_api, worker_credentials
+from tests.db.test_run_queue import queue as run_queue
+from tests.db.test_run_queue import queue_run, read_run, worker_api, worker_credentials
 from tests.db.test_studio_api import (
     bearer, client, engine, new_production, owner_engine, register_agent, runtime_db, runtime_role, service,
 )
@@ -32,6 +33,14 @@ ARTIFACT = "a" * 64
 INPUT = "b" * 64
 CALLBACK = {"outcome": "done", "summary": "Adjusted the timing", "usage": "unknown",
             "changed_board_ids": []}
+
+
+@pytest.fixture
+def queue(run_queue):
+    # Responder keys inherit the package expiry, which authentication checks against SQL now().
+    with run_queue.engine.connect() as conn:
+        run_queue.clock.now = conn.scalar(sa.select(sa.func.now())).astimezone(UTC)
+    return run_queue
 
 
 class FakeTransport:
@@ -120,6 +129,18 @@ def reported(q, package_id, auth, *, key="receipt-1", data=None):
     return client(q.app).post(path(q, package_id) + "/callback",
                               headers={**auth, "Idempotency-Key": key},
                               json=CALLBACK if data is None else data)
+
+
+def test_package_validity_window_is_anchored_to_database_time(engine, request):
+    with engine.connect() as conn:
+        before = conn.scalar(sa.select(sa.func.now()))
+    q = request.getfixturevalue("queue")
+    _, proposed = propose(q)
+    with engine.connect() as conn:
+        after = conn.scalar(sa.select(sa.func.now()))
+
+    expires_at = datetime.fromisoformat(proposed["package"]["expires_at"])
+    assert before <= expires_at - VALID_FOR <= after
 
 
 def test_two_independent_matching_failures_create_one_package_and_third_adds_nothing(queue):
