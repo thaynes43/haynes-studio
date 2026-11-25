@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from hashlib import sha256
 import re
 
-from haynes_studio.adapters.errors import contains_credentials
+from haynes_studio.adapters.errors import contains_credentials, contains_credentials_in_prose
 from haynes_studio.canonical import FormatLength
 from haynes_studio.canonical.methods import BUILDABLE, UNAVAILABLE, status
 from haynes_studio.errors import Violation, pointer
@@ -17,6 +17,7 @@ PIN_PATH = "/format_version_id"
 MAX_RECIPE_BYTES = 64 * 1024
 _CREDENTIAL_NAME = re.compile(
     r"token|secret|password|passwd|api[_-]?key|(?<![a-z0-9])key(?![a-z0-9])|"
+    r"(?:private|access|signing)[_-]?key|"
     r"cookie|credential|authorization|bearer|session", re.IGNORECASE | re.ASCII,
 )
 
@@ -42,7 +43,7 @@ def credential_violation(document: Mapping) -> Violation | None:
                 stack.append((child_path, child))
         elif isinstance(value, (list, tuple)):
             stack.extend(((*path, index), child) for index, child in enumerate(value))
-        elif isinstance(value, str) and contains_credentials(value):
+        elif isinstance(value, str) and contains_credentials_in_prose(value):
             return Violation("format.credential", pointer(*path),
                              "Credential-like values are forbidden")
     return None

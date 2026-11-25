@@ -54,9 +54,17 @@ comes from the build plan, and transcript tolerances come from the story. The
 current checks have no recipe-level string or boolean parameters.
 
 Keep credentials out of recipes and format names. The API refuses credential-like
-property names and string values that match the service redaction patterns. If a
-credential is stored, rotate it. An operator then removes the affected row using
-the schema owner's role and records the manual removal.
+property names. In string values it refuses a PEM block, a URL with user
+information, an AWS key id, `bearer`, `basic` or `token` followed by a
+token-shaped word (16 or more token characters with a digit, or 32 or more in
+mixed case), and a keyed value such as `password` or `cookie` that is assigned
+with `=` or whose first word is token-shaped or looks like a password (8 or more
+characters with a letter and a digit). Ordinary sentences pass: "Basic shots stay
+ambient", "one token per line", "keep the cookie: crumbly". Content hashes and
+UUIDs pass. This is a guard against pasting, not a scanner: a short, split or
+encoded secret is not caught. If a credential is stored, rotate it. An operator
+then removes the affected row using the schema owner's role and records the
+manual removal.
 
 ## Drafts and queued runs
 

@@ -71,6 +71,7 @@ def test_api_accepts_recipe_fixtures(catalog, fixture, append):
 @pytest.mark.parametrize("name", [
     "token", "access_token", "clientSecret", "password", "passwd", "api_key", "ApiKey",
     "key", "signing_key", "cookie", "credential", "authorization", "bearer", "session",
+    "privatekey", "accesskey", "signingkey",
 ])
 def test_api_refuses_credential_property_names(catalog, name):
     client, conn, _ = catalog
@@ -101,9 +102,14 @@ def test_api_refuses_root_property_and_hides_a_credential_in_a_property_path(cat
     "-----BEGIN TEST-----\nsynthetic-value\n-----END TEST-----",
     "https://example:synthetic-value@example.invalid",
     "AKIA" + "0" * 16,
-    "Bearer synthetic-value",
+    "Bearer synthetic-value-" + "s9" * 8,
+    "Basic " + "c3ludGhldGljOnZhbHVl" * 2,
     "password=synthetic-value",
-], ids=["pem", "url-userinfo", "aws-key-shape", "auth-scheme", "assignment"])
+    'the cookie: "synthetic-value-' + "s9" * 8 + '"',
+    "token: synthetic-value-" + "s9" * 8,
+    "password: synthetic9",
+], ids=["pem", "url-userinfo", "aws-key-shape", "auth-scheme", "auth-scheme-mixed-case",
+        "assignment", "quoted", "keyed-token", "keyed-password"])
 @pytest.mark.parametrize("append", [False, True], ids=["create", "append"])
 def test_api_refuses_credential_values_without_echoing_them(catalog, value, append):
     client, conn, _ = catalog
@@ -116,10 +122,30 @@ def test_api_refuses_credential_values_without_echoing_them(catalog, value, appe
     conn.execute.assert_not_called()
 
 
+@pytest.mark.parametrize("text", [
+    "Basic shots stay ambient.",
+    "Spend one token per line.",
+    "Bearer of bad news",
+    "Keep the cookie: crumbly",
+    "Basic 1080x1920 frames, basic over-the-shoulder framing",
+    "The secret: nobody at the table knows",
+    'Her password: "open sesame", said twice',
+    "b" * 64,
+    "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0",
+], ids=["basic", "token", "bearer", "cookie", "frame-size", "secret", "quoted-phrase",
+        "sha256", "uuid"])
+def test_api_accepts_ordinary_prose_that_names_a_credential_word(catalog, text):
+    client, _, _ = catalog
+    payload = doll_short()
+    payload["recipe"]["targets"][0]["owner_note"] = text
+    reply = post(client, payload)
+    assert reply.status_code == 201, reply.text
+
+
 def test_api_refuses_a_credential_in_the_format_name(catalog):
     client, conn, _ = catalog
     payload = wide()
-    payload["name"] = "Bearer synthetic-value"
+    payload["name"] = "Bearer synthetic-value-" + "s9" * 8
     reply = post(client, payload)
     refusal(reply, "format.credential", "/name")
     assert "synthetic-value" not in reply.text
