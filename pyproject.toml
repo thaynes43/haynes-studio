@@ -48,6 +48,7 @@ studio-api-admin = "haynes_studio.api.key_admin:main"
 studio-mcp = "haynes_studio.mcp.__main__:main"
 studio-worker = "haynes_studio.queue.worker:main"
 studio-matting = "haynes_studio.matting.__main__:main"
+studio-upscaling = "haynes_studio.upscaling.__main__:main"
 
 [dependency-groups]
 # Test and development tools only. A story that needs a runtime library adds it to
@@ -62,6 +63,13 @@ matting = [
     "Pillow>=13,<14",
     "scipy>=1.16,<1.17",
     "onnxruntime==1.32.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+
+upscaling = [
+    "jsonschema>=4.23,<5",
+    "numpy==2.4.6",
+    "Pillow==13.0.0",
+    "opencv-contrib-python-headless==4.14.0.94; sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
 
 [tool.hatch.build.targets.wheel]
