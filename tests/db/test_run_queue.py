@@ -64,7 +64,8 @@ def queue(service, engine, owner_engine, monkeypatch, tmp_path):
     app.state.build_stage_root = stage_root
     with owner_engine.begin() as conn:
         conn.exec_driver_sql("TRUNCATE escalation_events, escalation_packages, escalation_check_failures, "
-                             "go_live_withdrawals, go_live_approvals, run_check_overrides, run_wan_attempts")
+                             "publications, release_packages, go_live_withdrawals, go_live_approvals, "
+                             "run_check_overrides, run_wan_attempts, feedback_iteration_clears")
         conn.exec_driver_sql("UPDATE stories SET feedback_iteration_id = NULL WHERE feedback_iteration_id IS NOT NULL")
         conn.exec_driver_sql("DELETE FROM feedback_iterations")
         conn.exec_driver_sql("DELETE FROM candidate_feedback")
@@ -282,6 +283,19 @@ def test_snapshot_reader_caps_blob_io(queue, monkeypatch):
     assert response.status_code == 503 and response.json()["error"]["code"] == "run.snapshot_too_large"
     assert reads == [65]
     assert "etag" not in response.headers
+
+
+def test_oversized_server_built_snapshot_is_unprocessable_and_not_queued(queue, monkeypatch):
+    from haynes_studio.api import run_routes
+
+    q = queue
+    monkeypatch.setattr(run_routes, "MAX_SNAPSHOT_BYTES", 1)
+    response = queue_run(q, "draft-too-large")
+    assert response.status_code == 422, response.text
+    error = response.json()["error"]
+    assert error["code"] == "run.snapshot_too_large"
+    assert error["evidence"]["bytes"] > error["evidence"]["max_bytes"] == 1
+    assert q.browser.get(f"/v1/stories/{q.story_id}/runs").json()["items"] == []
 
 
 def test_worker_auth_rejects_credentials_before_body_or_query(queue):

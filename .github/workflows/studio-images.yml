@@ -109,7 +109,6 @@ jobs:
               register["engines"] = [dict(register["engines"][0], key="image-smoke")]
               override.write_text(json.dumps(register), encoding="utf-8")
               os.environ["STUDIO_MODEL_REGISTER"] = str(override)
-              licence_register.cache_clear()
               assert set(licence_register().engines) == {"image-smoke"}
               assert {engine.key for engine in load_licence_register().engines} == {"image-smoke"}
               assert worker.load_model_register() == register

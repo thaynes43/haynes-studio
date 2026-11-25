@@ -6,12 +6,18 @@ import { formatId } from "./studio-storyboard-fixtures";
 
 type Schemas = components["schemas"];
 type Story = Schemas["Story"];
-const { recipe }: { recipe: Schemas["FormatRecipe"] } = JSON.parse(
+const { recipe: defaultRecipe }: { recipe: Schemas["FormatRecipe"] } = JSON.parse(
   readFileSync(new URL("../../docs/reference/fixtures/doll-short-v1.json", import.meta.url), "utf8"),
 );
 const time = "2026-11-04T12:25:00Z";
 
-export function feedbackFixtures(draft: Story, boards: Schemas["Board"][], runs: Schemas["RunView"][]) {
+export function feedbackFixtures(draft: Story, boards: Schemas["Board"][], runs: Schemas["RunView"][],
+                                 releaseMaximum?: number) {
+  const recipe = structuredClone(defaultRecipe);
+  if (releaseMaximum != null) {
+    recipe.targets[0].rules.max_length_ms = releaseMaximum;
+    recipe.targets[0].rules.aspect = null;
+  }
   const { approved: _approved, published: _published, latest_finished_run: _latest, derived: _derived,
     ...story } = draft;
   const frozen: Schemas["RunSnapshot"] = structuredClone({
@@ -101,5 +107,16 @@ export function feedbackFixtures(draft: Story, boards: Schemas["Board"][], runs:
     return run;
   }
 
-  return { list, snapshot, present, write, writes, appendAnsweringRun };
+  function clear(route: Route) {
+    if (route.request().headers()["if-match"] !== etag()) return refuse(route, 409, "conflict.revision");
+    const cleared = iteration !== null;
+    if (cleared) {
+      iteration = null;
+      draft.revision += 1;
+    }
+    return route.fulfill({ headers: { etag: etag() },
+      json: { revision: draft.revision, cleared } satisfies Schemas["IterationCleared"] });
+  }
+
+  return { list, snapshot, present, write, writes, appendAnsweringRun, clear, frozen };
 }

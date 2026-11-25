@@ -47,7 +47,6 @@ stories = sa.Table(
     "stories", metadata, identifier(), sa.Column("production_id", sa.Text, nullable=False),
     sa.Column("media_kind", sa.Text, nullable=False),
     sa.Column("source_key", sa.Text, unique=True), document(),
-    sa.Column("published", sa.Boolean, nullable=False, server_default=sa.false()),
     foreign("format_version_id", "format_versions.id", nullable=True),
     sa.Column("feedback_iteration_id", sa.Text, sa.ForeignKey(
         "feedback_iterations.id", name="stories_feedback_iteration_fk", use_alter=True,
@@ -228,6 +227,22 @@ go_live_withdrawals = sa.Table("go_live_withdrawals", metadata,
     foreign("approval_id", "go_live_approvals.id", primary_key=True), document(),
 )
 
+release_packages = sa.Table(
+    "release_packages", metadata, sa.Column("sha256", sa.String(64), primary_key=True),
+    foreign("run_id", "runs.id"), sa.Column("target_id", sa.Text, nullable=False),
+    sa.Column("bytes", sa.BigInteger, nullable=False),
+    sa.Column("document_bytes", sa.LargeBinary, nullable=False),
+    sa.Column("position", sa.BigInteger, sa.Identity(always=True), nullable=False),
+)
+publications = sa.Table(
+    "publications", metadata, identifier(),
+    sa.Column("package_sha256", sa.String(64), sa.ForeignKey("release_packages.sha256"),
+              nullable=False, unique=True),
+    foreign("approval_id", "go_live_approvals.id"), foreign("run_id", "runs.id"),
+    sa.Column("idempotency_actor", sa.Text, nullable=False),
+    sa.Column("idempotency_key", sa.Text, nullable=False), document(),
+    sa.UniqueConstraint("run_id", "idempotency_actor", "idempotency_key"),
+)
 
 run_candidates = sa.Table(
     "run_candidates", metadata, identifier(), foreign("run_id", "runs.id"),
@@ -252,4 +267,9 @@ feedback_iterations = sa.Table(
     sa.Column("started_by", JSONB, nullable=False),
     sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("started_revision", sa.BigInteger, nullable=False),
+)
+feedback_iteration_clears = sa.Table(
+    "feedback_iteration_clears", metadata, foreign("story_id", "stories.id", primary_key=True),
+    sa.Column("revision", sa.BigInteger, primary_key=True),
+    foreign("iteration_id", "feedback_iterations.id"), document(),
 )

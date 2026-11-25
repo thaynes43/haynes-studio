@@ -90,6 +90,5 @@ strings for [wardrobe checking](wardrobe-decal-checks.md#wardrobe-attributes).
 Go-live is the only declared human gate. Each target records an ID, platform, owner
 note, state, optional public account identifier, maximum duration in milliseconds,
 AI label requirement and aspect. A placeholder has a null account identifier. A
-null rule means it is unset. The catalog stores local metadata. Release preparation
-and platform limit enforcement belong to
-[story 449](https://work.haynesnetwork.com/work_packages/449).
+null rule means it is unset. The catalog stores local metadata. The
+[release package](release-package.md) enforces the frozen target's platform maximum.

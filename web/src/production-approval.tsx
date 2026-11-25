@@ -147,7 +147,9 @@ export function GoLive({
         throw new ApiError(422, "approval.review_mismatch");
       }
       onDecision(data);
-      setNotice(approval ? "Go-live approval withdrawn." : "Go-live approval recorded.");
+      setNotice(approval ? "Go-live approval withdrawn." : "Go-live approval recorded." +
+        ("package_evidence_older" in data && data.package_evidence_older
+          ? " The package contains older release evidence." : ""));
       setConfirmed(false);
       heading.current?.focus();
       retry();

@@ -84,6 +84,11 @@ FEEDBACK_GRANTS = (
     ("UPDATE (feedback_iteration_id)", ("stories",)),
 )
 
+RELEASE_GRANTS = (
+    ("SELECT, INSERT", ("release_packages", "publications", "feedback_iteration_clears")),
+)
+
 RUNTIME_GRANTS = (
     RUN_QUEUE_GRANTS + GO_LIVE_GRANTS + JOB_GRANTS + FORMAT_GRANTS + ESCALATION_GRANTS + FEEDBACK_GRANTS
+    + RELEASE_GRANTS
 )

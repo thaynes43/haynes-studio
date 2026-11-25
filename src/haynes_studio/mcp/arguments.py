@@ -16,6 +16,8 @@ StoryID = Annotated[str, StringConstraints(pattern=rf"^sty_{ULID_PATTERN}$")]
 BoardID = Annotated[str, StringConstraints(pattern=rf"^brd_{ULID_PATTERN}$")]
 AssetID = Annotated[str, StringConstraints(pattern=rf"^ast_{ULID_PATTERN}$")]
 RunID = Annotated[str, StringConstraints(pattern=rf"^run_{ULID_PATTERN}$")]
+CandidateID = Annotated[str, StringConstraints(pattern=rf"^cnd_{ULID_PATTERN}$")]
+FeedbackID = Annotated[str, StringConstraints(pattern=rf"^fbk_{ULID_PATTERN}$")]
 FormatID = Annotated[str, StringConstraints(
     max_length=64, pattern=r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
 )]
@@ -114,6 +116,14 @@ class Story(Arguments):
 class StoryPage(Story):
     cursor: BoardCursor | None = None
     limit: Limit = 10
+
+
+class Candidates(Story):
+    cursor: CandidateID | None = None
+    run_id: RunID | None = None
+    candidate_id: CandidateID | None = None
+    note_ids: Annotated[list[FeedbackID], Field(min_length=1, max_length=10)] | None = None
+    limit: Limit = 1
 
 
 class StorySummary(StoryPage):
