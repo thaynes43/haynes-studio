@@ -28,17 +28,28 @@ POST paths share the prefix `/internal/v1/work` and require a worker token.
 
 | Path | Media worker payload and effect |
 |---|---|
-| `/claim` | `{"lane":"image"}`, `{"lane":"voice"}` or `{"lane":"matte"}`. Returns the lane's FIFO head, frozen inputs, fence and claim deadline, or 204. An empty body selects `run`. |
+| `/claim` | `{"lane":"image"}`, `{"lane":"voice"}` or `{"lane":"matte"}`. Returns the lane's FIFO head, frozen inputs, fence and claim deadline, or 204. An empty body selects `run`. For a matte worker, `{"lane":"matte","settle_only":true}` settles an expired dispatch at the head, including on a paused lane, and always returns 204 without taking a claim. |
 | `/heartbeat` | `job_id` and `fence`. Extends the claim by 90 seconds on the database clock. |
 | `/publish` | `job_id` and `fence`. Records entry to engine dispatch and renews the claim before submission. |
 | `/complete` | `job_id`, `fence` and result evidence. The API verifies stored content and commits the version, terminal status and eligible draft selection together. |
-| `/release-matte` | `job_id` and `fence` from a matte worker. Requeues the same FIFO job after a predispatch sidecar outage. After three releases, the next such outage fails the job with `matting.sidecar_unavailable`. |
+| `/release-matte` | `job_id` and `fence` from a matte worker. If dispatch was recorded, also send `reason: "connect"` for a failed socket connection or `reason: "busy"` for the sidecar's confirmed busy reply. Requeues the same FIFO job and revokes its claim. The release counter stops at three. A further busy reply still requeues. A further connection or readiness outage fails the job with `matting.sidecar_unavailable`. |
 | `/fail` | `job_id`, `fence`, bounded `code` and `message`. Preserves the request inputs and requester. |
 
-An unbound worker or a worker claiming a different lane gets 403
-`work.lane_forbidden`. Fenced media requests look up jobs within the
-worker's lane and return 404 for an ID outside it. Within the lane, the
-worker ID, fence and claim deadline must still match.
+For shared routes (`/claim`, `/heartbeat`, `/publish`, `/complete`, and
+`/fail`), the API authenticates the token and checks that it has a lane grant,
+enforces the 2 MiB body limit, checks the lane identified by the request,
+validates the body, then looks up the claim or job in the authorized lane.
+For `/claim`, strict JSON must identify a supported lane before the lane
+check can precede field validation. An empty body, JSON null, or an object without
+`lane` selects the run lane. For the other shared routes, an object with
+`job_id` and no `run_id` selects the media lanes. Other shapes follow the
+run-lane default, including invalid JSON. A token outside the selected lane
+or lane group receives 403 `work.lane_forbidden` before field validation.
+Among media lanes, field validation precedes the lane-scoped job lookup.
+A malformed media body can return 422, and a well-formed request for a job
+in another media lane returns 404. Within the lane, the worker ID, fence
+and claim deadline must still match. The dedicated `/resume` (run) and
+`/release-matte` (matte) routes check their lane grant before reading the body.
 
 Workers heartbeat every 15 seconds during blocking work. Expiry before
 dispatch allows another worker to take the same job with a new fence.
@@ -64,9 +75,16 @@ in either order. Before each claim the worker checks the exact CPU profile
 at `GET /v1/ready` and waits for any tracked attempt to clear. While the socket
 is unavailable, the model is loading, the profile differs, or a previous
 attempt is active, the worker reports the reason in its log and progress marker
-and polls again at its usual five-second interval. A socket outage before
-dispatch releases the claim under its fence. Once dispatch begins, failures
-are terminal. Use `studio-matting ready` to verify the deployed sidecar.
+and polls again at its usual five-second interval. While waiting, it settles an
+expired dispatched head without claiming the next job. The API records the
+dispatch fence before the worker opens the socket. A failed connection or a
+confirmed busy reply can release the job once fenced. A sent request whose
+outcome is uncertain stays fenced. If the API fails to confirm a release, the
+worker logs a generic warning and keeps polling. A claim that the API did not
+release still appears as **Cutout running** while its lease is live. If dispatch
+was recorded, expiry settles it as **Cutout failed** with
+`work.dispatch_unconfirmed`. Otherwise, it can be reclaimed once the sidecar
+is ready. Use `studio-matting ready` to verify the deployed sidecar.
 Use the migration identity for the initial registration.
 
 ```sh
@@ -88,6 +106,9 @@ quiescence and up to 121 seconds of readiness recovery before the main thread
 touches the marker again. The 300-second budget also leaves room for fenced API
 calls and local staging. The probe reads the marker timestamp.
 
+Move the staged matting sidecar and its scratch volume from the run worker
+activation to the matte worker pod in
+[deployment pin 967](https://work.haynesnetwork.com/work_packages/967).
 Mount the same writable scratch volume at `/matting` in the sidecar and
 matte worker. Give them the shared group that can use the mode-0660
 socket and read and write the attempt files. Mount the canonical store
@@ -97,13 +118,20 @@ reaches the matting service through the shared Unix socket. In haynes-ops,
 add the matte worker's pod label to the API's port-8002 ingress rule alongside
 the voice and image labels. Allow the matte worker network egress for DNS
 and the API's port-8002 listener only. The Unix socket needs no network rule.
+Admit exactly `POST /internal/v1/work/release-matte` in the listener's
+allowlist. As a postflight check, use the matte token and a current fenced
+claim on a disposable cutout. Send `POST /internal/v1/work/release-matte` with
+its `job_id` and `fence` through port 8002. Verify HTTP 204 and confirm the
+same job is queued again through its scoped status read. If the worker has
+already reclaimed it, verify a higher fence for the same job.
 
 The worker writes verified output into private per-claim staging on scratch.
 Under the fence it copies every staged blob into the canonical store,
 including files rebuilt for an existing candidate. The API verifies all three
 hashes and commits the candidate and terminal job in one transaction.
-The adapter handles busy replies with seven bounded waits. A timeout after
-dispatch begins fails the job and can leave the attempt for the next adapter sweep.
+A confirmed busy reply requeues the worker's claim for the next poll.
+A timeout waiting for a reply after submission fails the job and can leave
+the attempt for the next adapter sweep.
 [File and receipt contract](matting-adapter.md)
 
 ## Upload memory

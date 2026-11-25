@@ -41,21 +41,24 @@ class _UnconfirmedReply(AdapterError):
 
 
 class MattingUnavailable(AdapterError):
-    """The sidecar could not be reached or verified before a request was sent."""
+    """The sidecar did not start inference for this attempt."""
+
+    def __init__(self, code: str, label: str, message: str, *, release_reason: str | None = None):
+        super().__init__(code, label, message)
+        self.release_reason = release_reason
 
 
-def local_call(path: Path, method: str, route: str, payload: dict | None, *, timeout: float,
-               before_dispatch: Callable[[], None] | None = None) -> tuple[int, dict]:
+def local_call(path: Path, method: str, route: str, payload: dict | None, *,
+               timeout: float) -> tuple[int, dict]:
     """Separate a failed connection from a request whose outcome is uncertain."""
+    body = canonical_json(payload) if payload is not None else None
     with closing(_UnixConnection(path, timeout)) as connection:
         try:
             connection.connect()
         except OSError as error:
             code = TIMEOUT if isinstance(error, TimeoutError) else NOT_FOUND
-            raise MattingUnavailable(code, "matting", "The matting socket could not be opened") from None
-        body = canonical_json(payload) if payload is not None else None
-        if before_dispatch is not None:
-            before_dispatch()
+            raise MattingUnavailable(code, "matting", "The matting socket could not be opened",
+                                     release_reason="connect") from None
         connection.request(method, route, body=body, headers={"Content-Type": "application/json"})
         response = connection.getresponse()
         reply = response.read(MAX_REPLY + 1)
@@ -80,13 +83,12 @@ class MattingClient:
         self.pause = pause
         self.timeout = timeout
 
-    def _call(self, method: str, route: str, payload: dict | None = None, *, timeout: float | None = None,
-              before_dispatch: Callable[[], None] | None = None) -> dict:
+    def _call(self, method: str, route: str, payload: dict | None = None, *,
+              timeout: float | None = None) -> dict:
         message = "The matting service did not return a confirmed reply"
         try:
             status, body = local_call(self.socket, method, route, payload,
-                                      timeout=self.timeout if timeout is None else timeout,
-                                      before_dispatch=before_dispatch)
+                                      timeout=self.timeout if timeout is None else timeout)
         except TimeoutError:
             raise _UnconfirmedReply(TIMEOUT, "matting", message) from None
         except (MatteError, http.client.HTTPException, ValueError, RecursionError):
@@ -128,7 +130,7 @@ class MattingClient:
                 self._sweep()
                 return self._attempt(request, data, check_fence, before_dispatch)
             except AdapterError as error:
-                if error.code != BUSY or retry == BUSY_RETRIES:
+                if isinstance(error, MattingUnavailable) or error.code != BUSY or retry == BUSY_RETRIES:
                     raise
             self.pause(BUSY_INTERVAL)
         raise AssertionError("unreachable")
@@ -217,13 +219,22 @@ class MattingClient:
                     output.write(data)
                 source.chmod(0o640)
                 check_fence()
+                # The sidecar's first-byte deadline starts at connect. Wait
+                # for the durable fence before opening the socket.
+                if before_dispatch is not None:
+                    before_dispatch()
                 os.utime(marker_fd)
                 try:
-                    receipt = self._call("POST", "/v1/matte", payload, before_dispatch=before_dispatch)
+                    receipt = self._call("POST", "/v1/matte", payload)
                 except MattingUnavailable:
                     # The socket never opened. There can be no late writes.
                     raise
                 except AdapterError as error:
+                    # This reply comes from the engine's lock acquisition,
+                    # before it hands the request to its inference process.
+                    if before_dispatch is not None and error.code == BUSY:
+                        raise MattingUnavailable(error.code, error.label, error.message,
+                                                 release_reason="busy") from None
                     unconfirmed = isinstance(error, _UnconfirmedReply)
                     if unconfirmed or error.code == TIMEOUT:
                         clean = False

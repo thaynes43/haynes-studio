@@ -17,6 +17,7 @@ import sqlalchemy as sa
 
 from haynes_studio.adapters import matting
 from haynes_studio.adapters.matting import MattingClient
+from haynes_studio.api.transport import WRITE_LIMIT
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.db.catalog import record_asset_version
 from haynes_studio.db.migrate import migrate
@@ -197,15 +198,22 @@ def test_matte_lane_grants_pause_resume_and_fifo(matte_studio, matte_format):
 
     for lane in ("run", "image", "voice", None):
         refused(lane, "claim", 403, "work.lane_forbidden", json={"lane": "matte"})
+        refused(lane, "claim", 403, "work.lane_forbidden", json={"lane": "matte", "extra": True})
         refused(lane, "claim", 403 if lane is None else 422,
                 "work.lane_forbidden" if lane is None else "schema.invalid",
                 content=b'{"lane":"matte",')
         refused(lane, "release-matte", 403, "work.lane_forbidden", json={"job_id": first, "fence": 1})
         refused(lane, "release-matte", 403, "work.lane_forbidden", content=b"{")
     for lane in ("run", "image", "voice"):
+        refused(lane, "claim", 403, "work.lane_forbidden", json={"lane": lane, "settle_only": True})
         refused("matte", "claim", 403, "work.lane_forbidden", json={"lane": lane})
-        refused("matte", "claim", 422, "schema.unknown_field", json={"lane": lane, "extra": True})
+        refused("matte", "claim", 403, "work.lane_forbidden", json={"lane": lane, "extra": True})
     refused("matte", "claim", 403, "work.lane_forbidden")
+    refused("matte", "claim", 403, "work.lane_forbidden", json={"extra": True})
+    refused("matte", "claim", 422, "schema.unknown_field", json={"lane": "matte", "extra": True})
+    refused("matte", "claim", 422, "schema.invalid", json={"lane": ["matte"], "extra": True})
+    refused("matte", "resume", 403, "work.lane_forbidden", content=b"{")
+    refused("matte", "resume", 403, "work.lane_forbidden", json={"run_id": "malformed", "fence": "invalid"})
     refused("matte", "heartbeat", 403, "work.lane_forbidden", json={"run_id": Minter().mint("run"), "fence": 1})
     refused("matte", "heartbeat", 403, "work.lane_forbidden", json={"run_id": "malformed", "fence": "invalid"})
     assert job(s, first)["status"] == job(s, image_id)["status"] == "queued"
@@ -234,6 +242,27 @@ def test_matte_lane_grants_pause_resume_and_fifo(matte_studio, matte_format):
     assert not success(s.browser.put(lane_path, headers=s.csrf, json={"paused": False}))["paused"]
     assert matte.claim("matte").body["job"]["id"] == second
     assert job(s, image_id)["status"] == "running"
+
+
+@pytest.mark.parametrize("route", ("claim", "heartbeat", "publish", "complete", "fail"))
+def test_shared_work_checks_auth_and_size_before_lane_then_validates_body(matte_studio, route):
+    s = matte_studio
+    http = client(s.app)
+    headers = {lane: worker_credentials(s.owner, lane=lane) for lane in ("run", "matte")}
+    path = f"{WORK}/{route}"
+    body = b'{"lane":"matte","fence":"invalid"}' if route == "claim" else (
+        b'{"job_id":"malformed","fence":"invalid"}'
+    )
+    oversized = b" " * WRITE_LIMIT + body
+    for credentials, content, status, code in (
+        ({}, oversized, 401, "auth.required"),
+        (headers["run"], oversized, 413, "request.too_large"),
+        (headers["run"], body, 403, "work.lane_forbidden"),
+        (headers["matte"], body, 422, "schema.unknown_field" if route == "claim" else "schema.invalid"),
+    ):
+        response = http.post(path, headers={**credentials, "content-type": "application/json"}, content=content)
+        assert response.status_code == status, response.text
+        assert response.json()["error"]["code"] == code
 
 
 def test_matte_worker_publishes_and_rebuilds_all_pinned_files(matte_studio, matte_format, matte_client, monkeypatch):
@@ -417,6 +446,33 @@ def test_matte_busy_attempt_prevents_any_claim(matte_studio, matte_format, matte
         assert worker.tick() and job(s, identifier)["status"] == "succeeded"
 
 
+def test_matte_untracked_busy_requeues_even_at_release_limit(
+    matte_studio, matte_format, matte_client, caplog, monkeypatch,
+):
+    s = matte_studio
+    local, weights = matte_client
+    body = payload(opaque(s, scope=s.production_id), matte_format)
+    first, second = [success(request(s, body, key), 202)["id"] for key in ("occupied", "next")]
+    worker = MediaWorker(worker_api(s, lane="matte"), lane="matte", store=s.store, client=local)
+    waits = []
+    monkeypatch.setattr(local, "pause", waits.append)
+    with Engine(local.scratch, weights, PROFILE, factory=load_fake) as backend, listening(local.socket, backend):
+        with backend._lock:
+            local.ready_for_claim()
+            assert not list(local.scratch.glob(".studio-matting-*"))
+            for release_count in (1, 2, 3, 3):
+                assert not worker.tick()
+                view = job(s, first)
+                assert view["status"] == "queued" and view["error"] is None
+                row = row_of(s, first)
+                assert row["matte_releases"] == release_count
+                assert row["worker_id"] is None and not row["dispatched"]
+                assert not waits
+            assert row_of(s, second)["fence"] == 0
+            assert f"Waiting for the matting sidecar ({BUSY})" in caplog.messages
+        assert worker.tick() and job(s, first)["status"] == "succeeded"
+
+
 @pytest.mark.parametrize("disconnects", [1, 4])
 def test_matte_socket_loss_before_send_releases_with_durable_bound(
     matte_studio, matte_format, matte_client, monkeypatch, disconnects,
@@ -453,6 +509,85 @@ def test_matte_socket_loss_before_send_releases_with_durable_bound(
             assert_failed(s, identifier, "matting.sidecar_unavailable")
 
 
+@pytest.mark.parametrize("refusal", [403, 404, "transport"])
+def test_matte_release_refusal_leaves_claim_to_expire(
+    matte_studio, matte_format, matte_client, monkeypatch, caplog, refusal,
+):
+    s = matte_studio
+    local, weights = matte_client
+    body = payload(opaque(s, scope=s.production_id), matte_format)
+    first, second = [success(request(s, body, key), 202)["id"] for key in ("refused", "following")]
+    api = worker_api(s, lane="matte")
+    worker = MediaWorker(api, lane="matte", store=s.store, client=local)
+    post = api.client.post
+
+    def refuse(path, **kwargs):
+        if path == f"{WORK}/release-matte":
+            if refusal == "transport":
+                raise httpx.ConnectError("fixture transport failure")
+            return httpx.Response(refusal, text="fixture listener refusal")
+        return post(path, **kwargs)
+
+    def disconnect(path, method, *args, **kwargs):
+        if method == "POST":
+            path.unlink()
+        return call_sidecar(path, method, *args, **kwargs)
+
+    call_sidecar = matting.local_call
+    monkeypatch.setattr(api.client, "post", refuse)
+    with Engine(local.scratch, weights, PROFILE, factory=load_fake) as backend:
+        with listening(local.socket, backend), monkeypatch.context() as patch:
+            patch.setattr(matting, "local_call", disconnect)
+            assert not worker.tick()
+        assert "Matte claim release was not confirmed. The worker will let the claim expire." in caplog.messages
+        row = row_of(s, first)
+        assert row["matte_releases"] == 0 and row["worker_id"] is not None and row["dispatched"]
+        assert not worker.tick()
+        assert [job(s, id_)["status"] for id_ in (first, second)] == ["running", "queued"]
+        expire(s, first)
+        assert not worker.tick()
+        assert_failed(s, first, "work.dispatch_unconfirmed")
+        with listening(local.socket, backend):
+            assert worker.tick() and job(s, second)["status"] == "succeeded"
+
+
+def test_matte_slow_publish_reply_leaves_time_for_sidecar_first_byte(
+    matte_studio, matte_format, matte_client, monkeypatch,
+):
+    s = matte_studio
+    local, weights = matte_client
+    identifier = success(request(s, payload(opaque(s, scope=s.production_id), matte_format), "slow-publish"), 202)["id"]
+    api = worker_api(s, lane="matte")
+    post = api.client.post
+    call_sidecar = matting.local_call
+    events = []
+
+    def hold_reply(path, **kwargs):
+        result = post(path, **kwargs)
+        if path == f"{WORK}/publish":
+            assert result.status_code == 204 and row_of(s, identifier)["dispatched"]
+            # Model a slow API reply past the real handler's three-second
+            # first-byte deadline, within the worker API's 15-second timeout.
+            time.sleep(3.25)
+            events.append("publish replied")
+        return result
+
+    def check_publish(path, method, *args, **kwargs):
+        if method == "POST":
+            events.append("matte POST")
+        return call_sidecar(path, method, *args, **kwargs)
+
+    monkeypatch.setattr(api.client, "post", hold_reply)
+    monkeypatch.setattr(matting, "local_call", check_publish)
+    monkeypatch.setattr(local, "pause", lambda _: None)
+    worker = MediaWorker(api, lane="matte", store=s.store, client=local)
+    with Engine(local.scratch, weights, PROFILE, factory=load_fake) as backend, listening(local.socket, backend):
+        assert worker.tick()
+        assert job(s, identifier)["status"] == "succeeded"
+        assert events == ["publish replied", "matte POST"]
+        assert row_of(s, identifier)["matte_releases"] == 0
+
+
 def test_matte_timeout_after_dispatch_is_recorded(matte_studio, matte_format, matte_client, monkeypatch):
     s = matte_studio
     local, weights = matte_client
@@ -474,7 +609,6 @@ def test_matte_timeout_after_dispatch_is_recorded(matte_studio, matte_format, ma
         def deadline(path, method, *args, **kwargs):
             nonlocal sent
             if method == "POST":
-                kwargs["before_dispatch"]()
                 sent = True
                 raise TimeoutError
             if sent:
@@ -511,6 +645,7 @@ def test_matte_reclaim_refuses_stale_fence_and_duplicate_completion(
     conflict(stale.publish)
     conflict(lambda: retire(stale))
     conflict(stale.release)
+    conflict(lambda: stale.release(reason="busy"))
     assert job(s, identifier)["status"] == "running" and not row_of(s, identifier)["dispatched"]
 
     complete = MediaClaimAPI.complete
@@ -539,10 +674,41 @@ def test_matte_expiry_after_dispatch_fails_without_reclaim(matte_studio, matte_f
     assert claim.identity["job_id"] == first
     claim.publish()
     conflict(claim.release, "work.dispatched")
+    with pytest.raises(WorkerAPIError) as invalid:
+        claim.release(reason="transport")
+    assert invalid.value.status == 422
     expire(s, first)
     assert api.claim("matte") is None
     assert_failed(s, first, "work.dispatch_unconfirmed")
     assert api.claim("matte").identity["job_id"] == second
+
+
+def test_matte_waiting_worker_settles_only_expired_dispatched_claims(matte_studio, matte_format, matte_client):
+    s = matte_studio
+    local, weights = matte_client
+    body = payload(opaque(s, scope=s.production_id), matte_format)
+    first, second = [success(request(s, body, key), 202)["id"] for key in ("abandoned", "following")]
+    api = worker_api(s, lane="matte")
+    worker = MediaWorker(api, lane="matte", store=s.store, client=local)
+    assert not worker.tick() and row_of(s, first)["fence"] == 0
+    abandoned = api.claim("matte")
+    expire(s, first)
+    assert not worker.tick() and row_of(s, first)["fence"] == abandoned.identity["fence"]
+    current = api.claim("matte")
+    current.publish()
+    assert not worker.tick() and job(s, first)["status"] == "running"
+    # Even a paused lane must settle the abandoned dispatch while the socket
+    # is absent. The next job must remain untouched.
+    lane = "/v1/queue/lanes/matte"
+    success(s.browser.put(lane, headers=s.csrf, json={"paused": True}))
+    expire(s, first)
+    assert not worker.tick()
+    assert_failed(s, first, "work.dispatch_unconfirmed")
+    success(s.browser.put(lane, headers=s.csrf, json={"paused": False}))
+    assert not worker.tick()
+    assert job(s, second)["status"] == "queued" and row_of(s, second)["fence"] == 0
+    with Engine(local.scratch, weights, PROFILE, factory=load_fake) as backend, listening(local.socket, backend):
+        assert worker.tick() and job(s, second)["status"] == "succeeded"
 
 
 def test_matte_migration_round_trip_and_downgrade_refusal(matte_studio, matte_format, runtime_role):

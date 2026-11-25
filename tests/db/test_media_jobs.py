@@ -640,12 +640,13 @@ def test_worker_lane_refusals_leave_queue_rows_unchanged(queue, studio):
         for target in ("run", "voice", "image"):
             if lane != target:
                 refuse("claim", lane, json={"lane": target})
+                refuse("claim", lane, json={"lane": target, "extra": True})
     for lane in ("voice", "image", None):
         refuse("claim", lane)
     refuse("claim", None, content=b"{")  # An unbound ID is refused before body parsing.
 
     attempt = f"attempts/{'a' * 32}"
-    for action in ("heartbeat", "publish", "complete", "fail", "attempts", attempt):
+    for action in ("heartbeat", "publish", "complete", "fail", "resume", "attempts", attempt):
         for payload in ({"json": {"run_id": run_id, "fence": "invalid"}}, {"content": b"{"}):
             refuse(action, "voice", **payload)
             refuse(action, "image", **payload)

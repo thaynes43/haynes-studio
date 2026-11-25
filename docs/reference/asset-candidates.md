@@ -48,8 +48,12 @@ story's pinned format version and offers the cast slots defined in its
 slot sizes to enable the action.
 
 A press sends the source version ID, format version ID and selected slot.
-An uncertain reply keeps that request and its key for retry. The job link
-shows the queued, paused, running and terminal states from API reads.
+An uncertain reply keeps the request and its key in the open Assets page.
+If a retry is refused, keep using **Retry matte request** in that page to
+recover the original job. Reloading before the job link appears clears the
+saved key. A new press after reload can queue a second cutout because the
+API can only look up a matte job by its ID. Once you have the job link,
+reload it to read the queued, paused, running or terminal state.
 An admitted source and the result stay in the same library scope, including
 the shared library. A successful result opens the existing candidate review
 and its explicit **Promote** action. The source stays pinned and the job

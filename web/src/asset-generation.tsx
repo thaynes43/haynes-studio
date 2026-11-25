@@ -27,6 +27,7 @@ function useCandidatePress<Body>(
   onJob: (id: string) => void,
   presses: Map<string, CandidatePress<Body>>,
   intention: string,
+  retainAmbiguous = false,
 ) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<{ intention: string; value: unknown }>();
@@ -38,7 +39,8 @@ function useCandidatePress<Body>(
 
   async function submit(body: () => Body) {
     if (request.current) return;
-    const attempt = press ?? { body: body(), key: crypto.randomUUID() };
+    const unresolved = presses.get(intention);
+    const attempt = unresolved ?? { body: body(), key: crypto.randomUUID() };
     presses.set(intention, attempt);
     const pending = new AbortController();
     request.current = pending;
@@ -51,7 +53,8 @@ function useCandidatePress<Body>(
       showJob.current(queued.id);
     } catch (error) {
       if (!pending.signal.aborted) {
-        if (!ambiguous(error)) presses.delete(intention);
+        // A refused retry can leave an earlier matte request in the queue.
+        if (!ambiguous(error) && !(retainAmbiguous && unresolved)) presses.delete(intention);
         setError({ intention, value: error });
       }
     } finally {
@@ -264,7 +267,7 @@ export function MatteForm({ api, source, format, slots, presses, onJob, onClose 
   const [slot, setSlot] = useState("");
   const select = useRef<HTMLSelectElement>(null);
   const intention = JSON.stringify([source.id, format.id, slot]);
-  const { retrying, saving, error, submit } = useCandidatePress(api, queueMatte, onJob, presses, intention);
+  const { retrying, saving, error, submit } = useCandidatePress(api, queueMatte, onJob, presses, intention, true);
   const advice = error instanceof ApiError && error.code ? cutoutAdvice(error.code) : undefined;
   useEffect(() => { select.current?.focus(); }, []);
 

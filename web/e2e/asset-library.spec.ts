@@ -542,6 +542,9 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
         const body = route.request().postDataJSON() as MatteRequest;
         presses.push({ key, body });
         const prior = keys.get(key);
+        if (prior === lostC && presses.length === 3) {
+          return route.fulfill({ status: 403, json: { error: { code: "forbidden", message: "Request refused" } } });
+        }
         if (prior) return route.fulfill({ status: 200, json: jobs.get(prior) });
         const id = ids[keys.size];
         keys.set(key, id);
@@ -609,6 +612,8 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       expect(presses[1].body.slot).toBe("a");
       await selectSlot("c");
       await form.getByRole("button", { name: "Retry matte request" }).click();
+      await expect(form.getByRole("alert")).toContainText("Request refused");
+      await form.getByRole("button", { name: "Retry matte request" }).click();
       await expect(state("Cutout queued · matte lane paused")).toBeFocused();
       await expect(page.getByText("A signed-in Studio user can resume the matte lane.")).toBeVisible();
       await expect(page).toHaveURL((url) => url.searchParams.get("job") === lostC &&
@@ -616,6 +621,8 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       expect(presses[0].key).toMatch(/^[0-9a-f-]{36}$/);
       expect(presses[0].body).toEqual({ slot: "c", format_version_id: format.id, source_version_id: source.id });
       expect(presses[2]).toEqual(presses[0]);
+      expect(presses[3]).toEqual(presses[0]);
+      expect(jobs.size).toBe(2);
       await expect(promotions()).toHaveCount(0);
       paused = false;
       await showPoll(page);
@@ -634,7 +641,7 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       await selectSlot("a");
       await form.getByRole("button", { name: "Retry matte request" }).click();
       await expect(page.getByText("Cutout queued", { exact: true })).toBeFocused();
-      expect(presses[3]).toEqual(presses[1]);
+      expect(presses[4]).toEqual(presses[1]);
       jobs.get(lostA)!.status = "cancelled";
       await showPoll(page);
       await expect(state("Cutout cancelled")).toBeVisible();
@@ -648,7 +655,7 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
         await expect(page.getByRole("alert")).toContainText(failure.code);
         await expect(page.getByRole("alert")).toContainText("Try another cast slot or another photo.");
       }
-      expect(presses[4].key).not.toBe(presses[0].key);
+      expect(presses[5].key).not.toBe(presses[0].key);
 
       assets.versions.push(output);
       await selectSlot("c");

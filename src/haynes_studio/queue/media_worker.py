@@ -164,11 +164,6 @@ class MediaWorker:
                         dispatch()
                         self.store.publish(staged, scope=production or LIBRARY, media_type=item.media_type,
                                            expected_sha256=item.sha256)
-        except MattingUnavailable as error:
-            if not dispatch.started:
-                raise
-            record_failure(code=error.code, message=error.message)
-            return None
         except OSError as error:
             raise AdapterError(COMMAND_FAILED, "matting", "The matte staging store is unavailable") from error
         return {"matte_version": version_document(result.version, result.library.asset_of(result.version.id))}
@@ -214,6 +209,7 @@ class MediaWorker:
                 self.client.ready_for_claim()
             except AdapterError as error:
                 self._matte_wait(error)
+                self.api.settle_expired_matte()
                 return False
             self.progress.write_status("Matting sidecar ready")
         claim = self.api.claim(self.lane)
@@ -229,7 +225,10 @@ class MediaWorker:
                 evidence = self._result(job, claim, Dispatch(active))
                 self.progress()
             except MattingUnavailable as error:
-                claim.release()
+                try:
+                    claim.release(reason=error.release_reason)
+                except WorkerAPIError:
+                    logger.warning("Matte claim release was not confirmed. The worker will let the claim expire.")
                 self._matte_wait(error)
                 return False
             except WorkerAPIError:

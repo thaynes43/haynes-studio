@@ -103,16 +103,22 @@ class WorkFailure(ClaimFence):
 
 
 WorkLane = Literal["run", "image", "voice", "matte"]
-MEDIA_LANES = tuple(lane for lane in get_args(WorkLane) if lane != "run")
+WORK_LANES = get_args(WorkLane)
+MEDIA_LANES = tuple(lane for lane in WORK_LANES if lane != "run")
 
 
 class WorkClaim(Payload):
     lane: WorkLane = "run"
+    settle_only: bool = False
 
 
 class MediaFence(Payload):
     job_id: str
     fence: Annotated[int, Field(ge=1, lt=2**63)]
+
+
+class MatteRelease(MediaFence):
+    reason: Literal["connect", "busy"] | None = None
 
 
 class MediaHeartbeat(MediaFence):

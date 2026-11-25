@@ -105,15 +105,16 @@ def save(conn, row, **values):
                         .values(**values).returning(media_jobs)).mappings().one()
 
 
-def finish(conn, row, job):
-    save(conn, row, document=job.to_document(), worker_id=None, claim_until=None)
-    return job.to_document()
+def finish(conn, row, job, **values):
+    document = job.to_document()
+    save(conn, row, document=document, worker_id=None, claim_until=None, **values)
+    return document
 
 
-def claim(conn, worker_id, lane):
+def claim(conn, worker_id, lane, *, settle_only=False):
     if lock_lane(conn, lane, skip_locked=True) is None:
         return None
-    if is_paused(conn, lane):
+    if not settle_only and is_paused(conn, lane):
         return None
     head = sa.select(sa.func.min(media_jobs.c.position)).where(
         media_jobs.c.lane == lane, STATUS.in_(ACTIVE),
@@ -121,7 +122,7 @@ def claim(conn, worker_id, lane):
     row = conn.execute(sa.select(media_jobs).where(
         media_jobs.c.lane == lane, media_jobs.c.position == head, STATUS.in_(ACTIVE),
     ).with_for_update(skip_locked=True)).mappings().one_or_none()
-    if row is None:
+    if row is None or (settle_only and not row["dispatched"]):
         return None
     now = database_time(conn)
     if row["claim_until"] is not None and row["claim_until"] > now:
@@ -162,17 +163,17 @@ def dispatch(conn, row, now):
     save(conn, row, dispatched=True, claim_until=now + LEASE)
 
 
-def release_matte(conn, row, now):
-    if row["dispatched"]:
+def release_matte(conn, row, now, *, reason=None):
+    if row["dispatched"] and reason is None:
         raise QueueConflict("work.dispatched", "A dispatched matte job cannot be released")
     job = Job.from_document(job_document(row))
     updated_at = timestamp(now)
-    if row["matte_releases"] >= MATTE_RELEASE_LIMIT:
+    if reason != "busy" and row["matte_releases"] >= MATTE_RELEASE_LIMIT:
         finish(conn, row, transitions.fail(job, "matting.sidecar_unavailable",
-                                           "The matting sidecar repeatedly disappeared before dispatch",
-                                           now=updated_at))
+                                           "The matting sidecar repeatedly could not start the cutout",
+                                           now=updated_at), dispatched=False)
         return
     # Keep the job's FIFO position and revoke the current fence's lease.
     queued = replace(job, status="queued", updated_at=updated_at)
-    save(conn, row, document=queued.to_document(), worker_id=None, claim_until=None,
-         matte_releases=row["matte_releases"] + 1)
+    save(conn, row, document=queued.to_document(), worker_id=None, claim_until=None, dispatched=False,
+         matte_releases=min(row["matte_releases"] + 1, MATTE_RELEASE_LIMIT))
