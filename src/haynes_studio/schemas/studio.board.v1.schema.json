@@ -2,6 +2,22 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://haynes-studio.invalid/schemas/studio.board.v1.schema.json",
   "title": "studio.board/v1: one board (contract sections 2, 3, 5, 6)",
+  "$defs": {
+    "person_edit": {"enum": ["content", "reordered", "removed"]},
+    "person_edit_acknowledgments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key_id", "acknowledged_at", "board_revision"],
+        "properties": {
+          "key_id": {"type": "string", "pattern": "^key_[0-7][0-9A-HJKMNP-TV-Z]{25}$"},
+          "acknowledged_at": {"$ref": "studio.defs.v1.schema.json#/$defs/timestamp"},
+          "board_revision": {"$ref": "studio.defs.v1.schema.json#/$defs/positive"}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
   "type": "object",
   "required": [
     "schema",
@@ -314,6 +330,26 @@
     },
     "drafted_by": {
       "$ref": "studio.defs.v1.schema.json#/$defs/principal"
+    },
+    "person_edit": {"$ref": "#/$defs/person_edit"},
+    "person_edit_revision": {"$ref": "studio.defs.v1.schema.json#/$defs/positive"},
+    "person_edit_acknowledgments": {"$ref": "#/$defs/person_edit_acknowledgments"},
+    "draft_application": {
+      "type": "object",
+      "required": ["board_key", "draft_sha256", "model", "session", "applied_at", "board_revision"],
+      "properties": {
+        "board_key": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$"},
+        "draft_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "model": {"type": "string", "minLength": 1, "maxLength": 200},
+        "session": {"type": "string", "minLength": 1, "maxLength": 200},
+        "applied_at": {"$ref": "studio.defs.v1.schema.json#/$defs/timestamp"},
+        "board_revision": {"$ref": "studio.defs.v1.schema.json#/$defs/positive"},
+        "applied_board_revision": {"$ref": "studio.defs.v1.schema.json#/$defs/positive"},
+        "person_edit": {"$ref": "#/$defs/person_edit"},
+        "person_edit_revision": {"$ref": "studio.defs.v1.schema.json#/$defs/positive"},
+        "person_edit_acknowledgments": {"$ref": "#/$defs/person_edit_acknowledgments"}
+      },
+      "additionalProperties": false
     },
     "origin": {
       "type": [

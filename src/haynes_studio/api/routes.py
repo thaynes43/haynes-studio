@@ -1,20 +1,25 @@
 """The /v1 metadata routes owned by story 409."""
 
+import hmac
 import re
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Header, Query, Request, Response
+from pydantic import ValidationError
 
 from haynes_studio.canonical.ids import is_id
 from haynes_studio.canonical.model import to_document
 from haynes_studio.db import catalog, drafts, identity
 from haynes_studio.db.engine import snapshot
 from haynes_studio.db.problems import NotFound
+from haynes_studio.drafting.declaration import READ_TOKEN_HEADER, PersonEditAcknowledgment
+from haynes_studio.errors import pointer
 from haynes_studio.library.resolve import board_references
 
 from .errors import APIError, ERROR_RESPONSES
 from .models import (
-    AssetDetail, AssetVersion, Board, BoardOrder, BoardWrite, Delivery, Me, MediaKind, Page,
+    AssetDetail, AssetVersion, Board, BoardCreate, BoardOrder, BoardPatch, BoardRemoval,
+    Delivery, Me, MediaKind, Page,
     Production, ProductionCreate, Selections, SelectionWrite, Story, StoryCreate, StoryPatch, Timing,
 )
 
@@ -65,6 +70,22 @@ def _board_access(conn, actor, scope, id) -> str:
     story_id = drafts.board_story(conn, _id(id, "brd"))
     _story_access(conn, actor, scope, story_id)
     return story_id
+
+
+def _board_read_token(request: Request, key_id: str, board_id: str, revision: int) -> str:
+    payload = f"{key_id}:{board_id}:{revision}".encode()
+    return hmac.digest(request.app.state.board_read_key, payload, "sha256").hex()
+
+
+def _acknowledged_revision(request: Request, actor, board_id: str,
+                           ack: PersonEditAcknowledgment | None) -> int | None:
+    if ack is None or actor.principal.kind != "agent":
+        return None
+    token = _board_read_token(request, actor.principal.key_id, board_id, ack.board_revision)
+    if not hmac.compare_digest(ack.read_token, token):
+        raise APIError(422, "draft.invalid_read_token", "Read the board at this revision with this key",
+                       path="/acknowledge_person_edit/read_token")
+    return ack.board_revision
 
 
 def build_router(CurrentActor, authenticated_route):
@@ -189,7 +210,7 @@ def build_router(CurrentActor, authenticated_route):
 
     @router.post("/stories/{id}/boards", tags=["boards"], response_model=Board, status_code=201,
                  responses={201: {"headers": ETAG}}, operation_id="create_board")
-    def create_board(id: str, body: BoardWrite, request: Request, response: Response, actor: CurrentActor,
+    def create_board(id: str, body: BoardCreate, request: Request, response: Response, actor: CurrentActor,
                      if_match: IfMatch):
         with request.app.state.engine.begin() as conn:
             _story_access(conn, actor, "draft:write", id)
@@ -200,21 +221,41 @@ def build_router(CurrentActor, authenticated_route):
         return _etag(response, doc)
 
 
-    @router.get("/boards/{id}", tags=["boards"], response_model=Board,
-                responses={200: {"headers": ETAG}}, operation_id="get_board")
+    @router.get("/boards/{id}", tags=["boards"], response_model=Board, responses={200: {"headers": {
+        **ETAG, READ_TOKEN_HEADER: {
+            "schema": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "description": "For agent reads. Bound to the agent key, board ID and board revision.",
+        },
+    }}}, operation_id="get_board")
     def get_board(id: str, request: Request, response: Response, actor: CurrentActor):
         with snapshot(request.app.state.engine) as conn:
             story_id = _board_access(conn, actor, "read", id)
-            return _etag(response, drafts.get_draft(conn, story_id).board(conn, id))
+            doc = drafts.get_draft(conn, story_id).board(conn, id)
+        if actor.principal.kind == "agent":
+            response.headers[READ_TOKEN_HEADER] = _board_read_token(
+                request, actor.principal.key_id, id, doc["revision"])
+        return _etag(response, doc)
 
 
     @router.patch("/boards/{id}", tags=["boards"], response_model=Board,
                   responses={200: {"headers": ETAG}}, operation_id="update_board")
-    def update_board(id: str, body: BoardWrite, request: Request, response: Response, actor: CurrentActor,
+    def update_board(id: str, body: BoardPatch, request: Request, response: Response, actor: CurrentActor,
                      if_match: IfMatch):
         with request.app.state.engine.begin() as conn:
             story_id = _board_access(conn, actor, "draft:write", id)
-            doc = drafts.edit_board(conn, story_id, id, _revision(if_match), body.root).board(conn, id)
+            fields = dict(body.root)
+            ack = None
+            if "acknowledge_person_edit" in fields:
+                try:
+                    ack = PersonEditAcknowledgment.model_validate(fields.pop("acknowledge_person_edit"))
+                except ValidationError as error:
+                    first = error.errors(include_input=False)[0]
+                    raise APIError(422, "schema.invalid", "Invalid board acknowledgment",
+                                   path=pointer("acknowledge_person_edit", *first["loc"])) from None
+            doc = drafts.edit_board(
+                conn, story_id, id, _revision(if_match), fields, to_document(actor.principal),
+                acknowledgment=_acknowledged_revision(request, actor, id, ack),
+            ).board(conn, id)
         return _etag(response, doc)
 
 
@@ -225,16 +266,30 @@ def build_router(CurrentActor, authenticated_route):
         with request.app.state.engine.begin() as conn:
             _story_access(conn, actor, "draft:write", id)
             order = [_id(board, "brd", f"/board_order/{index}") for index, board in enumerate(body.board_order)]
-            doc = drafts.reorder(conn, id, _revision(if_match), order).summary(conn)
+            acknowledgments = {}
+            if actor.principal.kind == "agent":
+                acknowledgments = {
+                    board_id: _acknowledged_revision(request, actor, board_id, ack)
+                    for board_id, ack in (body.acknowledge_person_edit or {}).items()
+                }
+            doc = drafts.reorder(
+                conn, id, _revision(if_match), order, to_document(actor.principal),
+                acknowledgments=acknowledgments,
+            ).summary(conn)
         return _etag(response, doc)
 
 
     @router.delete("/boards/{id}", tags=["boards"], status_code=204, response_class=Response,
                    operation_id="remove_board")
-    def remove_board(id: str, request: Request, actor: CurrentActor, if_match: IfMatch):
+    def remove_board(id: str, request: Request, actor: CurrentActor, if_match: IfMatch,
+                     body: BoardRemoval | None = None):
         with request.app.state.engine.begin() as conn:
             story_id = _board_access(conn, actor, "draft:write", id)
-            drafts.remove_board(conn, story_id, id, _revision(if_match))
+            drafts.remove_board(
+                conn, story_id, id, _revision(if_match), to_document(actor.principal),
+                acknowledgment=_acknowledged_revision(
+                    request, actor, id, body.acknowledge_person_edit if body else None),
+            )
         return Response(status_code=204)
 
 

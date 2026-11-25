@@ -772,6 +772,18 @@ export interface components {
                 /** @enum {unknown} */
                 voice_state: "not_needed" | "absent" | "generating" | "current" | "stale";
             };
+            draft_application?: {
+                applied_at: components["schemas"]["StudioDefs_timestamp"];
+                applied_board_revision?: components["schemas"]["StudioDefs_positive"];
+                board_key: string;
+                board_revision: components["schemas"]["StudioDefs_positive"];
+                draft_sha256: string;
+                model: string;
+                person_edit?: components["schemas"]["Board_person_edit"];
+                person_edit_acknowledgments?: components["schemas"]["Board_person_edit_acknowledgments"];
+                person_edit_revision?: components["schemas"]["StudioDefs_positive"];
+                session: string;
+            };
             drafted_by: components["schemas"]["StudioDefs_principal"];
             duration_ms?: components["schemas"]["StudioDefs_duration_is_derived"];
             id: components["schemas"]["StudioDefs_brd_id"];
@@ -799,6 +811,9 @@ export interface components {
                 manifest: string;
                 source_key: components["schemas"]["StudioDefs_source_key"];
             } | null;
+            person_edit?: components["schemas"]["Board_person_edit"];
+            person_edit_acknowledgments?: components["schemas"]["Board_person_edit_acknowledgments"];
+            person_edit_revision?: components["schemas"]["StudioDefs_positive"];
             photo: {
                 current_version_id: components["schemas"]["StudioDefs_asv_id_or_null"];
                 input_asset_version_ids: components["schemas"]["StudioDefs_asv_id"][];
@@ -826,17 +841,8 @@ export interface components {
                 style: unknown;
             };
         };
-        BoardCueInput: {
-            /** @enum {unknown} */
-            type: "sound" | "move" | "camera";
-        } & (unknown & unknown & unknown);
-        /** BoardOrder */
-        BoardOrder: {
-            /** Board Order */
-            board_order: string[];
-        };
-        /** BoardWrite */
-        BoardWrite: {
+        /** BoardCreate */
+        BoardCreate: {
             cast?: {
                 asset_version_id: components["schemas"]["StudioDefs_asv_id"];
                 /** @description Optional pin of this cast still's motion loop (story 457, proposal): a library motion version with a motion block. Absent: the one promoted loop of the still. */
@@ -844,13 +850,27 @@ export interface components {
                 slot: components["schemas"]["StudioDefs_slot"];
             }[];
             cues?: components["schemas"]["BoardCueInput"][];
+            /**
+             * DraftDeclaration
+             * @description Agent only.
+             */
+            draft_application?: {
+                /** Board Key */
+                board_key: string;
+                /** Draft Sha256 */
+                draft_sha256: string;
+                /** Model */
+                model: string;
+                /** Session */
+                session: string;
+            };
             layout?: {
                 foreground: boolean;
                 preset: string;
             };
             lines?: {
                 gap_before_ms: unknown;
-                /** @description Omit for a new line. Preserve an existing line ID. */
+                /** @description Omit for a new line or preserve an existing line ID. An agent draft declaration also allows a fresh line ID to anchor a cue in the same write. */
                 id?: components["schemas"]["StudioDefs_lin_id"];
                 speaker: components["schemas"]["StudioDefs_speaker"];
                 text: string;
@@ -884,6 +904,98 @@ export interface components {
                 style: unknown;
             };
         };
+        BoardCueInput: {
+            /** @enum {unknown} */
+            type: "sound" | "move" | "camera";
+        } & (unknown & unknown & unknown);
+        /** BoardOrder */
+        BoardOrder: {
+            /** Acknowledge Person Edit */
+            acknowledge_person_edit?: {
+                [key: string]: components["schemas"]["PersonEditAcknowledgment"];
+            } | null;
+            /** Board Order */
+            board_order: string[];
+        };
+        /** BoardPatch */
+        BoardPatch: {
+            acknowledge_person_edit?: components["schemas"]["PersonEditAcknowledgment"];
+            cast?: {
+                asset_version_id: components["schemas"]["StudioDefs_asv_id"];
+                /** @description Optional pin of this cast still's motion loop (story 457, proposal): a library motion version with a motion block. Absent: the one promoted loop of the still. */
+                motion_asset_version_id?: components["schemas"]["StudioDefs_asv_id"];
+                slot: components["schemas"]["StudioDefs_slot"];
+            }[];
+            cues?: components["schemas"]["BoardCueInput"][];
+            /**
+             * RedraftDeclaration
+             * @description Agent only.
+             */
+            draft_application?: {
+                /** Board Key */
+                board_key: string;
+                /** Draft Sha256 */
+                draft_sha256: string;
+                /** Model */
+                model: string;
+                /** Previous Draft Sha256 */
+                previous_draft_sha256: string;
+                /** Session */
+                session: string;
+                /** Story Revision */
+                story_revision: number;
+            };
+            layout?: {
+                foreground: boolean;
+                preset: string;
+            };
+            lines?: {
+                gap_before_ms: unknown;
+                /** @description Omit for a new line or preserve an existing line ID. An agent draft declaration also allows a fresh line ID to anchor a cue in the same write. */
+                id?: components["schemas"]["StudioDefs_lin_id"];
+                speaker: components["schemas"]["StudioDefs_speaker"];
+                text: string;
+            }[] & (unknown & unknown);
+            method?: {
+                /** @enum {unknown} */
+                layer: "layered" | "whole_frame";
+                /** @enum {unknown} */
+                motion: "s2v" | "i2v";
+            };
+            notes?: components["schemas"]["NoteInput"][];
+            photo?: {
+                current_version_id: components["schemas"]["StudioDefs_asv_id_or_null"];
+                input_asset_version_ids: components["schemas"]["StudioDefs_asv_id"][];
+                prompt: string | null;
+            };
+            seeds?: {
+                [key: string]: number;
+            };
+            timing?: {
+                content_ms?: components["schemas"]["StudioDefs_duration_is_derived"];
+                duration_ms?: components["schemas"]["StudioDefs_duration_is_derived"];
+                frames?: components["schemas"]["StudioDefs_duration_is_derived"];
+                hold_ms: unknown;
+                lead_ms: unknown;
+                tail_ms: unknown;
+            };
+            title?: string;
+            voice?: {
+                current_version_id: unknown;
+                style: unknown;
+            };
+        };
+        /** BoardRemoval */
+        BoardRemoval: {
+            acknowledge_person_edit?: components["schemas"]["PersonEditAcknowledgment"] | null;
+        };
+        /** @enum {unknown} */
+        Board_person_edit: "content" | "reordered" | "removed";
+        Board_person_edit_acknowledgments: {
+            acknowledged_at: components["schemas"]["StudioDefs_timestamp"];
+            board_revision: components["schemas"]["StudioDefs_positive"];
+            key_id: string;
+        }[];
         CameraCueInput: {
             anchor: components["schemas"]["StudioDefs_anchor"];
             center_px: [
@@ -986,6 +1098,8 @@ export interface components {
         };
         /** ErrorDetail */
         ErrorDetail: {
+            /** Board Id */
+            board_id?: string | null;
             /** Code */
             code: string;
             /** Current Revision */
@@ -1002,6 +1116,10 @@ export interface components {
             message: string;
             /** Path */
             path: string;
+            /** Person Edit */
+            person_edit?: ("content" | "reordered" | "removed") | null;
+            /** Person Edit Revision */
+            person_edit_revision?: number | null;
             /** Request Id */
             request_id: string;
             /**
@@ -1135,6 +1253,13 @@ export interface components {
             items: components["schemas"]["Story"][];
             /** Next Cursor */
             next_cursor: string | null;
+        };
+        /** PersonEditAcknowledgment */
+        PersonEditAcknowledgment: {
+            /** Board Revision */
+            board_revision: number;
+            /** Read Token */
+            read_token: string;
         };
         /** studio.production/v1: a themed collection (contract section 1, D28) */
         Production: {
@@ -1765,7 +1890,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -1876,7 +2001,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -1987,7 +2112,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -2154,7 +2279,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -2270,7 +2395,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -2345,6 +2470,8 @@ export interface operations {
                     ETag?: string;
                     /** @description Server-generated request ID, also used in errors and access logs */
                     "X-Request-ID"?: string;
+                    /** @description For agent reads. Bound to the agent key, board ID and board revision. */
+                    "X-Studio-Board-Read-Token"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -2384,7 +2511,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -2455,7 +2582,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["BoardRemoval"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             204: {
@@ -2499,7 +2630,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -2572,7 +2703,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BoardWrite"];
+                "application/json": components["schemas"]["BoardPatch"];
             };
         };
         responses: {
@@ -2622,7 +2753,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -2737,7 +2868,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -2847,7 +2978,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -2959,7 +3090,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -3080,7 +3211,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -3208,7 +3339,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -3338,7 +3469,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -3452,7 +3583,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -3571,7 +3702,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -3685,7 +3816,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -3805,7 +3936,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -3924,7 +4055,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -4046,7 +4177,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -4160,7 +4291,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -4279,7 +4410,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -4401,7 +4532,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -4513,7 +4644,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -4632,7 +4763,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -4746,7 +4877,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -4869,7 +5000,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -4992,7 +5123,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -5065,7 +5196,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BoardWrite"];
+                "application/json": components["schemas"]["BoardCreate"];
             };
         };
         responses: {
@@ -5115,7 +5246,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -5227,7 +5358,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -5343,7 +5474,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -5474,7 +5605,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
@@ -5586,7 +5717,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The current revision differs */
+            /** @description The revision differs or the board is protected */
             409: {
                 headers: {
                     /** @description Server-generated request ID, also used in errors and access logs */
