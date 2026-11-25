@@ -64,7 +64,12 @@ def queue(service, engine, owner_engine, monkeypatch, tmp_path):
     app.state.build_stage_root = stage_root
     with owner_engine.begin() as conn:
         conn.exec_driver_sql("TRUNCATE escalation_events, escalation_packages, escalation_check_failures, "
-                             "go_live_withdrawals, go_live_approvals, run_check_overrides, run_wan_attempts, runs")
+                             "go_live_withdrawals, go_live_approvals, run_check_overrides, run_wan_attempts")
+        conn.exec_driver_sql("UPDATE stories SET feedback_iteration_id = NULL WHERE feedback_iteration_id IS NOT NULL")
+        conn.exec_driver_sql("DELETE FROM feedback_iterations")
+        conn.exec_driver_sql("DELETE FROM candidate_feedback")
+        conn.exec_driver_sql("DELETE FROM run_candidates")
+        conn.exec_driver_sql("DELETE FROM runs")
         conn.exec_driver_sql("TRUNCATE media_jobs, queue_lane_events")
         conn.exec_driver_sql("UPDATE run_lane SET next_position = 1, worker_seen_at = NULL")
         conn.exec_driver_sql("UPDATE media_job_lanes SET next_position = 1")
@@ -222,6 +227,13 @@ def test_snapshot_serves_exact_run_bytes_to_scoped_readers(queue):
         assert response.headers["content-type"] == "application/json"
         assert response.headers["etag"] == f'"{pin["sha256"]}"'
         assert response.headers["cache-control"] == "private, no-store"
+    etag = f'"{pin["sha256"]}"'
+    for condition in (etag, f'"other", W/{etag}', "*"):
+        cached = client(q.app).get(path, headers={**reader, "If-None-Match": condition})
+        assert cached.status_code == 304 and cached.content == b""
+        assert cached.headers["etag"] == etag
+        assert cached.headers["cache-control"] == "private, no-store"
+    assert q.browser.get(path, headers={"If-None-Match": '"other"'}).content == frozen
     assert q.browser.get(f'/v1/media/{pin["sha256"]}').status_code == 404
 
     other = new_production(q.browser, q.csrf)
@@ -230,7 +242,7 @@ def test_snapshot_serves_exact_run_bytes_to_scoped_readers(queue):
     missing = Minter().mint("run")
     for credentials in (outsider, no_read):
         for private in (path, f"/v1/runs/{missing}/snapshot", f'/v1/runs/{run["id"]}'):
-            refused = client(q.app).get(private, headers=credentials)
+            refused = client(q.app).get(private, headers={**credentials, "If-None-Match": etag})
             assert refused.status_code == 404
             assert refused.json()["error"]["code"] == "not_found"
             assert refused.headers["cache-control"] == "private, no-store"
@@ -241,12 +253,35 @@ def test_snapshot_serves_exact_run_bytes_to_scoped_readers(queue):
 
     blob = Path(q.store.root) / pin["locator"]
     blob.rename(blob.with_suffix(".original"))
-    missing_blob = q.browser.get(path)
-    assert missing_blob.status_code == 404 and missing_blob.json()["error"]["code"] == "run.snapshot_missing"
+    missing_blob = q.browser.get(path, headers={"If-None-Match": etag})
+    assert missing_blob.status_code == 503 and missing_blob.json()["error"]["code"] == "run.snapshot_lost"
+    assert "etag" not in missing_blob.headers
     blob.write_bytes(frozen + b" ")
-    corrupt = q.browser.get(path)
+    corrupt = q.browser.get(path, headers={"If-None-Match": etag})
     assert corrupt.status_code == 503 and corrupt.json()["error"]["code"] == "run.snapshot_changed"
     assert "etag" not in corrupt.headers
+
+
+def test_snapshot_reader_caps_blob_io(queue, monkeypatch):
+    from io import BytesIO
+
+    from haynes_studio.api import run_routes
+
+    q = queue
+    run = queue_run(q, "snapshot-size-limit").json()
+    reads = []
+
+    class OversizedBlob(BytesIO):
+        def read(self, size=-1):
+            reads.append(size)
+            return super().read(size)
+
+    monkeypatch.setattr(run_routes, "MAX_SNAPSHOT_BYTES", 64)
+    monkeypatch.setattr(q.store, "open", lambda _: OversizedBlob(b" " * 128))
+    response = q.browser.get(f'/v1/runs/{run["id"]}/snapshot')
+    assert response.status_code == 503 and response.json()["error"]["code"] == "run.snapshot_too_large"
+    assert reads == [65]
+    assert "etag" not in response.headers
 
 
 def test_worker_auth_rejects_credentials_before_body_or_query(queue):

@@ -15,14 +15,21 @@ later runs. The build re-hashes referenced bytes before it asks Wan for a clip.
 | `POST /v1/stories/{id}/runs` | With `runs:queue`, send `If-Match` with the draft revision and a visible-ASCII `Idempotency-Key` of 1–255 characters. The response is 201 and carries the run location and its ETag. |
 | `GET /v1/stories/{id}/runs` | With `read`, list runs in enqueue order. Pass the last page's `next_cursor` with the same story. |
 | `GET /v1/runs/{id}` | With `read`, see progress, completed stages, checks, Wan attempt IDs and check overrides. The ETag is the run's own revision. |
-| `GET /v1/runs/{id}/snapshot` | With `read`, the run's frozen `studio.run-snapshot/v1` as the stored canonical bytes, with the recorded SHA-256 as a strong ETag. The Runs page compares two runs from these. A run with no snapshot (an imported recovered run) answers `404 run.snapshot_missing`; stored bytes that no longer match the recorded hash answer `503 run.snapshot_changed` and are never served. It is not available through `/v1/media`. |
+| `GET /v1/runs/{id}/snapshot` | With `read`, fetch the frozen `studio.run-snapshot/v1` bytes with the recorded SHA-256 as a strong ETag. A matching `If-None-Match` returns 304 after verifying the stored bytes. Run snapshots use this scoped route. |
 | `POST /v1/runs/{id}/cancel` | With `runs:queue`, send the run ETag as `If-Match`. The response shows the new state or a pending `cancel_requested` flag. |
 | `POST /v1/runs/{id}/checks/{check}/overrides` | A signed-in person sends the run ETag and `{"artifact": "<sha256>", "reason": "..."}`. The only supported check is a failed `layered.decal_gate`. |
 | `GET /v1/runs/{id}/delivery` | With `read`, fetch a finished delivery. Stream its proxy through the authenticated [media route](studio-api.md#private-playback). |
 
 A run read outside the caller's productions answers `404`, the same as an unknown run, on every run route (`GET /v1/runs/{id}`, its snapshot, its delivery, the story's run list and the go-live review read). Earlier builds answered `403` for some of these: a client must treat both as "not available to this caller".
 
-A repeated enqueue with the same story, actor, key and revision returns 200 and
+A run with no snapshot, such as a recovered import, returns 404
+`run.snapshot_missing`. A lost pinned blob returns 503 `run.snapshot_lost`.
+A hash or locator mismatch returns 503 `run.snapshot_changed`. Reads are
+bounded to 16 MiB. A larger stored snapshot returns 503 `run.snapshot_too_large`,
+and the enqueue route refuses a new snapshot above that limit with HTTP 413.
+
+A draft opened from [candidate feedback](feedback.md) adds its answer reference
+to the queued run document. A repeated enqueue with the same story, actor, key and revision returns 200 and
 the same run ID, including after a draft edit. Reusing that key with a different
 revision returns 422 `idempotency.mismatch`. A new key with a stale draft or run
 ETag returns 409 `conflict.revision`. Preflight reports unavailable methods as

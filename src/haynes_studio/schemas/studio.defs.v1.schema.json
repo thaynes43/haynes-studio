@@ -6,7 +6,7 @@
   "$defs": {
     "id": {
       "type": "string",
-      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
           "rule": "id.malformed",
@@ -21,7 +21,7 @@
     },
     "prd_id": {
       "type": "string",
-      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
           "rule": "id.malformed",
@@ -33,7 +33,7 @@
         }
       },
       "if": {
-        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
       },
       "then": {
         "pattern": "^prd_",
@@ -48,7 +48,7 @@
     },
     "sty_id": {
       "type": "string",
-      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
           "rule": "id.malformed",
@@ -60,7 +60,7 @@
         }
       },
       "if": {
-        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
       },
       "then": {
         "pattern": "^sty_",
@@ -75,7 +75,7 @@
     },
     "brd_id": {
       "type": "string",
-      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
           "rule": "id.malformed",
@@ -87,7 +87,7 @@
         }
       },
       "if": {
-        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
       },
       "then": {
         "pattern": "^brd_",
@@ -102,7 +102,7 @@
     },
     "lin_id": {
       "type": "string",
-      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
           "rule": "id.malformed",
@@ -114,7 +114,7 @@
         }
       },
       "if": {
-        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
       },
       "then": {
         "pattern": "^lin_",
@@ -129,7 +129,7 @@
     },
     "cue_id": {
       "type": "string",
-      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
           "rule": "id.malformed",
@@ -141,7 +141,7 @@
         }
       },
       "if": {
-        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
       },
       "then": {
         "pattern": "^cue_",
@@ -156,7 +156,7 @@
     },
     "nte_id": {
       "type": "string",
-      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
           "rule": "id.malformed",
@@ -168,7 +168,7 @@
         }
       },
       "if": {
-        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
       },
       "then": {
         "pattern": "^nte_",
@@ -183,7 +183,7 @@
     },
     "asv_id": {
       "type": "string",
-      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
           "rule": "id.malformed",
@@ -195,7 +195,7 @@
         }
       },
       "if": {
-        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
       },
       "then": {
         "pattern": "^asv_",
@@ -210,7 +210,7 @@
     },
     "fmv_id": {
       "type": "string",
-      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
           "rule": "id.malformed",
@@ -222,7 +222,7 @@
         }
       },
       "if": {
-        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
       },
       "then": {
         "pattern": "^fmv_",
@@ -237,7 +237,7 @@
     },
     "run_id": {
       "type": "string",
-      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
           "rule": "id.malformed",
@@ -249,7 +249,7 @@
         }
       },
       "if": {
-        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
       },
       "then": {
         "pattern": "^run_",
@@ -264,7 +264,7 @@
     },
     "dlv_id": {
       "type": "string",
-      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
           "rule": "id.malformed",
@@ -276,7 +276,7 @@
         }
       },
       "if": {
-        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
       },
       "then": {
         "pattern": "^dlv_",
@@ -294,7 +294,7 @@
         "string",
         "null"
       ],
-      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
           "rule": "id.malformed",
@@ -306,7 +306,7 @@
         }
       },
       "if": {
-        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
       },
       "then": {
         "pattern": "^asv_",
@@ -324,7 +324,7 @@
         "string",
         "null"
       ],
-      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
           "rule": "id.malformed",
@@ -336,7 +336,7 @@
         }
       },
       "if": {
-        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
       },
       "then": {
         "pattern": "^fmv_",
@@ -354,7 +354,7 @@
         "string",
         "null"
       ],
-      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
           "rule": "id.malformed",
@@ -366,7 +366,7 @@
         }
       },
       "if": {
-        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
       },
       "then": {
         "pattern": "^run_",
@@ -384,7 +384,7 @@
         "string",
         "null"
       ],
-      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
       "x-studio": {
         "pattern": {
           "rule": "id.malformed",
@@ -396,7 +396,7 @@
         }
       },
       "if": {
-        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        "pattern": "^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
       },
       "then": {
         "pattern": "^dlv_",

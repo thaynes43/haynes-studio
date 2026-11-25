@@ -142,6 +142,10 @@ def test_import_replay_and_production_scoped_media(operator, service, owner_engi
         assert approval.status_code == 422
         assert approval.json()["error"]["code"] == "approval.legacy_run"
         assert review.json()["approve"] == {"allowed": False, "code": approval.json()["error"]["code"]}
+        candidate = owner.post(f'/v1/runs/{result["run_id"]}/candidates',
+                               headers=csrf, json={"target_id": "fixture-target"})
+        assert candidate.status_code == 422
+        assert candidate.json()["error"]["code"] == "candidate.legacy_run"
     _, headers = register_agent(owner_engine, {fixture.production_id: ["read"]})
     _, wrong = register_agent(owner_engine, {other: ["read"]})
     production = browser.get(f'/v1/productions/{result["production_id"]}', headers=headers)

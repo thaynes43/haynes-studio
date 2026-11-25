@@ -1,6 +1,7 @@
 """Scoped public run routes and worker-only queue transactions."""
 
 import os
+import re
 from datetime import datetime
 from hashlib import sha256
 from typing import Annotated, Literal
@@ -11,6 +12,7 @@ from haynes_studio.build.prebuild import snapshot_bytes
 from haynes_studio.build.validate import validate_run
 from haynes_studio.canonical.model import to_document
 from haynes_studio.db import catalog, drafts, jobs, queue_controls, runs
+from haynes_studio.feedback import records as feedback
 from haynes_studio.golive import records as go_live
 from haynes_studio.db.engine import snapshot
 from haynes_studio.db.problems import NotFound, StaleRevision, require_valid
@@ -36,6 +38,15 @@ from .models import Body, Document, Page, TransportModel
 from .routes import Cursor, ETAG, IfMatch, Limit, _cursor, _etag, _id, _page, _revision, _story_access
 
 IdempotencyKey = Annotated[str, Header(alias="Idempotency-Key", pattern=r"^[!-~]{1,255}$")]
+
+
+IfNoneMatch = Annotated[list[str] | None, Header(alias="If-None-Match")]
+MAX_SNAPSHOT_BYTES = 16 * 1024 * 1024
+_OPAQUE_TAG = r'(?:W/)?"[\x21\x23-\x7e\x80-\xff]*"'
+_ENTITY_TAG = re.compile(_OPAQUE_TAG)
+_ENTITY_TAG_LIST = re.compile(rf"{_OPAQUE_TAG}(?:[ \t]*,[ \t]*{_OPAQUE_TAG})*")
+_SNAPSHOT_ETAG = {"ETag": {"schema": {"type": "string"},
+                           "description": "The quoted SHA-256 of the snapshot bytes"}}
 
 
 class RunView(Document):
@@ -132,8 +143,8 @@ def _read_view(conn, row, *, detail=True, worker_present=None):
     return view
 
 
-def _run_access(conn, actor, scope, run_id, *, lock=False):
-    row = runs.get(conn, _id(run_id, "run"), lock=lock)
+def _run_access(conn, actor, scope, run_id, *, lock=False, snapshot_pin_only=False):
+    row = runs.get(conn, _id(run_id, "run"), lock=lock, snapshot_pin_only=snapshot_pin_only)
     if scope == "read":
         productions = actor.productions(scope)
         if productions is not None and row["production_id"] not in productions:
@@ -143,21 +154,30 @@ def _run_access(conn, actor, scope, run_id, *, lock=False):
     return row
 
 
-def _stored_snapshot(store, row):
-    if row["snapshot"] is None:
+def _stored_snapshot(store, row, if_none_match):
+    pin = row["snapshot_pin"]
+    if pin is None or row["snapshot_type"] == "null":
         raise APIError(404, "run.snapshot_missing", "This run has no frozen snapshot")
-    pin = row["document"]["snapshot"]
     digest = pin["sha256"]
     try:
         locator = blob_locator(row["production_id"], digest, "application/json")
         if locator == pin["locator"]:
             with store.open(locator) as handle:
-                data = handle.read()
+                data = handle.read(MAX_SNAPSHOT_BYTES + 1)
+            if len(data) > MAX_SNAPSHOT_BYTES:
+                raise APIError(503, "run.snapshot_too_large", "The stored snapshot exceeds the read limit")
             if sha256(data).hexdigest() == digest:
-                return Response(data, media_type="application/json", headers={"ETag": f'"{digest}"'})
+                etag = f'"{digest}"'
+                conditions = ",".join(if_none_match or []).strip()
+                matching_tag = _ENTITY_TAG_LIST.fullmatch(conditions) and any(
+                    tag.removeprefix("W/") == etag for tag in _ENTITY_TAG.findall(conditions)
+                )
+                if conditions == "*" or matching_tag:
+                    return Response(status_code=304, headers={"ETag": etag})
+                return Response(data, media_type="application/json", headers={"ETag": etag})
     except StoreError as error:
         if error.code == BLOB_MISSING:
-            raise APIError(404, "run.snapshot_missing", "This run has no stored snapshot") from error
+            raise APIError(503, "run.snapshot_lost", "The frozen snapshot is missing from the store") from error
         raise APIError(503, "run.snapshot_store_unavailable", "The snapshot could not be read") from error
     except OSError as error:
         raise APIError(503, "run.snapshot_store_unavailable", "The snapshot could not be read") from error
@@ -215,6 +235,8 @@ def build_router(CurrentActor, authenticated_route):
                 prepared.ensure_buildable()
                 frozen, library = inputs.freeze(prepared, studio=request.app.state.build_revision)
                 data, sha = snapshot_bytes(frozen)
+                if len(data) > MAX_SNAPSHOT_BYTES:
+                    raise APIError(413, "run.snapshot_too_large", "The snapshot exceeds the store read limit")
                 try:
                     store.publish(data, scope=draft.story["production_id"], media_type="application/json",
                                   expected_sha256=sha)
@@ -223,7 +245,7 @@ def build_router(CurrentActor, authenticated_route):
                                    "The snapshot could not be stored") from error
                 row = runs.enqueue(conn, snapshot=frozen, snapshot_sha256=sha, library=library,
                                    actor=principal, key=idempotency_key,
-                                   estimate=inputs.estimate(prepared))
+                                   estimate=inputs.estimate(prepared), answers=feedback.answers(conn, id))
             response.headers["Location"] = f'/v1/runs/{row["id"]}'
             return _etag(response, _read_view(conn, row))
 
@@ -247,15 +269,14 @@ def build_router(CurrentActor, authenticated_route):
     @router.get("/runs/{id}/snapshot", response_class=Response, operation_id="get_run_snapshot",
                 responses={200: {
                     "description": "Original canonical studio.run-snapshot/v1 bytes",
-                    "headers": {"ETag": {"schema": {"type": "string"},
-                                         "description": "The quoted SHA-256 of the snapshot bytes"}},
+                    "headers": _SNAPSHOT_ETAG,
                     "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RunSnapshot"}}},
-                }})
-    def get_run_snapshot(id: str, request: Request, actor: CurrentActor):
+                }, 304: {"description": "Snapshot matches If-None-Match", "headers": _SNAPSHOT_ETAG}})
+    def get_run_snapshot(id: str, request: Request, actor: CurrentActor, if_none_match: IfNoneMatch = None):
         state = request.app.state
         with snapshot(state.engine) as conn:
-            row = _run_access(conn, actor, "read", id)
-        return _stored_snapshot(state.store, row)
+            row = _run_access(conn, actor, "read", id, snapshot_pin_only=True)
+        return _stored_snapshot(state.store, row, if_none_match)
 
     @router.post("/runs/{id}/cancel", response_model=RunView, responses={200: {"headers": ETAG}},
                  operation_id="cancel_run")

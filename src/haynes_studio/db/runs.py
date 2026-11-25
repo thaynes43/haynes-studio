@@ -62,7 +62,7 @@ def lookup_idempotency(conn, story_id, actor, key, story_revision):
     return row
 
 
-def enqueue(conn, *, snapshot, snapshot_sha256, library, actor, key, estimate):
+def enqueue(conn, *, snapshot, snapshot_sha256, library, actor, key, estimate, answers=None):
     story = snapshot["story"]
     production_id = story["production_id"]
     position = conn.scalar(sa.select(run_lane.c.next_position).with_for_update())
@@ -77,6 +77,8 @@ def enqueue(conn, *, snapshot, snapshot_sha256, library, actor, key, estimate):
                   queued_by=actor, queued_at=timestamp(database_time(conn)), phase="all",
                   idempotency_key=key, reason="queued through Studio API")
     run["estimate"] = estimate["estimate"]
+    if answers is not None:
+        run["answers"] = answers
     return conn.execute(runs.insert().values(
         id=run["id"], story_id=story["id"], production_id=production_id,
         position=position, number=run["number"], idempotency_actor=actor_key(actor),
@@ -85,8 +87,13 @@ def enqueue(conn, *, snapshot, snapshot_sha256, library, actor, key, estimate):
     ).returning(runs)).mappings().one()
 
 
-def get(conn, run_id, *, lock=False):
-    stmt = sa.select(runs).where(runs.c.id == run_id)
+def get(conn, run_id, *, lock=False, snapshot_pin_only=False):
+    if snapshot_pin_only:
+        stmt = sa.select(runs.c.production_id, runs.c.document["snapshot"].label("snapshot_pin"),
+                         sa.func.jsonb_typeof(runs.c.snapshot).label("snapshot_type"))
+    else:
+        stmt = sa.select(runs)
+    stmt = stmt.where(runs.c.id == run_id)
     if lock:
         stmt = stmt.with_for_update()
     row = conn.execute(stmt).mappings().one_or_none()

@@ -49,6 +49,9 @@ stories = sa.Table(
     sa.Column("source_key", sa.Text, unique=True), document(),
     sa.Column("published", sa.Boolean, nullable=False, server_default=sa.false()),
     foreign("format_version_id", "format_versions.id", nullable=True),
+    sa.Column("feedback_iteration_id", sa.Text, sa.ForeignKey(
+        "feedback_iterations.id", name="stories_feedback_iteration_fk", use_alter=True,
+    )),
     sa.CheckConstraint("format_version_id IS NULL OR "
                        "format_version_id IS NOT DISTINCT FROM document->>'format_version_id'",
                        name="stories_format_version_matches_document"),
@@ -223,4 +226,30 @@ go_live_approvals = sa.Table("go_live_approvals", metadata, identifier(),
 )
 go_live_withdrawals = sa.Table("go_live_withdrawals", metadata,
     foreign("approval_id", "go_live_approvals.id", primary_key=True), document(),
+)
+
+
+run_candidates = sa.Table(
+    "run_candidates", metadata, identifier(), foreign("run_id", "runs.id"),
+    sa.Column("target_id", sa.Text, nullable=False),
+    sa.Column("presented_by", JSONB, nullable=False),
+    sa.Column("presented_at", sa.DateTime(timezone=True), nullable=False),
+    sa.UniqueConstraint("run_id", "target_id"),
+)
+candidate_feedback = sa.Table(
+    "candidate_feedback", metadata, identifier(), foreign("candidate_id", "run_candidates.id"),
+    sa.Column("text", sa.Text, nullable=False),
+    sa.Column("board_ids", ARRAY(sa.Text), nullable=False),
+    sa.Column("replaces_id", sa.Text, unique=True),
+    sa.Column("written_by", JSONB, nullable=False),
+    sa.Column("written_at", sa.DateTime(timezone=True), nullable=False),
+    sa.UniqueConstraint("candidate_id", "id"),
+    sa.ForeignKeyConstraint(["candidate_id", "replaces_id"], ["candidate_feedback.candidate_id", "candidate_feedback.id"]),
+)
+feedback_iterations = sa.Table(
+    "feedback_iterations", metadata, identifier(), foreign("candidate_id", "run_candidates.id"),
+    sa.Column("note_ids", ARRAY(sa.Text), nullable=False),
+    sa.Column("started_by", JSONB, nullable=False),
+    sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("started_revision", sa.BigInteger, nullable=False),
 )

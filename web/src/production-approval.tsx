@@ -84,7 +84,9 @@ export function ReviewTime({ value }: { value: string }) {
     : null;
 }
 
-function History({ approvals }: { approvals: Approval[] }) {
+type ApprovalHistoryItem = ApprovalReview["approvals"][number];
+
+function History({ approvals }: { approvals: ApprovalHistoryItem[] }) {
   if (!approvals.length) return null;
   return <>
     <h4>Approval history</h4>
@@ -120,7 +122,7 @@ export function GoLive({
 
   const signInPath = freshSignIn(path);
 
-  async function decide(review: ApprovalReview, approval?: Approval) {
+  async function decide(review: ApprovalReview, approval?: ApprovalHistoryItem) {
     const master = approval?.master_sha256 ?? review.master_sha256;
     if (request.current || failure || !master) return;
     const operation = new AbortController();

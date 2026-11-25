@@ -94,7 +94,10 @@ export function reviewFixtures(story: Schemas["Story"], media: ReviewMedia) {
       run_id: run.id, master_sha256: master,
       approve: refusal ? refused(refusal) : active ? refused("approval.already_active") : allowed,
       withdraw: identityRefusal ? refused(identityRefusal) : active ? allowed : refused("approval.already_withdrawn"),
-      release_checks: checks, approvals: records,
+      release_checks: checks,
+      approvals: identityRefusal && identityRefusal !== "approval.sign_in_again"
+        ? records.map(({ approver: _approver, auth_time: _authTime, ...record }) => record)
+        : records,
     };
   }
 

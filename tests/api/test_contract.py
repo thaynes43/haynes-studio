@@ -68,6 +68,20 @@ def test_openapi_has_resolved_canonical_shapes_errors_and_security():
     assert snapshot["x-studio-scope"] == "read"
     assert snapshot["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith("/RunSnapshot")
     assert "ETag" in snapshot["responses"]["200"]["headers"]
+    assert "304" in snapshot["responses"]
+    assert any(parameter["name"] == "If-None-Match" for parameter in snapshot["parameters"])
+    candidates = document["paths"]["/v1/stories/{id}/candidates"]["get"]
+    assert candidates["x-studio-scope"] == "read"
+    assert "ETag" in candidates["responses"]["200"]["headers"]
+    present = document["paths"]["/v1/runs/{id}/candidates"]["post"]
+    assert present["x-studio-scope"] == "runs:queue"
+    assert "200" in present["responses"] and "201" in present["responses"]
+    for slug in ("feedback", "iterations"):
+        write = document["paths"][f"/v1/candidates/{{id}}/{slug}"]["post"]
+        assert write["security"] == [{"StudioSession": []}]
+        assert write["x-studio-scope"] == "human"
+    assert "answers" in schemas["RunView"]["properties"]
+    assert "answers" not in schemas["RunView"]["required"]
     overrides = document["paths"]["/v1/runs/{id}/checks/{check}/overrides"]["post"]
     assert overrides["x-studio-scope"] == "runs:queue"
     assert overrides["security"] == [{"StudioSession": []}]

@@ -5,7 +5,8 @@ import { collectPages } from "./route-data";
 
 export type Run = Pick<components["schemas"]["RunView"],
   "id" | "story_id" | "number" | "status" | "queued_at" | "snapshot" | "delivery_id" |
-  "active_approval_id" | "checks" | "stages">;
+  "active_approval_id" | "checks" | "stages" | "answers"> &
+  Partial<Pick<components["schemas"]["RunView"], "legacy">>;
 export type Delivery = components["schemas"]["Delivery"];
 
 export const runStates: Record<Run["status"], string> = {

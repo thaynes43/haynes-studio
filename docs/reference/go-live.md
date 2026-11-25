@@ -40,7 +40,10 @@ failed callback redirects to `/?auth_error=<code>`.
 return the same 404. The response includes `run_id`, the delivered
 `master_sha256` or null, newest-first `approvals` with their derived withdrawal
 state, and `release_checks` previewed with the synthetic-content setting on.
-The preview can be partial or null when checks fail.
+The preview can be partial or null when checks fail. Signed-in readers see
+approval display names and decision times. The go-live allowlist also grants
+access to issuer, subject and sign-in time in approval and withdrawal records.
+Fresh sign-in is checked independently for decisions.
 
 `approve` and `withdraw` each have `allowed: true` or
 `allowed: false` with the corresponding write's refusal `code`. An in-scope
