@@ -6,10 +6,11 @@ type, delivering a finished master through the store with its phone proxy, and l
 deliveries mapped read-only from the Wan ledger. Built against
 [contract v1](../contracts/studio-contracts-v1.md) section 8 ("Deliveries", the store
 layout and publication), with TIME-11 from section 3, on the store and stages of
-[store-and-stages.md](store-and-stages.md). Only the `local` store adapter exists; the
-NFS adapter and its database ledger are stories
-[434](https://work.haynesnetwork.com/work_packages/434) and
-[428](https://work.haynesnetwork.com/work_packages/428). Nothing here is installed.
+[store-and-stages.md](store-and-stages.md). The
+delivery library uses the local filesystem store adapter. The installed API
+mounts NFS and indexes authenticated delivery reads in Postgres. Both
+archived films are available to authorized playback clients.
+[Install evidence](../contracts/studio-contracts-v1.md#installed-and-published-state).
 
 ## Modules
 

@@ -2,9 +2,10 @@
 
 **Proposed 2026-11-25** for [story 461](https://work.haynesnetwork.com/work_packages/461).
 Pilot **FSRCNN ×2 FP32 on OpenCV DNN CPU**. Keep **Pillow Lanczos** as the
-explicit fallback and the current default. The coordinator selects a profile
-for the install session. Keep Lanczos for production until the synthetic smoke
-and one private comparison demonstrate a useful gain. Both choices use zero
+explicit fallback and current delivery default. Provisional
+[ruling 35](../contracts/studio-contracts-v1.md#ruling-35) chooses FSRCNN for
+comparison only. It becomes selectable only after the install smoke and one
+private comparison show a useful gain. Both choices use zero
 GPU lease time.
 
 The E0 assembly scaled 576 × 1024 clips to 1080 × 1920 (1.875×) and reported
@@ -186,10 +187,8 @@ ready replica on talosw01, limited to **20 vCPUs and 32 GiB**. Read-only
 `stat -f -c '%S %a %c %d' /studio` in that container showed
 **110,936,790,663,168 bytes free (100.90 TiB)**. Free inodes were unreported
 (dash in `df`, `-1` in `stat`). The later queue-worker rollout reduced D18's
-original 24-vCPU render allocation by four. The 24-vCPU values in the
-repository rules and service reference predate that rollout. The pilot
-uses the observed 20-vCPU limit and the queue worker's separate four-vCPU
-allocation. [Rollout evidence, comment 9872](https://work.haynesnetwork.com/work_packages/956) ·
+original 24-vCPU render allocation by four. The pilot uses the observed
+20-vCPU limit and the queue worker's separate four-vCPU allocation. [Rollout evidence, comment 9872](https://work.haynesnetwork.com/work_packages/956) ·
 [Render service](services.md#studio-render-cpu-work) · [Repository rules](../../AGENTS.md)
 
 - One primary download totals **38,973 weight bytes**, leaving

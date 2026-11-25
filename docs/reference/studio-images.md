@@ -47,7 +47,8 @@ This answered Q-433-01 without an owner visibility change.
 | `ghcr.io/thaynes43/haynes-studio-web` | `sha256:8ea1576f1efa6502cb4633a018cdd6dd631869d05fa5895dae7df58ef36aebfc` |
 
 These digests prove publication. No Studio app deployment was recorded in these
-waves. Story 434 selects and pull-checks the digests of the revision it deploys.
+waves. Story 434 selected and pull-checked the first deployed revision.
+[Installed pins](../contracts/studio-contracts-v1.md#installed-and-published-state).
 The first publication predates the MCP and run queue implementations.
 
 ## Runtime configuration
@@ -73,8 +74,8 @@ the SPA for UI routes. HTML is served with `Cache-Control: no-store`. Hashed Vit
 assets use a one-year immutable cache policy.
 
 Override the Python image's command for `studio` or the migration Job. Revisions
-containing story 429 can use the same image for `studio-mcp`. The queue worker
-follows with story 410. Run entry points directly from the installed environment.
+containing story 429 can use the same image for `studio-mcp`. Revisions containing story 410 also run
+`studio-worker`. Run entry points directly from the installed environment.
 The final filesystem contains the package, its migrations, runtime libraries and
 the bundled ffmpeg executable. Build tooling, wheel test media and the unused
 SciPy Sobol sample tables are excluded.

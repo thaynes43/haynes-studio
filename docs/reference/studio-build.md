@@ -654,7 +654,7 @@ for another build. The planning commands below are historical.
    held ...`): stop and follow the held record's `check` before anything else. Watch the
    Wan compute lease; never bypass it.
 7. **The offline phase.** `nice -n 10 uv run studio build ... --offline --workers N`
-   (N up to 22 on `ai/studio-render`, 1 in a session pod). It renders the picture, the
+   (N up to 18 at the current 20-vCPU render limit, 1 in a session pod). It renders the picture, the
    mix and the master, then stops at the transcript check with `build.offline_missing`
    (stage `check_result`): the master is new, and the recognizer is a service.
 8. **The transcript.** `uv run studio build ... --phase service` again, from where the

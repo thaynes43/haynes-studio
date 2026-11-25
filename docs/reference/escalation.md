@@ -226,8 +226,8 @@ under a CallerPolicy (dev-env DESIGN-064 section 5.6). A public copy of that
 section was unavailable. The interface here is limited to the work order's
 description. The immutable package becomes the caller-supplied contract.
 The session acts within that contract and its usage limits. Its one
-`done`, `failed` or `escalate` report maps to Studio's callback. dev-env
-selects the provider and model by capacity.
+`done`, `failed` or `escalate` report maps to Studio's callback. D12 calls for dev-env to select provider and model
+by capacity. Confirmation of the real interface is held for story 446.
 
 Before story 446, the dev-env coordinator must confirm each of these items.
 

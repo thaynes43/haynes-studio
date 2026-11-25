@@ -8,15 +8,15 @@ recovery steps. The isolated restore drill belongs to
 
 | Data | Protection | Read-only evidence on 2026-11-25 |
 | --- | --- | --- |
-| Studio metadata | The `studio` database is on CNPG `database/postgres16`. The `postgres` ScheduledBackup uses `@daily`. Barman writes cluster-wide physical base backups and continuous WAL to S3 at `s3://cnpg-haynesops/`, under `postgres16-v6`, with a 30-day recovery window. | The newest completed Backup was `postgres-20261124000000`, Barman ID `20261124T000000`. The Backup and Cluster report completion at `2026-11-24T00:01:39Z`. The base predates the applied `studio` Database resource, created at `2026-11-24T21:03:33Z`. Recovering Studio from this base needs WAL replay past database creation. |
+| Studio metadata | The `studio` database is on CNPG `database/postgres16`. The `postgres` ScheduledBackup uses `@daily`. Barman writes cluster-wide physical base backups and continuous WAL to S3 at `s3://cnpg-haynesops/`, under `postgres16-v6`, with a 30-day recovery window. | The first completed base containing Studio and both imports is `postgres-20261125000000`, Barman ID `20261125T000000`, created by Kubernetes at 2026-11-25 05:00Z. The previous base predates Studio and needs WAL replay past its creation. [Story 435](https://work.haynesnetwork.com/work_packages/435), comments 9887 and 9948. |
 | Small Studio PVCs | VolSync is the policy for any future small Studio claim. | No Studio PVC exists in `ai`. No claim is mounted by `studio-api`, `studio-web`, `studio-mcp`, `studio-worker` or `studio-render`. The API, worker and render mounts use raw NFS. |
 | Media | **NFS media is not backed up (D47).** | The share holds the canonical store, build staging, old job directories and finished archives listed below. |
 
-The `postgres` schedule recorded its last trigger at `2026-11-24T05:00:00Z`,
-matching the Backup resource's creation time and owner. The same object
-carries Barman's earlier reported times. Use the schedule and Kubernetes
-creation timestamps to identify that day's trigger. The next trigger
-was scheduled for `2026-11-25T05:00:00Z`.
+The Backup's Barman start and stop fields read 00:00:00Z to 00:01:37Z.
+Use the Kubernetes creation timestamp to identify the daily trigger.
+The first base containing Studio was taken after the 03:42Z imports.
+The tracker records three Ready instances and continuous archiving.
+The isolated restore remains due in story 436.
 
 WAL archiving was healthy at the check. CNPG reported `ContinuousArchiving=True`,
 `LastBackupSucceeded=True` and 3 ready instances. The primary's
@@ -30,7 +30,7 @@ recovery target using the cluster owner's archive continuity checks.
 To refresh the evidence, run the following and select the `postgres16`
 cluster, `postgres` schedule and latest completed Backup for that cluster.
 Record only backup identifiers, times, status and archiving evidence.
-The coordinator checks for the first completed base taken after provisioning.
+Use the tracker record above for the first completed base after provisioning.
 
 ```sh
 kubectl -n database get backups,scheduledbackups

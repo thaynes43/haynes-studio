@@ -3,9 +3,10 @@
 **Proposed 2026-11-25** for [story 459](https://work.haynesnetwork.com/work_packages/459).
 Use **BiRefNet Lite FP32 on ONNX Runtime CPU** for single-subject cast and prop
 stills. Keep **BRIA RMBG 1.4 FP32 on the same CPU runtime** as the fallback if
-the first profile fails the resource or quality smoke. The coordinator selects
-one profile before the next part of story 459 provisions it. A fallback is a
-new, explicit profile selection with its own smoke, input signatures and receipts.
+the first profile fails the resource or quality smoke. Provisional
+[ruling 33](../contracts/studio-contracts-v1.md#ruling-33) selects BiRefNet Lite
+for stills. Installation and private quality proof remain open. A fallback
+requires a new ruling and its own smoke, input signatures and receipts.
 BiRefNet Lite has published object-domain evidence and a pinned CPU-compatible
 export. BRIA uses a different saliency architecture with a smaller graph and
 published CPU integration evidence. It gives the pilot a second approach.
