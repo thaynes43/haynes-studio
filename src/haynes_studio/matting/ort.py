@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from importlib import import_module
+
 import numpy as np
 from PIL import Image
 from scipy.special import expit
@@ -14,7 +16,9 @@ from .profile import (
 
 class OnnxMatte:
     def __init__(self, graph: bytes):
-        import onnxruntime as ort
+        # ORT belongs to the matting image; the main Studio installation can
+        # import this module without the optional native runtime.
+        ort = import_module("onnxruntime")
 
         if ort.__version__ != RUNTIME_VERSION:
             raise MatteError(PIN_MISMATCH)
