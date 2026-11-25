@@ -111,7 +111,7 @@ def _errors(app: FastAPI):
         message = ("A person edited this board" if error.person_edit else
                    "The board no longer matches this key's agent draft baseline")
         return await api_error(request, APIError(
-            409, "draft.protected", message, path="/draft_application",
+            409, "draft.protected", message, path=error.path,
             board_id=error.board_id, current_revision=error.current_revision,
             person_edit=error.person_edit, person_edit_revision=error.person_edit_revision,
         ))

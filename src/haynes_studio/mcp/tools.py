@@ -40,6 +40,7 @@ def board(record: dict) -> dict:
     provenance = pick(record, "drafted_by", "draft_application") if "draft_application" in record else {}
     return {
         **pick(record, "schema", "number", "title"), **provenance,
+        **pick(record, "person_edit", "person_edit_revision", "person_edit_acknowledgments"),
         "id": record["id"], "story_id": record["story_id"], "revision": record["revision"],
     }
 

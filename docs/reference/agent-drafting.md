@@ -62,8 +62,10 @@ receipt. People can add boards in the editor.
 Studio writes the authenticated key ID in `drafted_by` and adds
 `draft_application` with the board key, declared model/session, server
 timestamp, draft hash and resulting board revision. A signed-in person's
-subsequent patch, reorder or tombstone of that board records `person_edit`
-and `person_edit_revision`. A person can continue editing it normally. An
+creation, patch, reorder or tombstone records `person_edit` and
+`person_edit_revision`. Unstamped boards carry these fields on the board
+itself. Stamped boards carry them in `draft_application`. A person can
+continue editing a protected board normally. An
 agent patch, reorder that moves it, or removal requires an acknowledgment of
 its current revision. A re-draft by a different key also requires an
 acknowledgment. A reorder by the original key advances an intact stamp to the

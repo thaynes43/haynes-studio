@@ -34,6 +34,7 @@ STORY_FIELDS = frozenset({
 BOARD_FIELDS = frozenset({"title", "lines", "timing", "voice", "photo", "cast", "layout",
                           "method", "seeds", "cues", "notes", "draft_application"})
 BOARD_CHILDREN = {"lines": "lin", "cues": "cue", "notes": "nte"}
+_PERSON_EDIT_FIELDS = ("person_edit", "person_edit_revision", "person_edit_acknowledgments")
 
 
 def timestamp() -> str:
@@ -346,35 +347,39 @@ def _draft_stamp(declaration: DraftDeclaration, revision: int, now: str) -> dict
 def _check_board_write(held: dict, by: dict, acknowledgment: int | None) -> None:
     if by["kind"] != "agent":
         return
-    stamp = held.get("draft_application", {})
+    protection = held.get("draft_application", held)
     if acknowledgment is not None:
         require_revision(held["revision"], acknowledgment, "/acknowledge_person_edit/board_revision")
-        if not stamp:
-            raise invalid("draft.no_stamp", "/acknowledge_person_edit",
-                          "Only a board with a draft stamp can be acknowledged")
-    elif "person_edit" in stamp:
+        if "draft_application" not in held and "person_edit" not in protection:
+            raise invalid("draft.no_protection", "/acknowledge_person_edit",
+                          "Acknowledge a board with a person edit or a draft stamp")
+    elif "person_edit" in protection:
         raise DraftProtected(held)
 
 
 def _board_changed(held: dict, by: dict, reason: str, now: str,
                    acknowledgment: int | None = None) -> dict:
     updated = {**held, "revision": held["revision"] + 1, "updated_at": now}
-    if "draft_application" not in held:
-        return updated
-    stamp = dict(held["draft_application"])
+    stamp = held.get("draft_application")
+    protection = dict(stamp) if stamp is not None else {
+        key: held[key] for key in _PERSON_EDIT_FIELDS if key in held
+    }
     if by["kind"] == "human":
-        stamp.update(person_edit=reason, person_edit_revision=updated["revision"])
+        protection.update(person_edit=reason, person_edit_revision=updated["revision"])
     elif by["kind"] == "agent":
-        if (reason == "reordered" and held["drafted_by"] == by
+        if (stamp is not None and reason == "reordered" and held["drafted_by"] == by
                 and stamp["board_revision"] == held["revision"]):
-            stamp.setdefault("applied_board_revision", held["revision"])
-            stamp["board_revision"] = updated["revision"]
+            protection.setdefault("applied_board_revision", held["revision"])
+            protection["board_revision"] = updated["revision"]
         if acknowledgment is not None:
-            stamp["person_edit_acknowledgments"] = [
-                *stamp.get("person_edit_acknowledgments", []),
+            protection["person_edit_acknowledgments"] = [
+                *protection.get("person_edit_acknowledgments", []),
                 {"key_id": by["key_id"], "acknowledged_at": now, "board_revision": acknowledgment},
             ]
-    updated["draft_application"] = stamp
+    if stamp is None:
+        updated.update(protection)
+    else:
+        updated["draft_application"] = protection
     return updated
 
 
@@ -411,6 +416,8 @@ def add_board(conn: sa.Connection, id_: str, revision: int, fields: dict, by: di
     }
     if declaration is not None:
         doc["draft_application"] = _draft_stamp(declaration, 1, now)
+    elif by["kind"] == "human":
+        doc.update(person_edit="content", person_edit_revision=1)
     spoken = bool(doc["lines"])
     doc.setdefault("timing", {"lead_ms": 0 if spoken else None, "tail_ms": 0 if spoken else None,
                               "hold_ms": None if spoken else 1000})
@@ -464,8 +471,7 @@ def edit_board(conn: sa.Connection, story_id: str, id_: str, revision: int,
         history = doc["draft_application"]
         doc["draft_application"] = {
             **_draft_stamp(declaration, doc["revision"], now),
-            **{key: history[key] for key in
-               ("person_edit", "person_edit_revision", "person_edit_acknowledgments") if key in history},
+            **{key: history[key] for key in _PERSON_EDIT_FIELDS if key in history},
         }
     updated = _advance(draft, {}, now)
     updated.boards = {**draft.boards, id_: doc}
@@ -495,7 +501,7 @@ def reorder(conn: sa.Connection, id_: str, revision: int, order: list[str], by: 
         held = draft.boards[id_board]
         acknowledgment = acknowledgments.get(id_board)
         _check_board_write(held, by, acknowledgment)
-        if "draft_application" in held:
+        if by["kind"] == "human" or "draft_application" in held or "person_edit" in held:
             updated.boards[id_board] = _board_changed(held, by, "reordered", now, acknowledgment)
             changed.append(id_board)
     refs = updated.validate(conn)

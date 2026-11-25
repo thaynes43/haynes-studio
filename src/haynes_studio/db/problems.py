@@ -24,9 +24,10 @@ class DraftProtected(Exception):
     def __init__(self, board: dict):
         self.board_id = board["id"]
         self.current_revision = board["revision"]
-        stamp = board.get("draft_application", {})
-        self.person_edit = stamp.get("person_edit")
-        self.person_edit_revision = stamp.get("person_edit_revision")
+        protection = board.get("draft_application", board)
+        self.path = "/person_edit" if "person_edit" in board else "/draft_application"
+        self.person_edit = protection.get("person_edit")
+        self.person_edit_revision = protection.get("person_edit_revision")
 
 
 def require_valid(violations) -> None:

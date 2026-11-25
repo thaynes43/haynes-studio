@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from mcp import ClientSession, types
 from PIL import Image
 
-from haynes_studio.canonical import to_document
+from haynes_studio.canonical import Board, to_document
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.cli import main
 from haynes_studio.db.catalog import record_asset_version
@@ -321,6 +321,53 @@ def test_plain_agent_board_writes_cannot_replace_a_person_edit(prepared):
             await call(session, "studio_reorder_boards", story_id=prepared.story, revision=revision,
                        board_order=[c, b, a])
             assert prepared.board(b).json()["revision"] == 2
+    asyncio.run(scenario())
+
+
+def test_person_creations_and_edits_protect_boards_without_a_draft_stamp(prepared):
+    async def scenario():
+        async with prepared.mcp.router.lifespan_context(prepared.mcp), prepared.session() as session:
+            api = prepared.browser
+            story_path = f"/v1/stories/{prepared.story}"
+            created = api.post(story_path + "/boards", json={"title": "Person's new board"},
+                               headers={**prepared.csrf, "If-Match": "1"})
+            assert created.status_code == 201
+            a = created.json()["id"]
+            b = (await call(session, "studio_add_board", story_id=prepared.story, revision=2,
+                            fields={"title": "Agent's ordinary board"}))["id"]
+            edited = prepared.edit(b, 1, title="Person's replacement")
+            assert edited.status_code == 200
+            for board_id, revision in ((a, 1), (b, 2)):
+                blocked = await fail(session, "studio_patch_board", board_id=board_id, revision=revision,
+                                     patch={"title": "Blocked"})
+                assert (blocked["code"], blocked["board_id"], blocked["person_edit_revision"]) == (
+                    "draft.protected", board_id, revision,
+                )
+                blocked = await fail(session, "studio_remove_board", board_id=board_id, revision=revision)
+                assert blocked["code"] == "draft.protected"
+            order = {"story_id": prepared.story, "revision": 4, "board_order": [b, a]}
+            blocked = await fail(session, "studio_reorder_boards", **order)
+            assert (blocked["code"], blocked["board_id"]) == ("draft.protected", b)
+            assert prepared.story_record()["revision"] == 4
+
+            reordered = api.put(story_path + "/board-order", json={"board_order": [b, a]},
+                                headers={**prepared.csrf, "If-Match": "4"})
+            assert reordered.status_code == 200
+            read = await call(session, "studio_get_board", board_id=b)
+            assert read["revision"] == read["person_edit_revision"] == 3
+            assert read["person_edit"] == "reordered"
+            written = await call(session, "studio_patch_board", board_id=b, revision=3, patch={
+                "title": "Requested agent edit", "acknowledge_person_edit": {
+                    "board_revision": 3, "read_token": read["read_token"],
+                },
+            })
+            assert written["revision"] == 4
+            assert written["person_edit_revision"] == 3
+            history = written["person_edit_acknowledgments"]
+            assert history[0]["key_id"] == prepared.key_id and history[0]["board_revision"] == 3
+            board = prepared.board(b).json()
+            assert "draft_application" not in board
+            assert to_document(Board.from_document(board))["person_edit_acknowledgments"] == history
     asyncio.run(scenario())
 
 

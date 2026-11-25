@@ -63,8 +63,10 @@ failures during the protocol request's key check return HTTP errors before tool
 dispatch. `service_unavailable` is 503, `internal` is 500, and `unavailable` at
 422 is a method capability error.
 
-An agent patch, reorder that moves a board, or tombstone of a board with a
-`draft_application.person_edit` marker returns `409 draft.protected`
+Creating, patching, reordering or removing a board as a person records a
+`person_edit` marker. Stamped boards carry it in `draft_application`.
+Unstamped boards carry it at the top level. An agent patch, reorder that moves
+the board, or tombstone of a board with that marker returns `409 draft.protected`
 unless acknowledged. The error includes `board_id`, `current_revision` and
 `person_edit_revision` for a person edit. Older stamps can have a null edit
 revision. A re-draft also returns `draft.protected` if its key differs from
@@ -81,12 +83,12 @@ The normal write revision is still required. The HTTP equivalent gets the
 token from the `X-Studio-Board-Read-Token` response header and sends the
 same field in the JSON request body.
 
-The board's server-managed `draft_application.person_edit_acknowledgments`
-history records the key ID, timestamp and board revision replaced by each
-acknowledged write. A patch or later re-draft preserves the history and person
-edit marker. A reorder by the key that stamped an unchanged board keeps its
-stamp current. A person can patch, reorder or remove boards without using
-these fields.
+The server-managed `person_edit_acknowledgments` history sits alongside the
+marker. It records the key ID, timestamp and board revision replaced by
+each acknowledged write. A patch or later re-draft preserves the history and
+person edit marker. A reorder by the key that stamped an unchanged board
+keeps its stamp current. A person can patch, reorder or remove boards without
+using these fields.
 
 Lists and ordered board/timing pages default to 10 items with a maximum of 20.
 Pass back `next_cursor` as `cursor` with the same filters until it is null.
