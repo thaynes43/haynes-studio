@@ -151,6 +151,30 @@ def test_create_refuses_redirected_output_and_exclusive_file_conflict(
     assert secret not in caplog.text
 
 
+def test_create_writes_no_key_file_when_commit_fails(admin, service, owner_engine, studio_db, tmp_path, monkeypatch):
+    app, _, issuer = service
+    browser = client(app)
+    production_id = new_production(browser, sign_in(browser, issuer))
+    secret = secrets.token_urlsafe(32)
+    path = tmp_path / "new-key"
+    failing_engine = connect_engine(studio_db.url, studio_db.schema)
+    files_at_commit = []
+
+    @sa.event.listens_for(failing_engine, "commit")
+    def fail_commit(_connection):
+        files_at_commit.append(path.exists())
+        raise sa.exc.OperationalError(None, None, RuntimeError("fixture commit failure"))
+
+    monkeypatch.setattr(key_admin, "connect_engine", lambda *_: failing_engine)
+    monkeypatch.setattr(key_admin.secrets, "token_urlsafe", lambda _: secret)
+    assert admin("create", "--out", str(path), "--production", production_id,
+                 "--scope", "read", expect=1) == "key_admin.failed"
+    assert files_at_commit == [False]
+    assert not path.exists()
+    with owner_engine.connect() as conn:
+        assert conn.scalar(sa.select(agent_keys.c.id).where(agent_keys.c.digest == identity.digest(secret))) is None
+
+
 def test_register_file_is_idempotent_and_replaces_grants_with_the_documented_role(
     admin, service, owner_engine, key_admin_db, tmp_path, caplog, monkeypatch,
 ):
@@ -190,12 +214,16 @@ def test_register_file_is_idempotent_and_replaces_grants_with_the_documented_rol
         first: ["draft:write", "read"], second: ["draft:write", "read"],
     }
     revoked = admin("revoke", key_id)
-    assert admin(*command, *reduced, "--replace-grants") == result
+    assert admin(*command, *original, expect=1) == "key_admin.key_revoked"
+    assert admin(*command, *reduced, "--replace-grants", expect=1) == "key_admin.key_revoked"
     assert admin("revoke", key_id) == revoked
+    assert next(item for item in admin("list")["keys"] if item["key_id"] == key_id)["production_scopes"] == {
+        first: ["draft:write", "read"], second: ["draft:write", "read"],
+    }
     assert agent.get("/v1/me", headers=bearer(secret)).status_code == 401
     actions = [json.loads(record.getMessage()) for record in caplog.records
                if record.name == access_log.name and '"action":"agent_keys.register"' in record.getMessage()]
-    assert [event["status"] for event in actions] == [201, 200, 409, 409, 200, 200, 200]
+    assert [event["status"] for event in actions] == [201, 200, 409, 409, 200, 200, 409, 409]
     assert secret not in caplog.text and row.digest not in caplog.text
 
     engine = connect_engine(key_admin_db.url, key_admin_db.schema)
