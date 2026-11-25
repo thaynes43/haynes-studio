@@ -1,8 +1,8 @@
-"""Add the image and voice claim lanes and immutable media job inputs."""
+"""Add media job lanes, immutable job inputs and append-only promotions."""
 
 from alembic import op
 
-from haynes_studio.db.grants import JOB_GRANTS, PROMOTION_GRANTS, grant_runtime, revoke_runtime
+from haynes_studio.db.grants import JOB_GRANTS, grant_runtime
 
 revision = "0005_job_operations"
 down_revision = "0004_go_live_approvals"
@@ -53,10 +53,28 @@ def upgrade():
     """)
     op.execute("CREATE INDEX media_jobs_board ON media_jobs (board_id, id)")
     op.execute("CREATE INDEX media_jobs_story ON media_jobs (story_id) WHERE (document->>'status') IN ('queued', 'running')")
+    op.execute("""
+        CREATE TABLE asset_promotions (
+            version_id TEXT PRIMARY KEY REFERENCES asset_versions (id),
+            promoted_by JSONB NOT NULL,
+            promoted_at TIMESTAMPTZ NOT NULL
+        )
+    """)
+    op.execute("""
+        CREATE TABLE queue_lane_events (
+            lane TEXT NOT NULL CHECK (lane IN ('run', 'voice', 'image')),
+            sequence BIGINT NOT NULL CHECK (sequence > 0),
+            paused BOOLEAN NOT NULL,
+            changed_by JSONB NOT NULL,
+            changed_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (lane, sequence)
+        )
+    """)
     grant_runtime(JOB_GRANTS)
 
 
 def downgrade():
-    revoke_runtime(PROMOTION_GRANTS)
+    op.drop_table("queue_lane_events")
+    op.drop_table("asset_promotions")
     op.drop_table("media_jobs")
     op.drop_table("media_job_lanes")

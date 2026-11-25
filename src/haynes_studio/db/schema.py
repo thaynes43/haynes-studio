@@ -72,6 +72,19 @@ asset_versions = sa.Table("asset_versions", metadata, identifier(),
                           sa.Column("state", sa.Text, nullable=False),
                           sa.Column("received_sha256", sa.String(64)), document(),
                           sa.UniqueConstraint("asset_id", "number"))
+asset_promotions = sa.Table(
+    "asset_promotions", metadata, foreign("version_id", "asset_versions.id", primary_key=True),
+    sa.Column("promoted_by", JSONB, nullable=False),
+    sa.Column("promoted_at", sa.DateTime(timezone=True), nullable=False),
+)
+queue_lane_events = sa.Table(
+    "queue_lane_events", metadata,
+    sa.Column("lane", sa.Text, primary_key=True),
+    sa.Column("sequence", sa.BigInteger, primary_key=True),
+    sa.Column("paused", sa.Boolean, nullable=False),
+    sa.Column("changed_by", JSONB, nullable=False),
+    sa.Column("changed_at", sa.DateTime(timezone=True), nullable=False),
+)
 asset_sources = sa.Table("asset_sources", metadata, sa.Column("source_key", sa.Text, primary_key=True),
                          foreign("asset_id", "assets.id"))
 story_asset_refs = sa.Table(

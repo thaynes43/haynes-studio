@@ -18,6 +18,7 @@ from haynes_studio.store import BLOB_MISSING, LIBRARY, StoreError
 from haynes_studio.voice import Job, make_voice, validate_job
 
 from .media_inputs import checked_candidate, checked_photo
+from .progress import ProgressFile
 from .worker_api import WorkerAPIError
 
 IMAGE_WAIT_SECONDS = 30 * 60
@@ -35,6 +36,7 @@ class Dispatch:
         self.started = False
 
     def __call__(self):
+        self.active.touch_progress()
         if self.active.lost.is_set():
             raise WorkerAPIError("work.fence_lost", 409)
         if self.started:
@@ -52,6 +54,7 @@ class ImageLane:
     def render(self, request):
         started = self.clock()
         while self.clock() - started < IMAGE_WAIT_SECONDS:
+            self.dispatch.active.touch_progress()
             if self.dispatch.active.lost.is_set():
                 raise WorkerAPIError("work.fence_lost", 409)
             if self.client.queue().idle:
@@ -75,13 +78,16 @@ class SpeechLane:
 
 
 class MediaWorker:
-    def __init__(self, api, *, lane, store, client, licences=None, clock=monotonic, pause=sleep):
+    def __init__(self, api, *, lane, store, client, licences=None, clock=monotonic, pause=sleep,
+                 progress=None):
         if lane not in ("image", "voice"):
             raise ValueError("Expected an image or voice lane")
         self.api, self.lane, self.store, self.client = api, lane, store, client
         self.licences, self.clock, self.pause = licences, clock, pause
+        self.progress = progress or ProgressFile()
 
     def _fetch(self, locator, digest):
+        self.progress()
         try:
             with self.store.open(locator) as handle:
                 data = handle.read(64 * 1024 * 1024 + 1)
@@ -97,6 +103,7 @@ class MediaWorker:
         library = Library.from_version_documents(claim.body["library"])
 
         def publish(data, media_type):
+            self.progress()
             blob = self.store.publish(data, scope=production, media_type=media_type)
             return blob.sha256, blob.locator
 
@@ -108,6 +115,7 @@ class MediaWorker:
         return {"version": version_document(result.version, result.library.asset_of(result.version.id))}
 
     def _result(self, job, claim, dispatch):
+        self.progress()
         frozen = claim.body["inputs"]
         production = claim.body["production_id"]
         if job.kind == "voice":
@@ -126,6 +134,7 @@ class MediaWorker:
             if claim.body["has_result"]:
                 return None
             prepared = generate_candidate(plan, client=image, licences=self.licences)
+        self.progress()
         blob = self.store.publish(prepared.image.png, scope=production or LIBRARY, media_type=PNG)
         return {"sha256": blob.sha256, "generator": to_document(prepared.generator),
                 "licence": to_document(prepared.licence)}
@@ -133,16 +142,18 @@ class MediaWorker:
     def tick(self):
         from .worker import ActiveClaim
 
+        self.progress()
         claim = self.api.claim(self.lane)
         if claim is None:
             return False
-        with ActiveClaim(claim) as active:
+        with ActiveClaim(claim, progress=self.progress) as active:
             try:
                 doc = claim.body["job"]
                 violations = blocking(validate_job(doc))
                 if violations:
                     raise ContractError(doc["id"], violations)
                 evidence = self._result(Job.from_document(doc), claim, Dispatch(active))
+                self.progress()
             except WorkerAPIError:
                 raise
             except ContractError as error:

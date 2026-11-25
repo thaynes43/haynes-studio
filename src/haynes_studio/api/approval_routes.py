@@ -1,8 +1,6 @@
 """The two human-only go-live operations."""
 
-import json
 from functools import cache
-from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Request
@@ -14,7 +12,7 @@ from haynes_studio.db import catalog, runs
 from haynes_studio.db.problems import NotFound
 from haynes_studio.golive import checks, records
 from haynes_studio.golive.policy import require_approver
-from haynes_studio.library.winter_menu import REGISTER_PATH
+from haynes_studio.model_register import load_model_register
 
 from .errors import APIError, ERROR_RESPONSES
 from .models import Body, JsonObject, TransportModel
@@ -50,7 +48,7 @@ class ApprovalView(TransportModel):
 @cache
 def licence_register() -> Register:
     try:
-        return Register(json.loads(Path(REGISTER_PATH).read_text(encoding="utf-8")))
+        return Register(load_model_register())
     except (OSError, ValueError, KeyError, TypeError) as error:
         raise APIError(503, "approval.licence_register_unavailable",
                        "The model licence register could not be read") from error

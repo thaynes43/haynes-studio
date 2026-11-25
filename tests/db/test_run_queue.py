@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+from secrets import token_hex
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 
@@ -14,7 +15,6 @@ from sqlalchemy.sql.selectable import ScalarSelect
 from haynes_studio.adapters import wan
 from haynes_studio.api.app import create_app
 from haynes_studio.api.auth import SESSION_COOKIE
-from haynes_studio.api.oidc import random_secret
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.canonical.model import Board, Story
 from haynes_studio.db import drafts, identity, runs
@@ -25,6 +25,7 @@ from haynes_studio.photo.plan import plan_photo
 from haynes_studio.queue.wan import GPU_REFUSALS, LanePaused, ProductClips, ProductWan, product_request
 from haynes_studio.queue.worker import BuildWorker
 from haynes_studio.queue.worker_api import WorkerAPI, WorkerAPIError
+from haynes_studio.queue.worker_tokens import worker_bearer
 
 from tests.build_story.fixtures import example, photo_png, register
 from tests.db.test_studio_api import (
@@ -37,7 +38,7 @@ pytestmark = pytest.mark.db
 
 
 def worker_credentials(engine):
-    secret = random_secret()
+    secret = worker_bearer(token_hex(24))
     with engine.begin() as conn:
         conn.execute(worker_tokens.insert().values(digest=identity.digest(secret),
                                                    worker_id="fixture-" + Minter().mint("run")))
@@ -62,7 +63,9 @@ def queue(service, engine, owner_engine, monkeypatch, tmp_path):
     app.state.build_stage_root = stage_root
     with owner_engine.begin() as conn:
         conn.exec_driver_sql("TRUNCATE go_live_withdrawals, go_live_approvals, run_check_overrides, run_wan_attempts, runs")
+        conn.exec_driver_sql("TRUNCATE media_jobs, queue_lane_events")
         conn.exec_driver_sql("UPDATE run_lane SET next_position = 1, worker_seen_at = NULL")
+        conn.exec_driver_sql("UPDATE media_job_lanes SET next_position = 1")
     clock = Clock()
     monkeypatch.setattr(runs, "database_time", clock.db_time)
     browser = client(app)

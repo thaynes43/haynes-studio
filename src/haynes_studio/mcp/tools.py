@@ -1,6 +1,5 @@
 """The allowlist of Studio tools and their projections of API records."""
 
-import base64
 import binascii
 import json
 from collections.abc import Callable
@@ -9,7 +8,7 @@ from typing import get_args
 
 from mcp.types import Tool as MCPTool, ToolAnnotations
 
-from haynes_studio.photo.validation import MAX_UPLOAD_BYTES
+from haynes_studio.photo_limits import MAX_UPLOAD_BYTES
 
 from . import arguments as args
 from .upstream import Problem, Reply, StudioAPI
@@ -189,8 +188,8 @@ class Operation:
         transport = {}
         if isinstance(arguments, args.UploadPhoto):
             try:
-                binary = base64.b64decode(arguments.data_base64, validate=True)
-            except (ValueError, binascii.Error):
+                binary = binascii.a2b_base64(arguments.data_base64, strict_mode=True)
+            except ValueError:
                 raise Problem(422, "photo.image_invalid", "Expected base64 encoded image bytes") from None
             if len(binary) > MAX_UPLOAD_BYTES:
                 raise Problem(413, "photo.too_large", "An upload can be at most 20 MiB")

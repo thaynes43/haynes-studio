@@ -5,16 +5,17 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
 MCP_URL = "http://localhost/mcp"
+UPLOAD_URL = f"{MCP_URL}/upload"
 API_URL = "http://studio-api.studio.svc.cluster.local"
 
 
 @asynccontextmanager
-async def connect(app, authorization):
+async def connect(app, authorization, *, url=MCP_URL):
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
         headers={"Authorization": authorization},
     ) as http:
-        async with streamable_http_client(MCP_URL, http_client=http) as (read, write, _):
+        async with streamable_http_client(url, http_client=http) as (read, write, _):
             async with ClientSession(read, write) as session:
                 hello = await session.initialize()
                 assert hello.serverInfo.name == "studio-mcp"

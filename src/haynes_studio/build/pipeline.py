@@ -184,6 +184,7 @@ class QueuedBuild:
 
     run: Mapping[str, Any]
     before_delivery: Callable[[], None]
+    on_step: Callable[[], None] | None = None
 
 
 @dataclass(frozen=True)
@@ -332,12 +333,13 @@ class _Build:
     def __init__(self, *, store: Store, story: Any, prepared: Prepared, run_id: str,
                  earlier_runs: Sequence[str], sources: ClipSources, transcriber: Transcriber | None,
                  toolchain: Toolchain, media: MediaFormat, timer: Callable[[], float],
-                 workdir: str | None):
+                 workdir: str | None, on_step: Callable[[], None] | None = None):
         self.store, self.story, self.prepared = store, story, prepared
         self.production_id = story.production_id
         self.run_id, self.earlier_runs = run_id, tuple(earlier_runs)
         self.toolchain, self.media, self.timer = toolchain, media, timer
         self.boards = [board.id for board in story.ordered_boards()]
+        self.on_step = on_step
         self.where: tuple[str | None, str | None] = (None, "plan")
         self.cache = ArtifactCache(store, production_id=self.production_id, run_id=run_id,
                                    earlier_runs=self.earlier_runs)
@@ -366,6 +368,16 @@ class _Build:
         self.passes: list[_Chain] = []  # the phase's plan passes, in order (not the local pass)
         self.local_records: dict[str, Made] = {}  # the local pass's answers
         self.cached_segments: dict[str, str] = {}  # the workers' pass: segment key to hash, cached
+
+    @property
+    def where(self) -> tuple[str | None, str | None]:
+        return self._where
+
+    @where.setter
+    def where(self, location: tuple[str | None, str | None]) -> None:
+        self._where = location
+        if self.on_step is not None:
+            self.on_step()
 
     def route(self, key: CacheKey) -> str:
         kind = key.kind
@@ -863,7 +875,8 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
         with scratch as scratch_dir:
             build = _Build(store=store, story=story, prepared=prepared, run_id=run_id,
                            earlier_runs=earlier_runs, sources=sources, transcriber=transcriber,
-                           toolchain=toolchain, media=media, timer=timer, workdir=scratch_dir)
+                           toolchain=toolchain, media=media, timer=timer, workdir=scratch_dir,
+                           on_step=None if queued is None else queued.on_step)
             register = Register(inputs.register)
             local, local_plan = _local_pass(build)  # no clip is asked for before this passes
             planned = _check_requests(build, local, local_plan, check=None if phase == OFFLINE

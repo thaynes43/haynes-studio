@@ -18,7 +18,7 @@ from starlette.exceptions import HTTPException
 from haynes_studio.db import runs
 from haynes_studio.db.engine import connect_engine
 from haynes_studio.db.problems import NotFound, StaleRevision
-from haynes_studio.db.schema import go_live_approvals, media_job_lanes, run_lane, sessions
+from haynes_studio.db.schema import go_live_approvals, media_job_lanes, queue_lane_events, run_lane, sessions
 from haynes_studio.errors import ContractError, pointer
 from haynes_studio.store.local import LocalStore
 
@@ -181,6 +181,7 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
                 conn.execute(sa.select(sa.literal(1)).select_from(sessions).limit(0))
                 conn.execute(sa.select(run_lane.c.id).limit(0))
                 conn.execute(sa.select(media_job_lanes.c.lane).limit(0))
+                conn.execute(sa.select(queue_lane_events.c.lane).limit(0))
                 conn.execute(sa.select(go_live_approvals.c.id).limit(0))
         except (SQLAlchemyError, OSError):
             return False

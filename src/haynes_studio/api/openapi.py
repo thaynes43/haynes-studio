@@ -87,7 +87,8 @@ def _write_schemas(schemas):
     schemas["BoardWrite"]["properties"]["cues"]["items"] = {"$ref": "#/components/schemas/BoardCueInput"}
 
 
-_HUMAN_OPERATIONS = {"get_selections", "put_selections", "create_production", "enable_media_type", "logout"}
+_HUMAN_OPERATIONS = {"get_selections", "put_selections", "create_production", "enable_media_type",
+                     "logout", "get_queue_lanes", "set_queue_lane"}
 _PREVIEW = {"get_job_result", "get_version_media", "head_version_media", "get_job_media", "head_job_media"}
 _ASSET_OPERATIONS = {"generate_board_voice": "assets:generate", "generate_board_photo": "assets:generate",
                      "generate_asset_candidate": "assets:generate", "upload_board_photo": "assets:upload"}

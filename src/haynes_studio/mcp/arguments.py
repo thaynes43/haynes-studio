@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from haynes_studio.api.models import ExternalPhotoDeclaration
 from haynes_studio.canonical.ids import ULID_PATTERN
-from haynes_studio.photo.validation import MAX_UPLOAD_BYTES
+from haynes_studio.photo_limits import MAX_UPLOAD_BYTES
 
 ProductionID = Annotated[str, StringConstraints(pattern=rf"^prd_{ULID_PATTERN}$")]
 StoryID = Annotated[str, StringConstraints(pattern=rf"^sty_{ULID_PATTERN}$")]

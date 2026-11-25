@@ -32,7 +32,7 @@ for request and response details. This map covers the API used by
 | `generate_board_voice` | `POST /boards/{id}/voice-jobs` | `studio_generate_voice` | assets:generate | [405](https://work.haynesnetwork.com/work_packages/405), [430](https://work.haynesnetwork.com/work_packages/430) |
 | `list_board_voice_versions` | `GET /boards/{id}/voice-versions` | — | read | [405](https://work.haynesnetwork.com/work_packages/405), [430](https://work.haynesnetwork.com/work_packages/430) |
 | `generate_board_photo` | `POST /boards/{id}/photo-jobs` | `studio_generate_photo` | assets:generate | [407](https://work.haynesnetwork.com/work_packages/407), [430](https://work.haynesnetwork.com/work_packages/430) |
-| `upload_board_photo` (D42) | `POST /boards/{id}/photo-versions` | `studio_upload_photo` | Agent with `assets:upload` | [407](https://work.haynesnetwork.com/work_packages/407), [430](https://work.haynesnetwork.com/work_packages/430) |
+| `upload_board_photo` (D42) | `POST /boards/{id}/photo-versions` | `studio_upload_photo` at `/mcp/upload` | Agent with `assets:upload` | [407](https://work.haynesnetwork.com/work_packages/407), [430](https://work.haynesnetwork.com/work_packages/430) |
 | `list_board_photo_versions` | `GET /boards/{id}/photo-versions` | — | read | [407](https://work.haynesnetwork.com/work_packages/407), [430](https://work.haynesnetwork.com/work_packages/430) |
 | `get_job` | `GET /jobs/{id}` | `studio_get_job` | read | [430](https://work.haynesnetwork.com/work_packages/430) |
 | `search_assets` | `GET /assets?kind=&label=&production=&board=` | `studio_search_assets` | read | [382](https://work.haynesnetwork.com/work_packages/382), [409](https://work.haynesnetwork.com/work_packages/409) |
@@ -48,8 +48,8 @@ for request and response details. This map covers the API used by
 | `compare_runs` (boards matched by stable ID) | Planned `GET /runs/compare?left=&right=` | — | read | [419](https://work.haynesnetwork.com/work_packages/419) |
 | `record_check_override` (with a reason; never a release check) | `POST /runs/{id}/checks/{check}/overrides` | Reserved `studio_override_check` (people only in v1) | Signed-in person | [410](https://work.haynesnetwork.com/work_packages/410), [450](https://work.haynesnetwork.com/work_packages/450) |
 | `get_delivery` | `GET /runs/{id}/delivery` | `studio_get_delivery` | read | [381](https://work.haynesnetwork.com/work_packages/381), [409](https://work.haynesnetwork.com/work_packages/409) |
-| `approve_go_live` | Planned `POST /runs/{id}/go-live-approvals` | — | go_live:approve | [412](https://work.haynesnetwork.com/work_packages/412) |
-| `withdraw_go_live` | Planned `POST /go-live-approvals/{id}/withdraw` | — | go_live:approve | [412](https://work.haynesnetwork.com/work_packages/412) |
+| `approve_go_live` | `POST /runs/{id}/go-live-approvals` | — | go_live:approve | [412](https://work.haynesnetwork.com/work_packages/412) |
+| `withdraw_go_live` | `POST /go-live-approvals/{id}/withdraw` | — | go_live:approve | [412](https://work.haynesnetwork.com/work_packages/412) |
 | `record_publication` | Planned `POST /runs/{id}/publications` | — | human | [449](https://work.haynesnetwork.com/work_packages/449) |
 | `claim_work`, `heartbeat_work`, `complete_work`, `fail_work` | `POST /internal/v1/work/{claim,heartbeat,resume,publish,complete,fail}` and Wan attempt routes | — | worker | [410](https://work.haynesnetwork.com/work_packages/410), [430](https://work.haynesnetwork.com/work_packages/430) |
 | `login`, `callback`, `logout` | `GET /auth/login`, `GET /auth/callback`, `POST /auth/logout` | — | Sign-in entry points. Logout requires a session and CSRF. | [409](https://work.haynesnetwork.com/work_packages/409), [432](https://work.haynesnetwork.com/work_packages/432) |
@@ -58,7 +58,10 @@ for request and response details. This map covers the API used by
 | `get_job_result` | `GET /jobs/{id}/result` | — | Signed-in person | [430](https://work.haynesnetwork.com/work_packages/430) |
 | `get_job_media`, `head_job_media` | `GET`, `HEAD /jobs/{id}/media/{sha256}` | — | Signed-in person | [430](https://work.haynesnetwork.com/work_packages/430) |
 | `get_version_media`, `head_version_media` | `GET`, `HEAD /asset-versions/{id}/media/{sha256}` | — | Signed-in person | [430](https://work.haynesnetwork.com/work_packages/430) |
+| `get_queue_lanes`, `set_queue_lane` | `GET /queue/lanes`, `PUT /queue/lanes/{lane}` | — | Signed-in person | [430](https://work.haynesnetwork.com/work_packages/430) |
 
 Candidate job detail is restricted to people. Scoped agent keys can read board
-job status and metadata. The web can discover preview hashes through the job
-result or board version lists and use them for ranged playback.
+job status and metadata. For photo and voice history, the web can get hashes
+from the job result or board version lists, then use the people-only job or
+version preview for ranged playback. A board-scoped version can be read via
+`/v1/media/{sha256}` only while a current draft references it.

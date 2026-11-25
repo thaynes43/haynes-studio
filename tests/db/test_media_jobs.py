@@ -3,12 +3,15 @@
 import asyncio
 import base64
 import json
+from copy import deepcopy
 from datetime import timedelta
 from hashlib import sha256
 from types import SimpleNamespace
 
 import httpx
+import psycopg
 import pytest
+import sqlalchemy as sa
 from PIL import Image
 
 from haynes_studio.adapters.comfyui import ImageClient
@@ -18,23 +21,24 @@ from haynes_studio.adapters.kokoro import KokoroClient
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.db.catalog import record_asset_version
 from haynes_studio.db.runs import database_time
-from haynes_studio.db.schema import asset_versions, media_jobs
+from haynes_studio.db.schema import asset_promotions, asset_versions, media_jobs, queue_lane_events
 from haynes_studio.library.model import version_document
 from haynes_studio.mcp.server import create_app
 from haynes_studio.photo.validation import MAX_UPLOAD_BYTES
 from haynes_studio.queue.media_worker import MediaWorker
 from haynes_studio.queue.worker_api import WorkerAPIError
+from haynes_studio.voice.model import Job
 
 from tests.db.test_run_queue import (
-    queue, queue_run, worker_api,
+    queue, queue_run, worker_api, worker_credentials,
 )
 from tests.db.test_studio_api import (
     client, engine, new_production, new_story, owner_engine, register_agent,
     runtime_db, runtime_role, service, sign_in,
 )
+from tests.build_story.fixtures import example
 from tests.library.fixtures import register, winter_menu
-
-from tests.mcp.client import API_URL, call, connect, fail
+from tests.mcp.client import API_URL, UPLOAD_URL, call, connect, fail
 
 pytestmark = pytest.mark.db
 PROVENANCE = {
@@ -52,7 +56,7 @@ def success(response, code=200):
 def studio(service, owner_engine):
     app, store, issuer = service
     with owner_engine.begin() as conn:
-        conn.exec_driver_sql("TRUNCATE media_jobs")
+        conn.exec_driver_sql("TRUNCATE media_jobs, queue_lane_events")
         conn.exec_driver_sql("UPDATE media_job_lanes SET next_position = 1")
     browser = client(app)
     csrf = sign_in(browser, issuer)
@@ -310,6 +314,92 @@ def test_upload_refusals(studio, tmp_path, case, status, code):
     assert success(s.browser.get(f"/v1/boards/{board}/photo-versions"))["items"] == []
 
 
+@pytest.mark.parametrize("size", [16, MAX_UPLOAD_BYTES + 1], ids=["small", "oversized"])
+def test_anonymous_upload_does_not_read_the_body(studio, size):
+    s = studio
+    board = board_in(s)
+
+    async def scenario():
+        read = False
+
+        async def body():
+            nonlocal read
+            read = True
+            yield b"x" * size
+
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=s.app),
+                                     base_url="https://studio.example.invalid") as http:
+            response = await http.post(f"/v1/boards/{board}/photo-versions", content=body(), headers={
+                "If-Match": "1", "Content-Type": "image/png", "Content-Length": str(size),
+                "X-Studio-Photo-Provenance": json.dumps(PROVENANCE),
+            })
+        assert response.status_code == 401 and response.json()["error"]["code"] == "auth.required"
+        assert not read
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("transport", ["api", "mcp"])
+def test_concurrent_upload_is_refused_before_reading_its_body(studio, tmp_path, transport):
+    s = studio
+    board = board_in(s)
+    data = image_file(tmp_path)
+
+    async def scenario(app, url, headers, payload):
+        first_read = asyncio.Event()
+        finish = asyncio.Event()
+        second_read = False
+
+        async def first_body():
+            first_read.set()
+            await finish.wait()
+            yield payload
+
+        async def second_body():
+            nonlocal second_read
+            second_read = True
+            yield payload
+
+        async with app.router.lifespan_context(app), httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+        ) as http:
+            first = asyncio.create_task(http.post(url, headers=headers, content=first_body()))
+            try:
+                await first_read.wait()
+                busy = await http.post(url, headers=headers, content=second_body())
+            finally:
+                finish.set()
+                accepted = await first
+            assert busy.status_code == 503 and busy.json()["error"]["code"] == "photo.upload_busy"
+            assert busy.headers["retry-after"] == "1" and not second_read
+            if transport == "api":
+                assert accepted.status_code == 201 and accepted.json()["selected"]
+            else:
+                assert accepted.status_code == 200 and accepted.json()["result"]["structuredContent"]["selected"]
+            retry = await http.post(url, headers=headers, content=payload)
+            # The revision already moved, so the retry gets a normal API conflict.
+            if transport == "api":
+                assert retry.status_code == 409
+            else:
+                assert retry.json()["result"]["structuredContent"]["error"]["http_status"] == 409
+
+    if transport == "api":
+        asyncio.run(scenario(s.app, f"https://studio.example.invalid/v1/boards/{board}/photo-versions",
+                             {**s.auth, "If-Match": "1", "Content-Type": "image/png",
+                              "X-Studio-Photo-Provenance": json.dumps(PROVENANCE)}, data))
+    else:
+        app = create_app(API_URL, api_transport=httpx.ASGITransport(app=s.app))
+        envelope = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
+            "name": "studio_upload_photo", "arguments": {
+                "data_base64": base64.b64encode(data).decode("ascii"), "board_id": board,
+                "revision": 1, "media_type": "image/png", "provenance": PROVENANCE,
+            },
+        }}
+        asyncio.run(scenario(app, UPLOAD_URL, {**s.auth, "Content-Type": "application/json",
+                                              "Accept": "application/json, text/event-stream"},
+                             json.dumps(envelope).encode("ascii")))
+
+
 def test_mcp_media_tools_and_upload_hash(studio, tmp_path):
     s = studio
     board = board_in(s, spoken=True)
@@ -320,8 +410,9 @@ def test_mcp_media_tools_and_upload_hash(studio, tmp_path):
 
     async def scenario():
         mcp = create_app(API_URL, api_transport=httpx.ASGITransport(app=s.app))
-        async with mcp.router.lifespan_context(mcp), connect(mcp, s.auth["Authorization"]) as session:
-            uploaded = await call(session, "studio_upload_photo", board_id=board, revision=1,
+        async with mcp.router.lifespan_context(mcp), connect(mcp, s.auth["Authorization"]) as session, \
+                connect(mcp, s.auth["Authorization"], url=UPLOAD_URL) as uploads:
+            uploaded = await call(uploads, "studio_upload_photo", board_id=board, revision=1,
                                   media_type="image/png", data_base64=base64.b64encode(data).decode(),
                                   provenance={**PROVENANCE, "upload_sha256": sha256(data).hexdigest()})
             assert uploaded["selected"] and uploaded["board_revision"] == 2
@@ -423,6 +514,155 @@ def test_upload_wins_over_running_photo_with_same_inputs(studio, tmp_path):
     versions = success(s.browser.get(f"/v1/boards/{board}/photo-versions"))["items"]
     assert {version["id"] for version in versions} == {uploaded[0]["id"], result["result_version_id"]}
     assert sorted(version["number"] for version in versions) == [1, 2]
+
+
+def test_agent_cannot_read_unselected_board_photo_by_hash(studio, tmp_path):
+    s = studio
+    board = board_in(s)
+    doc = success(upload(s, board, image_file(tmp_path)), 201)["version"]
+    digest = doc["content"]["sha256"]
+    assert doc["state"] == "board"
+    assert s.agent.get(f"/v1/media/{digest}", headers=s.auth).status_code == 200
+    patch(s, board, {"photo": {**current_board(s, board)["photo"], "current_version_id": None}})
+    assert s.agent.get(f"/v1/media/{digest}", headers=s.auth).status_code == 404
+    assert s.browser.get(f"/v1/asset-versions/{doc['id']}/media/{digest}").status_code == 200
+
+
+@pytest.mark.parametrize("scope", ["another-board", "another-production"])
+def test_worker_cannot_complete_voice_for_another_scope(studio, scope):
+    s = studio
+    board = board_in(s, spoken=True)
+    foreign = s
+    if scope == "another-production":
+        production = new_production(s.browser, s.csrf)
+        foreign = SimpleNamespace(**{**vars(s), "production_id": production,
+                                    "story_id": new_story(s.browser, s.csrf, production)})
+    other_board = board_in(foreign)
+    queued = success(operation(s, board, "voice", "scoped-voice"), 202)
+    claim = worker_api(s).claim("voice")
+    result = speech_worker(s, FakeKokoro())._result(Job.from_document(claim.body["job"]), claim, claim.publish)
+    false_result = deepcopy(result)
+    version = false_result["version"]
+    version["scope"] = {"production_id": foreign.production_id, "story_id": foreign.story_id,
+                        "board_id": other_board}
+    if scope == "another-production":
+        track = version["voice"]["track"]
+        with s.store.open(track["locator"]) as original:
+            track["locator"] = s.store.publish(original, scope=foreign.production_id,
+                                               media_type="audio/wav").locator
+    with pytest.raises(WorkerAPIError) as refused:
+        claim.complete({"result": false_result})
+    assert (refused.value.status, refused.value.code) == (422, "work.result_invalid")
+    assert job(s, queued["id"])["status"] == "running"
+    assert success(s.browser.get(f"/v1/boards/{other_board}/voice-versions"))["items"] == []
+    assert claim.complete({"result": result})["status"] == "succeeded"
+
+
+def test_runtime_cannot_rewrite_promoted_pinned_or_foreign_asset_versions(queue):
+    q = queue
+    run = success(queue_run(q, "immutable-pin"), 201)
+    assert run["status"] == "queued"
+    candidate = success(q.browser.post("/v1/asset-jobs",
+        headers={**q.csrf, "Idempotency-Key": "immutable-candidate"},
+        json={"kind": "cast", "name": "A new doll", "prompt": "A doll in a workshop"}), 202)
+    assert image_worker(q)[0].tick()
+    version = success(q.browser.get(f"/v1/jobs/{candidate['id']}/result"))["id"]
+    url = f"/v1/asset-versions/{version}/promote"
+    promoted = success(q.browser.post(url, headers=q.csrf))
+    assert promoted["state"] == "promoted"
+    assert success(q.browser.post(url, headers=q.csrf)) == promoted
+    with q.engine.connect() as conn:
+        stored = conn.execute(sa.select(asset_versions.c.state, asset_versions.c.document)
+                              .where(asset_versions.c.id == version)).one()
+        assert stored.state == stored.document["state"] == "candidate"
+        assert conn.scalar(sa.select(asset_promotions.c.promoted_by)
+                           .where(asset_promotions.c.version_id == version))["kind"] == "human"
+
+    production = new_production(q.browser, q.csrf)
+    foreign = SimpleNamespace(**{**vars(q), "production_id": production,
+                                 "story_id": new_story(q.browser, q.csrf, production)})
+    board = board_in(foreign)
+    other = example("asset-version-photo-external.json")
+    other.update(id=Minter().mint("asv"), asset_id=Minter().mint("ast"),
+                 scope={"production_id": production, "story_id": foreign.story_id, "board_id": board})
+    blob = q.store.publish(q.png, scope=production, media_type="image/png")
+    other["content"].update(sha256=blob.sha256, bytes=blob.bytes, locator=blob.locator)
+    with q.owner.begin() as conn:
+        record_asset_version(conn, other)
+
+    for target in (version, q.version_id, other["id"]):
+        for fields in ({"document": {}}, {"state": "candidate"}):
+            with pytest.raises(sa.exc.ProgrammingError) as refused, q.engine.begin() as conn:
+                conn.execute(asset_versions.update().where(asset_versions.c.id == target).values(**fields))
+            assert isinstance(refused.value.orig, psycopg.errors.InsufficientPrivilege)
+
+
+def test_queue_controls_are_people_only(studio):
+    s = studio
+    path = "/v1/queue/lanes"
+    assert s.agent.get(path).status_code == 401
+    assert s.agent.get(path, headers=s.auth).status_code == 403
+    assert s.agent.put(path + "/image", headers=s.auth, json={"paused": True}).status_code == 403
+    assert s.agent.put(path + "/image", headers=worker_credentials(s.owner),
+                       json={"paused": True}).status_code == 401
+    assert s.browser.put(path + "/image", json={"paused": True}).status_code == 403
+    assert s.browser.put(path + "/image", headers=s.csrf, json={"paused": "true"}).status_code == 422
+
+
+def test_pausing_run_lane_drains_current_claim_and_blocks_new_claims(queue):
+    q = queue
+    path = "/v1/queue/lanes"
+    first = success(queue_run(q, "before-pause"), 201)["id"]
+    worker = worker_api(q)
+    claim = worker.claim()
+    assert claim.body["run"]["id"] == first
+    paused = success(q.browser.put(path + "/run", headers=q.csrf, json={"paused": True}))
+    assert paused["changed_at"] == q.clock.now.isoformat().replace("+00:00", "Z")
+    assert paused["changed_by"]["kind"] == "human" and paused["changed_by"]["sub"] == "one"
+    second = success(queue_run(q, "after-pause"), 201)
+    assert second["status"] == "queued"
+    assert claim.heartbeat()["cancel_requested"] is False
+    ended = claim.fail(status="failed", reason="Fixture finished",
+                       error={"code": "work.fixture", "message": "Fixture finished",
+                              "stage": "prebuild", "board_id": None})
+    assert ended["id"] == first and ended["status"] == "failed"
+    assert worker.claim() is None
+    assert success(q.browser.get(f"/v1/runs/{second['id']}"))["status"] == "queued"
+
+    _, auth = register_agent(q.owner, {q.production_id: ["assets:generate"]})
+    assert success(operation(SimpleNamespace(agent=q.browser, auth=auth), q.board_id, "photo", "open-image"), 202)
+    assert image_worker(q)[0].tick()
+    assert success(q.browser.get(path))["items"][0] == paused
+    q.clock.advance(10)
+    resumed = success(q.browser.put(path + "/run", headers=q.csrf, json={"paused": False}))
+    assert resumed["paused"] is False and resumed["changed_at"] > paused["changed_at"]
+    assert success(q.browser.put(path + "/run", headers=q.csrf, json={"paused": False})) == resumed
+    assert worker.claim().body["run"]["id"] == second["id"]
+    with q.engine.connect() as conn:
+        history = conn.scalars(sa.select(queue_lane_events.c.paused)
+                               .where(queue_lane_events.c.lane == "run")
+                               .order_by(queue_lane_events.c.sequence)).all()
+        assert history == [True, False]
+
+
+@pytest.mark.parametrize("lane", ["image", "voice"])
+def test_pausing_media_lane_leaves_requests_queued_until_resumed(studio, lane):
+    s = studio
+    board = board_in(s, spoken=True)
+    kind = "photo" if lane == "image" else "voice"
+    first = success(operation(s, board, kind, "before-media-pause"), 202)["id"]
+    worker = worker_api(s)
+    claim = worker.claim(lane)
+    assert claim.body["job"]["id"] == first
+    path = f"/v1/queue/lanes/{lane}"
+    assert success(s.browser.put(path, headers=s.csrf, json={"paused": True}))["paused"]
+    second = success(operation(s, board, kind, "after-media-pause"), 202)["id"]
+    claim.heartbeat()
+    assert claim.fail(code="work.fixture", message="Fixture finished")["status"] == "failed"
+    assert worker.claim(lane) is None
+    assert job(s, second)["status"] == "queued"
+    assert not success(s.browser.put(path, headers=s.csrf, json={"paused": False}))["paused"]
+    assert worker.claim(lane).body["job"]["id"] == second
 
 
 def test_photo_currency_blocks_build_and_preserves_frozen_run(queue):

@@ -69,7 +69,7 @@ most one claim.
 | `STUDIO_BUILD_STAGE_ROOT` | A separate, shared private directory. API and workers see the same per-run staging files. The worker needs write access here. |
 | `STUDIO_BUILD_REVISION` | Match the API's `git:<commit>` so the worker serves the snapshot's build revision. |
 | `STUDIO_BUILD_IMAGE_DIGEST` | Optional immutable image digest recorded in run provenance. |
-| `STUDIO_MODEL_REGISTER` | Path to the image's pinned [model licence register](model-licences.json). |
+| `STUDIO_MODEL_REGISTER` | Optional path overriding the [model licence register](../../src/haynes_studio/model_licences.json) shipped in the installed package. Use the same override on API and workers. |
 | `STUDIO_ASR_HOST`, `STUDIO_ASR_PORT` | Host and port of the configured Wyoming ASR service. The default port is 10300. |
 | `STUDIO_THREADS` | Set to 2. The worker uses one orchestrator and the existing two-thread media settings. |
 

@@ -7,6 +7,7 @@ from haynes_studio.voice import jobs as transitions
 from haynes_studio.voice.model import Job
 
 from .problems import NotFound
+from .queue_controls import is_paused
 from .runs import LEASE, IdempotencyMismatch, QueueConflict, actor_key, database_time, timestamp
 from .schema import media_job_lanes, media_jobs
 
@@ -79,6 +80,8 @@ def finish(conn, row, job):
 
 def claim(conn, worker_id, lane):
     if lock_lane(conn, lane, skip_locked=True) is None:
+        return None
+    if is_paused(conn, lane):
         return None
     head = sa.select(sa.func.min(media_jobs.c.position)).where(
         media_jobs.c.lane == lane, STATUS.in_(ACTIVE),

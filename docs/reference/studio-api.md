@@ -57,7 +57,7 @@ or recover metadata to an isolated database for inspection.
 | `STUDIO_OIDC_FAILURE_TTL_SECONDS` | Cooldown after a failed discovery or signing key fetch, 1–60 seconds. Default 10. |
 | `STUDIO_SESSION_SECONDS` | Absolute lifetime of an API session, 60–86400 seconds. Default 28800. |
 | `STUDIO_GO_LIVE_APPROVER_SUBJECTS` | JSON array of approver subjects scoped to the configured OIDC issuer. Default `[]`. |
-| `STUDIO_GO_LIVE_FRESHNESS_SECONDS` | Maximum age of sign-in for approval and withdrawal, 1–86400 seconds. Default 900. |
+| `STUDIO_GO_LIVE_FRESHNESS_SECONDS` | Maximum age of sign-in for approval and withdrawal, 1–3600 seconds. Default 900. |
 
 Use TLS for browser requests. Configure Authentik with
 `STUDIO_PUBLIC_ORIGIN + /auth/callback`, `client_secret_basic`, PKCE S256 and
@@ -147,15 +147,15 @@ GRANT UPDATE (document, revision, worker_id, fence, claim_until, retry_at,
     admission_refusals, cancel_requested, publishing) ON studio.runs TO studio_app;
 GRANT UPDATE (state, outcome) ON studio.run_wan_attempts TO studio_app;
 
+-- Applied by revision 0004_go_live_approvals.
+GRANT SELECT, INSERT ON studio.go_live_approvals, studio.go_live_withdrawals TO studio_app;
+
 -- Applied by revision 0005_job_operations.
 GRANT SELECT, UPDATE (next_position) ON studio.media_job_lanes TO studio_app;
 GRANT SELECT, INSERT ON studio.media_jobs TO studio_app;
 GRANT UPDATE (document, worker_id, fence, claim_until, dispatched)
     ON studio.media_jobs TO studio_app;
-GRANT UPDATE (state, document) ON studio.asset_versions TO studio_app;
-
--- Applied by revision 0004_go_live_approvals.
-GRANT SELECT, INSERT ON studio.go_live_approvals, studio.go_live_withdrawals TO studio_app;
+GRANT SELECT, INSERT ON studio.asset_promotions, studio.queue_lane_events TO studio_app;
 ```
 
 Revision `0004_go_live_approvals` uses the PostgreSQL UTF-8 `und-x-icu`
@@ -378,7 +378,22 @@ or remote location. A valid upload immediately returns 201 with `version`,
 during validation, the API keeps the upload with `selected: false` and a null
 `board_revision`.
 
+An API process accepts one upload at a time. A concurrent upload returns 503
+`photo.upload_busy` with `Retry-After`. Retry using the current board revision
+if another upload selected a version in the meantime.
+
 The internal image and voice workers use the [same claim protocol as builds](media-jobs.md).
+
+## Queue controls
+
+Signed-in people can see all three lanes at `GET /v1/queue/lanes`. Set
+`{"paused":true}` or `{"paused":false}` with `PUT /v1/queue/lanes/{lane}`
+for `run`, `voice` or `image`. The write requires `X-Studio-CSRF`.
+The response and lane list show `paused`, `changed_by` and `changed_at`.
+An untouched lane starts open with null change fields. Repeating its current
+setting returns the previous decision. Each transition appends a decision.
+Paused lanes still accept new work and in-flight claims can finish.
+Workers receive 204 for new claims until the lane resumes.
 
 ## Private playback
 
@@ -396,7 +411,9 @@ records and production-scoped library versions carry their own association.
 Board-scoped versions and shared-library versions require a reference in a
 current draft in an accessible production. The hash endpoint excludes candidates.
 
-Signed-in people can preview a candidate or board media at
+For photo and voice history, use the people-only version or job preview. An
+older board version loses its ordinary hash URL when the last current draft
+reference is removed. Signed-in people can preview a candidate or board media at
 `GET` or `HEAD /v1/asset-versions/{id}/media/{sha256}`. They can also preview
 a job's own result at `GET` or `HEAD /v1/jobs/{id}/media/{sha256}`. Read the
 result version to discover the content hash or voice track hash. Both preview
@@ -414,7 +431,7 @@ STUDIO_THREADS=2 OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 uv run --no-sync pytes
 
 The DB suite reads `STUDIO_TEST_DATABASE_URL` for a disposable PostgreSQL 16
 database. The fixture identity creates a schema and temporary roles. It
-upgrades from revision `0002_active_agent_grants`, downgrades to base and
+upgrades through `0004_go_live_approvals` to `0005_job_operations`, downgrades to base and
 upgrades from an empty schema. API and store operations run with the executable
 Alembic grants. The suite checks key administration with the dedicated role,
 runtime-role refusal, and protection for ownership, snapshot and Wan attempt

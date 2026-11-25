@@ -95,6 +95,24 @@ def test_duplicate_bytes_keep_independent_version_records(world, tmp_path):
     assert library.get(first.version.id) is None
 
 
+@pytest.mark.parametrize(("mode", "color", "transparent", "expected"), [
+    ("RGB", (255, 0, 0), None, (255, 0, 0)),
+    ("RGB", (255, 0, 0), (255, 0, 0), (255, 255, 255)),
+    ("RGBA", (255, 0, 0, 128), None, (255, 127, 127)),
+])
+def test_upload_strips_icc_profile_and_composites_transparency(world, mode, color, transparent, expected):
+    story, board, library, _, _, _ = world
+    raw = io.BytesIO()
+    options = {"transparency": transparent} if transparent is not None else {}
+    with Image.new(mode, (12, 24), color) as image:
+        image.save(raw, format="PNG", icc_profile=b"test profile", **options)
+    prepared = import_photo(plan_photo(story, board, library), library, data=raw.getvalue(),
+                            media_type=PNG, declared=declaration(), by=BY)
+    with Image.open(io.BytesIO(prepared.image.png)) as image:
+        assert image.mode == "RGB" and image.getpixel((0, 0)) == expected
+        assert not image.info
+
+
 @pytest.mark.parametrize(("changes", "rule"), [
     ({"model": " "}, "prov.external_incomplete"),
     ({"prompt": ""}, "prov.external_incomplete"),

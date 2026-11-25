@@ -38,6 +38,9 @@ def test_openapi_has_resolved_canonical_shapes_errors_and_security():
     }
     assert document["paths"]["/v1/jobs/{id}/result"]["get"]["security"] == [{"StudioSession": []}]
     assert document["paths"]["/v1/jobs/{id}/media/{sha256}"]["head"]["x-studio-scope"] == "human"
+    for path, method in (("/v1/queue/lanes", "get"), ("/v1/queue/lanes/{lane}", "put")):
+        assert document["paths"][path][method]["security"] == [{"StudioSession": []}]
+        assert document["paths"][path][method]["x-studio-scope"] == "human"
     generation = document["paths"]["/v1/boards/{id}/photo-jobs"]["post"]
     assert generation["x-studio-scope"] == "assets:generate"
     assert "Location" in generation["responses"]["202"]["headers"]

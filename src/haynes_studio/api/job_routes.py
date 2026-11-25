@@ -1,5 +1,7 @@
 """Public asynchronous media operations and the direct D42 upload."""
 
+from io import BytesIO
+from threading import Lock
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Header, Request, Response
@@ -33,6 +35,7 @@ UploadDeclaration = Annotated[str | None, Header(alias="X-Studio-Photo-Provenanc
     description="Strict ASCII JSON with Unicode escapes. See ExternalPhotoDeclaration.")]
 Seed = Annotated[int, Field(ge=0, le=2**53 - 1)]
 UPLOAD_MIMES = ("image/png", "image/jpeg", "image/webp")
+_upload_slot = Lock()
 
 
 class VoiceRequest(Body):
@@ -292,12 +295,22 @@ def build_router(CurrentActor, authenticated_route):
         if media_type not in UPLOAD_MIMES or request.headers.get("content-encoding", "identity") != "identity":
             raise APIError(422, "photo.image_invalid", "Supply an uncompressed PNG, JPEG or WebP body",
                            path="/photo")
-        content = bytearray()
-        async for chunk in request.stream():
-            content.extend(chunk)
-        prepared = await run_in_threadpool(import_photo, plan, library, data=bytes(content),
-                                           media_type=media_type, declared=declared, by=actor.principal)
-        result = await run_in_threadpool(_write_upload, state, actor, story_id, prepared)
+        if not _upload_slot.acquire(blocking=False):
+            raise APIError(503, "photo.upload_busy", "Another photo upload is in progress. Retry shortly",
+                           headers={"Retry-After": "1"})
+        try:
+            # BytesIO can hand off its final bytes without retaining a bytearray
+            # alongside them. The route counts incoming bytes before each write.
+            with BytesIO() as content:
+                async for chunk in request.stream():
+                    content.write(chunk)
+                data = content.getvalue()
+            prepared = await run_in_threadpool(import_photo, plan, library, data=data,
+                                               media_type=media_type, declared=declared, by=actor.principal)
+            del data
+            result = await run_in_threadpool(_write_upload, state, actor, story_id, prepared)
+        finally:
+            _upload_slot.release()
         if result["board_revision"] is not None:
             response.headers["ETag"] = f'"{result["board_revision"]}"'
         return result

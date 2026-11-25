@@ -17,6 +17,7 @@ from haynes_studio.canonical.ids import Minter
 from haynes_studio.store import blob_locator, canonical_json
 
 from .problems import NotFound, StaleRevision
+from .queue_controls import is_paused
 from .schema import run_check_overrides, run_lane, run_wan_attempts, runs
 
 ACTIVE = ("queued", "running", "held")
@@ -164,6 +165,8 @@ def claim(conn, worker_id):
     now = database_time(conn)
     if lane["worker_seen_at"] is None or lane["worker_seen_at"] <= now - BACKOFF:
         conn.execute(run_lane.update().values(worker_seen_at=now))
+    if is_paused(conn, "run"):
+        return None
     head = sa.select(sa.func.min(runs.c.position)).where(STATUS.in_(ACTIVE)).scalar_subquery()
     row = conn.execute(sa.select(runs).where(runs.c.position == head, STATUS.in_(ACTIVE))
                        .with_for_update(skip_locked=True)).mappings().one_or_none()

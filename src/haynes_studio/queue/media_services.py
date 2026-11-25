@@ -19,6 +19,7 @@ from haynes_studio.jsonio import parse_strict
 
 from .asr import _send
 from .media_worker import ImageQueueBusy
+from .progress import ProgressFile
 
 MAX_CONTROL_BYTES = 8 * 1024 * 1024
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
@@ -27,13 +28,15 @@ PROMPT_ID = re.compile(r"[0-9a-fA-F-]{1,64}")
 
 
 class ComfyHTTP:
-    def __init__(self, http, *, clock=monotonic, pause=sleep):
+    def __init__(self, http, *, clock=monotonic, pause=sleep, progress=None):
         self.http, self.clock, self.pause = http, clock, pause
+        self.progress = progress or ProgressFile()
         # Reuse the pinned graphs and their deterministic request filling.
         self.t2i_graph = pinned.load(T2I_GRAPH)
         self.edit_graph = pinned.load(EDIT_GRAPH)
 
     def _read(self, method, path, limit, **kwargs):
+        self.progress()
         data = bytearray()
         with self.http.stream(method, path, **kwargs) as response:
             response.raise_for_status()
@@ -65,10 +68,10 @@ class ComfyHTTP:
                 }, data={"overwrite": "true"})
                 if answer.get("name") != request.upload_name or answer.get("subfolder", "") != "":
                     raise ValueError("ComfyUI renamed the upload")
-            before_submit()
             if not self.queue().idle:
                 raise ImageQueueBusy()
             started = self.clock()
+            before_submit()
             answer = self._json("POST", "/prompt", json={
                 "prompt": graph, "client_id": f"studio-{request.job}",
             })

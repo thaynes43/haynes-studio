@@ -38,7 +38,7 @@ def test_comfy_pinned_graph_fence_queue_and_output(edit):
         if path == "/queue":
             return httpx.Response(200, json={"queue_running": [], "queue_pending": []})
         if path == "/prompt":
-            assert seen[-3:] == ["fence", "/queue", "/prompt"]
+            assert seen[-3:] == ["/queue", "fence", "/prompt"]
             payload = json.loads(http.content)
             assert payload["client_id"] == "studio-job-demo"
             graph.update(payload["prompt"])
@@ -60,7 +60,7 @@ def test_comfy_pinned_graph_fence_queue_and_output(edit):
         result = ComfyHTTP(http).render(request, before_submit=lambda: seen.append("fence"))
     assert result.prompt_id == PROMPT_ID and result.sha256 == sha256(data).hexdigest()
     assert result.graph_sha256 == graph_sha256(graph)
-    expected = ["fence", "/queue", "/prompt", f"/history/{PROMPT_ID}", "/view"]
+    expected = ["/queue", "fence", "/prompt", f"/history/{PROMPT_ID}", "/view"]
     assert seen == (["/upload/image", *expected] if edit else expected)
 
 
@@ -69,6 +69,7 @@ def test_comfy_pinned_graph_fence_queue_and_output(edit):
     ({"queue_running": [], "queue_pending": "unknown"}, AdapterError),
 ])
 def test_comfy_busy_or_unknown_queue_never_submits(queue, error):
+    marked = []
     def serve(http):
         assert http.method == "GET" and http.url.path == "/queue"
         return httpx.Response(200, json=queue)
@@ -77,7 +78,8 @@ def test_comfy_busy_or_unknown_queue_never_submits(queue, error):
         client = ComfyHTTP(http)
         request = TextToImage("job-demo", "asset-candidate", "A tabletop", 1, 64, 64)
         with pytest.raises(error):
-            client.render(request, before_submit=lambda: None)
+            client.render(request, before_submit=lambda: marked.append(True))
+    assert marked == []
 
 
 @pytest.mark.parametrize("inconsistent", [False, True])

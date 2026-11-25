@@ -1,6 +1,7 @@
 """Scoped public run routes and worker-only queue transactions."""
 
 import os
+from datetime import datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Header, Request, Response
@@ -8,7 +9,7 @@ from fastapi import APIRouter, Header, Request, Response
 from haynes_studio.build.prebuild import snapshot_bytes
 from haynes_studio.build.validate import validate_run
 from haynes_studio.canonical.model import to_document
-from haynes_studio.db import catalog, drafts, jobs, runs
+from haynes_studio.db import catalog, drafts, jobs, queue_controls, runs
 from haynes_studio.golive import records as go_live
 from haynes_studio.db.engine import snapshot
 from haynes_studio.db.problems import StaleRevision, require_valid
@@ -19,7 +20,7 @@ from haynes_studio.queue import inputs
 from haynes_studio.queue.protocol import (
     SHA256, ClaimFence, Heartbeat, JobId, Payload, Progress, Reason, Reservation, WanResult,
     MediaCompletion, MediaFailure, MediaFence, MediaHeartbeat, WorkAttempt, WorkClaim,
-    WorkCompletion, WorkFailure, WorkReserve,
+    WorkCompletion, WorkFailure, WorkLane, WorkReserve,
 )
 from haynes_studio.queue.staging import BuildStageStore, publish_staged_delivery
 from haynes_studio.store import StoreError
@@ -27,7 +28,7 @@ from haynes_studio.store import StoreError
 from . import media_work
 from .auth import WorkerRoute
 from .errors import APIError, ERROR_RESPONSES, forbidden
-from .models import Document, Page, TransportModel
+from .models import Body, Document, Page, TransportModel
 from .routes import Cursor, ETAG, IfMatch, Limit, _cursor, _etag, _id, _page, _revision, _story_access
 
 IdempotencyKey = Annotated[str, Header(alias="Idempotency-Key", pattern=r"^[!-~]{1,255}$")]
@@ -75,6 +76,21 @@ class CheckOverrideView(CheckOverride):
     at: str
 
 
+class QueueLaneUpdate(Body):
+    paused: bool
+
+
+class QueueLaneStatus(TransportModel):
+    lane: WorkLane
+    paused: bool
+    changed_by: dict | None
+    changed_at: datetime | None
+
+
+class QueueStatus(TransportModel):
+    items: list[QueueLaneStatus]
+
+
 def transport_models():
     """Build these models with the other API transports before mounting routes."""
     return (
@@ -82,6 +98,7 @@ def transport_models():
         CheckOverride, CheckOverrideView, ClaimFence, Progress, Heartbeat, Reservation,
         WanResult, WorkReserve, WorkAttempt, WorkCompletion, WorkFailure, WorkClaim,
         MediaFence, MediaHeartbeat, MediaCompletion, MediaFailure,
+        QueueLaneUpdate, QueueLaneStatus, QueueStatus,
     )
 
 
@@ -118,6 +135,19 @@ def _run_access(conn, actor, scope, run_id, *, lock=False):
 def build_router(CurrentActor, authenticated_route):
     router = APIRouter(prefix="/v1", responses=ERROR_RESPONSES, route_class=authenticated_route,
                        tags=["runs"])
+
+    @router.get("/queue/lanes", response_model=QueueStatus, operation_id="get_queue_lanes")
+    def get_queue_lanes(request: Request, actor: CurrentActor):
+        actor.human()
+        with snapshot(request.app.state.engine) as conn:
+            return {"items": queue_controls.status(conn)}
+
+    @router.put("/queue/lanes/{lane}", response_model=QueueLaneStatus, operation_id="set_queue_lane")
+    def set_queue_lane(lane: WorkLane, body: QueueLaneUpdate, request: Request, actor: CurrentActor):
+        actor.human()
+        with request.app.state.engine.begin() as conn:
+            return queue_controls.set_paused(conn, lane, body.paused, to_document(actor.principal),
+                                             runs.database_time)
 
     @router.get("/stories/{id}/estimate", response_model=EstimateView, operation_id="estimate_run")
     def estimate_run(id: str, request: Request, actor: CurrentActor):

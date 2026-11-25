@@ -62,8 +62,8 @@ class OIDCSettings:
             raise ValueError("STUDIO_OIDC_FAILURE_TTL_SECONDS must be between 1 and 60")
         if any(not isinstance(s, str) or not s for s in self.go_live_approver_subjects):
             raise ValueError("STUDIO_GO_LIVE_APPROVER_SUBJECTS must list verified OIDC subjects")
-        if not 1 <= self.go_live_freshness_seconds <= 86400:
-            raise ValueError("STUDIO_GO_LIVE_FRESHNESS_SECONDS must be between 1 and 86400")
+        if not 1 <= self.go_live_freshness_seconds <= 3600:
+            raise ValueError("STUDIO_GO_LIVE_FRESHNESS_SECONDS must be between 1 and 3600")
 
     @property
     def redirect_uri(self):
