@@ -1,7 +1,6 @@
 """Release evidence from immutable run metadata and the local licence register."""
 
 from collections.abc import Mapping
-from functools import cache
 
 from haynes_studio.api.errors import APIError
 from haynes_studio.build.provenance import CREDIT_ROLES, ROLE_LABEL, Register, credits
@@ -13,7 +12,6 @@ from haynes_studio.store.layout import is_sha256
 AI_DESCRIPTION_LINE = "This video was AI-generated."
 
 
-@cache
 def licence_register() -> Register:
     try:
         return Register(load_model_register())
@@ -57,7 +55,7 @@ def _recorded_terms(entry):
         return None
     return {field: entry[field] for field in (
         "key", "name", "licence", "outputs_commercial_use", "weights_commercial_use",
-        "source", "source_revision", "evidence",
+        "source", "source_revision", "evidence", "sha256",
     ) if field in entry}
 
 
@@ -165,9 +163,5 @@ def release_checks(run: dict, delivery_check: dict, platform_setting: bool, regi
     }
 
 
-def checked_evidence(run, delivery_check, platform_setting, saved):
-    """Reuse the first recorded evidence for this exact delivery."""
-    if saved is not None:
-        _require_provenance_and_disclosure(run, platform_setting)
-        return saved
+def checked_evidence(run, delivery_check, platform_setting):
     return release_checks(run, delivery_check, platform_setting, licence_register())

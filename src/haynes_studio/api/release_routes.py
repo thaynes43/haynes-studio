@@ -1,6 +1,6 @@
 """Production-scoped release packages and approver-only manual drops."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Request, Response
@@ -16,14 +16,18 @@ from haynes_studio.golive import checks, packages
 from haynes_studio.golive.policy import require_approver
 from haynes_studio.queue.protocol import SHA256
 
-from .approval_routes import AllowedDecision, DeniedDecision, _decision, _refusal
+from .approval_routes import AllowedDecision, DeniedDecision, _decision, _delivery, _refusal
 from .errors import APIError, ERROR_RESPONSES
 from .models import Body, JsonObject, TransportModel
 from .routes import _id
+from .run_routes import IdempotencyKey
+
+_PUBLICATION_CLOCK_SKEW = timedelta(minutes=5)
 
 
 class ReleasePackageWrite(Body):
     target_id: Annotated[str, StringConstraints(min_length=1, max_length=64)]
+    package_sha256: SHA256 | None = None
 
 
 class PublicationWrite(Body):
@@ -73,16 +77,18 @@ class PublicationSummary(TransportModel):
     schema_version: Literal["studio.publication/v1"] = Field(alias="schema")
     id: str
     package_sha256: SHA256
-    approval_id: str
+    approval_id: str | None = None
     run_id: str
     master_sha256: SHA256
     location: str
-    recorded_by_display_name: str | None
+    recorded_by_display_name: str | None = None
     recorded_at: datetime
     published_at: datetime | None
 
 
 class Publication(PublicationSummary):
+    approval_id: str
+    recorded_by_display_name: str | None
     recorded_by: dict[str, str]
 
 
@@ -94,8 +100,9 @@ class ReleasePackageReceipt(TransportModel):
 class ReleasePackageView(ReleasePackageReceipt):
     package: ReleasePackage
     state: Literal["held", "releasable"]
-    held_reason: Literal["release.approval_required"] | None
-    approval_id: str | None
+    held_reason: str | None
+    evidence_status: Literal["current", "older", "stale", "unavailable"]
+    approval_id: str | None = None
     publication: PublicationSummary | None
     record_publication: AllowedDecision | DeniedDecision
 
@@ -135,23 +142,51 @@ def _to_prepare(conn, id, actor):
         raise
 
 
-def _require_releasable(approval, publication):
+def _require_releasable(approval, publication, eligibility_refusal):
     if publication is not None:
         raise APIError(409, "release.already_published", "This package already has a publication record")
+    if eligibility_refusal is not None:
+        raise eligibility_refusal
     if approval is None:
         raise APIError(409, "release.approval_required", "The exact run and master need an active approval")
 
 
-def _view(conn, index, document, identity_refusal):
+def _current_evidence(run, delivery):
+    master = delivery["master"]["sha256"] if delivery else None
+    verified = checks.verify_delivery(run, delivery, master)
+    return checks.checked_evidence(run, verified, True)
+
+
+def _review_evidence(conn, row):
+    try:
+        return _current_evidence(row["document"], _delivery(conn, row["id"])), None
+    except APIError as error:
+        return None, error
+
+
+def _view(conn, index, current, eligibility_refusal, identity_refusal, *, human):
+    document = index["document"]
+    eligibility_refusal = eligibility_refusal or _refusal(packages.require_current_delivery, document, current)
     approval = packages.approval_for(conn, document)
-    publication = packages.publication_for(conn, index["sha256"])
+    publication = packages.publication_for_target(conn, index)
+    if publication is not None and not human:
+        publication = {key: publication[key] for key in (
+            "schema", "id", "package_sha256", "run_id", "master_sha256", "location", "recorded_at", "published_at",
+        )}
+    held_reason = (eligibility_refusal.details["code"] if eligibility_refusal is not None else
+                   "release.approval_required" if approval is None else None)
+    if eligibility_refusal is not None:
+        evidence_status = "stale" if eligibility_refusal.status_code == 422 else "unavailable"
+    else:
+        evidence_status = "current" if document["release_checks"] == current else "older"
     return {
         "sha256": index["sha256"], "bytes": index["bytes"], "package": document,
-        "state": "releasable" if approval is not None else "held",
-        "approval_id": approval["id"] if approval is not None else None,
-        "held_reason": "release.approval_required" if approval is None else None,
-        "publication": publication,
-        "record_publication": _decision(identity_refusal or _refusal(_require_releasable, approval, publication)),
+        "state": "held" if held_reason is not None else "releasable",
+        "held_reason": held_reason, "evidence_status": evidence_status, "publication": publication,
+        "record_publication": _decision(identity_refusal or _refusal(
+            _require_releasable, approval, publication, eligibility_refusal,
+        )),
+        **({"approval_id": approval["id"] if approval is not None else None} if human else {}),
     }
 
 
@@ -162,16 +197,30 @@ def build_routers(CurrentActor, authenticated_route, approval_route):
                          route_class=approval_route)
 
     @router.get("/runs/{id}/release-packages", response_model=ReleasePackageList,
-                operation_id="list_release_packages")
+                response_model_exclude_unset=True, operation_id="list_release_packages")
     def list_release_packages(id: str, request: Request, actor: CurrentActor):
         state = request.app.state
         with snapshot(state.engine) as conn:
             row = _run(conn, id, actor, "read")
+            items = packages.for_run(conn, row["id"])
+            current, eligibility_refusal = _review_evidence(conn, row) if items else (None, None)
             refusal = _refusal(require_approver, actor, state.oidc.settings, runs.database_time(conn))
             return {"targets": packages.targets(row["snapshot"]), "items": [
-                _view(conn, item, packages.load(state.store, row["production_id"], item), refusal)
-                for item in packages.for_run(conn, row["id"])
+                _view(conn, item, current, eligibility_refusal, refusal, human=actor.principal.kind == "human")
+                for item in packages.preferred_for_targets(items, current)
             ]}
+
+    @router.get("/runs/{id}/release-packages/{digest}/download", response_class=Response,
+                responses={200: {"content": {"application/json": {"schema": {"type": "object"}}}}},
+                operation_id="download_release_package")
+    def download_release_package(id: str, digest: SHA256, request: Request, actor: CurrentActor):
+        state = request.app.state
+        with state.engine.connect() as conn:
+            row = _run(conn, id, actor, "read")
+            index = packages.by_digest(conn, row["id"], digest)
+        data = packages.download(state.store, row["production_id"], index)
+        return Response(data, media_type=packages.MEDIA_TYPE,
+                        headers={"Content-Disposition": f'attachment; filename="{digest}.json"'})
 
     @router.post("/runs/{id}/release-packages", status_code=201, response_model=ReleasePackageReceipt,
                  responses={200: {"model": ReleasePackageReceipt}}, operation_id="prepare_release_package")
@@ -180,45 +229,56 @@ def build_routers(CurrentActor, authenticated_route, approval_route):
         state = request.app.state
         with state.engine.begin() as conn:
             row = _to_prepare(conn, id, actor)
-            for item in packages.for_run(conn, row["id"]):
-                if item["target_id"] == body.target_id:
-                    packages.load(state.store, row["production_id"], item)
-                    response.status_code = 200
-                    return dict(item)
-            delivery_row = catalog.get_delivery(conn, row["id"])
-            delivery = delivery_row.document if delivery_row is not None else None
-            master_sha256 = delivery["master"]["sha256"] if delivery is not None else None
+            if body.package_sha256 is not None:
+                index = packages.by_digest(conn, row["id"], body.package_sha256)
+                if index["target_id"] != body.target_id:
+                    raise NotFound
+                response.status_code = 200
+                return packages.restore_copy(state.store, row["production_id"], index)
+            existing = packages.for_run(conn, row["id"])
+            delivery = _delivery(conn, row["id"])
             run = row["document"]
-            verified = checks.verify_delivery(run, delivery, master_sha256)
-            saved = packages.saved_checks(conn, state.store, row, delivery)
-            evidence = checks.checked_evidence(run, verified, True, saved)
+            evidence = _current_evidence(run, delivery)
             document = packages.build(run, row["snapshot"], delivery, body.target_id, evidence)
-            return packages.save(conn, state.store, row["production_id"], document)
+            receipt, created = packages.save(conn, state.store, row["production_id"], document, existing)
+            if not created:
+                response.status_code = 200
+            return receipt
 
     @approver.post("/runs/{id}/publications", status_code=201, response_model=Publication,
-                   operation_id="record_publication")
-    def record_publication(id: str, body: PublicationWrite, request: Request, actor: CurrentActor):
+                   responses={200: {"model": Publication}}, operation_id="record_publication")
+    def record_publication(id: str, body: PublicationWrite, request: Request, response: Response,
+                           actor: CurrentActor, key: IdempotencyKey):
         state = request.app.state
         with state.engine.begin() as conn:
             # Approve and withdraw take the same run lock. It also fences duplicate drops.
             row = _run(conn, id, actor, "read", lock=True)
             now = runs.database_time(conn)
             require_approver(actor, state.oidc.settings, now)
-            index = next((item for item in packages.for_run(conn, row["id"])
-                          if item["sha256"] == body.package_sha256), None)
-            if index is None:
-                raise NotFound
-            document = packages.load(state.store, row["production_id"], index)
-            approval = packages.approval_for(conn, document)
-            _require_releasable(approval, packages.publication_for(conn, body.package_sha256))
+            who = to_document(actor.principal)
+            replay = packages.publication_replay(conn, row["id"], who, key, body.package_sha256,
+                                                 body.location, body.published_at)
+            if replay is not None:
+                response.status_code = 200
+                return replay
+            index = packages.by_digest(conn, row["id"], body.package_sha256)
+            approval = packages.approval_for(conn, index["document"])
+            current, eligibility_refusal = _review_evidence(conn, row)
+            eligibility_refusal = eligibility_refusal or _refusal(
+                packages.require_current_delivery, index["document"], current,
+            )
+            _require_releasable(approval, packages.publication_for_target(conn, index), eligibility_refusal)
             if not body.location.isprintable() or contains_credentials_in_prose(body.location):
                 raise APIError(422, "release.location_invalid", "Enter a single public location without credentials",
                                path="/location")
-            if body.published_at is not None and body.published_at > now:
-                raise APIError(422, "release.publication_in_future", "Enter a publication time in the past",
-                               path="/published_at")
+            if body.published_at is not None:
+                if body.published_at < datetime.fromisoformat(approval["approved_at"]):
+                    raise APIError(422, "release.publication_before_approval",
+                                   "Publication time must be at or after go-live approval", path="/published_at")
+                if body.published_at > now + _PUBLICATION_CLOCK_SKEW:
+                    raise APIError(422, "release.publication_in_future",
+                                   "Publication time may be at most five minutes ahead", path="/published_at")
             return packages.record_publication(conn, body.package_sha256, approval, body.location,
-                                               to_document(actor.principal), actor.display_name, now,
-                                               body.published_at)
+                                               who, actor.display_name, now, body.published_at, key)
 
     return router, approver

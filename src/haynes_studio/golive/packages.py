@@ -8,9 +8,10 @@ import sqlalchemy as sa
 
 from haynes_studio.api.errors import APIError
 from haynes_studio.canonical.ids import Minter
-from haynes_studio.db.runs import timestamp
+from haynes_studio.db.problems import NotFound
+from haynes_studio.db.runs import IdempotencyMismatch, actor_key, timestamp
 from haynes_studio.db.schema import publications, release_packages
-from haynes_studio.store import StoreError, blob_locator, canonical_json
+from haynes_studio.store import COLLISION, StoreError, blob_locator, canonical_json
 
 from . import records
 
@@ -71,33 +72,87 @@ def build(run, snapshot, delivery, target_id, release_checks):
 
 
 def for_run(conn, run_id):
-    return conn.execute(sa.select(release_packages).where(release_packages.c.run_id == run_id)
-                        .order_by(release_packages.c.target_id)).mappings().all()
+    rows = conn.execute(sa.select(release_packages).where(release_packages.c.run_id == run_id)
+                        .order_by(release_packages.c.target_id, release_packages.c.position.desc())).mappings()
+    return [_load(row) for row in rows]
 
 
-def load(store, production_id, row):
+def by_digest(conn, run_id, digest):
+    row = conn.execute(sa.select(release_packages).where(
+        release_packages.c.run_id == run_id, release_packages.c.sha256 == digest,
+    )).mappings().one_or_none()
+    if row is None:
+        raise NotFound
+    return _load(row)
+
+
+def _load(row):
+    data = row["document_bytes"]
+    try:
+        if len(data) != row["bytes"] or sha256(data).hexdigest() != row["sha256"]:
+            raise ValueError("Package bytes differ from the indexed length or hash")
+        document = json.loads(data)
+        if document["run_id"] != row["run_id"] or document["target"]["id"] != row["target_id"]:
+            raise ValueError("Package run or target differs from the index")
+    except (ValueError, TypeError, KeyError) as error:
+        raise APIError(503, "release.package_record_changed",
+                       "The database package failed its integrity check") from error
+    return {**row, "document": document}
+
+
+def preferred_for_targets(rows, current):
+    """Pick current evidence when available, otherwise the newest version of each target."""
+    preferred = {}
+    for row in rows:
+        target = row["target_id"]
+        selected = preferred.get(target)
+        if selected is None or (selected["document"]["release_checks"] != current
+                                and row["document"]["release_checks"] == current):
+            preferred[target] = row
+    return preferred.values()
+
+
+def download(store, production_id, row):
     locator = blob_locator(production_id, row["sha256"], MEDIA_TYPE)
     try:
         with store.open(locator) as source:
-            data = source.read(row["bytes"] + 1)
-        if len(data) == row["bytes"] and sha256(data).hexdigest() == row["sha256"]:
-            return json.loads(data)
+            data = source.read(row["bytes"])
+            exact_size = len(data) == row["bytes"] and not source.read(1)
     except (OSError, StoreError) as error:
-        raise APIError(503, "release.store_unavailable", "The package could not be read") from error
-    raise APIError(503, "release.package_changed", "The stored package does not match its content reference")
+        raise APIError(503, "release.store_unavailable", "The package download copy is unavailable") from error
+    if not exact_size or sha256(data).hexdigest() != row["sha256"]:
+        raise APIError(503, "release.package_changed", "The package download copy failed its integrity check")
+    return data
 
 
-def save(conn, store, production_id, document):
-    data = canonical_json(document)
-    digest = sha256(data).hexdigest()
+def _publish_copy(store, production_id, data, digest):
     try:
         store.publish(data, scope=production_id, media_type=MEDIA_TYPE, expected_sha256=digest)
-    except (OSError, StoreError) as error:
-        raise APIError(503, "release.store_unavailable", "The package could not be stored") from error
-    row = {"sha256": digest, "bytes": len(data), "run_id": document["run_id"],
-           "target_id": document["target"]["id"]}
-    conn.execute(release_packages.insert().values(**row))
-    return row
+    except StoreError as error:
+        if error.code == COLLISION:
+            raise APIError(503, "release.package_changed", "A different copy occupies the package path") from error
+        raise APIError(503, "release.store_unavailable", "The package copy could not be stored") from error
+    except OSError as error:
+        raise APIError(503, "release.store_unavailable", "The package copy could not be stored") from error
+
+
+def save(conn, store, production_id, document, existing):
+    data = canonical_json(document)
+    digest = sha256(data).hexdigest()
+    receipt = {"sha256": digest, "bytes": len(data)}
+    prior = next((item for item in existing if item["sha256"] == digest), None)
+    if prior is not None:
+        return restore_copy(store, production_id, prior), False
+    _publish_copy(store, production_id, data, digest)
+    conn.execute(release_packages.insert().values(
+        **receipt, run_id=document["run_id"], target_id=document["target"]["id"], document_bytes=data,
+    ))
+    return receipt, True
+
+
+def restore_copy(store, production_id, row):
+    _publish_copy(store, production_id, row["document_bytes"], row["sha256"])
+    return {"sha256": row["sha256"], "bytes": row["bytes"]}
 
 
 def approval_for(conn, document):
@@ -105,26 +160,33 @@ def approval_for(conn, document):
                                   document["delivery_id"], document["master"]["sha256"])
 
 
-def saved_checks(conn, store, row, delivery):
-    run = row["document"]
-    approval = records.exact_approval(conn, run["id"], run["snapshot"]["sha256"],
-                                      delivery["id"], delivery["master"]["sha256"], include_withdrawn=True)
-    if approval is not None:
-        return approval["release_checks"]
-    for stored in for_run(conn, run["id"]):
-        package = load(store, row["production_id"], stored)
-        if (package["run_snapshot_sha256"], package["delivery_id"], package["master"]["sha256"]) == (
-            run["snapshot"]["sha256"], delivery["id"], delivery["master"]["sha256"],
-        ):
-            return package["release_checks"]
-    return None
+def require_current_delivery(document, evidence):
+    delivery = evidence["delivery"]
+    if (document["run_snapshot_sha256"] != evidence["provenance"]["snapshot_sha256"]
+            or document["delivery_id"] != delivery["delivery_id"]
+            or document["master"]["sha256"] != delivery["master_sha256"]):
+        raise APIError(422, "approval.not_exact_run", "The package must match the current verified delivery")
 
 
-def publication_for(conn, digest):
-    return conn.scalar(sa.select(publications.c.document).where(publications.c.package_sha256 == digest))
+def publication_for_target(conn, index):
+    return conn.scalar(sa.select(publications.c.document).join(release_packages)
+                       .where(release_packages.c.run_id == index["run_id"],
+                              release_packages.c.target_id == index["target_id"]))
 
 
-def record_publication(conn, digest, approval, location, who, display_name, when, published_at):
+def publication_replay(conn, run_id, actor, key, digest, location, published_at):
+    document = conn.scalar(sa.select(publications.c.document).where(
+        publications.c.run_id == run_id, publications.c.idempotency_actor == actor_key(actor),
+        publications.c.idempotency_key == key,
+    ))
+    if document is not None and (document["package_sha256"], document["location"], document["published_at"]) != (
+        digest, location, timestamp(published_at) if published_at is not None else None,
+    ):
+        raise IdempotencyMismatch
+    return document
+
+
+def record_publication(conn, digest, approval, location, who, display_name, when, published_at, key):
     document = {
         "schema": "studio.publication/v1", "id": Minter().mint("pub"),
         "package_sha256": digest, "approval_id": approval["id"],
@@ -132,6 +194,8 @@ def record_publication(conn, digest, approval, location, who, display_name, when
         "location": location, "recorded_by": who, "recorded_by_display_name": display_name,
         "recorded_at": timestamp(when), "published_at": timestamp(published_at) if published_at else None,
     }
-    conn.execute(publications.insert().values(id=document["id"], package_sha256=digest,
-                                             approval_id=approval["id"], document=document))
+    conn.execute(publications.insert().values(
+        id=document["id"], package_sha256=digest, approval_id=approval["id"], run_id=approval["run_id"],
+        idempotency_actor=actor_key(who), idempotency_key=key, document=document,
+    ))
     return document

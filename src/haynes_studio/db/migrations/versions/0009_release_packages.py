@@ -1,4 +1,4 @@
-"""Store immutable release package references, manual drops and iteration clears."""
+"""Store immutable release packages, manual drops and iteration clears."""
 
 from alembic import op
 
@@ -17,15 +17,21 @@ def upgrade():
             run_id TEXT NOT NULL REFERENCES runs (id),
             target_id TEXT NOT NULL,
             bytes BIGINT NOT NULL CHECK (bytes > 0),
-            UNIQUE (run_id, target_id)
+            document_bytes BYTEA NOT NULL,
+            position BIGINT GENERATED ALWAYS AS IDENTITY
         )
     """)
+    op.execute("CREATE INDEX release_packages_run ON release_packages (run_id, target_id, position DESC)")
     op.execute("""
         CREATE TABLE publications (
             id TEXT PRIMARY KEY,
             package_sha256 VARCHAR(64) NOT NULL UNIQUE REFERENCES release_packages (sha256),
             approval_id TEXT NOT NULL REFERENCES go_live_approvals (id),
-            document JSONB NOT NULL
+            run_id TEXT NOT NULL REFERENCES runs (id),
+            idempotency_actor TEXT NOT NULL,
+            idempotency_key TEXT NOT NULL,
+            document JSONB NOT NULL,
+            UNIQUE (run_id, idempotency_actor, idempotency_key)
         )
     """)
     op.execute("CREATE INDEX publications_approval ON publications (approval_id)")

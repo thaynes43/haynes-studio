@@ -1,18 +1,26 @@
 """Exercise private package and publication boundaries through the real API."""
 
 import socket
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
+from pathlib import Path
+from threading import Event
 
 import pytest
 import sqlalchemy as sa
 
 from haynes_studio.build.provenance import Use
 from haynes_studio.canonical.ids import Minter
-from haynes_studio.db.schema import go_live_approvals, publications, release_packages, stories
+from haynes_studio.db import runs
+from haynes_studio.db.catalog import record_delivery
+from haynes_studio.db.schema import go_live_approvals, publications, release_packages, runs as run_table
 from haynes_studio.formats.recipe import recipe_hash
+from haynes_studio.golive import packages, records
 from haynes_studio.golive.checks import licence_register
+from haynes_studio.model_register import load_model_register
 from haynes_studio.store import blob_locator, canonical_json
+from tests.canonical.fixtures import example
 from tests.db.test_go_live import (
     APPROVER, client, engine, finished_fixture, new_production, owner_engine, register_agent,
     runtime_db, runtime_role, service, setup, sign_in, worker_credentials,
@@ -45,6 +53,20 @@ def get(s, run):
     assert result.status_code == 200, result.text
     assert result.headers["cache-control"] == "private, no-store"
     return result.json()["items"][0]
+
+
+def download_path(run, digest):
+    return f"{path(run)}/{digest}/download"
+
+
+def copy_path(s, digest):
+    return Path(s.app.state.store.root) / blob_locator(s.production, digest, "application/json")
+
+
+def publish(s, run, body, key="fixture-drop", *, headers=None, browser=None):
+    return (browser or s.browser).post(path(run, "publications"), json=body, headers={
+        **(s.csrf if headers is None else headers), "Idempotency-Key": key,
+    })
 
 
 def succeed(response, code=201):
@@ -111,11 +133,166 @@ def test_package_bytes_are_stable_and_common_evidence_is_pinned(setup, monkeypat
     assert succeed(prepare(s, run, target), 200) == receipt
     assert get(s, run) == item
 
-    # A later register change cannot silently change the evidence signed for these bytes.
-    monkeypatch.setattr("haynes_studio.golive.checks.licence_register", no_connection)
     approval = succeed(s.browser.post(run.path, json=run.body, headers=s.csrf))
     assert approval["release_checks"] == package["release_checks"]
+    assert "package_evidence_older" not in approval
     assert get(s, run)["state"] == "releasable"
+
+
+@pytest.mark.parametrize("damage", ["missing", "length", "hash"])
+def test_share_copy_integrity_does_not_block_approval_or_listing(setup, damage):
+    s = setup
+    run, target = target_fixture(s)
+    receipt = succeed(prepare(s, run, target))
+    digest = receipt["sha256"]
+    copy = copy_path(s, digest)
+    url = download_path(run, digest)
+    original = copy.read_bytes()
+    initial = s.browser.get(url)
+    assert initial.status_code == 200 and initial.content == original
+    assert initial.headers["content-disposition"] == f'attachment; filename="{digest}.json"'
+    assert initial.headers["cache-control"] == "private, no-store"
+    if damage == "missing":
+        copy.unlink()
+        code = "release.store_unavailable"
+    else:
+        damaged = original + b" " if damage == "length" else b" " + original[1:]
+        copy.chmod(0o644)
+        copy.write_bytes(damaged)
+        copy.chmod(0o444)
+        code = "release.package_changed"
+    refuse(s.browser.get(url), 503, code)
+    approval = succeed(s.browser.post(run.path, json=run.body, headers=s.csrf))
+    item = get(s, run)
+    assert item["sha256"] == digest and item["state"] == "releasable"
+    assert canonical_json(item["package"]) == original
+    assert approval["release_checks"] == item["package"]["release_checks"]
+    if damage != "missing":
+        refuse(prepare(s, run, target), 503, "release.package_changed")
+        assert copy.read_bytes() == damaged
+        copy.unlink()
+    assert succeed(prepare(s, run, target), 200) == receipt
+    assert s.browser.get(url).content == copy.read_bytes() == original
+
+
+@pytest.mark.parametrize("damage", ["document", "length"])
+def test_canonical_record_integrity_blocks_reads_and_approval(setup, damage):
+    s = setup
+    run, target = target_fixture(s)
+    receipt = succeed(prepare(s, run, target))
+    digest = receipt["sha256"]
+    copy = copy_path(s, digest)
+    document = get(s, run)["package"]
+    if damage == "document":
+        changed = {"document_bytes": canonical_json({**document, "description": "X" + document["description"][1:]})}
+        assert len(changed["document_bytes"]) == receipt["bytes"]
+    else:
+        changed = {"bytes": receipt["bytes"] + 1}
+    with s.owner.begin() as conn:
+        conn.execute(release_packages.update().where(release_packages.c.sha256 == digest).values(**changed))
+    assert copy.read_bytes() == canonical_json(document)
+    refuse(s.browser.get(path(run)), 503, "release.package_record_changed")
+    refuse(s.browser.get(download_path(run, digest)), 503, "release.package_record_changed")
+    refuse(s.browser.post(run.path, json=run.body, headers=s.csrf), 503, "release.package_record_changed")
+    assert s.browser.get(run.path).json()["approvals"] == []
+
+
+@pytest.mark.parametrize("changed", ["engine-removed", "file-removed", "file-pin"])
+def test_owner_refuses_agent_package_when_current_register_fails(setup, tmp_path, monkeypatch, changed):
+    s = setup
+    run, target = target_fixture(s)
+    _, agent = register_agent(s.owner, {s.production: ["runs:queue"]})
+    register = load_model_register()
+    override = tmp_path / "register.json"
+    override.write_bytes(canonical_json(register))
+    monkeypatch.setenv("STUDIO_MODEL_REGISTER", str(override))
+    receipt = succeed(prepare(s, run, target, agent))
+    video_file = next(entry for entry in register["files"] if entry["engine"] == "wan-ti2v")
+    if changed == "engine-removed":
+        register["engines"] = [entry for entry in register["engines"] if entry["key"] != "wan-ti2v"]
+    elif changed == "file-removed":
+        register["files"].remove(video_file)
+    else:
+        video_file["sha256"] = "1" * 64
+    override.write_bytes(canonical_json(register))
+
+    error = refuse(s.browser.post(run.path, json=run.body, headers=s.csrf), 422, "approval.licence_missing")
+    assert error["evidence"]["package_stale"] is True
+    assert error["evidence"]["rows"]
+    assert s.browser.get(run.path).json()["approvals"] == []
+    item = get(s, run)
+    assert item["sha256"] == receipt["sha256"]
+    assert item["state"] == "held" and item["evidence_status"] == "stale"
+    assert item["held_reason"] == "approval.licence_missing"
+    refuse(prepare(s, run, target), 422, "approval.licence_missing")
+
+
+def test_approval_records_new_eligible_evidence_and_can_prepare_a_new_package(setup, tmp_path, monkeypatch):
+    s = setup
+    run, target = target_fixture(s)
+    old = succeed(prepare(s, run, target))
+    old_document = get(s, run)["package"]
+    register = load_model_register()
+    video = next(entry for entry in register["engines"] if entry["key"] == "wan-ti2v")
+    video["licence"]["note"] = "Updated terms, reviewed in this fixture."
+    override = tmp_path / "register.json"
+    override.write_bytes(canonical_json(register))
+    monkeypatch.setenv("STUDIO_MODEL_REGISTER", str(override))
+
+    approval = succeed(s.browser.post(run.path, json=run.body, headers=s.csrf))
+    assert approval["package_evidence_older"] is True
+    assert approval["release_checks"] != old_document["release_checks"]
+    assert approval["release_checks"] == s.browser.get(run.path).json()["approvals"][0]["release_checks"]
+    item = get(s, run)
+    assert item["evidence_status"] == "older" and item["state"] == "releasable"
+    assert item["sha256"] == old["sha256"] and item["package"] == old_document
+    new = succeed(prepare(s, run, target))
+    assert new["sha256"] != old["sha256"] and get(s, run)["sha256"] == new["sha256"]
+    assert get(s, run)["evidence_status"] == "current"
+    assert get(s, run)["package"]["release_checks"] == approval["release_checks"]
+    assert succeed(prepare(s, run, target), 200) == new
+    copy_path(s, old["sha256"]).unlink()
+    restore = {"target_id": target, "package_sha256": old["sha256"]}
+    refuse(s.browser.post(path(run), json={**restore, "target_id": "wrong-target"}, headers=s.csrf),
+           404, "not_found")
+    assert succeed(s.browser.post(path(run), json=restore, headers=s.csrf), 200) == old
+    assert s.browser.get(download_path(run, old["sha256"])).content == canonical_json(old_document)
+    body = {"package_sha256": new["sha256"], "location": "Fixture publication",
+            "published_at": (datetime.now(UTC) + timedelta(minutes=4)).isoformat()}
+    register["engines"].remove(video)
+    override.write_bytes(canonical_json(register))
+    assert get(s, run)["state"] == "held"
+    refuse(publish(s, run, body), 422, "approval.licence_missing")
+    register["engines"].append(video)
+    override.write_bytes(canonical_json(register))
+    succeed(publish(s, run, body))
+    refuse(publish(s, run, {**body, "package_sha256": old["sha256"]}, key="second-drop"), 409,
+           "release.already_published")
+
+
+@pytest.mark.parametrize(("guard", "code"), [
+    ("provenance", "approval.provenance_missing"),
+    ("run_disclosure", "approval.ai_label_missing"),
+    ("platform_setting", "approval.ai_label_missing"),
+])
+def test_approval_rechecks_provenance_and_disclosure_after_preparation(setup, guard, code):
+    s = setup
+    run, target = target_fixture(s)
+    succeed(prepare(s, run, target))
+    body = dict(run.body)
+    if guard == "platform_setting":
+        del body["platform_setting"]
+    else:
+        with s.owner.begin() as conn:
+            row = runs.get(conn, run.id)
+            document = row["document"]
+            if guard == "provenance":
+                del document["provenance"]["toolchain"]
+            else:
+                document["provenance"]["public"]["ai_generated"] = False
+            runs._save(conn, row, document=document)
+    refuse(s.browser.post(run.path, json=body, headers=s.csrf), 422, code)
+    assert s.browser.get(run.path).json()["approvals"] == []
 
 
 @pytest.mark.parametrize(("failure", "maximum", "aspect", "code"), [
@@ -157,7 +334,26 @@ def test_preparation_uses_production_scope_and_only_the_frozen_target(setup):
     receipt = succeed(prepare(s, run, target, queuer))
     assert set(receipt) == {"sha256", "bytes"}
     assert succeed(s.browser.get(path(run), headers=reader), 200)["items"][0]["sha256"] == receipt["sha256"]
+    url = download_path(run, receipt["sha256"])
+    assert s.browser.get(url, headers=reader).status_code == 200
+    refuse(s.browser.get(url, headers=outsider), 404, "not_found")
+    refuse(s.browser.get(url, headers=queuer), 404, "not_found")
     refuse(s.browser.post(run.path, json=run.body, headers=queuer), 403, "approval.approver_not_permitted")
+
+
+def test_delivery_only_legacy_preparation_checks_scope_first(setup):
+    s = setup
+    delivery = example("valid/delivery-legacy-r4.json")
+    delivery.update(id=Minter().mint("dlv"), run_id=Minter().mint("run"))
+    with s.owner.begin() as conn:
+        record_delivery(conn, s.story, delivery)
+    other = new_production(s.browser, s.csrf)
+    _, outsider = register_agent(s.owner, {other: ["runs:queue"]})
+    _, queuer = register_agent(s.owner, {s.production: ["runs:queue"]})
+    url = f"/v1/runs/{delivery['run_id']}/release-packages"
+    body = {"target_id": "fixture"}
+    refuse(s.browser.post(url, json=body, headers=outsider), 404, "not_found")
+    refuse(s.browser.post(url, json=body, headers=queuer), 422, "approval.legacy_run")
 
 
 def test_drop_requires_exact_active_approval_and_a_person_and_is_append_only(setup, monkeypatch):
@@ -176,24 +372,21 @@ def test_drop_requires_exact_active_approval_and_a_person_and_is_append_only(set
     monkeypatch.setattr(socket, "create_connection", no_connection)
     monkeypatch.setattr(socket, "getaddrinfo", no_connection)
     first = succeed(prepare(s, run, target))
-    url = path(run, "publications")
-    body = {"package_sha256": first["sha256"], "location": "https://www.youtube.com/shorts/fixture",
-            "published_at": (datetime.now(UTC) - timedelta(seconds=10)).isoformat()}
-    refuse(s.browser.post(url, json=body, headers=s.csrf), 409, "release.approval_required")
+    body = {"package_sha256": first["sha256"], "location": "https://www.youtube.com/shorts/fixture"}
+    refuse(publish(s, run, body), 409, "release.approval_required")
     other_approval = succeed(s.browser.post(other.path, json=other.body, headers=s.csrf))
     succeed(prepare(s, other, other_target))
     other_package = get(s, other)
     assert other_package["package"]["release_checks"] == other_approval["release_checks"]
     assert other_package["state"] == "releasable"
     assert get(s, run)["state"] == "held"
-    refuse(s.browser.post(url, json=body, headers=s.csrf), 409, "release.approval_required")
-    refuse(s.browser.post(url, json={**body, "package_sha256": other_package["sha256"]}, headers=s.csrf),
-           404, "not_found")
+    refuse(publish(s, run, body), 409, "release.approval_required")
+    refuse(publish(s, run, {**body, "package_sha256": other_package["sha256"]}), 404, "not_found")
     approval = succeed(s.browser.post(run.path, json=run.body, headers=s.csrf))
     assert get(s, run)["approval_id"] == approval["id"]
-    refuse(nonapprover.post(url, json=body, headers=csrf), 403, "approval.subject_not_permitted")
-    refuse(s.browser.post(url, json=body, headers=agent), 403, "approval.approver_not_permitted")
-    refuse(s.browser.post(url, json=body, headers=worker), 403, "approval.worker_not_permitted")
+    refuse(publish(s, run, body, headers=csrf, browser=nonapprover), 403, "approval.subject_not_permitted")
+    refuse(publish(s, run, body, headers=agent), 403, "approval.approver_not_permitted")
+    refuse(publish(s, run, body, headers=worker), 403, "approval.worker_not_permitted")
 
     # A historical approval for this run alone does not match a different master.
     with s.owner.begin() as conn:
@@ -202,37 +395,125 @@ def test_drop_requires_exact_active_approval_and_a_person_and_is_append_only(set
         conn.execute(go_live_approvals.update().where(go_live_approvals.c.id == approval["id"])
                      .values(document={**record, "master_sha256": "0" * 64}))
     assert get(s, run)["state"] == "held"
-    refuse(s.browser.post(url, json=body, headers=s.csrf), 409, "release.approval_required")
+    refuse(publish(s, run, body), 409, "release.approval_required")
     with s.owner.begin() as conn:
         conn.execute(go_live_approvals.update().where(go_live_approvals.c.id == approval["id"])
                      .values(document=record))
 
     story_path = f"/v1/stories/{s.story}"
-    assert not s.browser.get(story_path).json()["published"]
-    refuse(s.browser.post(url, json={**body, "location": "https://user:secret@example.invalid/"},
-                          headers=s.csrf), 422, "release.location_invalid")
-    refuse(s.browser.post(url, json={**body, "published_at": (datetime.now(UTC) + timedelta(days=1)).isoformat()},
-                          headers=s.csrf), 422, "release.publication_in_future")
-    published = succeed(s.browser.post(url, json=body, headers=s.csrf))
+    with s.owner.begin() as conn:
+        conn.execute(sa.text("UPDATE stories SET published = true WHERE id = :id"), {"id": s.story})
+    assert s.browser.get(story_path).json()["published"] is False
+    assert s.browser.get(s.list_path, params={"publication": "published"}).json()["items"] == []
+    assert [story["id"] for story in s.browser.get(s.list_path, params={"publication": "unpublished"})
+            .json()["items"]] == [s.story]
+    with s.owner.begin() as conn:
+        conn.execute(sa.text("UPDATE stories SET published = false WHERE id = :id"), {"id": s.story})
+    refuse(publish(s, run, {**body, "location": "https://user:secret@example.invalid/"}),
+           422, "release.location_invalid")
+    approved_at = datetime.fromisoformat(approval["approved_at"])
+    refuse(publish(s, run, {**body, "published_at": (approved_at - timedelta(microseconds=1)).isoformat()}),
+           422, "release.publication_before_approval")
+    refuse(publish(s, run, {**body, "published_at": (datetime.now(UTC) + timedelta(minutes=6)).isoformat()}),
+           422, "release.publication_in_future")
+    body["published_at"] = approval["approved_at"]
+    published = succeed(publish(s, run, body))
     assert published["location"] == body["location"]
     assert datetime.fromisoformat(published["published_at"]) == datetime.fromisoformat(body["published_at"])
     assert published["recorded_by"] == APPROVER and published["approval_id"] == approval["id"]
     assert published["package_sha256"] == first["sha256"] and published["master_sha256"] == run.body["master_sha256"]
     assert get(s, run)["publication"]["id"] == published["id"]
-    assert "recorded_by" not in get(s, run)["publication"]
+    assert get(s, run)["publication"]["recorded_by_display_name"] == approval["approver_display_name"]
+    agent_item = succeed(s.browser.get(path(run), headers=agent), 200)["items"][0]
+    assert agent_item["state"] == "releasable" and agent_item["sha256"] == first["sha256"]
+    assert agent_item["publication"]["id"] == published["id"]
+    assert "approval_id" not in agent_item
+    assert {"recorded_by", "recorded_by_display_name", "approval_id"}.isdisjoint(agent_item["publication"])
     assert s.browser.get(story_path).json()["published"]
     assert [story["id"] for story in s.browser.get(s.list_path, params={"publication": "published"})
             .json()["items"]] == [s.story]
-    refuse(s.browser.post(url, json=body, headers=s.csrf), 409, "release.already_published")
+    assert succeed(publish(s, run, body), 200) == published
+    refuse(publish(s, run, {**body, "location": "Another public location"}), 422, "idempotency.mismatch")
+    refuse(publish(s, run, body, key="another-drop"), 409, "release.already_published")
 
     withdrawn = succeed(s.browser.post(f"/v1/go-live-approvals/{approval['id']}/withdraw", headers=s.csrf))
     assert withdrawn["derived"]["publication_ids"] == [published["id"]]
     assert s.browser.get(run.path).json()["approvals"] == [withdrawn]
     assert get(s, run)["state"] == "held" and get(s, run)["publication"]["id"] == published["id"]
+    assert succeed(publish(s, run, body), 200) == published
     assert s.browser.get(story_path).json()["published"] and get(s, other)["state"] == "releasable"
     with s.owner.connect() as conn:
-        assert conn.scalar(sa.select(sa.func.count()).select_from(publications)) == 1
-        assert not conn.scalar(sa.select(stories.c.published).where(stories.c.id == s.story))
+        assert conn.scalar(sa.select(sa.func.count()).select_from(publications)
+                           .where(publications.c.run_id == run.id)) == 1
+        assert conn.scalar(sa.text("SELECT published FROM stories WHERE id = :id"), {"id": s.story}) is False
+
+
+@pytest.mark.parametrize("first", ["publication", "withdrawal"])
+def test_publication_and_withdrawal_serialize_on_the_run(setup, monkeypatch, first):
+    s = setup
+    run, target = target_fixture(s)
+    receipt = succeed(prepare(s, run, target))
+    approval = succeed(s.browser.post(run.path, json=run.body, headers=s.csrf))
+    other_browser = client(s.app)
+    other_csrf = sign_in(other_browser, s.issuer)
+    body = {"package_sha256": receipt["sha256"], "location": "Fixture publication"}
+    withdraw_path = f"/v1/go-live-approvals/{approval['id']}/withdraw"
+
+    staged = Event()
+    competing = Event()
+    finish = Event()
+    guarded_module, guarded_name = (
+        (packages, "record_publication") if first == "publication" else (records, "record_withdrawal")
+    )
+    insert = getattr(guarded_module, guarded_name)
+    get_run = runs.get
+
+    def pause_before_insert(*args, **kwargs):
+        staged.set()
+        assert finish.wait(10)
+        return insert(*args, **kwargs)
+
+    def watch_competing_read(conn, run_id, **kwargs):
+        if run_id == run.id and staged.is_set():
+            competing.set()
+        return get_run(conn, run_id, **kwargs)
+
+    monkeypatch.setattr(guarded_module, guarded_name, pause_before_insert)
+    monkeypatch.setattr(runs, "get", watch_competing_read)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        if first == "publication":
+            publication = pool.submit(publish, s, run, body)
+        else:
+            withdrawal = pool.submit(s.browser.post, withdraw_path, headers=s.csrf)
+        try:
+            assert staged.wait(5)
+            # Probe before the insert, when only the explicit run lock can hold the row.
+            with pytest.raises(sa.exc.OperationalError) as locked, s.owner.begin() as conn:
+                conn.execute(sa.select(run_table.c.id).where(run_table.c.id == run.id).with_for_update(nowait=True))
+            assert locked.value.orig.sqlstate == "55P03"
+            if first == "publication":
+                withdrawal = pool.submit(other_browser.post, withdraw_path, headers=other_csrf)
+            else:
+                publication = pool.submit(publish, s, run, body, browser=other_browser, headers=other_csrf)
+            assert competing.wait(5)
+        finally:
+            finish.set()
+        withdrawn = succeed(withdrawal.result(timeout=10))
+        response = publication.result(timeout=10)
+        if first == "publication":
+            drop = succeed(response)
+            assert drop["approval_id"] == approval["id"]
+            assert datetime.fromisoformat(drop["recorded_at"]) <= datetime.fromisoformat(
+                withdrawn["derived"]["withdrawal"]["withdrawn_at"],
+            )
+            assert withdrawn["derived"]["publication_ids"] == [drop["id"]]
+        else:
+            refuse(response, 409, "release.approval_required")
+            assert withdrawn["derived"]["publication_ids"] == []
+    with s.owner.connect() as conn:
+        count = conn.scalar(sa.select(sa.func.count()).select_from(publications)
+                            .where(publications.c.run_id == run.id))
+        assert count == (1 if first == "publication" else 0)
 
 
 @pytest.mark.parametrize("table", [release_packages, publications], ids=lambda item: item.name)

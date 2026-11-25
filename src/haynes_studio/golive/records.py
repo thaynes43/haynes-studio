@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import aggregate_order_by
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.db.problems import NotFound
 from haynes_studio.db.schema import go_live_approvals as approvals, go_live_withdrawals as withdrawals
-from haynes_studio.db.schema import publications, release_packages, runs, stories
+from haynes_studio.db.schema import publications, runs, stories
 
 _active = approvals.outerjoin(withdrawals, withdrawals.c.approval_id == approvals.c.id)
 
@@ -17,15 +17,14 @@ def active_id(run_id):
             .order_by(approvals.c.id).limit(1))
 
 
-def exact_approval(conn, run_id, snapshot_sha256, delivery_id, master_sha256, *, include_withdrawn=False):
+def exact_approval(conn, run_id, snapshot_sha256, delivery_id, master_sha256):
     stmt = sa.select(approvals.c.document).select_from(_active).where(
         approvals.c.run_id == run_id,
         approvals.c.delivery_id == delivery_id,
         approvals.c.document["run_snapshot_sha256"].astext == snapshot_sha256,
         approvals.c.document["master_sha256"].astext == master_sha256,
+        withdrawals.c.approval_id.is_(None),
     )
-    if not include_withdrawn:
-        stmt = stmt.where(withdrawals.c.approval_id.is_(None))
     return conn.scalar(stmt.order_by(approvals.c.id).limit(1))
 
 
@@ -36,7 +35,7 @@ def story_approved():
 
 
 def story_published():
-    return (sa.select(1).select_from(publications.join(release_packages).join(runs))
+    return (sa.select(1).select_from(publications.join(runs))
             .where(runs.c.story_id == stories.c.id).correlate(stories).exists())
 
 

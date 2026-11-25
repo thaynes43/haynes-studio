@@ -191,7 +191,8 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
                  *format_routes.transport_models(), *escalation_routes.transport_models(),
                  *feedback_routes.transport_models(), *release_routes.transport_models(),
                  approval_routes.ApprovalWrite, approval_routes.ApprovalState,
-                 approval_routes.ApprovalHistoryItem, approval_routes.ApprovalView, approval_routes.AllowedDecision,
+                 approval_routes.ApprovalHistoryItem, approval_routes.ApprovalView, approval_routes.ApprovalResult,
+                 approval_routes.AllowedDecision,
                  approval_routes.DeniedDecision, approval_routes.ApprovalReview)
     for model in (ErrorDetail, ErrorEnvelope):
         model.model_config["defer_build"] = False
@@ -230,7 +231,8 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
                 conn.execute(sa.select(packages.c.id).limit(0))
                 conn.execute(sa.select(stories.c.feedback_iteration_id)
                              .join(feedback_iterations).join(run_candidates).join(candidate_feedback).limit(0))
-                conn.execute(sa.select(release_packages.c.sha256).join(publications).limit(0))
+                conn.execute(sa.select(release_packages.c.document_bytes, publications.c.idempotency_key)
+                             .join(publications).limit(0))
         except (SQLAlchemyError, OSError):
             return False
         return True

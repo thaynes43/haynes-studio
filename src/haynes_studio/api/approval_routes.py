@@ -50,6 +50,10 @@ class ApprovalView(ApprovalHistoryItem):
     auth_time: str
 
 
+class ApprovalResult(ApprovalView):
+    package_evidence_older: Literal[True] | None = None
+
+
 class AllowedDecision(TransportModel):
     allowed: Literal[True]
 
@@ -68,8 +72,9 @@ class ApprovalReview(TransportModel):
     approvals: list[ApprovalHistoryItem]
 
 
-def _check_approval(run, delivery, master_sha256, platform_setting, active, saved, *, preview=False):
+def _check_approval(run, delivery, master_sha256, platform_setting, active, package_rows, *, preview=False):
     evidence = active_refusal = None
+    prepared = ()
     try:
         verified = checks.verify_delivery(run, delivery, master_sha256)
         evidence = {"delivery": verified}
@@ -77,14 +82,19 @@ def _check_approval(run, delivery, master_sha256, platform_setting, active, save
             active_refusal = APIError(409, "approval.already_active", "The run already has an active approval")
             if not preview:
                 raise active_refusal
-        evidence = checks.checked_evidence(run, verified, platform_setting, saved())
+        prepared = package_rows()
+        evidence = checks.checked_evidence(run, verified, platform_setting)
     except APIError as error:
         if not preview:
+            if prepared and platform_setting is True and error.status_code == 422:
+                error.details["evidence"] = {**error.details.get("evidence", {}), "package_stale": True}
             raise
         if evidence is not None and error.details["code"] == "approval.licence_missing":
             evidence["licences"] = error.details["evidence"]
-        return evidence, active_refusal or error
-    return evidence, active_refusal
+        return evidence, active_refusal or error, False
+    older = any(item["document"]["release_checks"] != evidence
+                for item in packages.preferred_for_targets(prepared, evidence))
+    return evidence, active_refusal, older
 
 
 def _require_active(active_id, approval_id=None):
@@ -124,9 +134,9 @@ def build_router(CurrentActor, approval_route):
             delivery = _delivery(conn, row["id"])
             master = delivery["master"]["sha256"] if delivery else None
             active = conn.scalar(records.active_id(row["id"]))
-            evidence, approval_refusal = _check_approval(
+            evidence, approval_refusal, _ = _check_approval(
                 row["document"], delivery, master, True, active,
-                lambda: packages.saved_checks(conn, state.store, row, delivery), preview=True,
+                lambda: packages.for_run(conn, row["id"]), preview=True,
             )
             show_identity = _refusal(require_allowlisted_approver, actor, state.oidc.settings) is None
             return {
@@ -137,8 +147,8 @@ def build_router(CurrentActor, approval_route):
                 "approvals": records.history(conn, row["id"], show_identity=show_identity),
             }
 
-    @router.post("/runs/{id}/go-live-approvals", status_code=201, response_model=ApprovalView,
-                 operation_id="approve_go_live")
+    @router.post("/runs/{id}/go-live-approvals", status_code=201, response_model=ApprovalResult,
+                 response_model_exclude_unset=True, operation_id="approve_go_live")
     def approve_go_live(id: str, body: ApprovalWrite, request: Request, actor: CurrentActor):
         state = request.app.state
         with state.engine.begin() as conn:
@@ -151,16 +161,19 @@ def build_router(CurrentActor, approval_route):
                 raise
             run = row["document"]
             delivery = _delivery(conn, row["id"])
-            evidence, _ = _check_approval(
+            evidence, _, older = _check_approval(
                 run, delivery, body.master_sha256, body.platform_setting,
                 conn.scalar(records.active_id(row["id"])),
-                lambda: packages.saved_checks(conn, state.store, row, delivery),
+                lambda: packages.for_run(conn, row["id"]),
             )
             now = runs.database_time(conn)
             require_approver(actor, state.oidc.settings, now)
-            return records.record_approval(conn, run, body.master_sha256, to_document(actor.principal),
-                                           actor.display_name, runs.timestamp(actor.auth_time),
-                                           runs.timestamp(now), evidence)
+            approval = records.record_approval(conn, run, body.master_sha256, to_document(actor.principal),
+                                               actor.display_name, runs.timestamp(actor.auth_time),
+                                               runs.timestamp(now), evidence)
+            if older:
+                approval["package_evidence_older"] = True
+            return approval
 
     @router.post("/go-live-approvals/{id}/withdraw", status_code=201, response_model=ApprovalView,
                  operation_id="withdraw_go_live")
