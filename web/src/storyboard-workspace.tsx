@@ -3,6 +3,7 @@ import { Link } from "react-router";
 
 import type { StudioClient } from "./api/client";
 import { BoardInspector, type InspectorVoiceState } from "./board-inspector";
+import { PhotoComposer, type StagePhotoState } from "./photo-composer";
 import { treePath } from "./routes";
 import { Empty, Problem } from "./shell-ui";
 import type { StoryboardPanel, StoryboardScope } from "./storyboard-data";
@@ -30,8 +31,8 @@ function VoiceStrip({ panel }: { panel: StoryboardPanel }) {
   </div>;
 }
 
-function Stage({ panel, index, range, aspect, voiceCurrent }: {
-  panel?: StoryboardPanel; index: number; range?: string; aspect: "short" | "video"; voiceCurrent: boolean;
+function Stage({ panel, index, range, aspect, voiceCurrent, photoUnsaved }: {
+  panel?: StoryboardPanel; index: number; range?: string; aspect: "short" | "video"; voiceCurrent: boolean; photoUnsaved: boolean;
 }) {
   if (!panel) return <section className="storyboard-stage" aria-label="Selected board stage">
     <Empty>No boards yet.</Empty>
@@ -44,6 +45,8 @@ function Stage({ panel, index, range, aspect, voiceCurrent }: {
     <div className="storyboard-stage-meta">
       <code aria-label="Board ID">{record.id}</code>
       <span aria-label="Time range">{range}</span>
+      {photoUnsaved ? <span>Photo inputs unsaved</span>
+        : record.derived?.photo_state === "stale" && <span>Reference photo stale</span>}
     </div>
     <div className="storyboard-preview">
       <div className={`storyboard-picture storyboard-picture-${aspect}`}>
@@ -56,11 +59,14 @@ function Stage({ panel, index, range, aspect, voiceCurrent }: {
   </section>;
 }
 
-export function StoryboardWorkspace({ api, model, scope }: { api: StudioClient; model: StoryboardModel; scope: StoryboardScope }) {
+export function StoryboardWorkspace({ api, model, scope, photoRoute }: {
+  api: StudioClient; model: StoryboardModel; scope: StoryboardScope; photoRoute: boolean;
+}) {
   const { draft, focus, notice, pending, problem, selected, selectedIndex } = model;
   const strip = useRef<HTMLOListElement>(null);
   const add = useRef<HTMLButtonElement>(null);
   const [voiceState, setVoiceState] = useState<InspectorVoiceState>();
+  const [photoState, setPhotoState] = useState<StagePhotoState>();
   useLayoutEffect(() => {
     if (!focus) return;
     const button = focus.board ? document.getElementById(panelElementId(focus.board)) : add.current;
@@ -83,6 +89,7 @@ export function StoryboardWorkspace({ api, model, scope }: { api: StudioClient; 
   const panel = draft.boards[selectedIndex];
   return <div className="storyboard-workspace">
     <Stage key={selected} panel={panel} index={selectedIndex} aspect={scope.media} range={selectedTiming?.range}
+      photoUnsaved={Boolean(photoState?.board === selected && photoState?.unsaved)}
       voiceCurrent={Boolean(voiceState?.current && voiceState.board === selected && voiceState.revision === panel?.record.revision)} />
     <section className="storyboard-timeline" aria-labelledby="storyboard-timeline-heading">
       <div className="storyboard-timeline-heading">
@@ -121,7 +128,10 @@ export function StoryboardWorkspace({ api, model, scope }: { api: StudioClient; 
     </section>
     <aside className="storyboard-inspector" aria-label="Board inspector">
       {panel && <BoardInspector api={api} board={panel.record} story={draft.story} fps={draft.timing.fps} timelinePending={locked}
-        onRefresh={model.refreshFromInspector} onVoiceState={setVoiceState} />}
+        onRefresh={model.refreshFromInspector} onVoiceState={setVoiceState}>
+        <PhotoComposer key={panel.record.id} api={api} panel={panel.record} story={draft.story} scope={scope}
+          photoRoute={photoRoute} timelinePending={locked} onRefresh={model.refreshFromInspector} onPhotoState={setPhotoState} />
+      </BoardInspector>}
     </aside>
   </div>;
 }

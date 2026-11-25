@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { ApiError, type StudioClient } from "./api/client";
 import {
@@ -27,7 +27,7 @@ type InspectorProps = {
   onVoiceState: (state: InspectorVoiceState) => void;
 };
 
-export function BoardInspector(props: InspectorProps) {
+export function BoardInspector({ children, ...props }: InspectorProps & { children?: ReactNode }) {
   const { api, board } = props;
   const readAccount = useCallback(async (signal: AbortSignal) => {
     const { data } = await api.GET("/v1/me", { signal });
@@ -42,6 +42,7 @@ export function BoardInspector(props: InspectorProps) {
 
   return <>
     <h2>Board inspector</h2>
+    {children}
     {result.status === "loading" ? <p className="inspector-message" role="status">Loading inspector…</p>
       : <InspectorForm key={`${account ?? "memory"}:${board.id}`} {...props} store={store} />}
   </>;
