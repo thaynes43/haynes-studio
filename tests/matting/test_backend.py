@@ -6,6 +6,7 @@ import copy
 import hashlib
 import multiprocessing
 import os
+import socket
 import tempfile
 import zlib
 from concurrent.futures import ThreadPoolExecutor
@@ -33,7 +34,7 @@ from haynes_studio.matting.profile import (
     BUSY, COMMAND_FAILED, DIM, GRAPH_NAME, NOT_FOUND, PIN_MISMATCH, PROFILE_ID,
     PROVIDER, REQUEST_INVALID, RESPONSE_INVALID, TIMEOUT, MatteError, Profile,
 )
-from haynes_studio.matting.service import _UnixConnection, listening, local_call
+from haynes_studio.matting.service import MAX_DRAIN, MAX_REQUEST, _UnixConnection, listening, local_call
 from haynes_studio.matting.smoke import INSTALLED_FIXTURE_HASHES, _check_fixtures, _installed_matches, _request
 from haynes_studio.schemas import validator_for
 from haynes_studio.store import canonical_json
@@ -174,6 +175,65 @@ def test_http_refuses_oversized_or_ambiguous_json(prepared):
                 finally:
                     connection.close()
     assert {item.name for item in (root / value["attempt_id"]).iterdir()} == {"input"}
+
+
+def test_http_refusal_reaches_a_caller_that_is_still_sending_its_body(prepared):
+    """An oversized request is refused with a reply, not with a broken pipe.
+
+    The caller sends headers first and the body afterwards. A server that
+    replied and closed between the two made this refusal a race.
+    """
+    root, weights, _ = prepared
+    body = b" " * (MAX_REQUEST + 1)
+    headers = (
+        b"POST /v1/matte HTTP/1.0\r\nContent-Type: application/json\r\n"
+        b"Content-Length: " + str(len(body)).encode() + b"\r\n\r\n"
+    )
+    with tempfile.TemporaryDirectory(prefix="matte-sock-") as directory, Engine(
+        root, weights, PROFILE, factory=load_fake,
+    ) as engine:
+        path = Path(directory) / "matte.sock"
+        with listening(path, engine), socket.socket(socket.AF_UNIX) as caller:
+            caller.settimeout(3)
+            caller.connect(str(path))
+            caller.sendall(headers)
+            # Wait until the server has parsed the headers and is in the handler.
+            # Without the bounded read it would already have replied and closed,
+            # and the next send would fail.
+            caller.settimeout(0.3)
+            with pytest.raises(TimeoutError):
+                caller.recv(1)
+            caller.settimeout(3)
+            caller.sendall(body)
+            reply = b""
+            while chunk := caller.recv(4096):
+                reply += chunk
+    status, _, payload = reply.partition(b"\r\n")
+    assert status.split()[1] == b"400"
+    assert payload.rpartition(b"\r\n\r\n")[2] == canonical_json({"code": REQUEST_INVALID})
+    assert not any(root.glob("*/cutout.png"))
+
+
+def test_http_refusal_does_not_wait_for_more_than_a_bounded_body(prepared):
+    root, weights, _ = prepared
+    declared = MAX_DRAIN * 4
+    with tempfile.TemporaryDirectory(prefix="matte-sock-") as directory, Engine(
+        root, weights, PROFILE, factory=load_fake,
+    ) as engine:
+        path = Path(directory) / "matte.sock"
+        with listening(path, engine), socket.socket(socket.AF_UNIX) as caller:
+            caller.settimeout(3)
+            caller.connect(str(path))
+            caller.sendall(
+                b"POST /v1/matte HTTP/1.0\r\nContent-Type: application/json\r\n"
+                b"Content-Length: " + str(declared).encode() + b"\r\n\r\n" + b" " * MAX_DRAIN
+            )
+            started = monotonic()
+            reply = b""
+            while chunk := caller.recv(4096):
+                reply += chunk
+            assert monotonic() - started < 2
+    assert reply.split()[1] == b"400"
 
 
 @pytest.mark.parametrize(("value", "code"), [
