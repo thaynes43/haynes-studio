@@ -57,7 +57,7 @@ for request and response details. This map covers the API used by
 | `get_go_live_approvals` | `GET /runs/{id}/go-live-approvals` | — | Signed-in person with production read access | [958](https://work.haynesnetwork.com/work_packages/958) |
 | `approve_go_live` | `POST /runs/{id}/go-live-approvals` | — | go_live:approve | [412](https://work.haynesnetwork.com/work_packages/412) |
 | `withdraw_go_live` | `POST /go-live-approvals/{id}/withdraw` | — | go_live:approve | [412](https://work.haynesnetwork.com/work_packages/412) |
-| `record_publication` | Planned `POST /runs/{id}/publications` | — | human | [449](https://work.haynesnetwork.com/work_packages/449) |
+| `record_publication` | `POST /runs/{id}/publications` | — | go_live:approve | [449](https://work.haynesnetwork.com/work_packages/449) |
 | `claim_work`, `heartbeat_work`, `complete_work`, `fail_work` | `POST /internal/v1/work/{claim,heartbeat,resume,publish,complete,fail}` and Wan attempt routes | — | worker | [410](https://work.haynesnetwork.com/work_packages/410), [430](https://work.haynesnetwork.com/work_packages/430) |
 | `login`, `callback`, `logout` | `GET /auth/login`, `GET /auth/callback`, `POST /auth/logout` | — | Sign-in entry points. Logout requires a session and CSRF. | [409](https://work.haynesnetwork.com/work_packages/409), [432](https://work.haynesnetwork.com/work_packages/432) |
 | `healthz`, `readyz` | `GET /healthz`, `/readyz` | — | none | [434](https://work.haynesnetwork.com/work_packages/434) |
