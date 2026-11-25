@@ -13,7 +13,7 @@ export const runStates: Record<Run["status"], string> = {
   cancelled: "Cancelled", held: "Held", imported: "Imported",
 };
 
-export function newestRuns(runs: Run[]) {
+export function newestRuns<T extends Run>(runs: T[]) {
   return runs.toSorted((left, right) => right.number - left.number);
 }
 
@@ -21,15 +21,21 @@ export function hasDelivery(run: Run) {
   return run.status === "succeeded" || run.status === "imported";
 }
 
-export async function loadRuns(api: StudioClient, story: string, signal: AbortSignal) {
-  const runs = await collectPages<Run>((cursor) => api.GET("/v1/stories/{id}/runs", {
+function readRunPage(api: StudioClient, story: string, signal: AbortSignal, cursor?: string) {
+  return api.GET("/v1/stories/{id}/runs", {
     signal, params: { path: { id: story }, query: { cursor } },
-  }).then(({ data }) => data));
+  }).then(({ data }) => data);
+}
+
+export type RunView = NonNullable<Awaited<ReturnType<typeof readRunPage>>>["items"][number];
+
+export async function loadRuns(api: StudioClient, story: string, signal: AbortSignal) {
+  const runs = await collectPages<RunView>((cursor) => readRunPage(api, story, signal, cursor));
   if (runs.some((run) => run.story_id !== story)) throw new ApiError(404);
   return newestRuns(runs);
 }
 
-export async function loadDelivery(api: StudioClient, run: Run, signal: AbortSignal) {
+export async function loadDelivery(api: StudioClient, run: Pick<Run, "id" | "delivery_id">, signal: AbortSignal) {
   const { data } = await api.GET("/v1/runs/{id}/delivery", {
     signal, params: { path: { id: run.id } },
   });

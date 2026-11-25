@@ -12,6 +12,7 @@ export class ApiError extends Error {
     public readonly status: number,
     public readonly code?: string,
     public readonly requestId?: string,
+    public readonly detail?: Partial<Pick<components["schemas"]["ErrorDetail"], "message" | "path" | "board_id" | "evidence">>,
   ) {
     super(`Studio request failed (${status})`);
   }
@@ -25,6 +26,12 @@ export class ApiError extends Error {
       response.status,
       typeof detail?.code === "string" ? detail.code : undefined,
       typeof requestId === "string" && /^[\w-]{1,128}$/.test(requestId) ? requestId : undefined,
+      detail && {
+        message: typeof detail.message === "string" ? detail.message : undefined,
+        path: typeof detail.path === "string" ? detail.path : undefined,
+        board_id: typeof detail.board_id === "string" ? detail.board_id : undefined,
+        evidence: detail.evidence,
+      },
     );
   }
 }
