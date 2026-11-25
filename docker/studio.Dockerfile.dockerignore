@@ -7,3 +7,4 @@
 **/__pycache__
 **/*.py[cod]
 !docker/studio-build-constraints.txt
+!docs/reference/model-licences.json

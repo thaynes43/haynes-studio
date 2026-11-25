@@ -10,7 +10,7 @@ from time import monotonic
 import sqlalchemy as sa
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
-from sqlalchemy.exc import OperationalError, SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.exc import TimeoutError as DBTimeoutError
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
@@ -18,11 +18,11 @@ from starlette.exceptions import HTTPException
 from haynes_studio.db import runs
 from haynes_studio.db.engine import connect_engine
 from haynes_studio.db.problems import NotFound, StaleRevision
-from haynes_studio.db.schema import media_job_lanes, run_lane, sessions
+from haynes_studio.db.schema import go_live_approvals, media_job_lanes, run_lane, sessions
 from haynes_studio.errors import ContractError, pointer
 from haynes_studio.store.local import LocalStore
 
-from . import auth, job_routes, media, routes, run_routes
+from . import approval_routes, auth, job_routes, media, routes, run_routes
 from .config import DEFAULT_STORE_FRESHNESS_SECONDS, from_environment, store_freshness_from_environment
 from .errors import APIError, ErrorDetail, ErrorEnvelope, STATUS, error_response, missing
 from .models import build_models
@@ -121,6 +121,15 @@ def _errors(app: FastAPI):
 
     @app.exception_handler(SQLAlchemyError)
     async def database_error(request: Request, error: SQLAlchemyError):
+        if isinstance(error, IntegrityError):
+            diagnostic = getattr(error.orig, "diag", None)
+            if getattr(diagnostic, "constraint_name", None) == "draft_name_unique":
+                production = diagnostic.table_name == "productions"
+                return await api_error(request, APIError(
+                    409, "production.name_duplicate" if production else "story.title_duplicate",
+                    "That production name is already in use" if production else "That story title is already in use",
+                    path="/name" if production else "/title", existing_entity_id=diagnostic.message_detail,
+                ))
         transient = isinstance(error, (OperationalError, DBTimeoutError))
         logger.error("Studio database operation failed (%s) request_id=%s",
                      type(error).__name__, request.state.request_id)
@@ -144,17 +153,20 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
     _errors(app)
     app.add_middleware(RequestContextMiddleware)
 
-    build_models(*run_routes.transport_models(), *job_routes.transport_models())
+    build_models(*run_routes.transport_models(), *job_routes.transport_models(),
+                 approval_routes.ApprovalWrite, approval_routes.ApprovalState,
+                 approval_routes.ApprovalView)
     for model in (ErrorDetail, ErrorEnvelope):
         model.model_config["defer_build"] = False
         model.model_rebuild()
-    auth_router, protected_auth, current_actor, authenticated_route = auth.build_router()
+    auth_router, protected_auth, current_actor, authenticated_route, approval_route = auth.build_router()
     app.include_router(auth_router)
     app.include_router(protected_auth)
     app.include_router(routes.build_router(current_actor, authenticated_route))
     app.include_router(media.build_router(current_actor, authenticated_route))
     app.include_router(run_routes.build_router(current_actor, authenticated_route))
     app.include_router(job_routes.build_router(current_actor, authenticated_route))
+    app.include_router(approval_routes.build_router(current_actor, approval_route))
     app.include_router(run_routes.worker_router())
 
     @app.get("/healthz", status_code=204, response_class=Response, operation_id="healthz")
@@ -169,6 +181,7 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
                 conn.execute(sa.select(sa.literal(1)).select_from(sessions).limit(0))
                 conn.execute(sa.select(run_lane.c.id).limit(0))
                 conn.execute(sa.select(media_job_lanes.c.lane).limit(0))
+                conn.execute(sa.select(go_live_approvals.c.id).limit(0))
         except (SQLAlchemyError, OSError):
             return False
         return True

@@ -4,8 +4,8 @@ from alembic import op
 
 from haynes_studio.db.grants import JOB_GRANTS, PROMOTION_GRANTS, grant_runtime, revoke_runtime
 
-revision = "0004_job_operations"
-down_revision = "0003_studio_run_queue"
+revision = "0005_job_operations"
+down_revision = "0004_go_live_approvals"
 branch_labels = None
 depends_on = None
 

@@ -40,9 +40,16 @@ stories = sa.Table(
     "stories", metadata, identifier(), sa.Column("production_id", sa.Text, nullable=False),
     sa.Column("media_kind", sa.Text, nullable=False),
     sa.Column("source_key", sa.Text, unique=True), document(),
+    sa.Column("published", sa.Boolean, nullable=False, server_default=sa.false()),
     sa.ForeignKeyConstraint(["production_id", "media_kind"],
                             ["media_types.production_id", "media_types.kind"]),
     sa.Index("stories_media_id", "production_id", "media_kind", "id"),
+)
+draft_names = sa.Table("draft_names", metadata,
+    sa.Column("production_id", sa.Text(collation="C"), primary_key=True),
+    sa.Column("media_kind", sa.Text(collation="C"), primary_key=True),
+    sa.Column("name_key", sa.Text(collation="C"), primary_key=True),
+    sa.Column("entity_ids", ARRAY(sa.Text), nullable=False),
 )
 boards = sa.Table(
     "boards", metadata, identifier(), foreign("story_id", "stories.id"),
@@ -93,12 +100,14 @@ delivery_media = media_index("delivery_media", "run_id", "deliveries.run_id")
 login_attempts = sa.Table("login_attempts", metadata, digest(),
                           sa.Column("state", sa.Text, nullable=False),
                           sa.Column("nonce", sa.Text, nullable=False),
-                          sa.Column("verifier", sa.Text, nullable=False), expiry())
+                          sa.Column("verifier", sa.Text, nullable=False), expiry(),
+                          sa.Column("return_to", sa.Text, nullable=False, server_default="/"))
 sessions = sa.Table("sessions", metadata, digest(), expiry(),
                     sa.Column("iss", sa.Text, nullable=False),
                     sa.Column("sub", sa.Text, nullable=False),
                     sa.Column("display_name", sa.Text),
-                    sa.Column("csrf", sa.Text, nullable=False))
+                    sa.Column("csrf", sa.Text, nullable=False),
+                    sa.Column("auth_time", sa.DateTime(timezone=True)))
 selections = sa.Table("selections", metadata,
                       sa.Column("iss", sa.Text, primary_key=True),
                       sa.Column("sub", sa.Text, primary_key=True),
@@ -182,4 +191,11 @@ media_jobs = sa.Table(
     sa.Column("fence", sa.BigInteger, nullable=False),
     sa.Column("claim_until", sa.DateTime(timezone=True)),
     sa.Column("dispatched", sa.Boolean, nullable=False),
+)
+
+go_live_approvals = sa.Table("go_live_approvals", metadata, identifier(),
+    foreign("run_id", "runs.id"), foreign("delivery_id", "deliveries.id"), document(),
+)
+go_live_withdrawals = sa.Table("go_live_withdrawals", metadata,
+    foreign("approval_id", "go_live_approvals.id", primary_key=True), document(),
 )

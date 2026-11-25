@@ -56,6 +56,8 @@ or recover metadata to an isolated database for inspection.
 | `STUDIO_OIDC_CACHE_TTL_SECONDS` | Cache lifetime for OIDC discovery and signing keys, 1–3600 seconds. Default 300. |
 | `STUDIO_OIDC_FAILURE_TTL_SECONDS` | Cooldown after a failed discovery or signing key fetch, 1–60 seconds. Default 10. |
 | `STUDIO_SESSION_SECONDS` | Absolute lifetime of an API session, 60–86400 seconds. Default 28800. |
+| `STUDIO_GO_LIVE_APPROVER_SUBJECTS` | JSON array of approver subjects scoped to the configured OIDC issuer. Default `[]`. |
+| `STUDIO_GO_LIVE_FRESHNESS_SECONDS` | Maximum age of sign-in for approval and withdrawal, 1–86400 seconds. Default 900. |
 
 Use TLS for browser requests. Configure Authentik with
 `STUDIO_PUBLIC_ORIGIN + /auth/callback`, `client_secret_basic`, PKCE S256 and
@@ -87,10 +89,10 @@ verified ID token when its subject matches the subject allowlist or its
 Subjects on the allowlist may sign in regardless of the group claim. A verified
 token that matches neither rule receives HTTP 403 `auth.subject_forbidden`.
 Groups grant Studio sign-in only. Go-live approval uses its own issuer and
-subject allowlist under contract section 11.
+subject allowlist. See [Go-live approvals](go-live.md).
 
 `GET /healthz` returns 204 independently of the database and store. `GET /readyz`
-returns 204 when the metadata and run queue tables are reachable and the last completed store
+returns 204 when the session, run queue and approval tables are reachable and the last completed store
 check succeeded within the freshness window. It returns 503 if there is no
 completed check, the last check failed, or its success is stale. A readiness
 request starts one background store check per process when there is no result
@@ -145,13 +147,23 @@ GRANT UPDATE (document, revision, worker_id, fence, claim_until, retry_at,
     admission_refusals, cancel_requested, publishing) ON studio.runs TO studio_app;
 GRANT UPDATE (state, outcome) ON studio.run_wan_attempts TO studio_app;
 
--- Applied by revision 0004_job_operations.
+-- Applied by revision 0005_job_operations.
 GRANT SELECT, UPDATE (next_position) ON studio.media_job_lanes TO studio_app;
 GRANT SELECT, INSERT ON studio.media_jobs TO studio_app;
 GRANT UPDATE (document, worker_id, fence, claim_until, dispatched)
     ON studio.media_jobs TO studio_app;
 GRANT UPDATE (state, document) ON studio.asset_versions TO studio_app;
+
+-- Applied by revision 0004_go_live_approvals.
+GRANT SELECT, INSERT ON studio.go_live_approvals, studio.go_live_withdrawals TO studio_app;
 ```
+
+Revision `0004_go_live_approvals` uses the PostgreSQL UTF-8 `und-x-icu`
+collation to lower-case NFC names. The schema owner's trigger maintains the
+name reservations. The runtime role has no direct grants on `draft_names`.
+The migration prints the affected IDs for pre-existing collisions and keeps
+every display name. A collided name remains reserved while any of those
+records uses it.
 
 Agent key provisioning supports the migration role and a dedicated, non-owner
 `studio_key_admin` role. For a dedicated role, grant only the privileges below
@@ -222,10 +234,13 @@ token or digest.
 
 ## Browser, agent and worker requests
 
-- `GET /auth/login` initiates the OIDC code flow. The callback consumes one
+- `GET /auth/login` initiates the OIDC code flow. It accepts an optional
+  2,048-character same-origin `return_to` path with an optional query and an
+  optional `fresh=true` for OIDC reauthentication. The callback consumes one
   browser-bound attempt and verifies the issuer, signing key, audience, time,
   nonce and subject. It creates an API session with a Secure, HttpOnly,
-  SameSite=Lax `__Host-studio-session` cookie and redirects to `/`.
+  SameSite=Lax `__Host-studio-session` cookie and redirects to the recorded
+  path, default `/`. A callback failure redirects to `/?auth_error=<code>`.
   The database holds the cookie digest. Discovery, token exchange and claim
   validation happen in the API process. Subject sessions require the subject
   to remain on the configured allowlist. Group-only sessions bind their
@@ -265,7 +280,11 @@ write returns HTTP 409 with `conflict.revision` and `current_revision`.
 
 Productions start at revision 1. Enabling a media type takes the production's
 revision and returns the updated production. Story creation begins with a
-title and optional draft fields. A story response contains ordered board IDs.
+title and optional draft fields. Production names are unique. Story titles are
+unique within a production and media type. Both comparisons trim whitespace,
+apply NFC and lowercase the result. A collision returns HTTP 409 with
+`production.name_duplicate` or `story.title_duplicate` and `existing_entity_id`.
+A story response contains ordered board IDs.
 Fetch each board by ID. Creating a board or reordering uses the story's
 revision. Editing or tombstoning uses the board's revision. Changing a board
 also advances the story revision. A tombstone preserves its board number,
@@ -280,7 +299,8 @@ default to layered S2V. Explicit methods are still validated.
 
 Selections are a per-subject JSON object in a `values` envelope. The empty
 selection has revision 0. PUT replaces the object and advances its revision.
-For the initial API, all draft stories are unpublished and unapproved.
+Story lists and reads expose `latest_finished_run`, `approved` and `published`.
+See [Story and run status](go-live.md#story-and-run-status).
 
 The catalog serves visible canonical versions through `GET /v1/assets`.
 Filter by kind, one or more labels, production or board. The board filter

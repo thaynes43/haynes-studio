@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 
-from haynes_studio.db.grants import JOB_GRANTS, RUNTIME_GRANTS
+from haynes_studio.db.grants import GO_LIVE_GRANTS, JOB_GRANTS, RUNTIME_GRANTS
 
 REFERENCES = Path(__file__).resolve().parents[2] / "docs/reference"
 
@@ -36,7 +36,7 @@ def test_documented_runtime_table_grants_match_alembic():
         assert all(re.fullmatch(r"studio\.[a-z_][a-z_0-9]*", name) for name in names)
         documented.append((privileges, tuple(name.removeprefix("studio.") for name in names)))
 
-    assert _table_privileges(documented) == _table_privileges(RUNTIME_GRANTS + JOB_GRANTS)
+    assert _table_privileges(documented) == _table_privileges(RUNTIME_GRANTS + JOB_GRANTS + GO_LIVE_GRANTS)
 
 
 def test_agent_key_terminal_output_guidance_covers_pod_logs():

@@ -18,6 +18,7 @@ from haynes_studio.canonical import (
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.canonical.jsonvalues import normalize
 from haynes_studio.errors import ContractError, Violation, pointer
+from haynes_studio.golive import records as go_live
 from haynes_studio.library.resolve import resolve, story_references
 
 from haynes_studio.photo.plan import photo_facts
@@ -139,15 +140,20 @@ def board_story(conn: sa.Connection, id_: str, *, include_tombstone=False) -> st
 
 
 def list_stories(conn: sa.Connection, production_id: str, kind: str,
-                 after: str | None, limit: int) -> list[dict]:
+                 after: str | None, limit: int, *, published: bool | None = None,
+                 approved: bool | None = None) -> list[dict]:
     check_media_type(conn, production_id, kind)
-    stmt = sa.select(stories.c.id).where(
+    stmt = go_live.story_status_query().where(
         stories.c.production_id == production_id, stories.c.media_kind == kind,
     )
     if after is not None:
         stmt = stmt.where(stories.c.id > after)
-    return [get_draft(conn, id_).summary(conn)
-            for id_ in conn.scalars(stmt.order_by(stories.c.id).limit(limit))]
+    if published is not None:
+        stmt = stmt.where(stories.c.published.is_(published))
+    if approved is not None:
+        stmt = stmt.where(go_live.story_approved().is_(approved))
+    return [get_draft(conn, row["id"]).summary(conn, row)
+            for row in conn.execute(stmt.order_by(stories.c.id).limit(limit)).mappings()]
 
 
 @dataclass
@@ -171,13 +177,18 @@ class Draft:
             photo_facts(Story.from_document(document), library),
         )
 
-    def summary(self, conn: sa.Connection) -> dict:
+    def summary(self, conn: sa.Connection, status=None) -> dict:
         doc = self.exchange()
         _, library = self._library(conn, doc)
         story = Story.from_document(doc)
         derived = story_derived(story, story.ordered_boards(), self.facts(conn, doc, library),
                                 highest_number_issued=self.highest_board)
-        return {**self.story, "derived": to_document(derived)}
+        if status is None:
+            stmt = go_live.story_status_query().where(stories.c.id == self.story["id"])
+            status = conn.execute(stmt).mappings().one()
+        return {**self.story, "derived": to_document(derived),
+                "published": status["published"], "approved": status["approved"],
+                "latest_finished_run": status["latest_finished_run"]}
 
     def board(self, conn: sa.Connection, id_: str) -> dict:
         if id_ not in self.boards:

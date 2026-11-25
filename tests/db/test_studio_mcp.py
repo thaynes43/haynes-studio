@@ -296,7 +296,8 @@ def test_sdk_edits_scoped_drafts_through_the_api(admin, service, owner_engine, t
                 listed = await call(session, "studio_list_productions")
                 assert [item["id"] for item in listed["items"]] == [production]
                 detail = await call(session, "studio_get_production", production_id=production)
-                assert detail["name"] == "A fixture production" and detail["media_types"][0]["kind"] == "short"
+                assert detail["name"].startswith("Fixture production ")
+                assert detail["media_types"][0]["kind"] == "short"
                 draft = await call(session, "studio_create_story", production_id=production, kind="short",
                                    fields={"title": "Fixture short"})
                 story_id = draft["id"]
