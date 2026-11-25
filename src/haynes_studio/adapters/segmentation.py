@@ -8,7 +8,7 @@ import re
 import stat
 from collections.abc import Callable
 from contextlib import contextmanager, nullcontext
-from errno import EISDIR, ELOOP, ENOTDIR, ENXIO
+from errno import EEXIST, EISDIR, ELOOP, ENOTDIR, ENOTEMPTY, ENXIO
 from fcntl import LOCK_EX, LOCK_NB, flock
 from pathlib import Path
 from time import sleep, time
@@ -38,6 +38,7 @@ BUSY_WAITS = 13
 # have passed. Its files alone can never be used as a successful response.
 SCRATCH_GRACE = REQUEST_SECONDS + 6
 MARKER = re.compile(r"\.studio-segment-([a-f0-9]{32})")
+PATH_DIRECTORY = os.O_PATH | os.O_DIRECTORY | os.O_NOFOLLOW
 GROUNDING_FACTS = {"prompt", "detector_resize_wh", "detector_canvas_wh"}
 OPERATION_FACTS = GROUNDING_FACTS | {"sam_hint"}
 
@@ -131,13 +132,15 @@ def verify_result(request: dict, result: object, mask: bytes | None, profile: Pr
 
 @contextmanager
 def _scratch_directory(path: Path):
-    # An O_NOFOLLOW open of the whole path only protects its last component.
+    # Reject symlinks at each step and require read permission only on the root.
     anchor = path.anchor
-    current = os.open(anchor or ".", DIRECTORY)
+    parts = path.parts[1:] if anchor else path.parts
+    current = os.open(anchor or ".", PATH_DIRECTORY if parts else DIRECTORY)
     try:
-        for part in path.parts[1 if anchor else 0:]:
+        for depth, part in enumerate(parts, start=1):
+            flags = DIRECTORY if depth == len(parts) else PATH_DIRECTORY
             try:
-                child = os.open(part, DIRECTORY, dir_fd=current)
+                child = os.open(part, flags, dir_fd=current)
             except OSError as error:
                 if error.errno in (ELOOP, ENOTDIR):
                     raise SegmentationError("lock_path_invalid") from None
@@ -234,9 +237,15 @@ class SegmentationClient:
         try:
             os.mkdir(attempt, mode=0o770, dir_fd=scratch)
             staged = True
-            fd = os.open(attempt, DIRECTORY, dir_fd=scratch)
+            path_fd = os.open(attempt, PATH_DIRECTORY, dir_fd=scratch)
             try:
-                os.fchmod(fd, 0o2770)
+                # O_PATH pins the directory even when umask masked owner read.
+                # procfs lets chmod address that descriptor before a readable open.
+                os.chmod(f"/proc/self/fd/{path_fd}", 0o2770)
+                fd = os.open(".", DIRECTORY, dir_fd=path_fd)
+            finally:
+                os.close(path_fd)
+            try:
                 _create_file(fd, "input", data)
                 os.chmod("input", 0o640, dir_fd=fd)
                 check_fence()
@@ -303,16 +312,22 @@ class SegmentationClient:
     def _remove(self, scratch: int, attempt: str, marker: str):
         try:
             try:
-                fd = os.open(attempt, DIRECTORY, dir_fd=scratch)
                 try:
-                    for name in ("input", "mask.png", "result.json"):
-                        try:
-                            os.unlink(name, dir_fd=fd)
-                        except FileNotFoundError:
-                            pass
-                finally:
-                    os.close(fd)
-                os.rmdir(attempt, dir_fd=scratch)
+                    # An empty attempt can be removed even if chmod never ran.
+                    os.rmdir(attempt, dir_fd=scratch)
+                except OSError as error:
+                    if error.errno not in (ENOTEMPTY, EEXIST):
+                        raise
+                    fd = os.open(attempt, PATH_DIRECTORY, dir_fd=scratch)
+                    try:
+                        for name in ("input", "mask.png", "result.json"):
+                            try:
+                                os.unlink(name, dir_fd=fd)
+                            except FileNotFoundError:
+                                pass
+                    finally:
+                        os.close(fd)
+                    os.rmdir(attempt, dir_fd=scratch)
             except FileNotFoundError:
                 pass
             try:

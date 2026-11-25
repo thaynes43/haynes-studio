@@ -1,6 +1,7 @@
 """Isolated evidence for the adapter's source, cache, fence and socket guards."""
 
 import os
+import stat
 from contextlib import nullcontext
 from dataclasses import replace
 from io import BytesIO
@@ -735,27 +736,103 @@ def test_gate_refuses_fifo_with_nonblocking_open(world, monkeypatch):
     assert len(opens) == 1
 
 
-def test_staging_and_cleanup_stay_with_the_open_scratch_directory(world, monkeypatch):
+@pytest.mark.skipif(os.geteuid() == 0, reason="directory read permissions require an unprivileged user")
+@pytest.mark.parametrize("restriction", ["search-only-ancestor", "restrictive-umask"])
+def test_scratch_permissions_allow_staging_and_cleanup(world, monkeypatch, restriction):
+    _, client, _ = world
+    data = b"still"
+    methods = []
+
+    def reply(_socket, method, _route, payload=None, **_kwargs):
+        methods.append(method)
+        if method == "GET":
+            return 200, {"profile_id": PROFILE_ID, "profile_sha256": client.profile_sha256, "device": "cpu"}
+        attempt = client.scratch / payload["attempt_id"]
+        assert stat.S_IMODE(attempt.stat().st_mode) == 0o2770
+        assert (attempt / "input").read_bytes() == data
+        return 504, {"code": "timeout"}
+
+    monkeypatch.setattr(adapter, "local_call", reply)
+    ancestor = client.scratch.parent
+    original_mode = stat.S_IMODE(ancestor.stat().st_mode)
+    original_umask = os.umask(0o400) if restriction == "restrictive-umask" else None
+    if restriction == "search-only-ancestor":
+        ancestor.chmod(0o111)
+    try:
+        with client.serial(lambda: None) as scratch, pytest.raises(SegmentationError, match="^timeout$"):
+            client.run_locked(request_for(data), data, lambda: None, scratch)
+    finally:
+        if original_umask is not None:
+            os.umask(original_umask)
+        if restriction == "search-only-ancestor":
+            ancestor.chmod(original_mode)
+    assert methods == ["GET", "POST"]
+    assert sorted(p.name for p in client.scratch.iterdir()) == [".studio-segmentation.lock"]
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="directory read permissions require an unprivileged user")
+def test_restrictive_umask_cleanup_when_setting_attempt_mode_fails(world, monkeypatch):
+    _, client, _ = world
+    data = b"still"
+
+    def fail_chmod(_path, mode, **_kwargs):
+        assert mode == 0o2770
+        attempt, = (p for p in client.scratch.iterdir() if p.is_dir())
+        assert not attempt.stat().st_mode & stat.S_IRUSR
+        raise PermissionError("injected attempt chmod failure")
+
+    monkeypatch.setattr(os, "chmod", fail_chmod)
+    monkeypatch.setattr(client, "_call", accessed_unexpectedly)
+    original_umask = os.umask(0o400)
+    try:
+        with adapter._scratch_directory(client.scratch) as scratch:
+            with pytest.raises(PermissionError, match="injected attempt chmod failure"):
+                client._attempt(request_for(data), data, lambda: None, scratch)
+    finally:
+        os.umask(original_umask)
+    assert not list(client.scratch.iterdir())
+
+
+@pytest.mark.parametrize("transport_timeout", [False, True], ids=["http-504", "transport-timeout"])
+def test_staging_and_cleanup_stay_with_the_open_scratch_directory(world, monkeypatch, transport_timeout):
     _, client, _ = world
     held = client.scratch.with_name("held")
     target = client.scratch.with_name("unrelated")
     target.mkdir()
     data = b"still"
+    dispatched = []
+    stale_timestamp = 100
 
-    def reply(method, route, payload=None):
-        if method == "GET":
-            return 200, {"profile_id": PROFILE_ID, "profile_sha256": client.profile_sha256, "device": "cpu"}
-        assert (held / payload["attempt_id"] / "input").read_bytes() == data
-        return 504, {"code": "timeout"}
-
-    monkeypatch.setattr(client, "_call", reply)
-    with client.serial(lambda: None) as scratch:
+    def replace_scratch():
         client.scratch.rename(held)
         client.scratch.symlink_to(target, target_is_directory=True)
+
+    def reply(_socket, method, _route, payload=None, **_kwargs):
+        if method == "GET":
+            return 200, {"profile_id": PROFILE_ID, "profile_sha256": client.profile_sha256, "device": "cpu"}
+        attempt = payload["attempt_id"]
+        dispatched.append(attempt)
+        if transport_timeout:
+            replace_scratch()
+        assert (held / attempt / "input").read_bytes() == data
+        if transport_timeout:
+            os.utime(held / f".studio-segment-{attempt}", (stale_timestamp, stale_timestamp))
+            raise TimeoutError
+        return 504, {"code": "timeout"}
+
+    monkeypatch.setattr(adapter, "local_call", reply)
+    with client.serial(lambda: None) as scratch:
+        if not transport_timeout:
+            replace_scratch()
         with pytest.raises(SegmentationError, match="^timeout$"):
             client.run_locked(request_for(data), data, lambda: None, scratch)
+    attempt, = dispatched
     assert list(target.iterdir()) == []
-    assert [path.name for path in held.iterdir()] == [".studio-segmentation.lock"]
+    if transport_timeout:
+        assert (held / attempt / "input").read_bytes() == data
+        assert (held / f".studio-segment-{attempt}").stat().st_mtime > stale_timestamp
+    else:
+        assert [path.name for path in held.iterdir()] == [".studio-segmentation.lock"]
 
 
 def test_scratch_cleanup_checks_marker_name_age_and_file_type(world, monkeypatch):
