@@ -55,6 +55,13 @@ dev = [
     "httpx2>=2,<3",
     "pytest>=9.2,<10",
 ]
+matting = [
+    "jsonschema>=4.23,<5",
+    "numpy>=2.4,<2.5",
+    "Pillow>=13,<14",
+    "scipy>=1.16,<1.17",
+    "onnxruntime==1.32.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haynes_studio"]
