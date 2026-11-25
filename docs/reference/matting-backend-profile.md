@@ -5,8 +5,8 @@ Use **BiRefNet Lite FP32 on ONNX Runtime CPU** for single-subject cast and prop
 stills. Keep **BRIA RMBG 1.4 FP32 on the same CPU runtime** as the fallback if
 the first profile fails the resource or quality smoke. Provisional
 [ruling 33](../contracts/studio-contracts-v1.md#ruling-33) selects BiRefNet Lite
-for stills. The installed smoke and the pending memory retest are recorded
-below. Private quality proof remains open. A fallback
+for stills. The installed baseline and memory retest are recorded below.
+Private quality proof remains open. A fallback
 requires a new ruling and its own smoke, input signatures and receipts.
 BiRefNet Lite has published object-domain evidence and a pinned CPU-compatible
 export. BRIA uses a different saliency architecture with a smaller graph and
@@ -77,7 +77,7 @@ commercial review would still check the inputs, assets and intended use.
 |---|---|---|
 | Input tensor | RGB FP32 NCHW `[1,3,1024,1024]`; bilinear resize, then `(RGB/255 - mean)/std` with mean `[0.485,0.456,0.406]`, std `[0.229,0.224,0.225]`. | Same shape and resize, `RGB/255 - 0.5` per channel. |
 | Alpha tensor | `output_image` logits, apply sigmoid. | Primary saliency plane after the graph's sigmoid. Clamp directly. The reference PyTorch example stretches each mask to its min/max. This profile retains the original relative range to avoid turning a nearly constant output into an apparently good cutout. Verify the actual ONNX I/O metadata and bounds before readiness. |
-| Memory allocation | Request 14 GiB, limit 16 GiB. See the measured baseline and pending retest below. | Proposed request 1 GiB, limit 3 GiB. |
+| Memory allocation | Request 8 GiB, limit 10 GiB. | Proposed request 1 GiB, limit 3 GiB. |
 | Warm end-to-end planning window | 3–15 s per still. 100 independent frames would take 5–25 min. | 2–12 s per still. 100 independent frames would take about 3–20 min. |
 
 Both profiles set a 30 s per-still deadline, including the first run in a
@@ -90,44 +90,49 @@ Neither a checkpoint swap nor a CPU timeout implies a GPU retry.
 [BRIA processor](https://huggingface.co/briaai/RMBG-1.4/blob/da1d078376e6691105a5530a374a010627fc60b5/preprocessor_config.json) ·
 [ORT threading](https://onnxruntime.ai/docs/performance/tune-performance/threading.html)
 
-### Installed memory baseline and CR-38 retest
+### Installed memory measurements and CR-43 serving settings
 
-**Measured on 2026-11-25**, on talosw01, CPU only, two CPUs, serial
-requests, Studio `25ef24c`. With the original 6 GiB limit,
+**Measured on 2026-11-25** on talosw01 with two CPUs and serial requests.
+With the original 6 GiB limit,
 `studio-matting-smoke-01` was OOMKilled after 14 s, before it could report.
-The 16 GiB retry, `studio-matting-smoke-01-r2`, finished in 35.54 s. The
-worker peaked at **12,997,890,048 bytes (12.11 GiB)**. The sum of the
-supervisor and worker RSS peaks was **13,150,916,608 bytes (12.25 GiB)**.
-Cold load was 6.76 s and the four still requests took 6.23–8.03 s each.
-All fixture scores, including both green irises, and deterministic replay
-passed. Only the 6 GiB memory verdict failed. Neither run measured the
-peak by phase. The failure's timing suggests inference, with session
-creation and arena retention still to measure.
-[Story 459, comment 9969](https://work.haynesnetwork.com/work_packages/459)
+The 16 GiB retry, `studio-matting-smoke-01-r2`, passed fixture quality and
+replay in 35.54 s. The CR-38 retest, `studio-matting-smoke-02-r3`, ran
+with `--no-cpu-arena` in 51 s. All 13 verdicts passed, with byte-identical
+cutouts and masks for the three fixtures and the replay.
+[Story 459, comments 9969 and 9985](https://work.haynesnetwork.com/work_packages/459)
 
-**Changed by provisional CR-38.** The original 2 GiB request and 6 GiB
-limit were too low. The [machine-readable resource profile](../../src/haynes_studio/matting/resources.json)
-sets a 14 GiB request (about 1.75 GiB above the measured two-process bound)
-and 16 GiB limit (about 3.75 GiB above it). The request reserves capacity
-for one worker and the limit leaves room for memory outside the reported
-process RSS, including file cache. The smoke reads its threshold from this
-profile. The image publishes the same figures in its OCI config for the
-Ops release check. These allocations are based on the installed baseline.
-The effect of the runtime changes on BiRefNet is **Expected** work for the
-next install smoke. The implementation pod had an 8 GiB cgroup limit.
+| Measurement | Arena on (run 01-r2) | Arena off (run 02-r3) |
+|---|---|---|
+| Worker peak RSS (bytes) | 12,997,890,048 | 7,538,561,024 (first request); 7,127,134,208 (warm) |
+| Supervisor + worker bound (bytes) | 13,150,916,608 | 7,691,853,824 |
+| Worker RSS after session creation (bytes) | not measured | 813,297,664 |
+| Worker RSS after each request (bytes) | not measured | about 830,750,000 |
+| Cold load | 6.76 s | 8.88 s |
+| Request time | 6.23 to 8.03 s | 11.09 s first, then 8.35 to 8.41 s |
 
-The next smoke runs with `--no-cpu-arena` to isolate the CPU allocation
-arena. All other settings start at the installed defaults. The flags
-below are available only to the smoke. It verifies the mounted serving
-profile and graph first and reports the measured configuration and its
-own effective profile digest. Serving starts with the installed runtime
-settings until the coordinator has measured a candidate and verified all
-fixture bytes.
+**Changed by provisional coordinator ruling CR-43.** The serving profile
+disables the CPU arena. The 8 GiB request covers the measured two-process
+bound and the 10 GiB limit leaves room for memory outside process RSS.
+The [resource profile](../../src/haynes_studio/matting/resources.json)
+supplies the smoke's memory threshold and the OCI config for the Ops
+release check. The offline renderer keeps its 32 GiB limit.
+[Story 459, comment 9985](https://work.haynesnetwork.com/work_packages/459)
+
+**Expected.** Run the plain smoke on the real weights with the new image
+and immutable profile. Run 02-r3 measured arena off as a variant of an
+arena-on profile with the interim 14 GiB request and 16 GiB limit.
+The new configuration's install and serving health are pending. Story 451
+owns private cast quality. [Story 451](https://work.haynesnetwork.com/work_packages/451)
+
+Only smoke accepts the flags below. It verifies the mounted profile and
+graph, then reports the measured configuration and its effective
+profile digest. Arena growth and shrinkage require `--cpu-arena`.
 
 | Smoke setting | What it measures |
 |---|---|
-| No flags | The installed defaults were CPU arena on, memory pattern on, full graph optimization and no arena shrink. |
-| `--no-cpu-arena` | The CPU provider uses direct allocations without the session arena. This may reduce retained buffers and arena growth. The native allocator can still keep memory and the graph can still require large live tensors. |
+| No flags | The serving defaults use CPU arena off, memory pattern on, full graph optimization and no arena shrink. |
+| `--cpu-arena` | Enable the CPU allocation arena as in the original baseline. |
+| `--no-cpu-arena` | Explicitly use the default direct allocations without the session arena. |
 | `--no-memory-pattern` | Disable the allocation plan reused after the first run of this fixed-shape graph. Any savings or extra allocation overhead should show most clearly in the warm requests. |
 | `--graph-optimization extended`, `basic`, or `disabled` | Control the rewrites and fusions at session creation. Different kernels or layouts can change float rounding or activation sizes. |
 | `--arena-growth same-as-requested` | Register a per-worker CPU arena with the documented environment allocator API. It grows by the requested allocation rather than the default power-of-two strategy. |
@@ -137,16 +142,15 @@ fixture bytes.
 [ORT arena growth and shrinkage](https://onnxruntime.ai/docs/get-started/with-c.html#features) ·
 [ORT graph optimization](https://onnxruntime.ai/docs/performance/model-optimizations/graph-optimizations.html)
 
-The new smoke checks each source, cutout and mask SHA-256 against the
+The smoke checks each source, cutout and mask SHA-256 against the
 installed run, including the replay. It records Linux worker RSS high water
 at the end of startup (graph verification and session creation), the first
 inference and the three warm inferences, and current worker RSS after each
 phase. The kernel high-water mark resets to current RSS before each
 request. The overall memory verdict still uses a conservative sum of the
-supervisor and worker peaks. The generated toy graph exercised these
-settings with identical outputs. It cannot establish the BiRefNet effect.
-A changed artifact hash rules out that setting. If the next real smoke
-cannot get below 16 GiB, return to the coordinator for a new ruling.
+supervisor and worker peaks. The built-image smoke compares every variant's
+outputs with the default using a generated toy graph. A changed artifact
+hash or a peak above the 10 GiB bound fails the install smoke.
 [Linux RSS accounting](https://docs.kernel.org/filesystems/proc.html)
 
 **Clips retain the existing chroma keyer** for decal tracking, eye-protect boxes,
@@ -318,18 +322,16 @@ leaving **51.69 GiB** unrequested. Wan's main container accounts for
 24 GiB requested and 64 GiB limited. Its attached Foley and API containers
 add 12 GiB / 32 GiB and 128 MiB / 512 MiB respectively. The dormant
 local-model sidecar would add 8 GiB requested and 16 GiB limited. One
-14 GiB matting allocation plus that extra 8 GiB would leave **29.69 GiB**
+8 GiB matting request plus that extra 8 GiB would leave **35.69 GiB**
 unrequested. A point-in-time `kubectl top` reading showed 12,537 MiB in
 use. The node's existing limits already sum to 239,904 MiB.
 
 The staged Studio worker keeps its own 2 GiB request and 8 GiB limit
-beside matting's 14 GiB request and 16 GiB limit. Offline render stages
-1 GiB requested and 16 GiB limited, with 18 CPUs. The two 16 GiB limits
-split the previous 32 GiB offline ceiling. Render memory at the lower
-limit needs proof before activation. Requests leave room on paper for a
+beside matting's 8 GiB request and 10 GiB limit. Offline render stages
+18 CPUs with its 1 GiB request and 32 GiB limit. Requests leave room on paper for a
 second heavy process. Peak use can exhaust the node: Wan at 64 GiB,
 the local model at 16 GiB, and the Studio worker and matting at 8 and
-16 GiB would total 104 GiB before offline render, Foley or the rest of
+10 GiB would total 98 GiB before offline render, Foley or the rest of
 the node. Use an exclusive heavy-job window for the smoke. A second
 heavy job needs measured concurrent headroom and the existing lease
 rules for Wan, Foley and local-model work.
@@ -374,8 +376,8 @@ rules for Wan, Foley and local-model work.
   token mount, dropped capabilities and RuntimeDefault seccomp. Give the
   backend two vCPUs maximum from the **20-vCPU offline allocation**. For
   the smoke, use a window without an overlapping heavy render. For concurrent
-  sustained use, the staged overlay limits offline render to 18 vCPUs,
-  at most `--workers 16` and 16 GiB. The separate four-vCPU queue allocation
+  sustained use, the staged overlay limits offline render to 18 vCPUs
+  with at most `--workers 16`. The separate four-vCPU queue allocation
   remains available to its existing worker. The smoke and serving
   activation have separate evidence gates.
 - Startup verifies graph and profile hashes and creates the CPU session.
@@ -388,8 +390,9 @@ rules for Wan, Foley and local-model work.
 
 ## Install smoke and bounded private quality check
 
-The installed baseline passed the synthetic quality checks. The memory
-retest and private quality check are **Expected**. Use tiny synthetic media written at test time under a
+The installed baseline and memory retest passed the synthetic quality
+checks. The pinned serving smoke and private quality check are **Expected**.
+Use tiny synthetic media written at test time under a
 new private scratch directory. Measure cold load, each inference wall time and
 peak RSS. Check UID, read-only root and weights, CPU provider only, profile and
 provenance hash read-back, and created artifacts. The install run should fit
