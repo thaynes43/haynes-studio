@@ -1,0 +1,55 @@
+{
+  "schema": "studio.agent-draft/v1",
+  "production_id": "prd_00000000000000000000000001",
+  "story_id": "sty_00000000000000000000000001",
+  "model": "fixture-writer",
+  "session": "fixture-session-first",
+  "usage": {"input_tokens": 175, "output_tokens": null},
+  "set": {"asset_version_id": "asv_00000000000000000000000002"},
+  "boards": [
+    {
+      "key": "arrival",
+      "fields": {
+        "title": "The claimant",
+        "lines": [{"key": "request", "speaker": "a", "text": "I lost a Tuesday. It had a dentist appointment on it.", "gap_before_ms": null}],
+        "timing": {"lead_ms": 120, "tail_ms": 330, "hold_ms": null},
+        "voice": "cast",
+        "cast": [{"slot": "a", "asset_version_id": "asv_00000000000000000000000003"}],
+        "layout": {"preset": "default", "foreground": true},
+        "method": {"layer": "layered", "motion": "s2v"},
+        "seeds": {"s2v:a": 312},
+        "cues": [{"type": "move", "slot": "a", "anchor": {"after_line": "request", "offset_ms": 0}, "duration_ms": 120, "dx_px": 6, "dy_px": 0, "angle_deg": 2, "steps": 2}],
+        "notes": [{"text": "Pim presents the problem like a routine return."}]
+      }
+    },
+    {
+      "key": "paperwork",
+      "fields": {
+        "title": "The receipt",
+        "lines": [{"speaker": "a", "text": "I kept the receipt. It says Monday, because I bought it in advance.", "gap_before_ms": null}],
+        "timing": {"lead_ms": 100, "tail_ms": 320, "hold_ms": null},
+        "voice": "cast",
+        "cast": [{"slot": "a", "asset_version_id": "asv_00000000000000000000000003"}],
+        "layout": {"preset": "default", "foreground": true},
+        "method": {"layer": "layered", "motion": "i2v"},
+        "cues": [],
+        "notes": [{"text": "Pim sets the receipt straight before taking her hand away."}]
+      }
+    },
+    {
+      "key": "aftermath",
+      "fields": {
+        "title": "The spare-day drawer",
+        "lines": [],
+        "timing": {"lead_ms": null, "tail_ms": null, "hold_ms": 1100},
+        "voice": null,
+        "photo": {"prompt": "A shallow drawer full of identical paper slips under a green municipal counter.", "input_asset_version_ids": ["asv_00000000000000000000000002"]},
+        "cast": [],
+        "layout": {"preset": "default", "foreground": true},
+        "method": {"layer": "whole_frame", "motion": "i2v"},
+        "cues": [],
+        "notes": [{"text": "The drawer opens an inch and stops."}]
+      }
+    }
+  ]
+}

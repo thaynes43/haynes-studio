@@ -24,6 +24,9 @@ class ErrorDetail(TransportModel):
     message: str
     request_id: str
     current_revision: int | None = None
+    board_id: str | None = None
+    person_edit: Literal["content", "reordered", "removed"] | None = None
+    person_edit_revision: int | None = None
     existing_entity_id: str | None = None
     evidence: JsonObject | None = None
 
@@ -35,12 +38,18 @@ class ErrorEnvelope(TransportModel):
 class APIError(HTTPException):
     def __init__(self, http_status: int, code: str, message: str, *, path: str = "",
                  headers: dict | None = None, status: ErrorStatus | None = None,
-                 current_revision: int | None = None, existing_entity_id: str | None = None,
+                 current_revision: int | None = None, board_id: str | None = None,
+                 person_edit: str | None = None, person_edit_revision: int | None = None,
+                 existing_entity_id: str | None = None,
                  evidence: JsonObject | None = None):
         self.details = {"code": code, "status": status or STATUS[http_status],
                         "http_status": http_status, "path": path, "message": message}
         if current_revision is not None:
             self.details["current_revision"] = current_revision
+        if board_id is not None:
+            self.details["board_id"] = board_id
+        if person_edit is not None:
+            self.details.update(person_edit=person_edit, person_edit_revision=person_edit_revision)
         if existing_entity_id is not None:
             self.details["existing_entity_id"] = existing_entity_id
         if evidence is not None:
@@ -72,7 +81,7 @@ ERROR_RESPONSES = {
     code: {"model": ErrorEnvelope, "description": description}
     for code, description in [
         (401, "Authentication required"), (403, "Credential, production or CSRF check failed"),
-        (404, "Resource unavailable"), (409, "The current revision differs"),
+        (404, "Resource unavailable"), (409, "The revision differs or the board is protected"),
         (413, "Request exceeds its size limit"), (422, "The request is invalid or the method is not buildable"),
         (500, "Unexpected internal failure"), (503, "A service dependency is unavailable"),
     ]

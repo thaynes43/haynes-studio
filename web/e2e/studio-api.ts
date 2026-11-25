@@ -1,8 +1,12 @@
 import type { BrowserContext, Route } from "@playwright/test";
-import type { components } from "../src/api/schema";
+import type { components, paths } from "../src/api/schema";
 import { treePath, type MediaKind } from "../src/routes";
+import { latestRun, photoVersion, reviewFixtures, voiceVersion } from "./studio-review-fixtures";
+import { mediaResponse, type ReviewMedia } from "./studio-review-media";
+import { boardVersions, formatId, storyTiming } from "./studio-storyboard-fixtures";
 
 type Schemas = components["schemas"];
+type BoardCreateBody = paths["/v1/stories/{id}/boards"]["post"]["requestBody"]["content"]["application/json"];
 
 export const production = {
   schema: "studio.production/v1",
@@ -44,10 +48,14 @@ export const story = {
   beds: [],
   board_order: ["brd_01M79V9FC00000000000000001", "brd_01M79V9FC00000000000000002"],
   origin: null,
+  published: false,
+  approved: false,
+  latest_finished_run: null,
 } satisfies Schemas["Story"];
 
 export const storyContext = { production: production.id, media: story.media_kind, story: story.id };
 export const boardContext = { ...storyContext, board: story.board_order[1] };
+export const otherStoryContext = { ...storyContext, story: "sty_01M79V9FC00000000000000010" };
 const selectedBoard = {
   schema: "studio.board/v1",
   id: boardContext.board,
@@ -87,10 +95,20 @@ function nextId(first: string, number: number) {
   return first.slice(0, -6) + String(number).padStart(6, "0");
 }
 
-export async function mockStudio(context: BrowserContext, baseURL: string, { empty = false } = {}) {
+export async function mockStudio(context: BrowserContext, baseURL: string, {
+  empty = false, reviewMedia, storyboardMedia,
+}: { empty?: boolean; reviewMedia?: ReviewMedia; storyboardMedia?: Pick<ReviewMedia, "photo" | "voice"> } = {}) {
   let current: User | null = "lena";
   let next: User = "lena";
   let failure: Failure | undefined;
+  let configured = true;
+  let reviewAvailable = true;
+  let freshRequired = false;
+  let runRefusal: string | undefined;
+  const review = reviewMedia && reviewFixtures(story, reviewMedia);
+  const loginRequests: URLSearchParams[] = [];
+  const approvalWrites: Array<{ run: string; body: Schemas["ApprovalWrite"] }> = [];
+  const boardWrites: Array<{ method: string; path: string; revision: string | undefined; order?: string[] }> = [];
   const violations: string[] = [];
   const calls: string[] = [];
   const writes: Array<{ user: User; values: Selection["values"]; revision: number }> = [];
@@ -99,9 +117,52 @@ export async function mockStudio(context: BrowserContext, baseURL: string, { emp
   ]);
   const visible = {
     lena: new Set(empty ? [] : [production.id, secondProduction.id]),
-    arden: new Set([secondProduction.id]),
+    arden: new Set(review ? [production.id, secondProduction.id] : [secondProduction.id]),
   };
-  const stories: Schemas["Story"][] = [story];
+  const stories: Schemas["Story"][] = [{ ...story }];
+  const firstBoard: Schemas["Board"] = {
+    ...selectedBoard, id: story.board_order[0], number: 12, title: "Opening panel",
+    lines: [{ id: "lin_01M79V9FC00000000000000001", text: "The soup can hear you.", speaker: "narrator", gap_before_ms: null }],
+    method: review ? { layer: "layered", motion: "s2v" } : { layer: "whole_frame", motion: "i2v" },
+    timing: { lead_ms: 0, tail_ms: 700, hold_ms: null },
+    notes: [{ id: "nte_01M79V9FC00000000000000001", text: "Offscreen crunch" }],
+    photo: { ...selectedBoard.photo, current_version_id: review || storyboardMedia ? photoVersion : null },
+    voice: { current_version_id: review || storyboardMedia ? voiceVersion : null, style: "narrator" },
+  };
+  const boards = new Map([firstBoard, selectedBoard].map((board) => [board.id, { ...board }]));
+  const draftMedia = storyboardMedia ?? reviewMedia;
+  const versions = draftMedia ? boardVersions(production.id, firstBoard, draftMedia) : [];
+  let lastBoardId = 2;
+  if (storyboardMedia) {
+    const more = [1500, 2000].map((hold_ms) => ({
+      ...selectedBoard, id: nextId(selectedBoard.id, ++lastBoardId), number: 10 + lastBoardId,
+      timing: { ...selectedBoard.timing, hold_ms },
+    }));
+    const other = {
+      ...selectedBoard, id: nextId(selectedBoard.id, ++lastBoardId), story_id: otherStoryContext.story,
+      number: firstBoard.number, timing: { ...selectedBoard.timing, hold_ms: 2600 },
+    };
+    for (const board of [...more, other]) boards.set(board.id, board);
+    stories[0].format_version_id = formatId;
+    stories[0].board_order = [...story.board_order, ...more.map(({ id }) => id)];
+    stories.push({ ...story, id: other.story_id, title: "The Other Menu", board_order: [other.id] });
+  }
+  if (review) {
+    const draft = stories[0];
+    draft.latest_finished_run = {
+      id: latestRun, status: "succeeded", finished_at: "2026-11-04T12:21:00Z", active_approval_id: null,
+    };
+    const newProduction = {
+      ...production, id: nextId(production.id, 3), name: "Empty production", media_types: [],
+    };
+    productions.set(newProduction.id, newProduction);
+    visible.lena.add(newProduction.id);
+    stories.push(
+      { ...story, id: nextId(story.id, 2), title: "Ready for release", approved: true, board_order: [] },
+      { ...story, id: nextId(story.id, 3), title: "Released and approved", approved: true, published: true, board_order: [] },
+      { ...story, id: nextId(story.id, 4), title: "Manual release", published: true, board_order: [] },
+    );
+  }
   const selections: Record<User, Selection> = {
     lena: { revision: 0, values: {} },
     arden: { revision: 0, values: {
@@ -138,6 +199,47 @@ export async function mockStudio(context: BrowserContext, baseURL: string, { emp
     return route.fulfill({ status, json: error });
   }
 
+  function approvedState(id: string) {
+    return review?.history(id).find((record) => record.derived.state === "active")?.id ?? null;
+  }
+
+  function viewRun(run: Schemas["RunView"]) {
+    return { ...run, active_approval_id: approvedState(run.id) };
+  }
+
+  function viewStory(draft: Schemas["Story"]) {
+    if (!review || draft.id !== story.id || !draft.latest_finished_run) return draft;
+    return {
+      ...draft,
+      approved: review.runs.some(({ id }) => approvedState(id)),
+      latest_finished_run: { ...draft.latest_finished_run, active_approval_id: approvedState(latestRun) },
+    };
+  }
+
+  function identityRefusal(user: User) {
+    if (!configured) return "approval.approver_not_configured";
+    if (user !== "lena") return "approval.subject_not_permitted";
+    if (freshRequired) return "approval.sign_in_again";
+  }
+
+  function requireRevision(route: Route, revision: number, order?: string[]) {
+    const request = route.request();
+    const method = request.method();
+    const match = request.headers()["if-match"];
+    const path = new URL(request.url()).pathname;
+    boardWrites.push({ method, path, revision: match, order });
+    if (!match) {
+      violations.push(`Missing If-Match on ${method} ${path}`);
+      return reject(route, 422, "invalid", "schema.invalid", { path: "/revision" });
+    }
+    if (match !== `"${revision}"`) return reject(route, 409, "conflict", "conflict.revision", { current_revision: revision });
+  }
+
+  function setBoardOrder(draft: Schemas["Story"], order: string[]) {
+    draft.board_order = order;
+    draft.revision += 1;
+  }
+
   await context.route("**/*", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -162,12 +264,14 @@ export async function mockStudio(context: BrowserContext, baseURL: string, { emp
     if (path === "/auth/login" && method === "GET") {
       // Model the completed OIDC round trip. Playwright routes only the first request in a redirect chain.
       current = next;
-      await route.fulfill({ status: 303, headers: { location: "/" } });
+      loginRequests.push(url.searchParams);
+      if (url.searchParams.get("fresh") === "true") freshRequired = false;
+      await route.fulfill({ status: 303, headers: { location: url.searchParams.get("return_to") ?? "/" } });
       return;
     }
     const user = current;
     if (!user) return reject(route, 401, "unauthenticated", "auth.required");
-    if (method !== "GET" && headers["x-studio-csrf"] !== `test-csrf-${user}`) {
+    if (method !== "GET" && method !== "HEAD" && headers["x-studio-csrf"] !== `test-csrf-${user}`) {
       violations.push(`Missing session CSRF header on ${method} ${path}`);
       return reject(route, 403, "forbidden", "auth.csrf");
     }
@@ -257,7 +361,11 @@ export async function mockStudio(context: BrowserContext, baseURL: string, { emp
             return reject(route, 404, "not_found", "not_found");
           }
           if (method === "GET") {
-            const items = stories.filter((item) => item.production_id === id && item.media_kind === kind);
+            const publication = url.searchParams.get("publication");
+            const approved = url.searchParams.get("approved");
+            const items = stories.map(viewStory).filter((item) => item.production_id === id && item.media_kind === kind &&
+              (publication === null || item.published === (publication === "published")) &&
+              (approved === null || item.approved === (approved === "true")));
             return route.fulfill({ json: pageOf(items, cursor) satisfies Schemas["Page_Story_"] });
           }
           if (method === "POST") {
@@ -281,24 +389,125 @@ export async function mockStudio(context: BrowserContext, baseURL: string, { emp
         }
       }
     }
-    if (path.startsWith("/v1/stories/") && method === "GET") {
-      const draft = stories.find(({ id }) => path === `/v1/stories/${id}`);
+    if (path.endsWith("/runs") && path.startsWith("/v1/stories/") && method === "GET") {
+      const draft = stories.find(({ id }) => path === `/v1/stories/${id}/runs`);
       if (!draft || !visible[user].has(draft.production_id)) return reject(route, 404, "not_found", "not_found");
-      return route.fulfill({ headers: { etag: `"${draft.revision}"` }, json: draft });
+      const items = review?.runs.filter((run) => run.story_id === draft.id).map(viewRun) ?? [];
+      return route.fulfill({ json: pageOf(items, cursor) });
     }
-    if (path === `/v1/boards/${selectedBoard.id}` && method === "GET") {
-      if (!visible[user].has(production.id)) return reject(route, 404, "not_found", "not_found");
-      await route.fulfill({ json: selectedBoard });
-      return;
+    if (path.startsWith("/v1/stories/")) {
+      const [, , , storyId, resource] = path.split("/");
+      const draft = stories.find(({ id }) => id === storyId);
+      if (!draft || !visible[user].has(draft.production_id)) return reject(route, 404, "not_found", "not_found");
+      if (!resource && method === "GET") {
+        return route.fulfill({ headers: { etag: `"${draft.revision}"` }, json: viewStory(draft) });
+      }
+      if (resource === "timing" && method === "GET") {
+        return route.fulfill({ json: storyTiming(draft, boards, versions) });
+      }
+      if (resource === "boards" && method === "POST") {
+        const refused = requireRevision(route, draft.revision);
+        if (refused) return refused;
+        const number = Math.max(0, ...[...boards.values()].filter((board) => board.story_id === storyId).map((board) => board.number)) + 1;
+        const requestBody = request.postDataJSON() as BoardCreateBody;
+        const board = {
+          ...selectedBoard, title: requestBody.title ?? `Board ${number}`, story_id: storyId, number,
+          id: nextId(selectedBoard.id, ++lastBoardId), layout: { preset: "default", foreground: true },
+        } satisfies Schemas["Board"];
+        boards.set(board.id, board);
+        setBoardOrder(draft, [...draft.board_order, board.id]);
+        return route.fulfill({ status: 201, headers: { etag: '"1"', location: `/v1/boards/${board.id}` }, json: board });
+      }
+      if (resource === "board-order" && method === "PUT") {
+        const { board_order: order } = request.postDataJSON() as Schemas["BoardOrder"];
+        const refused = requireRevision(route, draft.revision, order);
+        if (refused) return refused;
+        if (new Set(order).size !== draft.board_order.length || order.length !== draft.board_order.length ||
+          order.some((id) => !draft.board_order.includes(id))) {
+          return reject(route, 422, "invalid", "story.board_order");
+        }
+        setBoardOrder(draft, order);
+        return route.fulfill({ headers: { etag: `"${draft.revision}"` }, json: viewStory(draft) });
+      }
+    }
+    if (path.startsWith("/v1/boards/")) {
+      const board = boards.get(path.slice("/v1/boards/".length));
+      const draft = board && stories.find(({ id }) => id === board.story_id);
+      if (!board || !draft || !draft.board_order.includes(board.id) || !visible[user].has(draft.production_id)) {
+        return reject(route, 404, "not_found", "not_found");
+      }
+      if (method === "GET") return route.fulfill({ headers: { etag: `"${board.revision}"` }, json: board });
+      if (method === "DELETE") {
+        const refused = requireRevision(route, board.revision);
+        if (refused) return refused;
+        setBoardOrder(draft, draft.board_order.filter((id) => id !== board.id));
+        return route.fulfill({ status: 204 });
+      }
+    }
+    if (path === "/v1/assets" && method === "GET") {
+      const boardId = url.searchParams.get("board");
+      const productionId = url.searchParams.get("production");
+      const draft = stories.find(({ board_order }) => boardId && board_order.includes(boardId));
+      if (!draft || !visible[user].has(draft.production_id) || (productionId && productionId !== draft.production_id)) {
+        return reject(route, 404, "not_found", "not_found");
+      }
+      return route.fulfill({ json: pageOf(versions.filter((version) => version.scope.board_id === boardId), cursor) });
+    }
+    if (path.startsWith("/v1/media/") && draftMedia && (method === "GET" || method === "HEAD")) {
+      const file = Object.values(draftMedia).find(({ hash }) => path === `/v1/media/${hash}`);
+      if (!file || !visible[user].has(production.id)) return reject(route, 404, "not_found", "not_found");
+      if (url.search) violations.push("Unexpected query on private media");
+      return route.fulfill(mediaResponse(route, file));
+    }
+    if (path.startsWith("/v1/runs/") && review) {
+      const [, , , id, resource] = path.split("/");
+      const run = review.runs.find((item) => item.id === id);
+      if (!run || !visible[user].has(production.id)) return reject(route, 404, "not_found", "not_found");
+      if (!resource && method === "GET") return route.fulfill({ json: viewRun(run) });
+      if (resource === "delivery" && method === "GET") {
+        const delivery = review.deliveries.get(id);
+        return delivery ? route.fulfill({ json: delivery }) : reject(route, 404, "not_found", "not_found");
+      }
+      if (resource === "go-live-approvals") {
+        const refusal = identityRefusal(user);
+        const preview = review.preview(run, refusal, runRefusal);
+        if (method === "GET") return reviewAvailable
+          ? route.fulfill({ json: preview })
+          : reject(route, 405, "invalid", "method.not_allowed");
+        if (method === "POST") {
+          const body = request.postDataJSON() as Schemas["ApprovalWrite"];
+          approvalWrites.push({ run: id, body });
+          if (refusal) return reject(route, 403, "forbidden", refusal);
+          if (!preview.approve.allowed) return reject(route, 422, "invalid", preview.approve.code);
+          if (body.master_sha256 !== preview.master_sha256) return reject(route, 422, "invalid", "approval.not_exact_run");
+          if (!body.platform_setting) return reject(route, 422, "invalid", "approval.ai_label_missing");
+          return route.fulfill({ status: 201, json: review.approve(run, preview) });
+        }
+      }
+    }
+    if (path.startsWith("/v1/go-live-approvals/") && path.endsWith("/withdraw") && review && method === "POST") {
+      const refusal = identityRefusal(user);
+      if (refusal) return reject(route, 403, "forbidden", refusal);
+      const approval = review.approvals.find(({ id }) => path === `/v1/go-live-approvals/${id}/withdraw`);
+      if (!approval) return reject(route, 404, "not_found", "not_found");
+      if (approval.derived.state === "withdrawn") return reject(route, 409, "conflict", "approval.already_withdrawn");
+      return route.fulfill({ status: 201, json: review.withdraw(approval) });
     }
     violations.push(`Unexpected API operation ${method} ${path}`);
     return reject(route, 404, "not_found", "not_found");
   });
 
   return {
-    calls, violations, writes, selections,
+    calls, violations, writes, selections, loginRequests, approvalWrites, boardWrites,
     expire: () => { current = null; },
     signInAs: (user: User) => { next = user; },
+    requireFreshSignIn: () => { freshRequired = true; },
+    disableApprovals: () => { configured = false; },
+    disableApprovalRead: () => { reviewAvailable = false; },
+    refuseRun: (code: string) => { runRefusal = code; },
+    recordManualPublication: () => { stories[0].published = true; },
+    editDraft: () => { stories[0].revision += 1; firstBoard.lines[0].text = "New draft line."; },
+    setDraftOrder: (order: string[]) => setBoardOrder(stories[0], order),
     failNext: (value: Failure) => { failure = value; },
     enableMedia,
   };

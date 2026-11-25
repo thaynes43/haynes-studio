@@ -57,12 +57,15 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
     await page.getByRole("link", { name: production.name }).click();
     await page.getByRole("link", { name: "Short 9:16" }).click();
     await page.getByRole("link", { name: story.title }).click();
-    await page.getByRole("link", { name: "Panel 2" }).click();
+    const secondBoard = page.getByRole("link", { name: /^Board 02/ });
+    await secondBoard.click();
     await expect(crumbs(page).getByRole("button")).toHaveText([
-      "Editor", "Storyboard", "Yellowbirds", "Short", "The Winter Menu", "B07",
+      "Editor", "Storyboard", "Yellowbirds", "Short", "The Winter Menu", "Board 02",
     ]);
-    await expect(crumbs(page).getByRole("button", { name: "B07" })).toHaveAttribute("aria-current", "page");
-    await expect(page.getByRole("heading", { name: "B07" })).toBeFocused();
+    await expect(crumbs(page).getByRole("button", { name: "Board 02" })).toHaveAttribute("aria-current", "page");
+    await expect(secondBoard).toBeFocused();
+    await expect(page.getByRole("link", { name: "Runs", exact: true })).toHaveAttribute("href", treePath("board", storyContext, "runs"));
+    await expect(page.getByRole("link", { name: "Reference photo", exact: true })).toHaveAttribute("href", treePath("board", boardContext, "photo"));
     await expectNoOverflow(page);
 
     await editorNav(page).getByRole("link", { name: "Assets" }).click();
@@ -83,7 +86,7 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
 
     await editorNav(page).getByRole("link", { name: "Board" }).click();
     await expect(page).toHaveURL((url) => url.pathname === boardRoute);
-    await expect(page.getByRole("heading", { name: "B07" })).toBeFocused();
+    await expect(page.getByRole("heading", { name: story.title })).toBeFocused();
     await mainNav(page).getByRole("link", { name: "Productions" }).click();
     await expect(page).toHaveURL((url) => url.pathname === review);
     await expect.poll(() => api.selections.lena.values.web_shell).toEqual({
