@@ -106,9 +106,12 @@ The ordinary `/mcp` endpoint caps requests at 256 KiB. Connect a second
 Streamable HTTP session at `/mcp/upload` to discover and call
 `studio_upload_photo`. Its request cap is the base64 length of a 20 MiB
 image plus 256 KiB for the JSON-RPC envelope and metadata. Only one upload
-can run per MCP process. A concurrent request receives 503
-`photo.upload_busy` with `Retry-After`. Upstream JSON responses are capped
-at 8 MiB.
+can run per MCP process. The key needs an active `assets:upload` grant before
+MCP reads the body. The API checks that grant on the target production.
+A concurrent request receives 503 `photo.upload_busy` with `Retry-After`.
+MCP applies the same 90-second total deadline, `STUDIO_UPLOAD_BODY_SECONDS`
+setting and 15-second idle timeout as the API upload. Upstream JSON responses
+are capped at 8 MiB.
 Query a smaller page or request fewer fields if a read reaches a limit.
 
 Supply `idempotency_key` on the generation and run queue tools. Retry with

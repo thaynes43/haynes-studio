@@ -21,6 +21,7 @@ from haynes_studio.db.engine import connect_engine
 from haynes_studio.db.problems import DraftProtected, NotFound, StaleRevision
 from haynes_studio.db.schema import go_live_approvals, media_job_lanes, queue_lane_events, run_lane, sessions
 from haynes_studio.errors import ContractError, pointer
+from haynes_studio.photo_limits import UploadBodyLimits
 from haynes_studio.store.local import LocalStore
 
 from . import approval_routes, auth, job_routes, media, routes, run_routes
@@ -149,7 +150,8 @@ def _errors(app: FastAPI):
 
 
 def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STORE_FRESHNESS_SECONDS,
-                 build_stage_root: str | Path | None = None) -> FastAPI:
+                 build_stage_root: str | Path | None = None,
+                 upload_body_limits: UploadBodyLimits = UploadBodyLimits()) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app):
         yield
@@ -165,6 +167,7 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
             oidc.settings.client_secret.encode(), b"haynes-studio board read token v1", "sha256")
     app.state.build_revision = run_routes.build_revision_from_environment()
     app.state.build_stage_root = build_stage_root
+    app.state.upload_body_limits = upload_body_limits
     _errors(app)
     app.add_middleware(RequestContextMiddleware)
 
@@ -216,9 +219,10 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
 
 def create_app(engine, store: LocalStore, oidc: OIDC, *,
                store_freshness_seconds: int = DEFAULT_STORE_FRESHNESS_SECONDS,
-               build_stage_root: str | Path | None = None) -> FastAPI:
+               build_stage_root: str | Path | None = None,
+               upload_body_limits: UploadBodyLimits = UploadBodyLimits()) -> FastAPI:
     """Compose the service with explicit dependencies, including in isolated tests."""
-    return _application(engine, store, oidc, store_freshness_seconds, build_stage_root)
+    return _application(engine, store, oidc, store_freshness_seconds, build_stage_root, upload_body_limits)
 
 
 def from_env() -> FastAPI:
@@ -230,7 +234,8 @@ def from_env() -> FastAPI:
     store = LocalStore(root)
     engine = connect_engine(dsn, os.getenv("STUDIO_DATABASE_SCHEMA", "studio"))
     return create_app(engine, store, oidc, store_freshness_seconds=store_freshness_seconds,
-                      build_stage_root=os.getenv("STUDIO_BUILD_STAGE_ROOT"))
+                      build_stage_root=os.getenv("STUDIO_BUILD_STAGE_ROOT"),
+                      upload_body_limits=UploadBodyLimits.from_environment())
 
 
 def schema_app() -> FastAPI:

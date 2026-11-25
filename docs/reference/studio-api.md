@@ -378,15 +378,25 @@ or remote location. A valid upload immediately returns 201 with `version`,
 during validation, the API keeps the upload with `selected: false` and a null
 `board_revision`.
 
-Automatic selection uses the job requester or uploader. On a person-edited
+Automatic selection uses the job requester from the insert-only
+`media_jobs.requester` column, or the authenticated uploader. On a person-edited
 board, an agent-requested result is kept in version history with
 `result_is_current: false` for a job or `selected: false` for an upload.
-A person's job selects a current result and preserves the board's draft
-provenance and person-edit record.
+A person's job protects the selected result with a person-edit record and
+preserves any existing record. An agent's result advances its own current
+draft stamp with the board revision.
 
-An API process accepts one upload at a time. A concurrent upload returns 503
-`photo.upload_busy` with `Retry-After`. Retry using the current board revision
-if another upload selected a version in the meantime.
+An API process accepts one upload at a time after authentication and a
+production-scope check. A concurrent upload returns 503 `photo.upload_busy`
+with `Retry-After`. Body reads have a 90-second total deadline and a 15-second
+idle timeout. Set `STUDIO_UPLOAD_BODY_SECONDS` to an integer from 15 to 300
+to change the total deadline. A timeout returns 408 `photo.upload_timeout`
+and discards the partial body. Retry using the current board revision if
+another upload selected a version in the meantime.
+
+Photo inputs, new photo and voice selections, promotions and uploads that
+reference an archive's recorded-only media return 422
+`asset.recorded_without_media`.
 
 The internal image and voice workers use the [same claim protocol as builds](media-jobs.md).
 

@@ -22,6 +22,7 @@ from haynes_studio.canonical.jsonvalues import normalize
 from haynes_studio.drafting.declaration import DraftDeclaration, RedraftDeclaration
 from haynes_studio.errors import ContractError, Violation, pointer
 from haynes_studio.golive import records as go_live
+from haynes_studio.library.library import require_media
 from haynes_studio.library.resolve import resolve, story_references
 
 from haynes_studio.photo.plan import photo_facts
@@ -208,7 +209,8 @@ class Draft:
         _, library = self._library(conn, doc)
         return to_document(timing_summary(doc, facts=self.facts(conn, doc, library)))
 
-    def validate(self, conn: sa.Connection) -> set[str]:
+    def validate(self, conn: sa.Connection, *, board: dict | None = None,
+                 previous: dict | None = None) -> set[str]:
         doc = self.exchange()
         require_valid(validate_story(doc, context="write"))
         refs, library = self._library(conn, doc)
@@ -228,6 +230,12 @@ class Draft:
                 problems.append(Violation("asset.scope_mismatch", ref.path,
                                           "That version is outside this draft or board"))
         require_valid(problems)
+        if board is not None:
+            for kind in ("photo", "voice"):
+                version_id = (board.get(kind) or {}).get("current_version_id")
+                previous_id = ((previous or {}).get(kind) or {}).get("current_version_id")
+                if version_id is not None and version_id != previous_id:
+                    require_media(library.get(version_id), f"/{kind}/current_version_id")
         require_valid(validate_story(doc, context="write", facts=library.facts(doc)))
         return {ref.version_id for ref in refs}
 
@@ -388,9 +396,11 @@ def _board_changed(held: dict, by: dict, reason: str, now: str,
         key: held[key] for key in _PERSON_EDIT_FIELDS if key in held
     }
     if by["kind"] == "human":
-        protection.update(person_edit=reason, person_edit_revision=updated["revision"])
+        if reason != "media" or "person_edit" not in protection:
+            protection.update(person_edit="content" if reason == "media" else reason,
+                              person_edit_revision=updated["revision"])
     elif by["kind"] == "agent":
-        if (stamp is not None and reason == "reordered" and held["drafted_by"] == by
+        if (stamp is not None and reason in ("reordered", "media") and held["drafted_by"] == by
                 and stamp["board_revision"] == held["revision"]):
             protection.setdefault("applied_board_revision", held["revision"])
             protection["board_revision"] = updated["revision"]
@@ -459,7 +469,7 @@ def add_board(conn: sa.Connection, id_: str, revision: int, fields: dict, by: di
     updated = _advance(draft, {"board_order": [*draft.story["board_order"], id_board]}, now)
     updated.boards = {**draft.boards, id_board: doc}
     updated.highest_board = number
-    refs = updated.validate(conn)
+    refs = updated.validate(conn, board=doc)
     _reserve_ids(conn, _child_ids(doc, BOARD_CHILDREN))
     _insert_board(conn, doc)
     _save_story(conn, updated, refs)
@@ -511,8 +521,8 @@ def select_board_media(conn: sa.Connection, draft: Draft, board_id: str, kind: L
     if media["current_version_id"] == version_id:
         return held["revision"]
     now = timestamp()
-    doc = {**held, kind: {**media, "current_version_id": version_id},
-           "revision": held["revision"] + 1, "updated_at": now}
+    doc = {**_board_changed(held, by, "media", now),
+           kind: {**media, "current_version_id": version_id}}
     _replace_board(conn, draft, held, doc, now)
     return doc["revision"]
 
@@ -521,7 +531,7 @@ def _replace_board(conn, draft, held, doc, now):
     id_ = held["id"]
     updated = _advance(draft, {}, now)
     updated.boards = {**draft.boards, id_: doc}
-    refs = updated.validate(conn)
+    refs = updated.validate(conn, board=doc, previous=held)
     _reserve_ids(conn, _child_ids(doc, BOARD_CHILDREN) - _child_ids(held, BOARD_CHILDREN))
     conn.execute(boards.update().where(boards.c.id == id_).values(document=doc))
     _save_story(conn, updated, refs)

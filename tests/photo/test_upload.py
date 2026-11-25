@@ -11,8 +11,25 @@ from haynes_studio.canonical.model import Principal
 from haynes_studio.errors import ContractError
 from haynes_studio.library import Library
 from haynes_studio.photo import ExternalProvenance, can_select_photo, import_photo, plan_photo, record_photo
+from haynes_studio.photo_limits import UploadBodyLimits
 from haynes_studio.photo.validation import MAX_UPLOAD_BYTES
 from tests.photo.conftest import BY, NOW, PNG
+
+
+@pytest.mark.parametrize(("configured", "expected"), [(None, 90), ("15", 15), ("120", 120), ("300", 300)])
+def test_upload_body_deadline_from_environment(monkeypatch, configured, expected):
+    if configured is None:
+        monkeypatch.delenv("STUDIO_UPLOAD_BODY_SECONDS", raising=False)
+    else:
+        monkeypatch.setenv("STUDIO_UPLOAD_BODY_SECONDS", configured)
+    assert UploadBodyLimits.from_environment().total_seconds == expected
+
+
+@pytest.mark.parametrize("configured", ["14", "301", "90.5", ""])
+def test_upload_body_deadline_rejects_invalid_configuration(monkeypatch, configured):
+    monkeypatch.setenv("STUDIO_UPLOAD_BODY_SECONDS", configured)
+    with pytest.raises(ValueError, match="STUDIO_UPLOAD_BODY_SECONDS"):
+        UploadBodyLimits.from_environment()
 
 
 def declaration(ids=()) -> ExternalProvenance:

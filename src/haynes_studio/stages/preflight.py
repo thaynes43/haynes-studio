@@ -142,9 +142,15 @@ def preflight(story: Story, *, facts: Facts, resolved: Mapping[str, ResolvedVers
     if story.boards is None:
         raw.append((SCHEMA_INVALID, INVALID, "/boards",
                     "the story's boards must be embedded to check a build", None, None))
-    for violation in validate_story(_draft_document(story), context=QUEUE_RUN, facts=facts):
+    violations = validate_story(_draft_document(story), context=QUEUE_RUN, facts=facts)
+    blob_problems = _blob_problems(story, resolved, store)
+    recorded_paths = {path for rule, _, path, _, _, _ in blob_problems if rule == RECORDED_WITHOUT_MEDIA}
+    for violation in violations:
+        # A recorded-only photo already has a specific blocker at this field.
+        if violation.rule == "photo.stale" and violation.path in recorded_paths:
+            continue
         raw.append((violation.rule, violation.status, violation.path, violation.message, None, None))
-    raw += _blob_problems(story, resolved, store)
+    raw += blob_problems
     problems = [_locate(rule, status, path, message, avid, locator, boards)
                 for rule, status, path, message, avid, locator in raw]
     order = {board_id: index for index, board_id in enumerate(story.board_order)}

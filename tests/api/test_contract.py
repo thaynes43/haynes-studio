@@ -48,6 +48,7 @@ def test_openapi_has_resolved_canonical_shapes_errors_and_security():
     assert set(upload["requestBody"]["content"]) == {"image/png", "image/jpeg", "image/webp"}
     assert upload["security"] == [{"StudioBearer": []}]
     assert upload["x-studio-scope"] == "assets:upload"
+    assert upload["responses"]["408"]["content"]["application/json"]["schema"]["$ref"].endswith("/ErrorEnvelope")
     assert {header["name"] for header in upload["parameters"] if header["in"] == "header"} == {
         "If-Match", "X-Studio-Photo-Provenance",
     }

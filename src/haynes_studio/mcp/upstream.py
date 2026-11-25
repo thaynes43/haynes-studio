@@ -16,7 +16,7 @@ MAX_API_BYTES = 8 * 1024 * 1024
 MAX_ERROR_BYTES = 64 * 1024
 STATUSES = {
     400: "invalid", 401: "unauthenticated", 403: "forbidden", 404: "not_found",
-    409: "conflict", 413: "too_large", 422: "invalid", 500: "internal",
+    408: "invalid", 409: "conflict", 413: "too_large", 422: "invalid", 500: "internal",
     503: "service_unavailable",
 }
 ERROR_STATUSES = frozenset(STATUSES.values()) | {"unavailable"}

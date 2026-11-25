@@ -2,7 +2,9 @@
 
 import sqlalchemy as sa
 
+from haynes_studio.canonical.ids import is_id
 from haynes_studio.canonical.model import to_document
+from haynes_studio.errors import ContractError, Violation
 from haynes_studio.voice import jobs as transitions
 from haynes_studio.voice.model import Job
 
@@ -34,14 +36,30 @@ def lookup(conn, kind, target, by, key, signature):
 
 def enqueue(conn, job, *, position, production, story=None, board=None, inputs, key, signature):
     lane = "voice" if job.kind == "voice" else "image"
+    requester = to_document(job.created_by)
     conn.execute(media_job_lanes.update().where(media_job_lanes.c.lane == lane)
                  .values(next_position=position + 1))
     return conn.execute(media_jobs.insert().values(
         id=job.id, production_id=production, story_id=story, board_id=board, lane=lane,
         position=position, kind=job.kind, idempotency_target=board or "asset-jobs",
-        idempotency_actor=actor_key(to_document(job.created_by)), idempotency_key=key,
-        request_signature=signature, inputs=inputs, document=job.to_document(),
+        idempotency_actor=actor_key(requester), idempotency_key=key,
+        request_signature=signature, requester=requester, inputs=inputs, document=job.to_document(),
     ).returning(media_jobs)).mappings().one()
+
+
+def job_document(row):
+    """Project the immutable requester onto the public job document."""
+    requester = row.get("requester")
+    if isinstance(requester, dict):
+        kind = requester.get("kind")
+        if (kind == "human" and requester.keys() == {"kind", "iss", "sub"}
+                and all(isinstance(requester[key], str) and requester[key] for key in ("iss", "sub"))):
+            return {**row["document"], "created_by": requester}
+        if kind == "agent" and requester.keys() == {"kind", "key_id"} and is_id(requester["key_id"], "key"):
+            return {**row["document"], "created_by": requester}
+    raise ContractError(row["id"], [Violation(
+        "job.requester_invalid", "/created_by", "The stored job requester is missing or invalid",
+    )])
 
 
 def get(conn, job_id, *, lock=False):
@@ -62,10 +80,10 @@ def list_board(conn, board, after, limit):
 
 
 def active_for_story(conn, story):
-    docs = conn.scalars(sa.select(media_jobs.c.document).where(
+    rows = conn.execute(sa.select(media_jobs.c.id, media_jobs.c.document, media_jobs.c.requester).where(
         media_jobs.c.story_id == story, STATUS.in_(ACTIVE),
-    ))
-    return [Job.from_document(doc) for doc in docs]
+    )).mappings()
+    return [Job.from_document(job_document(row)) for row in rows]
 
 
 def save(conn, row, **values):
@@ -94,7 +112,7 @@ def claim(conn, worker_id, lane):
     now = database_time(conn)
     if row["claim_until"] is not None and row["claim_until"] > now:
         return None
-    job = Job.from_document(row["document"])
+    job = Job.from_document(job_document(row))
     if row["dispatched"]:
         # Engine submission is not idempotent. Expiry can only retire the job,
         # and the image adapter still waits for the shared engine queue to drain.

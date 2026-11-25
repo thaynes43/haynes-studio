@@ -199,6 +199,7 @@ media_jobs = sa.Table(
     sa.Column("idempotency_actor", sa.Text, nullable=False),
     sa.Column("idempotency_key", sa.Text, nullable=False),
     sa.Column("request_signature", sa.Text, nullable=False),
+    sa.Column("requester", JSONB, nullable=False),
     sa.Column("inputs", JSONB, nullable=False), document(),
     sa.Column("worker_id", sa.Text),
     sa.Column("fence", sa.BigInteger, nullable=False),

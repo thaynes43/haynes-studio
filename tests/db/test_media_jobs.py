@@ -21,12 +21,16 @@ from haynes_studio.adapters.kokoro import KokoroClient
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.db.catalog import record_asset_version
 from haynes_studio.db.runs import database_time
-from haynes_studio.db.schema import asset_promotions, asset_versions, media_jobs, queue_lane_events
+from haynes_studio.db.schema import asset_promotions, asset_versions, boards, media_jobs, queue_lane_events
+from haynes_studio.drafting.declaration import READ_TOKEN_HEADER
 from haynes_studio.library.model import version_document
-from haynes_studio.mcp.server import create_app
+from haynes_studio.mcp.server import MAX_UPLOAD_REQUEST_BYTES, create_app
+from haynes_studio.photo_limits import DEFAULT_BODY_SECONDS, IDLE_SECONDS
 from haynes_studio.photo.validation import MAX_UPLOAD_BYTES
-from haynes_studio.queue.media_worker import MediaWorker
+from haynes_studio.queue.media_worker import Dispatch, MediaWorker
+from haynes_studio.queue.worker import ActiveClaim
 from haynes_studio.queue.worker_api import WorkerAPIError
+from haynes_studio.store import blob_locator
 from haynes_studio.voice.model import Job
 
 from tests.db.test_run_queue import (
@@ -73,7 +77,7 @@ def studio(service, owner_engine):
                            production_id=production_id, story_id=story_id)
 
 
-def board_in(s, *, spoken=False, by_human=False):
+def board_in(s, *, spoken=False, by_human=False, draft_application=None):
     if spoken:
         library = winter_menu().library
         stock = next(v for v in library.versions.values() if v.kind == "voice")
@@ -95,6 +99,8 @@ def board_in(s, *, spoken=False, by_human=False):
             timing={"lead_ms": 0, "tail_ms": 750, "hold_ms": None},
             voice={"style": "cast", "current_version_id": None},
         )
+    if draft_application is not None:
+        values["draft_application"] = draft_application
     browser, credentials = (s.browser, s.csrf) if by_human else (s.agent, s.auth)
     doc = success(browser.post(f"/v1/stories/{s.story_id}/boards", json=values,
                                headers={**credentials, "If-Match": str(current["revision"])}), 201)
@@ -341,11 +347,34 @@ def test_anonymous_upload_does_not_read_the_body(studio, size):
     asyncio.run(scenario())
 
 
+def upload_transport(s, board, data, transport):
+    if transport == "api":
+        return (s.app, f"https://studio.example.invalid/v1/boards/{board}/photo-versions",
+                {**s.auth, "If-Match": "1", "Content-Type": "image/png",
+                 "X-Studio-Photo-Provenance": json.dumps(PROVENANCE)}, data)
+    app = create_app(API_URL, api_transport=httpx.ASGITransport(app=s.app))
+    envelope = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
+        "name": "studio_upload_photo", "arguments": {
+            "data_base64": base64.b64encode(data).decode("ascii"), "board_id": board,
+            "revision": 1, "media_type": "image/png", "provenance": PROVENANCE,
+        },
+    }}
+    return (app, UPLOAD_URL, {**s.auth, "Content-Type": "application/json",
+                            "Accept": "application/json, text/event-stream"},
+            json.dumps(envelope).encode("ascii"))
+
+
+def assert_upload_accepted(response, transport):
+    if transport == "api":
+        assert success(response, 201)["selected"]
+    else:
+        assert success(response)["result"]["structuredContent"]["selected"]
+
+
 @pytest.mark.parametrize("transport", ["api", "mcp"])
 def test_concurrent_upload_is_refused_before_reading_its_body(studio, tmp_path, transport):
     s = studio
     board = board_in(s)
-    data = image_file(tmp_path)
 
     async def scenario(app, url, headers, payload):
         first_read = asyncio.Event()
@@ -374,10 +403,7 @@ def test_concurrent_upload_is_refused_before_reading_its_body(studio, tmp_path, 
                 accepted = await first
             assert busy.status_code == 503 and busy.json()["error"]["code"] == "photo.upload_busy"
             assert busy.headers["retry-after"] == "1" and not second_read
-            if transport == "api":
-                assert accepted.status_code == 201 and accepted.json()["selected"]
-            else:
-                assert accepted.status_code == 200 and accepted.json()["result"]["structuredContent"]["selected"]
+            assert_upload_accepted(accepted, transport)
             retry = await http.post(url, headers=headers, content=payload)
             # The revision already moved, so the retry gets a normal API conflict.
             if transport == "api":
@@ -385,21 +411,121 @@ def test_concurrent_upload_is_refused_before_reading_its_body(studio, tmp_path, 
             else:
                 assert retry.json()["result"]["structuredContent"]["error"]["http_status"] == 409
 
-    if transport == "api":
-        asyncio.run(scenario(s.app, f"https://studio.example.invalid/v1/boards/{board}/photo-versions",
-                             {**s.auth, "If-Match": "1", "Content-Type": "image/png",
-                              "X-Studio-Photo-Provenance": json.dumps(PROVENANCE)}, data))
-    else:
-        app = create_app(API_URL, api_transport=httpx.ASGITransport(app=s.app))
-        envelope = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
-            "name": "studio_upload_photo", "arguments": {
-                "data_base64": base64.b64encode(data).decode("ascii"), "board_id": board,
-                "revision": 1, "media_type": "image/png", "provenance": PROVENANCE,
-            },
-        }}
-        asyncio.run(scenario(app, UPLOAD_URL, {**s.auth, "Content-Type": "application/json",
-                                              "Accept": "application/json, text/event-stream"},
-                             json.dumps(envelope).encode("ascii")))
+    asyncio.run(scenario(*upload_transport(s, board, image_file(tmp_path), transport)))
+
+
+async def post_stream(app, url, headers, receive, messages):
+    request = httpx.Request("POST", url, headers=headers)
+    scope = {"type": "http", "http_version": "1.1", "method": "POST", "scheme": request.url.scheme,
+             "path": request.url.path, "query_string": b"",
+             "headers": [(key.lower(), value) for key, value in request.headers.raw]}
+
+    async def send(message):
+        messages.append(message)
+
+    await app(scope, receive, send)
+
+
+@pytest.mark.parametrize("transport", ["api", "mcp"])
+@pytest.mark.parametrize("failure", ["trickle", "buffered", "stall", "disconnect", "size", "exception"])
+def test_interrupted_upload_releases_slot(studio, tmp_path, monkeypatch, transport, failure):
+    s = studio
+    board = board_in(s)
+    data = image_file(tmp_path)
+
+    async def scenario(app, url, headers, payload):
+        loop = asyncio.get_running_loop()
+        real_time = loop.time
+        offset = 0
+        monkeypatch.setattr(loop, "time", lambda: real_time() + offset)
+
+        def tick(seconds):
+            nonlocal offset
+            offset += seconds
+
+        async def advance(seconds):
+            resumed = loop.create_future()
+
+            def resume():
+                if not resumed.done():
+                    resumed.set_result(None)
+
+            loop.call_at(loop.time() + seconds, resume)
+            loop.call_soon(tick, seconds)
+            await resumed
+
+        reads = 0
+        messages = []
+
+        async def receive():
+            nonlocal reads
+            reads += 1
+            if reads == 1:
+                return {"type": "http.request", "body": payload[:1], "more_body": True}
+            if failure in ("trickle", "buffered"):
+                interval = IDLE_SECONDS - 1
+                if reads <= DEFAULT_BODY_SECONDS // interval + 2:
+                    if failure == "buffered":
+                        tick(interval)
+                    else:
+                        await advance(interval)
+                    return {"type": "http.request", "body": payload[reads - 1:reads], "more_body": True}
+            elif failure == "stall":
+                await advance(IDLE_SECONDS + 1)
+            elif failure == "disconnect":
+                return {"type": "http.disconnect"}
+            elif failure == "size":
+                limit = MAX_UPLOAD_BYTES if transport == "api" else MAX_UPLOAD_REQUEST_BYTES
+                return {"type": "http.request", "body": b"x" * limit, "more_body": False}
+            else:
+                raise RuntimeError("fixture receive failed")
+            return {"type": "http.request", "body": payload[reads - 1:], "more_body": False}
+
+        async with app.router.lifespan_context(app):
+            if failure == "exception" and transport == "mcp":
+                with pytest.raises(RuntimeError, match="fixture receive failed"):
+                    await post_stream(app, url, headers, receive, messages)
+            else:
+                await post_stream(app, url, headers, receive, messages)
+            if failure == "disconnect" and transport == "mcp":
+                assert not messages
+            else:
+                expected = {"trickle": 408, "buffered": 408, "stall": 408,
+                            "disconnect": 400, "size": 413, "exception": 500}
+                assert messages[0]["status"] == expected[failure]
+                if expected[failure] == 408:
+                    assert json.loads(messages[1]["body"])["error"]["code"] == "photo.upload_timeout"
+            assert reads >= 2
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app)) as http:
+                assert_upload_accepted(await http.post(url, headers=headers, content=payload), transport)
+
+    asyncio.run(scenario(*upload_transport(s, board, data, transport)))
+    versions = success(s.browser.get(f"/v1/boards/{board}/photo-versions"))["items"]
+    assert len(versions) == 1
+
+
+@pytest.mark.parametrize("transport", ["api", "mcp"])
+def test_scope_refusal_never_acquires_upload_slot(studio, tmp_path, monkeypatch, transport):
+    from haynes_studio.api import job_routes
+    from haynes_studio.mcp import server
+
+    s = studio
+    board = board_in(s)
+    module = job_routes if transport == "api" else server
+
+    def unexpected_call(*args, **kwargs):
+        pytest.fail("Scope refusal must precede upload slot acquisition and body reads")
+
+    monkeypatch.setattr(module, "_upload_slot", SimpleNamespace(acquire=unexpected_call))
+
+    async def scenario(app, url, headers, payload):
+        messages = []
+        async with app.router.lifespan_context(app):
+            await post_stream(app, url, {**headers, **s.reader}, unexpected_call, messages)
+        assert messages[0]["status"] == 403
+        assert json.loads(messages[1]["body"])["error"]["code"] == "auth.forbidden"
+
+    asyncio.run(scenario(*upload_transport(s, board, image_file(tmp_path), transport)))
 
 
 def test_mcp_media_tools_and_upload_hash(studio, tmp_path):
@@ -573,6 +699,230 @@ def test_job_media_selection_respects_person_edit(studio, kind, by_human):
     assert after["revision"] == before["revision"] + int(by_human)
     versions = success(s.browser.get(f"/v1/boards/{board}/{kind}-versions"))["items"]
     assert [version["id"] for version in versions] == [result["result_version_id"]]
+
+
+@pytest.mark.parametrize("kind", ["photo", "voice"])
+def test_person_job_selection_protects_an_untouched_board(studio, kind):
+    s = studio
+    board = board_in(s, spoken=kind == "voice")
+    path = f"/v1/boards/{board}"
+    assert "person_edit" not in current_board(s, board)
+    queued = success(s.browser.post(f"{path}/{kind}-jobs", json={},
+                                    headers={**s.csrf, "Idempotency-Key": "person-choice"}), 202)
+    worker = speech_worker(s, FakeKokoro()) if kind == "voice" else image_worker(s)[0]
+    assert worker.tick()
+    read = s.agent.get(path, headers=s.auth)
+    selected = success(read)
+    result = job(s, queued["id"])
+    assert result["result_is_current"]
+    assert selected[kind]["current_version_id"] == result["result_version_id"]
+    revision = selected["revision"]
+    headers = {**s.auth, "If-Match": str(revision)}
+    change = {kind: {**selected[kind], "current_version_id": None}}
+    denied = s.agent.patch(path, headers=headers, json=change)
+    assert denied.status_code == 409 and denied.json()["error"]["code"] == "draft.protected"
+    assert selected["person_edit"] == "content" and selected["person_edit_revision"] == revision
+    allowed = success(s.agent.patch(path, headers=headers, json={
+        **change, "acknowledge_person_edit": {
+            "board_revision": revision, "read_token": read.headers[READ_TOKEN_HEADER],
+        },
+    }))
+    assert allowed[kind]["current_version_id"] is None
+    assert allowed["person_edit_acknowledgments"][0]["board_revision"] == revision
+
+
+@pytest.mark.parametrize("kind", ["photo", "voice"])
+def test_agent_job_selection_preserves_own_redraft(studio, kind):
+    s = studio
+    declaration = {"board_key": "workshop", "draft_sha256": "a" * 64,
+                   "model": "fixture", "session": "fixture"}
+    board = board_in(s, spoken=kind == "voice", draft_application=declaration)
+    queued = success(operation(s, board, kind, "agent-choice"), 202)
+    worker = speech_worker(s, FakeKokoro()) if kind == "voice" else image_worker(s)[0]
+    assert worker.tick()
+    assert job(s, queued["id"])["result_is_current"]
+    after = current_board(s, board)
+    story = success(s.browser.get(f"/v1/stories/{s.story_id}"))
+    response = s.agent.patch(f"/v1/boards/{board}", headers={**s.auth, "If-Match": str(after["revision"])},
+                             json={"title": "Second draft", "draft_application": {
+                                 **declaration, "draft_sha256": "b" * 64,
+                                 "previous_draft_sha256": declaration["draft_sha256"],
+                                 "story_revision": story["revision"],
+                             }})
+    assert success(response)["title"] == "Second draft"
+    assert after["draft_application"]["board_revision"] == after["revision"]
+    assert after["draft_application"]["applied_board_revision"] == 1
+
+
+@pytest.mark.parametrize("case", ["other-agent", "stale-stamp"])
+def test_agent_job_selection_does_not_advance_an_ineligible_stamp(studio, case):
+    s = studio
+    board = board_in(s, draft_application={"board_key": "workshop", "draft_sha256": "a" * 64,
+                                          "model": "fixture", "session": "fixture"})
+    requester = s.auth
+    if case == "other-agent":
+        _, requester = register_agent(s.owner, {s.production_id: ["assets:generate"]})
+    else:
+        patch(s, board, {"title": "A separate agent edit"}, by_human=False)
+    queued = success(operation(s, board, "photo", "agent-stamp", headers=requester), 202)
+    assert image_worker(s)[0].tick()
+    assert job(s, queued["id"])["result_is_current"]
+    after = current_board(s, board)
+    assert after["draft_application"]["board_revision"] == 1
+    assert after["revision"] == (2 if case == "other-agent" else 3)
+
+
+def test_runtime_cannot_update_job_requester(studio, engine):
+    board = board_in(studio)
+    queued = success(operation(studio, board, "photo", "requester-privilege"), 202)
+    target = media_jobs.c.id == queued["id"]
+    forged = {"kind": "human", "iss": "https://fixture.invalid", "sub": "forged"}
+    with pytest.raises(sa.exc.ProgrammingError) as refused, engine.begin() as conn:
+        conn.execute(media_jobs.update().where(target).values(requester=forged))
+    assert isinstance(refused.value.orig, psycopg.errors.InsufficientPrivilege)
+
+
+def stage_result(worker, claim):
+    with ActiveClaim(claim, progress=worker.progress) as active:
+        return worker._result(Job.from_document(claim.body["job"]), claim, Dispatch(active))
+
+
+@pytest.mark.parametrize("kind", ["photo", "voice"])
+def test_mutable_job_document_cannot_override_requester(studio, engine, kind):
+    s = studio
+    board = board_in(s, spoken=kind == "voice", by_human=True)
+    queued = success(operation(s, board, kind, "forged-requester"), 202)
+    target = media_jobs.c.id == queued["id"]
+    api = worker_api(s)
+    claim = api.claim("image" if kind == "photo" else "voice")
+    worker = speech_worker(s, FakeKokoro()) if kind == "voice" else image_worker(s)[0]
+    evidence = stage_result(worker, claim)
+    original = claim.body["job"]["created_by"]
+    forged = success(s.browser.get("/v1/me"))["principal"]
+    with engine.begin() as conn:
+        conn.execute(media_jobs.update().where(target).values(document={**claim.body["job"], "created_by": forged}))
+    finished = claim.complete({"result": evidence})
+    assert finished["status"] == "succeeded" and finished["created_by"] == original
+    assert not finished["result_is_current"]
+    assert current_board(s, board)[kind]["current_version_id"] is None
+
+
+@pytest.mark.parametrize("requester", [None, {"kind": "human", "iss": "https://fixture.invalid"}])
+def test_invalid_job_requester_refuses_completion(studio, requester):
+    s = studio
+    board = board_in(s)
+    queued = success(operation(s, board, "photo", "invalid-requester"), 202)
+    target = media_jobs.c.id == queued["id"]
+    claim = worker_api(s).claim("image")
+    evidence = stage_result(image_worker(s)[0], claim)
+    with s.owner.begin() as conn:
+        conn.execute(media_jobs.update().where(target).values(requester=requester))
+    with pytest.raises(WorkerAPIError) as refused:
+        claim.complete({"result": evidence})
+    assert (refused.value.status, refused.value.code) == (422, "job.requester_invalid")
+    with s.owner.connect() as conn:
+        assert conn.scalar(sa.select(media_jobs.c.document["status"].astext).where(target)) == "running"
+    assert success(s.browser.get(f"/v1/boards/{board}/photo-versions"))["items"] == []
+
+
+def recorded_photo(s, board):
+    version = example("asset-version-photo-external.json")
+    minter = Minter()
+    version.update(id=minter.mint("asv"), asset_id=minter.mint("ast"), recorded_without_media=True,
+                   scope={"production_id": s.production_id, "story_id": s.story_id, "board_id": board})
+    content = version["content"]
+    content["locator"] = blob_locator(s.production_id, content["sha256"], content["media_type"])
+    with s.owner.begin() as conn:
+        record_asset_version(conn, version)
+    return version["id"]
+
+
+def assert_recorded_problem(response, path):
+    assert response.status_code == 422, response.text
+    error = response.json()["error"]
+    assert (error["code"], error["path"]) == ("asset.recorded_without_media", path)
+
+
+def test_photo_job_refuses_recorded_only_input(studio):
+    s = studio
+    board = board_in(s)
+    version = recorded_photo(s, board)
+    photo = current_board(s, board)["photo"]
+    patch(s, board, {"photo": {**photo, "input_asset_version_ids": [version]}}, by_human=False)
+    assert_recorded_problem(operation(s, board, "photo", "recorded-input"), "/photo/input_asset_version_ids/0")
+    assert success(s.browser.get(f"/v1/boards/{board}/jobs"))["items"] == []
+
+
+@pytest.fixture
+def recorded_voice(studio):
+    s = studio
+    board = board_in(s, spoken=True)
+    queued = success(operation(s, board, "voice", "recorded-voice"), 202)
+    claim = worker_api(s).claim("voice")
+    worker = speech_worker(s, FakeKokoro())
+    result = stage_result(worker, claim)
+    result["version"]["recorded_without_media"] = True
+    with s.owner.begin() as conn:
+        record_asset_version(conn, result["version"])
+    return board, queued, claim, result
+
+
+@pytest.mark.parametrize("kind", ["photo", "voice"])
+def test_board_refuses_recorded_only_selection(studio, request, kind):
+    s = studio
+    if kind == "photo":
+        board = board_in(s)
+        version = recorded_photo(s, board)
+    else:
+        board, _, _, result = request.getfixturevalue("recorded_voice")
+        version = result["version"]["id"]
+    before = current_board(s, board)
+    response = s.browser.patch(f"/v1/boards/{board}", headers={**s.csrf, "If-Match": str(before["revision"])},
+                               json={kind: {**before[kind], "current_version_id": version}})
+    assert_recorded_problem(response, f"/{kind}/current_version_id")
+    assert current_board(s, board) == before
+
+
+def test_voice_completion_refuses_recorded_only_result(studio, recorded_voice, monkeypatch):
+    board, queued, claim, result = recorded_voice
+
+    def unexpected_probe(*args):
+        pytest.fail("Recorded voice must be refused before probing the store")
+
+    monkeypatch.setattr(studio.store, "verify", unexpected_probe)
+    with pytest.raises(WorkerAPIError) as refused:
+        claim.complete({"result": result})
+    assert (refused.value.status, refused.value.code) == (422, "asset.recorded_without_media")
+    assert job(studio, queued["id"])["status"] == "running"
+    assert current_board(studio, board)["voice"]["current_version_id"] is None
+
+
+def test_promotion_refuses_recorded_only_version(studio):
+    s = studio
+    version = recorded_photo(s, board_in(s))
+    assert_recorded_problem(s.browser.post(f"/v1/asset-versions/{version}/promote", headers=s.csrf), "/id")
+
+
+@pytest.mark.parametrize("use", ["selection", "source"])
+def test_upload_refuses_recorded_only_version(studio, tmp_path, use):
+    s = studio
+    board = board_in(s)
+    version = recorded_photo(s, board)
+    declaration = dict(PROVENANCE)
+    if use == "selection":
+        # An archive import can retain the saved pin without registering media.
+        draft = current_board(s, board)
+        draft.pop("derived")
+        draft["photo"]["current_version_id"] = version
+        with s.owner.begin() as conn:
+            conn.execute(boards.update().where(boards.c.id == board).values(document=draft))
+        path = "/photo/current_version_id"
+    else:
+        declaration["source_asset_version_ids"] = [version]
+        path = "/provenance/generator/source_asset_version_ids/0"
+    assert_recorded_problem(upload(s, board, image_file(tmp_path), declaration), path)
+    versions = success(s.browser.get(f"/v1/boards/{board}/photo-versions"))["items"]
+    assert [row["id"] for row in versions] == [version]
 
 
 @pytest.mark.parametrize("scope", ["another-board", "another-production"])

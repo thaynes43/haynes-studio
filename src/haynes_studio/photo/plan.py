@@ -11,6 +11,7 @@ from haynes_studio.errors import ContractError
 from haynes_studio.layered.errors import LayeredError
 from haynes_studio.layered.photo import PhotoInputs, photo_inputs
 from haynes_studio.library import Library
+from haynes_studio.library.library import require_media
 from haynes_studio.library.model import BOARD, AssetVersion, Content, Scope, signature
 from haynes_studio.library.resolve import BYTES_MISSING, KIND_MISMATCH, SCOPE_MISMATCH
 
@@ -51,7 +52,7 @@ class PhotoPlan:
 
 
 def sources_for(library: Library, scope: Scope, ids: tuple[str, ...],
-                path: str, *, images_only: bool = True) -> tuple[PhotoSource, ...]:
+                path: str, *, images_only: bool = True, metadata_only: bool = False) -> tuple[PhotoSource, ...]:
     sources = []
     for index, version_id in enumerate(ids):
         at = f"{path}/{index}"
@@ -63,6 +64,8 @@ def sources_for(library: Library, scope: Scope, ids: tuple[str, ...],
                 or owner.story_id not in (None, scope.story_id)
                 or owner.board_id not in (None, scope.board_id)):
             raise error(SCOPE_MISMATCH, at, "the source belongs to another production, story or board")
+        if not metadata_only:
+            require_media(version, at)
         if version.content is None:
             raise error(BYTES_MISSING, at, "the source has no content")
         if images_only and version.content.media_type not in IMAGE_TYPES:
@@ -71,7 +74,7 @@ def sources_for(library: Library, scope: Scope, ids: tuple[str, ...],
     return tuple(sources)
 
 
-def plan_photo(story: Story, board: Board, library: Library) -> PhotoPlan:
+def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: bool = False) -> PhotoPlan:
     """Take canonical story and board values and the relevant library records.
 
     The plan owns all generation inputs. Its signature excludes the currently selected
@@ -86,7 +89,7 @@ def plan_photo(story: Story, board: Board, library: Library) -> PhotoPlan:
         ids = tuple(entry.asset_version_id for entry in board.cast)
         if story.set is not None:
             ids = (story.set.asset_version_id, *ids)
-        sources = sources_for(library, scope, ids, "/layers")
+        sources = sources_for(library, scope, ids, "/layers", metadata_only=metadata_only)
         blobs = {source.version_id: source.content.sha256 for source in sources}
         layers = photo_inputs(story, board, blobs=blobs, width=size[0], height=size[1])
         return PhotoPlan(scope, LAYERED, size, None, sources, selected, layers)
@@ -98,7 +101,8 @@ def plan_photo(story: Story, board: Board, library: Library) -> PhotoPlan:
         prompt = unicodedata.normalize("NFC", prompt)
     return PhotoPlan(
         scope, WHOLE_FRAME, size, prompt,
-        sources_for(library, scope, board.photo.input_asset_version_ids, "/photo/input_asset_version_ids"),
+        sources_for(library, scope, board.photo.input_asset_version_ids, "/photo/input_asset_version_ids",
+                    metadata_only=metadata_only),
         selected,
     )
 
@@ -107,7 +111,8 @@ def _latest(story: Story | None, board: Board | None, library: Library) -> Photo
     if story is None or board is None:
         return None
     try:
-        return plan_photo(story, board, library)
+        # Archive pins retain enough metadata to describe historical photo currency.
+        return plan_photo(story, board, library, metadata_only=True)
     except (ContractError, LayeredError):
         return None
 

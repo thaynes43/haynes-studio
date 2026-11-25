@@ -72,7 +72,8 @@ class FakeStudio:
             }})
         assert "cookie" not in request.headers
         if path == "/v1/me":
-            return httpx.Response(200, json={"principal": {"kind": "agent"}},
+            return httpx.Response(200, json={"principal": {"kind": "agent"},
+                                             "production_scopes": {self.pid: ["assets:upload"]}},
                                   headers={"set-cookie": "fixture=ignored"})
         self.requests.append(request)
         if self.override is not None:

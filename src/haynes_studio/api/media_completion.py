@@ -5,6 +5,7 @@ from haynes_studio.canonical.model import Story, to_document
 from haynes_studio.db import catalog, drafts
 from haynes_studio.errors import blocking
 from haynes_studio.library import Library, validate_asset_version
+from haynes_studio.library.library import require_media
 from haynes_studio.library.model import BOARD, AssetVersion, Licence, version_document
 from haynes_studio.photo.build import PreparedPhoto
 from haynes_studio.photo.plan import can_select_photo
@@ -95,6 +96,7 @@ def complete_voice(conn, store, row, job, result):
             raise invalid_result()
     elif version_document(held.get(version.id), held.asset_of(version.id)) != document:
         raise invalid_result()
+    require_media(version, "/result/version")
     track = version.voice.track
     if store.verify(track.locator, track.sha256) != PRESENT:
         raise invalid_result()

@@ -19,13 +19,13 @@ def claim(conn, worker_id, lane):
     row = jobs.claim(conn, worker_id, lane)
     if row is None:
         return None
-    body = {"job": row["document"], "inputs": row["inputs"], "fence": row["fence"],
+    body = {"job": jobs.job_document(row), "inputs": row["inputs"], "fence": row["fence"],
             "claim_until": row["claim_until"], "production_id": row["production_id"]}
     if row["kind"] == "voice":
         library = catalog.board_library(conn, Library(), row["board_id"], "board_voice")
         body["library"] = documents(library)
     elif row["kind"] == "asset_candidate":
-        plan = checked_candidate(Job.from_document(row["document"]), row["inputs"])
+        plan = checked_candidate(Job.from_document(body["job"]), row["inputs"])
         library = catalog.version_library(conn, asset_id=plan.asset_id, source_key=plan.source_key)
         body["has_result"] = candidate_result(library, plan) is not None
     return body
@@ -38,7 +38,7 @@ def lock(conn, request, body):
 
 def complete(conn, request, body):
     row, now = lock(conn, request, body)
-    job = Job.from_document(row["document"])
+    job = Job.from_document(jobs.job_document(row))
     store = request.app.state.store
     now = timestamp(now)
     try:
@@ -61,5 +61,5 @@ def complete(conn, request, body):
 
 def finish_failure(conn, request, body):
     row, now = lock(conn, request, body)
-    job = Job.from_document(row["document"])
+    job = Job.from_document(jobs.job_document(row))
     return jobs.finish(conn, row, fail(job, body.code, body.message, now=timestamp(now)))

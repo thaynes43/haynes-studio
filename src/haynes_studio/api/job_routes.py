@@ -7,6 +7,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Header, Request, Response
 from pydantic import Field, StringConstraints, ValidationError
 from starlette.concurrency import run_in_threadpool
+from starlette.requests import ClientDisconnect
 
 from haynes_studio.adapters.errors import AdapterError
 from haynes_studio.assets.candidate import plan_candidate
@@ -17,15 +18,17 @@ from haynes_studio.db.problems import NotFound, require_revision
 from haynes_studio.db.runs import database_time, timestamp
 from haynes_studio.jsonio import parse_strict
 from haynes_studio.layered.errors import LayeredError
+from haynes_studio.library.library import require_media
 from haynes_studio.library.model import signature, version_document
 from haynes_studio.photo.build import METHOD_INVALID, ExternalProvenance, import_photo
 from haynes_studio.photo.plan import WHOLE_FRAME
+from haynes_studio.photo_limits import TIMEOUT_CODE, TIMEOUT_MESSAGE, UploadBodyTimeout
 from haynes_studio.photo.validation import MAX_UPLOAD_BYTES
 from haynes_studio.queue.media_inputs import documents, photo_plan, photo_request, provenance
 from haynes_studio.voice.jobs import new_job
 from haynes_studio.voice.plan import plan_board_voice
 
-from .errors import APIError, ERROR_RESPONSES, missing
+from .errors import APIError, ERROR_RESPONSES, ErrorEnvelope, missing
 from .media_completion import record_board_photo
 from .models import AssetVersion, Body, Document, ExternalPhotoDeclaration, Nonempty, Page, Title, TransportModel
 from .routes import ETAG, Cursor, IfMatch, Limit, _board_access, _cursor, _id, _page, _revision
@@ -158,6 +161,9 @@ def _upload_inputs(state, actor, board_id, revision, declared):
         if board["method"]["layer"] != WHOLE_FRAME:
             raise APIError(422, METHOD_INVALID, "Layered board photos come from the compositor",
                            path="/method/layer")
+        selected = board["photo"]["current_version_id"]
+        if selected is not None:
+            require_media(library.get(selected), "/photo/current_version_id")
         return story_id, photo_plan(story, board_id, library), library
 
 
@@ -224,7 +230,8 @@ def build_router(CurrentActor, authenticated_route):
     def get_job(id: str, request: Request, actor: CurrentActor):
         with snapshot(request.app.state.engine) as conn:
             row = job_access(conn, actor, _id(id, "job"))
-            return {**row["document"], **provenance(row["document"], row["inputs"])}
+            document = jobs.job_document(row)
+            return {**document, **provenance(document, row["inputs"])}
 
     @router.get("/jobs/{id}/result", response_model=AssetVersion, operation_id="get_job_result")
     def get_job_result(id: str, request: Request, actor: CurrentActor):
@@ -277,7 +284,10 @@ def build_router(CurrentActor, authenticated_route):
     upload = APIRouter(route_class=RawPhotoRoute)
 
     @upload.post("/boards/{id}/photo-versions", status_code=201, operation_id="upload_board_photo",
-                 response_model=PhotoUploadView, responses={201: {"headers": ETAG}},
+                 response_model=PhotoUploadView, responses={
+                     201: {"headers": ETAG},
+                     408: {"model": ErrorEnvelope, "description": "The photo upload body timed out"},
+                 },
                  openapi_extra={"requestBody": {
                      "required": True, "content": {mime: {"schema": {"type": "string", "format": "binary"}}
                                                     for mime in UPLOAD_MIMES},
@@ -302,13 +312,18 @@ def build_router(CurrentActor, authenticated_route):
             # BytesIO can hand off its final bytes without retaining a bytearray
             # alongside them. The route counts incoming bytes before each write.
             with BytesIO() as content:
-                async for chunk in request.stream():
+                async for chunk in state.upload_body_limits.stream(request):
                     content.write(chunk)
                 data = content.getvalue()
             prepared = await run_in_threadpool(import_photo, plan, library, data=data,
                                                media_type=media_type, declared=declared, by=actor.principal)
             del data
             result = await run_in_threadpool(_write_upload, state, actor, story_id, prepared)
+        except UploadBodyTimeout as error:
+            raise APIError(408, TIMEOUT_CODE, TIMEOUT_MESSAGE, path="/photo") from error
+        except ClientDisconnect as error:
+            raise APIError(400, "photo.upload_disconnected", "The client disconnected during upload",
+                           path="/photo") from error
         finally:
             _upload_slot.release()
         if result["board_revision"] is not None:

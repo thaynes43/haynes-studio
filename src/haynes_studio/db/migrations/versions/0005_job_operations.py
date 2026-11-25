@@ -31,6 +31,7 @@ def upgrade():
             idempotency_actor TEXT NOT NULL,
             idempotency_key TEXT NOT NULL,
             request_signature TEXT NOT NULL,
+            requester JSONB NOT NULL,
             inputs JSONB NOT NULL,
             document JSONB NOT NULL,
             worker_id TEXT,

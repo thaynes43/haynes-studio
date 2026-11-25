@@ -58,6 +58,7 @@ JOB_GRANTS = (
     ("SELECT", ("media_job_lanes",)),
     ("UPDATE (next_position)", ("media_job_lanes",)),
     ("SELECT, INSERT", ("media_jobs",)),
+    # The requester is fixed at insertion, independent of the mutable job document.
     ("UPDATE (document, worker_id, fence, claim_until, dispatched)", ("media_jobs",)),
     ("SELECT, INSERT", ("asset_promotions", "queue_lane_events")),
 )

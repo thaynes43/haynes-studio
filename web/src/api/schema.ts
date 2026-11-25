@@ -4175,6 +4175,17 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            /** @description The photo upload body timed out */
+            408: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             /** @description The revision differs or the board is protected */
             409: {
                 headers: {

@@ -25,6 +25,7 @@ from starlette.routing import Route
 from haynes_studio.agent_tokens import AGENT_TOKEN_PATTERN
 from haynes_studio.canonical.jsonvalues import too_deep
 from haynes_studio.errors import pointer
+from haynes_studio.photo_limits import TIMEOUT_CODE, TIMEOUT_MESSAGE, UploadBodyLimits, UploadBodyTimeout
 
 from .arguments import MAX_UPLOAD_BASE64, UploadPhoto
 from .tools import OPERATIONS
@@ -99,6 +100,12 @@ class Endpoint:
             principal = reply.document.get("principal")
             if not isinstance(principal, dict) or principal.get("kind") != "agent":
                 raise auth_required()
+            if self.upload and request.method == "POST":
+                grants = reply.document.get("production_scopes")
+                if not isinstance(grants, dict) or not any(
+                    isinstance(scopes, list) and "assets:upload" in scopes for scopes in grants.values()
+                ):
+                    raise Problem(403, "auth.forbidden", "A production upload grant is required")
         except Problem as problem:
             status = problem.error["http_status"]
             headers = {"Cache-Control": "no-store"}
@@ -127,6 +134,10 @@ class Endpoint:
 class UploadSessionManager(StreamableHTTPSessionManager):
     """Give the SDK one bounded body, without retaining a second encoded copy."""
 
+    def __init__(self, *args, body_limits: UploadBodyLimits, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.body_limits = body_limits
+
     async def handle_request(self, scope, receive, send):
         request = Request(scope, receive)
         too_large = PlainTextResponse("Request body too large", status_code=413)
@@ -140,13 +151,17 @@ class UploadSessionManager(StreamableHTTPSessionManager):
 
         try:
             with BytesIO() as buffer:
-                async for chunk in request.stream():
+                async for chunk in self.body_limits.stream(request):
                     if buffer.tell() + len(chunk) > limit:
                         return await too_large(scope, receive, send)
                     buffer.write(chunk)
                 body = buffer.getvalue()
         except ClientDisconnect:
             return
+        except UploadBodyTimeout:
+            problem = Problem(408, TIMEOUT_CODE, TIMEOUT_MESSAGE)
+            response = JSONResponse({"error": problem.error}, status_code=408)
+            return await response(scope, receive, send)
 
         async def replay():
             nonlocal body
@@ -183,6 +198,7 @@ def _api_origin(url: str) -> httpx.URL:
 def create_app(api_url: str, *, allowed_hosts: tuple[str, ...] = LOCAL_HOSTS,
                allowed_origins: tuple[str, ...] = (),
                api_ca_file: str | Path | None = None,
+               upload_body_limits: UploadBodyLimits = UploadBodyLimits(),
                api_transport: httpx.AsyncBaseTransport | None = None) -> Starlette:
     """Configure the API origin and the streamable HTTP transport."""
     # Share connections, with no upstream cookie persistence or environment proxies.
@@ -236,7 +252,7 @@ def create_app(api_url: str, *, allowed_hosts: tuple[str, ...] = LOCAL_HOSTS,
     )
     upload_manager = UploadSessionManager(
         server, json_response=True, stateless=True, security_settings=security,
-        max_request_body_size=MAX_UPLOAD_REQUEST_BYTES,
+        max_request_body_size=MAX_UPLOAD_REQUEST_BYTES, body_limits=upload_body_limits,
     )
 
     @asynccontextmanager
