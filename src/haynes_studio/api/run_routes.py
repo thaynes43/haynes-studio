@@ -32,7 +32,7 @@ from haynes_studio.store import BLOB_MISSING, StoreError
 from haynes_studio.store.layout import blob_locator
 
 from . import media_work
-from .auth import WorkerRoute
+from .auth import WorkerRoute, require_worker_lane
 from .errors import APIError, ERROR_RESPONSES, forbidden
 from .models import Body, Document, Page, TransportModel
 from .routes import Cursor, ETAG, IfMatch, Limit, _cursor, _etag, _id, _page, _revision, _story_access
@@ -236,7 +236,9 @@ def build_router(CurrentActor, authenticated_route):
                 frozen, library = inputs.freeze(prepared, studio=request.app.state.build_revision)
                 data, sha = snapshot_bytes(frozen)
                 if len(data) > MAX_SNAPSHOT_BYTES:
-                    raise APIError(413, "run.snapshot_too_large", "The snapshot exceeds the store read limit")
+                    raise APIError(422, "run.snapshot_too_large",
+                                   "The frozen draft exceeds the snapshot limit. Reduce the draft before queuing.",
+                                   evidence={"bytes": len(data), "max_bytes": MAX_SNAPSHOT_BYTES})
                 try:
                     store.publish(data, scope=draft.story["production_id"], media_type="application/json",
                                   expected_sha256=sha)
@@ -303,6 +305,7 @@ def build_router(CurrentActor, authenticated_route):
 
 
 def _lock(conn, request, body):
+    require_worker_lane(request, "run")
     if not body.valid_run():
         _id(body.run_id, "run", "/run_id")
     return runs.lock_claim(conn, body.run_id, request.state.principal.worker_id, body.fence)
@@ -334,6 +337,7 @@ def worker_router():
     @router.post("/claim", operation_id="claim_work")
     def claim_work(request: Request, body: WorkClaim | None = None):
         lane = "run" if body is None else body.lane
+        require_worker_lane(request, lane)
         worker_id = request.state.principal.worker_id
         with request.app.state.engine.begin() as conn:
             claim = runs.claim(conn, worker_id) if lane == "run" else media_work.claim(conn, worker_id, lane)

@@ -10,6 +10,7 @@ from haynes_studio.drafting.declaration import (
 )
 from haynes_studio.schemas import load_schema
 
+from .archive_routes import ARCHIVE_SCOPES
 from .models import ExternalPhotoDeclaration
 from .transport import REQUEST_ID_HEADER
 
@@ -110,12 +111,13 @@ def _write_schemas(schemas):
 _HUMAN_OPERATIONS = {"get_selections", "put_selections", "create_production", "enable_media_type",
                      "logout", "get_queue_lanes", "set_queue_lane",
                      "authorize_escalation", "decline_escalation", "cancel_escalation",
-                     "add_candidate_feedback", "start_feedback_iteration"}
+                     "add_candidate_feedback", "start_feedback_iteration", "clear_feedback_iteration"}
 _PREVIEW = {"get_job_result", "get_version_media", "head_version_media", "get_job_media", "head_job_media"}
 _ASSET_OPERATIONS = {"generate_board_voice": "assets:generate", "generate_board_photo": "assets:generate",
                      "generate_asset_candidate": "assets:generate", "upload_board_photo": "assets:upload"}
-_RUN_QUEUE_OPERATIONS = {"queue_run", "cancel_run", "record_check_override", "present_candidate"}
-_GO_LIVE_OPERATIONS = {"approve_go_live", "withdraw_go_live"}
+_RUN_QUEUE_OPERATIONS = {"queue_run", "cancel_run", "record_check_override", "present_candidate",
+                         "prepare_release_package"}
+_GO_LIVE_OPERATIONS = {"approve_go_live", "withdraw_go_live", "record_publication"}
 _FORMAT_WRITE_OPERATIONS = {"create_format", "add_format_version"}
 _DRAFT_OPERATIONS = {"create_story", "update_story", "create_board", "update_board",
                      "reorder_boards", "remove_board"}
@@ -158,6 +160,8 @@ def _document_access(document: dict) -> None:
                 operation["x-studio-scope"] = "draft:write"
             elif name in _FORMAT_WRITE_OPERATIONS:
                 operation["x-studio-scope"] = "formats:write"
+            elif name in ARCHIVE_SCOPES:
+                operation["x-studio-scope"] = ARCHIVE_SCOPES[name]
             elif name == "report_escalation":
                 operation["security"] = [{"StudioBearer": []}]
                 operation["x-studio-scope"] = "read"

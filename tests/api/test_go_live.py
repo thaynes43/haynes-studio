@@ -119,6 +119,8 @@ def test_release_description_uses_reported_generators_and_keeps_unknown_terms_vi
     public = credits(engine_list, {"wan-ti2v": hardware})
     public.append({"engine_key": "qwen-image", "text": "Private board generator"})
     result = release_checks({"provenance": {"engines": engine_list,
+                                           "toolchain": {"studio": "git:fixture"},
+                                           "inputs_externally_generated": [],
                                            "public": {"ai_generated": True, "credits": public}}},
                             {"result": "pass"}, True, register)
     description = result["ai_label"]["description"]

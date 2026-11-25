@@ -144,11 +144,15 @@ class Placement:
         return (self.cx + PAD, self.bottom - PIVOT_ABOVE)
 
 
-def place(size: tuple[int, int], slot: Slot, width: int, slot_name: str) -> Placement:
+def place(size: tuple[int, int], slot: Slot, width: int, slot_name: str, *,
+          silhouette: tuple[int, int] | None = None, inset: tuple[int, int] = (0, 0)) -> Placement:
     """Where a sprite of ``size`` goes on a frame ``width`` wide; more than
-    :data:`PAD` off the frame is ``layered.layout_invalid`` (``edit.place``)."""
+    :data:`PAD` off the frame is ``layered.layout_invalid`` (``edit.place``).
+    A measured silhouette can anchor an inset rectangle in the full sprite."""
     cx = slot.x * width
-    x, y = round(cx - size[0] / 2), round(slot.bottom - size[1])
+    anchor_width, anchor_height = size if silhouette is None else silhouette
+    x = round(cx - anchor_width / 2) - inset[0]
+    y = round(slot.bottom - anchor_height) - inset[1]
     if x + PAD < 0 or x + size[0] > width + PAD:
         raise LayeredError(LAYOUT_INVALID, f"slot {slot_name!r} puts the doll more than {PAD} px "
                            "off the frame")

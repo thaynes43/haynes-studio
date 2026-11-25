@@ -1,6 +1,6 @@
 # Segmentation and detection backend profile
 
-**Proposed 2026-11-25** for [story 460](https://work.haynesnetwork.com/work_packages/460).
+**Selected 2026-11-25 under CR-34** for [story 460](https://work.haynesnetwork.com/work_packages/460).
 Use **Grounding DINO Tiny + SAM 2.1 Hiera Tiny** on CPU. Keep **OWLv2 Base
 Patch16 Ensemble + the same SAM 2.1** as a fallback if grounding is the part
 that fails the bounded quality check, on a new ruling. Provisional
@@ -84,8 +84,13 @@ permits the private research pilot with terms recorded. [Register](model-licence
 
 Use FP32, eager inference, batch one, one request in flight, `nice -n 10`,
 two CPU threads (PyTorch intra-op and OMP two, inter-op and BLAS one,
-tokenizer parallelism off), 2 GiB memory request and 8 GiB limit. Leave 60 s
-for cold readiness and 60 s execution per target, including stage publication.
+tokenizer parallelism off). The original 2 GiB request and 8 GiB limit were
+planning estimates. The first smoke is staged with a 16 GiB request
+and limit as a measuring allowance. The smoke checks the image's minimum
+allowance and reports the actual cgroup limit. Raise the measuring allowance
+in the Ops release when node headroom permits. Set exact serving memory in
+a follow-up from the measured run. Allow 60 s for cold readiness and 60 s per
+target.
 Warm estimates use the detector-only measurements as a starting point with
 headroom for fewer CPU threads, SAM and I/O. Measure wall time and peak
 cgroup memory in the one install smoke. The fallback shares the same
@@ -206,7 +211,54 @@ measurement covers the supplied pose. A moving plate, cast move or camera
 change needs evidence at any additional check pose the layout policy requires.
 The proposed thresholds are technical defaults pending the private quality check.
 
-## Provisioning and GitOps sketch
+## Backend source
+
+The [request schema](../../src/haynes_studio/schemas/studio.segmentation-request.v1.schema.json)
+and [result schema](../../src/haynes_studio/schemas/studio.segmentation-result.v1.schema.json)
+ship in the Python package with a synthetic [point-hint request](../../src/haynes_studio/schemas/studio.segmentation-request.v1.example.json)
+and [ready result](../../src/haynes_studio/schemas/studio.segmentation-result.v1.example.json).
+Send `POST /v1/segment` to
+`/segmentation/segment.sock` with JSON `{attempt_id, request}` and media
+type `application/json`. The caller makes a private scratch directory under
+`/segmentation` named by a fresh 32-character lowercase hex ID and places
+the verified bytes in `input`. In the staged sidecar Pod the scratch volume
+uses group 1000. The render caller creates a group-writable setgid attempt
+directory (mode `2770`) and a group-readable `input` (mode `0640`).
+The sidecar's socket and outputs are accessible to that group. The 4 KiB
+body cap includes the envelope.
+The attempt ID is excluded from the canonical request hash. A direct point or
+box uses only SAM. For a text request, the DINO processor maps normalized boxes
+onto its resized content, which is unpadded at batch one. Clip before NMS and
+round outwards only when projecting back to source pixels. Apply the
+foreground bottom-row prior when grounding. An explicit point or box
+supplies foreground identity while the mask still has to pass every SAM guard.
+
+The backend closes a create-only `mask.png` on `ready`, checks its bytes and
+dimensions, and then creates canonical `result.json`. The HTTP reply is
+`{result, result_sha256}`, with the hash over those canonical result bytes.
+A new attempt can repeat the same frozen request and produce the same result.
+On an ambiguous reply use a fresh attempt. The caller uses the receipt hash,
+file read-back and its own claim fence before publishing. The backend writes
+a closed failed result when the request is valid and the attempt can receive
+one. Malformed envelopes and busy capacity return a short code. A timed-out
+child is killed and reaped before a replacement loads. A timeout can leave an
+unreferenced mask or late staged receipt. The caller requires a matching
+successful reply before using either file. A `needs_hint` result returns HTTP 200 with its
+stable reason, null mask and null tight box. Only successful current replies
+can lead to a ready completion.
+
+Startup verifies the profile image and build identity, the runtime lock and
+the exact file allowlist and hashes before loading either model. The runtime
+uses the explicit DINO and SAM image classes, local files, safetensors and
+FP32 eager CPU inference. `GET /v1/ready` returns
+`{profile_id, profile_sha256, device}` when the inference process is live.
+The image records the built Python wheel hashes and embeds its Python
+dependency SBOM. A resource contract ships in [the package](../../src/haynes_studio/segmentation/resources.json)
+and the image's `io.haynes-studio.segmentation.resources` OCI label. The
+measuring image refuses serving pending a measured serving contract.
+Workload setup is staged in the [Ops runbook](https://github.com/thaynes43/haynes-ops/blob/main/docs/reference/studio-segmentation-deployment.md).
+
+## Provisioning and GitOps
 
 After selection, fetch only the chosen pair using the same pinned repository,
 revision and path as the metadata table, with `/resolve/` in place of
@@ -230,7 +282,7 @@ available for rollback.
 `stat -f` returned `free-files=-1`. Budget a maximum **2 GiB and 64
 new entries** for staging and one installed profile. That would leave
 110,933,443,608,576 bytes at the observed baseline. Require a freshly
-confirmed reserve of **8 GiB and 1,024 creatable entries** before and after
+confirmed reserve of **32 GiB and 1,024 creatable entries** before and after
 staging. The storage owner needs to confirm the NAS file quota or equivalent
 capacity where NFS cannot report free inodes. The worker's node-backed
 `/tmp` reported about 432 GiB free and 265,724,127 free inodes at the same
@@ -246,9 +298,11 @@ Studio adapter and private-job runner, and model manifest schema. Build budget
 on the build filesystem throughout. Recheck that filesystem before the build.
 Publish the runtime image digest and its SBOM in the install handoff.
 
-Run as UID/GID 1000 with a read-only root, dropped capabilities,
-`RuntimeDefault` seccomp and privilege escalation disabled. Leave the model
-mount read-only and limit dedicated scratch to 256 MiB. Use the approved
+Run the smoke and sidecar as UID/GID 10001 with a read-only root, dropped
+capabilities, `RuntimeDefault` seccomp and privilege escalation disabled.
+Leave the model mount read-only and limit dedicated scratch to 256 MiB. The
+provisioner runs as 1000 and leaves its published weights readable by 10001.
+Use the approved
 low-priority render placement and a local Unix socket plus bounded scratch for
 one request at a time. The trusted render caller stages authorized bytes and
 owns the store writes and job fence. Give the companion only the selected
@@ -258,10 +312,11 @@ network listener, token, GPU device or runtime download.
 
 The live offline render limit was 20 vCPUs and 32 GiB on 2026-11-25,
 within D18's 24-vCPU allocation shared with the 4-vCPU queue worker.
-Preserve the observed combined limit. If the companion takes 2
-vCPUs and 8 GiB, the render container has 18 vCPUs and 24 GiB. Cap its
-`--workers` at 16 while that split is active, leaving two vCPUs for encoder
-and coordination overhead. Check existing render health and headroom before
+The staged serving overlay allocates 18 CPUs to render and two to the
+companion, and subtracts the companion's measured limit from 32 GiB. Cap
+render `--workers` at 16 in this split, leaving two vCPUs for encoder and
+coordination overhead. Account for any other active companion before
+changing the allocation. Check existing render health and headroom before
 and after the change. Ready means the pinned runtime, manifest, files and
 socket verify and both models
 load within the startup deadline. Use the current probe pattern without
@@ -297,13 +352,18 @@ Keep prior assets and run evidence.
    and a final mask IoU ≥0.85. For an absent `gavel` in a uniform plate,
    require `needs_hint` without usable geometry. These are checks on the
    pinned pipeline. Quality evidence for doll faces and props comes from
-   the private fixture.
+   the private fixture. The measuring smoke also exercises a positive point
+   on the visible marker. It repeats the observations with memory-mapped
+   and buffered weight loading, each in a fresh inference process, and
+   compares output PNG bytes and canonical receipts apart from the recorded
+   experimental loading field. The measuring Job allows 900 s for both
+   passes together.
 3. Inject a correctly hashed mask one pixel narrower into the fake-backend
    fixture and verify `invalid_output` with no usable completion. Repeat
    the same completed request and verify the same references and no
    overwrite. For each real call record elapsed time, peak cgroup memory,
    model and image digests and stage outcome. Stop on any timeout (60 s),
-   memory limit (8 GiB), invalid output or unexpected visible/hidden verdict.
+   the actual measuring memory limit, invalid output or unexpected visible/hidden verdict.
    Read back readiness and render-worker health. Keep media and exact
    private artifact locators in the private job record.
 4. For story 452, take **one authorized private miniature set** with one
@@ -320,10 +380,15 @@ Keep prior assets and run evidence.
    open and informs the coordinator's profile decision. Stop after that
    fixture. [Story 452](https://work.haynesnetwork.com/work_packages/452)
 
-**Evidence state.** Source proposal and read-only placement/headroom evidence.
-Matching portrait latency, peak RAM/VRAM, model behavior on dolls and toy
-props, image digest, rollback, install health and usability remain to be
-verified. Free inodes are unreported over NFS; the coordinator accepted the
+**Evidence state.** The source tests use deterministic fake models and the
+CI image smoke uses tiny synthetic Torch modules with the pinned processors
+to check fixture geometry, byte verification, wheel identities and local
+service. A separate offline built-image step saves tiny random Grounding
+DINO and SAM 2 models, runs the production loader in both load modes and
+runs a forward pass with each class. Publisher checkpoint compatibility,
+measured portrait latency and memory, doll and prop accuracy, installed image
+digest, rollout health, rollback and usability require the corresponding
+install and private fixture runs. Free inodes are unreported over NFS. The coordinator accepted the
 small file-count budget in story 460, comment 9946. Story 452 owns adapter
 pickup and private quality evidence after the install. Installation smoke and private quality acceptance
 require their own evidence.

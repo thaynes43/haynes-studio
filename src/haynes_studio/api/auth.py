@@ -20,6 +20,7 @@ from haynes_studio.db import identity
 from haynes_studio.db.engine import snapshot
 from haynes_studio.escalation import responder
 from haynes_studio.golive.policy import require_approver, require_person
+from haynes_studio.queue.protocol import WorkLane
 from haynes_studio.queue.worker_tokens import valid_worker_bearer
 
 from .config import OIDCSettings
@@ -71,12 +72,23 @@ def worker_access(request: Request) -> Principal:
     if scheme.lower() != "bearer" or not valid_worker_bearer(token):
         raise unauthenticated()
     with snapshot(request.app.state.engine) as conn:
-        worker_id = identity.get_worker(conn, token)
-    if worker_id is None:
+        worker = identity.get_worker_lane(conn, token)
+    if worker is None:
         raise unauthenticated()
+    worker_id, lane = worker
     principal = Principal(kind="worker", worker_id=worker_id)
     request.state.principal = principal
+    if lane is None:
+        raise forbidden("work.lane_forbidden", "This worker has no queue lane grant")
+    request.state.worker_lane = lane
     return principal
+
+
+def require_worker_lane(request: Request, *lanes: WorkLane) -> WorkLane:
+    lane = request.state.worker_lane
+    if lane not in lanes:
+        raise forbidden("work.lane_forbidden", "This worker is not granted the requested queue lane")
+    return lane
 
 
 class WorkerRoute(MetadataRoute):

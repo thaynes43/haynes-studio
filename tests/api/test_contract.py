@@ -89,6 +89,14 @@ def test_openapi_has_resolved_canonical_shapes_errors_and_security():
     assert patch["x-studio-scope"] == "draft:write"
     assert document["paths"]["/v1/me/selections"]["put"]["security"] == [{"StudioSession": []}]
     assert patch["security"] == [{"StudioBearer": []}, {"StudioSession": []}]
+    archive_read = document["paths"]["/v1/archive-versions/{id}"]["get"]
+    assert archive_read["x-studio-scope"] == "archive:read"
+    assert archive_read["security"] == patch["security"]
+    archive_apply = document["paths"]["/v1/archive-versions/{id}/apply"]["post"]
+    assert archive_apply["x-studio-scope"] == ["archive:read", "draft:write"]
+    assert archive_apply["security"] == patch["security"]
+    assert "archive_version_id" in schemas["Board"]["properties"]["draft_application"]["properties"]
+    assert "archive_version_id" not in schemas["BoardPatch"]["properties"]["draft_application"]["properties"]
     assert patch["responses"]["409"]["content"]["application/json"]["schema"] == {
         "$ref": "#/components/schemas/ErrorEnvelope",
     }

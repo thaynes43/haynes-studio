@@ -1,0 +1,21 @@
+{
+  "schema": "studio.segmentation-request/v1",
+  "profile": "grounding-dino-tiny-sam2.1-tiny-cpu-v1",
+  "input": {
+    "sha256": "e5f1bf943b9a7e20c38d0bc201020b67421c466e7c8a80022df37699e08e6562",
+    "width": 64,
+    "height": 48
+  },
+  "target": {
+    "kind": "prop",
+    "key": "orange-ball",
+    "label": "orange ball"
+  },
+  "hint": {
+    "kind": "point",
+    "xy": [
+      24,
+      24
+    ]
+  }
+}

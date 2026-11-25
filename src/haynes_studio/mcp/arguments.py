@@ -4,6 +4,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
+from haynes_studio.api.archive_routes import ArchiveAppend, ArchiveCreate
 from haynes_studio.api.models import ExternalPhotoDeclaration
 from haynes_studio.canonical.ids import ULID_PATTERN
 from haynes_studio.drafting.declaration import (
@@ -16,10 +17,14 @@ StoryID = Annotated[str, StringConstraints(pattern=rf"^sty_{ULID_PATTERN}$")]
 BoardID = Annotated[str, StringConstraints(pattern=rf"^brd_{ULID_PATTERN}$")]
 AssetID = Annotated[str, StringConstraints(pattern=rf"^ast_{ULID_PATTERN}$")]
 RunID = Annotated[str, StringConstraints(pattern=rf"^run_{ULID_PATTERN}$")]
+CandidateID = Annotated[str, StringConstraints(pattern=rf"^cnd_{ULID_PATTERN}$")]
+FeedbackID = Annotated[str, StringConstraints(pattern=rf"^fbk_{ULID_PATTERN}$")]
 FormatID = Annotated[str, StringConstraints(
     max_length=64, pattern=r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
 )]
 FormatVersionID = Annotated[str, StringConstraints(pattern=rf"^fmv_{ULID_PATTERN}$")]
+ArchiveRecordID = Annotated[str, StringConstraints(pattern=rf"^arc_{ULID_PATTERN}$")]
+ArchiveVersionID = Annotated[str, StringConstraints(pattern=rf"^arv_{ULID_PATTERN}$")]
 VersionCursor = Annotated[str, StringConstraints(pattern=rf"^asv_{ULID_PATTERN}$")]
 BoardCursor = Annotated[str, StringConstraints(pattern=rf"^[1-9][0-9]{{0,18}}:brd_{ULID_PATTERN}$")]
 Revision = Annotated[int, Field(ge=1, lt=2**63 - 1)]
@@ -116,6 +121,14 @@ class StoryPage(Story):
     limit: Limit = 10
 
 
+class Candidates(Story):
+    cursor: CandidateID | None = None
+    run_id: RunID | None = None
+    candidate_id: CandidateID | None = None
+    note_ids: Annotated[list[FeedbackID], Field(min_length=1, max_length=10)] | None = None
+    limit: Limit = 1
+
+
 class StorySummary(StoryPage):
     fields: Annotated[list[STORY_EDIT_FIELDS], Field(max_length=10)] | None = None
 
@@ -193,6 +206,35 @@ class FormatVersion(Arguments):
 Key = Annotated[str, StringConstraints(pattern=r"^[!-~]{1,255}$")]
 Seed = Annotated[int, Field(ge=0, le=2**53 - 1)]
 JobID = Annotated[str, StringConstraints(pattern=rf"^job_{ULID_PATTERN}$")]
+
+
+class ListArchiveRecords(Production):
+    cursor: ArchiveRecordID | None = None
+    limit: Limit = 10
+
+
+class ArchiveRecord(Arguments):
+    record_id: ArchiveRecordID
+    cursor: ArchiveVersionID | None = None
+    limit: Limit = 10
+
+
+class ArchiveVersion(Arguments):
+    version_id: ArchiveVersionID
+
+
+class CreateArchiveRecord(Production, ArchiveCreate):
+    idempotency_key: Key
+
+
+class AddArchiveVersion(Arguments, ArchiveAppend):
+    record_id: ArchiveRecordID
+    revises_version_id: ArchiveVersionID
+    idempotency_key: Key
+
+
+class ApplyArchiveStoryboard(ArchiveVersion, Story):
+    revision: Revision
 
 
 class GenerateVoice(Board):

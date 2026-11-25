@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { assetSearchLimit, assetsPath, parseRoute, safePath, treePath } from "./routes";
+import { assetSearchLimit, assetsPath, liveAssetFilters, parseRoute, safePath, treePath } from "./routes";
 import { readDestinations } from "./selections";
 
 const production = "prd_01M79V9FC00000000000000001";
@@ -9,6 +9,18 @@ const board = "brd_01M79V9FC00000000000000002";
 const context = { production, media, story, board };
 
 describe("shell routes", () => {
+  test("a filter change starts from the address, not from filters one render behind", () => {
+    // The page last rendered with "sOu"; the address already holds the next key.
+    const rendered = { scope: "library" as const, kind: "prop", search: "sOu" };
+    const address = assetsPath(context, false, { ...rendered, search: "sOuP" });
+    const [pathname, search] = address.split("?");
+    const live = liveAssetFilters(rendered, pathname, "?" + search);
+    expect(live.search).toBe("sOuP");
+    expect(assetsPath(context, false, { ...live, target: board })).toContain("q=sOuP");
+    // Away from an Assets address the rendered filters are all there is.
+    expect(liveAssetFilters(rendered, "/editor", "")).toBe(rendered);
+  });
+
   test("deep routes preserve their own entity context", () => {
     const path = treePath("board", context, "photo");
     expect(parseRoute(path)).toEqual({ area: "board", context, page: "photo" });

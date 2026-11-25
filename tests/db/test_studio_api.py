@@ -42,7 +42,7 @@ from haynes_studio.db.engine import connect_engine
 from haynes_studio.db.migrate import migrate
 from haynes_studio.db.problems import StaleRevision
 from haynes_studio.db.schema import (
-    agent_grants, agent_keys, asset_versions, metadata, sessions, stories, worker_tokens,
+    agent_grants, agent_keys, asset_versions, metadata, sessions, stories, worker_lane_grants, worker_tokens,
 )
 from haynes_studio.delivery import deliver
 from haynes_studio.errors import ContractError
@@ -735,6 +735,7 @@ def test_strict_ingress_health_and_worker_credential_boundary(service, owner_eng
     secret = worker_bearer(unprefixed)
     with owner_engine.begin() as conn:
         conn.execute(worker_tokens.insert().values(digest=identity.digest(secret), worker_id="render"))
+        conn.execute(worker_lane_grants.insert().values(worker_id="render", lane="run"))
         conn.execute(worker_tokens.insert().values(digest=identity.digest(unprefixed), worker_id="legacy-render"))
     caplog.set_level("INFO", logger=access_log.name)
     assert browser.get("/internal/v1/work/test", headers=bearer(secret)).json() == {

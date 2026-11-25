@@ -26,11 +26,15 @@ import PIL
 import PIL.Image
 import PIL.ImageOps
 
+from haynes_studio.adapters.errors import AdapterError
 from haynes_studio.canonical.model import Board, CameraCue, Story
 from haynes_studio.jsonio import freeze, thaw
 from haynes_studio.layered import compose
-from haynes_studio.layered.errors import CLIP_INVALID, UNSUPPORTED, LayeredError
+from haynes_studio.layered.errors import CLIP_INVALID, LAYOUT_INVALID, UNSUPPORTED, LayeredError
 from haynes_studio.layered.keyed import read_verified
+from haynes_studio.layered.matte_size import MatteSize
+from haynes_studio.matting.pixels import measure_shape
+from haynes_studio.matting.profile import MatteError
 from haynes_studio.store import canonical_json
 
 SCHEMA = "studio.layered-photo/v1"  # proposal: the photo's named inputs
@@ -50,14 +54,18 @@ class PhotoInputs:
     foreground: Mapping[str, Any] | None = None  # {edge_px, feather_px}
     camera: Mapping[str, Any] | None = None  # the framing: {zoom, center_px}
     composer: str = COMPOSER
+    matte_sizes: Mapping[str, Any] | None = None  # cast slot -> verified shape and target
 
     def document(self) -> dict[str, Any]:
-        return {"schema": SCHEMA, "width": self.width, "height": self.height, "set": self.set,
-                "cast": [{"slot": slot, "still": still} for slot, still in self.cast],
-                "layout": thaw(self.layout),
-                "foreground": None if self.foreground is None else thaw(self.foreground),
-                "camera": None if self.camera is None else thaw(self.camera),
-                "composer": self.composer}
+        document = {"schema": SCHEMA, "width": self.width, "height": self.height, "set": self.set,
+                    "cast": [{"slot": slot, "still": still} for slot, still in self.cast],
+                    "layout": thaw(self.layout),
+                    "foreground": None if self.foreground is None else thaw(self.foreground),
+                    "camera": None if self.camera is None else thaw(self.camera),
+                    "composer": self.composer}
+        if self.matte_sizes:
+            document["matte_sizes"] = thaw(self.matte_sizes)
+        return document
 
     @property
     def signature(self) -> str:
@@ -66,7 +74,7 @@ class PhotoInputs:
 
 
 def photo_inputs(story: Story, board: Board, *, blobs: Mapping[str, str], width: int,
-                 height: int) -> PhotoInputs:
+                 height: int, matte_sizes: Mapping[str, Any] | None = None) -> PhotoInputs:
     """The photo inputs of a layered board: the story's set still, the board's cast
     stills in draw order, its layout preset's values, its foreground edge (when the
     board shows the foreground) and the end framing of its camera cue (the last one)."""
@@ -91,7 +99,8 @@ def photo_inputs(story: Story, board: Board, *, blobs: Mapping[str, str], width:
     return PhotoInputs(width=width, height=height, set=blobs[story.set.asset_version_id],
                        cast=tuple(cast), layout=freeze(thaw(story.layouts[board.layout.preset])),
                        foreground=None if foreground is None else freeze(foreground),
-                       camera=None if camera is None else freeze(camera))
+                       camera=None if camera is None else freeze(camera),
+                       matte_sizes=freeze(dict(matte_sizes)) if matte_sizes else None)
 
 
 def _image(data: bytes, what: str) -> PIL.Image.Image:
@@ -101,6 +110,33 @@ def _image(data: bytes, what: str) -> PIL.Image.Image:
             return image.copy()
     except Exception as error:  # Pillow raises its own error types for damaged files
         raise LayeredError(CLIP_INVALID, f"{what} does not decode: {type(error).__name__}") from error
+
+
+def _place_still(cutout, slot, slot_name, frame_width, frame_height, matte):
+    if matte is None:
+        art = compose.sprite(cutout, slot)
+        return art, compose.place(art.size, slot, frame_width, slot_name)
+    if slot.crop is not None:
+        raise LayeredError(LAYOUT_INVALID, "A size-matched cast still cannot use a layout crop")
+    target = matte["target_height_px"]
+    if target > frame_height:
+        raise LayeredError("matting.target_exceeds_frame",
+                           f"Slot {slot_name!r} target height {target} px exceeds frame height {frame_height} px")
+    try:
+        measured = measure_shape(np.asarray(cutout.getchannel("A")), target)
+        if measured != thaw(matte["shape"]):
+            raise LayeredError(CLIP_INVALID, "The cast matte differs from its pinned measurement")
+        size = MatteSize.measured(measured, cutout.size, target)
+    except (MatteError, AdapterError):
+        raise LayeredError(CLIP_INVALID, "The cast matte has invalid silhouette geometry") from None
+    art, silhouette, inset = size.sprite(cutout)
+    where = compose.place(art.size, slot, frame_width, slot_name, silhouette=silhouette, inset=inset)
+    if where.y < 0:
+        # The plate would cut the doll at the top of the frame without saying so.
+        raise LayeredError("matting.target_exceeds_frame",
+                           f"Slot {slot_name!r} target height {target} px does not fit above its bottom "
+                           f"line at {slot.bottom:g} px")
+    return art, where
 
 
 def compose_photo(inputs: PhotoInputs, read: Callable[[str], BinaryIO]) -> bytes:
@@ -115,12 +151,12 @@ def compose_photo(inputs: PhotoInputs, read: Callable[[str], BinaryIO]) -> bytes
     for slot_name, still in inputs.cast:
         cutout = _image(read_verified(read, still, f"slot {slot_name}'s still"),
                         f"slot {slot_name}'s still").convert("RGBA")
-        if cutout.getextrema()[3][0] != 0:
+        matte = (inputs.matte_sizes or {}).get(slot_name)
+        if matte is None and cutout.getextrema()[3][0] != 0:
             raise LayeredError(UNSUPPORTED, f"slot {slot_name}'s still has no transparent pixel; a "
                                "layered cast still is an RGBA cutout")
         slot = compose.slot_of(layout, slot_name)
-        art = compose.sprite(cutout, slot)
-        where = compose.place(art.size, slot, width, slot_name)
+        art, where = _place_still(cutout, slot, slot_name, width, height, matte)
         plate = compose.plate(art, where, width, height)
         compose.draw(frame, plate, compose.shadow(plate), where.pivot, 0, 0, 0)
     if inputs.foreground is not None:
