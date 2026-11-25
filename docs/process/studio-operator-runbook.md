@@ -162,15 +162,22 @@ studio-web   true,true   8080
 JOB                           SUCCEEDED
 studio-migrate-08ac310f246c   1
 postgres16  READY=3  ContinuousArchiving=True  LastBackupSucceeded=True
-/healthz 204 0
-/readyz 204 0
-studio-worker progress OK
-studio-worker claim 204: 24
-studio-voice-worker progress OK
-studio-voice-worker claim 204: 24
-studio-image-worker progress OK
-studio-image-worker claim 204: 24
 Gatus internal/studio: success=True, probe status=401
+```
+
+The revised API and worker block exited 0 in the read-only fix-round check.
+[Fix-round validation](https://github.com/thaynes43/haynes-studio/pull/141)
+
+```text
+PASS API /healthz (204, empty body)
+PASS API /readyz (204, empty body)
+PASS API pod exec and probes
+PASS studio-worker progress
+PASS studio-worker log read, claim 204: 24
+PASS studio-voice-worker progress
+PASS studio-voice-worker log read, claim 204: 24
+PASS studio-image-worker progress
+PASS studio-image-worker log read, claim 204: 24
 ```
 
 **Changed** for the ingress sample. The GETs ran from inside the cluster
