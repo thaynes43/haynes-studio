@@ -325,7 +325,22 @@
         "session": {"type": "string", "minLength": 1, "maxLength": 200},
         "applied_at": {"$ref": "studio.defs.v1.schema.json#/$defs/timestamp"},
         "board_revision": {"$ref": "studio.defs.v1.schema.json#/$defs/positive"},
-        "person_edit": {"enum": ["content", "reordered", "removed"]}
+        "applied_board_revision": {"$ref": "studio.defs.v1.schema.json#/$defs/positive"},
+        "person_edit": {"enum": ["content", "reordered", "removed"]},
+        "person_edit_revision": {"$ref": "studio.defs.v1.schema.json#/$defs/positive"},
+        "person_edit_acknowledgments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["key_id", "acknowledged_at", "board_revision"],
+            "properties": {
+              "key_id": {"type": "string", "pattern": "^key_[0-7][0-9A-HJKMNP-TV-Z]{25}$"},
+              "acknowledged_at": {"$ref": "studio.defs.v1.schema.json#/$defs/timestamp"},
+              "board_revision": {"$ref": "studio.defs.v1.schema.json#/$defs/positive"}
+            },
+            "additionalProperties": false
+          }
+        }
       },
       "additionalProperties": false
     },

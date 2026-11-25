@@ -111,7 +111,8 @@ def timing_detail(reply: Reply, arguments: args.StoryPage) -> dict:
 def board_detail(reply: Reply, arguments: args.GetBoard) -> dict:
     record = reply.document
     fields = BOARD_FIELDS if arguments.fields is None else arguments.fields
-    return {**board(record), **pick(record, *fields),
+    read_token = {"read_token": reply.board_read_token} if reply.board_read_token else {}
+    return {**board(record), **pick(record, *fields), **read_token,
             "derived": pick(record.get("derived", {}), "frames", "voice_state", "photo_state",
                             "timing_state", "content_ms", "film_start_frame")}
 
@@ -159,7 +160,7 @@ class Operation:
     path: str
     project: Projection
     query: tuple[str, ...] = ()
-    body: str | None = None
+    body: str | tuple[str, ...] | None = None
     expect: int = 200
 
     def schema(self, name: str) -> MCPTool:
@@ -175,9 +176,7 @@ class Operation:
         values = arguments.model_dump(exclude_unset=True)
         query = {field: getattr(arguments, field) for field in self.query
                  if getattr(arguments, field) is not None}
-        body = values[self.body] if self.body else None
-        if self.body == "board_order":
-            body = {"board_order": body}
+        body = values[self.body] if isinstance(self.body, str) else pick(values, *(self.body or ())) or None
         return await api.request(authorization, self.method, self.path.format_map(values),
                                  query=query or None, body=body,
                                  revision=values.get("revision"), expect=self.expect)
@@ -212,18 +211,24 @@ OPERATIONS = {
         "Append a draft board at the given story revision. Supply an empty fields object for defaults.",
         args.AddBoard, "POST", "/v1/stories/{story_id}/boards", added_board, body="fields", expect=201),
     "studio_get_board": Operation(
-        "Read a board and its revision. Use fields to select editable fields, or omit it for all of them.",
+        "Read a board, its revision and a read token. Use fields to select editable fields, "
+        "or omit it for all of them.",
         args.GetBoard, "GET", "/v1/boards/{board_id}", board_detail),
     "studio_patch_board": Operation(
         "Replace supplied board fields at the given board revision. Preserve IDs to edit lines, cues or "
-        "notes, omit IDs to add them, and omit entries from the array to remove them. Re-read for child IDs.",
+        "notes, omit IDs to add them, and omit entries from the array to remove them. Re-read for child IDs. "
+        "Use acknowledge_person_edit only when a person asked for this board by ID.",
         args.PatchBoard, "PATCH", "/v1/boards/{board_id}", board_write, body="patch"),
     "studio_reorder_boards": Operation(
-        "Set the order at the given story revision. Include each active board ID exactly once.",
-        args.ReorderBoards, "PUT", "/v1/stories/{story_id}/board-order", story_write, body="board_order"),
+        "Set the order at the given story revision. Include each active board ID exactly once. "
+        "Acknowledge each protected board that moves only when a person asked for it by ID.",
+        args.ReorderBoards, "PUT", "/v1/stories/{story_id}/board-order", story_write,
+        body=("board_order", "acknowledge_person_edit")),
     "studio_remove_board": Operation(
-        "Tombstone a draft board at the given board revision.", args.BoardWrite, "DELETE",
-        "/v1/boards/{board_id}", removed_board, expect=204),
+        "Tombstone a draft board at the given board revision. "
+        "Use acknowledge_person_edit only when a person asked for this board by ID.",
+        args.RemoveBoard, "DELETE", "/v1/boards/{board_id}", removed_board,
+        body=("acknowledge_person_edit",), expect=204),
     "studio_search_assets": Operation(
         "Search visible asset version metadata for a version ID to pin in a draft.",
         args.SearchAssets, "GET", "/v1/assets", page(version), (*_PAGE, "kind", "label", "production", "board")),

@@ -26,5 +26,8 @@ fills in the bracketed values before dispatch. The original fixture premise is
    elapsed time, applied and conflicting board IDs, and anything unconfirmed.
    Keep the key and creative artifacts on the private path.
 7. **Stop.** Finish after the receipt or report the exact denial, stale
-   revision, ambiguous outcome or cap. Leave conflicts for the coordinator.
-   Any further creative pass gets a new draft and the previous receipt.
+   revision, ambiguous outcome or cap. A protected board is a stop for that
+   board unless the person explicitly asked the session to change that board
+   by ID. Report the conflict to the coordinator. For a requested edit, pass
+   one `--acknowledge-person-edit BOARD_ID` for each named board and keep the
+   receipt. Any further creative pass gets a new draft and the previous receipt.

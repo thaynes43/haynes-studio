@@ -5,7 +5,9 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from haynes_studio.canonical.ids import ULID_PATTERN
-from haynes_studio.drafting.declaration import DraftDeclaration, RedraftDeclaration
+from haynes_studio.drafting.declaration import (
+    DraftDeclaration, PersonEditAcknowledgment, RedraftDeclaration,
+)
 
 ProductionID = Annotated[str, StringConstraints(pattern=rf"^prd_{ULID_PATTERN}$")]
 StoryID = Annotated[str, StringConstraints(pattern=rf"^sty_{ULID_PATTERN}$")]
@@ -72,6 +74,7 @@ class NewBoardFields(_BaseBoardFields):
 
 class BoardFields(_BaseBoardFields):
     draft_application: RedraftDeclaration | None = None
+    acknowledge_person_edit: PersonEditAcknowledgment | None = None
 
 
 class Production(Arguments):
@@ -137,9 +140,14 @@ class PatchBoard(BoardWrite):
     patch: BoardFields
 
 
+class RemoveBoard(BoardWrite):
+    acknowledge_person_edit: PersonEditAcknowledgment | None = None
+
+
 class ReorderBoards(Story):
     revision: Revision
     board_order: list[BoardID]
+    acknowledge_person_edit: dict[BoardID, PersonEditAcknowledgment] | None = None
 
 
 class SearchAssets(Arguments):

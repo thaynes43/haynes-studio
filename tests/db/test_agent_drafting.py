@@ -10,6 +10,7 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
+import sqlalchemy as sa
 from mcp import ClientSession, types
 from PIL import Image
 
@@ -17,8 +18,10 @@ from haynes_studio.canonical import to_document
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.cli import main
 from haynes_studio.db.catalog import record_asset_version
+from haynes_studio.db.schema import boards
 from haynes_studio.drafting import cli as draft_cli
 from haynes_studio.drafting.apply import apply_draft, read_baseline
+from haynes_studio.drafting.declaration import READ_TOKEN_HEADER
 from haynes_studio.drafting.document import Draft
 from haynes_studio.mcp.server import create_app
 from tests.library.fixtures import winter_menu
@@ -115,11 +118,13 @@ async def first_draft(prepared, session):
 
 
 @pytest.fixture
-def draft_command(prepared, tmp_path, monkeypatch):
+def draft_command(prepared, service, tmp_path, monkeypatch):
     @asynccontextmanager
     async def in_process_http(**kwargs):
-        async with prepared.mcp.router.lifespan_context(prepared.mcp):
-            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=prepared.mcp), **kwargs) as http:
+        api, _, _ = service
+        mcp = create_app(API_URL, api_transport=httpx.ASGITransport(app=api))
+        async with mcp.router.lifespan_context(mcp):
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=mcp), **kwargs) as http:
                 yield http
 
     monkeypatch.setattr(draft_cli, "httpx", SimpleNamespace(
@@ -158,7 +163,7 @@ def test_cli_first_draft_records_provenance_pins_and_usage(prepared, draft_comma
         assert board["draft_application"] == {
             "board_key": row["key"], "draft_sha256": Draft.parse(draft_file.read_bytes()).sha256,
             "model": "fixture-writer", "session": "fixture-session-first",
-            "applied_at": row["applied_at"], "board_revision": 1,
+            "applied_at": row["applied_at"], "board_revision": 1, "applied_board_revision": 1,
         }
         assert board["notes"][0]["text"]
     arrival, _, aftermath = [prepared.board(id_).json() for id_ in ids]
@@ -284,6 +289,230 @@ def test_reorder_protects_moved_boards_even_after_order_is_restored(prepared):
             }
             assert prepared.story_record()["board_order"] == [a, b, c]
     asyncio.run(scenario())
+
+
+def test_plain_agent_board_writes_cannot_replace_a_person_edit(prepared):
+    async def scenario():
+        async with prepared.mcp.router.lifespan_context(prepared.mcp), prepared.session() as session:
+            initial = await first_draft(prepared, session)
+            a, b, c = [row["board_id"] for row in initial.boards]
+            person = prepared.edit(b, 1, title="Person's board")
+            assert person.status_code == 200
+            revision = prepared.story_record()["revision"]
+            api = prepared.browser
+            cases = (
+                ("PATCH", f"/v1/boards/{b}", 2, {"title": "Agent's replacement"}),
+                ("PUT", f"/v1/stories/{prepared.story}/board-order", revision, {"board_order": [b, a, c]}),
+                ("DELETE", f"/v1/boards/{b}", 2, None),
+            )
+            for method, path, rev, body in cases:
+                response = api.request(method, path, json=body,
+                                       headers={**prepared.headers, "If-Match": str(rev)})
+                assert response.status_code == 409, response.json()
+                error = response.json()["error"]
+                assert (error["code"], error["board_id"], error["person_edit_revision"]) == (
+                    "draft.protected", b, 2,
+                )
+            assert prepared.board(b).json() == person.json()
+            assert prepared.story_record()["revision"] == revision
+            assert prepared.story_record()["board_order"] == [a, b, c]
+
+            # Moving other boards leaves the protected board's position and revision alone.
+            await call(session, "studio_reorder_boards", story_id=prepared.story, revision=revision,
+                       board_order=[c, b, a])
+            assert prepared.board(b).json()["revision"] == 2
+    asyncio.run(scenario())
+
+
+def test_acknowledgment_requires_the_current_read_and_preserves_history(prepared, owner_engine):
+    async def scenario():
+        async with prepared.mcp.router.lifespan_context(prepared.mcp), prepared.session() as session:
+            initial = await first_draft(prepared, session)
+            a, b, c = [row["board_id"] for row in initial.boards]
+            api = prepared.browser
+            path = f"/v1/boards/{b}"
+            assert prepared.edit(b, 1, title="First person edit").status_code == 200
+            read = api.get(path, headers=prepared.headers)
+            assert read.status_code == 200
+            ack = {"board_revision": 2, "read_token": read.headers[READ_TOKEN_HEADER]}
+            assert prepared.edit(b, 2, title="Second person edit").status_code == 200
+            patch = {"title": "Agent's change", "acknowledge_person_edit": ack}
+            headers = {**prepared.headers, "If-Match": "3"}
+            stale = api.patch(path, json=patch, headers=headers)
+            assert stale.status_code == 409
+            assert stale.json()["error"]["path"] == "/acknowledge_person_edit/board_revision"
+            guessed = api.patch(path, json={**patch, "acknowledge_person_edit": {
+                **ack, "board_revision": 3,
+            }}, headers=headers)
+            assert guessed.status_code == 422
+            assert guessed.json()["error"]["code"] == "draft.invalid_read_token"
+            assert prepared.board(b).json()["title"] == "Second person edit"
+
+            async def acknowledgment():
+                board = await call(session, "studio_get_board", board_id=b)
+                return {"board_revision": board["revision"], "read_token": board["read_token"]}
+
+            written = await call(session, "studio_patch_board", board_id=b, revision=3,
+                                 patch={**patch, "acknowledge_person_edit": await acknowledgment()})
+            stamp = written["draft_application"]
+            assert stamp["person_edit_revision"] == 3
+            recorded, = stamp["person_edit_acknowledgments"]
+            assert recorded == {"key_id": prepared.key_id, "board_revision": 3,
+                                "acknowledged_at": prepared.board(b).json()["updated_at"]}
+            args = {"story_id": prepared.story, "revision": prepared.story_record()["revision"],
+                    "board_order": [b, a, c]}
+            blocked = await fail(session, "studio_reorder_boards", **args)
+            assert (blocked["code"], blocked["person_edit_revision"], blocked["current_revision"]) == (
+                "draft.protected", 3, 4,
+            )
+            await call(session, "studio_reorder_boards", **args, acknowledge_person_edit={
+                b: await acknowledgment(),
+            })
+            await call(session, "studio_remove_board", board_id=b, revision=5,
+                       acknowledge_person_edit=await acknowledgment())
+            with owner_engine.connect() as conn:
+                tombstone, removed = conn.execute(
+                    sa.select(boards.c.tombstone, boards.c.document).where(boards.c.id == b)
+                ).one()
+            assert tombstone and removed["revision"] == 6
+            history = removed["draft_application"]["person_edit_acknowledgments"]
+            assert history[0] == recorded
+            assert [item["board_revision"] for item in history] == [3, 4, 5]
+            assert history[-1]["acknowledged_at"] == removed["updated_at"]
+    asyncio.run(scenario())
+
+
+def test_another_agent_key_needs_its_own_read_to_redraft(prepared, owner_engine):
+    new_key_id, new_headers = register_agent(owner_engine, {prepared.production: ["read", "draft:write"]})
+
+    async def scenario():
+        async with prepared.mcp.router.lifespan_context(prepared.mcp), prepared.session() as original:
+            initial = await first_draft(prepared, original)
+            a = initial.baseline["arrival"].board_id
+            redraft = Draft.parse(prepared.raw("redraft.json"))
+            patch = {"title": "Change keys", "draft_application": {
+                "board_key": "arrival", "draft_sha256": redraft.sha256, "model": redraft.model,
+                "session": redraft.session, "previous_draft_sha256": initial.draft.sha256,
+                "story_revision": prepared.story_record()["revision"],
+            }}
+            original_read = await call(original, "studio_get_board", board_id=a)
+            async with prepared.session(new_headers) as other:
+                args = {"board_id": a, "revision": 1}
+                blocked = await fail(other, "studio_patch_board", **args, patch=patch)
+                assert (blocked["http_status"], blocked["code"], blocked["board_id"]) == (
+                    409, "draft.protected", a,
+                )
+                ack = {"board_revision": 1, "read_token": original_read["read_token"]}
+                borrowed = await fail(other, "studio_patch_board", **args,
+                                      patch={**patch, "acknowledge_person_edit": ack})
+                assert borrowed["code"] == "draft.invalid_read_token"
+                read = await call(other, "studio_get_board", board_id=a)
+                changed = await call(other, "studio_patch_board", **args,
+                                     patch={**patch, "acknowledge_person_edit": {
+                                         **ack, "read_token": read["read_token"],
+                                     }})
+                assert changed["drafted_by"]["key_id"] == new_key_id
+                assert changed["draft_application"]["person_edit_acknowledgments"] == [{
+                    "key_id": new_key_id, "board_revision": 1,
+                    "acknowledged_at": changed["draft_application"]["applied_at"],
+                }]
+    asyncio.run(scenario())
+
+
+def test_clients_cannot_write_server_managed_board_provenance(prepared):
+    async def scenario():
+        async with prepared.mcp.router.lifespan_context(prepared.mcp), prepared.session() as session:
+            initial = await first_draft(prepared, session)
+            a = initial.baseline["arrival"].board_id
+            before = prepared.board(a).json()
+            redraft = Draft.parse(prepared.raw("redraft.json"))
+            declaration = {
+                "board_key": "arrival", "draft_sha256": redraft.sha256, "model": redraft.model,
+                "session": redraft.session, "previous_draft_sha256": initial.draft.sha256,
+                "story_revision": prepared.story_record()["revision"],
+            }
+            person = prepared.edit(a, 1, draft_application=declaration)
+            assert person.status_code == 422
+            assert person.json()["error"]["code"] == "draft.agent_required"
+            path = f"/v1/boards/{a}"
+            headers = {**prepared.headers, "If-Match": "1"}
+            forged = {
+                "applied_at": before["updated_at"], "person_edit": "content",
+                "drafted_by": before["drafted_by"], "person_edit_acknowledgments": [],
+            }
+            for key, value in forged.items():
+                for body in ({key: value}, {"draft_application": {**declaration, key: value}}):
+                    response = prepared.browser.patch(path, json=body, headers=headers)
+                    assert response.status_code == 422, response.json()
+                    assert response.json()["error"]["path"].endswith(f"/{key}")
+            assert prepared.board(a).json() == before
+    asyncio.run(scenario())
+
+
+def test_own_reorder_leaves_boards_eligible_for_redraft(prepared):
+    async def scenario():
+        async with prepared.mcp.router.lifespan_context(prepared.mcp), prepared.session() as session:
+            initial = await first_draft(prepared, session)
+            a, b, c = [row["board_id"] for row in initial.boards]
+            await call(session, "studio_reorder_boards", story_id=prepared.story,
+                       revision=prepared.story_record()["revision"], board_order=[b, a, c])
+            for board_id in (a, b):
+                reordered = prepared.board(board_id).json()
+                stamp = reordered["draft_application"]
+                assert stamp["board_revision"] == reordered["revision"] == 2
+                assert stamp["applied_board_revision"] == 1
+            redraft = Draft.parse(prepared.raw("redraft.json"))
+            result = await apply_draft(session, redraft, initial.baseline)
+            assert result.ok, result.document()
+            assert {row["board_id"]: row["revision"] for row in result.boards} == {a: 3, b: 3, c: 2}
+            assert prepared.story_record()["board_order"] == [b, a, c]
+
+            # A new application with the same hash is not an uninterrupted reorder.
+            await call(session, "studio_patch_board", board_id=a, revision=3, patch={
+                "title": "An intervening application",
+                "draft_application": {
+                    "board_key": "arrival", "draft_sha256": redraft.sha256, "model": redraft.model,
+                    "session": redraft.session, "previous_draft_sha256": redraft.sha256,
+                    "story_revision": prepared.story_record()["revision"],
+                },
+            })
+            retry = await apply_draft(session, initial.draft, result.baseline)
+            assert next(row for row in retry.boards if row["board_id"] == a)["reason"] == "revision_changed"
+            assert prepared.board(a).json()["title"] == "An intervening application"
+
+            # Reordering does not make an ordinary content patch part of the draft stamp.
+            await call(session, "studio_patch_board", board_id=b, revision=4,
+                       patch={"title": "An ordinary agent edit"})
+            await call(session, "studio_reorder_boards", story_id=prepared.story,
+                       revision=prepared.story_record()["revision"], board_order=[a, b, c])
+            reordered = prepared.board(b).json()
+            assert reordered["draft_application"]["board_revision"] == 4
+            assert reordered["revision"] == 6
+            final = await apply_draft(session, redraft, retry.baseline)
+            assert next(row for row in final.boards if row["board_id"] == b)["reason"] == "revision_changed"
+            assert prepared.board(b).json()["title"] == "An ordinary agent edit"
+    asyncio.run(scenario())
+
+
+def test_cli_acknowledges_only_the_named_board_and_records_it(prepared, draft_command):
+    args, draft_file, receipt_file, _ = draft_command
+    assert main(args) == 0
+    a, b, _ = prepared.story_record()["board_order"]
+    for board_id in (a, b):
+        assert prepared.edit(board_id, 1, title="Person's board").status_code == 200
+    draft_file.write_bytes(prepared.raw("redraft.json"))
+    next_receipt = receipt_file.with_name("redraft-receipt.json")
+    args[args.index("--out") + 1] = str(next_receipt)
+    assert main([*args, "--previous", str(receipt_file), "--acknowledge-person-edit", a]) == 1
+    receipt = json.loads(next_receipt.read_text())
+    assert receipt["acknowledge_person_edit"] == [a]
+    outcomes = {row["board_id"]: row for row in receipt["boards"]}
+    assert outcomes[b]["reason"] == "edited_by_person"
+    assert outcomes[a]["outcome"] == "applied"
+    stamp = prepared.board(a).json()["draft_application"]
+    assert stamp["person_edit_revision"] == 2
+    assert stamp["person_edit_acknowledgments"] == [outcomes[a]["person_edit_acknowledgment"]]
+    assert prepared.board(b).json()["title"] == "Person's board"
 
 
 @pytest.mark.parametrize("change,rule", [

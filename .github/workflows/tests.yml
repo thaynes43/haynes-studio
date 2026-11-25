@@ -125,6 +125,21 @@ jobs:
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Set up Python for OpenAPI generation
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.6"
+
+      - name: Check generated API types
+        run: |
+          pnpm generate:api
+          git diff --exit-code -- src/api/schema.ts
+
       - name: Type-check
         run: pnpm typecheck
 

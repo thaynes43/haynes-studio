@@ -340,13 +340,41 @@ def _draft_declaration(fields: dict, by: dict, model: type[DraftDeclaration]):
 
 def _draft_stamp(declaration: DraftDeclaration, revision: int, now: str) -> dict:
     return {**declaration.model_dump(include=set(DraftDeclaration.model_fields)),
-            "board_revision": revision, "applied_at": now}
+            "board_revision": revision, "applied_board_revision": revision, "applied_at": now}
 
 
-def _board_changed(held: dict, by: dict, reason: str, now: str) -> dict:
+def _check_board_write(held: dict, by: dict, acknowledgment: int | None) -> None:
+    if by["kind"] != "agent":
+        return
+    stamp = held.get("draft_application", {})
+    if acknowledgment is not None:
+        require_revision(held["revision"], acknowledgment, "/acknowledge_person_edit/board_revision")
+        if not stamp:
+            raise invalid("draft.no_stamp", "/acknowledge_person_edit",
+                          "Only a board with a draft stamp can be acknowledged")
+    elif "person_edit" in stamp:
+        raise DraftProtected(held)
+
+
+def _board_changed(held: dict, by: dict, reason: str, now: str,
+                   acknowledgment: int | None = None) -> dict:
     updated = {**held, "revision": held["revision"] + 1, "updated_at": now}
-    if by["kind"] == "human" and "draft_application" in held:
-        updated["draft_application"] = {**held["draft_application"], "person_edit": reason}
+    if "draft_application" not in held:
+        return updated
+    stamp = dict(held["draft_application"])
+    if by["kind"] == "human":
+        stamp.update(person_edit=reason, person_edit_revision=updated["revision"])
+    elif by["kind"] == "agent":
+        if (reason == "reordered" and held["drafted_by"] == by
+                and stamp["board_revision"] == held["revision"]):
+            stamp.setdefault("applied_board_revision", held["revision"])
+            stamp["board_revision"] = updated["revision"]
+        if acknowledgment is not None:
+            stamp["person_edit_acknowledgments"] = [
+                *stamp.get("person_edit_acknowledgments", []),
+                {"key_id": by["key_id"], "acknowledged_at": now, "board_revision": acknowledgment},
+            ]
+    updated["draft_application"] = stamp
     return updated
 
 
@@ -409,7 +437,7 @@ def add_board(conn: sa.Connection, id_: str, revision: int, fields: dict, by: di
 
 
 def edit_board(conn: sa.Connection, story_id: str, id_: str, revision: int,
-               fields: dict, by: dict) -> Draft:
+               fields: dict, by: dict, *, acknowledgment: int | None = None) -> Draft:
     draft = get_draft(conn, story_id, lock=True)
     held = draft.boards.get(id_)
     if held is None:
@@ -417,22 +445,28 @@ def edit_board(conn: sa.Connection, story_id: str, id_: str, revision: int,
     require_revision(held["revision"], revision)
     _exact_fields(fields, BOARD_FIELDS)
     fields, declaration = _draft_declaration(fields, by, RedraftDeclaration)
+    _check_board_write(held, by, acknowledgment)
     if declaration is not None:
         require_revision(draft.story["revision"], declaration.story_revision,
                          "/draft_application/story_revision")
         previous = held.get("draft_application", {})
         if (previous.get("board_key") != declaration.board_key
                 or previous.get("draft_sha256") != declaration.previous_draft_sha256
-                or previous.get("board_revision") != revision
-                or "person_edit" in previous):
-            raise DraftProtected
+                or (acknowledgment is None and (
+                    previous.get("board_revision") != revision or held["drafted_by"] != by))):
+            raise DraftProtected(held)
     fields = _with_child_ids(fields, held, BOARD_CHILDREN, Minter(),
                              allow_new_line_ids=declaration is not None)
     now = timestamp()
-    doc = {**_board_changed(held, by, "content", now), **fields}
+    doc = {**_board_changed(held, by, "content", now, acknowledgment), **fields}
     if declaration is not None:
         doc["drafted_by"] = by
-        doc["draft_application"] = _draft_stamp(declaration, doc["revision"], now)
+        history = doc["draft_application"]
+        doc["draft_application"] = {
+            **_draft_stamp(declaration, doc["revision"], now),
+            **{key: history[key] for key in
+               ("person_edit", "person_edit_revision", "person_edit_acknowledgments") if key in history},
+        }
     updated = _advance(draft, {}, now)
     updated.boards = {**draft.boards, id_: doc}
     refs = updated.validate(conn)
@@ -442,21 +476,30 @@ def edit_board(conn: sa.Connection, story_id: str, id_: str, revision: int,
     return updated
 
 
-def reorder(conn: sa.Connection, id_: str, revision: int, order: list[str], by: dict) -> Draft:
+def reorder(conn: sa.Connection, id_: str, revision: int, order: list[str], by: dict,
+            *, acknowledgments: dict[str, int] | None = None) -> Draft:
     draft = get_draft(conn, id_, lock=True)
     require_revision(draft.story["revision"], revision)
     if len(order) != len(draft.boards) or set(order) != draft.boards.keys():
         raise invalid("story.board_order", "/board_order", "List every active board exactly once")
+    moved = [new for old, new in zip(draft.story["board_order"], order, strict=True) if old != new]
+    acknowledgments = acknowledgments or {}
+    if acknowledgments.keys() - set(moved):
+        raise invalid("draft.not_moved", "/acknowledge_person_edit",
+                      "Acknowledge only boards that move in this reorder")
     now = timestamp()
     updated = _advance(draft, {"board_order": order}, now)
     updated.boards = dict(draft.boards)
-    moved = []
-    for old, new in zip(draft.story["board_order"], order, strict=True):
-        if old != new and "draft_application" in draft.boards[new]:
-            updated.boards[new] = _board_changed(draft.boards[new], by, "reordered", now)
-            moved.append(new)
-    refs = updated.validate(conn)
+    changed = []
     for id_board in moved:
+        held = draft.boards[id_board]
+        acknowledgment = acknowledgments.get(id_board)
+        _check_board_write(held, by, acknowledgment)
+        if "draft_application" in held:
+            updated.boards[id_board] = _board_changed(held, by, "reordered", now, acknowledgment)
+            changed.append(id_board)
+    refs = updated.validate(conn)
+    for id_board in changed:
         conn.execute(boards.update().where(boards.c.id == id_board).values(
             document=updated.boards[id_board],
         ))
@@ -464,19 +507,21 @@ def reorder(conn: sa.Connection, id_: str, revision: int, order: list[str], by: 
     return updated
 
 
-def remove_board(conn: sa.Connection, story_id: str, id_: str, revision: int, by: dict) -> None:
+def remove_board(conn: sa.Connection, story_id: str, id_: str, revision: int, by: dict,
+                 *, acknowledgment: int | None = None) -> None:
     draft = get_draft(conn, story_id, lock=True)
     held = draft.boards.get(id_)
     if held is None:
         raise NotFound
     require_revision(held["revision"], revision)
+    _check_board_write(held, by, acknowledgment)
     now = timestamp()
     order = [board_id for board_id in draft.story["board_order"] if board_id != id_]
     updated = _advance(draft, {"board_order": order}, now)
     updated.boards = {board_id: doc for board_id, doc in draft.boards.items() if board_id != id_}
     refs = updated.validate(conn)
     conn.execute(boards.update().where(boards.c.id == id_).values(
-        tombstone=True, document=_board_changed(held, by, "removed", now),
+        tombstone=True, document=_board_changed(held, by, "removed", now, acknowledgment),
     ))
     _save_story(conn, updated, refs)
 

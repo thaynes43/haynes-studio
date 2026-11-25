@@ -29,6 +29,8 @@ def add_command(commands) -> None:
     apply.add_argument("draft_file", type=Path)
     apply.add_argument("--story", required=True, metavar="STORY_ID")
     apply.add_argument("--previous", type=Path, metavar="RECEIPT", help="the previous apply receipt")
+    apply.add_argument("--acknowledge-person-edit", action="append", default=[], metavar="BOARD_ID",
+                       help="apply to this protected board by ID when a person asked for it (repeatable)")
     apply.add_argument("--out", required=True, type=Path, metavar="NEW_RECEIPT",
                        help="a new private JSON receipt path")
     apply.add_argument("--key-file", type=Path, help="a mounted agent-key file (or set STUDIO_AGENT_KEY)")
@@ -119,7 +121,8 @@ def _command(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
         print(f"studio draft: {text}", file=err)
         return 2
     with os.fdopen(fd, "w", encoding="utf-8") as receipt:
-        result = Result(draft, dict(previous or {}))
+        result = Result(draft, dict(previous or {}),
+                        acknowledge_person_edit=tuple(dict.fromkeys(args.acknowledge_person_edit)))
         try:
             asyncio.run(_apply(endpoint, key, verify, result, first_apply=previous is None))
         except (Exception, BaseExceptionGroup, asyncio.CancelledError, KeyboardInterrupt) as error:

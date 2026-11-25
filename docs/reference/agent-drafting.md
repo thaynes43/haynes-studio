@@ -62,13 +62,20 @@ receipt. People can add boards in the editor.
 Studio writes the authenticated key ID in `drafted_by` and adds
 `draft_application` with the board key, declared model/session, server
 timestamp, draft hash and resulting board revision. A signed-in person's
-subsequent patch, reorder or tombstone of that board records `person_edit`.
-Reorder protects agent-drafted boards whose positions changed, even if the old
-order is later restored. An unrelated append or removal leaves the revisions
-of the surviving boards alone.
+subsequent patch, reorder or tombstone of that board records `person_edit`
+and `person_edit_revision`. A person can continue editing it normally. An
+agent patch, reorder that moves it, or removal requires an acknowledgment of
+its current revision. A re-draft by a different key also requires an
+acknowledgment. A reorder by the original key advances an intact stamp to the
+new `board_revision` and preserves the original `applied_board_revision`.
+Appending or removing a different board leaves the
+revisions of the surviving boards alone.
 
-An eligible target must still match the receipt's board ID, revision and draft
-hash and Studio's recorded board key and applied revision. Reports name
+An eligible target must still match the receipt's board ID and draft hash and
+Studio's recorded board key. The stamp's board revision must match the
+current revision and the authenticated key must match `drafted_by`. An intact
+stamp can have a newer revision than the receipt after the same key reorders
+the board. The receipt must still point to the same application. Reports name
 changed, reordered, removed and untracked boards by ID, including removed
 boards whose proposals were omitted. The previous receipt carries forward
 their last confirmed state. Already-applied document bytes are skipped. Each
@@ -79,6 +86,17 @@ before proceeding. Transport cancellation keeps the confirmed writes in the
 receipt and marks any in-flight write `uncertain`. Keep the receipt even when
 the command exits with a conflict. A lost first-apply receipt plus a story
 with previous boards requires coordinator reconciliation.
+
+When a person asks for changes to a protected board **by board ID**, add
+`--acknowledge-person-edit BOARD_ID` to the re-draft command for each board
+they named. Each ID must match a board targeted by the draft and bound in the
+previous receipt. The option defaults to off. The applicator reads the
+board's current revision and its agent-specific read token and sends both in
+the patch. Studio preserves the person edit marker and appends an audit
+entry with the agent key, server time and revision replaced. A subsequent
+agent write requires a fresh acknowledgment if the board still carries the
+marker. The receipt lists every requested ID and records the audit entry for
+each confirmed acknowledged patch.
 
 An invocation that reaches apply writes one create-only, mode-`0600` receipt.
 `studio.agent-draft-receipt/v1` includes the production and story IDs, draft

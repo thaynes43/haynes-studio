@@ -19,7 +19,14 @@ def require_revision(current: int, expected: int, path: str = "/revision") -> No
 
 
 class DraftProtected(Exception):
-    """The board no longer matches the agent draft's baseline."""
+    """An agent needs to acknowledge the current board before replacing it."""
+
+    def __init__(self, board: dict):
+        self.board_id = board["id"]
+        self.current_revision = board["revision"]
+        stamp = board.get("draft_application", {})
+        self.person_edit = stamp.get("person_edit")
+        self.person_edit_revision = stamp.get("person_edit_revision")
 
 
 def require_valid(violations) -> None:

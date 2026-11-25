@@ -61,6 +61,7 @@ class Result:
     baseline: dict[str, BoardState]
     boards: list[dict] = field(default_factory=list)
     error: dict | None = None
+    acknowledge_person_edit: tuple[str, ...] = ()
 
     def record(self, outcome: str, reason: str, *, key: str | None = None,
                board_id: str | None = None, **details) -> None:
@@ -77,6 +78,7 @@ class Result:
                 "draft_sha256": draft.sha256, "usage": {"model": draft.model, "session": draft.session,
                                                        **draft.usage},
                 "error": self.error, "boards": self.boards,
+                "acknowledge_person_edit": list(self.acknowledge_person_edit),
                 "baseline": {key: asdict(board) for key, board in self.baseline.items()}}
 
     def abort(self, error: dict) -> None:
@@ -193,12 +195,16 @@ async def _validate_context(session: ToolSession, draft: Draft, story: dict,
         raise ContractError("<agent draft>", problems)
 
 
-async def _eligible(session: ToolSession, result: Result, order: list[str]) -> set[str]:
+async def _eligible(session: ToolSession, result: Result,
+                    order: list[str]) -> dict[str, tuple[BoardState, str | None]]:
     live_ids = set(order)
     proposed = {board.key for board in result.draft.boards}
-    eligible = set()
+    acknowledged_ids = set(result.acknowledge_person_edit)
+    eligible = {}
     for key, state in result.baseline.items():
         id_ = state.board_id
+        acknowledge = id_ in acknowledged_ids
+        read_token = None
         reason = "removed"
         if id_ in live_ids:
             try:
@@ -207,15 +213,22 @@ async def _eligible(session: ToolSession, result: Result, order: list[str]) -> s
                 if error.http_status != 404:
                     raise
             else:
-                reason = _baseline_conflict(board, key, state)
+                reason = _baseline_conflict(board, key, state, acknowledge=acknowledge)
+                if reason is None:
+                    state = BoardState(id_, board["revision"], state.draft_sha256)
+                    if acknowledge:
+                        read_token = board.get("read_token")
+                        if not isinstance(read_token, str) or not re.fullmatch(r"[0-9a-f]{64}", read_token):
+                            raise ToolFailure("draft.response_invalid")
         if reason:
             result.record("conflict", reason, key=key, board_id=id_)
         elif key not in proposed:
             result.record("skipped", "not_targeted", key=key, board_id=id_)
-        elif state.draft_sha256 == result.draft.sha256:
+        elif not acknowledge and state.draft_sha256 == result.draft.sha256:
+            result.baseline[key] = state
             result.record("skipped", "already_applied", key=key, board_id=id_)
         else:
-            eligible.add(key)
+            eligible[key] = state, read_token
     tracked = {state.board_id for state in result.baseline.values()}
     for id_ in order:
         if id_ not in tracked:
@@ -226,20 +239,24 @@ async def _eligible(session: ToolSession, result: Result, order: list[str]) -> s
     return eligible
 
 
-def _baseline_conflict(board: dict, key: str, state: BoardState) -> str | None:
+def _baseline_conflict(board: dict, key: str, state: BoardState, *, acknowledge: bool) -> str | None:
     stamp = board.get("draft_application", {})
-    if "person_edit" in stamp:
+    if not acknowledge and "person_edit" in stamp:
         return {"content": "edited_by_person", "reordered": "reordered", "removed": "removed"}[
             stamp["person_edit"]]
     if stamp.get("board_key") != key or stamp.get("draft_sha256") != state.draft_sha256:
         return "draft_hash_or_key_changed"
-    if board["revision"] != state.revision or stamp.get("board_revision") != state.revision:
+    stamp_revision = stamp.get("board_revision")
+    applied_revision = stamp.get("applied_board_revision", stamp_revision)
+    if board["revision"] < state.revision or (not acknowledge and (
+            stamp_revision != board["revision"]
+            or type(applied_revision) is not int or applied_revision > state.revision)):
         return "revision_changed"
     return None
 
 
 def _operation(draft: Draft, board: Proposal, revision: int,
-               state: BoardState | None) -> tuple[str, dict]:
+               state: BoardState | None, read_token: str | None) -> tuple[str, dict]:
     stamp = {"board_key": board.key, "draft_sha256": draft.sha256,
              "model": draft.model, "session": draft.session}
     # Use new IDs for each attempt, even when a library caller reuses a parsed
@@ -259,13 +276,16 @@ def _operation(draft: Draft, board: Proposal, revision: int,
     if state is None:
         return "studio_add_board", {"story_id": draft.story_id, "revision": revision, "fields": fields}
     stamp.update(previous_draft_sha256=state.draft_sha256, story_revision=revision)
+    if read_token is not None:
+        fields["acknowledge_person_edit"] = {"board_revision": state.revision, "read_token": read_token}
     return "studio_patch_board", {"board_id": state.board_id, "revision": state.revision, "patch": fields}
 
 
 async def apply_draft(session: ToolSession, draft: Draft,
-                      previous: dict[str, BoardState] | None = None) -> Result:
+                      previous: dict[str, BoardState] | None = None, *,
+                      acknowledge_person_edit: tuple[str, ...] = ()) -> Result:
     """Apply through an initialized MCP session. Return a receipt even after partial writes."""
-    result = Result(draft, dict(previous or {}))
+    result = Result(draft, dict(previous or {}), acknowledge_person_edit=acknowledge_person_edit)
     await apply_into(session, result, first_apply=previous is None)
     return result
 
@@ -277,17 +297,26 @@ async def apply_into(session: ToolSession, result: Result, *, first_apply: bool)
         violations = [v for board in draft.boards for v in board.problems()]
         if violations:
             raise ContractError("<agent draft>", violations)
+        if result.acknowledge_person_edit:
+            targets = {result.baseline[board.key].board_id for board in draft.boards
+                       if board.key in result.baseline}
+            if first_apply or set(result.acknowledge_person_edit) - targets:
+                raise ToolFailure("draft.acknowledgment_target")
         story = await _story(session, draft)
         if first_apply and story["derived"]["next_board_number"] != 1:
             for id_ in story["board_order"]:
                 result.record("conflict", "baseline_required", board_id=id_)
             raise ToolFailure("draft.baseline_required")
         await _validate_context(session, draft, story, result.baseline)
-        eligible = ({b.key for b in draft.boards} if first_apply
+        eligible = ({b.key: (None, None) for b in draft.boards} if first_apply
                     else await _eligible(session, result, story["board_order"]))
-        plan = [(board, *_operation(draft, board, story["revision"] + index, result.baseline.get(board.key)))
-                for index, board in enumerate(b for b in draft.boards if b.key in eligible)]
-        if any(len(json_text(arguments).encode("utf-8")) > MAX_ARGUMENT_BYTES for _, _, arguments in plan):
+        plan = []
+        for board in draft.boards:
+            if board.key in eligible:
+                state, read_token = eligible[board.key]
+                tool, arguments = _operation(draft, board, story["revision"] + len(plan), state, read_token)
+                plan.append((board, state, tool, arguments))
+        if any(len(json_text(arguments).encode("utf-8")) > MAX_ARGUMENT_BYTES for _, _, _, arguments in plan):
             raise ToolFailure("draft.arguments_too_large")
     except ContractError as error:
         result.abort({"code": "draft.invalid", "violations": [
@@ -299,15 +328,16 @@ async def apply_into(session: ToolSession, result: Result, *, first_apply: bool)
         return
 
     stopped = False
-    for board, tool, arguments in plan:
-        state = result.baseline.get(board.key)
+    for board, state, tool, arguments in plan:
         id_ = state.board_id if state else None
         if stopped:
             result.record("skipped", "stopped_after_write_failure", key=board.key, board_id=id_)
             continue
         try:
             written = await _call(session, tool, **arguments)
-            id_, revision, key_id, applied_at = _confirmed_write(written, draft, board, state)
+            ack = arguments.get("patch", {}).get("acknowledge_person_edit")
+            id_, revision, key_id, applied_at = _confirmed_write(written, draft, board, state,
+                                                                 acknowledged=ack is not None)
         except ToolFailure as error:
             status = error.http_status
             outcome = ("conflict" if status in (404, 409) else
@@ -321,12 +351,15 @@ async def apply_into(session: ToolSession, result: Result, *, first_apply: bool)
             raise
         else:
             result.baseline[board.key] = BoardState(id_, revision, draft.sha256)
+            audit = {"person_edit_acknowledgment": {
+                "key_id": key_id, "acknowledged_at": applied_at, "board_revision": ack["board_revision"],
+            }} if ack is not None else {}
             result.record("applied", "created" if state is None else "updated", key=board.key,
-                          board_id=id_, revision=revision, key_id=key_id, applied_at=applied_at)
+                          board_id=id_, revision=revision, key_id=key_id, applied_at=applied_at, **audit)
 
 
 def _confirmed_write(written: dict, draft: Draft, board: Proposal,
-                     state: BoardState | None) -> tuple[str, int, str, str]:
+                     state: BoardState | None, *, acknowledged: bool) -> tuple[str, int, str, str]:
     stamp = written.get("draft_application") or {}
     principal = written.get("drafted_by") or {}
     id_, revision = written.get("id"), written.get("revision")
@@ -337,8 +370,13 @@ def _confirmed_write(written: dict, draft: Draft, board: Proposal,
             or type(revision) is not int or revision != expected
             or stamp.get("board_revision") != revision or stamp.get("draft_sha256") != draft.sha256
             or stamp.get("board_key") != board.key or stamp.get("model") != draft.model
-            or stamp.get("session") != draft.session or "person_edit" in stamp
+            or stamp.get("session") != draft.session or (not acknowledged and "person_edit" in stamp)
             or not isinstance(applied_at := stamp.get("applied_at"), str)
             or principal.get("kind") != "agent" or not is_id(key_id := principal.get("key_id"), "key")):
         raise ToolFailure("draft.response_invalid")
+    if acknowledged:
+        history = stamp.get("person_edit_acknowledgments")
+        if not isinstance(history, list) or not history or history[-1] != {
+                "key_id": key_id, "acknowledged_at": applied_at, "board_revision": expected - 1}:
+            raise ToolFailure("draft.response_invalid")
     return id_, revision, key_id, applied_at
