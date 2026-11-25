@@ -222,7 +222,19 @@ def run_detail(reply, _):
 def run_status(doc):
     return pick(doc, "schema", "id", "story_id", "revision", "number", "status", "snapshot",
                 "progress", "wait_reason", "queue_wait", "stages", "checks", "error",
-                "delivery_id", "cancel_requested")
+                "delivery_id", "cancel_requested", "answers")
+
+
+def candidate_page(reply, _):
+    record = reply.document
+    return {
+        **pick(record, "next_cursor", "revision", "iteration"),
+        "items": [{
+            **pick(item, "id", "run_id", "target_id", "presented_by", "presented_at", "answering_runs"),
+            "notes": [pick(note, "id", "text", "board_ids", "replaces_id", "written_by", "written_at")
+                      for note in item["notes"]],
+        } for item in record["items"]],
+    }
 
 
 def upload_detail(reply, _):
@@ -257,6 +269,11 @@ OPERATIONS = {
     "studio_get_story_timing": Operation(
         "Read timing and page through board frame counts and starts for one story revision.",
         args.StoryPage, "GET", "/v1/stories/{story_id}/timing", timing_detail),
+    "studio_list_candidates": Operation(
+        "Read a story's candidates and feedback notes. Use answers.candidate_id and batches of up to "
+        "ten answers.note_ids to read selected notes. Page candidates with next_cursor.",
+        args.Candidates, "GET", "/v1/stories/{story_id}/candidates", candidate_page,
+        (*_PAGE, "run_id", "candidate_id", "note_ids")),
     "studio_add_board": Operation(
         "Append a draft board at the given story revision. Supply an empty fields object for defaults.",
         args.AddBoard, "POST", "/v1/stories/{story_id}/boards", added_board, body="fields", expect=201),

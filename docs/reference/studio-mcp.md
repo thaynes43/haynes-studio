@@ -35,6 +35,7 @@ as `studio-mcp` version `1.0.0`.
 | `studio_list_stories` | `read` | Story summaries for the named production and media kind. Accepts the API's publication and approval filters. |
 | `studio_get_story_summary` | `read` | Story ID and revision, board count, timing totals and a page of ordered board IDs. Optional `fields` selects editable story fields. |
 | `studio_get_story_timing` | `read` | Story revision, frame totals, warnings, build blocker count and a page of board timings. |
+| `studio_list_candidates` | `read` | Candidates and feedback text scoped to a story. Supply `candidate_id` and up to ten `note_ids` to resolve a run's `answers`. |
 | `studio_create_story`, `studio_patch_story` | `draft:write` | Story summary and revision. Create takes `fields` with a title, and patch takes `patch` and the current story revision. |
 | `studio_get_board` | `read` | Board ID, story ID, revision, `read_token`, timing metadata and editable fields. Optional `fields` narrows the selection. |
 | `studio_add_board` | `draft:write` | Board summary and resulting story revision. Takes the current story revision and a `fields` object. Use `{}` for defaults. |

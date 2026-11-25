@@ -70,17 +70,17 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
 
     await editorNav(page).getByRole("link", { name: "Assets" }).click();
     await expect(page).toHaveURL((url) => url.pathname + url.search === assetsPath(boardContext));
-    await expect(crumbs(page).getByRole("button")).toHaveText(["Editor", "Assets", "Yellowbirds", "B07"]);
+    await expect(crumbs(page).getByRole("button")).toHaveText(["Editor", "Assets", "Yellowbirds", story.title, "Board 02"]);
     await expect(page.getByRole("heading", { name: "Asset library" })).toBeFocused();
 
     const productionCrumb = crumbs(page).getByRole("button", { name: production.name });
     await productionCrumb.focus();
     await page.keyboard.press("Enter");
-    const productionScope = assetsPath({ production: production.id });
+    const productionScope = assetsPath(boardContext, false, { scope: "production" });
     await expect(page).toHaveURL((url) => url.pathname + url.search === productionScope);
-    await expect(crumbs(page).getByRole("button", { name: "B07" })).toHaveCount(0);
+    await expect(crumbs(page).getByRole("button", { name: "Board 02" })).toHaveCount(0);
     await page.goBack();
-    await expect(crumbs(page).getByRole("button", { name: "B07" })).toBeVisible();
+    await expect(crumbs(page).getByRole("button", { name: "Board 02" })).toBeVisible();
     await page.goForward();
     await expect(crumbs(page).getByRole("button", { name: production.name })).toHaveAttribute("aria-current", "page");
 
@@ -184,7 +184,7 @@ test("expiry retains the route with blocked localStorage and rechecks the API id
   await page.getByRole("link", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Asset library" })).toBeFocused();
   await expect(page).toHaveURL((url) => url.pathname + url.search === scope);
-  await expect(crumbs(page).getByRole("button", { name: "B07" })).toBeVisible();
+  await expect(crumbs(page).getByRole("button", { name: "Board 02" })).toBeVisible();
   await expect(root).toHaveAttribute("data-theme", "dark");
 
   api.signInAs("arden");

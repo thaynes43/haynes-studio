@@ -156,7 +156,7 @@ def list_stories(conn: sa.Connection, production_id: str, kind: str,
     if after is not None:
         stmt = stmt.where(stories.c.id > after)
     if published is not None:
-        stmt = stmt.where(stories.c.published.is_(published))
+        stmt = stmt.where(go_live.story_published().is_(published))
     if approved is not None:
         stmt = stmt.where(go_live.story_approved().is_(approved))
     return [get_draft(conn, row["id"]).summary(conn, row)

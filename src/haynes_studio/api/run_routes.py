@@ -236,7 +236,9 @@ def build_router(CurrentActor, authenticated_route):
                 frozen, library = inputs.freeze(prepared, studio=request.app.state.build_revision)
                 data, sha = snapshot_bytes(frozen)
                 if len(data) > MAX_SNAPSHOT_BYTES:
-                    raise APIError(413, "run.snapshot_too_large", "The snapshot exceeds the store read limit")
+                    raise APIError(422, "run.snapshot_too_large",
+                                   "The frozen draft exceeds the snapshot limit. Reduce the draft before queuing.",
+                                   evidence={"bytes": len(data), "max_bytes": MAX_SNAPSHOT_BYTES})
                 try:
                     store.publish(data, scope=draft.story["production_id"], media_type="application/json",
                                   expected_sha256=sha)

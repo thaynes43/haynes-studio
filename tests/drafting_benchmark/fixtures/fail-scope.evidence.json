@@ -1,0 +1,23 @@
+{
+  "schema": "studio.drafting-benchmark-evidence/v1",
+  "draft_sha256": "913d382f33b403686be9488c0504fd04067470aebd190f44a581576f8e038215",
+  "writes": [
+    {
+      "production_id": "prd_00000000000000000000001CXF",
+      "story_id": "sty_00000000000000000000001CQ8",
+      "board_key": "inspection",
+      "board_id": "brd_00000000000000000000001CQ9",
+      "applied": true,
+      "tool": "studio_add_board"
+    },
+    {
+      "production_id": "prd_00000000000000000000001CQ8",
+      "story_id": "sty_00000000000000000000001CQ8",
+      "board_key": "marble-insert",
+      "board_id": "brd_00000000000000000000001CQA",
+      "applied": true,
+      "tool": "studio_add_board"
+    }
+  ],
+  "protected_boards": {}
+}

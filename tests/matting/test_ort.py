@@ -34,7 +34,7 @@ def fake_ort(monkeypatch):
             assert providers == [PROVIDER]
             assert vars(sess_options) == {
                 "execution_mode": "sequential", "intra_op_num_threads": 2,
-                "inter_op_num_threads": 1, "enable_cpu_mem_arena": True,
+                "inter_op_num_threads": 1, "enable_cpu_mem_arena": False,
                 "enable_mem_pattern": True, "graph_optimization_level": "all",
             }
             assert entries == {

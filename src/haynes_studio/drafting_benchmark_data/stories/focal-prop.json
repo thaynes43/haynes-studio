@@ -1,0 +1,38 @@
+{
+  "schema": "studio.story/v1",
+  "id": "sty_00000000000000000000001CQ8",
+  "production_id": "prd_00000000000000000000001CQ8",
+  "media_kind": "short",
+  "title": "The Official Marble",
+  "revision": 1,
+  "format_version_id": "fmv_000000000000000000000000E7",
+  "cast": [
+    {
+      "slot": "a",
+      "name": "Tessip Dovell",
+      "voice_version_id": "asv_00000000000000000000001CQ9"
+    }
+  ],
+  "narrator_voice_version_id": null,
+  "set": {
+    "asset_version_id": "asv_00000000000000000000001CQ8",
+    "motion_asset_version_id": null,
+    "foreground_edge_px": null,
+    "foreground_feather_px": null,
+    "legacy_fire": null
+  },
+  "layouts": {
+    "default": {}
+  },
+  "motion_style": null,
+  "mix": {
+    "line_rms_dbfs": -22,
+    "master_lufs": -20,
+    "true_peak_dbtp": -3.5
+  },
+  "checks": {},
+  "beds": [],
+  "board_order": [],
+  "boards": [],
+  "origin": null
+}

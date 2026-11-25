@@ -1,0 +1,23 @@
+{
+  "schema": "studio.drafting-benchmark-evidence/v1",
+  "draft_sha256": "f04e9998a3900c59cf4376e765977f72d8031eb1f35436736bca8ce4062fa79b",
+  "writes": [
+    {
+      "production_id": "prd_00000000000000000000001CXG",
+      "story_id": "sty_00000000000000000000001CXG",
+      "board_key": "promise",
+      "board_id": "brd_00000000000000000000001CXH",
+      "applied": true,
+      "tool": "studio_add_board"
+    },
+    {
+      "production_id": "prd_00000000000000000000001CXG",
+      "story_id": "sty_00000000000000000000001CXG",
+      "board_key": "latch",
+      "board_id": "brd_00000000000000000000001CXJ",
+      "applied": true,
+      "tool": "studio_add_board"
+    }
+  ],
+  "protected_boards": {}
+}
