@@ -73,13 +73,30 @@
     "verification": {
       "type": "object",
       "required": [
-        "decoded_frames",
         "expected_frames",
         "sha256_verified"
       ],
       "properties": {
         "decoded_frames": {
           "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+        },
+        "recovered_container_metadata_only": {
+          "description": "Recovered MP4s verified against the archive receipt and playback ledger using container metadata.",
+          "type": "object",
+          "required": ["frames", "ledger_id", "ledger_sha256"],
+          "properties": {
+            "frames": {
+              "$ref": "studio.defs.v1.schema.json#/$defs/positive"
+            },
+            "ledger_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$"
+            },
+            "ledger_sha256": {
+              "$ref": "studio.defs.v1.schema.json#/$defs/sha256"
+            }
+          },
+          "additionalProperties": false
         },
         "expected_frames": {
           "$ref": "studio.defs.v1.schema.json#/$defs/positive"
@@ -99,7 +116,21 @@
           "$ref": "#/$defs/repo_path"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "if": {
+        "required": ["recovered_container_metadata_only"]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {"required": ["decoded_frames"]},
+            {"required": ["source"]}
+          ]
+        }
+      },
+      "else": {
+        "required": ["decoded_frames"]
+      }
     },
     "legacy": {
       "type": [
