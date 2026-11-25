@@ -8,8 +8,12 @@ import { boardLabel, loadRoute, type RouteData } from "./route-data";
 import { assetsPath, mediaKinds, parseRoute, routePath, treePath, type Route } from "./routes";
 import type { SelectionStore } from "./selections";
 import { AccountMenu, Brand, Breadcrumbs, Empty, PageHeading, Problem, Rows, ThemeOptions, type Crumb } from "./shell-ui";
+import type { StoryboardScope } from "./storyboard-data";
+import { boardPosition } from "./storyboard-timeline";
+import { StoryboardWorkspace } from "./storyboard-workspace";
 import type { ThemeSettings } from "./theme";
 import { useRequest } from "./use-request";
+import { useStoryboard } from "./use-storyboard";
 
 type ContextRoute = Extract<Route, { context: unknown }>;
 
@@ -67,7 +71,7 @@ function treeHeading(route: ContextRoute, data: RouteData) {
 }
 
 function RouteContents({ route, data }: { route: ContextRoute; data: RouteData }) {
-  const { production, media, story, board } = route.context;
+  const { production, media } = route.context;
   if (route.area === "assets") {
     return route.generate
       ? <Empty>Asset generation will appear here.</Empty>
@@ -83,24 +87,6 @@ function RouteContents({ route, data }: { route: ContextRoute; data: RouteData }
     <div className="actions"><Link className="pill" to={treePath(area, route.context, "compare")}>Compare runs</Link></div>
     <Empty>Runs will appear here.</Empty>
   </>;
-  if (story) {
-    const boards = data.story?.board_order ?? [];
-    return <>
-      <div className="actions">
-        {area === "board" && board && <Link className="pill" to={treePath(area, route.context, "photo")}>Reference photo</Link>}
-        {area === "board" && <Link className="pill" to={treePath(area, { production, media, story }, "runs")}>Runs</Link>}
-      </div>
-      {board
-        ? <Empty>Board editing will appear here.</Empty>
-        : boards.length > 0
-          ? <Rows items={boards.map((id, index) => ({
-              to: treePath(area, { production, media, story, board: id }),
-              label: `Panel ${index + 1}`,
-            }))} />
-          : <Empty>No boards yet.</Empty>}
-    </>;
-  }
-
   if (media) {
     return data.stories?.length
       ? <Rows items={data.stories.map(({ id, title }) => ({
@@ -173,6 +159,35 @@ function ContextPage({
   );
 }
 
+function StoryboardPage({ api, production, media, story, board, selections, before }: StoryboardScope & {
+  api: StudioClient; board?: string; selections: SelectionStore; before?: ReactNode;
+}) {
+  const scope = useMemo(() => ({ production, media, story }), [production, media, story]);
+  const model = useStoryboard(api, scope, board);
+  const { result, draft, selected, selectedIndex, retry } = model;
+  const context = { ...scope, board };
+  const current = treePath("board", context);
+  const data = result.status === "success" ? { production: result.data.production, story: draft?.story } : {};
+  const trail = trailFor({ area: "board", context }, data);
+  if (board === selected && selectedIndex >= 0) trail.push({ label: boardPosition(selectedIndex), to: current });
+
+  useEffect(() => {
+    if (draft && board === selected) selections.remember("board", current);
+  }, [board, current, draft, selected, selections]);
+
+  return <ShellPage title={draft?.story.title ?? "Story"} trail={trail} current={current} before={before}>
+    {result.status === "loading" && <p role="status" className="muted">Loading…</p>}
+    {result.status === "failure" && <Problem error={result.error} retry={retry} />}
+    {draft && <>
+      <StoryboardWorkspace model={model} scope={scope} />
+      <div className="actions">
+        {selected && <Link className="pill" to={treePath("board", { ...scope, board: selected }, "photo")}>Reference photo</Link>}
+        <Link className="pill" to={treePath("board", scope, "runs")}>Runs</Link>
+      </div>
+    </>}
+  </ShellPage>;
+}
+
 export function Workspace({
   api, name, theme, signOut, selections,
 }: {
@@ -192,7 +207,11 @@ export function Workspace({
     : destinations.assets;
   const saveProblem = error == null ? null : <Problem saving error={error} retry={() => { void selections.retry(); }} />;
   let page: ReactNode;
-  if ("context" in route) {
+  if (route.area === "board" && !route.page && route.context.production && route.context.media && route.context.story) {
+    const { production, media, story, board } = route.context;
+    page = <StoryboardPage key={treePath("board", { production, media, story })} api={api} production={production}
+      media={media} story={story} board={board} selections={selections} before={saveProblem} />;
+  } else if ("context" in route) {
     page = <ContextPage key={location.key} api={api} route={route} selections={selections} before={saveProblem} />;
   } else {
     const title = route.area === "editor" ? "Editor" : route.area === "user"
