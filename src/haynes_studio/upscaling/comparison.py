@@ -144,9 +144,11 @@ def compare(scratch: Path, weights: Path, share: Path, jobs: Path, profile, *,
             if status != 200:
                 raise UpscaleError(PIN_MISMATCH)
             with phase(phases, "fsrcnn"):
-                learned_png, receipt = frame(root, socket, rgb, target, engine.profile, ready["profile_sha256"])
+                learned_png, receipt, attempt = frame(
+                    root, socket, rgb, target, engine.profile, ready["profile_sha256"],
+                )
     phases["startup"]["worker"] = memory["startup"][0]
-    phases["fsrcnn"]["worker"] = memory["requests"][0]
+    phases["fsrcnn"]["worker"] = memory["requests"][attempt]
     with phase(phases, "metrics"):
         learned = decode_png(learned_png, target, RESPONSE_INVALID)
         objective = _measure(rgb, baseline, learned, rois)

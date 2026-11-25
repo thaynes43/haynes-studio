@@ -288,7 +288,7 @@ class Engine:
                 self._child.channel.send((attempt, request))
                 success, result, memory = self._child.read(deadline)
                 if self.memory is not None:
-                    self.memory.setdefault("requests", []).append(memory)
+                    self.memory.setdefault("requests", {})[attempt] = memory
             except (UpscaleError, OSError) as error:
                 self._stop()
                 self._recovery = threading.Thread(target=self._recover, name="upscaling-recovery")

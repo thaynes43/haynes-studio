@@ -12,6 +12,7 @@ import pytest
 from PIL import Image, PngImagePlugin
 
 from haynes_studio.store import canonical_json
+from haynes_studio.upscaling import smoke as measuring
 from haynes_studio.upscaling.backend import Engine, envelope, verify_result
 from haynes_studio.upscaling.comparison import _source, compare
 from haynes_studio.upscaling.fixtures import Motion, portrait, scores
@@ -77,7 +78,7 @@ def test_transport(tmp_path, pins, rgb):
     for _ in range(2):
         with Engine(tmp_path, weights, profile, factory=FakeFsrcnn) as engine, listening(socket, engine):
             assert local_call(socket, "GET", "/v1/ready") == (200, engine.readiness)
-            png, receipt = frame(tmp_path, socket, rgb, TARGET, profile, digest)
+            png, receipt, _ = frame(tmp_path, socket, rgb, TARGET, profile, digest)
             assert receipt["output"]["width"] == TARGET[0]
             assert decode_png(png, TARGET, RESPONSE_INVALID).getpixel((10, 10)) == rgb.getpixel((0, 0))
             receipts.append(canonical_json(receipt))
@@ -161,7 +162,7 @@ def test_timeout(tmp_path, pins, rgb):
         while engine.readiness is None and monotonic() < stop:
             sleep(0.01)
         assert engine.readiness["profile_sha256"] == digest
-        _, receipt = frame(tmp_path, socket, rgb, TARGET, profile, digest)
+        _, receipt, _ = frame(tmp_path, socket, rgb, TARGET, profile, digest)
         assert receipt["source"] == first["request"]["source"]
         assert (partial_run / "input.png").read_bytes() == encode_png(rgb)
 
@@ -235,3 +236,32 @@ def test_fixture_geometry():
     assert motion.report() == {"worst_mean": 0.0, "worst_p95": 0.0, "identical_background": True}
     cropped, box = crop_plate(Image.new("RGB", (626, 1024)), TARGET)
     assert cropped.size == (576, 1024) and box == (25, 0, 601, 1024)
+
+
+
+def test_measuring_smoke(tmp_path, pins, monkeypatch):
+    weights, profile, _ = pins
+    # The separate timeout test drives a real stall and a replacement child.
+    monkeypatch.setattr(measuring, "_deadline", lambda *_: True)
+    report = measuring.smoke(tmp_path, weights, profile, factory=FakeFsrcnn)
+    assert report["verdicts"]["allocator_measured"] and report["verdicts"]["allocator_byte_match"]
+    assert report["verdicts"]["fresh_worker_repeat"] and report["verdicts"]["plate_crop"]
+    for item in report["settings"].values():
+        assert item["frame_count"] == 19 and all(item["refusals"].values())
+        phases = item["memory_by_phase"]
+        assert phases["startup"]["worker"]["peak_rss_bytes"] > 0
+        assert phases["replay_startup"]["worker"]["peak_rss_bytes"] > 0
+        assert phases["replayed_frame"]["worker"]["rss_after_bytes"] > 0
+        assert all(phases[f"{name}_fsrcnn"]["worker"]["rss_after_bytes"] > 0 for name in item["frames"])
+
+    # Reuse the measured default data to isolate the CLI's default-only
+    # verdict from the fake graph's intentional differences from Lanczos.
+    default = report["settings"]["default"]
+    default["quality_verdicts"] = {}
+    default["timing"] = {"warm_mean_seconds": 0.1, "warm_p95_seconds": 0.2, "max_seconds": 0.3}
+    monkeypatch.setattr(measuring, "_exercise", lambda *_args, **_kwargs: default)
+    monkeypatch.setattr(measuring, "cgroup_peak", lambda: 1)
+    single = measuring.smoke(tmp_path, weights, profile, try_compact=False)
+    assert single["passed"]
+    assert "allocator_measured" not in single["verdicts"]
+    assert list(single["settings"]) == ["default"]

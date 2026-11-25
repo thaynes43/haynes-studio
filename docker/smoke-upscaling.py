@@ -91,11 +91,13 @@ def exercise(parent):
                     assert local_call(socket, "GET", "/v1/ready") == (200, ready)
                     assert ready["profile_id"] == PROFILE_ID and ready["provider"] == PROVIDER
                     assert (ready["profile_sha256"] == expected) == (settings == "default")
-                    output, receipt = frame(scratch, socket, rgb, (1080, 1920), engine.profile, ready["profile_sha256"])
+                    output, receipt, attempt = frame(
+                        scratch, socket, rgb, (1080, 1920), engine.profile, ready["profile_sha256"],
+                    )
                     assert receipt["output"]["width"] == 1080 and receipt["output"]["height"] == 1920
                     outputs.append(output)
             assert memory["startup"][0]["peak_rss_bytes"]
-            assert memory["requests"][0]["rss_after_bytes"]
+            assert memory["requests"][attempt]["rss_after_bytes"]
         assert outputs[0] == outputs[1]
         return {"graph": "synthetic_luma_pixel_shuffle", "graph_sha256": digest,
                 "output_sha256": hashlib.sha256(outputs[0]).hexdigest(),

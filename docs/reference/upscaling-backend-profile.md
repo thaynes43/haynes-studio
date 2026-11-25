@@ -322,8 +322,9 @@ Measure luma as `0.2126R + 0.7152G + 0.0722B` on the encoded RGB samples.
    from the observed mean.
 
 5. Measure both the default and `compact-allocator` processes in the first
-   cluster smoke. The latter uses glibc arena maximum 1 and fixed 128 KiB
-   trim and mmap thresholds. Freeze these settings in separate smoke
+   cluster smoke with `--allocator compare`. Use `--allocator default` for
+   a baseline-only diagnostic. The compact setting uses glibc arena
+   maximum 1 and fixed 128 KiB trim and mmap thresholds. Freeze these settings in separate smoke
    profile digests. Compare every generated PNG byte for byte between the
    two settings, and each setting's PNG and canonical receipt against its
    fresh-worker replay. Record worker phase high-water and post-phase RSS,

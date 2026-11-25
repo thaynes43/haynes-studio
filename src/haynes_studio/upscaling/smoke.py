@@ -52,6 +52,7 @@ def _exercise(root: Path, weights: Path, pinned, settings, captured: Path, *, fa
     with phase(phases, "startup"):
         engine = Engine(root, weights, pinned, smoke_settings=settings, memory=memory, factory=factory)
     cold_seconds = monotonic() - startup
+    phases["startup"]["worker"] = memory["startup"][0]
     with engine, listening(socket, engine):
         status, ready = local_call(socket, "GET", "/v1/ready")
         if status != 200 or ready["provider"] != PROVIDER:
@@ -64,7 +65,8 @@ def _exercise(root: Path, weights: Path, pinned, settings, captured: Path, *, fa
                 baseline = lanczos(rgb, target)
                 baseline_png = encode_png(baseline)
             with phase(phases, name + "_fsrcnn"):
-                data, receipt = frame(root, socket, rgb, target, engine.profile, digest)
+                data, receipt, attempt = frame(root, socket, rgb, target, engine.profile, digest)
+            phases[name + "_fsrcnn"]["worker"] = memory["requests"][attempt]
             exact[name] = _record_bytes(captured / (name + ".png"), data, replay=settings != "default")
             learned = decode_png(data, target, RESPONSE_INVALID)
             if name == "motion_00":
@@ -115,18 +117,16 @@ def _exercise(root: Path, weights: Path, pinned, settings, captured: Path, *, fa
         refusals["no_output"] = not (root / value["attempt_id"] / "result").exists()
 
     # The repeated dispatch uses a fresh worker, identical input and settings.
+    replay_memory = {}
     with phase(phases, "replay_startup"):
-        replay = Engine(root, weights, pinned, smoke_settings=settings, memory=memory, factory=factory)
+        replay = Engine(root, weights, pinned, smoke_settings=settings, memory=replay_memory, factory=factory)
+    phases["replay_startup"]["worker"] = replay_memory["startup"][0]
     with replay, listening(socket, replay):
         with phase(phases, "replayed_frame"):
-            png, receipt = frame(root, socket, rgb, PORTRAIT, replay.profile, digest)
+            png, receipt, attempt = frame(root, socket, rgb, PORTRAIT, replay.profile, digest)
+    phases["replayed_frame"]["worker"] = replay_memory["requests"][attempt]
     repeat = replay_png == png and replay_receipt == canonical_json(receipt)
     worker_count = len(records)
-    worker_requests = memory["requests"]
-    for name, observed in zip(records, worker_requests, strict=False):
-        phases[name + "_fsrcnn"]["worker"] = observed
-    phases["startup"]["worker"], phases["replay_startup"]["worker"] = memory["startup"]
-    phases["replayed_frame"]["worker"] = worker_requests[-1]
     times = [phases[name + "_fsrcnn"]["wall_seconds"] for name in records]
     # Output 24 fps on the existing 16 fps source clock. The scaler dispatches
     # each distinct frame once and has no control of the replay cadence.
@@ -187,12 +187,12 @@ def _deadline(root, weights, profile, *, factory=None, seconds=REQUEST_SECONDS) 
             sleep(0.05)
         if engine.readiness is None:
             return False
-        _, receipt = frame(root, socket, rgb, PORTRAIT, engine.profile, digest)
+        _, receipt, _ = frame(root, socket, rgb, PORTRAIT, engine.profile, digest)
         return (receipt["source"]["sha256"] == sha256(data).hexdigest() and not (old / "result").exists()
                 and (old / "input.png").read_bytes() == data)
 
 
-def smoke(scratch: Path, weights: Path, profile, *, try_compact=True) -> dict:
+def smoke(scratch: Path, weights: Path, profile, *, try_compact=True, factory=None) -> dict:
     report = {
         "schema": "studio.upscaling-smoke/v1", "image_digest": profile.image_digest, "provider": PROVIDER,
         "profile_sha256": sha256(profile.manifest()).hexdigest(),
@@ -209,7 +209,7 @@ def smoke(scratch: Path, weights: Path, profile, *, try_compact=True) -> dict:
         for settings in (("default", "compact-allocator") if try_compact else ("default",)):
             attempt = root / settings
             attempt.mkdir()
-            report["settings"][settings] = _exercise(attempt, weights, profile, settings, captured)
+            report["settings"][settings] = _exercise(attempt, weights, profile, settings, captured, factory=factory)
         try_dir = root / "deadline"
         try_dir.mkdir()
         with phase(report, "forced_timeout_phase"):
@@ -227,8 +227,6 @@ def smoke(scratch: Path, weights: Path, profile, *, try_compact=True) -> dict:
         "cadence": baseline["cadence_verified"],
         "forced_timeout_retry": deadline,
         "fresh_worker_repeat": all(item["repeat_byte_match"] for item in report["settings"].values()),
-        "allocator_byte_match": compact is None or all(compact["allocator_png_byte_matches"].values()),
-        "allocator_measured": compact is not None,
         "phase_memory_measured": all(
             observation["cgroup_sampled_peak_bytes"] is not None and observation["parent"] is not None
             and ("worker" not in observation or observation["worker"] is not None)
@@ -240,6 +238,11 @@ def smoke(scratch: Path, weights: Path, profile, *, try_compact=True) -> dict:
             and item["timing"]["max_seconds"] < REQUEST_SECONDS for item in report["settings"].values()
         ),
     }
+    if try_compact:
+        report["verdicts"]["allocator_measured"] = compact is not None
+        report["verdicts"]["allocator_byte_match"] = compact is not None and all(
+            compact["allocator_png_byte_matches"].values()
+        )
     # A failed quality gate is evidence. Emit the report before returning failure.
     report["passed"] = all(report["verdicts"].values())
     return report

@@ -40,7 +40,7 @@ def frame(root: Path, socket: Path, rgb: Image.Image, size, profile, digest: str
         with open_directory(root / value["attempt_id"] / "result") as directory:
             png = read_file(directory, "output.png", MAX_OUTPUT, RESPONSE_INVALID)
         verify_result(value["request"], receipt, png, profile)
-        return png, receipt
+        return png, receipt, value["attempt_id"]
     finally:
         # Scratch is specific to this client run. Per-frame cleanup lets the
         # bounded smoke finish without growing scratch with frame count.
