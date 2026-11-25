@@ -21,7 +21,7 @@ from haynes_studio.upscaling import profile as profile_module
 from haynes_studio.upscaling import smoke as measuring
 from haynes_studio.upscaling.backend import PLATE_COMPARISON_SCHEMA, Engine, envelope, verify_result
 from haynes_studio.upscaling.comparison import _decode, _publish, _source, compare
-from haynes_studio.upscaling.fixtures import Motion, portrait, scores
+from haynes_studio.upscaling.fixtures import Motion, baseline_meets_former_caps, portrait, scores, verdicts
 from haynes_studio.upscaling.pixels import crop_plate, decode_png, encode_png
 from haynes_studio.upscaling.profile import (
     BUSY, GRAPH_NAME, MAX_INPUT, PIN_MISMATCH, REQUEST_INVALID, RESPONSE_INVALID, TIMEOUT, Profile, UpscaleError,
@@ -356,6 +356,57 @@ def test_fixture_geometry():
     assert cropped.size == (576, 1024) and box == (25, 0, 601, 1024)
 
 
+@pytest.fixture
+def measured_quality():
+    def quality(overshoot, undershoot, spread, worst_mean, worst_p95, text_errors):
+        return {
+            "edge": {"overshoot": overshoot, "dark_undershoot": undershoot, "median_spread_px": spread},
+            "motion": {"worst_mean": worst_mean, "worst_p95": worst_p95, "identical_background": True},
+            "text": [
+                {"cap_height_px": height, "correct": 4, "luma_mae": error}
+                for height, error in zip((14, 21, 28), text_errors, strict=True)
+            ],
+            # OP461 reported these companion verdicts passing without numeric scores.
+            "face_displacement_px": {"left_highlight": 0, "right_highlight": 0, "left_lash": 0, "right_lash": 0},
+            "flat": {"std": 0, "mean_shift": 0, "max_channel_span": 0},
+        }
+
+    lanczos = quality(0.121569, 0.117647, 2.1173, 0.011209, 0.080104, (0.0554, 0.0686, 0.0618))
+    fsrcnn = quality(0.070588, 0.066667, 1.6216, 0.011776, 0.076465, (0.0482, 0.0568, 0.0469))
+    return lanczos, fsrcnn
+
+
+def test_measured_quality_passes_relative_rules_but_failed_former_caps(measured_quality):
+    lanczos, fsrcnn = measured_quality
+    assert all(verdicts(lanczos, fsrcnn).values())
+    for result in (lanczos, fsrcnn):
+        assert result["edge"]["overshoot"] > 12 / 255
+        assert result["motion"]["worst_mean"] > 2 / 255
+    assert baseline_meets_former_caps(lanczos) == {"edge_overshoot": False, "motion_residual": False}
+    lanczos["edge"]["overshoot"] = 12 / 255
+    lanczos["motion"]["worst_mean"] = 2 / 255
+    assert baseline_meets_former_caps(lanczos) == {"edge_overshoot": True, "motion_residual": True}
+
+
+@pytest.mark.parametrize(("group", "metric", "margin", "verdict"), [
+    ("edge", "overshoot", 2 / 255, "edge_overshoot"),
+    ("motion", "worst_mean", 0.5 / 255, "motion_residual"),
+    ("motion", "worst_p95", 2 / 255, "motion_residual"),
+])
+def test_quality_fails_just_over_each_relative_margin(measured_quality, group, metric, margin, verdict):
+    lanczos, fsrcnn = measured_quality
+    fsrcnn[group][metric] = lanczos[group][metric] + margin
+    assert verdicts(lanczos, fsrcnn)[verdict]
+    fsrcnn[group][metric] += 0.000001
+    assert not verdicts(lanczos, fsrcnn)[verdict]
+
+
+def test_quality_passes_a_tie_on_overshoot_and_motion(measured_quality):
+    lanczos, fsrcnn = measured_quality
+    fsrcnn["edge"]["overshoot"] = lanczos["edge"]["overshoot"]
+    fsrcnn["motion"] = lanczos["motion"]
+    assert all(verdicts(lanczos, fsrcnn).values())
+
 
 def test_measuring_smoke(tmp_path, pins, monkeypatch):
     weights, profile, _ = pins
@@ -370,6 +421,7 @@ def test_measuring_smoke(tmp_path, pins, monkeypatch):
     assert report["verdicts"]["fresh_worker_repeat"] and report["verdicts"]["plate_crop"]
     for item in report["settings"].values():
         assert item["frame_count"] == 19 and all(item["refusals"].values())
+        assert item["baseline_meets_former_caps"] == {"edge_overshoot": False, "motion_residual": False}
         phases = item["memory_by_phase"]
         assert phases["startup"]["worker"]["peak_rss_bytes"] > 0
         assert phases["replay_startup"]["worker"]["peak_rss_bytes"] > 0
