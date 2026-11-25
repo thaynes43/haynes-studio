@@ -48,12 +48,17 @@ jobs:
           revision=$(git rev-parse HEAD)
           test "$revision" = "$GITHUB_SHA"
           epoch=$(git show -s --format=%ct "$revision")
-          for name in studio studio-web studio-matting; do
+          for name in studio-segmentation studio studio-web studio-matting; do
             image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/haynes-$name:sha-$revision"
             labels=()
             if [[ $name = studio-matting ]]; then
               resources=$(cat src/haynes_studio/matting/resources.json)
               labels+=(--label "io.haynes-studio.matting.resources=$resources")
+            elif [[ $name = studio-segmentation ]]; then
+              resources=$(cat src/haynes_studio/segmentation/resources.json)
+              labels+=(--label "io.haynes-studio.segmentation.resources=$resources")
+              df -Pk "$IMAGE_DIR" | awk 'NR == 2 { ok = ($4 >= 12582912) } END { exit !ok }'
+              df -Pi "$IMAGE_DIR" | awk 'NR == 2 { ok = ($4 >= 120000) } END { exit !ok }'
             fi
             docker buildx build --platform linux/amd64 --provenance=false \
               --build-arg "SOURCE_DATE_EPOCH=$epoch" --build-arg "REVISION=$revision" \
@@ -63,19 +68,32 @@ jobs:
               --metadata-file "$IMAGE_DIR/$name.json" .
             docker load --input "$IMAGE_DIR/$name.tar"
             test "$(docker image inspect "$image" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$revision"
-            test "$(docker image inspect "$image" --format '{{.Config.User}}')" = "$([[ $name = studio-web ]] && echo 101:101 || echo 10001:10001)"
+            case "$name" in
+              studio-web) user=101:101 ;;
+              *) user=10001:10001 ;;
+            esac
+            test "$(docker image inspect "$image" --format '{{.Config.User}}')" = "$user"
+            size=$(docker image inspect "$image" --format '{{.Size}}')
+            if [[ $name = studio-segmentation ]]; then
+              test "$size" -le 2147483648
+              df -Pk "$IMAGE_DIR" | awk 'NR == 2 { ok = ($4 >= 8388608) } END { exit !ok }'
+              df -Pi "$IMAGE_DIR" | awk 'NR == 2 { ok = ($4 >= 100000) } END { exit !ok }'
+            fi
 
             if [[ $name = studio-matting ]]; then
-              test "$(docker image inspect "$image" --format '{{.Size}}')" -le 1073741824
+              test "$size" -le 1073741824
             fi
             container=$(docker create "$image")
             trap 'docker rm "$container" >/dev/null' EXIT
             docker export "$container" | python3 -B docker/check-image.py
+            if [[ $name = studio-segmentation ]]; then
+              docker cp "$container:/opt/studio/segmentation-sbom.cdx.json" "$IMAGE_DIR/"
+            fi
             docker rm "$container" >/dev/null
             trap - EXIT
 
             digest=$(jq -er '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' "$IMAGE_DIR/$name.json")
-            printf 'Built `%s` with local manifest digest `%s`.\n' "$image" "$digest" >> "$GITHUB_STEP_SUMMARY"
+            printf 'Built `%s` with local manifest digest `%s` (%s bytes).\n' "$image" "$digest" "$size" | tee -a "$GITHUB_STEP_SUMMARY"
           done
 
       - name: Smoke the Studio CLI, OpenAPI and migration
@@ -153,6 +171,36 @@ jobs:
             --mount "type=bind,src=$GITHUB_WORKSPACE/docker/smoke-matting.py,dst=/smoke-matting.py,readonly" \
             "$image" python /smoke-matting.py >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Smoke the pinned segmentation runtime with synthetic Torch modules
+        shell: bash
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/haynes-studio-segmentation:sha-$GITHUB_SHA"
+          docker run --rm --cpus=2 --network none --read-only --cap-drop=ALL \
+            --security-opt=no-new-privileges \
+            --tmpfs /segmentation:rw,nosuid,nodev,uid=10001,gid=10001,mode=0700,size=256m \
+            --mount "type=bind,src=$GITHUB_WORKSPACE/docker/smoke-segmentation.py,dst=/smoke-segmentation.py,readonly" \
+            "$image" python /smoke-segmentation.py | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Smoke the production segmentation loader offline
+        shell: bash
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/haynes-studio-segmentation:sha-$GITHUB_SHA"
+          for strategy in mmap buffered; do
+            docker run --rm --cpus=2 --network none --read-only --cap-drop=ALL \
+              --security-opt=no-new-privileges \
+              --tmpfs /segmentation:rw,nosuid,nodev,uid=10001,gid=10001,mode=0700,size=256m \
+              --mount "type=bind,src=$GITHUB_WORKSPACE/docker/smoke-segmentation-loader.py,dst=/smoke-segmentation-loader.py,readonly" \
+              "$image" python /smoke-segmentation-loader.py "$strategy" | tee -a "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Save the segmentation runtime SBOM
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: studio-segmentation-sbom-${{ github.sha }}
+          path: ${{ runner.temp }}/studio-images/segmentation-sbom.cdx.json
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Save the tested images for the publish job
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -190,7 +238,7 @@ jobs:
         shell: bash
         run: |
           IMAGE_DIR="$RUNNER_TEMP/studio-images"
-          for name in studio studio-web studio-matting; do
+          for name in studio-segmentation studio studio-web studio-matting; do
             repository="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/haynes-$name"
             image="$repository:sha-$GITHUB_SHA"
             docker load --input "$IMAGE_DIR/$name.tar"

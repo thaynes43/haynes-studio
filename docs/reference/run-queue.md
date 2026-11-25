@@ -26,7 +26,7 @@ A run with no snapshot, such as a recovered import, returns 404
 `run.snapshot_missing`. A lost pinned blob returns 503 `run.snapshot_lost`.
 A hash or locator mismatch returns 503 `run.snapshot_changed`. Reads are
 bounded to 16 MiB. A larger stored snapshot returns 503 `run.snapshot_too_large`,
-and the enqueue route refuses a new snapshot above that limit with HTTP 413.
+and the enqueue route refuses a new snapshot above that limit with HTTP 422.
 
 A draft opened from [candidate feedback](feedback.md) adds its answer reference
 to the queued run document. A repeated enqueue with the same story, actor, key and revision returns 200 and
