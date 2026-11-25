@@ -8,9 +8,15 @@ recovery steps. The isolated restore drill belongs to
 
 | Data | Protection | Read-only evidence on 2026-11-25 |
 | --- | --- | --- |
-| Studio metadata | The `studio` database is on CNPG `database/postgres16`. The `postgres` ScheduledBackup runs daily (05:00 UTC on the observed schedule). Barman writes PostgreSQL cluster-wide physical base backups and continuous WAL to S3 at `s3://cnpg-haynesops/`, under `postgres16-v6`, with a 30-day recovery window. | The newest completed Backup was `postgres-20261124000000`, Barman ID `20261124T000000`, complete at `2026-11-24T00:01:39Z` as reported by the Backup and Cluster. That base predates the `studio` Database resource, which was created at `2026-11-24T21:03:33Z` and reports `applied: true`. Recovery from this base needs WAL replay past database creation. The next scheduled backup was due at `2026-11-25T05:00:00Z`. |
+| Studio metadata | The `studio` database is on CNPG `database/postgres16`. The `postgres` ScheduledBackup uses `@daily`. Barman writes cluster-wide physical base backups and continuous WAL to S3 at `s3://cnpg-haynesops/`, under `postgres16-v6`, with a 30-day recovery window. | The newest completed Backup was `postgres-20261124000000`, Barman ID `20261124T000000`. The Backup and Cluster report completion at `2026-11-24T00:01:39Z`. The base predates the applied `studio` Database resource, created at `2026-11-24T21:03:33Z`. Recovering Studio from this base needs WAL replay past database creation. |
 | Small Studio PVCs | VolSync is the policy for any future small Studio claim. | No Studio PVC exists in `ai`. No claim is mounted by `studio-api`, `studio-web`, `studio-mcp`, `studio-worker` or `studio-render`. The API, worker and render mounts use raw NFS. |
 | Media | **NFS media is not backed up (D47).** | The share holds the canonical store, build staging, old job directories and finished archives listed below. |
+
+The `postgres` schedule recorded its last trigger at `2026-11-24T05:00:00Z`,
+matching the Backup resource's creation time and owner. The same object
+carries Barman's earlier reported times. Use the schedule and Kubernetes
+creation timestamps to identify that day's trigger. The next trigger
+was scheduled for `2026-11-25T05:00:00Z`.
 
 WAL archiving was healthy at the check. CNPG reported `ContinuousArchiving=True`,
 `LastBackupSucceeded=True` and 3 ready instances. The primary's
@@ -29,7 +35,7 @@ The coordinator checks for the first completed base taken after provisioning.
 ```sh
 kubectl -n database get backups,scheduledbackups
 kubectl -n database get backup "$backup_name" \
-  -o 'custom-columns=CLUSTER:.spec.cluster.name,ID:.status.backupId,PHASE:.status.phase,START:.status.startedAt,COMPLETE:.status.stoppedAt'
+  -o 'custom-columns=CLUSTER:.spec.cluster.name,OWNER:.metadata.ownerReferences[*].name,CREATED:.metadata.creationTimestamp,ID:.status.backupId,PHASE:.status.phase,START:.status.startedAt,COMPLETE:.status.stoppedAt'
 kubectl -n database get cluster.postgresql.cnpg.io postgres16 \
   -o 'custom-columns=READY:.status.readyInstances,LAST:.status.lastSuccessfulBackup,CONDITIONS:.status.conditions[*].type,STATUS:.status.conditions[*].status'
 ```
@@ -193,10 +199,10 @@ inventory with `LocalStore.verify()` and `doctor()` for a bounded manual check.
    and store readiness. A finished run with deleted canonical media still
    shows its recorded status, checks and delivery metadata. Authenticated
    media fetch returns 404 for absent bytes (503 on certain store I/O
-   failures). The Productions player reports “This video could not be played.”
-   Imported external ledger deliveries have their own unavailable message.
-   The metadata remains readable when the store is mounted and ready. There
-   is no persistent missing-media badge today.
+   failures). The metadata remains readable when the store is mounted and
+   ready. In the OP414 web source, the Productions player reports “This
+   video could not be played.” Imported external ledger deliveries have their
+   own unavailable message. The source has no persistent missing-media badge.
 5. Check surviving copies and deterministic recovery against the original
    hash. If the exact bytes are unavailable, create or import replacement
    inputs as new versions, select them on a current draft and queue a new
