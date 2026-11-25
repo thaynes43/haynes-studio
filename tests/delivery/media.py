@@ -26,7 +26,7 @@ def write_master(path: Path, *, frames: int, width: int = 1080, height: int = 19
                  audio_rate: int = 48_000, audio_samples: int | None = None,
                  container: str = "mp4", noise: bool = False, seed: int = 0,
                  threads: int = 2, long: bool = False,
-                 audio_gap: tuple[int, int] | None = None) -> Path:
+                 audio_gap: tuple[int, int] | None = None, video_options: dict[str, str] | None = None) -> Path:
     """Write a synthetic master and return its path. ``audio_samples`` defaults to
     ``frames x audio_rate / fps`` (2000 per frame at 48 kHz); ``audio_codec=None``
     writes no audio stream. ``audio_gap`` leaves out the audio frames that start in
@@ -40,8 +40,9 @@ def write_master(path: Path, *, frames: int, width: int = 1080, height: int = 19
         raise ValueError(f"synthetic masters are at most {limit} s, not {frames} frames")
     rng = np.random.default_rng(seed)
     with av.open(str(path), "w", format=FORMATS[container]) as out:
-        options = {"preset": "ultrafast", "crf": "30"} if video_codec == "libx264" else {}
-        video = out.add_stream(video_codec, rate=fps, options=options)
+        if video_options is None:
+            video_options = {"preset": "ultrafast", "crf": "30"} if video_codec == "libx264" else {}
+        video = out.add_stream(video_codec, rate=fps, options=video_options)
         video.width, video.height, video.pix_fmt = width, height, "yuv420p"
         video.codec_context.thread_count = threads
         audio = None

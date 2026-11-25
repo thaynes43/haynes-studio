@@ -19,7 +19,10 @@ from haynes_studio.store import canonical_json
 from .inference import Observation, observe, validate_request
 from .memory import Phases
 from .pixels import decode_source, describe_mask, encode_mask, tight_box
-from .profile import MAX_SOURCE_BYTES, PROFILE_ID, REQUEST_SECONDS, STARTUP_SECONDS, Profile, SegmentationError, digest
+from .profile import (
+    MAX_SOURCE_BYTES, PROFILE_ID, REQUEST_SECONDS, STARTUP_SECONDS, WEIGHT_LOAD,
+    Profile, SegmentationError, digest,
+)
 from .runtime import load_models
 
 DIRECTORY = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
@@ -150,18 +153,25 @@ class _Child:
             raise SegmentationError("timeout")
         return received
 
-    def close(self):
+    def close(self, *, graceful=False):
         self.channel.close()
+        if graceful:
+            # The idle worker sees EOF and runs its finalizers, including
+            # unregistering resources owned by the model runtime.
+            self.process.join(timeout=3)
         if self.process.is_alive():
             self.process.kill()
         self.process.join()
+        exitcode = self.process.exitcode
         self.process.close()
+        if graceful and exitcode != 0:
+            raise SegmentationError("worker_shutdown_failed")
 
 
 class Engine:
     def __init__(self, scratch: Path, weights: Path, profile: Profile, *, factory=load_models,
                  request_seconds=REQUEST_SECONDS, startup_seconds=STARTUP_SECONDS,
-                 memory: dict | None = None, load_strategy="mmap"):
+                 memory: dict | None = None, load_strategy=WEIGHT_LOAD):
         self.scratch, self.weights, self.profile = scratch, weights, profile
         self.factory, self.memory, self.load_strategy = factory, memory, load_strategy
         self.request_seconds, self.startup_seconds = request_seconds, startup_seconds
@@ -211,11 +221,11 @@ class Engine:
             raise
         self._child, self._pin = child, pin
 
-    def _stop(self):
+    def _stop(self, *, graceful=False):
         self._pin = None
         child, self._child = self._child, None
         if child is not None:
-            child.close()
+            child.close(graceful=graceful)
 
     def _recover(self):
         with self._lock:
@@ -285,8 +295,10 @@ class Engine:
         return self
 
     def __exit__(self, *_):
-        with self._lock:
-            self._closed = True
-            self._stop()
-        if self._recovery is not None:
-            self._recovery.join()
+        try:
+            with self._lock:
+                self._closed = True
+                self._stop(graceful=True)
+        finally:
+            if self._recovery is not None:
+                self._recovery.join()
