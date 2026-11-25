@@ -104,14 +104,8 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       expect(initialBoard.voice.current_version_id).not.toBe(voiceTwo);
       expect(initialBoard.method).not.toEqual(revised.boards[1].method);
 
-      // The base editor's inspector is empty. Mount a test input inside the real stage
-      // to catch a remount, focus loss or reset caused by polling.
-      await stage(page).evaluate((element) => {
-        const field = document.createElement("input");
-        field.setAttribute("aria-label", "Unsubmitted draft field");
-        element.append(field);
-      });
-      const unsaved = page.getByRole("textbox", { name: "Unsubmitted draft field" });
+      const unsaved = page.getByRole("complementary", { name: "Board inspector" })
+        .getByRole("textbox", { name: "New direction note" });
       await unsaved.fill("An unsubmitted edit");
       const callsAtLoss = api.calls.length;
       api.failNext({

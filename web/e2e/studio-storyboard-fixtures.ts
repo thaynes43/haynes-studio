@@ -45,7 +45,10 @@ export function boardVersions(production: string, board: Board, media: Pick<Revi
   ] satisfies AssetVersion[];
 }
 
-export function storyTiming(draft: Schemas["Story"], boards: Map<string, Board>, versions: AssetVersion[]): Schemas["Timing"] {
+export function storyTiming(
+  draft: Schemas["Story"], boards: Map<string, Board>, versions: AssetVersion[],
+  matches: (board: Board, voice: NonNullable<AssetVersion["voice"]>) => boolean = () => true,
+): Schemas["Timing"] {
   let known = 0;
   let start: number | null = 0;
   const fps = 24;
@@ -53,11 +56,13 @@ export function storyTiming(draft: Schemas["Story"], boards: Map<string, Board>,
   const rows = draft.board_order.map((id): Schemas["Timing"]["boards"][number] => {
     const board = boards.get(id)!;
     const voice = versions.find(({ id }) => id === board.voice.current_version_id)?.voice;
-    const content = board.lines.length ? voice && voice.speech_end_ms + Number(board.timing.tail_ms) : Number(board.timing.hold_ms);
+    const current = voice && matches(board, voice);
+    const content = board.lines.length ? current ? voice.speech_end_ms + Number(board.timing.tail_ms) : undefined : Number(board.timing.hold_ms);
     if (content === undefined) {
       start = null;
-      build_blockers.push({ board_id: id, code: "voice.absent" });
-      return { board_id: id, frames: null, film_start_frame: null, state: "untimed", reason: "voice.absent" };
+      const code = voice ? "voice.stale" : "voice.absent";
+      build_blockers.push({ board_id: id, code });
+      return { board_id: id, frames: null, film_start_frame: null, state: "untimed", reason: code };
     }
     const frames = Math.ceil(content * fps / 1000);
     const film_start_frame = start;

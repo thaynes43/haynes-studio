@@ -53,12 +53,13 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
         expect(stageBox.width).toBe(368);
         expect(timelineBox.x).toBe(16);
         expect(await strip(page).evaluate((list) => list.scrollWidth > list.clientWidth)).toBe(true);
-        await expect(inspector).toBeHidden();
+        const box = (await inspector.boundingBox())!;
+        expect(box.y).toBeGreaterThanOrEqual(timelineBox.y + timelineBox.height);
       } else {
         const box = (await inspector.boundingBox())!;
         expect(box.y).toBe(stageBox.y);
         expect(box.x).toBeGreaterThanOrEqual(stageBox.x + stageBox.width);
-        await expect(inspector).toBeEmpty();
+        await expect(inspector.getByRole("heading", { name: "Board inspector" })).toBeVisible();
       }
 
       await page.getByRole("button", { name: "Add board" }).click();
