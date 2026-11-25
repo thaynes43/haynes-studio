@@ -178,6 +178,10 @@ are in `proposals.matting` in the [packaged JSON register](../../src/haynes_stud
 The [profile proposal](matting-backend-profile.md) gives the evidence for
 the alternatives and the install smoke.
 
+For these model files, `weights_commercial_use` records use of the graph.
+`licence.commercial_use` and `outputs_commercial_use` record terms for
+what it makes, consistent with the engine table above.
+
 | Proposed profile | File | Licence evidence | Output terms |
 |---|---|---|---|
 | BiRefNet Lite FP32 (primary) | `onnx/model.onnx` | The ONNX export and original Lite checkpoint cards say `license: mit`. The upstream MIT text requires retaining its notice with substantial copies. [Export card](https://huggingface.co/onnx-community/BiRefNet_lite-ONNX/blob/de15b22ba131738a16dff04aab8bdf8dc32e3ac1/README.md) · [Upstream card](https://huggingface.co/ZhengPeng7/BiRefNet_lite/blob/aa62cd87eafb9cc43056d08ef3615a14628b831d/README.md) · [MIT text](https://github.com/ZhengPeng7/BiRefNet/blob/f7079632d681ecf12161fcea8905682934e59e51/LICENSE) | Unknown |

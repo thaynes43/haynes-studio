@@ -140,15 +140,25 @@ after closing both files. A repeated dispatch uses a fresh attempt directory.
 
 The backend resizes the continuous matte to source dimensions
 with bilinear interpolation. Convert to an 8-bit mask with
-`floor(clamp(alpha, 0, 1) * 255 + 0.5)`. Zero RGB at alpha zero, and keep source
-RGB where `alpha8 >= 243`. If `chroma_rgb` is specified, unmix only pixels
-where `21 <= alpha8 <= 242` and within 4 source pixels of the alpha-128 contour
-(using Euclidean distance to the nearest pixel of the other class). In linear
-sRGB calculate `F = clamp((C - (1-a) * B) / a, 0, 1)` with `a = alpha8/255`,
-then convert to sRGB bytes. Here `C` is the source RGB and `B` the supplied
-backing colour. With null backing colour keep source RGB at nonzero alpha so
-the preview can expose any fringe. Use straight alpha and no copied metadata.
-Neither model estimates foreground colour.
+`floor(clamp(alpha, 0, 1) * 255 + 0.5)`. For zero alpha use zero RGB. For
+nonzero alpha with null `chroma_rgb`, keep source RGB so the preview can show
+any fringe. With a known `chroma_rgb`, use these rules in order.
+
+1. Keep source RGB for `alpha8 >= 243` and for foreground interior pixels
+   with `alpha8 >= 128` more than 4 px from the nearest pixel below 128.
+2. For remaining pixels with `1 <= alpha8 <= 20` and an sRGB byte distance
+   of at most 3 from the backing colour, set alpha and RGB to zero. This
+   removes faint predictions where the source and backing nearly coincide.
+3. Unmix all remaining fractional pixels, including isolated fringe outside
+   the alpha-128 contour. In linear sRGB compute
+   `F = clamp((C - (1-a) * B) / a, 0, 1)` with
+   `a = max(alpha8, 21)/255`. Here `C` is the source RGB and `B` is the
+   backing colour. The lower bound stabilizes RGB when alpha is small.
+   Convert back to sRGB bytes and keep the original `alpha8`.
+   Both distances above are Euclidean.
+
+Use straight alpha and no copied metadata. Neither model estimates
+foreground colour. Compute the output mask and shape from the final alpha.
 
 Return a `studio.matte-result/v1` receipt with `schema`, `job_id`,
 `input_signature`, `source`, `profile_id`, `profile_sha256`, `parameters`
@@ -194,9 +204,14 @@ blob and the original opaque candidate. Promotion remains explicit.
 Read-only check on 2026-11-25 used `kubectl -n ai get deploy studio-render`
 with the resource and node columns, and `kubectl -n ai exec deploy/studio-render -c app -- df -Pk /studio`,
 `df -Pi /studio` and `stat -f -c '%S %a %c %d' /studio`. The worker on
-talosw01 has a 20-vCPU and 32-GiB container limit. The Studio share reported
+talosw01 has a 20-vCPU and 32-GiB container limit. D18's original 24-vCPU
+render-worker limit differs from this read-back. The later CR-22 rollout
+allocated 20 to offline render and 4 to the queue worker, for 24 total.
+The Studio share reported
 **110,828,267,241,472 free bytes (100.80 TiB)**. Free inodes were unreported
 (`df` dash, `stat` -1). The existing `/studio/jobs` directory was present.
+[D18](../proposals/0003-studio-plan.md#decisions-so-far) ·
+[CR-22 rollout, comment 9872](https://work.haynesnetwork.com/work_packages/956)
 
 - Use the selected immutable download URL above. The primary leaves
   110,828,043,236,384 free bytes before metadata at the measured headroom.
@@ -238,9 +253,12 @@ talosw01 has a 20-vCPU and 32-GiB container limit. The Studio share reported
   worker hold the API credential and store access. The backend uses UID/GID
   10001, read-only root, no GPU, ingress, network fetching or service account
   token mount, dropped capabilities and RuntimeDefault seccomp. Give the
-  backend two vCPUs maximum inside the **20-vCPU total** Studio budget. For
-  the smoke, use a window without an overlapping heavy render. For sustained
-  use, budget 18 vCPUs for render while the two-vCPU backend can be active.
+  backend two vCPUs maximum from the **20-vCPU offline allocation**. For
+  the smoke, use a window without an overlapping heavy render. For concurrent
+  sustained use, limit offline render to 18 vCPUs with at most `--workers 16`,
+  leaving two vCPUs for matting. The separate four-vCPU queue allocation
+  remains available to its existing worker. Serialize heavy renders with
+  matting until the concurrent limits are in effect.
 - Startup verifies graph and profile hashes and creates the CPU session.
   Readiness identifies the expected profile and provider. Keep readiness
   false on a pin or session mismatch. Bound a stuck inference at the process
@@ -277,7 +295,12 @@ profile's memory limit. Record measurements even on a refusal or failure.
    Pass that backing colour and no protect box. For each eroded iris
    interior require ≥95% of pixels at alpha ≥243 and zero RGB change
    at those retained pixels. Require at least 99% of the true remote
-   background (≥8 px outside the true silhouette) at alpha ≤8.
+   background (≥8 px outside the true silhouette) at alpha ≤8. In the
+   fake-matte test, inject alpha 12 on exact backing and require RGBA
+   zero. Inject alpha 64 on a partially covered pixel 8 px outside
+   the core, built by blending a `[128,128,128]` strand with the backing
+   in linear sRGB. Require preserved alpha and recovered strand RGB
+   within 3 byte values per channel.
 3. **Size match.** Render the same foreground twice, at 1× and 0.75× centred
    on identical 384 × 512 canvases. Give both the first true bbox height as
    the target. Require measured alpha-128 bbox bounds within 3 px each of

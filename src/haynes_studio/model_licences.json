@@ -1305,7 +1305,7 @@
               "harness": "Codex",
               "model": "gpt-6.2-sol"
             },
-            "note": "The export and upstream checkpoint carry MIT tags. Keep the MIT notice with substantial copies. Separate output-use and output attribution terms are unspecified."
+            "note": "The MIT tags allow use of the weights with notice retention for substantial copies. This licence object describes outputs. Separate output-use and output attribution terms are unknown."
           }
         },
         {
@@ -1334,7 +1334,7 @@
               "harness": "Codex",
               "model": "gpt-6.2-sol"
             },
-            "note": "Open weights are non-commercial. Commercial model use requires a separate BRIA agreement. The linked agreement returned 404, so the exact Creative Commons variant, separate output-use terms and attribution are unknown."
+            "note": "Weight use under the public offer is non-commercial. Commercial model use requires a separate BRIA agreement. This licence object describes outputs. The linked agreement returned 404, so the exact Creative Commons variant, separate output-use terms and attribution are unknown."
           }
         }
       ],
@@ -1377,7 +1377,7 @@
               "harness": "Codex",
               "model": "gpt-6.2-sol"
             },
-            "note": "The export and upstream checkpoint carry MIT tags. Keep the MIT notice with substantial copies. Separate output-use and output attribution terms are unspecified."
+            "note": "The MIT tags allow use of the weights with notice retention for substantial copies. This licence object describes outputs. Separate output-use and output attribution terms are unknown."
           }
         },
         {
@@ -1414,7 +1414,7 @@
               "harness": "Codex",
               "model": "gpt-6.2-sol"
             },
-            "note": "Open weights are non-commercial. Commercial model use requires a separate BRIA agreement. The linked agreement returned 404, so the exact Creative Commons variant, separate output-use terms and attribution are unknown."
+            "note": "Weight use under the public offer is non-commercial. Commercial model use requires a separate BRIA agreement. This licence object describes outputs. The linked agreement returned 404, so the exact Creative Commons variant, separate output-use terms and attribution are unknown."
           }
         }
       ]
