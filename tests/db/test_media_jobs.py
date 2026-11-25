@@ -644,6 +644,17 @@ def test_worker_lane_refusals_leave_queue_rows_unchanged(queue, studio):
         refuse("claim", lane)
     refuse("claim", None, content=b"{")  # An unbound ID is refused before body parsing.
 
+    attempt = f"attempts/{'a' * 32}"
+    for action in ("heartbeat", "publish", "complete", "fail", "attempts", attempt):
+        for payload in ({"json": {"run_id": run_id, "fence": "invalid"}}, {"content": b"{"}):
+            refuse(action, "voice", **payload)
+            refuse(action, "image", **payload)
+            refuse(action, "run", 422, "schema.invalid", **payload)
+        if action in {"heartbeat", "publish", "complete", "fail"}:
+            payload = {"job_id": job_ids["image"], "fence": "invalid"}
+            refuse(action, "run", json=payload)
+            refuse(action, "image", 422, "schema.invalid", json=payload)
+
     run_claim = success(api.post(f"{path}/claim", headers=headers["run"]))
     assert run_claim["run"]["id"] == run_id
     media_claims = {
@@ -654,18 +665,28 @@ def test_worker_lane_refusals_leave_queue_rows_unchanged(queue, studio):
     run_fence = {"run_id": run_id, "fence": run_claim["fence"]}
     success(api.post(f"{path}/heartbeat", headers=headers["run"], json=run_fence))
 
+    wan = request_for(q)
+    for action, (code, payload) in {
+        "complete": ("work.check_failed", {"stages": [], "outputs": {}, "checks": [{"result": "fail"}],
+                                           "provenance": {}, "delivery_id": "fixture"}),
+        "fail": ("work.wait_reason", {"status": "queued", "reason": "Fixture failure"}),
+        "attempts": ("wan.profile", {"proposal": {"kind": wan.kind, **product_request(wan), "profile": "fixture"}}),
+        attempt: ("wan.result", {"state": "succeeded"}),
+    }.items():
+        refuse(action, "voice", json={**run_fence, **payload})
+        refuse(action, "run", 422, code, json={**run_fence, **payload})
+
     # Model a pre-migration claim owned by the wrong lane, with a valid fence.
     with q.owner.begin() as conn:
         voice_worker = conn.scalar(sa.select(media_jobs.c.worker_id).where(media_jobs.c.id == job_ids["voice"]))
         conn.execute(runs.update().where(runs.c.id == run_id).values(worker_id=voice_worker))
         conn.execute(media_jobs.update().where(media_jobs.c.id == job_ids["image"]).values(worker_id=voice_worker))
 
-    wan = request_for(q)
     for action, payload in {
         "heartbeat": {},
         "resume": {},
         "attempts": {"proposal": {"kind": wan.kind, **product_request(wan)}},
-        f"attempts/{'a' * 32}": {"state": "sent"},
+        attempt: {"state": "sent"},
         "publish": {},
         "complete": {"stages": [], "outputs": {}, "checks": [], "provenance": {}, "delivery_id": "fixture"},
         "fail": {"status": "failed", "reason": "Fixture failure"},

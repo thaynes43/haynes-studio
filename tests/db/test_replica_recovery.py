@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 from haynes_studio.adapters.fakes import FakeComfyUI, FakeKokoro
 from haynes_studio.api.app import create_app
-from haynes_studio.api.auth import CSRF_HEADER, SESSION_COOKIE
+from haynes_studio.api.auth import CSRF_HEADER, LOGIN_COOKIE, SESSION_COOKIE
 from haynes_studio.api.oidc import OIDC
 from haynes_studio.canonical import to_document
 from haynes_studio.canonical.ids import Minter
@@ -155,10 +155,43 @@ def test_two_replicas_share_one_queue_and_restart_recovers_the_expired_claim(que
         assert takeover.heartbeat()["cancel_requested"] is False
         takeover.resume()
         takeover.fail(status="failed", reason="Fixture finished")
+        image_worker_headers = worker_credentials(q.owner, lane="image")
         next_run, next_image = concurrent_claims((app_c, identity_b, None),
-                                                (surviving_browser.app, identity_a, {"lane": "image"}))
+                                                (surviving_browser.app, image_worker_headers, {"lane": "image"}))
         assert success(next_run)["run"]["id"] == second["id"]
         assert success(next_image)["job"]["id"] == image["id"]
+
+
+def test_restarted_worker_cannot_use_its_old_fence_after_reclaim(queue, replicas):
+    q = queue
+    run_id = success(queue_run(q, "reclaim"), 201)["id"]
+    headers = worker_credentials(q.owner)
+    path = "/internal/v1/work"
+    with client(q.app) as original:
+        old = success(original.post(f"{path}/claim", headers=headers))
+    assert old["run"]["id"] == run_id
+
+    _, restarted = replicas()
+    with restarted:
+        assert restarted.post(f"{path}/claim", headers=headers).status_code == 204
+        q.clock.now = datetime.fromisoformat(old["claim_until"])
+        new = success(restarted.post(f"{path}/claim", headers=headers))
+        assert new["run"]["id"] == run_id
+        assert new["actor"]["worker_id"] == old["actor"]["worker_id"]
+        assert new["fence"] == old["fence"] + 1
+        current = {"run_id": run_id, "fence": new["fence"]}
+        assert success(restarted.post(f"{path}/resume", headers=headers, json=current))["status"] == "running"
+
+        stale = {"run_id": run_id, "fence": old["fence"]}
+        for route, payload in (
+            ("heartbeat", {}),
+            ("publish", {}),
+            ("complete", {"stages": [], "outputs": {}, "checks": [], "provenance": {}, "delivery_id": "unused"}),
+            ("fail", {"status": "failed", "reason": "Superseded claim"}),
+        ):
+            assert_error(restarted.post(f"{path}/{route}", headers=headers, json={**stale, **payload}),
+                         409, "work.fence_lost")
+        assert success(restarted.post(f"{path}/heartbeat", headers=headers, json=current))["cancel_requested"] is False
 
 
 def test_slow_wan_poll_allows_reads_and_other_lane_claims(queue, replicas, tmp_path):
@@ -172,6 +205,7 @@ def test_slow_wan_poll_allows_reads_and_other_lane_claims(queue, replicas, tmp_p
     standby, browser = replicas()
     as_person(browser, q)
     other = worker_api(q, app=standby)
+    image_worker_api = worker_api(q, app=standby, lane="image")
     clip = write_master(tmp_path / "wan.mp4", frames=5, width=64, height=64, audio_codec=None)
     fake = FakeWan(clip.read_bytes())
     fake.poll_misses = 1
@@ -182,7 +216,7 @@ def test_slow_wan_poll_allows_reads_and_other_lane_claims(queue, replicas, tmp_p
         # the other replica handles the foreground requests.
         assert other.claim() is None
         assert success(browser.get(f"/v1/runs/{tail}"))["status"] == "queued"
-        assert other.claim("image").identity["job_id"] == photo["id"]
+        assert image_worker_api.claim("image").identity["job_id"] == photo["id"]
         checked.append(job_id)
         fake.before_get = None
 
@@ -346,7 +380,7 @@ def approval_fixture(q):
                                             production=q.production_id))
 
 
-def test_oidc_callback_on_other_replica_enforces_state_nonce_replay_and_freshness(queue, replicas):
+def test_oidc_callback_on_other_replica_enforces_single_use_state_nonce_and_freshness(queue, replicas):
     q = queue
     settings = {"go_live_approver_subjects": frozenset({"one"}), "go_live_freshness_seconds": 90}
     _, login = replicas(**settings)
@@ -358,8 +392,9 @@ def test_oidc_callback_on_other_replica_enforces_state_nonce_replay_and_freshnes
         callback.cookies.update(login.cookies)
         return query
 
-    def finish(query, code, *, state=None):
-        return callback.get("/auth/callback", params={"code": code, "state": state or query["state"][0]})
+    def finish(query, code, *, state=None, headers=None):
+        return callback.get("/auth/callback", params={"code": code, "state": state or query["state"][0]},
+                            headers=headers)
 
     query = begin()
     assert_auth_redirect(finish(query, q.issuer.authorize(query, "one"), state="incorrect"), "auth.oidc_state")
@@ -368,6 +403,7 @@ def test_oidc_callback_on_other_replica_enforces_state_nonce_replay_and_freshnes
 
     q.clock.now = datetime.now(UTC)
     query = begin(return_to="/editor")
+    login_cookie = callback.cookies[LOGIN_COOKIE]
     stale_time = int(q.clock.now.timestamp()) - 91
     code = q.issuer.authorize(query, "one", auth_time=stale_time)
     response = finish(query, code)
@@ -378,8 +414,14 @@ def test_oidc_callback_on_other_replica_enforces_state_nonce_replay_and_freshnes
     assert_error(callback.post(approval.path, headers=csrf, json=approval.body),
                  403, "approval.sign_in_again")
 
-    # A new valid state reaches the provider with the used code and is refused.
+    # Replaying the consumed state and login cookie stops before the provider exchange.
+    exchanges = q.issuer.exchanges
+    assert_auth_redirect(finish(query, q.issuer.authorize(query, "one"),
+                                headers={"Cookie": f"{LOGIN_COOKIE}={login_cookie}"}), "auth.oidc_state")
+    assert q.issuer.exchanges == exchanges
+    # A fresh state lets the fake provider receive and reject its already-used code.
     assert_auth_redirect(finish(begin(), code), "auth.oidc_invalid")
+    assert q.issuer.exchanges == exchanges + 1
     assert success(callback.get("/v1/me"))["principal"] == me["principal"]
     with q.owner.begin() as conn:
         conn.execute(sessions.update().where(
