@@ -1,4 +1,4 @@
-"""Measured offline install smoke, including paired load strategies."""
+"""Bounded serving smoke and optional offline load-strategy measurements."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from .fixtures import fixtures, visible_fraction
 from .inference import box_iou
 from .memory import cgroup_bytes
 from .pixels import describe_mask, mask_iou, tight_box
-from .profile import PROFILE_ID, RESOURCES, Profile, SegmentationError, digest
+from .profile import RESOURCES, SERVING_PROFILE_ID, WEIGHT_LOAD, Profile, SegmentationError, digest
 from .service import listening, local_call
 
 
@@ -66,9 +66,37 @@ def _verdict(name, fixture, status, result, mask) -> tuple[bool, dict]:
     return metrics["mask_iou"] >= 0.90 and metrics["box_iou"] >= 0.85, metrics
 
 
-def _smoke_run(scratch, weights, profile, strategy, inputs, report):
+def _phase_memory(memory, expected_requests, limit):
+    startup = memory["startup"]
+    requests = memory.get("requests", [])
+    return (
+        limit is not None
+        and startup.keys() == {"verify_profile_and_files", "runtime_import", "load_dino", "load_sam"}
+        and [set(request) for request in requests] == expected_requests
+        and all(
+            facts["phase_rss_peak_reset"] and all(
+                type(facts.get(key)) is int and 0 < facts[key] <= limit
+                for key in ("peak_rss_bytes", "resident_rss_bytes", "cgroup_resident_bytes",
+                            "cgroup_peak_since_start_bytes")
+            )
+            for phases in [startup, *requests] for facts in phases.values()
+        )
+    )
+
+
+def _request_phases(fixture, result):
+    phases = {"source_validation"}
+    if not fixture.hint:
+        phases.add("grounding")
+    if result["status"] == "ready":
+        phases.update(("sam", "mask_publication"))
+    return phases
+
+
+def _smoke_run(scratch, weights, profile, strategy, inputs, report, *, repeat=False):
     results = {}
     masks = {}
+    request_phases = []
     report.update({"weight_load": strategy, "memory": {}, "verdicts": {}, "cases": {}})
     checks = report["verdicts"]
     pin = digest(profile.manifest())
@@ -77,14 +105,18 @@ def _smoke_run(scratch, weights, profile, strategy, inputs, report):
     with Engine(scratch, weights, profile, memory=report["memory"], load_strategy=strategy) as engine:
         report["cold_load_ms"] = round((monotonic() - cold_start) * 1000)
         with listening(socket, engine):
-            expected = {"profile_id": PROFILE_ID, "profile_sha256": pin, "device": "cpu"}
+            expected = {"profile_id": SERVING_PROFILE_ID, "profile_sha256": pin, "device": "cpu"}
             checks["ready_initial"] = local_call(socket, "GET", "/v1/ready") == (200, expected)
             if not checks["ready_initial"]:
                 return results
-            for name, fixture in inputs.items():
+            cases = list(inputs.items())
+            for index, (name, fixture) in enumerate(cases * (2 if repeat else 1)):
+                repeated = index >= len(cases)
+                case = f"{name}_repeat" if repeated else name
                 payload, status, result, png, mask, elapsed = _call(scratch, socket, name, fixture)
+                request_phases.append(_request_phases(fixture, result))
                 passes, metrics = _verdict(name, fixture, status, result, mask)
-                checks[name] = passes
+                checks[case] = passes
                 required_models = (["dino"] if not fixture.hint else []) + (
                     ["sam"] if result["status"] == "ready" else []
                 )
@@ -92,74 +124,82 @@ def _smoke_run(scratch, weights, profile, strategy, inputs, report):
                 applied = {key: parameters[key] for key in (
                     "prompt", "detector_resize_wh", "detector_canvas_wh", "sam_hint", "weight_load",
                 ) if key in parameters}
-                checks[f"{name}_provenance"] = (
+                checks[f"{case}_provenance"] = (
                     result["provenance"] == profile.provenance(required_models, applied)
                     and applied.get("weight_load") == strategy and result["provenance"]["profile"]["sha256"] == pin
                 )
-                report["cases"][name] = {
+                receipt = canonical_json(result)
+                report["cases"][case] = {
                     "status": result["status"], "reason": result["reason"], "elapsed_ms": elapsed, **metrics,
-                    "result_sha256": digest(canonical_json(result)), "mask_sha256": digest(png) if png else None,
+                    "result_sha256": digest(receipt), "mask_sha256": digest(png) if png else None,
                 }
-                if "weight_load" in parameters:
+                if not repeat and "weight_load" in parameters:
                     # The two receipts differ in the recorded experimental load
                     # strategy. Compare every other byte along with the mask PNG.
                     del parameters["weight_load"]
-                results[name] = canonical_json(result), png
+                    receipt = canonical_json(result)
+                results[case] = receipt, png
+                if repeated:
+                    checks[f"{case}_byte_parity"] = results[case] == results[name]
                 if mask is not None:
                     masks[name] = mask
                 if result["status"] == "failed":
                     return results
-                if name == "foreground" and strategy == "mmap" and passes:
+                if name == "foreground" and not repeated and strategy == WEIGHT_LOAD and passes:
                     old = scratch / payload["attempt_id"]
                     before = (old / "result.json").read_bytes(), (old / "mask.png").read_bytes()
                     replay_status, _ = local_call(socket, "POST", "/v1/segment", payload)
-                    _, fresh_status, fresh_result, fresh_png, _, _ = _call(scratch, socket, name, fixture)
                     checks["create_only_replay"] = (
-                        replay_status == 400 and fresh_status == 200
+                        replay_status == 400
                         and before == ((old / "result.json").read_bytes(), (old / "mask.png").read_bytes())
-                        and before == (canonical_json(fresh_result), fresh_png)
                     )
-            if {"foreground", "visible_face", "hidden_prop"} <= masks.keys():
-                visible = visible_fraction(masks["visible_face"], masks["foreground"])
-                hidden = visible_fraction(masks["hidden_prop"], masks["foreground"])
-                report["visible_fractions"] = {"face": visible, "prop": hidden}
-                checks["visibility"] = visible >= 0.95 and hidden <= 0.05
-                checks["hidden_prop_fails_fixture_gate"] = hidden <= 0.50
-            else:
-                checks["visibility"] = False
+                    if not repeat:
+                        _, fresh_status, fresh_result, fresh_png, _, _ = _call(scratch, socket, name, fixture)
+                        request_phases.append(_request_phases(fixture, fresh_result))
+                        checks["create_only_replay"] &= (
+                            fresh_status == 200 and before == (canonical_json(fresh_result), fresh_png)
+                        )
+                if (index + 1) % len(cases) == 0:
+                    suffix = "_repeat" if repeated else ""
+                    checks[f"visibility{suffix}"] = False
+                    if {"foreground", "visible_face", "hidden_prop"} <= masks.keys():
+                        visible = visible_fraction(masks["visible_face"], masks["foreground"])
+                        hidden = visible_fraction(masks["hidden_prop"], masks["foreground"])
+                        report[f"visible_fractions{suffix}"] = {"face": visible, "prop": hidden}
+                        checks[f"visibility{suffix}"] = visible >= 0.95 and hidden <= 0.05
+                        checks[f"hidden_prop_fails_fixture_gate{suffix}"] = hidden <= 0.50
+                    masks.clear()
+                    if not checks[f"visibility{suffix}"]:
+                        break
             checks["ready_after"] = local_call(socket, "GET", "/v1/ready") == (200, expected)
-    startup = report["memory"]["startup"]
-    requests = report["memory"].get("requests", [])
-    expected_startup = {"verify_profile_and_files", "runtime_import", "load_dino", "load_sam"}
-    required_facts = {"peak_rss_bytes", "resident_rss_bytes", "cgroup_resident_bytes"}
-    checks["phase_memory"] = (
-        expected_startup <= startup.keys() and len(requests) >= len(inputs)
-        and all({"source_validation"} <= phase.keys() for phase in requests)
-        and all(all(facts.get(key) is not None for key in required_facts)
-                and facts["phase_rss_peak_reset"]
-                for phases in [startup, *requests] for facts in phases.values())
-    )
+    checks["phase_memory"] = _phase_memory(report["memory"], request_phases, cgroup_bytes("max"))
     return results
 
 
-def smoke(scratch: Path, weights: Path, strategies: tuple[str, ...]) -> dict:
+def smoke(scratch: Path, weights: Path, strategies: tuple[str, ...] = ()) -> dict:
+    serving = not strategies
+    strategies = strategies or (WEIGHT_LOAD,)
     report = {"schema": "studio.segmentation-smoke/v1", "runs": [], "verdicts": {}, "passed": False}
     checks = report["verdicts"]
     try:
         profile = Profile.installed()
         report.update({
-            "profile_sha256": digest(profile.manifest()), "image_digest": profile.image_digest,
+            "profile_id": SERVING_PROFILE_ID, "profile_sha256": digest(profile.manifest()),
+            "image_digest": profile.image_digest, "mode": "serving" if serving else "measurement",
             "models": profile.model_files(), "runtime": profile.runtime(),
         })
         checks["workload"] = (os.geteuid() == os.getegid() == 10001
                               and bool(os.statvfs("/").f_flag & os.ST_RDONLY)
                               and bool(os.statvfs(weights).f_flag & os.ST_RDONLY))
         inputs = fixtures()
+        expected_cases = set(inputs)
+        if serving:
+            expected_cases.update(f"{name}_repeat" for name in inputs)
         baseline = None
         for strategy in strategies:
             run = {}
             report["runs"].append(run)
-            results = _smoke_run(scratch, weights, profile, strategy, inputs, run)
+            results = _smoke_run(scratch, weights, profile, strategy, inputs, run, repeat=serving)
             if baseline is None:
                 baseline = results
             else:
@@ -167,8 +207,7 @@ def smoke(scratch: Path, weights: Path, strategies: tuple[str, ...]) -> dict:
             if (run["verdicts"].get("visibility") is False
                     or any(case["status"] == "failed" for case in run["cases"].values())):
                 break
-        serving = RESOURCES["serving"] if len(strategies) == 1 else None
-        allowance = (serving or RESOURCES["measurement"])["limit_gib"] * 1024**3
+        allowance = RESOURCES["serving" if serving else "measurement"]["limit_gib"] * 1024**3
         peak = cgroup_bytes("peak")
         limit = cgroup_bytes("max")
         checks["cgroup_allowance"] = (
@@ -177,7 +216,7 @@ def smoke(scratch: Path, weights: Path, strategies: tuple[str, ...]) -> dict:
         )
         checks["all_strategies"] = len(report["runs"]) == len(strategies)
         checks["fixtures"] = all(
-            run["cases"].keys() == inputs.keys() and run["verdicts"] and all(run["verdicts"].values())
+            run["cases"].keys() == expected_cases and run["verdicts"] and all(run["verdicts"].values())
             for run in report["runs"]
         )
         report["passed"] = all(checks.values())

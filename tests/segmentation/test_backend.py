@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import multiprocessing
 import os
+import subprocess
+import sys
 import threading
 from contextlib import nullcontext
 from dataclasses import replace
@@ -11,6 +13,7 @@ from functools import partial
 from importlib.resources import files
 from io import BytesIO
 from json import loads
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -18,14 +21,17 @@ import pytest
 from PIL import Image
 
 from haynes_studio.schemas import validator_for
-from haynes_studio.segmentation import backend, smoke
+from haynes_studio.segmentation import __main__ as cli
+from haynes_studio.segmentation import backend, memory, smoke
 from haynes_studio.segmentation.backend import Engine
 from haynes_studio.segmentation.fixtures import Fixture, fixtures, visible_fraction
 from haynes_studio.segmentation.inference import (
     Candidate, Grounding, Observation, observe, select_boxes, validate_request,
 )
 from haynes_studio.segmentation.pixels import decode_source, describe_mask, encode_mask, tight_box
-from haynes_studio.segmentation.profile import FALLBACK_ID, PROFILE_ID, Profile, SegmentationError, digest
+from haynes_studio.segmentation.profile import (
+    FALLBACK_ID, SERVING_PROFILE_ID, Profile, SegmentationError, digest,
+)
 from haynes_studio.segmentation.service import _UnixConnection, listening, local_call
 from haynes_studio.segmentation.smoke import stage
 from haynes_studio.store import canonical_json
@@ -386,7 +392,7 @@ def test_socket_create_only(tmp_path, pins, example):
     with Engine(scratch, weights, profile, factory=_factory) as engine, listening(socket_path, engine):
         assert socket_path.stat().st_mode & 0o777 == 0o660
         assert local_call(socket_path, "GET", "/v1/ready") == (200, {
-            "profile_id": PROFILE_ID, "profile_sha256": digest(profile.manifest()), "device": "cpu",
+            "profile_id": SERVING_PROFILE_ID, "profile_sha256": digest(profile.manifest()), "device": "cpu",
         })
         status, reply = local_call(socket_path, "POST", "/v1/segment", payload)
         assert status == 200 and reply["result"]["status"] == "ready"
@@ -504,7 +510,7 @@ def test_smoke_stops_after_unexpected_visibility(tmp_path, pins, monkeypatch):
     profile, weights = pins
     observed = []
 
-    def failed_visibility(scratch, weights, profile, strategy, inputs, report):
+    def failed_visibility(scratch, weights, profile, strategy, inputs, report, *, repeat):
         observed.append(strategy)
         report["cases"] = {"foreground": {"status": "ready"}}
         report["verdicts"] = {"visibility": False}
@@ -521,8 +527,10 @@ def test_smoke_stops_after_unexpected_visibility(tmp_path, pins, monkeypatch):
 def smoke_workload(pins, monkeypatch):
     profile, weights = pins
 
-    def run(scratch, weights, profile, strategy, inputs, report):
+    def run(scratch, weights, profile, strategy, inputs, report, *, repeat):
         report["cases"] = {"foreground": {"status": "ready"}}
+        if repeat:
+            report["cases"]["foreground_repeat"] = {"status": "ready"}
         report["verdicts"] = {"visibility": True}
         return {"foreground": (b"result", b"mask")}
 
@@ -539,8 +547,8 @@ def smoke_workload(pins, monkeypatch):
 def test_smoke_fails_when_buffered_output_changes_one_byte(tmp_path, smoke_workload, monkeypatch):
     run = smoke._smoke_run
 
-    def changed_bytes(scratch, weights, profile, strategy, inputs, report):
-        results = run(scratch, weights, profile, strategy, inputs, report)
+    def changed_bytes(scratch, weights, profile, strategy, inputs, report, *, repeat):
+        results = run(scratch, weights, profile, strategy, inputs, report, repeat=repeat)
         if strategy == "buffered":
             results["foreground"] = (b"result", b"masK")
         return results
@@ -567,18 +575,88 @@ def test_smoke_rejects_writable_weights(tmp_path, smoke_workload, monkeypatch):
 @pytest.mark.parametrize(("strategies", "limit_gib", "passed"), [
     (("mmap", "buffered"), 15, False),
     (("mmap", "buffered"), 20, True),
-    (("mmap",), 10, True),
-    (("mmap",), 11, False),
+    (("buffered",), 16, True),
+    (("mmap",), 5, False),
+    ((), 5, True),
+    ((), 6, False),
 ])
 def test_smoke_memory_allowance(tmp_path, smoke_workload, monkeypatch, strategies, limit_gib, passed):
-    monkeypatch.setattr(smoke, "RESOURCES", {
-        "measurement": {"limit_gib": 16}, "serving": {"limit_gib": 10},
-    })
     limit = limit_gib * 1024**3
-    monkeypatch.setattr(smoke, "cgroup_bytes", {"max": limit, "peak": 8 * 1024**3}.get)
+    monkeypatch.setattr(smoke, "cgroup_bytes", {"max": limit, "peak": 4 * 1024**3}.get)
     report = smoke.smoke(tmp_path, smoke_workload, strategies)
     assert report["cgroup_limit_bytes"] == limit
     assert report["verdicts"]["cgroup_allowance"] is passed and report["passed"] is passed
+
+
+class SmokeProfile(TinyProfile):
+    def verify(self, root):
+        memory.cgroup_bytes = lambda _: 512 * 1024**2
+        return super().verify(root)
+
+
+def _smoke_mask(image):
+    red, green, _ = np.moveaxis(np.asarray(image, dtype=np.int16), -1, 0)
+    return (red > green) | (green > red + 16)
+
+
+def _smoke_factory(weights, phase, strategy):
+    # Keep a tracked resource alive until the worker exits, as a library can.
+    semaphore = multiprocessing.get_context("spawn").Semaphore()
+    for name in ("runtime_import", "load_dino", "load_sam"):
+        with phase(name):
+            pass
+
+    def detect(image, prompt):
+        with semaphore:
+            box = tight_box(_smoke_mask(image))
+        candidates = [_box(box, phrase="orange ball")] if box else []
+        return Grounding(candidates, image.size, image.size)
+
+    def segment(image, hint):
+        return np.where(_smoke_mask(image)[None, :, :], 1, -1).astype(np.float32), [0.9]
+
+    return detect, segment
+
+
+def _run_offline_smoke():
+    scratch, weights, *args = sys.argv[1:]
+    cli.SCRATCH, cli.WEIGHTS = Path(scratch), Path(weights)
+    profile = SmokeProfile("sha256:" + "c" * 64, "d" * 40, "e" * 64, (("synthetic", "1"),))
+    Profile.installed = staticmethod(lambda: profile)
+    smoke.Engine = partial(Engine, factory=_smoke_factory)
+    smoke.os.geteuid = smoke.os.getegid = lambda: 10001
+    smoke.os.statvfs = lambda _: SimpleNamespace(f_flag=os.ST_RDONLY)
+    smoke.cgroup_bytes = {"max": (16 if args else 5) * 1024**3, "peak": 1024**3}.get
+    sys.argv = ["studio-segmentation", "smoke", *args]
+    return cli.main()
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Smoke memory phases use Linux /proc")
+@pytest.mark.parametrize("args", [(), ("--compare-load-strategy", "buffered")])
+def test_smoke_report_is_last(tmp_path, pins, args):
+    profile, weights = pins
+    completed = subprocess.run(
+        [sys.executable, "-c", "from tests.segmentation.test_backend import _run_offline_smoke; "
+         "raise SystemExit(_run_offline_smoke())", str(tmp_path), str(weights), *args],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30,
+    )
+    assert completed.returncode == 0, completed.stdout
+    last_line = completed.stdout.splitlines()[-1]
+    assert last_line.startswith("{"), completed.stdout
+    report = loads(last_line)
+    assert report["passed"] and report["profile_id"] == SERVING_PROFILE_ID
+    assert report["profile_sha256"] == digest(profile.manifest())
+    assert loads(profile.manifest())["parameters"]["weight_load"] == "mmap"
+    if args:
+        assert report["mode"] == "measurement" and report["verdicts"]["byte_parity"]
+        assert [run["weight_load"] for run in report["runs"]] == ["mmap", "buffered"]
+    else:
+        assert report["mode"] == "serving" and report["cgroup_limit_bytes"] == 5 * 1024**3
+        run, = report["runs"]
+        assert run["weight_load"] == "mmap" and run["cold_load_ms"] > 0
+        assert run["verdicts"]["phase_memory"] and run["verdicts"]["create_only_replay"]
+        assert len(run["memory"]["requests"]) == 12
+        assert set(run["cases"]) == set(fixtures()) | {f"{name}_repeat" for name in fixtures()}
 
 
 def test_reference_examples():

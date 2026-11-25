@@ -9,13 +9,10 @@ from threading import Event
 
 from haynes_studio.store import canonical_json
 
-from .profile import PROFILE_ID, RESOURCES, SCRATCH, WEIGHTS, Profile, SegmentationError, digest
+from .profile import SCRATCH, SERVING_PROFILE_ID, WEIGHT_LOAD, WEIGHTS, Profile, SegmentationError, digest
 
 
 def _serve():
-    # Measurement builds cannot accidentally pass serving readiness.
-    if RESOURCES["serving"] is None:
-        raise SegmentationError("profile_unavailable")
     from .backend import Engine
     from .service import Server
 
@@ -39,9 +36,11 @@ def main() -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     for name in ("serve", "ready", "profile"):
         commands.add_parser(name)
-    measure = commands.add_parser("smoke")
-    measure.add_argument("--load-strategy", choices=("mmap", "buffered"), default="mmap")
-    measure.add_argument("--compare-load-strategy", choices=("mmap", "buffered"))
+    smoke_command = commands.add_parser("smoke")
+    smoke_command.add_argument("--load-strategy", choices=("mmap", "buffered"),
+                               help="measure an explicit load strategy instead of serving")
+    smoke_command.add_argument("--compare-load-strategy", choices=("mmap", "buffered"),
+                               help="measure this strategy in a second worker and compare outputs")
     args = parser.parse_args()
     try:
         if args.command == "serve":
@@ -50,20 +49,23 @@ def main() -> int:
             from .service import local_call
 
             status, report = local_call(SCRATCH / "segment.sock", "GET", "/v1/ready", timeout=2)
-            return int(status != 200 or report.get("profile_id") != PROFILE_ID or report.get("device") != "cpu")
+            return int(
+                status != 200 or report.get("profile_id") != SERVING_PROFILE_ID or report.get("device") != "cpu"
+            )
         elif args.command == "profile":
             manifest = Profile.installed().manifest()
             print(canonical_json({"manifest": manifest.decode(), "sha256": digest(manifest)}).decode())
         else:
             from .smoke import smoke
 
-            strategies = (args.load_strategy,)
+            strategies = (args.load_strategy or WEIGHT_LOAD,)
             if args.compare_load_strategy:
-                if args.compare_load_strategy == args.load_strategy:
-                    measure.error("compare-load-strategy must differ from load-strategy")
+                if args.compare_load_strategy == strategies[0]:
+                    smoke_command.error("compare-load-strategy must differ from load-strategy")
                 strategies += (args.compare_load_strategy,)
+            measuring = bool(args.load_strategy or args.compare_load_strategy)
             os.nice(10)
-            report = smoke(SCRATCH, WEIGHTS, strategies)
+            report = smoke(SCRATCH, WEIGHTS, strategies if measuring else ())
             print(canonical_json(report).decode(), flush=True)
             return int(not report["passed"])
     except (OSError, SegmentationError, ValueError) as error:

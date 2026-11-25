@@ -13,7 +13,7 @@ from PIL import Image
 from haynes_studio.segmentation.backend import Engine
 from haynes_studio.segmentation.fixtures import Fixture
 from haynes_studio.segmentation.pixels import describe_mask
-from haynes_studio.segmentation.profile import IMAGE, PROFILE_ID, RUNTIME_PINS, Profile, digest
+from haynes_studio.segmentation.profile import IMAGE, RUNTIME_PINS, SERVING_PROFILE_ID, Profile, digest
 from haynes_studio.segmentation.runtime import DINO, SAM, cpu_runtime
 from haynes_studio.segmentation.service import listening, local_call
 from haynes_studio.segmentation.smoke import stage
@@ -136,7 +136,7 @@ def main():
     socket_path = scratch / "segment.sock"
     with Engine(scratch, weights, profile, factory=factory) as engine, listening(socket_path, engine):
         assert local_call(socket_path, "GET", "/v1/ready") == (200, {
-            "profile_id": PROFILE_ID, "profile_sha256": pin, "device": "cpu",
+            "profile_id": SERVING_PROFILE_ID, "profile_sha256": pin, "device": "cpu",
         })
         for hint in (None, {"kind": "point", "xy": [24, 24]}, {"kind": "box", "xyxy": [16, 16, 48, 48]}):
             payload = stage(scratch, data, {**request, "hint": hint})
