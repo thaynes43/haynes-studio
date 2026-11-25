@@ -69,16 +69,19 @@ def _runs(text: str, size: int) -> Iterator[tuple[str, ...]]:
         yield tuple(words[offset:offset + size])
 
 
-def _json_values(value: object, *, check_key: Callable[[str], None]) -> Iterator[str]:
+def _json_strings(value: object, *, keys: bool, values: bool) -> Iterator[str]:
+    """Decoded keys and/or string values, in document order."""
     if isinstance(value, str):
-        yield value
+        if values:
+            yield value
     elif isinstance(value, dict):
         for key, item in value.items():
-            check_key(key)
-            yield from _json_values(item, check_key=check_key)
+            if keys:
+                yield key
+            yield from _json_strings(item, keys=keys, values=values)
     elif isinstance(value, list):
         for item in value:
-            yield from _json_values(item, check_key=check_key)
+            yield from _json_strings(item, keys=keys, values=values)
 
 
 def _valid_text(text: str, max_bytes: int) -> None:
@@ -148,13 +151,16 @@ class SceneStaging:
         for value in operation_fields.values():
             if value is not None:
                 _valid_text(value, 255)
+                self._require_safe(value)
         _valid_text(text, _MAX_ARCHIVE_BYTES)
         if title is not None:
             _valid_text(title, 80 * 4)
         prefix = f"{title}\n" if title is not None else ""
         self._require_safe(prefix + text)
-        # Check decoded keys in their own right. Keep the scan across consecutive
-        # string values so structural keys cannot break a run across text fields.
+        # Check three decoded streams, each joined in document order: string
+        # values alone (so structural keys cannot break a run across text
+        # fields), keys alone (a line spread over keys with filler values), and
+        # keys with values (a line spread from a key into its value).
         if text.lstrip().startswith(("{", "[", '"')):
             try:
                 document = parse_strict(text)
@@ -165,8 +171,8 @@ class SceneStaging:
                 document = None
             if too_deep(document):
                 raise refusal("subtitle.staging_text", "Staging JSON exceeds its nesting limit")
-            values = _json_values(document, check_key=self._require_safe)
-            self._require_safe(prefix + "\n".join(values))
+            for keys, values in ((False, True), (True, False), (True, True)):
+                self._require_safe(prefix + "\n".join(_json_strings(document, keys=keys, values=values)))
         scene = self._scene
         payload = {
             **operation_fields,

@@ -86,16 +86,23 @@ preparation. For the MCP operation, include the relevant `production_id` or
 with a transport that submits the supplied JSON bytes as the HTTP body or
 the MCP arguments object. The request holds immutable bytes and verifies
 their SHA-256 before calling the transport. Prepare a new request for any
-edit. Text sent to the archive by any other route is not checked by this
-guard. [Archive operations](staging-archive.md#operations)
+edit. That check stops a prepared request from being edited. It does not
+stop a caller who builds a request of their own: text sent to the archive by
+any other route is not checked by this guard.
+[Archive operations](staging-archive.md#operations)
 
 By default, five consecutive source words trigger `subtitle.verbatim`.
 `max_source_words` sets the number of permitted consecutive words (1–8).
 The comparison folds Unicode case, decomposes compatibility characters,
 removes combining marks and zero-width characters, and treats whitespace
 and blank-looking fillers as separators. It accounts for markup and
-punctuation, checks decoded JSON keys and string values, and checks across
-cue boundaries in both time and file order.
+punctuation, and checks across cue boundaries in both time and file order.
+For JSON it checks three decoded streams in document order: string values,
+keys, and keys with values, so a line spread over keys and values is caught.
+The operation fields (such as `idempotency_key`) pass through the same check.
+The guard counts words separated by spaces or punctuation. It does not
+detect copying in a script written without spaces, such as Chinese or
+Japanese, where a whole line counts as one word.
 
 Passing the guard is not a finding of originality. It can flag coincidental
 matches, and deliberate evasion can defeat it, for example by using a

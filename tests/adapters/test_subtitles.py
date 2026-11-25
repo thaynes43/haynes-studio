@@ -480,6 +480,12 @@ def test_summary_rejects_dialogue_in_the_conflict_and_across_beats(source, caplo
     r'{"text":"\u0054avren parks seven velvet kettles"}',
     pytest.param(r'{"cues":[{"\u0054avren parks seven velvet kettles":"A quiet prop enters."}]}',
                  id="escaped-key"),
+    pytest.param(r'{"\u0054avren parks":{"seven velvet \u006bettles":"beneath moons"}}',
+                 id="split-from-key-into-value"),
+    pytest.param(r'{"\u0054avren parks seven":1,"velvet \u006bettles beneath moons":2}',
+                 id="split-across-keys"),
+    pytest.param(r'{"\u0054avren parks seven":"A prop.","velvet \u006bettles beneath":"Another prop."}',
+                 id="split-across-keys-with-values-between"),
     pytest.param("Tavren\u3164parks\u3164seven\u3164velvet\u3164kettles", id="blank-filler"),
     pytest.param("Ta\u0301vren parks se\u0301ven velvet kettles", id="combining-marks"),
     pytest.param("Ta\u200bvren parks seven velvet kettles", id="zero-width"),
@@ -490,6 +496,16 @@ def test_archive_payload_refuses_normalized_dialogue_including_json_and_cue_join
         stage.archive_payload(text=repeated)
     with pytest.raises(AdapterError, match="subtitle.verbatim"):
         stage.archive_payload(text="A courier hoards hinges.", title=LINE)
+
+
+def test_archive_operation_fields_pass_through_the_guard(source):
+    stage = SceneStaging(read(source[1]))
+    with pytest.raises(AdapterError, match="subtitle.verbatim"):
+        stage.archive_payload(text="A courier hoards hinges.", revises_version_id="arv_" + "2" * 26,
+                              idempotency_key=LINE)
+    ordinary = stage.archive_payload(text="A courier hoards hinges.", revises_version_id="arv_" + "2" * 26,
+                                     idempotency_key="stage-0001")
+    assert archive_document(ordinary)["idempotency_key"] == "stage-0001"
 
 
 def test_guard_threshold_and_staging_size(source):
