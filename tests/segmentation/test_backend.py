@@ -4,13 +4,18 @@ from __future__ import annotations
 
 import multiprocessing
 import os
+import signal
+import subprocess
+import sys
 import threading
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from dataclasses import replace
 from functools import partial
 from importlib.resources import files
 from io import BytesIO
 from json import loads
+from pathlib import Path
+from time import monotonic, sleep
 from types import SimpleNamespace
 
 import numpy as np
@@ -18,14 +23,17 @@ import pytest
 from PIL import Image
 
 from haynes_studio.schemas import validator_for
-from haynes_studio.segmentation import backend, smoke
+from haynes_studio.segmentation import __main__ as cli
+from haynes_studio.segmentation import backend, memory, smoke
 from haynes_studio.segmentation.backend import Engine
 from haynes_studio.segmentation.fixtures import Fixture, fixtures, visible_fraction
 from haynes_studio.segmentation.inference import (
     Candidate, Grounding, Observation, observe, select_boxes, validate_request,
 )
 from haynes_studio.segmentation.pixels import decode_source, describe_mask, encode_mask, tight_box
-from haynes_studio.segmentation.profile import FALLBACK_ID, PROFILE_ID, Profile, SegmentationError, digest
+from haynes_studio.segmentation.profile import (
+    FALLBACK_ID, PROFILE_ID, SERVING_PROFILE_ID, Profile, SegmentationError, digest,
+)
 from haynes_studio.segmentation.service import _UnixConnection, listening, local_call
 from haynes_studio.segmentation.smoke import stage
 from haynes_studio.store import canonical_json
@@ -388,6 +396,7 @@ def test_socket_create_only(tmp_path, pins, example):
         assert local_call(socket_path, "GET", "/v1/ready") == (200, {
             "profile_id": PROFILE_ID, "profile_sha256": digest(profile.manifest()), "device": "cpu",
         })
+        assert loads(profile.manifest())["profile"] == SERVING_PROFILE_ID
         status, reply = local_call(socket_path, "POST", "/v1/segment", payload)
         assert status == 200 and reply["result"]["status"] == "ready"
         directory = scratch / payload["attempt_id"]
@@ -410,6 +419,22 @@ def test_socket_create_only(tmp_path, pins, example):
         finally:
             connection.close()
     assert not socket_path.exists()
+
+
+@pytest.mark.parametrize("mutation", [None, "hash", "selector", "extra_key"])
+def test_ready_command_checks_exact_model_selector_and_manifest(pins, monkeypatch, mutation):
+    profile, _ = pins
+    reply = {"profile_id": PROFILE_ID, "profile_sha256": digest(profile.manifest()), "device": "cpu"}
+    if mutation == "hash":
+        reply["profile_sha256"] = "f" * 64
+    elif mutation == "selector":
+        reply["profile_id"] = SERVING_PROFILE_ID
+    elif mutation == "extra_key":
+        reply["serving_profile_id"] = SERVING_PROFILE_ID
+    monkeypatch.setattr(Profile, "installed", lambda: profile)
+    monkeypatch.setattr("haynes_studio.segmentation.service.local_call", lambda *_, **__: (200, reply))
+    monkeypatch.setattr(sys, "argv", ["studio-segmentation", "ready"])
+    assert cli.main() == int(mutation is not None)
 
 
 @pytest.mark.parametrize("mutation", ["symlink", "hardlink", "fifo", "missing", "fallback", "digest"])
@@ -478,6 +503,60 @@ def test_busy_timeout_reap(tmp_path, pins, example):
 
 
 
+def _terminating_factory(weights, phase, strategy, *, timeout):
+    def segmenter(image, hint):
+        os.kill(os.getppid(), signal.SIGTERM)
+        if timeout:
+            threading.Event().wait()
+        return _synthetic_segmenter(image, hint)
+    return _synthetic_detector, segmenter
+
+
+def _serve_offline():
+    scratch, weights, outcome = sys.argv[1:]
+    cli.SCRATCH, cli.WEIGHTS = Path(scratch), Path(weights)
+    Profile.installed = lambda: TinyProfile("sha256:" + "c" * 64, "d" * 40, "e" * 64, (("synthetic", "1"),))
+    factory = partial(_terminating_factory, timeout=outcome == "timeout")
+    backend.Engine = partial(Engine, factory=factory, request_seconds=2)
+    cli._serve()
+
+
+@pytest.mark.parametrize("outcome", ["complete", "timeout"])
+def test_sigterm_drains_request_then_refuses_connections(tmp_path, pins, example, outcome):
+    _, weights = pins
+    socket_path = tmp_path / "segment.sock"
+    data, request = example.request("prop")
+    payload = stage(tmp_path, data, request)
+    with subprocess.Popen(
+        [sys.executable, "-c", "from tests.segmentation.test_backend import _serve_offline; _serve_offline()",
+         str(tmp_path), str(weights), outcome],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+    ) as process:
+        try:
+            deadline = monotonic() + 10
+            while not socket_path.is_socket() and process.poll() is None and monotonic() < deadline:
+                sleep(0.025)
+            status, reply = local_call(socket_path, "POST", "/v1/segment", payload, timeout=5)
+            output, _ = process.communicate(timeout=5)
+            assert process.returncode == 0, output
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.communicate(timeout=5)
+    directory = tmp_path / payload["attempt_id"]
+    receipt = reply["result"]
+    assert canonical_json(receipt) == (directory / "result.json").read_bytes()
+    assert reply["result_sha256"] == digest(canonical_json(receipt))
+    if outcome == "timeout":
+        assert (status, receipt["status"], receipt["reason"], receipt["mask"]) == (504, "failed", "timeout", None)
+        assert not (directory / "mask.png").exists()
+    else:
+        assert status == 200 and receipt["status"] == "ready"
+        assert digest((directory / "mask.png").read_bytes()) == receipt["mask"]["sha256"]
+    with pytest.raises((ConnectionRefusedError, FileNotFoundError)):
+        local_call(socket_path, "GET", "/v1/ready")
+
+
 def test_slow_receipt_never_returns_ready(tmp_path, pins, example, monkeypatch):
     profile, weights = pins
     data, request = example.request("prop")
@@ -504,7 +583,7 @@ def test_smoke_stops_after_unexpected_visibility(tmp_path, pins, monkeypatch):
     profile, weights = pins
     observed = []
 
-    def failed_visibility(scratch, weights, profile, strategy, inputs, report):
+    def failed_visibility(scratch, weights, profile, strategy, inputs, report, *, repeat):
         observed.append(strategy)
         report["cases"] = {"foreground": {"status": "ready"}}
         report["verdicts"] = {"visibility": False}
@@ -521,8 +600,9 @@ def test_smoke_stops_after_unexpected_visibility(tmp_path, pins, monkeypatch):
 def smoke_workload(pins, monkeypatch):
     profile, weights = pins
 
-    def run(scratch, weights, profile, strategy, inputs, report):
-        report["cases"] = {"foreground": {"status": "ready"}}
+    def run(scratch, weights, profile, strategy, inputs, report, *, repeat):
+        suffixes = ("", "_repeat", "_third") if repeat else ("",)
+        report["cases"] = {f"foreground{suffix}": {"status": "ready"} for suffix in suffixes}
         report["verdicts"] = {"visibility": True}
         return {"foreground": (b"result", b"mask")}
 
@@ -539,8 +619,8 @@ def smoke_workload(pins, monkeypatch):
 def test_smoke_fails_when_buffered_output_changes_one_byte(tmp_path, smoke_workload, monkeypatch):
     run = smoke._smoke_run
 
-    def changed_bytes(scratch, weights, profile, strategy, inputs, report):
-        results = run(scratch, weights, profile, strategy, inputs, report)
+    def changed_bytes(scratch, weights, profile, strategy, inputs, report, *, repeat):
+        results = run(scratch, weights, profile, strategy, inputs, report, repeat=repeat)
         if strategy == "buffered":
             results["foreground"] = (b"result", b"masK")
         return results
@@ -567,18 +647,154 @@ def test_smoke_rejects_writable_weights(tmp_path, smoke_workload, monkeypatch):
 @pytest.mark.parametrize(("strategies", "limit_gib", "passed"), [
     (("mmap", "buffered"), 15, False),
     (("mmap", "buffered"), 20, True),
-    (("mmap",), 10, True),
-    (("mmap",), 11, False),
+    (("buffered",), 16, True),
+    (("mmap",), 5, False),
+    ((), 5, True),
+    ((), 6, False),
 ])
 def test_smoke_memory_allowance(tmp_path, smoke_workload, monkeypatch, strategies, limit_gib, passed):
-    monkeypatch.setattr(smoke, "RESOURCES", {
-        "measurement": {"limit_gib": 16}, "serving": {"limit_gib": 10},
-    })
     limit = limit_gib * 1024**3
-    monkeypatch.setattr(smoke, "cgroup_bytes", {"max": limit, "peak": 8 * 1024**3}.get)
+    monkeypatch.setattr(smoke, "cgroup_bytes", {"max": limit, "peak": 4 * 1024**3}.get)
     report = smoke.smoke(tmp_path, smoke_workload, strategies)
     assert report["cgroup_limit_bytes"] == limit
     assert report["verdicts"]["cgroup_allowance"] is passed and report["passed"] is passed
+
+
+@pytest.mark.parametrize("field", ["resident_rss_bytes", "cgroup_resident_bytes", "pass_cgroup"])
+def test_serving_memory_stability_refuses_growth_above_tolerance(field):
+    first = 1024**3
+    second = first + smoke.RESIDENT_GROWTH_BYTES
+    passes = [first // 2, first, second]
+    requests = [
+        {"sam": {"resident_rss_bytes": value, "cgroup_resident_bytes": value}}
+        for value in passes
+    ]
+    assert smoke._memory_stable(requests, 1, passes)
+    if field == "pass_cgroup":
+        passes[2] += 1
+    else:
+        requests[2]["sam"][field] += 1
+    assert not smoke._memory_stable(requests, 1, passes)
+
+
+class SmokeProfile(TinyProfile):
+    def verify(self, root):
+        memory.cgroup_bytes = lambda _: 512 * 1024**2
+        return super().verify(root)
+
+
+def _smoke_mask(image):
+    red, green, _ = np.moveaxis(np.asarray(image, dtype=np.int16), -1, 0)
+    return (red > green) | (green > red + 16)
+
+
+def _smoke_factory(weights, phase, strategy, *, grow):
+    # Keep a tracked resource alive until the worker exits, as a library can.
+    semaphore = multiprocessing.get_context("spawn").Semaphore()
+    for name in ("runtime_import", "load_dino", "load_sam"):
+        with phase(name):
+            pass
+
+    mib = 1024**2
+    resident = 512 * mib
+    detector_used = False
+    masks = 0
+
+    class ModelPhases(memory.Phases):
+        @contextmanager
+        def __call__(self, name):
+            with super().__call__(name):
+                yield
+            self.samples[name]["resident_rss_bytes"] = resident
+            self.samples[name]["cgroup_resident_bytes"] = resident + 32 * mib
+
+    backend.Phases = ModelPhases
+
+    def detect(image, prompt):
+        nonlocal detector_used, resident
+        if not detector_used:
+            resident += 192 * mib
+            detector_used = True
+        with semaphore:
+            box = tight_box(_smoke_mask(image))
+        candidates = [_box(box, phrase="orange ball")] if box else []
+        return Grounding(candidates, image.size, image.size)
+
+    def segment(image, hint):
+        nonlocal masks, resident
+        masks += 1
+        if masks == 1:
+            resident += 96 * mib
+        if grow and masks == 11:  # Five SAM calls per pass, starting the third pass.
+            resident += 65 * mib
+        return np.where(_smoke_mask(image)[None, :, :], 1, -1).astype(np.float32), [0.9]
+
+    return detect, segment
+
+
+def _run_offline_smoke():
+    scratch, weights, scenario, *args = sys.argv[1:]
+    cli.SCRATCH, cli.WEIGHTS = Path(scratch), Path(weights)
+    profile = SmokeProfile("sha256:" + "c" * 64, "d" * 40, "e" * 64, (("synthetic", "1"),))
+    Profile.installed = staticmethod(lambda: profile)
+    smoke.Engine = partial(Engine, factory=partial(_smoke_factory, grow=scenario == "growth"))
+    smoke.os.geteuid = smoke.os.getegid = lambda: 10001
+    smoke.os.statvfs = lambda _: SimpleNamespace(f_flag=os.ST_RDONLY)
+    smoke.cgroup_bytes = {"max": (16 if args else 5) * 1024**3, "peak": 1024**3, "current": 832 * 1024**2}.get
+    if scenario == "deadline":
+        smoke.SERVING_RUN_SECONDS = 10
+    sys.argv = ["studio-segmentation", "smoke", *args]
+    return cli.main()
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Smoke memory phases use Linux /proc")
+@pytest.mark.parametrize(("scenario", "args", "exit_code"), [
+    ("warmup", (), 0),
+    ("growth", (), 1),
+    ("deadline", (), 1),
+    ("measurement", ("--compare-load-strategy", "buffered"), 0),
+])
+def test_smoke_report_is_last(tmp_path, pins, scenario, args, exit_code):
+    profile, weights = pins
+    completed = subprocess.run(
+        [sys.executable, "-c", "from tests.segmentation.test_backend import _run_offline_smoke; "
+         "raise SystemExit(_run_offline_smoke())", str(tmp_path), str(weights), scenario, *args],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30,
+    )
+    assert completed.returncode == exit_code, completed.stdout
+    last_line = completed.stdout.splitlines()[-1]
+    assert last_line.startswith("{"), completed.stdout
+    report = loads(last_line)
+    assert report["passed"] is (exit_code == 0) and report["profile_id"] == SERVING_PROFILE_ID
+    assert report["profile_sha256"] == digest(profile.manifest())
+    assert loads(profile.manifest())["parameters"]["weight_load"] == "mmap"
+    if args:
+        assert report["mode"] == "measurement" and report["verdicts"]["byte_parity"]
+        assert [run["weight_load"] for run in report["runs"]] == ["mmap", "buffered"]
+    else:
+        assert report["mode"] == "serving" and report["cgroup_limit_bytes"] == 5 * 1024**3
+        run, = report["runs"]
+        assert run["weight_load"] == "mmap" and run["cold_load_ms"] > 0
+        expected = {"profile_id": PROFILE_ID, "profile_sha256": digest(profile.manifest()), "device": "cpu"}
+        assert run["readiness"] == {"initial": expected, "after": expected}
+        if scenario == "deadline":
+            assert run["verdicts"]["time_budget"] is False
+            assert not run["cases"]
+            return
+        assert run["verdicts"]["phase_memory"] and run["verdicts"]["create_only_replay"]
+        assert {name for name, passed in run["verdicts"].items() if not passed} == (
+            {"memory_stable"} if scenario == "growth" else set()
+        )
+        assert run["memory"]["passes"] == {
+            "tolerance_bytes": 64 * 1024**2, "compared_passes": [2, 3],
+            "cgroup_resident_bytes": [832 * 1024**2] * 3,
+        }
+        requests = run["memory"]["requests"]
+        assert len(requests) == 18
+        assert set(run["cases"]) == {f"{name}{suffix}" for name in fixtures() for suffix in ("", "_repeat", "_third")}
+        assert [requests[index]["sam"]["resident_rss_bytes"] // 1024**2 for index in (0, 4, 6, 12)] == [
+            608, 800, 800, 865 if scenario == "growth" else 800,
+        ]
 
 
 def test_reference_examples():
