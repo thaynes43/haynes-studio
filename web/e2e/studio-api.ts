@@ -115,6 +115,7 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
   let runRefusal: string | undefined;
   const review = reviewMedia && reviewFixtures(story, reviewMedia);
   const queue = runMedia && runFixtures(story, runMedia);
+  const decisions = queue ?? review;
   let dropQueueReply: "connection" | "server" | undefined;
   let preflight: Schemas["EstimateView"]["problems"] = [];
   const loginRequests: URLSearchParams[] = [];
@@ -223,19 +224,23 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
   }
 
   function approvedState(id: string) {
-    return review?.history(id).find((record) => record.derived.state === "active")?.id ?? null;
+    return decisions?.history(id).find((record) => record.derived.state === "active")?.id ?? null;
   }
 
-  function viewRun(run: Schemas["RunView"]) {
+  function viewRun<T extends { id: string }>(run: T) {
     return { ...run, active_approval_id: approvedState(run.id) };
   }
 
-  function viewStory(draft: Schemas["Story"]) {
-    if (!review || draft.id !== story.id || !draft.latest_finished_run) return draft;
+  function viewStory(draft: Schemas["Story"]): Schemas["Story"] {
+    if (!decisions || draft.id !== story.id) return draft;
+    const latest = decisions.runs.findLast(({ status }) => status === "succeeded");
+    if (!latest?.finished_at) return draft;
     return {
       ...draft,
-      approved: review.runs.some(({ id }) => approvedState(id)),
-      latest_finished_run: { ...draft.latest_finished_run, active_approval_id: approvedState(latestRun) },
+      approved: decisions.runs.some(({ id }) => approvedState(id)),
+      latest_finished_run: {
+        id: latest.id, status: "succeeded", finished_at: latest.finished_at, active_approval_id: approvedState(latest.id),
+      },
     };
   }
 
@@ -426,7 +431,7 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
       if (resource === "feedback-iteration" && method === "DELETE") return feedback.clear(route);
       if (resource === "runs" && method === "GET") {
         if (queue) {
-          const items = queue.runs.filter((run) => run.story_id === draft.id).map((run) => queue.view(run));
+          const items = queue.runs.filter((run) => run.story_id === draft.id).map((run) => viewRun(queue.view(run)));
           return route.fulfill({ json: pageOf(items, cursor) });
         }
         const items = review?.runs.filter((run) => run.story_id === draft.id).map(viewRun) ?? [];
@@ -658,7 +663,7 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
       const draft = run && stories.find((item) => item.id === run.story_id);
       if (!run || !draft || !visible[user].has(draft.production_id)) return reject(route, 404, "not_found", "not_found");
       const etag = () => `"${run.revision}"`;
-      if (!resource && method === "GET") return route.fulfill({ headers: { etag: etag() }, json: queue.view(run, true) });
+      if (!resource && method === "GET") return route.fulfill({ headers: { etag: etag() }, json: viewRun(queue.view(run, true)) });
       if (resource === "snapshot" && method === "GET") {
         const snapshot = queue.snapshots.get(id);
         if (!snapshot) return reject(route, 404, "not_found", "run.snapshot_missing");
@@ -712,25 +717,25 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
       const [, , , id, resource] = path.split("/");
       return feedback.write(route, id, resource, people[user].displayName);
     }
-    if (path.startsWith("/v1/runs/") && review) {
+    if (path.startsWith("/v1/runs/") && decisions) {
       const [, , , id, resource] = path.split("/");
-      const run = review.runs.find((item) => item.id === id);
+      const run = decisions.runs.find((item) => item.id === id);
       if (!run || !visible[user].has(production.id)) return reject(route, 404, "not_found", "not_found");
       if (!resource && method === "GET") return route.fulfill({ headers: { etag: `"${run.revision}"` }, json: viewRun(run) });
       if (resource === "delivery" && method === "GET") {
-        const delivery = review.deliveries.get(id);
+        const delivery = decisions.deliveries.get(id);
         return delivery ? route.fulfill({ json: delivery }) : reject(route, 404, "not_found", "not_found");
       }
       if (resource === "snapshot" && method === "GET") return feedback.snapshot(route, run);
       if (resource === "candidates" && method === "POST") return feedback.present(route, run, people[user].displayName);
       if (resource === "release-packages" || (resource === "publications" && method === "POST")) {
         const refusal = identityRefusal(user);
-        return release.handle(route, run, review.deliveries.get(id), review.preview(run, refusal, runRefusal),
+        return release.handle(route, run, decisions.deliveries.get(id), decisions.preview(run, refusal, runRefusal),
           people[user].displayName, user, refusal);
       }
       if (resource === "go-live-approvals") {
         const refusal = identityRefusal(user);
-        const preview = review.preview(run, refusal, runRefusal);
+        const preview = decisions.preview(run, refusal, runRefusal);
         if (method === "GET") return route.fulfill({
           json: preview, headers: { "cache-control": "private, no-store" },
         });
@@ -741,17 +746,17 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
           if (!preview.approve.allowed) return reject(route, 422, "invalid", preview.approve.code);
           if (body.master_sha256 !== preview.master_sha256) return reject(route, 422, "invalid", "approval.not_exact_run");
           if (!body.platform_setting) return reject(route, 422, "invalid", "approval.ai_label_missing");
-          return route.fulfill({ status: 201, json: review.approve(run, preview) });
+          return route.fulfill({ status: 201, json: decisions.approve(run, preview) });
         }
       }
     }
-    if (path.startsWith("/v1/go-live-approvals/") && path.endsWith("/withdraw") && review && method === "POST") {
+    if (path.startsWith("/v1/go-live-approvals/") && path.endsWith("/withdraw") && decisions && method === "POST") {
       const refusal = identityRefusal(user);
       if (refusal) return reject(route, 403, "forbidden", refusal);
-      const approval = review.approvals.find(({ id }) => path === `/v1/go-live-approvals/${id}/withdraw`);
+      const approval = decisions.approvals.find(({ id }) => path === `/v1/go-live-approvals/${id}/withdraw`);
       if (!approval) return reject(route, 404, "not_found", "not_found");
       if (approval.derived.state === "withdrawn") return reject(route, 409, "conflict", "approval.already_withdrawn");
-      return route.fulfill({ status: 201, json: review.withdraw(approval) });
+      return route.fulfill({ status: 201, json: decisions.withdraw(approval) });
     }
     violations.push(`Unexpected API operation ${method} ${path}`);
     return reject(route, 404, "not_found", "not_found");

@@ -108,6 +108,46 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
     await page.keyboard.press("Escape");
     await expect(account).toBeFocused();
   });
+
+  test(`reloads saved destinations with local and session storage blocked at ${viewport.width}×${viewport.height}`, async ({ page, api }) => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => {
+      for (const storage of ["localStorage", "sessionStorage"]) {
+        Object.defineProperty(window, storage, {
+          get() { throw new DOMException("Storage blocked", "SecurityError"); },
+        });
+      }
+    });
+    const review = treePath("productions", storyContext);
+    await page.goto(review);
+    await expect.poll(() => api.selections.lena.values.web_shell).toMatchObject({ productions: review });
+    await page.goto(boardRoute);
+    await expect.poll(() => api.selections.lena.values.web_shell).toMatchObject({ productions: review, board: boardRoute });
+
+    const account = page.getByRole("button", { name: "Lena Park" });
+    await account.click();
+    await page.getByRole("button", { name: "Light", exact: true }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    await expect(page).toHaveURL(boardRoute);
+    await expect(crumbs(page).getByRole("button", { name: "Board 02" })).toHaveAttribute("aria-current", "page");
+    const productions = mainNav(page).getByRole("link", { name: "Productions" });
+    await expect(productions).toHaveAttribute("href", review);
+    await expect(editorNav(page).getByRole("link", { name: "Board" })).toHaveAttribute("href", boardRoute);
+    await expectNoOverflow(page);
+
+    // With tab storage blocked, the fake callback lands at the Productions root.
+    api.expire();
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Sign in to Haynes Studio" })).toBeFocused();
+    await page.getByRole("link", { name: "Sign in", exact: true }).click();
+    await expect(page).toHaveURL("/productions");
+    await expect(page.getByRole("heading", { name: "Productions", exact: true })).toBeFocused();
+    await expect.poll(() => api.selections.lena.values.web_shell).toMatchObject({
+      productions: "/productions", board: boardRoute,
+    });
+  });
 }
 
 test("theme controls and settings preserve keyboard focus", async ({ page, api }) => {

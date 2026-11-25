@@ -3,6 +3,7 @@ import type { components } from "../src/api/schema";
 import type { ReviewMedia } from "./studio-review-media";
 
 type Schemas = components["schemas"];
+type ApprovalRun = Pick<Schemas["RunView"], "id" | "status" | "snapshot" | "delivery_id">;
 export const oldRun = "run_01M79V9FC00000000000000001";
 export const latestRun = "run_01M79V9FC00000000000000002";
 export const importedRun = "run_01M79V9FC00000000000000003";
@@ -70,15 +71,23 @@ export function reviewFixtures(story: Schemas["Story"], media: ReviewMedia) {
     { ...baseRun, id: runningRun, number: 4, status: "running", delivery_id: null,
       queued_at: "2026-11-04T12:23:00Z", finished_at: null, checks: null },
   ];
+  return { deliveries, runs, ...approvalFixtures(deliveries) };
+}
+
+export function approvalFixtures(deliveries: ReadonlyMap<string, Pick<Schemas["Delivery"], "id" | "master" | "verification">>) {
   const approvals: Approval[] = [];
 
   function history(id: string) {
     return approvals.filter((record) => record.run_id === id).toReversed();
   }
 
-  function preview(run: Schemas["RunView"], identityRefusal?: string, runRefusal?: string): ApprovalReview {
+  function preview(run: ApprovalRun, identityRefusal?: string, runRefusal?: string): ApprovalReview {
     const delivered = deliveries.get(run.id);
-    const releaseRefusal = runRefusal ?? (run.status === "imported" ? "approval.legacy_run" : undefined);
+    const releaseRefusal = runRefusal ?? (
+      run.status === "imported" ? "approval.legacy_run" :
+        run.status !== "succeeded" ? "approval.run_unfinished" :
+          !delivered ? "approval.delivery_unverified" : undefined
+    );
     const master = delivered?.master.sha256 ?? null;
     const records = history(run.id);
     const active = records.some((record) => record.derived.state === "active");
@@ -103,7 +112,7 @@ export function reviewFixtures(story: Schemas["Story"], media: ReviewMedia) {
     };
   }
 
-  function approve(run: Schemas["RunView"], evidence: ApprovalReview) {
+  function approve(run: ApprovalRun, evidence: ApprovalReview) {
     const record: Approval = {
       schema: "studio.go-live-approval/v1", id: "apr_01M79V9FC0000000000000000" + (approvals.length + 1),
       run_id: run.id, run_snapshot_sha256: run.snapshot.sha256, delivery_id: run.delivery_id!,
@@ -122,5 +131,5 @@ export function reviewFixtures(story: Schemas["Story"], media: ReviewMedia) {
     return approval;
   }
 
-  return { approvals, deliveries, history, runs, preview, approve, withdraw };
+  return { approvals, history, preview, approve, withdraw };
 }

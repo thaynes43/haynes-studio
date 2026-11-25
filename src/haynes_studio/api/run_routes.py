@@ -330,8 +330,27 @@ def _delivery(conn, request, row, body):
     catalog.record_delivery(conn, row["story_id"], to_document(delivery))
 
 
+class WorkRoute(WorkerRoute):
+    async def before_validation(self, request):
+        if self.operation_id in {"reserve_wan_attempt", "update_wan_attempt"}:
+            require_worker_lane(request, "run")
+        elif self.operation_id in {"heartbeat_work", "publish_work", "complete_work", "fail_work"}:
+            # A job_id without a run_id selects media work. A malformed request
+            # without that discriminator follows the run-lane default.
+            raw = await request.body()
+            try:
+                body = await request.json() if raw else None
+            except APIError:
+                require_worker_lane(request, "run")
+                raise
+            if isinstance(body, dict) and "job_id" in body and "run_id" not in body:
+                require_worker_lane(request, "voice", "image")
+            else:
+                require_worker_lane(request, "run")
+
+
 def worker_router():
-    router = APIRouter(prefix="/internal/v1/work", responses=ERROR_RESPONSES, route_class=WorkerRoute,
+    router = APIRouter(prefix="/internal/v1/work", responses=ERROR_RESPONSES, route_class=WorkRoute,
                        include_in_schema=False)
 
     @router.post("/claim", operation_id="claim_work")
