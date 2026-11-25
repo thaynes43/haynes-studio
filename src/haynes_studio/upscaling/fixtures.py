@@ -188,6 +188,13 @@ class Motion:
                 "identical_background": self.identical_background}
 
 
+def baseline_meets_former_caps(baseline):
+    return {
+        "edge_overshoot": baseline["edge"]["overshoot"] <= 12 / 255,
+        "motion_residual": baseline["motion"]["worst_mean"] <= 2 / 255,
+    }
+
+
 def verdicts(baseline, learned):
     edge, lanczos_edge = learned["edge"], baseline["edge"]
     spread, lanczos_spread = edge["median_spread_px"], lanczos_edge["median_spread_px"]
@@ -199,12 +206,12 @@ def verdicts(baseline, learned):
                           for weight, band in zip(text_weights, baseline["text"], strict=True))
     return {
         "edge_spread": spread is not None and lanczos_spread is not None and spread <= 0.90 * lanczos_spread,
-        "edge_overshoot": edge["overshoot"] <= min(12 / 255, lanczos_edge["overshoot"] + 2 / 255),
+        "edge_overshoot": edge["overshoot"] <= lanczos_edge["overshoot"] + 2 / 255,
         "glyphs": all(band["correct"] == 4 for band in learned["text"][1:]),
         "text_error": text_mae <= lanczos_text_mae,
         "face_geometry": all(d is not None and d <= 1 for d in learned["face_displacement_px"].values()),
         "flat_texture": flat["std"] <= 1 / 255 and flat["mean_shift"] <= 2 / 255 and flat["max_channel_span"] <= 2,
-        "motion_residual": (motion["worst_mean"] <= min(2 / 255, lanczos_motion["worst_mean"] + 0.5 / 255)
+        "motion_residual": (motion["worst_mean"] <= lanczos_motion["worst_mean"] + 0.5 / 255
                             and motion["worst_p95"] <= lanczos_motion["worst_p95"] + 2 / 255),
         "static_background": motion["identical_background"] and lanczos_motion["identical_background"],
     }

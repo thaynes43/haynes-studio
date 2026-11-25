@@ -16,7 +16,9 @@ from haynes_studio.render.delivery_profile import resolve_delivery_upscaler
 from haynes_studio.store import canonical_json
 
 from .backend import Engine
-from .fixtures import EDGE_ROWS, FEATURES, FLAT, MOTION, STATIC, Motion, portrait, scores, verdicts
+from .fixtures import (
+    EDGE_ROWS, FEATURES, FLAT, MOTION, STATIC, Motion, baseline_meets_former_caps, portrait, scores, verdicts,
+)
 from .observe import cgroup_limit, cgroup_peak, phase
 from .opencv import Fsrcnn
 from .pixels import crop_plate, decode_png, describe, encode_png
@@ -144,6 +146,7 @@ def _exercise(root: Path, weights: Path, pinned, settings, captured: Path, *, fa
         "timing": {"warm_mean_seconds": mean(times[1:]), "warm_p95_seconds": float(np.percentile(times[1:], 95)),
                    "max_seconds": max(times), "estimated_100_frame_seconds": mean(times[1:]) * 100},
         "memory_by_phase": phases, "baseline_quality": baseline_quality, "quality": quality,
+        "baseline_meets_former_caps": baseline_meets_former_caps(baseline_quality),
         "quality_verdicts": verdicts(baseline_quality, quality),
         "refusals": refusals, "plate_crop": list(crop), "cadence_24fps": cadence,
         "cadence_verified": cadence_ok, "cadence_output_sha256": repeated,
