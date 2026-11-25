@@ -76,12 +76,12 @@ keeps the declared model's licence unknown pending a check.
    and preflight. A selected photo with changed inputs or without a recorded signature
    is stale. Scope and generating facts carry through the caller's existing checks.
 
-The upload transport in [story 430](https://work.haynesnetwork.com/work_packages/430)
-owns request authentication and scope enforcement, streaming body limits, upload
-schema parsing, `If-Match`, idempotency and atomic metadata/pointer writes. It should
-take the plan from the matching draft, and retain the operation's idempotency
-reservation across retries. The image worker must hold the appropriate queue claim
-before submitting. A completed version by itself does not move the board pointer.
+[Story 430](https://work.haynesnetwork.com/work_packages/430) implements
+[scoped generation jobs and direct uploads](studio-api.md#media-operations).
+The D42 upload freezes the plan at the supplied board revision, validates the
+raw image, then checks currency while holding the draft write fence. Generation
+reserves an idempotency key through completion. The image worker holds its
+[claim](media-jobs.md#claims-and-results) before it enters engine dispatch.
 
 ## Validation
 

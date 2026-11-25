@@ -77,6 +77,10 @@
     "licence": {
       "$ref": "#/$defs/licence"
     },
+    "recorded_without_media": {
+      "description": "A production archive supplied this asset version's record only.",
+      "const": true
+    },
     "legacy": {
       "type": [
         "object",

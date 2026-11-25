@@ -100,3 +100,38 @@ class WorkFailure(ClaimFence):
     error: dict | None = None
     wan_job_id: JobId | None = None
     admission_busy: bool = False
+
+
+WorkLane = Literal["run", "image", "voice"]
+
+
+class WorkClaim(Payload):
+    lane: WorkLane = "run"
+
+
+class MediaFence(Payload):
+    job_id: str
+    fence: Annotated[int, Field(ge=1, lt=2**63)]
+
+
+class MediaHeartbeat(MediaFence):
+    pass
+
+
+class ImageEvidence(Payload):
+    sha256: SHA256
+    generator: dict
+    licence: dict
+
+
+class VoiceEvidence(Payload):
+    version: dict
+
+
+class MediaCompletion(MediaFence):
+    result: VoiceEvidence | ImageEvidence | None
+
+
+class MediaFailure(MediaFence):
+    code: Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_.-]{0,95}$")]
+    message: Reason

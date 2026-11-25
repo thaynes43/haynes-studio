@@ -19,7 +19,7 @@ from haynes_studio.mcp.upstream import MAX_ERROR_BYTES
 from tests.canonical.fixtures import example
 from tests.formats.fixtures import doll_short
 
-from .client import API_URL, MCP_URL, call, connect, fail
+from .client import API_URL, MCP_URL, UPLOAD_URL, call, connect, fail
 
 pytestmark = pytest.mark.anyio
 
@@ -29,6 +29,8 @@ studio_get_story_summary studio_patch_story studio_get_story_timing studio_add_b
 studio_get_board studio_patch_board studio_reorder_boards studio_remove_board
 studio_search_assets studio_get_asset studio_get_delivery
 studio_list_formats studio_list_format_versions studio_get_format_version
+studio_generate_voice studio_generate_photo studio_get_job
+studio_estimate_run studio_queue_run studio_list_runs studio_get_run studio_cancel_run
 """.split())
 
 
@@ -73,7 +75,8 @@ class FakeStudio:
             }})
         assert "cookie" not in request.headers
         if path == "/v1/me":
-            return httpx.Response(200, json={"principal": {"kind": "agent"}},
+            return httpx.Response(200, json={"principal": {"kind": "agent"},
+                                             "production_scopes": {self.pid: ["assets:upload"]}},
                                   headers={"set-cookie": "fixture=ignored"})
         self.requests.append(request)
         if self.override is not None:
@@ -243,6 +246,46 @@ async def test_transport_auth_host_origin_and_request_limit(api, caplog):
         assert ok.headers["cache-control"] == "no-store"
         assert ok.status_code == 200 and {tool["name"] for tool in ok.json()["result"]["tools"]} == NAMES
     assert api.authorization.split()[1] not in caplog.text
+
+
+async def test_upload_tool_has_its_own_endpoint_and_main_requests_stay_bounded(api):
+    headers = {"Accept": "application/json, text/event-stream", "Authorization": api.authorization,
+               "Content-Type": "application/json"}
+    async with api.app.router.lifespan_context(api.app), connect(api.app, api.authorization) as regular, \
+            connect(api.app, api.authorization, url=UPLOAD_URL) as uploads, httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=api.app), headers=headers,
+            ) as http:
+        assert {tool.name for tool in (await uploads.list_tools()).tools} == {"studio_upload_photo"}
+        assert (await fail(regular, "studio_upload_photo"))["code"] == "tool.not_found"
+        assert (await fail(uploads, "studio_get_board", board_id=api.bid))["code"] == "tool.not_found"
+
+        oversized = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
+            "name": "studio_get_board", "arguments": {"board_id": "x" * (256 * 1024)},
+        }}
+        assert (await http.post(MCP_URL, json=oversized)).status_code == 413
+        assert not api.requests
+
+
+async def test_upload_endpoint_bounds_chunked_body(api):
+    limit = 4 * ((20 * 1024 * 1024 + 2) // 3) + 256 * 1024
+    started = 0
+
+    async def oversized():
+        nonlocal started
+        block = b" " * (256 * 1024)
+        for _ in range(limit // len(block) + 3):
+            started += 1
+            yield block
+
+    async with api.app.router.lifespan_context(api.app), httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=api.app),
+        headers={"Accept": "application/json, text/event-stream", "Authorization": api.authorization,
+                 "Content-Type": "application/json"},
+    ) as http:
+        assert (await http.post(UPLOAD_URL, content=oversized())).status_code == 413
+        assert started == limit // (256 * 1024) + 1
+        assert (await http.request("GET", UPLOAD_URL, content=b" " * (256 * 1024 + 1))).status_code == 413
+    assert not api.requests
 
 
 @pytest.mark.parametrize(("transport_status", "envelope"), [

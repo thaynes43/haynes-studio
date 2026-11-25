@@ -1,7 +1,7 @@
 # Model licences
 
 The register of licence terms for every engine and model file that makes or checks
-studio output today. The data is [`model-licences.json`](model-licences.json); this page
+studio output today. The data is [`model_licences.json`](../../src/haynes_studio/model_licences.json); this page
 summarizes it. Story [809](https://work.haynesnetwork.com/work_packages/809), decision
 D48 in the [studio plan](../proposals/0003-studio-plan.md).
 
@@ -119,6 +119,13 @@ the run records of story 428 keep that, as recorded.
 
 ## Using the register
 
+- The wheel ships one JSON source at `haynes_studio/model_licences.json`.
+  API approvals and every worker lane load it through `importlib.resources`, so
+  they need no checkout, working directory or mounted register. Set
+  `STUDIO_MODEL_REGISTER` on both API and workers to use an explicit local JSON
+  override; an invalid or missing override fails instead of falling back.
+  `docs/reference/model-licences.json` is a compatibility symlink for existing
+  checkout commands, contract links and historical provenance paths.
 - The Winter Menu library builder
   ([`winter_menu.py`](../../src/haynes_studio/library/winter_menu.py)) gives each version
   the licence object of the engine whose `recorded_as` name its model or service text
@@ -149,7 +156,7 @@ Story [442](https://work.haynesnetwork.com/work_packages/442) adds these
 proposed rows. Checked 2026-11-24 by dev-env agent session
 `haynes-studio-1124-221436` (Codex). The file revisions, SHA-256s, source
 quotes and individual checker records are under `proposals` in the
-[JSON register](model-licences.json). See the [profile proposal](local-model-profile.md)
+[JSON register](../../src/haynes_studio/model_licences.json). See the [profile proposal](local-model-profile.md)
 for the runtime and activation evidence required.
 
 | Profile | Proposed files | Licence evidence | Generated-output terms |

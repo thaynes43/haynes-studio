@@ -297,9 +297,13 @@ def _queue_board(board: Board, at, facts: Facts) -> list[Violation]:
     photo = photo_state(board, facts)
     if photo == GENERATING:
         found.append(_v("asset.generating", at("photo"), "a photo job is still running"))
-    elif (board.method.layer, board.method.motion) == (WHOLE_FRAME, I2V) and photo == ABSENT:
-        found.append(_v("photo.absent", at("photo", "current_version_id"),
-                        "whole-frame I2V starts from the board's photo (section 5)"))
+    elif (board.method.layer, board.method.motion) == (WHOLE_FRAME, I2V):
+        if photo == ABSENT:
+            found.append(_v("photo.absent", at("photo", "current_version_id"),
+                            "whole-frame I2V starts from the board's photo (section 5)"))
+        elif photo == STALE:
+            found.append(_v("photo.stale", at("photo", "current_version_id"),
+                            "the board's photo no longer matches its inputs"))
     return found
 
 

@@ -93,6 +93,139 @@
       "then": {
         "$ref": "#/$defs/voice_input"
       }
+    },
+    "photo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "production_id",
+        "story_id",
+        "layer",
+        "prompt",
+        "source_assets",
+        "selected_version_id",
+        "photo_input_signature",
+        "seed",
+        "model"
+      ],
+      "properties": {
+        "production_id": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/prd_id"
+        },
+        "story_id": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/sty_id"
+        },
+        "layer": {
+          "enum": [
+            "layered",
+            "whole_frame"
+          ]
+        },
+        "prompt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_assets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "version_id",
+              "sha256"
+            ],
+            "properties": {
+              "version_id": {
+                "$ref": "studio.defs.v1.schema.json#/$defs/asv_id"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        },
+        "selected_version_id": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/asv_id_or_null"
+        },
+        "photo_input_signature": {
+          "$ref": "studio.asset-version.v1.schema.json#/$defs/signature"
+        },
+        "seed": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "asset_candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "production_id",
+        "kind",
+        "name",
+        "prompt",
+        "labels",
+        "seed",
+        "model",
+        "request_size"
+      ],
+      "properties": {
+        "production_id": {
+          "anyOf": [
+            {
+              "$ref": "studio.defs.v1.schema.json#/$defs/prd_id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "enum": [
+            "cast",
+            "costume",
+            "set",
+            "prop"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "model": {
+          "type": "string"
+        },
+        "request_size": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "integer"
+          }
+        }
+      }
     }
   },
   "additionalProperties": false,

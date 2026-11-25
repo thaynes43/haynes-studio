@@ -25,7 +25,7 @@ def prepare_queue(story, library, *, jobs=(), format_version=None):
     media = media_format(story["media_kind"])
     return prepare(story, library=library, store=None, toolchain=Toolchain(),
                    frame_size=(media.width, media.height), current_engine=Engine().signing_name,
-                   jobs=jobs, format_version=format_version)
+                   jobs=jobs, check_photo_currency=True, format_version=format_version)
 
 
 def freeze(prepared, *, studio):

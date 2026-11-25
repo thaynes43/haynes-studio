@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from secrets import token_hex
 from threading import Thread
 from urllib.parse import parse_qs, urlsplit
 
@@ -45,6 +46,7 @@ from haynes_studio.db.schema import (
 )
 from haynes_studio.delivery import deliver
 from haynes_studio.errors import ContractError
+from haynes_studio.queue.worker_tokens import worker_bearer
 from haynes_studio.store.layout import blob_locator
 from haynes_studio.store.local import LocalStore
 from tests.canonical.fixtures import example
@@ -152,7 +154,12 @@ def owner_engine(studio_db, runtime_role):
     engine = connect_engine(studio_db.url, studio_db.schema)
     try:
         migrate(engine, target="0002_active_agent_grants")
-        migrate(engine, runtime_role=runtime_role[0])
+        migrate(engine, target="0004_go_live_approvals", runtime_role=runtime_role[0])
+        migrate(engine, target="0005_job_operations", runtime_role=runtime_role[0])
+        # An earlier module may have left the shared schema at the current head.
+        migrate(engine, "downgrade", "0005_job_operations")
+        with engine.connect() as conn:
+            assert conn.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == "0005_job_operations"
         migrate(engine, "downgrade", "base")
         with engine.connect() as conn:
             assert sa.inspect(conn).get_table_names(schema=studio_db.schema) == ["alembic_version"]
@@ -724,9 +731,11 @@ def test_strict_ingress_health_and_worker_credential_boundary(service, owner_eng
     for value in ('{"name":"One","name":"Two"}', '{"name":NaN}', '{"name":"\\ud800"}'):
         assert browser.post(path, content=value, headers=headers).status_code == 422
     assert browser.post(path, content=b" " * (2 * 1024 * 1024 + 1), headers=headers).status_code == 413
-    secret = random_secret()
+    unprefixed = token_hex(24)
+    secret = worker_bearer(unprefixed)
     with owner_engine.begin() as conn:
         conn.execute(worker_tokens.insert().values(digest=identity.digest(secret), worker_id="render"))
+        conn.execute(worker_tokens.insert().values(digest=identity.digest(unprefixed), worker_id="legacy-render"))
     caplog.set_level("INFO", logger=access_log.name)
     assert browser.get("/internal/v1/work/test", headers=bearer(secret)).json() == {
         "kind": "worker", "worker_id": "render",
@@ -735,6 +744,8 @@ def test_strict_ingress_health_and_worker_credential_boundary(service, owner_eng
     assert (logged["principal_kind"], logged["principal_id"]) == ("worker", "render")
     assert secret not in caplog.records[-1].getMessage()
     assert browser.get("/v1/me", headers=bearer(secret)).status_code == 401
+    assert browser.get("/internal/v1/work/test", headers=bearer(unprefixed)).status_code == 401
+    assert browser.post("/internal/v1/work/claim", headers=bearer(unprefixed)).status_code == 401
     _, agent = register_agent(owner_engine, {})
     assert browser.get("/internal/v1/work/test", headers=agent).status_code == 401
     expired = datetime.now(UTC) - timedelta(seconds=1)

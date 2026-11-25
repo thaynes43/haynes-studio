@@ -16,13 +16,14 @@ from haynes_studio.build.live import WanChainSource, WanS2VSource, check_request
 from haynes_studio.build.pipeline import ALL, BuildInputs, QueuedBuild, build_story
 from haynes_studio.build.prebuild import snapshot_bytes
 from haynes_studio.build.sources import ClipSources
-from haynes_studio.jsonio import parse_strict
 from haynes_studio.library import Library
+from haynes_studio.model_register import load_model_register
 from haynes_studio.store import LocalStore, PRESENT
 
 from .asr import WyomingTranscriber
 from .inputs import freeze, prepare_queue
 from .protocol import STORY_PATTERN
+from .progress import ProgressFile
 from .staging import BuildStageStore
 from .wan import AttemptFailed, BuildCancelled, LanePaused, ProductClips, ProductWan
 from .worker_api import WorkerAPI, WorkerAPIError, service_url
@@ -41,8 +42,9 @@ class ActiveClaim:
     The synchronous calls also check the fence at side-effect boundaries.
     """
 
-    def __init__(self, claim):
+    def __init__(self, claim, *, progress=None):
         self.claim = claim
+        self.touch_progress = progress or ProgressFile()
         self.done, self.cancelled, self.lost = Event(), Event(), Event()
         self.thread = Thread(target=self._maintain, name="studio-worker-heartbeat")
 
@@ -71,6 +73,7 @@ class ActiveClaim:
             self.cancelled.set()
 
     def progress(self, stage, *, drain=False):
+        self.touch_progress()
         if self.lost.is_set():
             raise WorkerAPIError("work.fence_lost", 409)
         self._beat({"percent": PERCENT[stage], "stage": stage})
@@ -87,12 +90,14 @@ class BuildWorker:
     """Drive the existing build from its frozen claim, with no DB connection."""
 
     def __init__(self, api, wan, *, store, stage_root, register, tracker_story, transcriber,
-                 studio="git:unknown", image_digest=None, clock=monotonic, pause=sleep):
+                 studio="git:unknown", image_digest=None, clock=monotonic, pause=sleep,
+                 progress=None):
         self.api, self.wan, self.store, self.register = api, wan, store, register
         self.stage_root = stage_root
         self.tracker_story, self.transcriber = tracker_story, transcriber
         self.studio, self.image_digest = studio, image_digest
         self.clock, self.pause = clock, pause
+        self.progress = progress or ProgressFile()
 
     def _inputs(self, claim):
         run = claim.body["run"]
@@ -129,14 +134,15 @@ class BuildWorker:
         return build_story(
             inputs, store=staging, phase=ALL, sources=sources,
             transcriber=self.transcriber, actor=claim.body["actor"],
-            earlier_runs=earlier_runs, queued=QueuedBuild(run, active.before_delivery),
+            earlier_runs=earlier_runs, queued=QueuedBuild(run, active.before_delivery, self.progress),
         ).run
 
     def tick(self):
+        self.progress()
         claim = self.api.claim()
         if claim is None:
             return False
-        with ActiveClaim(claim) as active:
+        with ActiveClaim(claim, progress=self.progress) as active:
             clips = ProductClips(claim, self.wan, story=self.tracker_story,
                                  progress=active.progress, clock=self.clock, pause=self.pause)
             try:
@@ -204,11 +210,76 @@ class BuildWorker:
                    error=failure, admission_busy=error.admission_busy, **fields)
 
 
+def _serve(worker, once):
+    progress = worker.progress
+    while True:
+        progress()
+        try:
+            did_work = worker.tick()
+        except WorkerAPIError as error:
+            logger.warning("Studio worker request failed (%s)", error.code)
+            if once or error.status in (401, 403):
+                raise SystemExit(1) from None
+            did_work = False
+        except OSError as error:
+            logger.warning("Studio worker store is unavailable (%s)", type(error).__name__)
+            if once:
+                raise SystemExit(1) from None
+            did_work = False
+        progress()
+        if once:
+            return
+        if not did_work:
+            sleep(IDLE_SECONDS)
+
+
+def _media_main(options, parser, progress):
+    from haynes_studio.library.winter_menu import load_licence_register
+
+    from .media_services import ComfyHTTP, WyomingKokoro
+    from .media_worker import MediaWorker
+
+    with ExitStack() as resources:
+        try:
+            origin = service_url(os.environ["STUDIO_API_URL"])
+            token = worker_bearer(os.environ["STUDIO_WORKER_TOKEN"])
+            store = LocalStore(os.environ["STUDIO_STORE_ROOT"])
+            register = load_licence_register()
+            if options.lane == "image":
+                url = service_url(os.environ["STUDIO_COMFYUI_URL"])
+                image_http = resources.enter_context(httpx.Client(base_url=url, trust_env=False, timeout=60))
+                client = ComfyHTTP(image_http, progress=progress)
+            else:
+                port = int(os.getenv("STUDIO_TTS_PORT", "10210"))
+                if not 1 <= port <= 65535:
+                    raise ValueError("Invalid port")
+                client = WyomingKokoro(os.environ["STUDIO_TTS_HOST"], port)
+        except KeyError as error:
+            parser.error(f"{error.args[0]} is required")
+        except (OSError, ValueError) as error:
+            parser.error(f"Worker configuration is invalid ({type(error).__name__})")
+        api = resources.enter_context(httpx.Client(base_url=origin, trust_env=False, timeout=15,
+                                                   headers={"Authorization": f"Bearer {token}"}))
+        _serve(MediaWorker(WorkerAPI(api), lane=options.lane, store=store, client=client,
+                           licences=register, progress=progress), options.once)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--lane", choices=("run", "image", "voice"), default="run")
     parser.add_argument("--once", action="store_true", help="Process at most one claim and exit")
+    parser.add_argument("--progress-file", default=os.getenv("STUDIO_WORKER_PROGRESS_FILE"),
+                        help="Main-thread progress marker (or STUDIO_WORKER_PROGRESS_FILE)")
+    parser.add_argument("--check-progress", type=float, metavar="SECONDS",
+                        help="Exit zero if the progress file is at most SECONDS old, otherwise nonzero")
     options = parser.parse_args()
+    progress = ProgressFile(options.progress_file)
+    if options.check_progress is not None:
+        raise SystemExit(0 if progress.fresh(options.check_progress) else 1)
     logging.basicConfig(level=logging.INFO)
+    if options.lane != "run":
+        _media_main(options, parser, progress)
+        return
 
     try:
         studio_url = service_url(os.environ["STUDIO_API_URL"])
@@ -216,12 +287,12 @@ def main():
         tracker_story = os.environ["STUDIO_WAN_STORY_URL"]
         if not re.fullmatch(STORY_PATTERN, tracker_story):
             raise ValueError("STUDIO_WAN_STORY_URL must be a full work package URL")
-        register = parse_strict(Path(os.environ["STUDIO_MODEL_REGISTER"]).read_text(encoding="utf-8"))
+        register = load_model_register()
         store = LocalStore(os.environ["STUDIO_STORE_ROOT"])
         stage_root = Path(os.environ["STUDIO_BUILD_STAGE_ROOT"])
         if not stage_root.is_dir() or stage_root.resolve() == Path(store.root).resolve():
             raise ValueError("STUDIO_BUILD_STAGE_ROOT must be a separate existing directory")
-        token = worker_bearer(os.environ["STUDIO_WORKER_TOKEN"], allow_legacy=True)
+        token = worker_bearer(os.environ["STUDIO_WORKER_TOKEN"])
         transcriber = WyomingTranscriber(os.environ["STUDIO_ASR_HOST"], int(os.getenv("STUDIO_ASR_PORT", "10300")))
     except KeyError as error:
         parser.error(f"{error.args[0]} is required")
@@ -236,25 +307,8 @@ def main():
                              register=register,
                              tracker_story=tracker_story, transcriber=transcriber,
                              studio=os.getenv("STUDIO_BUILD_REVISION", "git:unknown"),
-                             image_digest=os.getenv("STUDIO_BUILD_IMAGE_DIGEST"))
-        while True:
-            try:
-                did_work = worker.tick()
-            except WorkerAPIError as error:
-                logger.warning("Studio worker request failed (%s)", error.code)
-                if options.once or error.status in (401, 403):
-                    raise SystemExit(1) from None
-                did_work = False
-            except OSError as error:
-                logger.warning("Studio worker store is unavailable (%s)", type(error).__name__)
-                if options.once:
-                    raise SystemExit(1) from None
-                did_work = False
-            if options.once:
-                return
-            if not did_work:
-                sleep(IDLE_SECONDS)
-
+                             image_digest=os.getenv("STUDIO_BUILD_IMAGE_DIGEST"), progress=progress)
+        _serve(worker, options.once)
 
 if __name__ == "__main__":
     main()

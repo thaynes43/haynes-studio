@@ -6,6 +6,8 @@ import os
 import httpx
 import uvicorn
 
+from haynes_studio.photo_limits import UploadBodyLimits
+
 from .server import LOCAL_HOSTS, create_app
 
 
@@ -24,7 +26,8 @@ def main() -> None:
     try:
         app = create_app(upstream, allowed_hosts=tuple(options.allowed_host or LOCAL_HOSTS),
                          allowed_origins=tuple(options.allowed_origin or ()),
-                         api_ca_file=os.getenv("STUDIO_API_CA_FILE"))
+                         api_ca_file=os.getenv("STUDIO_API_CA_FILE"),
+                         upload_body_limits=UploadBodyLimits.from_environment())
     except ValueError as error:
         parser.error(str(error))
     except httpx.InvalidURL:

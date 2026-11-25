@@ -6,6 +6,9 @@ import { EditorLanding, EditorPicker } from "./editor-entry";
 import { ProductionReview, ProductionStories } from "./production-review";
 import { boardLabel, loadRoute, type RouteData } from "./route-data";
 import { assetsPath, mediaKinds, parseRoute, routePath, treePath, type Route } from "./routes";
+import { RunBuild } from "./run-build";
+import { RunCompare } from "./run-compare";
+import { StoryRuns } from "./run-list";
 import type { SelectionStore } from "./selections";
 import { AccountMenu, Brand, Breadcrumbs, Empty, PageHeading, Problem, Rows, ThemeOptions, type Crumb } from "./shell-ui";
 import type { StoryboardScope } from "./storyboard-data";
@@ -13,7 +16,9 @@ import { boardPosition } from "./storyboard-timeline";
 import { StoryboardWorkspace } from "./storyboard-workspace";
 import type { ThemeSettings } from "./theme";
 import { useRequest } from "./use-request";
+import { useRunList } from "./use-run-list";
 import { useStoryboard } from "./use-storyboard";
+import "./story-runs.css";
 
 type ContextRoute = Extract<Route, { context: unknown }>;
 
@@ -82,11 +87,6 @@ function RouteContents({ route, data }: { route: ContextRoute; data: RouteData }
   }
   const { area, page } = route;
   if (page === "photo") return <Empty>Reference photo tools will appear here.</Empty>;
-  if (page === "compare") return <Empty>Run comparisons will appear here.</Empty>;
-  if (page === "runs") return <>
-    <div className="actions"><Link className="pill" to={treePath(area, route.context, "compare")}>Compare runs</Link></div>
-    <Empty>Runs will appear here.</Empty>
-  </>;
   if (media) {
     return data.stories?.length
       ? <Rows items={data.stories.map(({ id, title }) => ({
@@ -115,6 +115,10 @@ function ContextContents({ api, route, data, selections }: {
 }) {
   const { area, context } = route;
   if (area === "board" && !context.story) return <EditorPicker api={api} context={context} data={data} />;
+  if (area === "board" && data.story) {
+    if (route.page === "runs") return <RunsPage api={api} context={context} story={data.story.id} />;
+    if (route.page === "compare") return <RunCompare api={api} context={context} story={data.story.id} />;
+  }
   if (area === "productions") {
     if (data.story) return <ProductionReview api={api} data={{ ...data, story: data.story }} context={context} />;
     if (context.media && context.production) return <ProductionStories api={api} media={context.media}
@@ -123,14 +127,20 @@ function ContextContents({ api, route, data, selections }: {
   return <RouteContents route={route} data={data} />;
 }
 
+function RunsPage({ api, context, story }: { api: StudioClient; context: ContextRoute["context"]; story: string }) {
+  const feed = useRunList(api, story);
+  return <StoryRuns api={api} context={context} feed={feed} standalone />;
+}
+
 function ShellPage({
-  children, trail, current, title, before,
-}: { children?: ReactNode; trail: Crumb[]; current: string; title: string; before?: ReactNode }) {
+  children, trail, current, title, before, action,
+}: { children?: ReactNode; trail: Crumb[]; current: string; title: string; before?: ReactNode; action?: ReactNode }) {
   return (
     <>
       <Breadcrumbs trail={trail} current={current} />
       <main id="main" aria-labelledby="page-heading">
-        <PageHeading>{title}</PageHeading>
+        {action ? <div className="story-run-header"><PageHeading>{title}</PageHeading>{action}</div>
+          : <PageHeading>{title}</PageHeading>}
         {before}
         {children}
       </main>
@@ -165,6 +175,7 @@ function StoryboardPage({ api, production, media, story, board, selections, befo
   const scope = useMemo(() => ({ production, media, story }), [production, media, story]);
   const model = useStoryboard(api, scope, board);
   const { result, draft, selected, selectedIndex, retry } = model;
+  const runs = useRunList(api, draft?.story.id);
   const context = { ...scope, board };
   const current = treePath("board", context);
   const data = result.status === "success" ? { production: result.data.production, story: draft?.story } : {};
@@ -175,7 +186,8 @@ function StoryboardPage({ api, production, media, story, board, selections, befo
     if (draft && board === selected) selections.remember("board", current);
   }, [board, current, draft, selected, selections]);
 
-  return <ShellPage title={draft?.story.title ?? "Story"} trail={trail} current={current} before={before}>
+  return <ShellPage title={draft?.story.title ?? "Story"} trail={trail} current={current} before={before}
+    action={draft && <RunBuild api={api} draft={draft} pending={model.pending} reload={model.reload} refresh={runs.refresh} />}>
     {result.status === "loading" && <p role="status" className="muted">Loading…</p>}
     {result.status === "failure" && <Problem error={result.error} retry={retry} />}
     {draft && <>
@@ -184,6 +196,7 @@ function StoryboardPage({ api, production, media, story, board, selections, befo
         {selected && <Link className="pill" to={treePath("board", { ...scope, board: selected }, "photo")}>Reference photo</Link>}
         <Link className="pill" to={treePath("board", scope, "runs")}>Runs</Link>
       </div>
+      <StoryRuns api={api} context={scope} feed={runs} />
     </>}
   </ShellPage>;
 }

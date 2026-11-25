@@ -16,7 +16,7 @@ MAX_API_BYTES = 8 * 1024 * 1024
 MAX_ERROR_BYTES = 64 * 1024
 STATUSES = {
     400: "invalid", 401: "unauthenticated", 403: "forbidden", 404: "not_found",
-    409: "conflict", 413: "too_large", 422: "invalid", 500: "internal",
+    408: "invalid", 409: "conflict", 413: "too_large", 422: "invalid", 500: "internal",
     503: "service_unavailable",
 }
 ERROR_STATUSES = frozenset(STATUSES.values()) | {"unavailable"}
@@ -115,27 +115,34 @@ class StudioAPI:
 
     async def request(self, authorization: str, method: str, path: str, *,
                       query: dict | None = None, body: dict | None = None,
-                      revision: int | None = None, expect: int = 200) -> Reply:
+                      revision: int | None = None, expect: int | tuple[int, ...] = 200,
+                      idempotency_key: str | None = None, binary: bytes | None = None,
+                      media_type: str | None = None, provenance: str | None = None) -> Reply:
         headers = {"Authorization": authorization, "Accept": "application/json",
                    "Accept-Encoding": "identity"}
         if revision is not None:
             headers["If-Match"] = f'"{revision}"'
+        expected = (expect,) if isinstance(expect, int) else expect
+        if idempotency_key is not None:
+            headers["Idempotency-Key"] = idempotency_key
+        if binary is not None:
+            headers.update({"Content-Type": media_type, "X-Studio-Photo-Provenance": provenance})
         # An explicit Request forwards only these headers. In particular, never
         # send inbound cookies or cookies from an earlier upstream response.
         request = httpx.Request(method, self.client.base_url.join(path), headers=headers,
-                                params=query, json=body)
+                                params=query, json=body, content=binary)
         request_id = None
         try:
             response = await self.client.send(request, stream=True, follow_redirects=False)
             try:
                 request_id = _checked(response.headers.get("x-request-id"), _REQUEST_ID)
-                if response.status_code == expect == 204:
+                if response.status_code == 204 and 204 in expected:
                     return Reply({}, request_id)
                 try:
                     document = await _read_json(response)
                 except (ValueError, RecursionError):
                     document = None
-                if response.status_code != expect:
+                if response.status_code not in expected:
                     raise _error(response, document, request_id)
                 if not isinstance(document, dict):
                     raise Problem.internal(request_id)

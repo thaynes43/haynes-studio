@@ -83,6 +83,19 @@ asset_versions = sa.Table("asset_versions", metadata, identifier(),
                           sa.Column("state", sa.Text, nullable=False),
                           sa.Column("received_sha256", sa.String(64)), document(),
                           sa.UniqueConstraint("asset_id", "number"))
+asset_promotions = sa.Table(
+    "asset_promotions", metadata, foreign("version_id", "asset_versions.id", primary_key=True),
+    sa.Column("promoted_by", JSONB, nullable=False),
+    sa.Column("promoted_at", sa.DateTime(timezone=True), nullable=False),
+)
+queue_lane_events = sa.Table(
+    "queue_lane_events", metadata,
+    sa.Column("lane", sa.Text, primary_key=True),
+    sa.Column("sequence", sa.BigInteger, primary_key=True),
+    sa.Column("paused", sa.Boolean, nullable=False),
+    sa.Column("changed_by", JSONB, nullable=False),
+    sa.Column("changed_at", sa.DateTime(timezone=True), nullable=False),
+)
 asset_sources = sa.Table("asset_sources", metadata, sa.Column("source_key", sa.Text, primary_key=True),
                          foreign("asset_id", "assets.id"))
 story_asset_refs = sa.Table(
@@ -178,6 +191,31 @@ run_check_overrides = sa.Table("run_check_overrides", metadata,
     foreign("run_id", "runs.id", primary_key=True),
     sa.Column("artifact", sa.Text, primary_key=True),
     document(),
+)
+
+
+media_job_lanes = sa.Table(
+    "media_job_lanes", metadata, sa.Column("lane", sa.Text, primary_key=True),
+    sa.Column("next_position", sa.BigInteger, nullable=False),
+)
+media_jobs = sa.Table(
+    "media_jobs", metadata, identifier(),
+    foreign("production_id", "productions.id", nullable=True),
+    foreign("story_id", "stories.id", nullable=True),
+    foreign("board_id", "boards.id", nullable=True),
+    foreign("lane", "media_job_lanes.lane"),
+    sa.Column("position", sa.BigInteger, nullable=False),
+    sa.Column("kind", sa.Text, nullable=False),
+    sa.Column("idempotency_target", sa.Text, nullable=False),
+    sa.Column("idempotency_actor", sa.Text, nullable=False),
+    sa.Column("idempotency_key", sa.Text, nullable=False),
+    sa.Column("request_signature", sa.Text, nullable=False),
+    sa.Column("requester", JSONB, nullable=False),
+    sa.Column("inputs", JSONB, nullable=False), document(),
+    sa.Column("worker_id", sa.Text),
+    sa.Column("fence", sa.BigInteger, nullable=False),
+    sa.Column("claim_until", sa.DateTime(timezone=True)),
+    sa.Column("dispatched", sa.Boolean, nullable=False),
 )
 
 go_live_approvals = sa.Table("go_live_approvals", metadata, identifier(),

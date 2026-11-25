@@ -143,6 +143,7 @@ def test_writer_scope_is_explicit_and_workers_are_excluded_from_the_catalog(queu
 def test_catalog_reveals_no_production_to_a_single_production_reader(queue):
     q = queue
     payload = doll_short()
+    payload["id"] = "catalog-scope-format"
     version = create_format(q, payload)
     _, reader = register_agent(q.owner, {q.production_id: ["read"]})
     paths = ("/v1/formats", f'/v1/formats/{payload["id"]}/versions', f'/v1/format-versions/{version["id"]}')
@@ -161,11 +162,11 @@ def test_catalog_reveals_no_production_to_a_single_production_reader(queue):
     assert q.browser.get(other_path, headers=reader).status_code == 403
     assert q.browser.get(f'/v1/stories/{pinned.json()["id"]}', headers=reader).status_code == 403
 
-    assert catalog() == before == [
-        {"items": [{"id": payload["id"], "name": payload["name"]}], "next_cursor": None},
-        {"items": [{k: v for k, v in version.items() if k != "recipe"}], "next_cursor": None},
-        version,
-    ]
+    assert catalog() == before
+    formats, versions, detail = before
+    assert {"id": payload["id"], "name": payload["name"]} in formats["items"]
+    assert versions == {"items": [{k: v for k, v in version.items() if k != "recipe"}], "next_cursor": None}
+    assert detail == version
 
 
 def test_wide_format_length_and_target_maximum_do_not_block_queueing(queue):

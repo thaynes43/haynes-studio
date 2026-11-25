@@ -50,6 +50,7 @@ from haynes_studio.stages.preflight import (
     preflight,
 )
 from haynes_studio.store import PRESENT, Store, canonical_json
+from haynes_studio.photo.plan import photo_facts
 from haynes_studio.voice import voice_facts
 from haynes_studio.wholeframe import check_board as wholeframe_check
 
@@ -97,10 +98,13 @@ def resolved_versions(resolution: Resolution, library: Library,
     for item in resolution.resolved:
         if item.version_id in out:
             continue
-        if item.kind == "voice":
+        version = library.version(item.version_id)
+        if version.recorded_without_media:
+            out[item.version_id] = ResolvedVersion(recorded_without_media=True)
+        elif item.kind == "voice":
             out[item.version_id] = DEFINITION_ONLY
         elif item.kind == "board_voice":
-            voice = library.version(item.version_id).voice
+            voice = version.voice
             blobs = []
             if voice is not None and voice.track is not None:
                 blobs.append(BlobRef(voice.track.sha256, voice.track.locator))
@@ -149,7 +153,8 @@ def _metadata_present(_locator, _sha):
 
 def prepare(document: Mapping[str, Any], *, library: Library, store: Store | None,
             toolchain: Toolchain, frame_size: tuple[int, int], current_engine: str,
-            jobs: Iterable[Any] = (), format_version: Mapping[str, Any] | None = None) -> Prepared:
+            jobs: Iterable[Any] = (), check_photo_currency: bool = False,
+            format_version: Mapping[str, Any] | None = None) -> Prepared:
     """Run the pre-build check of a draft story (boards embedded). Never raises for a
     story that cannot be built: every problem is in ``report``. With no store,
     resolve declared content identities and require the worker to verify the bytes."""
@@ -167,6 +172,8 @@ def prepare(document: Mapping[str, Any], *, library: Library, store: Store | Non
                          for v in getattr(error, "violations", ()))
         return Prepared(document, library, None, facts, resolution, resolved, None, PreflightReport(
             problems or (Problem("schema.invalid", "invalid", "", str(error)),)))
+    if check_photo_currency:
+        facts = facts.merged(photo_facts(story, library))
     report = preflight(story, facts=facts, resolved=resolved, store=store)
     problems = list(report.problems)
     if story.format_version_id is not None:

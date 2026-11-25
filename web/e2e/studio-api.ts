@@ -3,6 +3,7 @@ import type { components, paths } from "../src/api/schema";
 import { treePath, type MediaKind } from "../src/routes";
 import { latestRun, photoVersion, reviewFixtures, voiceVersion } from "./studio-review-fixtures";
 import { mediaResponse, type ReviewMedia } from "./studio-review-media";
+import { runFixtures } from "./studio-run-fixtures";
 import { boardVersions, formatId, storyTiming } from "./studio-storyboard-fixtures";
 
 type Schemas = components["schemas"];
@@ -96,8 +97,8 @@ function nextId(first: string, number: number) {
 }
 
 export async function mockStudio(context: BrowserContext, baseURL: string, {
-  empty = false, reviewMedia, storyboardMedia,
-}: { empty?: boolean; reviewMedia?: ReviewMedia; storyboardMedia?: Pick<ReviewMedia, "photo" | "voice"> } = {}) {
+  empty = false, reviewMedia, storyboardMedia, runMedia,
+}: { empty?: boolean; reviewMedia?: ReviewMedia; storyboardMedia?: Pick<ReviewMedia, "photo" | "voice">; runMedia?: ReviewMedia } = {}) {
   let current: User | null = "lena";
   let next: User = "lena";
   let failure: Failure | undefined;
@@ -106,6 +107,9 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
   let freshRequired = false;
   let runRefusal: string | undefined;
   const review = reviewMedia && reviewFixtures(story, reviewMedia);
+  const queue = runMedia && runFixtures(story, runMedia);
+  let dropQueueReply: "connection" | "server" | undefined;
+  let preflight: Schemas["EstimateView"]["problems"] = [];
   const loginRequests: URLSearchParams[] = [];
   const approvalWrites: Array<{ run: string; body: Schemas["ApprovalWrite"] }> = [];
   const boardWrites: Array<{ method: string; path: string; revision: string | undefined; order?: string[] }> = [];
@@ -123,14 +127,14 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
   const firstBoard: Schemas["Board"] = {
     ...selectedBoard, id: story.board_order[0], number: 12, title: "Opening panel",
     lines: [{ id: "lin_01M79V9FC00000000000000001", text: "The soup can hear you.", speaker: "narrator", gap_before_ms: null }],
-    method: review ? { layer: "layered", motion: "s2v" } : { layer: "whole_frame", motion: "i2v" },
+    method: review || queue ? { layer: "layered", motion: "s2v" } : { layer: "whole_frame", motion: "i2v" },
     timing: { lead_ms: 0, tail_ms: 700, hold_ms: null },
     notes: [{ id: "nte_01M79V9FC00000000000000001", text: "Offscreen crunch" }],
-    photo: { ...selectedBoard.photo, current_version_id: review || storyboardMedia ? photoVersion : null },
-    voice: { current_version_id: review || storyboardMedia ? voiceVersion : null, style: "narrator" },
+    photo: { ...selectedBoard.photo, current_version_id: review || storyboardMedia || queue ? photoVersion : null },
+    voice: { current_version_id: review || storyboardMedia || queue ? voiceVersion : null, style: "narrator" },
   };
   const boards = new Map([firstBoard, selectedBoard].map((board) => [board.id, { ...board }]));
-  const draftMedia = storyboardMedia ?? reviewMedia;
+  const draftMedia = runMedia ?? storyboardMedia ?? reviewMedia;
   const versions = draftMedia ? boardVersions(production.id, firstBoard, draftMedia) : [];
   let lastBoardId = 2;
   if (storyboardMedia) {
@@ -389,12 +393,6 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
         }
       }
     }
-    if (path.endsWith("/runs") && path.startsWith("/v1/stories/") && method === "GET") {
-      const draft = stories.find(({ id }) => path === `/v1/stories/${id}/runs`);
-      if (!draft || !visible[user].has(draft.production_id)) return reject(route, 404, "not_found", "not_found");
-      const items = review?.runs.filter((run) => run.story_id === draft.id).map(viewRun) ?? [];
-      return route.fulfill({ json: pageOf(items, cursor) });
-    }
     if (path.startsWith("/v1/stories/")) {
       const [, , , storyId, resource] = path.split("/");
       const draft = stories.find(({ id }) => id === storyId);
@@ -404,6 +402,53 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
       }
       if (resource === "timing" && method === "GET") {
         return route.fulfill({ json: storyTiming(draft, boards, versions) });
+      }
+      if (resource === "runs" && method === "GET") {
+        if (queue) {
+          const items = queue.runs.filter((run) => run.story_id === draft.id).map((run) => queue.view(run));
+          return route.fulfill({ json: pageOf(items, cursor) });
+        }
+        const items = review?.runs.filter((run) => run.story_id === draft.id).map(viewRun) ?? [];
+        return route.fulfill({ json: pageOf(items, cursor) });
+      }
+      if (resource === "runs" && method === "POST" && queue) {
+        const key = headers["idempotency-key"];
+        const revision = headers["if-match"];
+        if (!key || !/^[!-~]{1,255}$/.test(key) || !revision || request.postData() !== null) {
+          violations.push("Invalid build request");
+          return reject(route, 422, "invalid", "schema.invalid");
+        }
+        queue.presses.push({ key, revision });
+        const repeated = queue.runs.find((run) => run.story_id === draft.id && run.idempotency_key === key);
+        if (repeated) return revision !== `"${repeated.snapshot.story_revision}"`
+          ? reject(route, 422, "invalid", "idempotency.mismatch")
+          : route.fulfill({ status: 200, headers: { etag: `"${repeated.revision}"`, location: `/v1/runs/${repeated.id}` },
+            json: queue.view(repeated, true) });
+        if (revision !== `"${draft.revision}"`) {
+          return reject(route, 409, "conflict", "conflict.revision", { current_revision: draft.revision });
+        }
+        if (preflight.length) {
+          const { rule, message, path, status } = preflight[0];
+          return reject(route, 422, status === "unavailable" ? "unavailable" : "invalid", String(rule),
+            { message: String(message), path: String(path) });
+        }
+        const run = queue.add(draft, draft.board_order.map((id) => boards.get(id)!), key);
+        const lostReply = dropQueueReply;
+        dropQueueReply = undefined;
+        if (lostReply === "connection") {
+          return route.abort("connectionreset");
+        }
+        if (lostReply === "server") {
+          return reject(route, 500, "internal", "request.failed", { message: "The request could not be completed" });
+        }
+        return route.fulfill({ status: 201, headers: { etag: '"1"', location: `/v1/runs/${run.id}` }, json: queue.view(run, true) });
+      }
+      if (resource === "estimate" && method === "GET" && queue) {
+        const value: Schemas["EstimateView"] = {
+          estimate: queue.estimate, methods: [], problems: preflight, warnings: [],
+          queue_wait: { ahead: 0, basis: "Estimated serial lane wait", uncertain: true, wall_s: [0, 0] },
+        };
+        return route.fulfill({ json: value });
       }
       if (resource === "boards" && method === "POST") {
         const refused = requireRevision(route, draft.revision);
@@ -459,11 +504,58 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
       if (url.search) violations.push("Unexpected query on private media");
       return route.fulfill(mediaResponse(route, file));
     }
+    if (path.startsWith("/v1/runs/") && queue) {
+      const [, , , id, resource, check, operation] = path.split("/");
+      const run = queue.runs.find((item) => item.id === id);
+      const draft = run && stories.find((item) => item.id === run.story_id);
+      if (!run || !draft || !visible[user].has(draft.production_id)) return reject(route, 404, "not_found", "not_found");
+      const etag = () => `"${run.revision}"`;
+      if (!resource && method === "GET") return route.fulfill({ headers: { etag: etag() }, json: queue.view(run, true) });
+      if (resource === "delivery" && method === "GET") {
+        const delivery = queue.deliveries.get(id);
+        return delivery ? route.fulfill({ json: delivery }) : reject(route, 404, "not_found", "not_found");
+      }
+      if (method === "POST" && (resource === "cancel" || (resource === "checks" && operation === "overrides"))) {
+        const revision = headers["if-match"];
+        if (!revision) {
+          violations.push(`Missing If-Match on ${method} ${path}`);
+          return reject(route, 422, "invalid", "schema.invalid");
+        }
+        if (revision !== etag()) return reject(route, 409, "conflict", "conflict.revision", { current_revision: run.revision });
+        if (resource === "cancel") {
+          queue.cancelWrites.push({ id, revision });
+          if (run.wan_attempts?.some(({ state }) => state === "sent")) {
+            run.cancel_requested = true;
+            run.revision += 1;
+          } else if (!run.cancel_requested) {
+            queue.advance(id, "cancelled", "Cancelled by a Studio user", {
+              cancel_requested: true, progress: { percent: 100, stage: "cancelled" },
+            });
+          }
+          return route.fulfill({ headers: { etag: etag() }, json: queue.view(run, true) });
+        }
+        const body = request.postDataJSON() as Schemas["CheckOverride"];
+        queue.overrideWrites.push({ id, revision, body });
+        if (check !== "layered.decal_gate") return reject(route, 403, "forbidden", "check.not_overridable");
+        if (!body.reason?.trim() || !/^[0-9a-f]{64}$/.test(body.artifact)) return reject(route, 422, "invalid", "schema.invalid");
+        if (run.check_overrides?.some(({ artifact }) => artifact === body.artifact)) {
+          return reject(route, 409, "conflict", "check.override_exists");
+        }
+        if ((run.status !== "succeeded" && run.status !== "failed") ||
+            !run.checks?.some((item) => item.check === check && item.result === "fail" && item.artifact === body.artifact)) {
+          return reject(route, 409, "conflict", "check.not_overridable");
+        }
+        const record: Schemas["CheckOverrideView"] = { ...body, check, by: run.queued_by, at: run.queued_at };
+        run.check_overrides?.push(record);
+        run.revision += 1;
+        return route.fulfill({ status: 201, json: record });
+      }
+    }
     if (path.startsWith("/v1/runs/") && review) {
       const [, , , id, resource] = path.split("/");
       const run = review.runs.find((item) => item.id === id);
       if (!run || !visible[user].has(production.id)) return reject(route, 404, "not_found", "not_found");
-      if (!resource && method === "GET") return route.fulfill({ json: viewRun(run) });
+      if (!resource && method === "GET") return route.fulfill({ headers: { etag: `"${run.revision}"` }, json: viewRun(run) });
       if (resource === "delivery" && method === "GET") {
         const delivery = review.deliveries.get(id);
         return delivery ? route.fulfill({ json: delivery }) : reject(route, 404, "not_found", "not_found");
@@ -498,7 +590,7 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
   });
 
   return {
-    calls, violations, writes, selections, loginRequests, approvalWrites, boardWrites,
+    calls, violations, writes, selections, loginRequests, approvalWrites, boardWrites, queue,
     expire: () => { current = null; },
     signInAs: (user: User) => { next = user; },
     requireFreshSignIn: () => { freshRequired = true; },
@@ -508,6 +600,13 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
     recordManualPublication: () => { stories[0].published = true; },
     editDraft: () => { stories[0].revision += 1; firstBoard.lines[0].text = "New draft line."; },
     setDraftOrder: (order: string[]) => setBoardOrder(stories[0], order),
+    editDraftBoard: (id: string, fields: Partial<Schemas["Board"]>) => {
+      const current = boards.get(id)!;
+      boards.set(id, { ...current, ...fields, revision: current.revision + 1 });
+      stories[0].revision += 1;
+    },
+    dropNextQueueReply: (mode: "connection" | "server") => { dropQueueReply = mode; },
+    preflightProblems: (problems: Schemas["EstimateView"]["problems"]) => { preflight = problems; },
     failNext: (value: Failure) => { failure = value; },
     enableMedia,
   };

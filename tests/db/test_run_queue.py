@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+from secrets import token_hex
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 
@@ -14,14 +15,17 @@ from sqlalchemy.sql.selectable import ScalarSelect
 from haynes_studio.adapters import wan
 from haynes_studio.api.app import create_app
 from haynes_studio.api.auth import SESSION_COOKIE
-from haynes_studio.api.oidc import random_secret
 from haynes_studio.canonical.ids import Minter
-from haynes_studio.db import identity, runs
+from haynes_studio.canonical.model import Board, Story
+from haynes_studio.db import drafts, identity, runs
 from haynes_studio.db.catalog import record_asset_version
 from haynes_studio.db.schema import run_wan_attempts, worker_tokens
+from haynes_studio.library import Library
+from haynes_studio.photo.plan import plan_photo
 from haynes_studio.queue.wan import GPU_REFUSALS, LanePaused, ProductClips, ProductWan, product_request
 from haynes_studio.queue.worker import BuildWorker
 from haynes_studio.queue.worker_api import WorkerAPI, WorkerAPIError
+from haynes_studio.queue.worker_tokens import worker_bearer
 
 from tests.build_story.fixtures import example, photo_png, register
 from tests.db.test_studio_api import (
@@ -34,7 +38,7 @@ pytestmark = pytest.mark.db
 
 
 def worker_credentials(engine):
-    secret = random_secret()
+    secret = worker_bearer(token_hex(24))
     with engine.begin() as conn:
         conn.execute(worker_tokens.insert().values(digest=identity.digest(secret),
                                                    worker_id="fixture-" + Minter().mint("run")))
@@ -59,7 +63,9 @@ def queue(service, engine, owner_engine, monkeypatch, tmp_path):
     app.state.build_stage_root = stage_root
     with owner_engine.begin() as conn:
         conn.exec_driver_sql("TRUNCATE go_live_withdrawals, go_live_approvals, run_check_overrides, run_wan_attempts, runs")
+        conn.exec_driver_sql("TRUNCATE media_jobs, queue_lane_events")
         conn.exec_driver_sql("UPDATE run_lane SET next_position = 1, worker_seen_at = NULL")
+        conn.exec_driver_sql("UPDATE media_job_lanes SET next_position = 1")
     clock = Clock()
     monkeypatch.setattr(runs, "database_time", clock.db_time)
     browser = client(app)
@@ -79,8 +85,15 @@ def queue(service, engine, owner_engine, monkeypatch, tmp_path):
                    scope={"production_id": production_id, "story_id": story_id, "board_id": board["id"]})
     version["content"].update(sha256=blob.sha256, bytes=blob.bytes, locator=blob.locator,
                               width=144, height=256)
-    version["provenance"]["generator"]["source_asset_version_ids"] = []
+    generator = version["provenance"]["generator"]
+    generator["source_asset_version_ids"] = []
     with engine.begin() as conn:
+        exchange = drafts.get_draft(conn, story_id).exchange()
+        photo_fields = {"current_version_id": None, "prompt": "first angle", "input_asset_version_ids": []}
+        planned = Board.from_document({**exchange["boards"][0], "photo": photo_fields})
+        generator.setdefault("params", {})["input_signature"] = plan_photo(
+            Story.from_document(exchange), planned, Library(),
+        ).input_signature
         record_asset_version(conn, version)
     response = browser.patch(f'/v1/boards/{board["id"]}', headers={**csrf, "If-Match": "1"},
                              json={"photo": {"current_version_id": version_id, "prompt": "first angle",
@@ -1025,3 +1038,32 @@ def test_repeated_wan_restart_pauses_before_retrying_under_another_id(queue, mon
         clip = clips_for(q, replacement, wan_http).make(request_for(q), stage="fixture")
     assert len(set(fake.puts())) == 3
     assert fake.puts()[-1].endswith(clip.job_id)
+
+
+@pytest.mark.parametrize(("admission_code", "legacy_message", "state", "reason"), [
+    ("gpu_busy", "changed diagnostic", "queued", "wan.busy"),
+    ("gpu_warm", "changed diagnostic", "queued", "wan.busy"),
+    ("engine_busy", "changed diagnostic", "queued", "wan.foreign_engine_queue"),
+    ("lease_held", "changed diagnostic", "queued", "wan.busy"),
+    ("local_model_handover", "changed diagnostic", "queued", "wan.busy"),
+    ("local_model_unavailable", "changed diagnostic", "queued", "wan.busy"),
+    ("pre_admission_failed", GPU_REFUSALS[0], "held", "wan.pre_admission_failed"),
+    ("new_code", GPU_REFUSALS[0], "held", "wan.admission_unknown"),
+    (None, GPU_REFUSALS[0], "queued", "wan.busy"),
+])
+def test_terminal_admission_prefers_machine_code(queue, admission_code, legacy_message, state, reason):
+    q = queue
+    run_id = queue_run(q, "admission-code").json()["id"]
+    fake = FakeWan()
+    fake.gpu_refusal = legacy_message
+    if admission_code is not None:
+        def code_on_status(job_id):
+            fake.jobs[job_id]["admission_code"] = admission_code
+        fake.before_get = code_on_status
+    with fake.client() as wan_http:
+        assert clip_worker(q, wan_http).tick()
+    run, _ = read_run(q, run_id)
+    assert run["status"] == state and run["error"]["code"] == reason
+    attempt_state = "busy" if state == "queued" else "sent"
+    assert run["wan_attempts"][0]["state"] == attempt_state
+    assert len(fake.puts()) == 1 and not fake.submissions

@@ -60,10 +60,11 @@ def _checked(job: Job) -> Job:
 
 
 def new_job(kind: str, target_id: str, input_signature: str, *, by: Principal, now: str,
-            minter: Minter | None = None, voice: VoiceInput | None = None) -> Job:
+            minter: Minter | None = None, voice: VoiceInput | None = None,
+            job_id: str | None = None) -> Job:
     """A ``queued`` job. A voice job carries the input it must make (``voice``), and
     its ``input_signature`` is that input's signature."""
-    job = Job(id=(minter or Minter()).mint("job"), kind=kind, target_id=target_id,
+    job = Job(id=job_id or (minter or Minter()).mint("job"), kind=kind, target_id=target_id,
               input_signature=input_signature, status=QUEUED, result_version_id=None,
               result_is_current=None, error=None, created_by=by, created_at=now,
               updated_at=now, voice=voice)

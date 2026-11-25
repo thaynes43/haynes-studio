@@ -57,7 +57,7 @@ or recover metadata to an isolated database for inspection.
 | `STUDIO_OIDC_FAILURE_TTL_SECONDS` | Cooldown after a failed discovery or signing key fetch, 1–60 seconds. Default 10. |
 | `STUDIO_SESSION_SECONDS` | Absolute lifetime of an API session, 60–86400 seconds. Default 28800. |
 | `STUDIO_GO_LIVE_APPROVER_SUBJECTS` | JSON array of approver subjects scoped to the configured OIDC issuer. Default `[]`. |
-| `STUDIO_GO_LIVE_FRESHNESS_SECONDS` | Maximum age of sign-in for approval and withdrawal, 1–86400 seconds. Default 900. |
+| `STUDIO_GO_LIVE_FRESHNESS_SECONDS` | Maximum age of sign-in for approval and withdrawal, 1–3600 seconds. Default 900. |
 
 Use TLS for browser requests. Configure Authentik with
 `STUDIO_PUBLIC_ORIGIN + /auth/callback`, `client_secret_basic`, PKCE S256 and
@@ -147,10 +147,17 @@ GRANT UPDATE (document, revision, worker_id, fence, claim_until, retry_at,
     admission_refusals, cancel_requested, publishing) ON studio.runs TO studio_app;
 GRANT UPDATE (state, outcome) ON studio.run_wan_attempts TO studio_app;
 
--- Applied by revision 0004.
+-- Applied by revision 0004_go_live_approvals.
 GRANT SELECT, INSERT ON studio.go_live_approvals, studio.go_live_withdrawals TO studio_app;
 
--- Applied by revision 0006.
+-- Applied by revision 0005_job_operations.
+GRANT SELECT, UPDATE (next_position) ON studio.media_job_lanes TO studio_app;
+GRANT SELECT, INSERT ON studio.media_jobs TO studio_app;
+GRANT UPDATE (document, worker_id, fence, claim_until, dispatched)
+    ON studio.media_jobs TO studio_app;
+GRANT SELECT, INSERT ON studio.asset_promotions, studio.queue_lane_events TO studio_app;
+
+-- Applied by revision 0006_format_recipes.
 GRANT SELECT, INSERT ON studio.formats, studio.format_versions TO studio_app;
 GRANT UPDATE (format_version_id) ON studio.stories TO studio_app;
 ```
@@ -316,12 +323,103 @@ Trusted server code can register canonical metadata through
 `db.catalog.record_delivery`. Import accepts the CLI's production, storyboard
 exchange and matching version documents in one caller-owned transaction.
 Re-import of the same source keeps the stored IDs and draft edits. The delivery
-reader uses the registered story to scope access. For D42, the OpenAPI
-`ExternalPhotoDeclaration` describes the agent's model, prompt, sources,
-session and harness. The upload transport can register the canonical version
-with the optional server-computed `received_sha256` alongside the hash of
-the stored, stripped bytes. Raw upload, image validation and generation jobs
-are story [430](https://work.haynesnetwork.com/work_packages/430).
+reader uses the registered story to scope access.
+
+## Media operations
+
+See the [HTTP and MCP operation map](studio-operation-parity.md) for the
+transport available to each caller. Paths here start at `/v1`.
+
+| Request | Credential | Body and result |
+|---|---|---|
+| `POST /boards/{id}/voice-jobs` | `assets:generate` | `{}`. Freezes the saved board's voice input. |
+| `POST /boards/{id}/photo-jobs` | `assets:generate` | `{"seed": 0}`, with an optional seed from 0 to 2⁵³−1. Freezes the saved photo plan and its current selection. |
+| `POST /asset-jobs` | Signed-in person | `kind` (`cast`, `costume`, `set` or `prop`), `name`, `prompt`, optional `production_id`, `labels` and `seed`. Omit the production or use null to generate a global candidate. |
+| `GET /jobs/{id}` | `read`; candidates are people-only | Canonical `studio.job/v1` with frozen input provenance. |
+| `GET /boards/{id}/jobs` | `read` | Cursor page of compact job statuses. |
+| `GET /boards/{id}/voice-versions`, `GET /boards/{id}/photo-versions` | `read` | Cursor page of this board's immutable versions. |
+| `GET /jobs/{id}/result` | Signed-in person | Result version with content or track hashes. Returns 404 until a result exists. |
+| `POST /asset-versions/{id}/promote` | Signed-in person | Promotes an existing candidate in place or creates a library copy of a board photo. Repeating the request returns the same promoted version. |
+
+Send `Idempotency-Key` for generation. A new request returns 202 with the job
+ID, compact status and `Location: /v1/jobs/{id}`. An exact replay returns
+200 with the same ID and its current status. The reservation is per
+requesting principal, operation and target. Candidate requests share the
+`/asset-jobs` target. Changing the JSON body under a reserved key returns
+422 `idempotency.mismatch`. Job creation freezes the saved draft in the same
+transaction. It leaves the board revision unchanged.
+
+Board reads show `generating` while a job is queued or running. On completion
+the server keeps the version and selects it only if the matching inputs and
+selection are still current. A stale job succeeds with `result_is_current:
+false`. A candidate succeeds with the same flag. Promotion leaves the
+terminal job record intact. Build preflight
+reports `asset.generating` while a board job is active and `photo.stale` if a
+whole-frame I2V board has a signed photo for different inputs or an unsigned
+legacy selection.
+
+### D42 photo upload
+
+`POST /boards/{id}/photo-versions` takes an agent key with `assets:upload`,
+the board revision in `If-Match`, and raw PNG, JPEG or WebP bytes in the
+request body with the matching `Content-Type`. Supply the
+`ExternalPhotoDeclaration` from OpenAPI as ASCII JSON in
+`X-Studio-Photo-Provenance`. Escape non-ASCII characters in the JSON.
+
+```json
+{
+  "model": "example-illustrator",
+  "prompt": "A doll-sized workshop",
+  "session": "example-session",
+  "harness": "example-agent",
+  "source_asset_version_ids": [],
+  "paid_api": false
+}
+```
+
+An optional `upload_sha256` asserts the original byte digest. The server
+computes the digest and records it alongside the hash of the stored RGB PNG.
+The [photo validator](studio-photo.md#d42-upload) checks the 20 MiB body limit,
+4096-pixel side limit, MIME match, decoding, animation and provenance.
+The API accepts image bytes and canonical source IDs. A request has no filename
+or remote location. A valid upload immediately returns 201 with `version`,
+`selected` and `board_revision`. If matching inputs and selection changed
+during validation, the API keeps the upload with `selected: false` and a null
+`board_revision`.
+
+Automatic selection uses the job requester from the insert-only
+`media_jobs.requester` column, or the authenticated uploader. On a person-edited
+board, an agent-requested result is kept in version history with
+`result_is_current: false` for a job or `selected: false` for an upload.
+A person's job protects the selected result with a person-edit record and
+preserves any existing record. This covers a voice job that reuses the
+board's current version. An agent's result advances its own current draft
+stamp with the board revision.
+
+An API process accepts one upload at a time after authentication and a
+production-scope check. A concurrent upload returns 503 `photo.upload_busy`
+with `Retry-After`. Body reads have a 90-second total deadline and a 15-second
+idle timeout. Set `STUDIO_UPLOAD_BODY_SECONDS` to an integer from 15 to 300
+to change the total deadline. A timeout returns 408 `photo.upload_timeout`
+and discards the partial body. Retry using the current board revision if
+another upload selected a version in the meantime.
+
+Photo inputs, new photo and voice selections, promotions and uploads that
+reference an archive's recorded-only media return 422
+`asset.recorded_without_media`.
+
+The internal image and voice workers use the [same claim protocol as builds](media-jobs.md).
+
+## Queue controls
+
+Signed-in people can see all three lanes at `GET /v1/queue/lanes`. Set
+`{"paused":true}` or `{"paused":false}` with `PUT /v1/queue/lanes/{lane}`
+for `run`, `voice` or `image`. The write requires `X-Studio-CSRF`.
+The response and lane list show `paused`, `changed_by` and `changed_at`.
+An untouched lane starts open with null change fields. Repeating its current
+setting returns the previous decision. Each transition appends a decision.
+Paused lanes still accept new work and in-flight claims can finish.
+Workers receive 204 for new claims until the lane resumes.
 
 ## Private playback
 
@@ -334,13 +432,21 @@ whose last byte precedes its first. If-Range may use the strong hash ETag.
 Media responses use `Cache-Control: private, no-store`.
 [RFC 9110 range requests](https://www.rfc-editor.org/rfc/rfc9110.html#name-range-requests)
 
-The API opens a blob only after looking up a reference attached to a
-production the caller can read. Production-scoped asset versions and delivery
-records carry their own association. Shared library media needs a reference
-from a current draft in an accessible production. An unknown or inaccessible
-hash returns 404. The store permits only canonical content locators and opens
-files without following symlinks. Legacy deliveries with only an external
-ledger locator remain metadata-only in this API.
+The API opens a blob after authorizing a database reference. Delivery
+records and production-scoped library versions carry their own association.
+Board-scoped versions and shared-library versions require a reference in a
+current draft in an accessible production. The hash endpoint excludes candidates.
+
+For photo and voice history, use the people-only version or job preview. An
+older board version loses its ordinary hash URL when the last current draft
+reference is removed. Signed-in people can preview a candidate or board media at
+`GET` or `HEAD /v1/asset-versions/{id}/media/{sha256}`. They can also preview
+a job's own result at `GET` or `HEAD /v1/jobs/{id}/media/{sha256}`. Read the
+result version to discover the content hash or voice track hash. Both preview
+routes use the same ranges and hash ETag as the regular media endpoint.
+Unknown and inaccessible media return the same 404. The store opens files
+without following symlinks. Legacy deliveries with only an external ledger
+locator remain metadata-only in this API.
 
 ## Verification
 
@@ -351,7 +457,7 @@ STUDIO_THREADS=2 OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 uv run --no-sync pytes
 
 The DB suite reads `STUDIO_TEST_DATABASE_URL` for a disposable PostgreSQL 16
 database. The fixture identity creates a schema and temporary roles. It
-upgrades from revision `0002_active_agent_grants`, downgrades to base and
+upgrades through `0004_go_live_approvals` to `0005_job_operations`, downgrades to base and
 upgrades from an empty schema. API and store operations run with the executable
 Alembic grants. The suite checks key administration with the dedicated role,
 runtime-role refusal, and protection for ownership, snapshot and Wan attempt

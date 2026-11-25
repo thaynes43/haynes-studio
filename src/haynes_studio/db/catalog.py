@@ -5,17 +5,18 @@ from collections.abc import Collection, Iterable
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert
 
+from haynes_studio.canonical.model import to_document
 from haynes_studio.delivery.model import MASTER_SIZES
 from haynes_studio.delivery.validate import validate_delivery
 from haynes_studio.errors import ContractError, Violation
-from haynes_studio.library.library import Library
-from haynes_studio.library.model import Asset, AssetVersion, CANDIDATE, PROMOTED, version_document
+from haynes_studio.library.library import Library, promote
+from haynes_studio.library.model import BOARD, CANDIDATE, PROMOTED, Asset, AssetVersion, version_document
 from haynes_studio.library.validate import validate_asset, validate_asset_version
 from haynes_studio.store.layout import blob_locator, is_sha256, parse_locator
 
 from .problems import NotFound, require_valid
 from .schema import (
-    asset_media, asset_sources, asset_versions, assets, boards, deliveries, delivery_media,
+    asset_media, asset_promotions, asset_sources, asset_versions, assets, boards, deliveries, delivery_media,
     stories, story_asset_refs,
 )
 
@@ -35,14 +36,23 @@ def _catalog_scope(productions: ProductionScope):
     return sa.or_(assets.c.production_id.is_(None), assets.c.production_id.in_(productions))
 
 
+def _version_state():
+    promoted = sa.exists(sa.select(1).where(
+        asset_promotions.c.version_id == asset_versions.c.id,
+    )).correlate(asset_versions)
+    state = asset_versions.c.state
+    return sa.case((sa.and_(state == CANDIDATE, promoted), PROMOTED), else_=state)
+
+
 def _joined_versions():
-    return sa.select(asset_versions.c.document, assets.c.document.label("asset")).join_from(
+    return sa.select(asset_versions.c.document, assets.c.document.label("asset"),
+                     _version_state().label("state")).join_from(
         asset_versions, assets, asset_versions.c.asset_id == assets.c.id,
     )
 
 
 def _version(row):
-    return version_document(AssetVersion.from_document(row.document),
+    return version_document(AssetVersion.from_document({**row.document, "state": row.state}),
                             Asset.from_document(row.asset))
 
 
@@ -51,7 +61,7 @@ def load_library(conn: sa.Connection, version_ids: Collection[str], production_i
         return Library()
     rows = conn.execute(_joined_versions().where(
         _catalog_scope({production_id}), asset_versions.c.id.in_(version_ids),
-        asset_versions.c.state != CANDIDATE,
+        _version_state() != CANDIDATE,
     ))
     return Library.from_version_documents(_version(row) for row in rows)
 
@@ -59,7 +69,7 @@ def load_library(conn: sa.Connection, version_ids: Collection[str], production_i
 def find_assets(conn: sa.Connection, allowed: ProductionScope, *, kind: str | None,
                 labels: list[str], production_id: str | None, version_ids: Collection[str] | None,
                 after: str | None, limit: int) -> list[dict]:
-    stmt = _joined_versions().where(_catalog_scope(allowed), asset_versions.c.state != CANDIDATE)
+    stmt = _joined_versions().where(_catalog_scope(allowed), _version_state() != CANDIDATE)
     if kind is not None:
         stmt = stmt.where(assets.c.kind == kind)
     if labels:
@@ -81,9 +91,9 @@ def get_asset(conn: sa.Connection, id_: str, allowed: ProductionScope, *,
     ))
     if asset is None:
         raise NotFound
-    stmt = _joined_versions().where(assets.c.id == id_, asset_versions.c.state != CANDIDATE)
+    stmt = _joined_versions().where(assets.c.id == id_, _version_state() != CANDIDATE)
     visible = conn.scalar(sa.select(sa.exists().where(
-        asset_versions.c.asset_id == id_, asset_versions.c.state != CANDIDATE,
+        asset_versions.c.asset_id == id_, _version_state() != CANDIDATE,
     )))
     if not visible:
         raise NotFound
@@ -173,6 +183,10 @@ def record_asset_version(conn: sa.Connection, document: dict, *, asset: Asset | 
     conn.execute(asset_versions.insert().values(id=version.id, asset_id=asset.id,
                                                number=version.number, state=version.state,
                                                received_sha256=received_sha256, document=document))
+    # An archive's locators describe historical inputs. Index only assets
+    # whose own import or creation path registers media.
+    if version.recorded_without_media:
+        return
     items = []
     if version.content is not None:
         items.append((version.content.locator, version.content.sha256, version.content.bytes))
@@ -252,8 +266,9 @@ def media_for_hash(conn: sa.Connection, sha256: str, allowed: ProductionScope):
                                _in_scope(assets.c.production_id, allowed))
     asset = sa.select(asset_media.c.locator, asset_media.c.size).select_from(
         asset_media.join(asset_versions).join(assets),
-    ).where(asset_media.c.sha256 == sha256, asset_versions.c.state != CANDIDATE,
-            sa.or_(production_asset, sa.and_(assets.c.production_id.is_(None), referenced)))
+    ).where(asset_media.c.sha256 == sha256, _version_state() != CANDIDATE,
+            sa.or_(sa.and_(production_asset, assets.c.board_id.is_(None)),
+                   sa.and_(sa.or_(production_asset, assets.c.production_id.is_(None)), referenced)))
     indexed = delivery.union(asset).subquery()
     return conn.execute(sa.select(indexed).order_by(indexed.c.locator)).all()
 
@@ -272,9 +287,82 @@ def build_library(conn: sa.Connection, story: dict, version_ids: Collection[str]
         _catalog_scope({production_id}), assets.c.kind == "motion",
         sa.or_(assets.c.story_id.is_(None), assets.c.story_id == story["id"]),
         sa.or_(assets.c.board_id.is_(None), assets.c.board_id.in_(story["board_order"])),
-        asset_versions.c.state == PROMOTED,
+        _version_state() == PROMOTED,
         asset_versions.c.document["motion"]["still_sha256"].astext.in_(stills),
         asset_versions.c.id.not_in(version_ids),
     ))
     documents = [version_document(v, library.asset_of(v.id)) for v in library.versions.values()]
     return Library.from_version_documents([*documents, *(_version(row) for row in rows)])
+
+
+def board_library(conn, library: Library, board_id: str, *kinds: str) -> Library:
+    rows = conn.execute(_joined_versions().where(
+        assets.c.board_id == board_id, assets.c.kind.in_(kinds),
+        _version_state() != CANDIDATE,
+    ))
+    documents = {v.id: version_document(v, library.asset_of(v.id)) for v in library.versions.values()}
+    for row in rows:
+        doc = _version(row)
+        documents[doc["id"]] = doc
+    return Library.from_version_documents(documents.values())
+
+
+def board_versions(conn, board_id, kind, after, limit):
+    stmt = _joined_versions().where(assets.c.board_id == board_id, assets.c.kind == kind,
+                                    _version_state() != CANDIDATE)
+    if after is not None:
+        stmt = stmt.where(asset_versions.c.id > after)
+    return [_version(row) for row in conn.execute(stmt.order_by(asset_versions.c.id).limit(limit))]
+
+
+def version_library(conn, *, version_id=None, asset_id=None, source_key=None):
+    stmt = _joined_versions()
+    identities = []
+    if source_key is not None:
+        source = sa.select(asset_sources.c.asset_id).where(asset_sources.c.source_key == source_key)
+        identities.append(assets.c.id.in_(source))
+    if asset_id is not None:
+        identities.append(assets.c.id == asset_id)
+    if identities:
+        stmt = stmt.where(sa.or_(*identities))
+    if version_id is not None:
+        stmt = stmt.where(asset_versions.c.id == version_id)
+    return Library.from_version_documents(_version(row) for row in conn.execute(stmt))
+
+
+def preview_media(conn, version_id: str, sha256: str, allowed: ProductionScope, *, job=None):
+    stmt = sa.select(asset_media.c.locator, asset_media.c.size).select_from(
+        asset_media.join(asset_versions).join(assets),
+    ).where(asset_media.c.version_id == version_id, asset_media.c.sha256 == sha256,
+            _catalog_scope(allowed))
+    if job is not None:
+        stmt = stmt.where(assets.c.production_id.is_not_distinct_from(job["production_id"]))
+    if job is None or job["kind"] != "asset_candidate":
+        stmt = stmt.where(sa.or_(_version_state() == CANDIDATE,
+                                assets.c.kind.in_(("photo", "board_voice"))))
+    return conn.execute(stmt).all()
+
+
+def promote_version(conn, version_id, by, now):
+    # Serialize on the immutable source ID, including creation of a board photo's
+    # new library version, which uses a derived source key.
+    conn.execute(sa.select(sa.func.pg_advisory_xact_lock(sa.func.hashtextextended(version_id, 430))))
+    library = version_library(conn, version_id=version_id)
+    original = library.get(version_id)
+    if original is None:
+        raise NotFound
+    if original.kind == "photo" and original.state == BOARD:
+        result = version_library(conn, source_key=f"promote:{version_id}")
+        library = Library.build((*library.assets.values(), *result.assets.values()),
+                                (*library.versions.values(), *result.versions.values()))
+    outcome = promote(library, version_id, by=by, now=now)
+    version = outcome.version
+    document = version_document(version, outcome.library.asset_of(version.id))
+    if outcome.created:
+        if version.id == version_id:
+            conn.execute(asset_promotions.insert().values(
+                version_id=version_id, promoted_by=to_document(by), promoted_at=now,
+            ))
+        else:
+            record_asset_version(conn, document)
+    return document

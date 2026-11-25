@@ -4,10 +4,12 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
+from haynes_studio.api.models import ExternalPhotoDeclaration
 from haynes_studio.canonical.ids import ULID_PATTERN
 from haynes_studio.drafting.declaration import (
     DraftDeclaration, PersonEditAcknowledgment, RedraftDeclaration,
 )
+from haynes_studio.photo_limits import MAX_UPLOAD_BYTES
 
 ProductionID = Annotated[str, StringConstraints(pattern=rf"^prd_{ULID_PATTERN}$")]
 StoryID = Annotated[str, StringConstraints(pattern=rf"^sty_{ULID_PATTERN}$")]
@@ -186,3 +188,43 @@ class ListFormatVersions(Arguments):
 
 class FormatVersion(Arguments):
     version_id: FormatVersionID
+
+
+Key = Annotated[str, StringConstraints(pattern=r"^[!-~]{1,255}$")]
+Seed = Annotated[int, Field(ge=0, le=2**53 - 1)]
+JobID = Annotated[str, StringConstraints(pattern=rf"^job_{ULID_PATTERN}$")]
+
+
+class GenerateVoice(Board):
+    idempotency_key: Key
+
+
+class GeneratePhoto(GenerateVoice):
+    seed: Seed = 0
+
+
+class GetJob(Arguments):
+    job_id: JobID
+
+
+class QueueRun(Story):
+    revision: Revision
+    idempotency_key: Key
+
+
+class Runs(Story):
+    cursor: RunID | None = None
+    limit: Limit = 10
+
+
+class CancelRun(Delivery):
+    revision: Revision
+
+
+MAX_UPLOAD_BASE64 = 4 * ((MAX_UPLOAD_BYTES + 2) // 3)
+
+
+class UploadPhoto(BoardWrite):
+    media_type: Literal["image/png", "image/jpeg", "image/webp"]
+    data_base64: Annotated[str, StringConstraints(min_length=1, max_length=MAX_UPLOAD_BASE64)]
+    provenance: ExternalPhotoDeclaration

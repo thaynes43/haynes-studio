@@ -3,9 +3,12 @@
 import re
 from pathlib import Path
 
-from haynes_studio.db.grants import FORMAT_GRANTS, GO_LIVE_GRANTS, RUNTIME_GRANTS
+from alembic.script import ScriptDirectory
+
+from haynes_studio.db.grants import RUNTIME_GRANTS
 
 REFERENCES = Path(__file__).resolve().parents[2] / "docs/reference"
+MIGRATIONS = REFERENCES.parents[1] / "src/haynes_studio/db/migrations"
 
 
 def _table_privileges(grants):
@@ -36,7 +39,14 @@ def test_documented_runtime_table_grants_match_alembic():
         assert all(re.fullmatch(r"studio\.[a-z_][a-z_0-9]*", name) for name in names)
         documented.append((privileges, tuple(name.removeprefix("studio.") for name in names)))
 
-    assert _table_privileges(documented) == _table_privileges(RUNTIME_GRANTS + GO_LIVE_GRANTS + FORMAT_GRANTS)
+    assert _table_privileges(documented) == _table_privileges(RUNTIME_GRANTS)
+
+
+def test_format_recipes_is_the_only_head_and_follows_job_operations():
+    migrations = ScriptDirectory(str(MIGRATIONS))
+    assert migrations.get_heads() == ["0006_format_recipes"]
+    assert migrations.get_revision("0006_format_recipes").down_revision == "0005_job_operations"
+    assert migrations.get_revision("0005_job_operations").down_revision == "0004_go_live_approvals"
 
 
 def test_agent_key_terminal_output_guidance_covers_pod_logs():

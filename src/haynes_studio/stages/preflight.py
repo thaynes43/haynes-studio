@@ -27,6 +27,7 @@ from typing import Any
 from haynes_studio.canonical import Facts, Story, to_document, validate_story
 from haynes_studio.canonical.validate import QUEUE_RUN, SCHEMA_INVALID
 from haynes_studio.errors import INVALID, ROOT, WARNING, ContractError, pointer
+from haynes_studio.library.resolve import RECORDED_WITHOUT_MEDIA
 from haynes_studio.store import (
     BLOB_MISSING,
     HASH_MISMATCH,
@@ -62,6 +63,7 @@ class ResolvedVersion:
     may list its takes and track."""
 
     blobs: tuple[BlobRef, ...] = ()
+    recorded_without_media: bool = False
 
     @classmethod
     def of(cls, sha256: str, locator: str) -> ResolvedVersion:
@@ -140,9 +142,15 @@ def preflight(story: Story, *, facts: Facts, resolved: Mapping[str, ResolvedVers
     if story.boards is None:
         raw.append((SCHEMA_INVALID, INVALID, "/boards",
                     "the story's boards must be embedded to check a build", None, None))
-    for violation in validate_story(_draft_document(story), context=QUEUE_RUN, facts=facts):
+    violations = validate_story(_draft_document(story), context=QUEUE_RUN, facts=facts)
+    blob_problems = _blob_problems(story, resolved, store)
+    recorded_paths = {path for rule, _, path, _, _, _ in blob_problems if rule == RECORDED_WITHOUT_MEDIA}
+    for violation in violations:
+        # A recorded-only photo already has a specific blocker at this field.
+        if violation.rule == "photo.stale" and violation.path in recorded_paths:
+            continue
         raw.append((violation.rule, violation.status, violation.path, violation.message, None, None))
-    raw += _blob_problems(story, resolved, store)
+    raw += blob_problems
     problems = [_locate(rule, status, path, message, avid, locator, boards)
                 for rule, status, path, message, avid, locator in raw]
     order = {board_id: index for index, board_id in enumerate(story.board_order)}
@@ -213,6 +221,10 @@ def _blob_problems(story: Story, resolved: Mapping[str, ResolvedVersion],
             found.append((ASSET_UNRESOLVED, INVALID, path,
                           f"asset version {version_id} was not resolved by the library",
                           version_id, None))
+            continue
+        if version.recorded_without_media:
+            found.append((RECORDED_WITHOUT_MEDIA, INVALID, path,
+                          f"asset version {version_id} was recorded without media", version_id, None))
             continue
         if needs_bytes and not version.blobs:
             found.append((BLOB_MISSING, FAILED, path,

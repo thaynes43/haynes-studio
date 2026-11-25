@@ -33,7 +33,7 @@ from typing import Any
 
 from haynes_studio.canonical.jsonvalues import normalize
 from haynes_studio.errors import Violation, pointer
-from haynes_studio.library.library import REF_UNKNOWN, Exists, Library
+from haynes_studio.library.library import RECORDED_WITHOUT_MEDIA, REF_UNKNOWN, Exists, Library
 from haynes_studio.library.model import LAYER_CAPABILITIES
 from haynes_studio.library.validate import CAPABILITY_MISMATCH
 
@@ -230,6 +230,8 @@ def resolve(document: Mapping[str, Any], library: Library, exists: Exists) -> Re
                                       f"{version.id} has {', '.join(version.capabilities)}; a "
                                       "layered cast still needs rgba_cutout or keyed_layer "
                                       "(review M6)"))
+        if version.recorded_without_media:
+            continue  # Build preflight reports the recorded provenance without probing the store.
         stored = [content] if content is not None else []
         if version.voice is not None and version.voice.track is not None:
             stored.append(version.voice.track)

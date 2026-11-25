@@ -19,11 +19,14 @@ from starlette.exceptions import HTTPException
 from haynes_studio.db import runs
 from haynes_studio.db.engine import connect_engine
 from haynes_studio.db.problems import DraftProtected, NotFound, StaleRevision
-from haynes_studio.db.schema import format_versions, go_live_approvals, run_lane, sessions
+from haynes_studio.db.schema import (
+    format_versions, go_live_approvals, media_job_lanes, queue_lane_events, run_lane, sessions,
+)
 from haynes_studio.errors import ContractError, pointer
+from haynes_studio.photo_limits import UploadBodyLimits
 from haynes_studio.store.local import LocalStore
 
-from . import approval_routes, auth, format_routes, media, routes, run_routes
+from . import approval_routes, auth, format_routes, job_routes, media, routes, run_routes
 from .config import DEFAULT_STORE_FRESHNESS_SECONDS, from_environment, store_freshness_from_environment
 from .errors import APIError, ErrorDetail, ErrorEnvelope, STATUS, error_response, missing
 from .models import build_models
@@ -95,8 +98,9 @@ def _errors(app: FastAPI):
     @app.exception_handler(ContractError)
     async def invalid_document(request: Request, error: ContractError):
         first = error.violations[0]
-        status = "unavailable" if first.status == "unavailable" else "invalid"
-        return await api_error(request, APIError(422, first.rule, first.message,
+        code = {"too_large": 413, "conflict": 409, "forbidden": 403}.get(first.status, 422)
+        status = first.status if first.status in ("unavailable", "too_large", "conflict", "forbidden") else "invalid"
+        return await api_error(request, APIError(code, first.rule, first.message,
                                                  path=first.path, status=status))
 
     @app.exception_handler(StaleRevision)
@@ -119,7 +123,7 @@ def _errors(app: FastAPI):
     @app.exception_handler(runs.IdempotencyMismatch)
     async def idempotency_mismatch(request: Request, error: runs.IdempotencyMismatch):
         return await api_error(request, APIError(422, "idempotency.mismatch",
-                                                 "This key already queued a different story revision"))
+                                                 "This key already queued a different request"))
 
     @app.exception_handler(runs.QueueConflict)
     async def queue_conflict(request: Request, error: runs.QueueConflict):
@@ -148,7 +152,8 @@ def _errors(app: FastAPI):
 
 
 def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STORE_FRESHNESS_SECONDS,
-                 build_stage_root: str | Path | None = None) -> FastAPI:
+                 build_stage_root: str | Path | None = None,
+                 upload_body_limits: UploadBodyLimits = UploadBodyLimits()) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app):
         yield
@@ -164,11 +169,14 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
             oidc.settings.client_secret.encode(), b"haynes-studio board read token v1", "sha256")
     app.state.build_revision = run_routes.build_revision_from_environment()
     app.state.build_stage_root = build_stage_root
+    app.state.upload_body_limits = upload_body_limits
     _errors(app)
     app.add_middleware(RequestContextMiddleware)
 
-    build_models(*run_routes.transport_models(), *format_routes.transport_models(), approval_routes.ApprovalWrite,
-                 approval_routes.ApprovalState, approval_routes.ApprovalView)
+    build_models(*run_routes.transport_models(), *job_routes.transport_models(),
+                 *format_routes.transport_models(),
+                 approval_routes.ApprovalWrite, approval_routes.ApprovalState,
+                 approval_routes.ApprovalView)
     for model in (ErrorDetail, ErrorEnvelope):
         model.model_config["defer_build"] = False
         model.model_rebuild()
@@ -178,6 +186,7 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
     app.include_router(routes.build_router(current_actor, authenticated_route))
     app.include_router(media.build_router(current_actor, authenticated_route))
     app.include_router(run_routes.build_router(current_actor, authenticated_route))
+    app.include_router(job_routes.build_router(current_actor, authenticated_route))
     app.include_router(approval_routes.build_router(current_actor, approval_route))
     app.include_router(format_routes.build_router(current_actor, authenticated_route))
     app.include_router(run_routes.worker_router())
@@ -193,6 +202,8 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
             with engine.connect() as conn:
                 conn.execute(sa.select(sa.literal(1)).select_from(sessions).limit(0))
                 conn.execute(sa.select(run_lane.c.id).limit(0))
+                conn.execute(sa.select(media_job_lanes.c.lane).limit(0))
+                conn.execute(sa.select(queue_lane_events.c.lane).limit(0))
                 conn.execute(sa.select(go_live_approvals.c.id).limit(0))
                 conn.execute(sa.select(format_versions.c.id).limit(0))
         except (SQLAlchemyError, OSError):
@@ -213,9 +224,10 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
 
 def create_app(engine, store: LocalStore, oidc: OIDC, *,
                store_freshness_seconds: int = DEFAULT_STORE_FRESHNESS_SECONDS,
-               build_stage_root: str | Path | None = None) -> FastAPI:
+               build_stage_root: str | Path | None = None,
+               upload_body_limits: UploadBodyLimits = UploadBodyLimits()) -> FastAPI:
     """Compose the service with explicit dependencies, including in isolated tests."""
-    return _application(engine, store, oidc, store_freshness_seconds, build_stage_root)
+    return _application(engine, store, oidc, store_freshness_seconds, build_stage_root, upload_body_limits)
 
 
 def from_env() -> FastAPI:
@@ -227,7 +239,8 @@ def from_env() -> FastAPI:
     store = LocalStore(root)
     engine = connect_engine(dsn, os.getenv("STUDIO_DATABASE_SCHEMA", "studio"))
     return create_app(engine, store, oidc, store_freshness_seconds=store_freshness_seconds,
-                      build_stage_root=os.getenv("STUDIO_BUILD_STAGE_ROOT"))
+                      build_stage_root=os.getenv("STUDIO_BUILD_STAGE_ROOT"),
+                      upload_body_limits=UploadBodyLimits.from_environment())
 
 
 def schema_app() -> FastAPI:
