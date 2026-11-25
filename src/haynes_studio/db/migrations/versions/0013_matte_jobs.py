@@ -11,10 +11,24 @@ branch_labels = None
 depends_on = None
 
 LANE_CHECKS = {
+    "worker_lane_grants": ("worker_lane_grants_lane_check", "'run', 'voice', 'image'"),
     "media_job_lanes": ("media_job_lanes_lane_check", "'image', 'voice'"),
     "queue_lane_events": ("queue_lane_events_lane_check", "'run', 'voice', 'image'"),
-    "worker_lane_grants": ("worker_lane_grants_lane_check", "'run', 'voice', 'image'"),
 }
+
+
+def _lock_changed_tables():
+    # The 0012 readiness transaction reads grants, lanes and pause events in
+    # that order. Worker auth reads only grants (in its own transaction);
+    # media claims lock a lane, then read pause events and lock the job.
+    # Once we hold the first lock, fail immediately on any other contention
+    # so that a worker transaction cannot extend the readiness interruption.
+    # Take media_jobs last, including for the downgrade's FK check.
+    op.execute("SET LOCAL lock_timeout = '500ms'")
+    op.execute("LOCK TABLE worker_lane_grants IN ACCESS EXCLUSIVE MODE")
+    op.execute(
+        "LOCK TABLE media_job_lanes, queue_lane_events, media_jobs IN ACCESS EXCLUSIVE MODE NOWAIT"
+    )
 
 
 def _lanes(suffix):
@@ -40,6 +54,7 @@ def _jobs(kinds, lane, candidate):
 
 
 def upgrade():
+    _lock_changed_tables()
     _lanes(", 'matte'")
     _jobs("'voice', 'photo', 'asset_candidate', 'matte'",
           "(kind = 'voice' AND lane = 'voice') OR (kind = 'matte' AND lane = 'matte') OR "
@@ -51,6 +66,7 @@ def upgrade():
 
 
 def downgrade():
+    _lock_changed_tables()
     # Existing matte jobs, lane events or grants block this downgrade. Keep the
     # history and bindings intact if the older schema cannot represent them.
     _jobs("'voice', 'photo', 'asset_candidate'", "(kind = 'voice') = (lane = 'voice')",
