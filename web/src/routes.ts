@@ -88,6 +88,18 @@ export function assetsPath(context: Context = {}, generate = false, filters: Ass
   return (generate ? "/editor/assets/generate" : "/editor/assets") + (query.size ? "?" + query : "");
 }
 
+/**
+ * The filters to start a change from. The router updates the address before a page
+ * re-renders, so the filters a component last rendered with can be one step behind:
+ * a change made straight after typing in search would be built from them and drop
+ * the last key. Read the address as it is now; fall back to the rendered filters
+ * when the address is not an Assets address.
+ */
+export function liveAssetFilters(rendered: AssetFilters, pathname: string, search: string): AssetFilters {
+  const live = parseRoute(pathname, search);
+  return live.area === "assets" ? live.filters : rendered;
+}
+
 export function assetsDestination(context: Context, { scope, target, kind }: AssetFilters) {
   return assetsPath(context, false, { scope, target, kind });
 }

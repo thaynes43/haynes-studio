@@ -1,0 +1,84 @@
+{
+  "schema": "studio.agent-draft/v1",
+  "production_id": "prd_00000000000000000000001CTC",
+  "story_id": "sty_00000000000000000000001CTC",
+  "model": "fixture",
+  "session": "op455-handwritten-fixture",
+  "set": {
+    "asset_version_id": "asv_00000000000000000000001CTC"
+  },
+  "boards": [
+    {
+      "key": "exchange",
+      "fields": {
+        "title": "The second ticket",
+        "lines": [
+          {
+            "speaker": "a",
+            "text": "Take a ticket.",
+            "gap_before_ms": null
+          },
+          {
+            "speaker": "b",
+            "text": "For this queue?",
+            "gap_before_ms": 200
+          },
+          {
+            "speaker": "a",
+            "text": "For the next queue.",
+            "gap_before_ms": 200
+          },
+          {
+            "speaker": "b",
+            "text": "Where's that?",
+            "gap_before_ms": 200
+          },
+          {
+            "speaker": "a",
+            "text": "Behind you.",
+            "gap_before_ms": 200
+          },
+          {
+            "speaker": "b",
+            "text": "I was first there.",
+            "gap_before_ms": 200
+          }
+        ],
+        "timing": {
+          "lead_ms": 150,
+          "tail_ms": 300,
+          "hold_ms": null
+        },
+        "voice": "cast",
+        "cast": [
+          {
+            "slot": "a",
+            "asset_version_id": "asv_00000000000000000000001CTQ"
+          },
+          {
+            "slot": "b",
+            "asset_version_id": "asv_00000000000000000000001CTR"
+          }
+        ],
+        "photo": {
+          "prompt": null,
+          "input_asset_version_ids": []
+        },
+        "layout": {
+          "preset": "default",
+          "foreground": true
+        },
+        "method": {
+          "layer": "layered",
+          "motion": "s2v"
+        },
+        "cues": [],
+        "notes": [
+          {
+            "text": "Tight back-and-forth with both dolls in frame."
+          }
+        ]
+      }
+    }
+  ]
+}

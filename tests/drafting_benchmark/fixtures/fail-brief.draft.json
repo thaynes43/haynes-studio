@@ -1,0 +1,87 @@
+{
+  "schema": "studio.agent-draft/v1",
+  "production_id": "prd_00000000000000000000001CQ8",
+  "story_id": "sty_00000000000000000000001CQ8",
+  "model": "fixture",
+  "session": "op455-handwritten-fixture",
+  "set": {
+    "asset_version_id": "asv_00000000000000000000001CQ8"
+  },
+  "boards": [
+    {
+      "key": "inspection",
+      "fields": {
+        "title": "Inspection standard",
+        "lines": [
+          {
+            "speaker": "a",
+            "text": "This gauge is calibrated to one official marble.",
+            "gap_before_ms": null
+          }
+        ],
+        "timing": {
+          "lead_ms": 150,
+          "tail_ms": 300,
+          "hold_ms": null
+        },
+        "voice": "cast",
+        "cast": [
+          {
+            "slot": "a",
+            "asset_version_id": "asv_00000000000000000000001CQK"
+          }
+        ],
+        "photo": {
+          "prompt": null,
+          "input_asset_version_ids": []
+        },
+        "layout": {
+          "preset": "default",
+          "foreground": true
+        },
+        "method": {
+          "layer": "layered",
+          "motion": "s2v"
+        },
+        "cues": [],
+        "notes": [
+          {
+            "text": "Keep her lips clipped and formal."
+          }
+        ]
+      }
+    },
+    {
+      "key": "marble-insert",
+      "fields": {
+        "title": "The standard rolls away",
+        "lines": [],
+        "timing": {
+          "lead_ms": null,
+          "tail_ms": null,
+          "hold_ms": 2200
+        },
+        "voice": null,
+        "cast": [],
+        "photo": {
+          "prompt": "The chipped teal marble rocks in a shallow velvet holder.",
+          "input_asset_version_ids": []
+        },
+        "layout": {
+          "preset": "default",
+          "foreground": false
+        },
+        "method": {
+          "layer": "whole_frame",
+          "motion": "i2v"
+        },
+        "cues": [],
+        "notes": [
+          {
+            "text": "Hold on the empty holder after the roll."
+          }
+        ]
+      }
+    }
+  ]
+}

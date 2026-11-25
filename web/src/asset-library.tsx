@@ -8,7 +8,10 @@ import { boardPhotoHistory, listAssetScope, loadAssetContext } from "./asset-lib
 import { assetKinds, assetOrigins, assetTarget, groupAssets, kindLabel, visibleAssetScope, widenAssetScope } from "./asset-library-model";
 import { LibraryVersion, type AssetTarget } from "./asset-version-card";
 import { loadBoard } from "./route-data";
-import { assetSearchLimit, assetsDestination, assetsPath, routePath, treePath, type AssetFilters, type AssetScope, type AssetsRoute } from "./routes";
+import {
+  assetSearchLimit, assetsDestination, assetsPath, liveAssetFilters, routePath, treePath,
+  type AssetFilters, type AssetScope, type AssetsRoute,
+} from "./routes";
 import type { SelectionStore } from "./selections";
 import { Breadcrumbs, Empty, PageHeading, Problem } from "./shell-ui";
 import { boardPosition } from "./storyboard-timeline";
@@ -162,7 +165,8 @@ export function AssetLibraryPage({ api, route, selections, before }: {
   }, [destination, ready, selections, targetId, targetReady]);
 
   function change(next: Partial<AssetFilters>, replace = false) {
-    void navigate(assetsPath(context, generate, { ...filters, ...next }), { replace, preventScrollReset: true });
+    const current = liveAssetFilters(filters, window.location.pathname, window.location.search);
+    void navigate(assetsPath(context, generate, { ...current, ...next }), { replace, preventScrollReset: true });
   }
 
   const atScope = (scope: AssetScope) => assetsPath(context, false, { ...linkFilters, scope });

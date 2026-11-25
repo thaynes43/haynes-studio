@@ -1,0 +1,18 @@
+{
+  "schema": "studio.drafting-benchmark-evidence/v1",
+  "draft_sha256": "761e2903dccbce73d2d0c2dcad93f3212352dcb7bc4bc6131ba4e1f896453ea6",
+  "writes": [
+    {
+      "production_id": "prd_00000000000000000000001CM4",
+      "story_id": "sty_00000000000000000000001CM4",
+      "board_key": "locker",
+      "board_id": "brd_00000000000000000000001CM7",
+      "applied": true,
+      "tool": "studio_patch_board"
+    }
+  ],
+  "protected_boards": {
+    "brd_00000000000000000000001CM5": "{\"cast\":[{\"asset_version_id\":\"asv_00000000000000000000001CMF\",\"slot\":\"a\"}],\"created_by\":{\"key_id\":\"key_000000000000000000000000E7\",\"kind\":\"agent\"},\"cues\":[],\"draft_application\":{\"applied_at\":\"2026-11-25T00:00:00Z\",\"applied_board_revision\":1,\"board_key\":\"counter\",\"board_revision\":1,\"draft_sha256\":\"7f16389f047cf8b88d9317dabb84d0dca93eabb71c00cdb89a0ba799c38df46b\",\"model\":\"fixture\",\"person_edit\":\"content\",\"person_edit_revision\":2,\"session\":\"op455-fixture\"},\"drafted_by\":{\"key_id\":\"key_000000000000000000000000E7\",\"kind\":\"agent\"},\"id\":\"brd_00000000000000000000001CM5\",\"layout\":{\"foreground\":true,\"preset\":\"default\"},\"lines\":[{\"gap_before_ms\":null,\"id\":\"lin_0000000000000000000000DY9K\",\"speaker\":\"a\",\"text\":\"After six, return your purchases to the locker.\"}],\"method\":{\"layer\":\"layered\",\"motion\":\"s2v\"},\"notes\":[{\"id\":\"nte_0000000000000000000000DY9K\",\"text\":\"Keep the operator's editorial note.\"}],\"number\":1,\"origin\":null,\"photo\":{\"current_version_id\":null,\"input_asset_version_ids\":[],\"prompt\":null},\"revision\":2,\"schema\":\"studio.board/v1\",\"seeds\":{},\"story_id\":\"sty_00000000000000000000001CM4\",\"timing\":{\"hold_ms\":null,\"lead_ms\":150,\"tail_ms\":300},\"title\":\"Return policy\",\"voice\":{\"current_version_id\":null,\"style\":\"cast\"}} ",
+    "brd_00000000000000000000001CM6": "{\"cast\":[],\"cues\":[],\"drafted_by\":{\"key_id\":\"key_000000000000000000000000E7\",\"kind\":\"agent\"},\"id\":\"brd_00000000000000000000001CM6\",\"layout\":{\"foreground\":false,\"preset\":\"default\"},\"lines\":[],\"method\":{\"layer\":\"whole_frame\",\"motion\":\"i2v\"},\"notes\":[{\"id\":\"nte_0000000000000000000000DY9X\",\"text\":\"Hold on the unmarked envelope.\"}],\"number\":2,\"origin\":null,\"photo\":{\"current_version_id\":null,\"input_asset_version_ids\":[\"asv_00000000000000000000001CM4\"],\"prompt\":\"An unmarked envelope on the green counter.\"},\"revision\":1,\"schema\":\"studio.board/v1\",\"seeds\":{},\"story_id\":\"sty_00000000000000000000001CM4\",\"timing\":{\"hold_ms\":1600,\"lead_ms\":null,\"tail_ms\":null},\"title\":\"The sealed envelope\",\"voice\":{\"current_version_id\":null,\"style\":null}}"
+  }
+}
