@@ -7,11 +7,13 @@ import hashlib
 import multiprocessing
 import os
 import tempfile
+import zlib
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from functools import partial
 from io import BytesIO
 from pathlib import Path
+from struct import pack
 from time import monotonic
 
 import numpy as np
@@ -32,7 +34,7 @@ from haynes_studio.matting.profile import (
     PROVIDER, REQUEST_INVALID, RESPONSE_INVALID, TIMEOUT, MatteError, Profile,
 )
 from haynes_studio.matting.service import _UnixConnection, listening, local_call
-from haynes_studio.matting.smoke import _check_fixtures, _request
+from haynes_studio.matting.smoke import INSTALLED_FIXTURE_HASHES, _check_fixtures, _installed_matches, _request
 from haynes_studio.schemas import validator_for
 from haynes_studio.store import canonical_json
 
@@ -330,6 +332,23 @@ def test_source_decoding(kind):
         code_is(error, REQUEST_INVALID)
 
 
+def test_refuses_rgb16_png_even_when_pillow_exposes_rgb():
+    def chunk(kind, payload):
+        return pack(">I", len(payload)) + kind + payload + pack(">I", zlib.crc32(kind + payload))
+
+    row = b"\0" + pack(">3H", 0x1234, 0x5678, 0x9ABC) * 64
+    data = (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", pack(">IIBBBBB", 64, 64, 16, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(row * 64)) + chunk(b"IEND", b""))
+    with Image.open(BytesIO(data)) as image:
+        assert image.mode == "RGB"
+        assert image.getpixel((0, 0)) == (0x12, 0x56, 0x9A)
+    source = {"sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data),
+              "media_type": "image/png", "width": 64, "height": 64}
+    with pytest.raises(MatteError) as error:
+        decode_source(data, source)
+    code_is(error, REQUEST_INVALID)
+
+
 def test_alpha_rounding_and_no_chroma():
     image = Image.new("RGB", (DIM, DIM), (36, 180, 60))
     alpha = np.zeros((DIM, DIM), dtype=np.float32)
@@ -391,6 +410,22 @@ def test_synthetic_smoke_with_fixed_matte(prepared, imperfect, monkeypatch):
     assert metrics["shape_fringe"]["strand_mae"]["passed"] is not imperfect
     if not imperfect:
         assert all(metric["passed"] for group in metrics.values() for metric in group.values())
+
+
+def test_installed_smoke_hashes_cover_each_input_output_and_replay():
+    inferences = {}
+    for name, options in (("bust", {}), ("green_eyes", {"green": True}), ("smaller_bust", {"smaller": True})):
+        baseline = INSTALLED_FIXTURE_HASHES[name]
+        inferences[name] = {
+            "source_sha256": hashlib.sha256(encode_png(bust(**options).rgb)).hexdigest(),
+            "artifact_sha256": {key: baseline[key] for key in ("cutout", "mask")},
+        }
+    inferences["replay"] = copy.deepcopy(inferences["bust"])
+    assert all(all(matches.values()) for matches in _installed_matches(inferences).values())
+    inferences["replay"]["artifact_sha256"]["mask"] = "0" * 64
+    assert _installed_matches(inferences)["replay"] == {"source": True, "cutout": True, "mask": False}
+    del inferences["smaller_bust"]
+    assert not any(_installed_matches(inferences)["smaller_bust"].values())
 
 
 def test_each_eye_lash_and_scale_score_is_independent():
