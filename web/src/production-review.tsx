@@ -146,14 +146,15 @@ export function ProductionReview({ api, data, context }: {
   api: StudioClient; data: RouteData & { story: Story }; context: Context;
 }) {
   const { story, board } = data;
-  const [draft, setDraft] = useState(story);
+  const [refreshedDraft, setRefreshedDraft] = useState<{ source: Story; draft: Story }>();
+  const draft = refreshedDraft?.source === story ? refreshedDraft.draft : story;
   async function reloadDraft(signal: AbortSignal) {
     const { data: refreshed } = await api.GET("/v1/stories/{id}", {
       signal, params: { path: { id: story.id } },
     });
     if (!refreshed || refreshed.id !== story.id || refreshed.production_id !== story.production_id ||
         refreshed.media_kind !== story.media_kind) throw new ApiError(404);
-    if (!signal.aborted) setDraft(refreshed);
+    if (!signal.aborted) setRefreshedDraft({ source: story, draft: refreshed });
   }
 
   return <>
