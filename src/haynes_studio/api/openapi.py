@@ -23,6 +23,7 @@ _CANONICAL = {
     "studio.asset-version.v1.schema.json": "AssetVersion",
     "studio.delivery.v1.schema.json": "Delivery",
     "studio.run.v1.schema.json": "RunView",
+    "studio.format-recipe.v1.schema.json": "FormatRecipe",
     "studio.job.v1.schema.json": "JobView",
     "studio.escalation.v1.schema.json": "EscalationPackage",
 }
@@ -113,6 +114,7 @@ _ASSET_OPERATIONS = {"generate_board_voice": "assets:generate", "generate_board_
                      "generate_asset_candidate": "assets:generate", "upload_board_photo": "assets:upload"}
 _RUN_QUEUE_OPERATIONS = {"queue_run", "cancel_run", "record_check_override"}
 _GO_LIVE_OPERATIONS = {"approve_go_live", "withdraw_go_live"}
+_FORMAT_WRITE_OPERATIONS = {"create_format", "add_format_version"}
 _DRAFT_OPERATIONS = {"create_story", "update_story", "create_board", "update_board",
                      "reorder_boards", "remove_board"}
 
@@ -149,6 +151,8 @@ def _document_access(document: dict) -> None:
                 operation["x-studio-scope"] = "runs:queue"
             elif name in _DRAFT_OPERATIONS:
                 operation["x-studio-scope"] = "draft:write"
+            elif name in _FORMAT_WRITE_OPERATIONS:
+                operation["x-studio-scope"] = "formats:write"
             elif name == "report_escalation":
                 operation["security"] = [{"StudioBearer": []}]
                 operation["x-studio-scope"] = "read"

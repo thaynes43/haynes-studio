@@ -487,7 +487,7 @@ def test_responder_key_with_overbroad_grants_or_wrong_expiry_is_refused(queue, m
     doc = proposed["package"]
     package_id = doc["deduplication_id"]
     if misbound == "scopes":
-        auth = fixture_responder(q, doc, extra_scopes=["assets:generate"])
+        auth = fixture_responder(q, doc, extra_scopes=["formats:write"])
     else:
         later = datetime.fromisoformat(doc["expires_at"]) + timedelta(minutes=1)
         auth = fixture_responder(q, doc, expires_at=later)

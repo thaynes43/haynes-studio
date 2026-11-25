@@ -445,7 +445,7 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
       }
       if (resource === "estimate" && method === "GET" && queue) {
         const value: Schemas["EstimateView"] = {
-          estimate: queue.estimate, methods: [], problems: preflight,
+          estimate: queue.estimate, methods: [], problems: preflight, warnings: [],
           queue_wait: { ahead: 0, basis: "Estimated serial lane wait", uncertain: true, wall_s: [0, 0] },
         };
         return route.fulfill({ json: value });

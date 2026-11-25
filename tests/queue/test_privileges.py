@@ -1,9 +1,7 @@
 """Keep the operator's runtime GRANT reference in sync with Alembic."""
 
 import re
-import runpy
 from pathlib import Path
-from shutil import copyfile
 
 from alembic.script import ScriptDirectory
 
@@ -44,25 +42,11 @@ def test_documented_runtime_table_grants_match_alembic():
     assert _table_privileges(documented) == _table_privileges(RUNTIME_GRANTS)
 
 
-def test_migration_chain_follows_go_live_job_operations_and_format_recipes(tmp_path):
-    versions = MIGRATIONS / "versions"
-    escalation = versions / "0007_escalation_packages.py"
-    declaration = runpy.run_path(str(escalation))
-    assert declaration["revision"] == "0007_escalation_packages"
-    assert declaration["down_revision"] == "0006_format_recipes"
-    if (versions / "0006_format_recipes.py").is_file():
-        migrations = ScriptDirectory(str(MIGRATIONS))
-        assert migrations.get_revision("0006_format_recipes").down_revision == "0005_job_operations"
-    else:
-        # PR 105 can land independently. Until then, verify the present
-        # prefix here and exercise the full chain in the database suite.
-        prefix = tmp_path / "versions"
-        prefix.mkdir()
-        for file in versions.glob("*.py"):
-            if file != escalation:
-                copyfile(file, prefix / file.name)
-        migrations = ScriptDirectory(str(tmp_path))
-    assert len(migrations.get_heads()) == 1
+def test_escalation_is_the_only_head_and_follows_format_recipes():
+    migrations = ScriptDirectory(str(MIGRATIONS))
+    assert migrations.get_heads() == ["0007_escalation_packages"]
+    assert migrations.get_revision("0007_escalation_packages").down_revision == "0006_format_recipes"
+    assert migrations.get_revision("0006_format_recipes").down_revision == "0005_job_operations"
     assert migrations.get_revision("0005_job_operations").down_revision == "0004_go_live_approvals"
 
 

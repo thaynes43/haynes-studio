@@ -68,8 +68,15 @@ GO_LIVE_GRANTS = (
     ("SELECT, INSERT", ("go_live_approvals", "go_live_withdrawals")),
 )
 
+
+FORMAT_GRANTS = (
+    ("SELECT, INSERT", ("formats", "format_versions")),
+    ("UPDATE (format_version_id)", ("stories",)),
+)
+
 ESCALATION_GRANTS = (
     ("SELECT, INSERT", ("escalation_check_failures", "escalation_packages", "escalation_events")),
 )
 
-RUNTIME_GRANTS = RUN_QUEUE_GRANTS + GO_LIVE_GRANTS + JOB_GRANTS + ESCALATION_GRANTS
+
+RUNTIME_GRANTS = RUN_QUEUE_GRANTS + GO_LIVE_GRANTS + JOB_GRANTS + FORMAT_GRANTS + ESCALATION_GRANTS
