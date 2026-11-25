@@ -430,10 +430,10 @@ def test_agent_fills_and_reorders_a_fresh_story_without_acknowledgment(prepared)
                         headers={**headers, "If-Match": "3"})
     assert reordered.status_code == 200, reordered.text
     path = f"/v1/boards/{board_ids[0]}"
-    draft = api.patch(path, json={"title": "A finished board"}, headers={**headers, "If-Match": "2"})
+    draft = api.patch(path, json={"title": "A finished board"}, headers={**headers, "If-Match": "1"})
     assert draft.status_code == 200, draft.text
     assert draft.json()["title"] == "A finished board"
-    assert api.delete(path, headers={**headers, "If-Match": "3"}).status_code == 204
+    assert api.delete(path, headers={**headers, "If-Match": "2"}).status_code == 204
 
 
 def test_acknowledgment_requires_the_current_read_and_preserves_history(prepared, owner_engine):

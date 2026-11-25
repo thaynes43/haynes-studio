@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+from pathlib import Path
 from secrets import token_hex
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
@@ -237,14 +238,14 @@ def test_snapshot_serves_exact_run_bytes_to_scoped_readers(queue):
         assert refused.status_code == 401
         assert refused.json()["error"]["code"] == "auth.required"
 
-    blob = q.store.root / pin["locator"]
+    blob = Path(q.store.root) / pin["locator"]
+    blob.rename(blob.with_suffix(".original"))
+    missing_blob = q.browser.get(path)
+    assert missing_blob.status_code == 404 and missing_blob.json()["error"]["code"] == "run.snapshot_missing"
     blob.write_bytes(frozen + b" ")
     corrupt = q.browser.get(path)
     assert corrupt.status_code == 503 and corrupt.json()["error"]["code"] == "run.snapshot_changed"
     assert "etag" not in corrupt.headers
-    blob.unlink()
-    missing_blob = q.browser.get(path)
-    assert missing_blob.status_code == 404 and missing_blob.json()["error"]["code"] == "run.snapshot_missing"
 
 
 def test_worker_auth_rejects_credentials_before_body_or_query(queue):

@@ -582,13 +582,17 @@ def reorder(conn: sa.Connection, id_: str, revision: int, order: list[str], by: 
     now = timestamp()
     updated = _advance(draft, {"board_order": order}, now)
     updated.boards = dict(draft.boards)
+    changed = []
     for id_board in moved:
         held = draft.boards[id_board]
         acknowledgment = acknowledgments.get(id_board)
         _check_board_write(held, by, acknowledgment)
-        updated.boards[id_board] = _board_changed(held, by, "reordered", now, acknowledgment)
+        if (acknowledgment is not None or by["kind"] == "human"
+                or "draft_application" in held or "person_edit" in held):
+            updated.boards[id_board] = _board_changed(held, by, "reordered", now, acknowledgment)
+            changed.append(id_board)
     refs = updated.validate(conn)
-    for id_board in moved:
+    for id_board in changed:
         conn.execute(boards.update().where(boards.c.id == id_board).values(
             document=updated.boards[id_board],
         ))
