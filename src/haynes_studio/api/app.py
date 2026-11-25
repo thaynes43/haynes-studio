@@ -23,10 +23,13 @@ from haynes_studio.db.schema import (
     format_versions, go_live_approvals, media_job_lanes, queue_lane_events, run_lane, sessions,
 )
 from haynes_studio.errors import ContractError, pointer
+from haynes_studio.escalation.lifecycle import EscalationError
+from haynes_studio.escalation.settings import Settings as EscalationSettings
+from haynes_studio.escalation.storage import packages
 from haynes_studio.photo_limits import UploadBodyLimits
 from haynes_studio.store.local import LocalStore
 
-from . import approval_routes, auth, format_routes, job_routes, media, routes, run_routes
+from . import approval_routes, auth, escalation_routes, format_routes, job_routes, media, routes, run_routes
 from .config import DEFAULT_STORE_FRESHNESS_SECONDS, from_environment, store_freshness_from_environment
 from .errors import APIError, ErrorDetail, ErrorEnvelope, STATUS, error_response, missing
 from .models import build_models
@@ -75,6 +78,10 @@ def _errors(app: FastAPI):
     @app.exception_handler(APIError)
     async def api_error(request: Request, error: APIError):
         return error_response(request, error)
+
+    @app.exception_handler(EscalationError)
+    async def escalation_error(request: Request, error: EscalationError):
+        return await api_error(request, APIError(error.status, error.code, str(error)))
 
     @app.exception_handler(HTTPException)
     async def http_error(request: Request, error: HTTPException):
@@ -153,7 +160,8 @@ def _errors(app: FastAPI):
 
 def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STORE_FRESHNESS_SECONDS,
                  build_stage_root: str | Path | None = None,
-                 upload_body_limits: UploadBodyLimits = UploadBodyLimits()) -> FastAPI:
+                 upload_body_limits: UploadBodyLimits = UploadBodyLimits(),
+                 escalation: EscalationSettings = EscalationSettings()) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app):
         yield
@@ -170,11 +178,12 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
     app.state.build_revision = run_routes.build_revision_from_environment()
     app.state.build_stage_root = build_stage_root
     app.state.upload_body_limits = upload_body_limits
+    app.state.escalation = escalation
     _errors(app)
     app.add_middleware(RequestContextMiddleware)
 
     build_models(*run_routes.transport_models(), *job_routes.transport_models(),
-                 *format_routes.transport_models(),
+                 *format_routes.transport_models(), *escalation_routes.transport_models(),
                  approval_routes.ApprovalWrite, approval_routes.ApprovalState,
                  approval_routes.ApprovalView)
     for model in (ErrorDetail, ErrorEnvelope):
@@ -189,6 +198,8 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
     app.include_router(job_routes.build_router(current_actor, authenticated_route))
     app.include_router(approval_routes.build_router(current_actor, approval_route))
     app.include_router(format_routes.build_router(current_actor, authenticated_route))
+    app.include_router(escalation_routes.build_router(current_actor, authenticated_route))
+    app.include_router(escalation_routes.worker_router())
     app.include_router(run_routes.worker_router())
 
     @app.get("/healthz", status_code=204, response_class=Response, operation_id="healthz")
@@ -206,6 +217,7 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
                 conn.execute(sa.select(queue_lane_events.c.lane).limit(0))
                 conn.execute(sa.select(go_live_approvals.c.id).limit(0))
                 conn.execute(sa.select(format_versions.c.id).limit(0))
+                conn.execute(sa.select(packages.c.id).limit(0))
         except (SQLAlchemyError, OSError):
             return False
         return True
@@ -225,9 +237,11 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
 def create_app(engine, store: LocalStore, oidc: OIDC, *,
                store_freshness_seconds: int = DEFAULT_STORE_FRESHNESS_SECONDS,
                build_stage_root: str | Path | None = None,
-               upload_body_limits: UploadBodyLimits = UploadBodyLimits()) -> FastAPI:
+               upload_body_limits: UploadBodyLimits = UploadBodyLimits(),
+               escalation: EscalationSettings = EscalationSettings()) -> FastAPI:
     """Compose the service with explicit dependencies, including in isolated tests."""
-    return _application(engine, store, oidc, store_freshness_seconds, build_stage_root, upload_body_limits)
+    return _application(engine, store, oidc, store_freshness_seconds, build_stage_root,
+                        upload_body_limits, escalation)
 
 
 def from_env() -> FastAPI:
@@ -240,7 +254,8 @@ def from_env() -> FastAPI:
     engine = connect_engine(dsn, os.getenv("STUDIO_DATABASE_SCHEMA", "studio"))
     return create_app(engine, store, oidc, store_freshness_seconds=store_freshness_seconds,
                       build_stage_root=os.getenv("STUDIO_BUILD_STAGE_ROOT"),
-                      upload_body_limits=UploadBodyLimits.from_environment())
+                      upload_body_limits=UploadBodyLimits.from_environment(),
+                      escalation=EscalationSettings.from_environment())
 
 
 def schema_app() -> FastAPI:

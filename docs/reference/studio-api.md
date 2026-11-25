@@ -160,6 +160,10 @@ GRANT SELECT, INSERT ON studio.asset_promotions, studio.queue_lane_events TO stu
 -- Applied by revision 0006_format_recipes.
 GRANT SELECT, INSERT ON studio.formats, studio.format_versions TO studio_app;
 GRANT UPDATE (format_version_id) ON studio.stories TO studio_app;
+
+-- Applied by revision 0007_escalation_packages.
+GRANT SELECT, INSERT ON studio.escalation_check_failures, studio.escalation_packages,
+    studio.escalation_events TO studio_app;
 ```
 
 Revision `0004_go_live_approvals` uses the PostgreSQL UTF-8 `und-x-icu`

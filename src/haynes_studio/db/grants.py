@@ -74,5 +74,9 @@ FORMAT_GRANTS = (
     ("UPDATE (format_version_id)", ("stories",)),
 )
 
+ESCALATION_GRANTS = (
+    ("SELECT, INSERT", ("escalation_check_failures", "escalation_packages", "escalation_events")),
+)
 
-RUNTIME_GRANTS = RUN_QUEUE_GRANTS + GO_LIVE_GRANTS + JOB_GRANTS + FORMAT_GRANTS
+
+RUNTIME_GRANTS = RUN_QUEUE_GRANTS + GO_LIVE_GRANTS + JOB_GRANTS + FORMAT_GRANTS + ESCALATION_GRANTS

@@ -62,7 +62,8 @@ def queue(service, engine, owner_engine, monkeypatch, tmp_path):
     stage_root.mkdir()
     app.state.build_stage_root = stage_root
     with owner_engine.begin() as conn:
-        conn.exec_driver_sql("TRUNCATE go_live_withdrawals, go_live_approvals, run_check_overrides, run_wan_attempts, runs")
+        conn.exec_driver_sql("TRUNCATE escalation_events, escalation_packages, escalation_check_failures, "
+                             "go_live_withdrawals, go_live_approvals, run_check_overrides, run_wan_attempts, runs")
         conn.exec_driver_sql("TRUNCATE media_jobs, queue_lane_events")
         conn.exec_driver_sql("UPDATE run_lane SET next_position = 1, worker_seen_at = NULL")
         conn.exec_driver_sql("UPDATE media_job_lanes SET next_position = 1")

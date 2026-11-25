@@ -15,6 +15,8 @@ from haynes_studio.db.engine import snapshot
 from haynes_studio.db.problems import StaleRevision, require_valid
 from haynes_studio.delivery import read_delivery
 from haynes_studio.delivery.errors import DeliveryError
+from haynes_studio.escalation import responder
+from haynes_studio.escalation import storage as escalation_storage
 from haynes_studio.library.resolve import story_references
 from haynes_studio.queue import inputs
 from haynes_studio.queue.protocol import (
@@ -170,6 +172,8 @@ def build_router(CurrentActor, authenticated_route):
         store = request.app.state.store
         with request.app.state.engine.begin() as conn:
             _story_access(conn, actor, "runs:queue", id)
+            if responder.is_responder(actor.principal.key_id):
+                responder.require_queue(conn, principal, id, idempotency_key)
             # Draft mutations use the same story row, including board edits.
             draft = drafts.get_draft(conn, id, lock=True)
             row = runs.lookup_idempotency(conn, id, principal, idempotency_key, revision)
@@ -229,6 +233,7 @@ def build_router(CurrentActor, authenticated_route):
             raise forbidden("check.not_overridable", "Only the visual decal check supports an override")
         with request.app.state.engine.begin() as conn:
             row = _run_access(conn, actor, "runs:queue", id, lock=True)
+            escalation_storage.lock(conn)
             return runs.record_override(conn, row, _revision(if_match), artifact=body.artifact,
                                         reason=body.reason, actor=to_document(actor.principal))
 
