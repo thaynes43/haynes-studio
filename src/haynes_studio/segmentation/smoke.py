@@ -131,7 +131,6 @@ def _memory_stable(passes):
         for values in (
             passes["max_resident_rss_bytes"],
             passes["max_cgroup_resident_bytes"],
-            passes["cgroup_resident_bytes"],
         )
     )
 
