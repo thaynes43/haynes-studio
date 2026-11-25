@@ -1,6 +1,7 @@
 """Private production-scoped archive metadata, exact text reads and draft apply."""
 
 import hashlib
+import hmac
 import json
 import re
 from collections.abc import Mapping
@@ -32,7 +33,7 @@ from .transport import access_log
 MAX_TEXT_BYTES = 256 * 1024
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
 Kind = Literal["brief", "script", "storyboard"]
-SourceLabel = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")]
+SourceLabel = Annotated[str, StringConstraints(max_length=40, pattern=r"^[A-Za-z][A-Za-z0-9]*-[0-9]+$")]
 ArchiveText = Annotated[str, Field(description="Exact UTF-8 text, at most 256 KiB after decoding")]
 ARCHIVE_SCOPES = {
     "create_archive_record": "archive:write",
@@ -59,6 +60,19 @@ class Adapted(Body):
 
 
 Provenance = Annotated[Original | Adapted, Field(discriminator="origin")]
+
+
+class StoredSourceLocator(TransportModel):
+    label: SourceLabel
+    hmac_sha256: SHA256
+
+
+class StoredAdapted(TransportModel):
+    origin: Literal["adapted"]
+    source_locator: StoredSourceLocator
+
+
+StoredProvenance = Annotated[Original | StoredAdapted, Field(discriminator="origin")]
 
 
 class ArchiveVersionWrite(Body):
@@ -92,7 +106,7 @@ class ArchiveVersion(TransportModel):
     bytes: int
     sha256: SHA256
     format_version_id: str | None
-    provenance: Provenance
+    provenance: StoredProvenance
     written_by: dict[str, str]
     written_at: datetime
 
@@ -119,6 +133,7 @@ class ArchiveBoardOutcome(TransportModel):
     board_id: str | None
     outcome: Literal["applied", "conflict", "skipped"]
     reason: str
+    stamped_version_id: str | None = None
 
 
 class ArchiveApplication(TransportModel):
@@ -193,6 +208,26 @@ def _payload(body):
     return body.model_dump(include=set(ArchiveVersionWrite.model_fields))
 
 
+def _stored_payload(request, production_id, payload):
+    provenance = payload["provenance"]
+    if provenance["origin"] == "original":
+        return payload
+    locator = provenance["source_locator"]
+    key = hmac.digest(request.app.state.archive_source_key, production_id.encode("ascii"), "sha256")
+    digest = hmac.digest(key, bytes.fromhex(locator["sha256"]), "sha256").hex()
+    return {**payload, "provenance": {"origin": "adapted", "source_locator": {
+        "label": locator["label"], "hmac_sha256": digest,
+    }}}
+
+
+def _read_version(conn, version_id):
+    version = archive.version(conn, version_id)
+    data = version["text"].encode("utf-8")
+    if hashlib.sha256(data).hexdigest() != version["sha256"]:
+        raise APIError(500, "archive.text_hash_mismatch", "Stored archive text failed its integrity check")
+    return version, data
+
+
 def _replay(conn, key_hash, request_hash):
     result = archive.previous_request(conn, key_hash)
     if result is not None and result["request_sha256"] != request_hash:
@@ -241,7 +276,8 @@ def build_router(CurrentActor, authenticated_route):
                 _text(body.title, "/title")
                 data = _validated_version(conn, {"kind": body.kind, "production_id": production_id}, payload)
                 record = archive.create_record(conn, production_id, body.kind, body.title)
-                version = archive.append(conn, record["id"], number=1, previous=None, payload=payload, data=data,
+                version = archive.append(conn, record["id"], number=1, previous=None, data=data,
+                                         payload=_stored_payload(request, production_id, payload),
                                          principal=principal, key_hash=key_hash, request_hash=request_hash)
             else:
                 response.status_code = 200
@@ -273,7 +309,8 @@ def build_router(CurrentActor, authenticated_route):
                 payload = _payload(body)
                 data = _validated_version(conn, record, payload)
                 version = archive.append(conn, record_id, number=head["number"] + 1, previous=previous,
-                                         payload=payload, data=data, principal=principal, key_hash=key_hash,
+                                         payload=_stored_payload(request, record["production_id"], payload),
+                                         data=data, principal=principal, key_hash=key_hash,
                                          request_hash=request_hash)
             else:
                 response.status_code = 200
@@ -295,8 +332,7 @@ def build_router(CurrentActor, authenticated_route):
     @router.get("/archive-records/{id}", response_model=ArchiveRecordDetail, operation_id="get_archive_record")
     def get_record(id: str, request: Request, actor: CurrentActor, cursor: Cursor = None, limit: Limit = 50):
         with snapshot(request.app.state.engine) as conn:
-            record = archive.record(conn, _id(id, "arc"))
-            actor.require("archive:read", record["production_id"])
+            record = archive.record(conn, _id(id, "arc"), actor.productions("archive:read"))
             head = archive.head(conn, id)
             page = _page(archive.history(conn, id, _cursor(cursor, "arv"), limit + 1), limit)
         return {**record, "head_version_id": head["id"], "versions": page["items"], "next_cursor": page["next_cursor"]}
@@ -304,14 +340,14 @@ def build_router(CurrentActor, authenticated_route):
     @router.get("/archive-versions/{id}", response_model=ArchiveVersionText, operation_id="get_archive_version")
     def get_version(id: str, request: Request, actor: CurrentActor):
         with snapshot(request.app.state.engine) as conn:
-            record = archive.version_record(conn, _id(id, "arv"))
-            actor.require("archive:read", record["production_id"])
-            version = archive.version(conn, id)
+            record = archive.version_record(conn, _id(id, "arv"), actor.productions("archive:read"))
+            version, _ = _read_version(conn, id)
         _audit("read", record, version, request)
         return version
 
     @router.post("/archive-versions/{id}/apply", response_model=ArchiveApplication,
-                 responses={200: {"headers": ETAG}}, operation_id="apply_archive_storyboard")
+                 response_model_exclude_unset=True, responses={200: {"headers": ETAG}},
+                 operation_id="apply_archive_storyboard")
     def apply_version(id: str, body: ArchiveApply, request: Request, response: Response,
                       actor: CurrentActor, if_match: IfMatch):
         with request.app.state.engine.begin() as conn:
@@ -324,12 +360,12 @@ def build_router(CurrentActor, authenticated_route):
                 raise NotFound
             if record["kind"] != "storyboard":
                 raise APIError(422, "archive.not_storyboard", "Only storyboard versions can be applied")
-            version = archive.version(conn, id)
+            version, data = _read_version(conn, id)
             try:
-                draft = Draft.parse(version["text"].encode("utf-8"))
+                draft = Draft.parse(data)
                 if draft.story_id != story_id:
                     raise APIError(422, "archive.story_mismatch", "The draft names another story", path="/story_id")
-                result = apply_archive.apply(conn, draft, id, _revision(if_match), to_document(actor.principal))
+                result = apply_archive.apply(conn, draft, version, _revision(if_match), to_document(actor.principal))
             except ContractError as error:
                 raise _board_error(error) from None
         _audit("applied", record, version, request, story_id)

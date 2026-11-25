@@ -179,6 +179,8 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
         # Use a purpose-specific signing key shared by replicas with the same identity configuration.
         app.state.board_read_key = hmac.digest(
             oidc.settings.client_secret.encode(), b"haynes-studio board read token v1", "sha256")
+        app.state.archive_source_key = hmac.digest(
+            oidc.settings.client_secret.encode(), b"haynes-studio archive source locator v1", "sha256")
     app.state.build_revision = run_routes.build_revision_from_environment()
     app.state.build_stage_root = build_stage_root
     app.state.upload_body_limits = upload_body_limits

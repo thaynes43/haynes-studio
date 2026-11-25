@@ -1,5 +1,6 @@
 """Stateless Streamable HTTP server for the scoped Studio tools."""
 
+import json
 import logging
 import re
 import ssl
@@ -35,7 +36,9 @@ from .upstream import Problem, StudioAPI, auth_required, json_text
 VERSION = "1.0.0"
 MAX_ARGUMENT_BYTES = 64 * 1024
 MAX_RESULT_BYTES = 128 * 1024
-MAX_REQUEST_BYTES = 2 * 1024 * 1024  # Also carries a 256 KiB archive text value after JSON escaping.
+MAX_REQUEST_BYTES = 256 * 1024
+MAX_ARCHIVE_REQUEST_BYTES = 2 * 1024 * 1024
+ARCHIVE_TEXT_TOOLS = {"studio_create_archive_record", "studio_add_archive_version"}
 MAX_UPLOAD_METADATA_BYTES = 256 * 1024
 MAX_UPLOAD_REQUEST_BYTES = MAX_UPLOAD_BASE64 + MAX_UPLOAD_METADATA_BYTES
 UPLOAD_TOOL = "studio_upload_photo"
@@ -148,6 +151,64 @@ class Endpoint:
             _upload_slot.release()
 
 
+def _archive_text_call(body: bytes) -> bool:
+    try:
+        message = json.loads(body)
+    except (ValueError, RecursionError):
+        return False
+    if (not isinstance(message, dict) or message.get("jsonrpc") != "2.0"
+            or message.get("method") != "tools/call" or type(message.get("id")) not in (int, str)):
+        return False
+    params = message.get("params")
+    name = params.get("name") if isinstance(params, dict) else None
+    return isinstance(name, str) and name in ARCHIVE_TEXT_TOOLS
+
+
+class ToolSessionManager(StreamableHTTPSessionManager):
+    async def handle_request(self, scope, receive, send):
+        request = Request(scope, receive)
+        if request.method != "POST":
+            return await super().handle_request(scope, receive, send)
+
+        too_large = PlainTextResponse("Request body too large", status_code=413)
+        try:
+            declared = int(request.headers.get("content-length", "0"))
+        except ValueError:
+            declared = 0
+        if declared > MAX_ARCHIVE_REQUEST_BYTES:
+            return await too_large(scope, receive, send)
+
+        # Classify the call only after bounding its wire bytes. A large body
+        # must name an archive text writer before the SDK can dispatch it.
+        try:
+            with BytesIO() as buffer:
+                async for chunk in request.stream():
+                    if buffer.tell() + len(chunk) > MAX_ARCHIVE_REQUEST_BYTES:
+                        return await too_large(scope, receive, send)
+                    buffer.write(chunk)
+                body = buffer.getvalue()
+        except ClientDisconnect:
+            return
+        if len(body) > MAX_REQUEST_BYTES and not _archive_text_call(body):
+            return await too_large(scope, receive, send)
+
+        replay = _replay_body(body, receive)
+        del body
+        await self._handle_request(scope, replay, send)
+
+
+def _replay_body(body, receive):
+    async def replay():
+        nonlocal body
+        if body is None:
+            return await receive()
+        message = {"type": "http.request", "body": body, "more_body": False}
+        body = None
+        return message
+
+    return replay
+
+
 class UploadSessionManager(StreamableHTTPSessionManager):
     """Give the SDK one bounded body, without retaining a second encoded copy."""
 
@@ -180,16 +241,10 @@ class UploadSessionManager(StreamableHTTPSessionManager):
             response = JSONResponse({"error": problem.error}, status_code=408)
             return await response(scope, receive, send)
 
-        async def replay():
-            nonlocal body
-            if body is None:
-                return await receive()
-            message = {"type": "http.request", "body": body, "more_body": False}
-            body = None
-            return message
-
         # The SDK's bounded ASGI wrapper collects a bytearray and retains it
         # throughout dispatch. This route supplies its own bounded body instead.
+        replay = _replay_body(body, receive)
+        del body
         await self._handle_request(scope, replay, send)
 
 
@@ -266,7 +321,7 @@ def create_app(api_url: str, *, allowed_hosts: tuple[str, ...] = LOCAL_HOSTS,
     security = TransportSecuritySettings(
         allowed_hosts=list(allowed_hosts), allowed_origins=list(allowed_origins),
     )
-    manager = StreamableHTTPSessionManager(
+    manager = ToolSessionManager(
         server, json_response=True, stateless=True, security_settings=security,
         max_request_body_size=MAX_REQUEST_BYTES,
     )

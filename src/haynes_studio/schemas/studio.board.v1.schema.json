@@ -341,7 +341,10 @@
     "person_edit_acknowledgments": {"$ref": "#/$defs/person_edit_acknowledgments"},
     "draft_application": {
       "type": "object",
-      "required": ["board_key", "draft_sha256", "model", "session", "applied_at", "board_revision"],
+      "required": ["board_key", "draft_sha256", "applied_at", "board_revision"],
+      "if": {"anyOf": [{"required": ["model"]}, {"required": ["session"]}]},
+      "then": {"required": ["model", "session"]},
+      "else": {"required": ["archive_version_id", "person_edit", "person_edit_revision"]},
       "properties": {
         "board_key": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$"},
         "draft_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},

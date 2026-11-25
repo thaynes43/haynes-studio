@@ -27,11 +27,17 @@ def production_records(conn, production_id, after, limit):
     return list(conn.execute(stmt.order_by(records.c.id).limit(limit)).mappings())
 
 
-def record(conn, record_id):
-    row = conn.execute(sa.select(records).where(records.c.id == record_id)).mappings().one_or_none()
+def _scoped_record(conn, stmt, production_ids):
+    if production_ids is not None:
+        stmt = stmt.where(records.c.production_id.in_(production_ids))
+    row = conn.execute(stmt).mappings().one_or_none()
     if row is None:
         raise NotFound
     return row
+
+
+def record(conn, record_id, production_ids=None):
+    return _scoped_record(conn, sa.select(records).where(records.c.id == record_id), production_ids)
 
 
 def head(conn, record_id):
@@ -51,17 +57,25 @@ def history(conn, record_id, after, limit):
     return list(conn.execute(stmt.order_by(versions.c.number.desc()).limit(limit)).mappings())
 
 
-def version_record(conn, version_id):
+def version_record(conn, version_id, production_ids=None):
     stmt = sa.select(records).join(versions).where(versions.c.id == version_id)
-    row = conn.execute(stmt).mappings().one_or_none()
-    if row is None:
-        raise NotFound
-    return row
+    return _scoped_record(conn, stmt, production_ids)
 
 
 def version(conn, version_id):
     return conn.execute(VERSION_METADATA.add_columns(versions.c.text)
                         .where(versions.c.id == version_id)).mappings().one()
+
+
+def ancestors(conn, version, stamped_ids):
+    if not stamped_ids:
+        return set()
+    # Appends use the latest version as parent and increment its number under
+    # the record lock. In that linear chain every lower number is an ancestor.
+    return set(conn.scalars(sa.select(versions.c.id).where(
+        versions.c.id.in_(stamped_ids), versions.c.record_id == version["record_id"],
+        versions.c.number < version["number"],
+    )))
 
 
 def request_key(operation, target_id, principal, key):

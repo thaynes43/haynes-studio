@@ -111,10 +111,12 @@ ID. When a story changes between pages, restart the read from the first page
 after the revision conflict. Responses carry one compact JSON object in
 `structuredContent` and in a text block for older clients. The tools cap
 metadata arguments at 64 KiB and the encoded result object at 128 KiB by default.
-Archive text writes and the exact version read allow 256 KiB of UTF-8 text
-plus room for JSON escaping and metadata. Storyboard apply also allows a larger
-result to report board outcomes. The ordinary `/mcp` endpoint caps
-requests at 2 MiB. Connect a second
+The `/mcp` endpoint caps requests at 256 KiB. The
+`studio_create_archive_record` and `studio_add_archive_version` calls allow
+2 MiB per request to carry 256 KiB of decoded UTF-8 text with JSON escaping
+and metadata. An exact archive version read allows a larger result to carry
+the same text limit, and storyboard apply allows a larger result to report
+board outcomes. Connect a second
 Streamable HTTP session at `/mcp/upload` to discover and call
 `studio_upload_photo`. Its request cap is the base64 length of a 20 MiB
 image plus 256 KiB for the JSON-RPC envelope and metadata. Only one upload

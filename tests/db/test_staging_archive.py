@@ -16,7 +16,7 @@ import sqlalchemy as sa
 from haynes_studio.api.archive_routes import MAX_TEXT_BYTES
 from haynes_studio.api.transport import access_log
 from haynes_studio.canonical.ids import Minter
-from haynes_studio.db import identity
+from haynes_studio.db import drafts, identity
 from haynes_studio.db.migrate import migrate
 from haynes_studio.db.schema import archive_versions, worker_tokens
 from haynes_studio.mcp.server import create_app
@@ -90,6 +90,27 @@ def post(studio, path, body, idem, *, headers=None):
     return client(studio.api).post(path, json=body, headers={
         **(headers or studio.headers), "Idempotency-Key": idem,
     })
+
+
+def stage(studio, document, idem="storyboard", *, kind="storyboard"):
+    response = post(studio, create_path(studio.production), entry(kind, json.dumps(document)), idem)
+    assert response.status_code == 201, response.json()
+    return response.json()
+
+
+def revise(studio, record, previous, document, idem="revised"):
+    response = post(studio, record_path(record) + "/versions", {
+        "text": json.dumps(document), "provenance": ORIGINAL, "revises_version_id": previous,
+    }, idem)
+    assert response.status_code == 201, response.json()
+    return response.json()["id"]
+
+
+def apply(studio, version, revision, *, headers=None, story_id=None, person=False):
+    http = studio.browser if person else client(studio.api)
+    auth = studio.csrf if person else headers or studio.headers
+    return http.post(version_path(version) + "/apply", json={"story_id": story_id or studio.story},
+                     headers={**auth, "If-Match": str(revision)})
 
 
 def test_frontier_staging_and_pinned_shepherd_read(studio, owner_engine, caplog):
@@ -237,7 +258,8 @@ def test_scopes_and_production_confinement_for_every_api_operation_and_tool(stud
     ]
     http = client(studio.api)
     for tool, method, path, payload, no_scope, arguments in operations:
-        for headers, status in ((foreign, 403), (no_scope, 403), (revoked, 401), (worker_headers, 401)):
+        denied = 404 if tool in {"studio_get_archive_record", "studio_get_archive_version"} else 403
+        for headers, status in ((foreign, denied), (no_scope, denied), (revoked, 401), (worker_headers, 401)):
             response = http.request(method, path, json=payload, headers={
                 **headers, "Idempotency-Key": "refused", "If-Match": '"1"',
             })
@@ -254,11 +276,12 @@ def test_scopes_and_production_confinement_for_every_api_operation_and_tool(stud
             transport=httpx.ASGITransport(app=studio.mcp),
         ) as http:
             for tool, _, _, _, no_scope, arguments in operations:
+                denied = 404 if tool in {"studio_get_archive_record", "studio_get_archive_version"} else 403
                 if tool in {"studio_create_archive_record", "studio_add_archive_version"}:
                     arguments = {**arguments, "idempotency_key": "refused"}
                 for headers in (foreign, no_scope):
                     async with connect(studio.mcp, headers["Authorization"]) as session:
-                        assert (await fail(session, tool, **arguments))["http_status"] == 403
+                        assert (await fail(session, tool, **arguments))["http_status"] == denied
                 for headers in (revoked, worker_headers):
                     response = await http.post(MCP_URL, headers={
                         **headers, "Accept": "application/json, text/event-stream",
@@ -275,6 +298,169 @@ def test_scopes_and_production_confinement_for_every_api_operation_and_tool(stud
     assert studio.browser.get(story_path(studio)).json()["board_order"] == []
     assert studio.browser.get(record_path(record)).json()["versions"] == [archive["version"]]
     assert len(studio.browser.get(root).json()["items"]) == 1
+
+
+@pytest.mark.parametrize("kind", ["record", "version"])
+def test_archive_reads_hide_foreign_ids_like_unknown_ids(studio, owner_engine, kind):
+    _, foreign = register_agent(owner_engine, {studio.other: ["archive:read"]})
+    archive = stage(studio, draft(studio, "First", "one"))
+    if kind == "record":
+        path, prefix, saved = record_path, "arc", archive["id"]
+    else:
+        path, prefix, saved = version_path, "arv", archive["head_version_id"]
+    unknown = Minter().mint(prefix)
+    http = client(studio.api)
+    for id_ in (saved, unknown):
+        response = http.get(path(id_), headers=foreign)
+        assert (response.status_code, response.json()["error"]["code"]) == (404, "not_found")
+
+    async def scenario():
+        async with studio.mcp.router.lifespan_context(studio.mcp), connect(
+            studio.mcp, foreign["Authorization"],
+        ) as session:
+            for id_ in (saved, unknown):
+                error = await fail(session, f"studio_get_archive_{kind}", **{f"{kind}_id": id_})
+                assert (error["http_status"], error["code"]) == (404, "not_found")
+
+    asyncio.run(scenario())
+
+
+def test_apply_requires_archive_ancestry_and_skips_same_version(studio):
+    archive = stage(studio, draft(studio, "First", "one", "two"))
+    first = archive["head_version_id"]
+    second = revise(studio, archive["id"], first, draft(studio, "Second", "one", "two"))
+    other = stage(studio, draft(studio, "Other record", "one", "two"), "other-record")["head_version_id"]
+
+    created = apply(studio, first, 1)
+    assert created.status_code == 200, created.json()
+    assert [item["reason"] for item in created.json()["boards"]] == ["created"] * 2
+    revised = apply(studio, second, created.json()["revision"])
+    assert revised.status_code == 200, revised.json()
+    receipt = revised.json()
+    assert [item["reason"] for item in receipt["boards"]] == ["updated"] * 2
+    ids = [item["board_id"] for item in receipt["boards"]]
+    before = [studio.browser.get(board_path(id_)).json() for id_ in ids]
+    assert [board["title"] for board in before] == ["Second one", "Second two"]
+
+    for attempted, outcome, reason in (
+        (first, "conflict", "archive.version_not_descendant"),
+        (other, "conflict", "archive.version_not_descendant"),
+        (second, "skipped", "already_applied"),
+    ):
+        response = apply(studio, attempted, receipt["revision"])
+        assert response.status_code == 200, response.json()
+        assert response.json()["revision"] == receipt["revision"]
+        assert [item["board_id"] for item in response.json()["boards"]] == ids
+        assert [(item["outcome"], item["reason"], item.get("stamped_version_id"))
+                for item in response.json()["boards"]] == [
+            (outcome, reason, second if outcome == "conflict" else None),
+        ] * 2
+        assert [studio.browser.get(board_path(id_)).json() for id_ in ids] == before
+
+    third = revise(studio, archive["id"], second, draft(studio, "Third", "one", "two"), "third")
+    fourth = revise(studio, archive["id"], third, draft(studio, "Fourth", "one", "two"), "fourth")
+    response = apply(studio, fourth, receipt["revision"])
+    assert response.status_code == 200, response.json()
+    assert [item["reason"] for item in response.json()["boards"]] == ["updated"] * 2
+    assert [studio.browser.get(board_path(id_)).json()["title"] for id_ in ids] == ["Fourth one", "Fourth two"]
+
+
+def test_archive_apply_can_update_plain_draft_by_same_agent(studio):
+    document = draft(studio, "First", "one")
+    fields = {**document["boards"][0]["fields"], "draft_application": {
+        "board_key": "one", "draft_sha256": "a" * 64, "model": document["model"], "session": document["session"],
+    }}
+    del fields["voice"]  # The ordinary board endpoint infers the silent-board voice object.
+    created = client(studio.api).post(story_path(studio) + "/boards", json=fields,
+                                     headers={**studio.headers, "If-Match": "1"})
+    assert created.status_code == 201, created.json()
+    board = created.json()
+    assert "archive_version_id" not in board["draft_application"]
+    version = stage(studio, draft(studio, "Second", "one"))["head_version_id"]
+    response = apply(studio, version, 2)
+    assert response.status_code == 200, response.json()
+    assert response.json()["boards"] == [
+        {"key": "one", "board_id": board["id"], "outcome": "applied", "reason": "updated"},
+    ]
+
+
+@pytest.mark.parametrize("isolate_redraft_guard", [False, True], ids=["per-board", "mutation"])
+def test_apply_refuses_another_agents_board(studio, owner_engine, monkeypatch, isolate_redraft_guard):
+    archive = stage(studio, draft(studio, "First", "one"))
+    first = archive["head_version_id"]
+    created = apply(studio, first, 1).json()
+    board_id = created["boards"][0]["board_id"]
+    before = studio.browser.get(board_path(board_id)).json()
+    second = revise(studio, archive["id"], first, draft(studio, "Second", "one"))
+    _, other = register_agent(owner_engine, {studio.production: SCOPES})
+    if isolate_redraft_guard:
+        # Exercise the mutation's own stamp-author check independently of the
+        # two archive prechecks, which would otherwise refuse the same write.
+        monkeypatch.setattr(drafts, "check_archive_board", lambda held, by: None)
+    response = apply(studio, second, created["revision"], headers=other)
+    if isolate_redraft_guard:
+        assert response.status_code == 409, response.json()
+        assert response.json()["error"]["code"] == "draft.protected"
+    else:
+        assert response.status_code == 200, response.json()
+        assert response.json()["boards"] == [
+            {"key": "one", "board_id": board_id, "outcome": "conflict", "reason": "draft.protected"},
+        ]
+    assert studio.browser.get(board_path(board_id)).json() == before
+    assert studio.browser.get(story_path(studio)).json()["revision"] == created["revision"]
+
+
+@pytest.mark.parametrize("append", [False, True], ids=["create", "append"])
+def test_storyboard_write_refuses_another_production(studio, append):
+    foreign = draft(studio, "Foreign", "one")
+    foreign.update(production_id=studio.other, story_id=studio.other_story)
+    root = create_path(studio.production)
+    if append:
+        archive = stage(studio, draft(studio, "First", "one"))
+        path = record_path(archive["id"])
+        response = post(studio, path + "/versions", {
+            "text": json.dumps(foreign), "provenance": ORIGINAL, "revises_version_id": archive["head_version_id"],
+        }, "foreign")
+    else:
+        response = post(studio, root, entry("storyboard", json.dumps(foreign)), "foreign")
+    assert response.status_code == 422, response.json()
+    assert response.json()["error"]["code"] == "archive.production_mismatch"
+    if append:
+        assert studio.browser.get(path).json()["versions"] == [archive["version"]]
+    else:
+        assert studio.browser.get(root).json()["items"] == []
+
+
+def test_apply_refuses_non_storyboard_kind(studio):
+    # The text is deliberately a valid draft so the kind check is decisive.
+    archive = stage(studio, draft(studio, "Brief", "one"), kind="brief")
+    response = apply(studio, archive["head_version_id"], 1)
+    assert response.status_code == 422, response.json()
+    assert response.json()["error"]["code"] == "archive.not_storyboard"
+    assert studio.browser.get(story_path(studio)).json()["board_order"] == []
+
+
+def test_apply_refuses_another_story_in_same_production(studio):
+    response = studio.browser.post(f"/v1/productions/{studio.production}/media-types/short/stories",
+                                   json={"title": "Alternate story"}, headers=studio.csrf)
+    assert response.status_code == 201, response.json()
+    alternate = response.json()["id"]
+    archive = stage(studio, draft(studio, "First", "one"))
+    response = apply(studio, archive["head_version_id"], 1, story_id=alternate)
+    assert response.status_code == 422, response.json()
+    assert response.json()["error"]["code"] == "archive.story_mismatch"
+    for story_id in (studio.story, alternate):
+        assert studio.browser.get(f"/v1/stories/{story_id}").json()["board_order"] == []
+
+
+def test_apply_refuses_changed_set_pins(studio):
+    document = draft(studio, "First", "one")
+    document["set"] = {"asset_version_id": Minter().mint("asv")}
+    archive = stage(studio, document)
+    response = apply(studio, archive["head_version_id"], 1)
+    assert response.status_code == 422, response.json()
+    assert response.json()["error"]["code"] == "draft.set_changed"
+    assert studio.browser.get(story_path(studio)).json()["board_order"] == []
 
 
 def test_validation_and_human_apply_are_atomic(studio, owner_engine, caplog):
@@ -307,7 +493,7 @@ def test_validation_and_human_apply_are_atomic(studio, owner_engine, caplog):
 
     payload = draft(studio, "Artist draft", "one", "two")
     payload["boards"][1]["fields"]["layout"]["preset"] = "MissingLayout"
-    adapted = {"origin": "adapted", "source_locator": {"label": "fixture-scene:12", "sha256": "a" * 64}}
+    adapted = {"origin": "adapted", "source_locator": {"label": "fixtureScene-12", "sha256": "a" * 64}}
     body = entry("storyboard", json.dumps(payload), provenance=adapted)
     human = {**studio.csrf, "Idempotency-Key": "human"}
     created = studio.browser.post(root, json=body, headers=human)
@@ -315,7 +501,7 @@ def test_validation_and_human_apply_are_atomic(studio, owner_engine, caplog):
     archive = created.json()
     version = archive["version"]
     assert version["written_by"]["kind"] == "human"
-    assert studio.browser.get(version_path(version["id"])).json()["provenance"] == adapted
+    assert studio.browser.get(version_path(version["id"])).json()["provenance"] == version["provenance"]
     path = story_path(studio)
     apply = {"story_id": studio.story}
     apply_path = version_path(version["id"]) + "/apply"
@@ -331,14 +517,121 @@ def test_validation_and_human_apply_are_atomic(studio, owner_engine, caplog):
     applied = studio.browser.post(version_path(next_version["id"]) + "/apply", json=apply,
                                   headers={**studio.csrf, "If-Match": '"1"'})
     assert applied.status_code == 200, applied.json()
-    board = studio.browser.get(board_path(applied.json()["boards"][0]["board_id"])).json()
+    board_id = applied.json()["boards"][0]["board_id"]
+    board = studio.browser.get(board_path(board_id)).json()
     assert board["drafted_by"] == version["written_by"]
-    assert board["draft_application"]["archive_version_id"] == next_version["id"]
-    assert "person_edit" not in board["draft_application"]
+    stamp = board["draft_application"]
+    assert stamp["archive_version_id"] == next_version["id"]
+    assert (stamp["person_edit"], stamp["person_edit_revision"]) == ("content", board["revision"])
+    assert {"model", "session"}.isdisjoint(stamp)
+    third = revise(studio, archive["id"], next_version["id"], draft(studio, "Agent edit", "one"))
+    refusal = http.post(version_path(third) + "/apply", json=apply,
+                        headers={**studio.headers, "If-Match": '"2"'})
+    assert refusal.status_code == 200, refusal.json()
+    assert refusal.json()["boards"] == [
+        {"key": "one", "board_id": board_id, "outcome": "conflict", "reason": "edited_by_person"},
+    ]
+    assert studio.browser.get(board_path(board_id)).json() == board
     with owner_engine.connect() as conn:
         assert conn.scalar(sa.select(sa.func.count()).select_from(archive_versions).where(
             archive_versions.c.record_id == archive["id"],
-        )) == 2
+        )) == 3
+
+
+def test_human_archive_revision_is_a_person_edit(studio):
+    archive = stage(studio, draft(studio, "Agent draft", "one"))
+    first = archive["head_version_id"]
+    created = apply(studio, first, 1).json()
+    second = revise(studio, archive["id"], first, draft(studio, "Person applies", "one"))
+    result = apply(studio, second, created["revision"], person=True)
+    assert result.status_code == 200, result.json()
+    receipt = result.json()
+    assert receipt["boards"][0]["reason"] == "updated"
+    board_id = created["boards"][0]["board_id"]
+    board = studio.browser.get(board_path(board_id)).json()
+    assert board["drafted_by"] == {"kind": "agent", "key_id": studio.key}
+    stamp = board["draft_application"]
+    assert stamp["archive_version_id"] == second
+    assert (stamp["person_edit"], stamp["person_edit_revision"]) == ("content", board["revision"])
+    assert {"model", "session"}.isdisjoint(stamp)
+    replay = apply(studio, second, receipt["revision"], person=True)
+    assert replay.json()["boards"][0]["reason"] == "already_applied"
+    assert replay.json()["revision"] == receipt["revision"]
+    protected = client(studio.api).patch(board_path(board_id), json={"title": "Agent edit"},
+                                         headers={**studio.headers, "If-Match": str(board["revision"])})
+    assert (protected.status_code, protected.json()["error"]["code"]) == (409, "draft.protected")
+
+
+def test_adapted_source_locator_is_keyed_per_production(studio, owner_engine):
+    passage_hash = hashlib.sha256(b"A synthetic source line.").hexdigest()
+
+    def provenance(label):
+        return {"origin": "adapted", "source_locator": {"label": label, "sha256": passage_hash}}
+
+    root = create_path(studio.production)
+    for label in ("a-line-of-prose", "source--12", "source:12", "A" * 39 + "-1"):
+        rejected = post(studio, root, entry(provenance=provenance(label)), "bad-label")
+        assert rejected.status_code == 422, rejected.json()
+        assert rejected.json()["error"]["path"].endswith("/source_locator/label")
+
+    label = "A" * 38 + "-1"
+    adapted = provenance(label)
+    body = entry(provenance=adapted)
+    created = post(studio, root, body, "original")
+    assert created.status_code == 201, created.json()
+    first = created.json()["version"]
+    locator = first["provenance"]["source_locator"]
+    assert set(locator) == {"label", "hmac_sha256"}
+    assert locator["label"] == label
+    assert len(bytes.fromhex(locator["hmac_sha256"])) == 32
+    assert locator["hmac_sha256"] != passage_hash
+    assert passage_hash not in created.text
+    assert post(studio, root, body, "original").json()["version"] == first
+    appended = post(studio, record_path(first["record_id"]) + "/versions", {
+        "text": "Revised text", "provenance": adapted, "revises_version_id": first["id"],
+    }, "revision")
+    assert appended.status_code == 201, appended.json()
+    assert appended.json()["provenance"]["source_locator"] == locator
+    _, foreign = register_agent(owner_engine, {studio.other: ["archive:write"]})
+    other = post(studio, create_path(studio.other), body, "original", headers=foreign)
+    assert other.status_code == 201, other.json()
+    assert other.json()["version"]["provenance"]["source_locator"]["hmac_sha256"] != locator["hmac_sha256"]
+
+    async def scenario():
+        async with studio.mcp.router.lifespan_context(studio.mcp), connect(
+            studio.mcp, studio.headers["Authorization"],
+        ) as session:
+            pinned = await call(session, "studio_get_archive_version", version_id=first["id"])
+            assert pinned["provenance"]["source_locator"] == locator
+            assert passage_hash not in json.dumps(pinned)
+
+    asyncio.run(scenario())
+
+
+def test_version_read_and_apply_reject_text_hash_mismatch(studio, owner_engine):
+    archive = stage(studio, draft(studio, "Before", "one"))
+    version_id = archive["head_version_id"]
+    # Corrupt bytes without changing the byte count or invalidating the draft.
+    with owner_engine.begin() as conn:
+        conn.execute(archive_versions.update().where(archive_versions.c.id == version_id).values(
+            text=sa.func.replace(archive_versions.c.text, "Before", "Edited"),
+        ))
+
+    exact = client(studio.api).get(version_path(version_id), headers=studio.headers)
+    attempted = apply(studio, version_id, 1)
+    for response in (exact, attempted):
+        assert (response.status_code, response.json()["error"]["code"]) == (500, "archive.text_hash_mismatch")
+        assert "Edited" not in response.text
+    assert studio.browser.get(story_path(studio)).json()["board_order"] == []
+
+    async def scenario():
+        async with studio.mcp.router.lifespan_context(studio.mcp), connect(
+            studio.mcp, studio.headers["Authorization"],
+        ) as session:
+            error = await fail(session, "studio_get_archive_version", version_id=version_id)
+            assert (error["http_status"], error["code"]) == (500, "archive.text_hash_mismatch")
+
+    asyncio.run(scenario())
 
 
 def test_mcp_can_stage_and_read_full_byte_limit(studio):
@@ -357,6 +650,10 @@ def test_mcp_can_stage_and_read_full_byte_limit(studio):
                                  revises_version_id=pinned["id"], idempotency_key="too-long",
                                  text=text + "x", provenance=ORIGINAL)
             assert refused["http_status"] == 413 and refused["code"] == "archive.too_large"
+            appended = await call(session, "studio_add_archive_version", record_id=created["id"],
+                                  revises_version_id=pinned["id"], idempotency_key="full-revision",
+                                  text=text[::-1], provenance=ORIGINAL)
+            assert appended["bytes"] == MAX_TEXT_BYTES
 
     asyncio.run(scenario())
 

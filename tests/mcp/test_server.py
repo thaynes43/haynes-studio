@@ -14,7 +14,9 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from jsonschema import Draft202012Validator
 
 from haynes_studio.canonical.ids import Minter
-from haynes_studio.mcp.server import MAX_ARGUMENT_BYTES, MAX_REQUEST_BYTES, MAX_RESULT_BYTES, _api_origin, create_app
+from haynes_studio.mcp.server import (
+    MAX_ARCHIVE_REQUEST_BYTES, MAX_ARGUMENT_BYTES, MAX_REQUEST_BYTES, MAX_RESULT_BYTES, _api_origin, create_app,
+)
 from haynes_studio.mcp.upstream import MAX_ERROR_BYTES
 from tests.canonical.fixtures import example
 from tests.formats.fixtures import doll_short
@@ -282,6 +284,39 @@ async def test_upload_tool_has_its_own_endpoint_and_main_requests_stay_bounded(a
             "name": "studio_get_board", "arguments": {"board_id": "x" * MAX_REQUEST_BYTES},
         }}
         assert (await http.post(MCP_URL, json=oversized)).status_code == 413
+        assert not api.requests
+
+
+async def test_only_archive_text_writers_get_larger_mcp_envelopes(api):
+    headers = {"Accept": "application/json, text/event-stream", "Authorization": api.authorization,
+               "Content-Type": "application/json"}
+    async with api.app.router.lifespan_context(api.app), httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=api.app), headers=headers,
+    ) as http:
+        for method, name in (
+            ("tools/call", "studio_get_board"),
+            ("tools/call", "studio_get_archive_version"),
+            ("tools/call", "studio_apply_archive_storyboard"),
+            ("tools/list", "studio_create_archive_record"),
+        ):
+            body = {"jsonrpc": "2.0", "id": 1, "method": method,
+                    "params": {"name": name, "arguments": {"text": "x" * (256 * 1024)}}}
+            assert (await http.post(MCP_URL, json=body)).status_code == 413
+
+        async def chunks(body):
+            yield body[:128 * 1024]
+            yield body[128 * 1024:]
+
+        body["method"] = "tools/call"
+        body["params"]["name"] = "studio_get_board"
+        assert (await http.post(MCP_URL, content=chunks(json.dumps(body).encode()))).status_code == 413
+        body["params"]["name"] = "studio_add_archive_version"
+        assert (await http.post(MCP_URL, json={key: value for key, value in body.items()
+                                              if key != "id"})).status_code == 413
+        body["params"]["arguments"]["text"] = "x" * MAX_ARCHIVE_REQUEST_BYTES
+        oversized = json.dumps(body).encode()
+        assert (await http.post(MCP_URL, content=oversized)).status_code == 413
+        assert (await http.post(MCP_URL, content=chunks(oversized))).status_code == 413
         assert not api.requests
 
 

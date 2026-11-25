@@ -28,11 +28,14 @@ Unicode text are preserved exactly. Other control characters and credential
 shapes detected by the Studio prose check are refused.
 
 Use `{"origin":"original"}` for original work. Adapted work uses
-`{"origin":"adapted","source_locator":{"label":"fixture-scene:12","sha256":"…"}}`.
-The label has 1 to 128 ASCII letters, digits, dots, underscores, colons or
-hyphens, starting with a letter or digit. Supply the lower-case 64-character
-SHA-256 of the private source passage. The locator stores only the opaque label
-and digest.
+`{"origin":"adapted","source_locator":{"label":"fixtureScene-12","sha256":"…"}}`.
+Use an opaque source ID and numeric scene number. The label matches
+`^[A-Za-z][A-Za-z0-9]*-[0-9]+$` and has a maximum of 40 characters. Supply the
+lowercase SHA-256 hex digest of the private passage. Studio decodes that digest
+and stores an HMAC-SHA-256 as `source_locator.hmac_sha256` alongside the label.
+The API derives a separate key for each production from the existing OIDC
+client secret and an archive-specific context. Responses expose the label and
+keyed digest.
 
 A revision takes the same version fields plus `revises_version_id`. Supply the
 current `head_version_id`. If another revision arrived first, the API returns
@@ -45,7 +48,10 @@ key with different input returns 422 `idempotency.mismatch`.
 List records and version metadata with `cursor` and `limit`. Record detail
 lists newest versions first. Version metadata includes the writer, timestamp,
 parent ID, byte count, digest, provenance and optional format pin. An exact
-version read adds the original `text`. For example, a local shepherd calls
+version read checks the SHA-256 over the stored UTF-8 bytes and returns
+`archive.text_hash_mismatch` (500) on a mismatch. It adds the original `text`
+after verification. Record and exact version reads both return 404 for unknown
+IDs and for IDs outside the caller's `archive:read` grants. A local shepherd calls
 `studio_get_archive_version` with the `version_id` from its handoff. Its
 `archive:read` grant allows it to check the returned `sha256` over the UTF-8
 bytes and retrieve an earlier version after another revision is staged.
@@ -78,20 +84,26 @@ Studio checks the target's set pins and uses the regular draft mutations to
 validate board fields and references against the story.
 
 The first apply can populate a story that has never had boards. Later applies
-match each proposal to one current board by its stamped board key. A person
-edit, a missing stamp, an ambiguous key, or a stamp the key cannot revise
-produces a per-board conflict. Unbound proposals are reported on an existing
-story. Apply preserves board order, skips a version already applied to a
-current board and performs eligible writes in one transaction. If validation
-fails during the transaction, all board writes roll back. A stale story
-revision returns 409 `conflict.revision`.
+match each proposal to one current board by its stamped board key. When a board
+already carries an archive version, apply can replace it only with a descendant
+in the same record. An older version or one from a different record reports
+`archive.version_not_descendant` with the board's `stamped_version_id`. An
+eligible board already on the exact version is skipped. A person edit, missing
+stamp, ambiguous key or stamp the key cannot revise produces a per-board
+conflict. Unbound proposals are reported on an existing story. Apply preserves
+board order and performs eligible writes in one transaction. If validation fails
+during the transaction, all board writes roll back. A stale story revision
+returns 409 `conflict.revision`.
 
 The receipt lists each outcome with the board key and ID when available and
 returns the resulting story revision. Applied boards carry
 `draft_application.archive_version_id` along with the draft hash and current
-stamp. Use the normal [drafting workflow](agent-drafting.md) for board-specific
-edits and acknowledgments. The story can proceed to Build under the existing
-Build rules.
+stamp. A person's apply records a person edit and protects the board from
+later agent applies, which report `edited_by_person`. The stamp still records
+the archive version and its hash. Apply also verifies the stored text's hash.
+Use the normal [drafting workflow](agent-drafting.md) for board-specific edits
+and acknowledgments. The story can proceed to Build under the existing Build
+rules.
 
 The runtime role can select and insert archive records and versions. Audit
 lines for writes, exact reads and applies include the production, record and
