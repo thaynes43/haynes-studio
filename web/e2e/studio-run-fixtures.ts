@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 import type { components } from "../src/api/schema";
-import { reviewFixtures } from "./studio-review-fixtures";
+import { approvalFixtures, latestRun, oldRun, reviewFixtures } from "./studio-review-fixtures";
 import type { ReviewMedia } from "./studio-review-media";
 
 type Schemas = components["schemas"];
@@ -87,7 +87,7 @@ export function runFixtures(story: Schemas["Story"], media: ReviewMedia) {
     if (status === "running") run.started_at ??= at;
     if (!active(run)) run.finished_at = at;
     if (status === "succeeded") {
-      const source = fixtures.deliveries.values().next().value!;
+      const source = fixtures.deliveries.get(run.number === 1 ? oldRun : latestRun)!;
       const id = `dlv_01M79V9FC000000000000000${String(run.number).padStart(2, "0")}`;
       const proxy = source.proxy!;
       const delivery = {
@@ -110,5 +110,6 @@ export function runFixtures(story: Schemas["Story"], media: ReviewMedia) {
     return run;
   }
 
-  return { runs, deliveries, snapshots, presses, cancelWrites, overrideWrites, estimate, add, advance, view };
+  return { runs, deliveries, snapshots, presses, cancelWrites, overrideWrites, estimate, add, advance, view,
+    ...approvalFixtures(deliveries) };
 }

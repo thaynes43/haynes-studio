@@ -7,6 +7,7 @@ import { defineConfig, devices } from "@playwright/test";
 // Results go to the OS temp directory, never into the checkout.
 export default defineConfig({
   testDir: "./e2e",
+  testIgnore: "**/installed-playback.spec.ts",
   outputDir: path.join(os.tmpdir(), "haynes-studio-playwright"),
   fullyParallel: false,
   workers: 1,

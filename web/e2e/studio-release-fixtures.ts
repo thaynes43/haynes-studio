@@ -34,7 +34,8 @@ export function releaseFixtures(draft: Schemas["Story"], frozen: Schemas["RunSna
     } satisfies Schemas["ReleasePackageView"];
   }
 
-  function handle(route: Route, run: Schemas["RunView"], delivery: Pick<Schemas["Delivery"], "master"> | undefined,
+  function handle(route: Route, run: Pick<Schemas["RunView"], "id" | "delivery_id" | "snapshot">,
+                  delivery: Pick<Schemas["Delivery"], "master"> | undefined,
                   review: ApprovalReview, name: string, subject: string, refusal?: string) {
     const request = route.request();
     if (request.method() === "GET") {
