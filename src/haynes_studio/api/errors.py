@@ -11,7 +11,7 @@ ErrorStatus = Literal["invalid", "unavailable", "conflict", "forbidden", "unauth
                       "not_found", "too_large", "service_unavailable", "internal"]
 STATUS = {
     400: "invalid", 401: "unauthenticated", 403: "forbidden", 404: "not_found",
-    405: "invalid", 409: "conflict", 413: "too_large", 416: "invalid",
+    405: "invalid", 408: "invalid", 409: "conflict", 413: "too_large", 416: "invalid",
     422: "invalid", 500: "internal", 503: "service_unavailable",
 }
 

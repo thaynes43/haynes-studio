@@ -448,7 +448,7 @@ are not cool and idle (rows 10 to 15), and the API's own compute lock inside `ge
 `wan-api/s2v-14b-lightning`), `job_id`, `prompt_id`, `preset`, `story`,
 `graph_sha256` (SHA-256 of `json.dumps(graph, sort_keys=True)`), `template_sha256`
 (image-to-video), `run_snippet_sha256`, `model_files_sha256` (the graph's model files
-with the [licence register](model-licences.json)'s SHA-256; not re-hashed on the
+with the [licence register](../../src/haynes_studio/model_licences.json)'s SHA-256; not re-hashed on the
 volume), `seed`, `width`, `height`, `fps` (as measured, which row 26 holds to the
 graph's), `frames_requested`, `frames_delivered`,
 `measured` (decoded size and rate), `inputs` (each upload's name, SHA-256 and size),

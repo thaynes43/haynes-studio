@@ -91,6 +91,11 @@ class StrictRequest(Request):
 
 
 class MetadataRoute(APIRoute):
+    body_limit = WRITE_LIMIT
+
+    def too_large(self):
+        return APIError(413, "request.too_large", "Metadata requests are limited to 2 MiB")
+
     def get_route_handler(self):
         handler = super().get_route_handler()
 
@@ -109,8 +114,8 @@ class MetadataRoute(APIRoute):
                 nonlocal size
                 message = await request.receive()
                 size += len(message.get("body", b""))
-                if size > WRITE_LIMIT:
-                    raise APIError(413, "request.too_large", "Metadata requests are limited to 2 MiB")
+                if size > self.body_limit:
+                    raise self.too_large()
                 return message
 
             return await handler(StrictRequest(request.scope, receive))

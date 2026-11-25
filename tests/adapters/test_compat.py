@@ -193,9 +193,9 @@ def _graph_lines(source_lines):
 
 def _package_branch(kind):
     tree = ast.parse((REPO_ROOT / "src/haynes_studio/adapters/comfyui.py").read_text())
-    method = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "graph")
-    branch = next(n for n in method.body if isinstance(n, ast.If) and kind in ast.unparse(n.test))
-    return [line.replace("request.upload_name", "image_name").replace("request.", "")
+    builder = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "image_graph")
+    branch = next(node for node in builder.body if isinstance(node, ast.If) and kind in ast.unparse(node.test))
+    return [line.replace("request.upload_name", "image_name").replace("request.", "").replace("graph[", "g[")
             for line in poc.statements(branch)]
 
 

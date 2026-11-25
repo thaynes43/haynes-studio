@@ -1,10 +1,14 @@
 """The allowlist of Studio tools and their projections of API records."""
 
+import binascii
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import get_args
 
 from mcp.types import Tool as MCPTool, ToolAnnotations
+
+from haynes_studio.photo_limits import MAX_UPLOAD_BYTES
 
 from . import arguments as args
 from .upstream import Problem, Reply, StudioAPI
@@ -162,13 +166,15 @@ class Operation:
     project: Projection
     query: tuple[str, ...] = ()
     body: str | tuple[str, ...] | None = None
-    expect: int = 200
+    expect: int | tuple[int, ...] = 200
+    job_input: tuple[str, ...] | None = None
 
     def schema(self, name: str) -> MCPTool:
         return MCPTool(
             name=name, description=self.description, inputSchema=self.arguments.model_json_schema(),
             annotations=ToolAnnotations(
                 readOnlyHint=self.method == "GET", destructiveHint=self.method in {"PATCH", "PUT", "DELETE"},
+                idempotentHint=True if self.job_input is not None or self.arguments is args.QueueRun else None,
                 openWorldHint=False,
             ),
         )
@@ -178,9 +184,44 @@ class Operation:
         query = {field: getattr(arguments, field) for field in self.query
                  if getattr(arguments, field) is not None}
         body = values[self.body] if isinstance(self.body, str) else pick(values, *(self.body or ())) or None
+        if self.job_input is not None:
+            body = pick(values, *self.job_input)
+        transport = {}
+        if isinstance(arguments, args.UploadPhoto):
+            try:
+                binary = binascii.a2b_base64(arguments.data_base64, strict_mode=True)
+            except ValueError:
+                raise Problem(422, "photo.image_invalid", "Expected base64 encoded image bytes") from None
+            if len(binary) > MAX_UPLOAD_BYTES:
+                raise Problem(413, "photo.too_large", "An upload can be at most 20 MiB")
+            transport = {"binary": binary, "media_type": arguments.media_type,
+                         "provenance": json.dumps(values["provenance"], ensure_ascii=True, separators=(",", ":"))}
         return await api.request(authorization, self.method, self.path.format_map(values),
-                                 query=query or None, body=body,
-                                 revision=values.get("revision"), expect=self.expect)
+                                 query=query or None, body=body, idempotency_key=values.get("idempotency_key"),
+                                 revision=values.get("revision"), expect=self.expect, **transport)
+
+
+def job_detail(reply, _):
+    return pick(reply.document, "schema", "id", "kind", "target_id", "status", "input_signature",
+                "result_version_id", "result_is_current", "error", "created_by", "created_at", "updated_at")
+
+
+def raw_detail(reply, _):
+    return reply.document
+
+
+def run_detail(reply, _):
+    return run_status(reply.document)
+
+
+def run_status(doc):
+    return pick(doc, "schema", "id", "story_id", "revision", "number", "status", "snapshot",
+                "progress", "wait_reason", "queue_wait", "stages", "checks", "error",
+                "delivery_id", "cancel_requested")
+
+
+def upload_detail(reply, _):
+    return {**reply.document, "version": version(reply.document["version"])}
 
 
 _PAGE = ("cursor", "limit")
@@ -239,4 +280,33 @@ OPERATIONS = {
     "studio_get_delivery": Operation(
         "Read the master and proxy metadata of a delivery by run ID.", args.Delivery,
         "GET", "/v1/runs/{run_id}/delivery", delivery_detail),
+    "studio_generate_voice": Operation(
+        "Queue voice for the saved board and return job status. Reuse the idempotency key on a retry.",
+        args.GenerateVoice, "POST", "/v1/boards/{board_id}/voice-jobs", job_detail,
+        expect=(200, 202), job_input=()),
+    "studio_generate_photo": Operation(
+        "Queue a reference photo for the saved board. Reuse the idempotency key on a retry.",
+        args.GeneratePhoto, "POST", "/v1/boards/{board_id}/photo-jobs", job_detail,
+        expect=(200, 202), job_input=("seed",)),
+    "studio_upload_photo": Operation(
+        "Upload base64 encoded still bytes and D42 provenance at the current board revision.",
+        args.UploadPhoto, "POST", "/v1/boards/{board_id}/photo-versions", upload_detail, expect=201),
+    "studio_get_job": Operation(
+        "Read compact status and the result version ID for a scoped voice or photo job.",
+        args.GetJob, "GET", "/v1/jobs/{job_id}", job_detail),
+    "studio_estimate_run": Operation(
+        "Read build estimates and preflight problems for a story.",
+        args.Story, "GET", "/v1/stories/{story_id}/estimate", raw_detail),
+    "studio_queue_run": Operation(
+        "Queue a build from the saved story revision. Reuse the idempotency key on a retry.",
+        args.QueueRun, "POST", "/v1/stories/{story_id}/runs", run_detail, expect=(200, 201)),
+    "studio_list_runs": Operation(
+        "Read a page of runs for a story.",
+        args.Runs, "GET", "/v1/stories/{story_id}/runs", page(run_status), _PAGE),
+    "studio_get_run": Operation(
+        "Read a run's status, progress, stages and checks.",
+        args.Delivery, "GET", "/v1/runs/{run_id}", run_detail),
+    "studio_cancel_run": Operation(
+        "Cancel a queued run or ask a running worker to cancel it at the current revision.",
+        args.CancelRun, "POST", "/v1/runs/{run_id}/cancel", run_detail),
 }

@@ -27,6 +27,9 @@ GPU_REFUSALS = (
     "RuntimeError: Rack GPUs are busy; refusing to start a competing job",
     "RuntimeError: Rack GPUs must be below 62 C for a product job",
 )
+ADMISSION_CODES = frozenset({
+    "gpu_busy", "gpu_warm", "engine_busy", "lease_held", "local_model_handover", "local_model_unavailable",
+})
 EXPECTED_PROFILES = {
     "i2v": {"fps": 24, "steps": 20, "max_frames": 121, "timeout_seconds": 1200},
     "s2v": {"fps": 16, "steps": 4, "cfg": 1, "chunk_frames": 77,
@@ -64,6 +67,24 @@ def _mismatch(code, message, job_id, *, expected, actual):
 
 def _path(attempt):
     return f'/v1/jobs/{attempt["kind"]}/{attempt["job_id"]}'
+
+
+def _admission_wait(body, job_id):
+    if "admission_code" in body:
+        code = body["admission_code"]
+        if code == "pre_admission_failed":
+            raise LanePaused("wan.pre_admission_failed", "Wan could not complete admission and needs inspection",
+                             job_id=job_id)
+        if not isinstance(code, str) or code not in ADMISSION_CODES:
+            raise LanePaused("wan.admission_unknown", "Wan reported an unrecognized admission code",
+                             job_id=job_id)
+        return "wan.foreign_engine_queue" if code == "engine_busy" else "wan.busy"
+    error = body.get("error")
+    if error == FOREIGN_ENGINE_QUEUE:
+        return "wan.foreign_engine_queue"
+    if error in GPU_REFUSALS:
+        return "wan.busy"
+    return None
 
 
 def _error(response):
@@ -392,10 +413,9 @@ class ProductClips:
                 replayed = True
                 continue
             if state == "failed" and attempt["state"] == "sent":
-                error = body.get("error")
-                if error == FOREIGN_ENGINE_QUEUE or error in GPU_REFUSALS:
+                code = _admission_wait(body, job_id)
+                if code is not None:
                     self.claim.attempt(job_id, "busy")
-                    code = "wan.foreign_engine_queue" if error == FOREIGN_ENGINE_QUEUE else "wan.busy"
                     raise LanePaused(code, "Wan refused admission without starting engine work",
                                      job_id=job_id, wait_reason="lease_busy")
 

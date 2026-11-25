@@ -56,6 +56,7 @@ REF_DUPLICATE = "ref.duplicate"  # story 404's proposal
 IDEMPOTENCY_MISMATCH = "idempotency.mismatch"  # section 12, applied to re-imports
 CONFLICT_REVISION = "conflict.revision"  # section 12, applied to label edits
 NOT_PROMOTABLE = "asset.not_promotable"  # proposal
+RECORDED_WITHOUT_MEDIA = "asset.recorded_without_media"
 SOURCE_KEY_REQUIRED = "asset.source_key_required"  # proposal
 
 PROMOTE_PREFIX = "promote:"  # source key of a board photo's library version (proposal)
@@ -64,6 +65,12 @@ PROMOTE_PREFIX = "promote:"  # source key of a board photo's library version (pr
 def _error(rule: str, path: str, message: str, source: str = "<library>",
            status: str = "invalid") -> ContractError:
     return ContractError(source, [Violation(rule, path, message, status)])
+
+
+def require_media(version: AssetVersion | None, path: str) -> None:
+    """Refuse an archive record where an operation needs the version's media."""
+    if version is not None and version.recorded_without_media:
+        raise _error(RECORDED_WITHOUT_MEDIA, path, f"{version.id} was recorded without media")
 
 
 @dataclass(frozen=True)
@@ -468,6 +475,7 @@ def promote(library: Library, version_id: str, *, by: Principal, now: str,
     version = library.versions.get(version_id)
     if version is None:
         raise _error(REF_UNKNOWN, "/id", f"no asset version {version_id}")
+    require_media(version, "/id")
     if version.state == PROMOTED:
         return Outcome(library=library, version=version, created=False)
     if version.state == CANDIDATE:
@@ -485,7 +493,7 @@ def promote(library: Library, version_id: str, *, by: Principal, now: str,
                                   "source_asset_version_ids": [version.id]},
                     "external": version.provenance.get("external"),
                     "source_key": PROMOTE_PREFIX + version.id},
-        state=PROMOTED, recorded_without_media=version.recorded_without_media)
+        state=PROMOTED)
     return import_version(library, request, by=by, now=now, minter=minter)
 
 

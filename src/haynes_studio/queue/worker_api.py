@@ -45,9 +45,9 @@ class WorkerAPI:
             raise WorkerAPIError(code or "work.request_failed", response.status_code)
         return body
 
-    def claim(self):
-        body = self._post("claim")
-        return None if body is None else ClaimAPI(self, body)
+    def claim(self, lane="run"):
+        body = self._post("claim", None if lane == "run" else {"lane": lane})
+        return None if body is None else (ClaimAPI if lane == "run" else MediaClaimAPI)(self, body)
 
 
 class ClaimAPI:
@@ -79,3 +79,15 @@ class ClaimAPI:
 
     def fail(self, *, status, reason, **evidence):
         return self._post("fail", status=status, reason=reason, **evidence)
+
+
+class MediaClaimAPI(ClaimAPI):
+    def __init__(self, api, body):
+        self.api, self.body = api, body
+        self.identity = {"job_id": body["job"]["id"], "fence": body["fence"]}
+
+    def heartbeat(self, progress=None):
+        return self._post("heartbeat")
+
+    def fail(self, *, code, message):
+        return self._post("fail", code=code, message=message)

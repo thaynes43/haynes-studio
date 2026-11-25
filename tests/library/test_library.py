@@ -200,14 +200,14 @@ def test_promoting_a_board_photo_makes_one_derived_library_version():
     assert promote(first.library, derived.id, by=BY, now=LATER).created is False
 
 
-def test_promoting_a_recorded_board_photo_keeps_its_media_marker():
+def test_promoting_a_recorded_board_photo_is_refused():
     photo = {**example("valid/asset-version-photo-external.json"), "recorded_without_media": True}
     library = Library.from_version_documents([photo])
-    outcome = promote(library, photo["id"], by=BY, now=LATER, minter=minter())
-    assert outcome.created
-    assert outcome.library.document(outcome.version.id)["recorded_without_media"] is True
-    again = promote(outcome.library, photo["id"], by=BY, now=LATER, minter=minter())
-    assert again.version == outcome.version and not again.created
+    with pytest.raises(ContractError) as refused:
+        promote(library, photo["id"], by=BY, now=LATER, minter=minter())
+    assert [(problem.rule, problem.path) for problem in refused.value.violations] == [
+        ("asset.recorded_without_media", "/id"),
+    ]
 
 
 def test_a_board_voice_stays_on_its_board():

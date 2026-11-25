@@ -85,12 +85,14 @@ class ExternalPhotoDeclaration(Body):
     """D42 client-declared provenance for the upload transport in story 430."""
 
     model: Nonempty
-    prompt: Annotated[str, StringConstraints(min_length=1, max_length=1800)]
+    prompt: Annotated[str, StringConstraints(min_length=1, max_length=10_000)]
     source_asset_version_ids: list[Annotated[str, StringConstraints(
         pattern=r"^asv_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
-    )]] = Field(default_factory=list, max_length=256)
+    )]] = Field(max_length=256)
     session: Nonempty
     harness: Nonempty
+    paid_api: Literal[False]
+    upload_sha256: str | None = None
 
 
 class Production(Document):

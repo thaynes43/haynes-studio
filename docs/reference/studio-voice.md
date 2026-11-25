@@ -275,16 +275,24 @@ private import ([studio-build.md](studio-build.md), step 4); it reports `made` f
 eight spoken boards, with `synthesized` naming any line whose take the store did not
 hold. Tests: `tests/voice/test_legacy_tracks.py`.
 
-## What story 430 needs
+## HTTP, MCP and worker behavior
 
-| Operation | Call | Notes |
-|---|---|---|
-| `generate_board_voice` `POST /boards/{id}/voice-jobs` | `request_voice(story, board_id, library, jobs=in_flight, by=, now=)` | Returns `plan`, `job` and `created`. `job` is null for `current` (answer 200 with the version) and `existing` (point the board at `make_current` as a board edit, with a revision bump). An in-flight job for the same input is returned with `created: false`. With `Idempotency-Key`, the same key and body return the same job. Show `plan.speech_lines` and `plan.action` before or after queueing. |
-| worker | `run_voice_job(job, library, draft=lambda: current_story, reload=lambda: stored_job, speech=KokoroClient(SubprocessRunner()), publish=store.publish, fetch=store.fetch, licences=load_licence_register(...), by=worker, now=)` | Claim (queued to running), run, complete through the internal endpoints. Pass the model licence register, or every new voice is recorded with an `unknown` licence. Persist the new version. If `run.moved`, write `run.job` only over a stored `running` one (compare-and-set), so a cancel or an earlier finish stands; if `run.moved` is false, write nothing. Only if that write succeeded and `run.make_current` is true, set `board.voice.current_version_id` to `run.version.id` (`with_current_voice` shows the change) and bump the story's revision. The test fixture `Studio.run` does exactly this. |
-| `get_job` `GET /jobs/{id}` | `job.to_document()` | Valid `studio.job/v1`. |
-| `list_board_voice_versions` `GET /boards/{id}/voice-versions` | `board_voice_versions(library, board_id)`, then `library.document(id)` | Newest first, legacy and generated, current and stale. Mark the board's current one. |
-| play | `GET /media/{sha256}` with `version.voice.track.sha256` (the board), or a take's `sha256` (one line) | Track and takes are `audio/wav` at the take rate. Offsets for a waveform or captions are each take's `offset_ms` and `duration_ms`. Legacy versions have no track (`track: null`, `track_note`), so they are stale for a build until the board is voiced again, and their take bytes are private until story 428 imports them. |
-| board read | `with_derived(story, facts=voice_facts(...))` | `voice_state` is `generating`, `absent`, `stale` or `current`, and the board is timed from its current voice. |
+[Story 430](https://work.haynesnetwork.com/work_packages/430) uses the same
+voice plan, synthesis and currency rules in the API. A generation request
+always returns a job ID, including when the worker can reuse an existing
+track. A replay with the same idempotency key returns the same job.
+The voice worker gives the frozen input to `make_voice` and can reuse
+earlier takes or a matching version. The API checks the current voice inputs
+and previous selection before writing a new selection. The saved job and
+version retain their provenance when the inputs changed. See the
+[API routes](studio-api.md#media-operations) and [worker protocol](media-jobs.md).
+
+The board version list includes current, stale, legacy and generated versions.
+For a waveform or captions, use each take's `offset_ms` and `duration_ms`.
+Read the track digest from `version.voice.track.sha256`, or use a take's
+`sha256` to play only that line. Signed-in people can audition an unselected
+track or take through the [version preview route](studio-api.md#private-playback).
+Legacy `track: null` versions retain their `track_note`.
 
 ## Codes
 
@@ -339,7 +347,3 @@ hold. Tests: `tests/voice/test_legacy_tracks.py`.
   `created_at`, `updated_at`, and the `voice` block.
 - An in-flight job is never cancelled automatically when the board changes. It
   finishes stale.
-
-Not here: the mix and loudness (VOICE-7), the transcript check (VOICE-8), the store
-adapter (story [379](https://work.haynesnetwork.com/work_packages/379)), the API
-([430](https://work.haynesnetwork.com/work_packages/430)) and any live call.

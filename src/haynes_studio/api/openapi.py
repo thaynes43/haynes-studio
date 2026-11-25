@@ -23,6 +23,7 @@ _CANONICAL = {
     "studio.asset-version.v1.schema.json": "AssetVersion",
     "studio.delivery.v1.schema.json": "Delivery",
     "studio.run.v1.schema.json": "RunView",
+    "studio.job.v1.schema.json": "JobView",
 }
 
 
@@ -103,7 +104,11 @@ def _write_schemas(schemas):
     }
 
 
-_HUMAN_OPERATIONS = {"get_selections", "put_selections", "create_production", "enable_media_type", "logout"}
+_HUMAN_OPERATIONS = {"get_selections", "put_selections", "create_production", "enable_media_type",
+                     "logout", "get_queue_lanes", "set_queue_lane"}
+_PREVIEW = {"get_job_result", "get_version_media", "head_version_media", "get_job_media", "head_job_media"}
+_ASSET_OPERATIONS = {"generate_board_voice": "assets:generate", "generate_board_photo": "assets:generate",
+                     "generate_asset_candidate": "assets:generate", "upload_board_photo": "assets:upload"}
 _RUN_QUEUE_OPERATIONS = {"queue_run", "cancel_run", "record_check_override"}
 _GO_LIVE_OPERATIONS = {"approve_go_live", "withdraw_go_live"}
 _DRAFT_OPERATIONS = {"create_story", "update_story", "create_board", "update_board",
@@ -116,9 +121,23 @@ def _document_access(document: dict) -> None:
             if not operation.get("security"):
                 continue
             name = operation["operationId"]
-            if name in _HUMAN_OPERATIONS:
+            if name in _HUMAN_OPERATIONS | _PREVIEW | {"promote_asset_version"}:
                 operation["security"] = [{"StudioSession": []}]
                 operation["x-studio-scope"] = "human"
+            elif name in _ASSET_OPERATIONS:
+                operation["x-studio-scope"] = _ASSET_OPERATIONS[name]
+                if name == "generate_asset_candidate":
+                    operation["security"] = [{"StudioSession": []}]
+                elif name == "upload_board_photo":
+                    operation["security"] = [{"StudioBearer": []}]
+                    operation["parameters"] = [
+                        parameter for parameter in operation["parameters"] if parameter["name"] != "X-Studio-CSRF"
+                    ]
+                    for parameter in operation["parameters"]:
+                        if parameter["name"] == "X-Studio-Photo-Provenance":
+                            parameter["required"] = True
+                            parameter["schema"] = {"type": "string", "contentMediaType": "application/json",
+                                                   "contentSchema": {"$ref": "#/components/schemas/ExternalPhotoDeclaration"}}
             elif name in _GO_LIVE_OPERATIONS:
                 operation["security"] = [{"StudioSession": []}]
                 operation["x-studio-scope"] = "go_live:approve"

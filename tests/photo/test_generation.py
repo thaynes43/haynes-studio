@@ -61,6 +61,20 @@ def test_generation_uses_one_edit_with_all_frozen_sources(world):
     assert Library.from_version_documents([document]).document(outcome.version.id) == document
 
 
+def test_photo_facts_use_metadata_from_recorded_only_source(world):
+    story, board, library, ids, fetch, publish = world
+    plan = plan_photo(story, board, library)
+    prepared = generate_photo(plan, client=ImageClient(FakeRunner(FakeComfyUI())), fetch=fetch,
+                              job="photo-archive", seed=17)
+    outcome = record_photo(prepared, library, publish=publish, by=BY, now=NOW)
+    archived = Library.from_version_documents(
+        {**doc, "recorded_without_media": True} if doc["id"] == ids[0] else doc
+        for doc in outcome.library.documents()
+    )
+    selected = replace(board, photo=replace(board.photo, current_version_id=outcome.version.id))
+    assert photo_state(selected, photo_facts(replace(story, boards=(selected,)), archived)) == "current"
+
+
 @pytest.mark.parametrize("edit", ["prompt", "asset", "order", "selection", "removed", "aspect"])
 def test_edits_during_generation_preserve_the_result_without_selecting_it(world, edit):
     story, board, library, ids, fetch, publish = world

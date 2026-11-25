@@ -49,6 +49,7 @@ from haynes_studio.stages.preflight import (
     preflight,
 )
 from haynes_studio.store import PRESENT, Store, canonical_json
+from haynes_studio.photo.plan import photo_facts
 from haynes_studio.voice import voice_facts
 from haynes_studio.wholeframe import check_board as wholeframe_check
 
@@ -150,7 +151,7 @@ def _metadata_present(_locator, _sha):
 
 def prepare(document: Mapping[str, Any], *, library: Library, store: Store | None,
             toolchain: Toolchain, frame_size: tuple[int, int], current_engine: str,
-            jobs: Iterable[Any] = ()) -> Prepared:
+            jobs: Iterable[Any] = (), check_photo_currency: bool = False) -> Prepared:
     """Run the pre-build check of a draft story (boards embedded). Never raises for a
     story that cannot be built: every problem is in ``report``. With no store,
     resolve declared content identities and require the worker to verify the bytes."""
@@ -168,6 +169,8 @@ def prepare(document: Mapping[str, Any], *, library: Library, store: Store | Non
                          for v in getattr(error, "violations", ()))
         return Prepared(document, library, None, facts, resolution, resolved, None, PreflightReport(
             problems or (Problem("schema.invalid", "invalid", "", str(error)),)))
+    if check_photo_currency:
+        facts = facts.merged(photo_facts(story, library))
     report = preflight(story, facts=facts, resolved=resolved, store=store)
     problems = list(report.problems)
     # The motion records every layered board plays (story 457's resolver); a board's

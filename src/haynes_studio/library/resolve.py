@@ -33,14 +33,13 @@ from typing import Any
 
 from haynes_studio.canonical.jsonvalues import normalize
 from haynes_studio.errors import Violation, pointer
-from haynes_studio.library.library import REF_UNKNOWN, Exists, Library
+from haynes_studio.library.library import RECORDED_WITHOUT_MEDIA, REF_UNKNOWN, Exists, Library
 from haynes_studio.library.model import LAYER_CAPABILITIES
 from haynes_studio.library.validate import CAPABILITY_MISMATCH
 
 KIND_MISMATCH = "asset.kind_mismatch"
 SCOPE_MISMATCH = "asset.scope_mismatch"
 BYTES_MISSING = "asset.bytes_missing"
-RECORDED_WITHOUT_MEDIA = "asset.recorded_without_media"
 STORY_SCHEMA, BOARD_SCHEMA = "studio.story/v1", "studio.board/v1"
 
 

@@ -27,7 +27,7 @@ The API records the ID token's verified `auth_time` when present and the
 callback time otherwise. Provider timestamps ahead of the callback use the
 configured OIDC clock leeway and are capped at the callback time. A session
 migrated without that evidence requires another sign-in.
-`STUDIO_GO_LIVE_FRESHNESS_SECONDS` defaults to `900`. When
+`STUDIO_GO_LIVE_FRESHNESS_SECONDS` accepts 1–3600 seconds and defaults to `900`. When
 the API returns `approval.sign_in_again`, send the user to
 `GET /auth/login?fresh=true&return_to=<encoded-path>`. This requests OIDC
 reauthentication and records the return path on the one-use login attempt. A
@@ -52,8 +52,11 @@ failed callback redirects to `/?auth_error=<code>`.
 | `external_inputs` | The externally generated asset-version IDs and kinds flagged privately under D42. |
 
 The licence rows come from the [local model licence register](model-licences.md).
-The API reads the shipped register at `docs/reference/model-licences.json`
-from its working directory. The description omits script, board, check, image
+The API and all worker lanes read the register shipped in the installed Studio
+package, independently of the working directory. `STUDIO_MODEL_REGISTER` can
+override it with a local JSON path. Configure the same register on API and workers.
+An unreadable override returns a service error.
+The description omits script, board, check, image
 and composite generators, external-photo metadata and private deployment
 locations. Approval and withdrawal use the checked metadata in PostgreSQL.
 

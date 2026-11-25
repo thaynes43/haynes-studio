@@ -1,6 +1,7 @@
 """Scoped public run routes and worker-only queue transactions."""
 
 import os
+from datetime import datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Header, Request, Response
@@ -8,7 +9,7 @@ from fastapi import APIRouter, Header, Request, Response
 from haynes_studio.build.prebuild import snapshot_bytes
 from haynes_studio.build.validate import validate_run
 from haynes_studio.canonical.model import to_document
-from haynes_studio.db import catalog, drafts, runs
+from haynes_studio.db import catalog, drafts, jobs, queue_controls, runs
 from haynes_studio.golive import records as go_live
 from haynes_studio.db.engine import snapshot
 from haynes_studio.db.problems import StaleRevision, require_valid
@@ -18,14 +19,16 @@ from haynes_studio.library.resolve import story_references
 from haynes_studio.queue import inputs
 from haynes_studio.queue.protocol import (
     SHA256, ClaimFence, Heartbeat, JobId, Payload, Progress, Reason, Reservation, WanResult,
-    WorkAttempt, WorkCompletion, WorkFailure, WorkReserve,
+    MediaCompletion, MediaFailure, MediaFence, MediaHeartbeat, WorkAttempt, WorkClaim,
+    WorkCompletion, WorkFailure, WorkLane, WorkReserve,
 )
 from haynes_studio.queue.staging import BuildStageStore, publish_staged_delivery
 from haynes_studio.store import StoreError
 
+from . import media_work
 from .auth import WorkerRoute
 from .errors import APIError, ERROR_RESPONSES, forbidden
-from .models import Document, Page, TransportModel
+from .models import Body, Document, Page, TransportModel
 from .routes import Cursor, ETAG, IfMatch, Limit, _cursor, _etag, _id, _page, _revision, _story_access
 
 IdempotencyKey = Annotated[str, Header(alias="Idempotency-Key", pattern=r"^[!-~]{1,255}$")]
@@ -73,19 +76,37 @@ class CheckOverrideView(CheckOverride):
     at: str
 
 
+class QueueLaneUpdate(Body):
+    paused: bool
+
+
+class QueueLaneStatus(TransportModel):
+    lane: WorkLane
+    paused: bool
+    changed_by: dict | None
+    changed_at: datetime | None
+
+
+class QueueStatus(TransportModel):
+    items: list[QueueLaneStatus]
+
+
 def transport_models():
     """Build these models with the other API transports before mounting routes."""
     return (
         RunView, Page[RunView], QueueWait, EstimateRange, MethodEstimate, EstimateView,
         CheckOverride, CheckOverrideView, ClaimFence, Progress, Heartbeat, Reservation,
-        WanResult, WorkReserve, WorkAttempt, WorkCompletion, WorkFailure,
+        WanResult, WorkReserve, WorkAttempt, WorkCompletion, WorkFailure, WorkClaim,
+        MediaFence, MediaHeartbeat, MediaCompletion, MediaFailure,
+        QueueLaneUpdate, QueueLaneStatus, QueueStatus,
     )
 
 
 def _prepare(conn, draft):
     story = draft.exchange()
     refs = {item.version_id for item in story_references(story)}
-    return inputs.prepare_queue(story, catalog.build_library(conn, story, refs))
+    return inputs.prepare_queue(story, catalog.build_library(conn, story, refs),
+                                jobs=jobs.active_for_story(conn, story["id"]))
 
 
 def _read_view(conn, row, *, detail=True, worker_present=None):
@@ -114,6 +135,19 @@ def _run_access(conn, actor, scope, run_id, *, lock=False):
 def build_router(CurrentActor, authenticated_route):
     router = APIRouter(prefix="/v1", responses=ERROR_RESPONSES, route_class=authenticated_route,
                        tags=["runs"])
+
+    @router.get("/queue/lanes", response_model=QueueStatus, operation_id="get_queue_lanes")
+    def get_queue_lanes(request: Request, actor: CurrentActor):
+        actor.human()
+        with snapshot(request.app.state.engine) as conn:
+            return {"items": queue_controls.status(conn)}
+
+    @router.put("/queue/lanes/{lane}", response_model=QueueLaneStatus, operation_id="set_queue_lane")
+    def set_queue_lane(lane: WorkLane, body: QueueLaneUpdate, request: Request, actor: CurrentActor):
+        actor.human()
+        with request.app.state.engine.begin() as conn:
+            return queue_controls.set_paused(conn, lane, body.paused, to_document(actor.principal),
+                                             runs.database_time)
 
     @router.get("/stories/{id}/estimate", response_model=EstimateView, operation_id="estimate_run")
     def estimate_run(id: str, request: Request, actor: CurrentActor):
@@ -229,14 +263,19 @@ def worker_router():
                        include_in_schema=False)
 
     @router.post("/claim", operation_id="claim_work")
-    def claim_work(request: Request):
+    def claim_work(request: Request, body: WorkClaim | None = None):
+        lane = "run" if body is None else body.lane
+        worker_id = request.state.principal.worker_id
         with request.app.state.engine.begin() as conn:
-            claim = runs.claim(conn, request.state.principal.worker_id)
+            claim = runs.claim(conn, worker_id) if lane == "run" else media_work.claim(conn, worker_id, lane)
         return claim if claim is not None else Response(status_code=204)
 
     @router.post("/heartbeat", operation_id="heartbeat_work")
-    def heartbeat_work(body: Heartbeat, request: Request):
+    def heartbeat_work(body: Heartbeat | MediaHeartbeat, request: Request):
         with request.app.state.engine.begin() as conn:
+            if isinstance(body, MediaHeartbeat):
+                row, now = media_work.lock(conn, request, body)
+                return jobs.heartbeat(conn, row, now)
             row, now = _lock(conn, request, body)
             return runs.heartbeat(conn, row, now, body.progress.model_dump() if body.progress else None)
 
@@ -265,14 +304,21 @@ def worker_router():
                                           body.result.model_dump() if body.result else None))
 
     @router.post("/publish", status_code=204, operation_id="publish_work")
-    def publish_work(body: ClaimFence, request: Request):
+    def publish_work(body: ClaimFence | MediaFence, request: Request):
         with request.app.state.engine.begin() as conn:
-            row, _ = _lock(conn, request, body)
-            runs.publish(conn, row)
+            if isinstance(body, MediaFence):
+                row, now = media_work.lock(conn, request, body)
+                jobs.dispatch(conn, row, now)
+            else:
+                row, _ = _lock(conn, request, body)
+                runs.publish(conn, row)
         return Response(status_code=204)
 
     @router.post("/complete", operation_id="complete_work")
-    def complete_work(body: WorkCompletion, request: Request):
+    def complete_work(body: WorkCompletion | MediaCompletion, request: Request):
+        if isinstance(body, MediaCompletion):
+            with request.app.state.engine.begin() as conn:
+                return media_work.complete(conn, request, body)
         actor = to_document(request.state.principal)
         if any(check.get("result") == "fail" for check in body.checks):
             raise APIError(422, "work.check_failed", "A successful run cannot have a failed delivery check")
@@ -287,7 +333,10 @@ def worker_router():
             return runs.view(conn, row, detail=False)
 
     @router.post("/fail", operation_id="fail_work")
-    def fail_work(body: WorkFailure, request: Request):
+    def fail_work(body: WorkFailure | MediaFailure, request: Request):
+        if isinstance(body, MediaFailure):
+            with request.app.state.engine.begin() as conn:
+                return media_work.finish_failure(conn, request, body)
         if (body.status == "queued") != (body.wait_reason is not None):
             raise APIError(422, "work.wait_reason", "A queued run requires a wait reason")
         if body.wan_job_id is not None and body.status not in ("failed", "cancelled"):
