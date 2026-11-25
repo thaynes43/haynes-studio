@@ -167,3 +167,28 @@ for the runtime and activation evidence required.
 Both use the proposed llama.cpp b12679 runtime. Its code is MIT and its
 licence permits dealing “in the Software without restriction” subject to
 its notice terms. [Pinned runtime licence](https://github.com/ggml-org/llama.cpp/blob/b12679/LICENSE)
+
+## Proposed segmentation backend
+
+Story [460](https://work.haynesnetwork.com/work_packages/460) proposes these
+rows. Checked 2026-11-25 by dev-env agent session
+`haynes-studio-1125-043121` (Codex). The pinned model files, SHA-256s, licence
+evidence and runtime rows are in `segmentation_backend_proposal` in the
+[packaged register](../../src/haynes_studio/model_licences.json). The source
+proposal describes a primary and fallback for the later install session.
+[Backend profile](segmentation-backend-profile.md)
+
+| Use | Files | Terms on the model or code | Output use and attribution |
+|---|---|---|---|
+| Grounding DINO Tiny, primary detector | `IDEA-Research/grounding-dino-tiny/model.safetensors` | Publisher card says `license: apache-2.0`. [Pinned card](https://huggingface.co/IDEA-Research/grounding-dino-tiny/blob/a2bb814dd30d776dcf7e30523b00659f4f141c71/README.md) | Unknown |
+| SAM 2.1 Hiera Tiny, segmenter used by both profiles | `facebook/sam2.1-hiera-tiny/model.safetensors` | Publisher card says `license: apache-2.0`. Meta applies Apache-2.0 to the checkpoints. [Pinned card](https://huggingface.co/facebook/sam2.1-hiera-tiny/blob/de431c4043854a71d8101e17995dfe596bf101a5/README.md) · [Meta terms](https://github.com/facebookresearch/sam2#license) | Unknown |
+| OWLv2 Base Patch16 Ensemble, fallback detector | `google/owlv2-base-patch16-ensemble/model.safetensors` | Publisher card says `license: apache-2.0`. [Pinned card](https://huggingface.co/google/owlv2-base-patch16-ensemble/blob/cfd3195ba4ea9592eec887ded089f4c08eff231d/README.md) | Unknown |
+| Grounded SAM 2, pipeline reference | Separate DINO and SAM weights above | Apache-2.0 covers the reference demo code. [Pinned terms](https://github.com/IDEA-Research/Grounded-SAM-2/blob/b7a9c29f196edff0eb54dbe14588d7ae5e3dde28/LICENSE) | Unknown |
+| YuNet, comparison only | `face_detection_yunet_2023mar.onnx` | “All files in this directory are licensed under MIT License.” [Pinned card](https://github.com/opencv/opencv_zoo/blob/eb9f4f2d4b79b58e5513b5d25d5f0243a8357bf4/models/face_detection_yunet/README.md) | Unknown |
+
+Both proposed profiles use Transformers and Safetensors (Apache-2.0), PyTorch
+and TorchVision (BSD-3-Clause with component terms in the distributions), and
+Pillow (MIT-CMU in the package metadata). The terms above permit commercial
+use of the licensed models and code subject to their stated terms. A
+commercial Studio plan would reopen the output-use review. D49 keeps the
+private research pilot available. [D48 and D49](../proposals/0003-studio-plan.md)
