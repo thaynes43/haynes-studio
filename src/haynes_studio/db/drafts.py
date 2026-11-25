@@ -376,10 +376,10 @@ def _advance(draft: Draft, changes: dict, now: str) -> Draft:
                                  "updated_at": now})
 
 
-def _draft_declaration(fields: dict, by: dict, model: type[DraftDeclaration]):
+def _draft_declaration(fields: dict, by: dict, model: type[DraftDeclaration], *, archive_version_id=None):
     if "draft_application" not in fields:
         return fields, None
-    if by["kind"] != "agent":
+    if by["kind"] != "agent" and archive_version_id is None:
         raise invalid("draft.agent_required", "/draft_application",
                       "Draft provenance requires an authenticated agent")
     fields = dict(fields)
@@ -392,9 +392,12 @@ def _draft_declaration(fields: dict, by: dict, model: type[DraftDeclaration]):
     return fields, declaration
 
 
-def _draft_stamp(declaration: DraftDeclaration, revision: int, now: str) -> dict:
-    return {**declaration.model_dump(include=set(DraftDeclaration.model_fields)),
-            "board_revision": revision, "applied_board_revision": revision, "applied_at": now}
+def _draft_stamp(declaration: DraftDeclaration, revision: int, now: str, archive_version_id=None) -> dict:
+    stamp = {**declaration.model_dump(include=set(DraftDeclaration.model_fields)),
+             "board_revision": revision, "applied_board_revision": revision, "applied_at": now}
+    if archive_version_id is not None:
+        stamp["archive_version_id"] = archive_version_id
+    return stamp
 
 
 def _check_board_write(held: dict, by: dict, acknowledgment: int | None) -> None:
@@ -408,6 +411,15 @@ def _check_board_write(held: dict, by: dict, acknowledgment: int | None) -> None
         raise DraftProtected(held)
 
 
+def check_archive_board(held: dict, by: dict) -> None:
+    """Archive apply requires a current stamp and never acknowledges a person edit."""
+    stamp = held.get("draft_application")
+    if (stamp is None or stamp.get("board_revision") != held["revision"]
+            or "person_edit" in stamp or "person_edit" in held):
+        raise DraftProtected(held)
+    _check_board_write(held, by, acknowledgment=None)
+
+
 def _board_changed(held: dict, by: dict, reason: str, now: str,
                    acknowledgment: int | None = None) -> dict:
     updated = {**held, "revision": held["revision"] + 1, "updated_at": now}
@@ -415,7 +427,7 @@ def _board_changed(held: dict, by: dict, reason: str, now: str,
     protection = dict(stamp) if stamp is not None else {
         key: held[key] for key in _PERSON_EDIT_FIELDS if key in held
     }
-    if by["kind"] == "human":
+    if by["kind"] == "human" and reason != "archive_apply":
         if reason != "media" or "person_edit" not in protection:
             protection.update(person_edit="content" if reason == "media" else reason,
                               person_edit_revision=updated["revision"])
@@ -448,11 +460,13 @@ def edit_story(conn: sa.Connection, id_: str, revision: int, fields: dict) -> Dr
     return updated
 
 
-def add_board(conn: sa.Connection, id_: str, revision: int, fields: dict, by: dict) -> tuple[Draft, str]:
+def add_board(conn: sa.Connection, id_: str, revision: int, fields: dict, by: dict, *,
+              archive_version_id: str | None = None) -> tuple[Draft, str]:
     draft = get_draft(conn, id_, lock=True)
     require_revision(draft.story["revision"], revision)
     _exact_fields(fields, BOARD_FIELDS)
-    fields, declaration = _draft_declaration(fields, by, DraftDeclaration)
+    fields, declaration = _draft_declaration(fields, by, DraftDeclaration,
+                                             archive_version_id=archive_version_id)
     minter = Minter()
     id_board, now = minter.mint("brd"), timestamp()
     number = draft.highest_board + 1
@@ -469,7 +483,7 @@ def add_board(conn: sa.Connection, id_: str, revision: int, fields: dict, by: di
         "created_at": now, "updated_at": now,
     }
     if declaration is not None:
-        doc["draft_application"] = _draft_stamp(declaration, 1, now)
+        doc["draft_application"] = _draft_stamp(declaration, 1, now, archive_version_id)
     elif by["kind"] == "human":
         doc.update(person_edit="content", person_edit_revision=1)
     spoken = bool(doc["lines"])
@@ -505,33 +519,41 @@ def add_board(conn: sa.Connection, id_: str, revision: int, fields: dict, by: di
 
 
 def edit_board(conn: sa.Connection, story_id: str, id_: str, revision: int,
-               fields: dict, by: dict, *, acknowledgment: int | None = None) -> Draft:
+               fields: dict, by: dict, *, acknowledgment: int | None = None,
+               archive_version_id: str | None = None) -> Draft:
     draft = get_draft(conn, story_id, lock=True)
     held = draft.boards.get(id_)
     if held is None:
         raise NotFound
     require_revision(held["revision"], revision)
     _exact_fields(fields, BOARD_FIELDS)
-    fields, declaration = _draft_declaration(fields, by, RedraftDeclaration)
-    _check_board_write(held, by, acknowledgment)
+    fields, declaration = _draft_declaration(fields, by, RedraftDeclaration,
+                                             archive_version_id=archive_version_id)
+    if archive_version_id is None:
+        _check_board_write(held, by, acknowledgment)
+    else:
+        check_archive_board(held, by)
     if declaration is not None:
         require_revision(draft.story["revision"], declaration.story_revision,
                          "/draft_application/story_revision")
         previous = held.get("draft_application", {})
+        same_writer_required = archive_version_id is None or by["kind"] == "agent"
         if (previous.get("board_key") != declaration.board_key
                 or previous.get("draft_sha256") != declaration.previous_draft_sha256
                 or (acknowledgment is None and (
-                    previous.get("board_revision") != revision or held["drafted_by"] != by))):
+                    previous.get("board_revision") != revision
+                    or (same_writer_required and held["drafted_by"] != by)))):
             raise DraftProtected(held)
     fields = _with_child_ids(fields, held, BOARD_CHILDREN, Minter(),
                              allow_new_line_ids=declaration is not None)
     now = timestamp()
-    doc = {**_board_changed(held, by, "content", now, acknowledgment), **fields}
+    reason = "archive_apply" if archive_version_id is not None else "content"
+    doc = {**_board_changed(held, by, reason, now, acknowledgment), **fields}
     if declaration is not None:
         doc["drafted_by"] = by
         history = doc["draft_application"]
         doc["draft_application"] = {
-            **_draft_stamp(declaration, doc["revision"], now),
+            **_draft_stamp(declaration, doc["revision"], now, archive_version_id),
             **{key: history[key] for key in _PERSON_EDIT_FIELDS if key in history},
         }
     return _replace_board(conn, draft, held, doc, now)

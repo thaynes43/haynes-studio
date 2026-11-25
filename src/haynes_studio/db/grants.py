@@ -84,6 +84,11 @@ FEEDBACK_GRANTS = (
     ("UPDATE (feedback_iteration_id)", ("stories",)),
 )
 
+ARCHIVE_GRANTS = (
+    ("SELECT, INSERT", ("archive_records", "archive_versions")),
+)
+
 RUNTIME_GRANTS = (
     RUN_QUEUE_GRANTS + GO_LIVE_GRANTS + JOB_GRANTS + FORMAT_GRANTS + ESCALATION_GRANTS + FEEDBACK_GRANTS
+    + ARCHIVE_GRANTS
 )

@@ -8,13 +8,13 @@ import pytest
 
 from haynes_studio.canonical.ids import ID_PATTERN, PREFIXES, Minter, is_id, ulid
 
-CONTRACT_PATTERN = (r"^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)"
+CONTRACT_PATTERN = (r"^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd|arc|arv)"
                     r"_[0-7][0-9A-HJKMNP-TV-Z]{25}$")
 
 
 def test_pattern_is_the_contracts():
     assert ID_PATTERN == CONTRACT_PATTERN
-    assert len(PREFIXES) == 17
+    assert len(PREFIXES) == 19
 
 
 def test_ulid_encoding_is_crockford_upper_case():

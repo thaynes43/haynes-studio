@@ -160,13 +160,7 @@ async def _assets(session: ToolSession, production: str, ids: set[str]) -> dict:
 
 async def _validate_context(session: ToolSession, draft: Draft, story: dict,
                             baseline: dict[str, BoardState]) -> None:
-    set_fields = ("asset_version_id", "motion_asset_version_id")
-    story_set = story["set"]
-    expected = draft.set_pins
-    if [None if story_set is None else story_set.get(key) for key in set_fields] != [
-            None if expected is None else expected.get(key) for key in set_fields]:
-        raise ContractError("<agent draft>", [Violation("draft.set_changed", "/set",
-                                                       "The story's pinned set differs from the draft")])
+    draft.require_set(story["set"])
     refs = [(board, ref) for board in draft.boards for ref in board_references(thaw(board.document))]
     assets = await _assets(session, draft.production_id, {ref.version_id for _, ref in refs})
     facts = Facts.build(capabilities={id_: item["capabilities"] for id_, item in assets.items()})
@@ -294,9 +288,7 @@ async def apply_into(session: ToolSession, result: Result, *, first_apply: bool)
     """Keep confirmed writes in a caller-owned receipt across transport cancellation."""
     draft = result.draft
     try:
-        violations = [v for board in draft.boards for v in board.problems()]
-        if violations:
-            raise ContractError("<agent draft>", violations)
+        draft.require_valid_boards()
         if result.acknowledge_person_edit:
             targets = {result.baseline[board.key].board_id for board in draft.boards
                        if board.key in result.baseline}

@@ -168,6 +168,9 @@ GRANT SELECT, INSERT ON studio.escalation_check_failures, studio.escalation_pack
 GRANT SELECT, INSERT ON studio.run_candidates, studio.candidate_feedback,
     studio.feedback_iterations TO studio_app;
 GRANT UPDATE (feedback_iteration_id) ON studio.stories TO studio_app;
+
+-- Applied by revision 0010_staging_archive.
+GRANT SELECT, INSERT ON studio.archive_records, studio.archive_versions TO studio_app;
 ```
 
 Revision `0004_go_live_approvals` uses the PostgreSQL UTF-8 `und-x-icu`
@@ -277,6 +280,9 @@ token or digest.
   their `draft:write` grants. Keys with `runs:queue` may enqueue and cancel runs.
   An explicit `formats:write` grant allows catalog authoring. See
   [format recipes](formats.md#api-and-scopes) for catalog access.
+  `archive:read` and `archive:write` grant access to the production's
+  [staging archive](staging-archive.md). Storyboard apply needs both
+  `archive:read` and `draft:write` in that production.
 - The P-14 `WorkerRoute` authenticates a worker bearer token before reading
   the query or body of any `/internal/v1/work/*` route. A worker token provides
   a worker principal here. Public Studio routes accept agent keys or sessions.

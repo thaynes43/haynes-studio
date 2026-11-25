@@ -21,6 +21,12 @@ for request and response details. This map covers the API used by
 | `enable_media_type` | `PUT /productions/{id}/media-types/{kind}` | — | human | [409](https://work.haynesnetwork.com/work_packages/409) |
 | `list_stories` | `GET /productions/{id}/media-types/{kind}/stories?publication=&approved=` | `studio_list_stories` | read | [409](https://work.haynesnetwork.com/work_packages/409), [414](https://work.haynesnetwork.com/work_packages/414) |
 | `create_story` | `POST /productions/{id}/media-types/{kind}/stories` | `studio_create_story` | draft:write | [409](https://work.haynesnetwork.com/work_packages/409), [429](https://work.haynesnetwork.com/work_packages/429) |
+| `create_archive_record` | `POST /productions/{id}/archive-records` | `studio_create_archive_record` | archive:write | [443](https://work.haynesnetwork.com/work_packages/443) |
+| `add_archive_version` | `POST /archive-records/{id}/versions` | `studio_add_archive_version` | archive:write | [443](https://work.haynesnetwork.com/work_packages/443) |
+| `list_archive_records` | `GET /productions/{id}/archive-records` | `studio_list_archive_records` | archive:read | [443](https://work.haynesnetwork.com/work_packages/443) |
+| `get_archive_record` | `GET /archive-records/{id}` | `studio_get_archive_record` | archive:read | [443](https://work.haynesnetwork.com/work_packages/443) |
+| `get_archive_version` | `GET /archive-versions/{id}` | `studio_get_archive_version` | archive:read | [443](https://work.haynesnetwork.com/work_packages/443) |
+| `apply_archive_storyboard` | `POST /archive-versions/{id}/apply` | `studio_apply_archive_storyboard` | archive:read and draft:write | [443](https://work.haynesnetwork.com/work_packages/443) |
 | `get_story` | `GET /stories/{id}` | `studio_get_story_summary` | read | [409](https://work.haynesnetwork.com/work_packages/409), [429](https://work.haynesnetwork.com/work_packages/429) |
 | `update_story` | `PATCH /stories/{id}` | `studio_patch_story` | draft:write | [409](https://work.haynesnetwork.com/work_packages/409), [429](https://work.haynesnetwork.com/work_packages/429) |
 | `get_story_timing` | `GET /stories/{id}/timing` | `studio_get_story_timing` | read | [404](https://work.haynesnetwork.com/work_packages/404), [409](https://work.haynesnetwork.com/work_packages/409) |

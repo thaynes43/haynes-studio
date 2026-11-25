@@ -17,6 +17,7 @@ PREFIXES = {
     "nte": "note", "ast": "asset", "asv": "asset version", "job": "job", "run": "run",
     "dlv": "delivery", "apr": "go-live approval", "key": "agent key",
     "fmv": "format version", "pub": "publication", "fbk": "feedback", "cnd": "candidate",
+    "arc": "archive record", "arv": "archive version",
 }
 ULID_PATTERN = "[0-7][0-9A-HJKMNP-TV-Z]{25}"
 ID_PATTERN = rf"^({'|'.join(PREFIXES)})_{ULID_PATTERN}$"

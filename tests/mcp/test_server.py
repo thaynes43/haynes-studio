@@ -29,6 +29,8 @@ studio_get_story_summary studio_patch_story studio_get_story_timing studio_add_b
 studio_get_board studio_patch_board studio_reorder_boards studio_remove_board
 studio_search_assets studio_get_asset studio_get_delivery
 studio_list_formats studio_list_format_versions studio_get_format_version
+studio_create_archive_record studio_add_archive_version studio_list_archive_records
+studio_get_archive_record studio_get_archive_version studio_apply_archive_storyboard
 studio_generate_voice studio_generate_photo studio_get_job
 studio_estimate_run studio_queue_run studio_list_runs studio_get_run studio_cancel_run
 """.split())
@@ -248,6 +250,23 @@ async def test_transport_auth_host_origin_and_request_limit(api, caplog):
     assert api.authorization.split()[1] not in caplog.text
 
 
+async def test_sdk_validation_logs_do_not_echo_archive_text(api, caplog):
+    caplog.set_level(logging.DEBUG)
+    text = "The mistook umbrella travels only by train."
+    async with api.app.router.lifespan_context(api.app), httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=api.app),
+        headers={"Accept": "application/json, text/event-stream", "Authorization": api.authorization},
+    ) as http:
+        response = await http.post(MCP_URL, json={
+            "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": {"name": "studio_create_archive_record", "arguments": [{"text": text}]},
+        })
+    assert response.json()["error"]["message"] == "Invalid request parameters"
+    assert "Failed to validate request" in caplog.text
+    assert text not in caplog.text
+    assert not api.requests
+
+
 async def test_upload_tool_has_its_own_endpoint_and_main_requests_stay_bounded(api):
     headers = {"Accept": "application/json, text/event-stream", "Authorization": api.authorization,
                "Content-Type": "application/json"}
@@ -260,7 +279,7 @@ async def test_upload_tool_has_its_own_endpoint_and_main_requests_stay_bounded(a
         assert (await fail(uploads, "studio_get_board", board_id=api.bid))["code"] == "tool.not_found"
 
         oversized = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
-            "name": "studio_get_board", "arguments": {"board_id": "x" * (256 * 1024)},
+            "name": "studio_get_board", "arguments": {"board_id": "x" * MAX_REQUEST_BYTES},
         }}
         assert (await http.post(MCP_URL, json=oversized)).status_code == 413
         assert not api.requests

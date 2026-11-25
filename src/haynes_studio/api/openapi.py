@@ -10,6 +10,7 @@ from haynes_studio.drafting.declaration import (
 )
 from haynes_studio.schemas import load_schema
 
+from .archive_routes import ARCHIVE_SCOPES
 from .models import ExternalPhotoDeclaration
 from .transport import REQUEST_ID_HEADER
 
@@ -158,6 +159,8 @@ def _document_access(document: dict) -> None:
                 operation["x-studio-scope"] = "draft:write"
             elif name in _FORMAT_WRITE_OPERATIONS:
                 operation["x-studio-scope"] = "formats:write"
+            elif name in ARCHIVE_SCOPES:
+                operation["x-studio-scope"] = ARCHIVE_SCOPES[name]
             elif name == "report_escalation":
                 operation["security"] = [{"StudioBearer": []}]
                 operation["x-studio-scope"] = "read"

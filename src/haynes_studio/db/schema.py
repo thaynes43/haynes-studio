@@ -253,3 +253,28 @@ feedback_iterations = sa.Table(
     sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("started_revision", sa.BigInteger, nullable=False),
 )
+
+archive_records = sa.Table(
+    "archive_records", metadata, sa.Column("id", sa.Text(collation="C"), primary_key=True),
+    foreign("production_id", "productions.id"),
+    sa.Column("kind", sa.Text, nullable=False),
+    sa.Column("title", sa.Text, nullable=False),
+    sa.Index("archive_records_production_id", "production_id", "id"),
+)
+archive_versions = sa.Table(
+    "archive_versions", metadata, identifier(), foreign("record_id", "archive_records.id"),
+    sa.Column("number", sa.BigInteger, nullable=False),
+    sa.Column("revises_version_id", sa.Text, unique=True),
+    sa.Column("text", sa.Text, nullable=False),
+    sa.Column("bytes", sa.Integer, nullable=False),
+    sa.Column("sha256", sa.String(64), nullable=False),
+    foreign("format_version_id", "format_versions.id", nullable=True),
+    sa.Column("provenance", JSONB, nullable=False),
+    sa.Column("written_by", JSONB, nullable=False),
+    sa.Column("written_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("request_key_sha256", sa.String(64), nullable=False, unique=True),
+    sa.Column("request_sha256", sa.String(64), nullable=False),
+    sa.UniqueConstraint("record_id", "number"),
+    sa.UniqueConstraint("record_id", "id"),
+    sa.ForeignKeyConstraint(["record_id", "revises_version_id"], ["archive_versions.record_id", "archive_versions.id"]),
+)
