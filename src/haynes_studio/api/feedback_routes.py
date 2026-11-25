@@ -15,7 +15,7 @@ from haynes_studio.db.schema import stories
 from haynes_studio.feedback import records
 
 from .errors import APIError, ERROR_RESPONSES, forbidden
-from .models import Body, Page, TransportModel
+from .models import Body, TransportModel
 from .routes import Cursor, ETAG, IfMatch, Limit, _cursor, _etag, _id, _page, _revision
 from .run_routes import _run_access
 
@@ -82,7 +82,9 @@ class IterationStarted(TransportModel):
     iteration: Iteration
 
 
-class CandidatePage(Page[CandidateDetails]):
+class CandidatePage(TransportModel):
+    items: list[CandidateDetails]
+    next_cursor: str | None
     revision: int
     iteration: Iteration | None
 
