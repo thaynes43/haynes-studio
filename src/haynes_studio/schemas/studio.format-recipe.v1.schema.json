@@ -47,6 +47,20 @@
       "required": ["rules", "team_costumes"],
       "properties": {
         "rules": {"$ref": "#/$defs/notes"},
+        "matte_slots": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 26,
+          "propertyNames": {"$ref": "studio.defs.v1.schema.json#/$defs/slot"},
+          "additionalProperties": {
+            "type": "object",
+            "required": ["target_height_px"],
+            "properties": {
+              "target_height_px": {"type": "integer", "minimum": 1, "maximum": 2048}
+            },
+            "additionalProperties": false
+          }
+        },
         "team_costumes": {
           "type": "object",
           "propertyNames": {"$ref": "#/$defs/slug"},
