@@ -148,7 +148,7 @@ def test_lane_migration_retains_existing_tokens_on_upgrade_and_downgrade(studio_
                        has_table_privilege('worker_lane_grants', 'DELETE')
             """)).one() == (True, False, False, False)
 
-        migrate(migration, direction="downgrade", target="-1")
+        migrate(migration, direction="downgrade", target="0010_staging_archive")
         with migration.connect() as conn:
             assert not sa.inspect(conn).has_table("worker_lane_grants", schema=schema)
             assert list(conn.execute(sa.select(worker_tokens).order_by(worker_tokens.c.digest))) == prior
