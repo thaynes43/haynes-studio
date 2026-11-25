@@ -273,3 +273,17 @@ def test_callback_preserves_return_path_and_uses_verified_auth_time(service, own
     query = begin_login(browser, return_to=target)
     assert_auth_redirect(browser.get("/auth/callback", params={"error": "refused", "state": query["state"][0]}),
                          "auth.oidc_invalid")
+
+
+def test_callback_clamps_auth_time_within_provider_leeway(service, owner_engine):
+    app, _, issuer = service
+    app.state.oidc.settings = replace(issuer.settings(), leeway_seconds=60)
+    browser = client(app)
+    lower_bound = datetime.now(UTC)
+    future = lower_bound + timedelta(seconds=30)
+    sign_in(browser, issuer, auth_time=future.timestamp())
+    with owner_engine.connect() as conn:
+        recorded = conn.scalar(sa.select(sessions.c.auth_time).where(
+            sessions.c.digest == identity.digest(browser.cookies.get(SESSION_COOKIE))))
+    assert lower_bound <= recorded <= datetime.now(UTC)
+    assert recorded < future

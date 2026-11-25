@@ -115,13 +115,14 @@ def return_path(value: str) -> str:
     return value
 
 
-def _auth_time(claims: dict, now: datetime) -> datetime:
+def _auth_time(claims: dict, now: datetime, leeway_seconds: int) -> datetime:
     if "auth_time" not in claims:
         return now
     value = claims["auth_time"]
-    if type(value) not in (int, float) or not 0 <= value <= now.timestamp():
+    now_seconds = now.timestamp()
+    if type(value) not in (int, float) or not 0 <= value <= now_seconds + leeway_seconds:
         raise APIError(401, "auth.oidc_invalid", "OIDC returned an invalid authentication time")
-    return datetime.fromtimestamp(value, timezone.utc)
+    return now if value > now_seconds else datetime.fromtimestamp(value, timezone.utc)
 
 
 def _callback_failure(code: str) -> RedirectResponse:
@@ -283,7 +284,7 @@ def build_router():
         if claims["sub"] not in settings.allowed_subjects:
             secret = GROUP_SESSION_PREFIX + secret
         now = datetime.now(timezone.utc)
-        auth_time = _auth_time(claims, now)
+        auth_time = _auth_time(claims, now, settings.leeway_seconds)
         expires_at = now + timedelta(seconds=settings.session_seconds)
         name = claims.get("name")
         if not isinstance(name, str) or not name.isprintable() or len(name) > 200:

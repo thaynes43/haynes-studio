@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from haynes_studio.api.approval_routes import licence_register
 from haynes_studio.api.app import schema_app
-from haynes_studio.api.auth import Actor
+from haynes_studio.api.auth import Actor, _auth_time
 from haynes_studio.api.config import OIDCSettings, from_environment
 from haynes_studio.api.errors import APIError
 from haynes_studio.build.provenance import Use, credits, engines
@@ -89,6 +89,15 @@ def test_allowlist_compares_issuer_and_freshness_exactly():
     with pytest.raises(APIError) as wrong_issuer:
         require_approver(actor, replace(settings, issuer=ORIGIN), now)
     assert wrong_issuer.value.details["code"] == "approval.group_not_permitted"
+
+
+def test_auth_time_applies_oidc_leeway_without_extending_freshness():
+    now = datetime(2026, 11, 24, 20, 0, tzinfo=UTC)
+    claims = {"auth_time": int(now.timestamp()) + 5}
+    assert _auth_time(claims, now, leeway_seconds=5) == now
+    with pytest.raises(APIError) as beyond_leeway:
+        _auth_time(claims, now, leeway_seconds=4)
+    assert beyond_leeway.value.details["code"] == "auth.oidc_invalid"
 
 
 def test_release_description_uses_reported_generators_and_keeps_unknown_terms_visible():

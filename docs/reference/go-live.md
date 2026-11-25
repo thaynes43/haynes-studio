@@ -24,8 +24,10 @@ worker tokens have no approval authority. Both operations require the session
 cookie and `X-Studio-CSRF`.
 
 The API records the ID token's verified `auth_time` when present and the
-callback time otherwise. A session migrated without that evidence requires
-another sign-in. `STUDIO_GO_LIVE_FRESHNESS_SECONDS` defaults to `900`. When
+callback time otherwise. Provider timestamps ahead of the callback use the
+configured OIDC clock leeway and are capped at the callback time. A session
+migrated without that evidence requires another sign-in.
+`STUDIO_GO_LIVE_FRESHNESS_SECONDS` defaults to `900`. When
 the API returns `approval.sign_in_again`, send the user to
 `GET /auth/login?fresh=true&return_to=<encoded-path>`. This requests OIDC
 reauthentication and records the return path on the one-use login attempt. A
