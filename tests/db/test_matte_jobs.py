@@ -551,6 +551,45 @@ def test_matte_release_refusal_leaves_claim_to_expire(
             assert worker.tick() and job(s, second)["status"] == "succeeded"
 
 
+def test_matte_ready_worker_settles_refused_release_while_paused(
+    matte_studio, matte_format, matte_client, monkeypatch,
+):
+    s = matte_studio
+    local, weights = matte_client
+    body = payload(opaque(s, scope=s.production_id), matte_format)
+    first, second = [success(request(s, body, key), 202)["id"] for key in ("refused", "following")]
+    api = worker_api(s, lane="matte")
+    worker = MediaWorker(api, lane="matte", store=s.store, client=local)
+    post = api.client.post
+    releases = []
+
+    def refuse(path, **kwargs):
+        if path == f"{WORK}/release-matte":
+            releases.append(kwargs["json"])
+            return httpx.Response(403, text="fixture listener refusal")
+        return post(path, **kwargs)
+
+    monkeypatch.setattr(api.client, "post", refuse)
+    with Engine(local.scratch, weights, PROFILE, factory=load_fake) as backend, listening(local.socket, backend):
+        with backend._lock:
+            assert not worker.tick()
+        row = row_of(s, first)
+        assert releases == [{"job_id": first, "fence": row["fence"], "reason": "busy"}]
+        assert row["dispatched"] and row["matte_releases"] == 0
+        local.ready_for_claim()
+        lane = "/v1/queue/lanes/matte"
+        success(s.browser.put(lane, headers=s.csrf, json={"paused": True}))
+        assert not worker.tick() and job(s, first)["status"] == "running"
+        expire(s, first)
+        assert not worker.tick()
+        assert_failed(s, first, "work.dispatch_unconfirmed")
+        assert row_of(s, first)["fence"] == row["fence"]
+        assert not worker.tick()
+        assert job(s, second)["status"] == "queued" and row_of(s, second)["fence"] == 0
+        success(s.browser.put(lane, headers=s.csrf, json={"paused": False}))
+        assert worker.tick() and job(s, second)["status"] == "succeeded"
+
+
 def test_matte_slow_publish_reply_leaves_time_for_sidecar_first_byte(
     matte_studio, matte_format, matte_client, monkeypatch,
 ):

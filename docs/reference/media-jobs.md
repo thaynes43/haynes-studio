@@ -28,7 +28,7 @@ POST paths share the prefix `/internal/v1/work` and require a worker token.
 
 | Path | Media worker payload and effect |
 |---|---|
-| `/claim` | `{"lane":"image"}`, `{"lane":"voice"}` or `{"lane":"matte"}`. Returns the lane's FIFO head, frozen inputs, fence and claim deadline, or 204. An empty body selects `run`. For a matte worker, `{"lane":"matte","settle_only":true}` settles an expired dispatch at the head, including on a paused lane, and always returns 204 without taking a claim. |
+| `/claim` | `{"lane":"image"}`, `{"lane":"voice"}` or `{"lane":"matte"}`. Returns the lane's FIFO head, frozen inputs, fence and claim deadline, or 204. An empty body selects `run`. A matte poll can settle an expired dispatch at the head even on a paused lane. `{"lane":"matte","settle_only":true}` always returns 204 without taking a claim. |
 | `/heartbeat` | `job_id` and `fence`. Extends the claim by 90 seconds on the database clock. |
 | `/publish` | `job_id` and `fence`. Records entry to engine dispatch and renews the claim before submission. |
 | `/complete` | `job_id`, `fence` and result evidence. The API verifies stored content and commits the version, terminal status and eligible draft selection together. |
@@ -83,8 +83,9 @@ outcome is uncertain stays fenced. If the API fails to confirm a release, the
 worker logs a generic warning and keeps polling. A claim that the API did not
 release still appears as **Cutout running** while its lease is live. If dispatch
 was recorded, expiry settles it as **Cutout failed** with
-`work.dispatch_unconfirmed`. Otherwise, it can be reclaimed once the sidecar
-is ready. Use `studio-matting ready` to verify the deployed sidecar.
+`work.dispatch_unconfirmed`, including while the lane is paused or the sidecar
+is unavailable. A claim without a dispatch can be reclaimed once the lane
+is open and the sidecar is ready. Use `studio-matting ready` to verify the deployed sidecar.
 Use the migration identity for the initial registration.
 
 ```sh

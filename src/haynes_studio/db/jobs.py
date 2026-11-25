@@ -114,7 +114,8 @@ def finish(conn, row, job, **values):
 def claim(conn, worker_id, lane, *, settle_only=False):
     if lock_lane(conn, lane, skip_locked=True) is None:
         return None
-    if not settle_only and is_paused(conn, lane):
+    paused = not settle_only and is_paused(conn, lane)
+    if paused and lane != "matte":
         return None
     head = sa.select(sa.func.min(media_jobs.c.position)).where(
         media_jobs.c.lane == lane, STATUS.in_(ACTIVE),
@@ -122,7 +123,8 @@ def claim(conn, worker_id, lane, *, settle_only=False):
     row = conn.execute(sa.select(media_jobs).where(
         media_jobs.c.lane == lane, media_jobs.c.position == head, STATUS.in_(ACTIVE),
     ).with_for_update(skip_locked=True)).mappings().one_or_none()
-    if row is None or (settle_only and not row["dispatched"]):
+    # A paused matte lane can retire an expired dispatch without starting work.
+    if row is None or ((settle_only or paused) and not row["dispatched"]):
         return None
     now = database_time(conn)
     if row["claim_until"] is not None and row["claim_until"] > now:
