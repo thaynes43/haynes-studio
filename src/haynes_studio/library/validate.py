@@ -18,6 +18,8 @@ block, so ``derived`` is an unknown field everywhere); ``queue_run`` adds nothin
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from collections.abc import Mapping
 from typing import Any
 
@@ -113,11 +115,58 @@ def _version_rules(doc: Mapping[str, Any]) -> list[Violation]:
         found += _board_voice(voice, scope["production_id"])
     if doc.get("motion") is not None:
         found += motion_block_problems(doc)  # story 457: haynes_studio.motion.check
+    if "occlusion" in doc:
+        found += _occlusion(doc)
     legacy = doc["legacy"]
     if legacy is not None and legacy["source_key"] != doc["provenance"].get("source_key"):
         found.append(_v(SCHEMA_INVALID, "/legacy/source_key",
                         "must be the provenance's source_key (proposal)"))
     return found
+
+
+def _occlusion(doc: Mapping[str, Any]) -> list[Violation]:
+    if doc["kind"] != "set" or "opaque_plate" not in doc["capabilities"]:
+        return [_v(CAPABILITY_MISMATCH, "/occlusion", "occlusion declarations need an opaque set plate")]
+    block = doc["occlusion"]
+    if not block["foreground"] and not block["focal_props"]:
+        return [_v(SCHEMA_INVALID, "/occlusion", "declare a foreground role or focal prop")]
+    found = []
+    keys, orders = [], []
+    foreground = {role["key"]: role["layer_order"] for role in block["foreground"]}
+    for group in ("foreground", "focal_props"):
+        for i, target in enumerate(block[group]):
+            at = pointer("occlusion", group, i)
+            key = target["key"]
+            keys.append((at + "/key", key))
+            if re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", key) is None:
+                found.append(_v(SCHEMA_INVALID, at + "/key", "the key must match the segmentation target grammar"))
+            texts = [(at + "/label", target["label"])]
+            hint = target.get("hint")
+            if hint and hint["kind"] == "text":
+                texts.append((at + "/hint/text", hint["text"]))
+            for path, value in texts:
+                if value is not None and (value != value.strip() or not unicodedata.is_normalized("NFC", value)
+                                          or any(unicodedata.category(c).startswith("C") for c in value)):
+                    found.append(_v(SCHEMA_INVALID, path, "use trimmed NFC text without control characters"))
+            order = target.get("layer_order")
+            if group == "foreground":
+                orders.append((at + "/layer_order", order))
+                continue
+            role, source = target.get("foreground_role"), target.get("source_asset_version_id")
+            depth = target["depth"]
+            if depth == "background":
+                valid = order == 0 and role is None and source is None
+            elif depth == "foreground":
+                valid = role in foreground and order == foreground[role] and source is None
+            elif depth == "separate":
+                valid = order is not None and order > 0 and role is None and source is not None
+                if valid:
+                    orders.append((at + "/layer_order", order))
+            else:
+                valid = order is None and role is None and source is None
+            if not valid:
+                found.append(_v(SCHEMA_INVALID, at, "the depth needs its matching layer order and source or role"))
+    return found + _duplicates(keys, "occlusion target key") + _duplicates(orders, "declared layer order")
 
 
 def _stock_voice(doc: Mapping[str, Any]) -> list[Violation]:

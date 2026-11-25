@@ -176,6 +176,9 @@
     },
     "motion": {
       "$ref": "#/$defs/motion"
+    },
+    "occlusion": {
+      "$ref": "#/$defs/occlusion"
     }
   },
   "additionalProperties": false,
@@ -1694,6 +1697,173 @@
                   }
                 }
               }
+            }
+          }
+        }
+      ]
+    },
+    "occlusion": {
+      "type": "object",
+      "required": [
+        "foreground",
+        "focal_props"
+      ],
+      "properties": {
+        "foreground": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "required": [
+              "key",
+              "label",
+              "layer_order"
+            ],
+            "properties": {
+              "key": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+              },
+              "label": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  }
+                ]
+              },
+              "layer_order": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1024
+              },
+              "hint": {
+                "$ref": "#/$defs/occlusion_hint"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "focal_props": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "required": [
+              "key",
+              "label",
+              "depth"
+            ],
+            "properties": {
+              "key": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "depth": {
+                "enum": [
+                  "background",
+                  "foreground",
+                  "separate",
+                  "unspecified"
+                ]
+              },
+              "layer_order": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1024
+              },
+              "foreground_role": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+              },
+              "source_asset_version_id": {
+                "$ref": "studio.defs.v1.schema.json#/$defs/asv_id"
+              },
+              "hint": {
+                "$ref": "#/$defs/occlusion_hint"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "occlusion_hint": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "xy"
+          ],
+          "properties": {
+            "kind": {
+              "const": "point"
+            },
+            "xy": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1920
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "xyxy"
+          ],
+          "properties": {
+            "kind": {
+              "const": "box"
+            },
+            "xyxy": {
+              "type": "array",
+              "minItems": 4,
+              "maxItems": 4,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1920
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "text"
+          ],
+          "properties": {
+            "kind": {
+              "const": "text"
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
             }
           }
         }

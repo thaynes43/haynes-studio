@@ -1439,6 +1439,9 @@
           "number": {
             "$ref": "#/components/schemas/StudioDefs_positive"
           },
+          "occlusion": {
+            "$ref": "#/components/schemas/AssetVersion_occlusion"
+          },
           "provenance": {
             "$ref": "#/components/schemas/AssetVersion_provenance"
           },
@@ -2255,6 +2258,173 @@
           "keys"
         ],
         "type": "object"
+      },
+      "AssetVersion_occlusion": {
+        "additionalProperties": false,
+        "properties": {
+          "focal_props": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "depth": {
+                  "enum": [
+                    "background",
+                    "foreground",
+                    "separate",
+                    "unspecified"
+                  ]
+                },
+                "foreground_role": {
+                  "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                  "type": "string"
+                },
+                "hint": {
+                  "$ref": "#/components/schemas/AssetVersion_occlusion_hint"
+                },
+                "key": {
+                  "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                  "type": "string"
+                },
+                "label": {
+                  "maxLength": 80,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "layer_order": {
+                  "maximum": 1024,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "source_asset_version_id": {
+                  "$ref": "#/components/schemas/StudioDefs_asv_id"
+                }
+              },
+              "required": [
+                "key",
+                "label",
+                "depth"
+              ],
+              "type": "object"
+            },
+            "maxItems": 16,
+            "type": "array"
+          },
+          "foreground": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "hint": {
+                  "$ref": "#/components/schemas/AssetVersion_occlusion_hint"
+                },
+                "key": {
+                  "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                  "type": "string"
+                },
+                "label": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "maxLength": 80,
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  ]
+                },
+                "layer_order": {
+                  "maximum": 1024,
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "key",
+                "label",
+                "layer_order"
+              ],
+              "type": "object"
+            },
+            "maxItems": 16,
+            "type": "array"
+          }
+        },
+        "required": [
+          "foreground",
+          "focal_props"
+        ],
+        "type": "object"
+      },
+      "AssetVersion_occlusion_hint": {
+        "oneOf": [
+          {
+            "type": "null"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "point"
+              },
+              "xy": {
+                "items": {
+                  "maximum": 1920,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "type": "array"
+              }
+            },
+            "required": [
+              "kind",
+              "xy"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "box"
+              },
+              "xyxy": {
+                "items": {
+                  "maximum": 1920,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "maxItems": 4,
+                "minItems": 4,
+                "type": "array"
+              }
+            },
+            "required": [
+              "kind",
+              "xyxy"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "text"
+              },
+              "text": {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "text"
+            ],
+            "type": "object"
+          }
+        ]
       },
       "AssetVersion_provenance": {
         "additionalProperties": false,
@@ -3520,6 +3690,29 @@
           "layout": {
             "additionalProperties": false,
             "properties": {
+              "check_poses": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "frame": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "key": {
+                      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "frame"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 16,
+                "minItems": 1,
+                "type": "array"
+              },
               "foreground": {
                 "type": "boolean"
               },
@@ -3992,6 +4185,29 @@
           "layout": {
             "additionalProperties": false,
             "properties": {
+              "check_poses": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "frame": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "key": {
+                      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "frame"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 16,
+                "minItems": 1,
+                "type": "array"
+              },
               "foreground": {
                 "type": "boolean"
               },
@@ -4422,6 +4638,29 @@
           "layout": {
             "additionalProperties": false,
             "properties": {
+              "check_poses": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "frame": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "key": {
+                      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "frame"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 16,
+                "minItems": 1,
+                "type": "array"
+              },
               "foreground": {
                 "type": "boolean"
               },

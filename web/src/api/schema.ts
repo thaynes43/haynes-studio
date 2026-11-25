@@ -1495,6 +1495,7 @@ export interface components {
             motion?: components["schemas"]["AssetVersion_motion"];
             name: components["schemas"]["Asset_name"];
             number: components["schemas"]["StudioDefs_positive"];
+            occlusion?: components["schemas"]["AssetVersion_occlusion"];
             provenance: components["schemas"]["AssetVersion_provenance"];
             /**
              * @description A production archive supplied this asset version's record only.
@@ -1587,6 +1588,37 @@ export interface components {
             use: "loop" | "timed";
             width: components["schemas"]["StudioDefs_positive"];
         } & (unknown & unknown & unknown);
+        AssetVersion_occlusion: {
+            focal_props: {
+                /** @enum {unknown} */
+                depth: "background" | "foreground" | "separate" | "unspecified";
+                foreground_role?: string;
+                hint?: components["schemas"]["AssetVersion_occlusion_hint"];
+                key: string;
+                label: string;
+                layer_order?: number;
+                source_asset_version_id?: components["schemas"]["StudioDefs_asv_id"];
+            }[];
+            foreground: {
+                hint?: components["schemas"]["AssetVersion_occlusion_hint"];
+                key: string;
+                label: null | string;
+                layer_order: number;
+            }[];
+        };
+        AssetVersion_occlusion_hint: null | {
+            /** @constant */
+            kind: "point";
+            xy: number[];
+        } | {
+            /** @constant */
+            kind: "box";
+            xyxy: number[];
+        } | {
+            /** @constant */
+            kind: "text";
+            text: string;
+        };
         AssetVersion_provenance: {
             created_at: components["schemas"]["StudioDefs_timestamp"];
             created_by: components["schemas"]["StudioDefs_principal"];
@@ -1738,6 +1770,10 @@ export interface components {
             duration_ms?: components["schemas"]["StudioDefs_duration_is_derived"];
             id: components["schemas"]["StudioDefs_brd_id"];
             layout: {
+                check_poses?: {
+                    frame: number;
+                    key: string;
+                }[];
                 foreground: boolean;
                 preset: string;
             };
@@ -1815,6 +1851,10 @@ export interface components {
                 session: string;
             };
             layout?: {
+                check_poses?: {
+                    frame: number;
+                    key: string;
+                }[];
                 foreground: boolean;
                 preset: string;
             };
@@ -1896,6 +1936,10 @@ export interface components {
                 story_revision: number;
             };
             layout?: {
+                check_poses?: {
+                    frame: number;
+                    key: string;
+                }[];
                 foreground: boolean;
                 preset: string;
             };

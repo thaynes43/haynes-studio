@@ -37,6 +37,7 @@ from haynes_studio.formats.recipe import PIN_PATH, method_violation
 from haynes_studio.jsonio import thaw
 from haynes_studio.layered import check_board as layered_check
 from haynes_studio.layered.pin import pin_story
+from haynes_studio.layered.visibility import evaluate_visibility, visibility_violations
 from haynes_studio.library import Library
 from haynes_studio.library.model import locator_for
 from haynes_studio.library.resolve import Resolution, resolve
@@ -116,7 +117,7 @@ def resolved_versions(resolution: Resolution, library: Library,
     return out
 
 
-def _adapter_problems(story: Story, *, facts: Facts, motion: LayeredMotion | None,
+def _adapter_problems(story: Story, *, library: Library, facts: Facts, motion: LayeredMotion | None,
                       toolchain: Toolchain, frame_size: tuple[int, int]) -> list[Problem]:
     """Each board's adapter check, located like the pre-build check's problems."""
     found = []
@@ -131,6 +132,11 @@ def _adapter_problems(story: Story, *, facts: Facts, motion: LayeredMotion | Non
             violations = layered_check(story, board, motion=None if motion is None else
                                        motion.boards.get(board.id), frame_size=frame_size,
                                        s2v_size=s2v_size if len(s2v_size) == 2 else None)
+        if board.method.layer == "layered" or board.layout.check_poses is not None:
+            # The product has no job or frozen pose provider yet. Opted-in
+            # boards require review until that evidence is available.
+            violations += visibility_violations(evaluate_visibility(
+                story, board, library, frame_size=frame_size, poses={}))
         for violation in violations:
             path = violation.path
             if path.startswith("/boards/"):  # the motion resolver's pointers name the board
@@ -193,7 +199,7 @@ def prepare(document: Mapping[str, Any], *, library: Library, store: Store | Non
     # problems stay on its BoardMotion, and the layered check reports them.
     motion = pin_story(document, library, verify, production_id=story.production_id)
     if story.boards is not None:
-        problems += _adapter_problems(story, facts=facts, motion=motion, toolchain=toolchain,
+        problems += _adapter_problems(story, library=library, facts=facts, motion=motion, toolchain=toolchain,
                                       frame_size=frame_size)
     seen, unique = set(), []
     for problem in problems:  # a refusal both checks report (method.unavailable) once

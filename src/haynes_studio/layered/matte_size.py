@@ -36,6 +36,11 @@ class MatteSize:
 
     def sprite(self, image: Image) -> tuple[Image, tuple[int, int], tuple[int, int]]:
         """Return the resized sprite, its silhouette size and its inset from the sprite origin."""
+        support, size, silhouette, inset = self.geometry(image)
+        return image.crop(support).resize(size, Resampling.LANCZOS), silhouette, inset
+
+    def geometry(self, image: Image):
+        """Return the source crop, size, silhouette and inset of this sprite."""
         x0, y0, x1, y1 = self.box
         # Trimming transparent padding is lossless. Keep all nonzero alpha,
         # including fractional hair below the measurement threshold.
@@ -47,5 +52,4 @@ class MatteSize:
         inset_y = round((y0 - top) * self.scale)
         size = (inset_x + width + round((right - x1) * self.scale),
                 inset_y + height + round((bottom - y1) * self.scale))
-        return (image.crop(support).resize(size, Resampling.LANCZOS),
-                (width, height), (inset_x, inset_y))
+        return support, size, (width, height), (inset_x, inset_y)

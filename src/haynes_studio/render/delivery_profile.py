@@ -13,7 +13,7 @@ from functools import cache
 from pathlib import Path
 from typing import Any
 
-from PIL import Image, ImageOps, __version__ as pillow_version
+from PIL import Image, __version__ as pillow_version
 
 from haynes_studio.render.clock import S2V_SOURCE_FPS
 from haynes_studio.store import canonical_json
@@ -54,7 +54,20 @@ def _lanczos(image: Image.Image, size: tuple[int, int]) -> Image.Image:
 
 def fit_set_plate(image: Image.Image, size: tuple[int, int]) -> Image.Image:
     """Still plates keep the compositor's centred cover fit with Lanczos."""
-    return ImageOps.fit(image, size, method=Image.Resampling.LANCZOS)
+    return image.resize(size, Image.Resampling.LANCZOS, box=set_plate_crop(image.size, size))
+
+
+def set_plate_crop(source: tuple[int, int], size: tuple[int, int]) -> tuple[float, float, float, float]:
+    """The centred, zero-bleed cover box used by Pillow's ImageOps.fit."""
+    width, height = source
+    ratio, output_ratio = width / height, size[0] / size[1]
+    crop_width, crop_height = width, height
+    if ratio > output_ratio:
+        crop_width = output_ratio * height
+    elif ratio < output_ratio:
+        crop_height = width / output_ratio
+    left, top = (width - crop_width) * 0.5, (height - crop_height) * 0.5
+    return left, top, left + crop_width, top + crop_height
 
 
 @cache

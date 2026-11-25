@@ -107,26 +107,26 @@ def slot_of(layout: Mapping[str, Any], slot: str) -> Slot:
 def sprite(image: PIL.Image.Image, slot: Slot) -> PIL.Image.Image:
     """The doll as drawn: cropped by the slot's fractions, scaled to its height
     (Lanczos), as the PoC did for every frame."""
+    crop, size = sprite_geometry(image.size, slot)
+    return image.crop(crop).resize(size, PIL.Image.Resampling.LANCZOS)
+
+
+def sprite_geometry(size: tuple[int, int], slot: Slot):
+    """Source-pixel crop and rendering size of a slot's sprite."""
+    width, height = size
+    crop = (0, 0, width, height)
     if slot.crop is not None:
         fx0, fy0, fx1, fy1 = slot.crop
-        image = image.crop((round(fx0 * image.width), round(fy0 * image.height),
-                            round(fx1 * image.width), round(fy1 * image.height)))
-    if image.height < 1 or image.width < 1:
+        crop = (round(fx0 * width), round(fy0 * height), round(fx1 * width), round(fy1 * height))
+        width, height = crop[2] - crop[0], crop[3] - crop[1]
+    if width < 1 or height < 1:
         raise LayeredError(LAYOUT_INVALID, "the slot's crop leaves nothing of the doll")
-    width = max(1, round(image.width * slot.height / image.height))
-    return image.resize((width, slot.height), PIL.Image.Resampling.LANCZOS)
+    return crop, (max(1, round(width * slot.height / height)), slot.height)
 
 
 def sprite_size(size: tuple[int, int], slot: Slot) -> tuple[int, int]:
     """The size :func:`sprite` gives an image of ``size``, without drawing it."""
-    width, height = size
-    if slot.crop is not None:
-        fx0, fy0, fx1, fy1 = slot.crop
-        width = round(fx1 * width) - round(fx0 * width)
-        height = round(fy1 * height) - round(fy0 * height)
-    if width < 1 or height < 1:
-        raise LayeredError(LAYOUT_INVALID, "the slot's crop leaves nothing of the doll")
-    return max(1, round(width * slot.height / height)), slot.height
+    return sprite_geometry(size, slot)[1]
 
 
 @dataclass(frozen=True)
@@ -181,11 +181,18 @@ def shadow(plate_image: PIL.Image.Image) -> PIL.Image.Image:
 def draw(frame: PIL.Image.Image, plate_image: PIL.Image.Image, shadow_image: PIL.Image.Image,
          pivot: tuple[float, float], dx: float, dy: float, angle: float) -> None:
     """Composite one doll, shadow then body, moved by (dx, dy, angle) (``edit.draw``)."""
-    width, height = frame.size
     for layer, off in ((shadow_image, (dx + SHADOW_OFFSET[0], dy + SHADOW_OFFSET[1])),
                        (plate_image, (dx, dy))):
-        moved = layer.rotate(angle, resample=PIL.Image.Resampling.BICUBIC, center=pivot, translate=off)
-        frame.alpha_composite(moved.crop((PAD, 0, PAD + width, height)))
+        frame.alpha_composite(move_plate(layer, frame.size, pivot, (*off, angle)))
+
+
+def move_plate(image: PIL.Image.Image, size: tuple[int, int], pivot: tuple[float, float],
+               move: tuple[float, float, float]) -> PIL.Image.Image:
+    """Apply the held rigid pose to one padded layer and clip it to the frame."""
+    dx, dy, angle = move
+    width, height = size
+    moved = image.rotate(angle, resample=PIL.Image.Resampling.BICUBIC, center=pivot, translate=(dx, dy))
+    return moved.crop((PAD, 0, PAD + width, height))
 
 
 def foreground_alpha(edge_px: Sequence[Sequence[float]], feather_px: float | None,
@@ -211,20 +218,25 @@ def camera(frame: PIL.Image.Image, cue: Mapping[str, Any] | None, t: float) -> P
     """The push-in of a camera cue at board time ``t`` s (``edit.camera``): from
     ``zoom_from`` at the cue's start to ``zoom_to`` after ``duration_ms``, eased out
     (cubic), toward ``center_px``; before the cue, ``zoom_from``."""
+    box = camera_box(frame.size, cue, t)
+    return frame if box is None else frame.crop(box).resize(frame.size, PIL.Image.Resampling.BICUBIC)
+
+
+def camera_box(size: tuple[int, int], cue: Mapping[str, Any] | None, t: float):
+    """The camera's rounded source box for this delivery-frame time."""
     if cue is None:
-        return frame
+        return None
     start, over = cue["start_ms"] / 1000, cue["duration_ms"] / 1000
     u = 0.0 if t < start else 1.0 if over <= 0 else min(1.0, (t - start) / over)
     u = 1 - (1 - u) ** 3
     z = cue["zoom_from"] + (cue["zoom_to"] - cue["zoom_from"]) * u
     if abs(z - 1) < 1e-3:
-        return frame
-    width, height = frame.size
+        return None
+    width, height = size
     cx, cy = cue["center_px"]
     w, h = width / z, height / z
     x0, y0 = min(max(cx - w / 2, 0), width - w), min(max(cy - h / 2, 0), height - h)
-    return frame.crop((round(x0), round(y0), round(x0 + w), round(y0 + h))).resize(
-        (width, height), PIL.Image.Resampling.BICUBIC)
+    return round(x0), round(y0), round(x0 + w), round(y0 + h)
 
 
 def trajectory(t: float, sign: int, factor: float, phase: float = 0.0) -> tuple[float, float, float]:
