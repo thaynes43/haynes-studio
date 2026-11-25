@@ -571,6 +571,11 @@ export interface components {
             name: components["schemas"]["Asset_name"];
             number: components["schemas"]["StudioDefs_positive"];
             provenance: components["schemas"]["AssetVersion_provenance"];
+            /**
+             * @description A production archive supplied this asset version's record only.
+             * @constant
+             */
+            recorded_without_media?: true;
             /** @constant */
             schema: "studio.asset-version/v1";
             scope: components["schemas"]["Asset_scope"];
@@ -1056,9 +1061,15 @@ export interface components {
                 writable: boolean;
             };
             verification: {
-                decoded_frames: components["schemas"]["StudioDefs_positive"];
+                decoded_frames?: components["schemas"]["StudioDefs_positive"];
                 expected_frames: components["schemas"]["StudioDefs_positive"];
                 proxy_under_bytes?: components["schemas"]["StudioDefs_positive"];
+                /** @description Recovered MP4s verified against the archive receipt and playback ledger using container metadata. */
+                recovered_container_metadata_only?: {
+                    frames: components["schemas"]["StudioDefs_positive"];
+                    ledger_id: string;
+                    ledger_sha256: components["schemas"]["StudioDefs_sha256"];
+                };
                 /** @constant */
                 sha256_verified: true;
                 source?: components["schemas"]["Delivery_repo_path"];

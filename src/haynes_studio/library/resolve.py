@@ -40,6 +40,7 @@ from haynes_studio.library.validate import CAPABILITY_MISMATCH
 KIND_MISMATCH = "asset.kind_mismatch"
 SCOPE_MISMATCH = "asset.scope_mismatch"
 BYTES_MISSING = "asset.bytes_missing"
+RECORDED_WITHOUT_MEDIA = "asset.recorded_without_media"
 STORY_SCHEMA, BOARD_SCHEMA = "studio.story/v1", "studio.board/v1"
 
 
@@ -230,6 +231,8 @@ def resolve(document: Mapping[str, Any], library: Library, exists: Exists) -> Re
                                       f"{version.id} has {', '.join(version.capabilities)}; a "
                                       "layered cast still needs rgba_cutout or keyed_layer "
                                       "(review M6)"))
+        if version.recorded_without_media:
+            continue  # Build preflight reports the recorded provenance without probing the store.
         stored = [content] if content is not None else []
         if version.voice is not None and version.voice.track is not None:
             stored.append(version.voice.track)

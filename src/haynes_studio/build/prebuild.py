@@ -95,10 +95,13 @@ def resolved_versions(resolution: Resolution, library: Library,
     for item in resolution.resolved:
         if item.version_id in out:
             continue
-        if item.kind == "voice":
+        version = library.version(item.version_id)
+        if version.recorded_without_media:
+            out[item.version_id] = ResolvedVersion(recorded_without_media=True)
+        elif item.kind == "voice":
             out[item.version_id] = DEFINITION_ONLY
         elif item.kind == "board_voice":
-            voice = library.version(item.version_id).voice
+            voice = version.voice
             blobs = []
             if voice is not None and voice.track is not None:
                 blobs.append(BlobRef(voice.track.sha256, voice.track.locator))

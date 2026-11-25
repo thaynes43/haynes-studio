@@ -336,6 +336,7 @@ class VersionRequest:
     motion: Mapping[str, Any] | None = None  # a motion version's clip record (story 457)
     version_id: str | None = None
     asset_id: str | None = None
+    recorded_without_media: bool = False
 
 
 @dataclass(frozen=True)
@@ -386,7 +387,8 @@ def import_version(library: Library, request: VersionRequest, *, by: Principal, 
         provenance=freeze(provenance), licence=request.licence,
         legacy=None if request.legacy is None else freeze(normalize(request.legacy)),
         voice=request.voice,
-        motion=None if request.motion is None else freeze(normalize(dict(request.motion))))
+        motion=None if request.motion is None else freeze(normalize(dict(request.motion))),
+        recorded_without_media=request.recorded_without_media)
     wanted = pin(candidate, asset)
     for existing in library.versions_of(asset.id):
         if pin(existing, asset) != wanted:
@@ -483,7 +485,7 @@ def promote(library: Library, version_id: str, *, by: Principal, now: str,
                                   "source_asset_version_ids": [version.id]},
                     "external": version.provenance.get("external"),
                     "source_key": PROMOTE_PREFIX + version.id},
-        state=PROMOTED)
+        state=PROMOTED, recorded_without_media=version.recorded_without_media)
     return import_version(library, request, by=by, now=now, minter=minter)
 
 
