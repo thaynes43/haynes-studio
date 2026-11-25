@@ -184,8 +184,9 @@ gets a new profile ID.
 [Store and atomic publication](../contracts/studio-contracts-v1.md#8-runs-deliveries-and-the-store)
 · [Immutable asset versions](../contracts/studio-contracts-v1.md#9-the-library-and-version-ids)
 
-Story 452 measures visibility from the **unoccluded** subject mask transformed
-using the layout's crop origin, scale, placement and framing. Use the same
+[Story 968](https://work.haynesnetwork.com/work_packages/968) owns the visibility
+check, which measures the **unoccluded** subject mask transformed using the
+layout's crop origin, scale, placement and framing. Use the same
 coordinate mapping for the plate and its foreground mask. Count subject
 pixels before the slot and frame clips in the denominator. Subtract clipped
 pixels and coverage from layers strictly above the subject's own layer.

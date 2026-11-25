@@ -257,7 +257,7 @@ def run_segmentation_job(
     """
     try:
         scope_prefix(LIBRARY if production_id is None else production_id)
-        with client.serial(check_fence):
+        with client.serial(check_fence) as scratch:
             source, data, alpha = _source(library, source_version_id, production_id, kind, store)
             request = make_request(source, kind=kind, key=key, label=label, hint=hint)
             identity = SegmentationIdentity(
@@ -270,7 +270,7 @@ def run_segmentation_job(
                 check_fence()
                 return outcome
 
-            result, png, pixels = client.run_locked(request, data, check_fence)
+            result, png, pixels = client.run_locked(request, data, check_fence, scratch)
             _verify_support(pixels, alpha, request)
             mask = None if png is None else _publish(store, identity, png, PNG, check_fence)
             receipt_bytes = canonical_json(result)

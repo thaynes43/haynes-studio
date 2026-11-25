@@ -30,9 +30,11 @@ The adapter verifies the reply envelope, canonical receipt bytes, request
 binding and pinned provenance. A ready mask must agree with the receipt's PNG
 descriptor and tight bounding box, meet the profile's score floor, and have
 binary source-sized pixels. Its support must stay within the available cutout
-alpha and include any supplied point hint. Fresh and cached ready results both
-read the receipt and PNG back from the store and verify the locator scope,
-media type, length and digest before returning a `VerifiedObservation`.
+alpha and include any supplied point hint. Grounded foreground masks must meet
+the backend's bottom-row coverage prior, which point and box hints bypass.
+Fresh and cached ready results both read the receipt and PNG back from the
+store and verify the locator scope, media type, length and digest before
+returning a `VerifiedObservation`.
 
 ## Publication and claim fence
 
@@ -47,3 +49,6 @@ and writes, and after reading a cached completion.
 Source tests exercise the production socket handler and inference flow with a
 fake graph and synthetic stills. Private model-quality evidence is pending.
 [Story 452](https://work.haynesnetwork.com/work_packages/452)
+
+[Story 968](https://work.haynesnetwork.com/work_packages/968) owns the stored
+contract fields and the visibility check.

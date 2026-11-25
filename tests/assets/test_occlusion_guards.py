@@ -275,6 +275,59 @@ def test_cached_ready_accepts_score_at_profile_floor(world, ready):
     assert run(world, original, journal, hint=BOX, lookup_ready=lambda _: record).action == "use_mask"
 
 
+@pytest.mark.parametrize(("hint", "bottom_row", "accepted"), [
+    (None, False, False),
+    ({"kind": "text", "text": "table"}, False, False),
+    ({"kind": "point", "xy": [15, 15]}, False, True),
+    (BOX, False, True),
+    (None, True, True),
+])
+def test_cached_foreground_rechecks_backend_depth_prior(world, monkeypatch, hint, bottom_row, accepted):
+    store, client, _ = world
+    image = Image.new("RGB", SIZE)
+    source, data = library_image(store, image, "set")
+    options = {"kind": "foreground", "key": "table", "label": "table", "hint": hint}
+    facts = {"sha256": digest(data), "width": SIZE[0], "height": SIZE[1]}
+    request = occlusion.make_request(facts, **options)
+    observation = Observation()
+
+    def graph(image, sam_hint):
+        logits, scores = segmenter(image, sam_hint)
+        if bottom_row:
+            logits[:, -1, :10] = 1
+        return logits, scores
+
+    reason, pixels = observe(image, None, request, detector, graph, observation, lambda _: nullcontext())
+    if accepted:
+        assert reason is None
+    else:
+        assert (reason, pixels) == ("foreground_depth_ambiguous", None)
+        logits, _ = graph(image, observation.applied["sam_hint"])
+        pixels = logits[0] > 0
+    assert bool(pixels[-1].any()) == bottom_row
+    png = encode_mask(pixels)
+    descriptor, _ = describe_mask(png, SIZE)
+    receipt = observation.receipt(request, client.profile, "ready", mask=descriptor, box=tight_box(pixels))
+    identity = occlusion.SegmentationIdentity(
+        PRODUCTION_ID, source.version.id, digest(canonical_json(request)), client.profile_sha256,
+    )
+    record = occlusion.SegmentationCompletion(
+        identity, store.publish(canonical_json(receipt), scope=PRODUCTION_ID, media_type=JSON),
+        "ready", None, store.publish(png, scope=PRODUCTION_ID, media_type=PNG),
+    )
+    journal = Journal()
+    journal.completions.append(record)
+    monkeypatch.setattr(client, "run_locked", accessed_unexpectedly)
+
+    outcome = run(world, source, journal, **options)
+    if accepted:
+        assert outcome.action == "use_mask"
+        assert not journal.failures
+    else:
+        assert outcome is None
+        assert journal.failures == ["invalid_output"]
+
+
 @pytest.mark.parametrize("changed", ["request", "profile"])
 def test_cached_expected_digests_are_rechecked(world, ready, monkeypatch, changed):
     store, client, _ = world
@@ -440,8 +493,8 @@ def test_readiness_requires_http_200_even_with_exact_body(world, monkeypatch):
     body = {"profile_id": PROFILE_ID, "profile_sha256": client.profile_sha256, "device": "cpu"}
     monkeypatch.setattr(client, "_call", lambda *_: (201, body))
     monkeypatch.setattr(client, "_attempt", accessed_unexpectedly)
-    with pytest.raises(SegmentationError, match="^profile_unavailable$"):
-        client.run_locked(request_for(b"still"), b"still", lambda: None)
+    with client.serial(lambda: None) as scratch, pytest.raises(SegmentationError, match="^profile_unavailable$"):
+        client.run_locked(request_for(b"still"), b"still", lambda: None, scratch)
 
 
 @pytest.mark.parametrize("fault", [
@@ -498,6 +551,25 @@ def test_socket_reply_requires_closed_paired_evidence(world, monkeypatch, tmp_pa
         os.close(fd)
 
 
+@pytest.mark.parametrize("staged_receipt", [False, True], ids=["absent", "different"])
+def test_unpaired_socket_failure_must_match_request(world, tmp_path, staged_receipt):
+    _, client, _ = world
+    request = request_for(b"still")
+    other = {**request, "target": {**request["target"], "key": "other"}}
+    result = Observation().receipt(other, client.profile, "failed", "timeout")
+    reply = {"result": result, "result_sha256": digest(canonical_json(result))}
+    if staged_receipt:
+        staged = Observation().receipt(request, client.profile, "failed", "timeout")
+        (tmp_path / "result.json").write_bytes(canonical_json(staged))
+
+    fd = os.open(tmp_path, os.O_DIRECTORY | os.O_RDONLY)
+    try:
+        with pytest.raises(SegmentationError, match="^invalid_output$"):
+            client._read_reply(fd, request, 504, reply)
+    finally:
+        os.close(fd)
+
+
 @pytest.mark.parametrize("fault", [
     "direct-box", "direct-score", "detector-bounds", "detector-float", "missing-operation",
     "direct-grounding", "resize-type", "resize-order", "resize-positive",
@@ -549,9 +621,10 @@ def test_request_checks_run_before_staging(world, monkeypatch, fault):
     else:
         monkeypatch.setattr(adapter, "MAX_REQUEST", 1)
 
-    monkeypatch.setattr(Path, "touch", accessed_unexpectedly)
-    with pytest.raises(SegmentationError, match="^invalid_input$"):
-        client._attempt(request, b"still", lambda: None)
+    with adapter._scratch_directory(client.scratch) as scratch, monkeypatch.context() as staging:
+        staging.setattr(os, "open", accessed_unexpectedly)
+        with pytest.raises(SegmentationError, match="^invalid_input$"):
+            client._attempt(request, b"still", lambda: None, scratch)
     assert not list(client.scratch.iterdir())
 
 
@@ -577,8 +650,8 @@ def test_socket_attempts_bound_busy_waits_and_check_each_claim(world, monkeypatc
     monkeypatch.setattr(client, "_attempt", attempt)
     client.pause = pause
     expected_error = StaleClaim if stop == "stale-after-busy" else SegmentationError
-    with pytest.raises(expected_error):
-        client.run_locked(request_for(b"still"), b"still", journal.fence)
+    with client.serial(journal.fence) as scratch, pytest.raises(expected_error):
+        client.run_locked(request_for(b"still"), b"still", journal.fence, scratch)
     waits = {"busy": 13, "timeout": 0, "stale-after-busy": 1}[stop]
     assert pauses == [5] * waits
     assert events == ["ready", "request"] * (14 if stop == "busy" else 1)
@@ -595,8 +668,8 @@ def test_dispatch_rechecks_claim_after_staging(world, monkeypatch):
 
     monkeypatch.setattr(adapter, "_create_file", stale)
     monkeypatch.setattr(client, "_call", accessed_unexpectedly)
-    with pytest.raises(StaleClaim):
-        client._attempt(request_for(b"still"), b"still", journal.fence)
+    with adapter._scratch_directory(client.scratch) as scratch, pytest.raises(StaleClaim):
+        client._attempt(request_for(b"still"), b"still", journal.fence, scratch)
     assert not list(client.scratch.iterdir())
 
 
@@ -651,7 +724,7 @@ def test_gate_refuses_fifo_with_nonblocking_open(world, monkeypatch):
     opens = []
 
     def tracked_open(path, flags, *args, **kwargs):
-        if path == lock:
+        if path == lock.name:
             opens.append(flags)
             assert flags & os.O_NONBLOCK
         return original_open(path, flags, *args, **kwargs)
@@ -660,6 +733,29 @@ def test_gate_refuses_fifo_with_nonblocking_open(world, monkeypatch):
     with pytest.raises(SegmentationError, match="^lock_path_invalid$"), client.serial(lambda: None):
         accessed_unexpectedly()
     assert len(opens) == 1
+
+
+def test_staging_and_cleanup_stay_with_the_open_scratch_directory(world, monkeypatch):
+    _, client, _ = world
+    held = client.scratch.with_name("held")
+    target = client.scratch.with_name("unrelated")
+    target.mkdir()
+    data = b"still"
+
+    def reply(method, route, payload=None):
+        if method == "GET":
+            return 200, {"profile_id": PROFILE_ID, "profile_sha256": client.profile_sha256, "device": "cpu"}
+        assert (held / payload["attempt_id"] / "input").read_bytes() == data
+        return 504, {"code": "timeout"}
+
+    monkeypatch.setattr(client, "_call", reply)
+    with client.serial(lambda: None) as scratch:
+        client.scratch.rename(held)
+        client.scratch.symlink_to(target, target_is_directory=True)
+        with pytest.raises(SegmentationError, match="^timeout$"):
+            client.run_locked(request_for(data), data, lambda: None, scratch)
+    assert list(target.iterdir()) == []
+    assert [path.name for path in held.iterdir()] == [".studio-segmentation.lock"]
 
 
 def test_scratch_cleanup_checks_marker_name_age_and_file_type(world, monkeypatch):
@@ -681,5 +777,6 @@ def test_scratch_cleanup_checks_marker_name_age_and_file_type(world, monkeypatch
     removed = []
     monkeypatch.setattr(adapter, "time", lambda: now)
     monkeypatch.setattr(client, "_remove", lambda *args: removed.append(args))
-    client._sweep()
-    assert removed == [(attempts["old"], markers["old"])]
+    with adapter._scratch_directory(client.scratch) as scratch:
+        client._sweep(scratch)
+        assert removed == [(scratch, attempts["old"], markers["old"].name)]

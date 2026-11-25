@@ -7,19 +7,22 @@ import os
 import re
 import stat
 from collections.abc import Callable
-from contextlib import contextmanager
-from errno import EISDIR, ELOOP, ENXIO
+from contextlib import contextmanager, nullcontext
+from errno import EISDIR, ELOOP, ENOTDIR, ENXIO
 from fcntl import LOCK_EX, LOCK_NB, flock
 from pathlib import Path
 from time import sleep, time
 from uuid import uuid4
 
+from PIL import Image
+
 from haynes_studio.schemas import validator_for
-from haynes_studio.segmentation.backend import _create_file, _read_file, attempt_dir, envelope
-from haynes_studio.segmentation.inference import RESULT_SCHEMA, _prompt
+from haynes_studio.segmentation.backend import DIRECTORY, _create_file, _read_file, envelope
+from haynes_studio.segmentation.inference import RESULT_SCHEMA, Candidate, Grounding, Observation, _prompt, observe
 from haynes_studio.segmentation.pixels import describe_mask, tight_box
 from haynes_studio.segmentation.profile import (
     MASK_FLOOR,
+    MIN_MODEL_PIXELS,
     PROFILE_ID,
     REQUEST_SECONDS,
     Profile,
@@ -65,6 +68,19 @@ def _check_parameters(request, applied, direct, result):
             raise SegmentationError("invalid_output")
 
 
+def _check_grounded_foreground(request, pixels, score):
+    # The depth prior lives inside observe. Replay the decoded mask with one
+    # eligible grounding candidate and one SAM result to reach it without models.
+    side = MIN_MODEL_PIXELS
+    grounding = Grounding([Candidate((0, 0, side, side), 1.0, "foreground")], (side, side), (side, side))
+    reason, _ = observe(
+        Image.fromarray(pixels), None, request, lambda _image, _query: grounding,
+        lambda _image, _hint: (pixels[None, :, :], [score]), Observation(), lambda _phase: nullcontext(),
+    )
+    if reason is not None:
+        raise SegmentationError("invalid_output")
+
+
 def verify_result(request: dict, result: object, mask: bytes | None, profile: Profile):
     """Verify the closed receipt, frozen provenance and the backend's pixel contract."""
     if (not isinstance(result, dict) or not validator_for(RESULT_SCHEMA).is_valid(result)
@@ -105,10 +121,32 @@ def verify_result(request: dict, result: object, mask: bytes | None, profile: Pr
         if (canonical_json(result["mask"]) != canonical_json(descriptor)
                 or canonical_json(result["box_xyxy"]) != canonical_json(tight_box(pixels))):
             raise SegmentationError("invalid_output")
+        if not direct and request["target"]["kind"] == "foreground":
+            _check_grounded_foreground(request, pixels, score)
         return pixels
     if status == "ready" or mask is not None:
         raise SegmentationError("invalid_output")
     return None
+
+
+@contextmanager
+def _scratch_directory(path: Path):
+    # An O_NOFOLLOW open of the whole path only protects its last component.
+    anchor = path.anchor
+    current = os.open(anchor or ".", DIRECTORY)
+    try:
+        for part in path.parts[1 if anchor else 0:]:
+            try:
+                child = os.open(part, DIRECTORY, dir_fd=current)
+            except OSError as error:
+                if error.errno in (ELOOP, ENOTDIR):
+                    raise SegmentationError("lock_path_invalid") from None
+                raise
+            os.close(current)
+            current = child
+        yield current
+    finally:
+        os.close(current)
 
 
 class SegmentationClient:
@@ -128,30 +166,31 @@ class SegmentationClient:
 
     @contextmanager
     def serial(self, check_fence: Callable[[], None]):
-        """Hold the local gate across readiness, lookup, dispatch and completion."""
-        try:
-            fd = os.open(self.scratch / ".studio-segmentation.lock",
-                         os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, 0o660)
-        except OSError as error:
-            if error.errno in (ELOOP, EISDIR, ENXIO):
-                raise SegmentationError("lock_path_invalid") from None
-            raise
-        try:
-            if not stat.S_ISREG(os.fstat(fd).st_mode):
-                raise SegmentationError("lock_path_invalid")
-            for wait in range(BUSY_WAITS + 1):
-                check_fence()
-                try:
-                    flock(fd, LOCK_EX | LOCK_NB)
-                except BlockingIOError:
-                    if wait == BUSY_WAITS:
-                        raise SegmentationError("busy") from None
-                    self.pause(BUSY_INTERVAL)
-                else:
-                    yield
-                    return
-        finally:
-            os.close(fd)
+        """Hold the scratch descriptor and local gate through completion."""
+        with _scratch_directory(self.scratch) as scratch:
+            try:
+                fd = os.open(".studio-segmentation.lock",
+                             os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, 0o660, dir_fd=scratch)
+            except OSError as error:
+                if error.errno in (ELOOP, EISDIR, ENXIO):
+                    raise SegmentationError("lock_path_invalid") from None
+                raise
+            try:
+                if not stat.S_ISREG(os.fstat(fd).st_mode):
+                    raise SegmentationError("lock_path_invalid")
+                for wait in range(BUSY_WAITS + 1):
+                    check_fence()
+                    try:
+                        flock(fd, LOCK_EX | LOCK_NB)
+                    except BlockingIOError:
+                        if wait == BUSY_WAITS:
+                            raise SegmentationError("busy") from None
+                        self.pause(BUSY_INTERVAL)
+                    else:
+                        yield scratch
+                        return
+            finally:
+                os.close(fd)
 
     def _call(self, method: str, route: str, payload: dict | None = None):
         try:
@@ -170,51 +209,56 @@ class SegmentationClient:
         }:
             raise SegmentationError("profile_unavailable")
 
-    def run_locked(self, request: dict, data: bytes, check_fence: Callable[[], None]):
+    def run_locked(self, request: dict, data: bytes, check_fence: Callable[[], None], scratch: int):
         """Fetch one verified receipt under the caller's serial context."""
-        self._sweep()
+        self._sweep(scratch)
         for wait in range(BUSY_WAITS + 1):
             check_fence()
             self._ready()
             try:
-                return self._attempt(request, data, check_fence)
+                return self._attempt(request, data, check_fence, scratch)
             except SegmentationError as error:
                 if error.reason != "busy" or wait == BUSY_WAITS:
                     raise
             self.pause(BUSY_INTERVAL)
 
-    def _attempt(self, request, data, check_fence):
+    def _attempt(self, request, data, check_fence, scratch):
         attempt = uuid4().hex
         payload = {"attempt_id": attempt, "request": request}
         envelope(payload)
         if len(canonical_json(payload)) > MAX_REQUEST:
             raise SegmentationError("invalid_input")
-        directory = self.scratch / attempt
-        marker = self.scratch / f".studio-segment-{attempt}"
-        marker.touch(mode=0o600, exist_ok=False)
+        marker = f".studio-segment-{attempt}"
+        marker_fd = os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=scratch)
         staged, finished = False, True
         try:
-            directory.mkdir(mode=0o770)
+            os.mkdir(attempt, mode=0o770, dir_fd=scratch)
             staged = True
-            directory.chmod(0o2770)
-            with attempt_dir(self.scratch, attempt) as fd:
+            fd = os.open(attempt, DIRECTORY, dir_fd=scratch)
+            try:
+                os.fchmod(fd, 0o2770)
                 _create_file(fd, "input", data)
                 os.chmod("input", 0o640, dir_fd=fd)
                 check_fence()
-                os.utime(marker)
+                os.utime(marker_fd)
                 finished = False
                 status, reply = self._call("POST", "/v1/segment", payload)
                 # A parsed HTTP reply confirms the handler returned. A transport
                 # failure above must leave the directory undisturbed for the server.
                 finished = True
                 return self._read_reply(fd, request, status, reply)
+            finally:
+                os.close(fd)
         finally:
-            if not finished:
-                os.utime(marker)
-            elif staged:
-                self._remove(attempt, marker)
-            else:
-                marker.unlink()
+            try:
+                if not finished:
+                    os.utime(marker_fd)
+                elif staged:
+                    self._remove(scratch, attempt, marker)
+                else:
+                    os.unlink(marker, dir_fd=scratch)
+            finally:
+                os.close(marker_fd)
 
     def _read_reply(self, fd, request, status, reply):
         if not isinstance(reply, dict):
@@ -256,31 +300,37 @@ class SegmentationClient:
         pixels = verify_result(request, result, mask, self.profile)
         return result, mask, pixels
 
-    def _remove(self, attempt: str, marker: Path):
+    def _remove(self, scratch: int, attempt: str, marker: str):
         try:
             try:
-                with attempt_dir(self.scratch, attempt) as fd:
+                fd = os.open(attempt, DIRECTORY, dir_fd=scratch)
+                try:
                     for name in ("input", "mask.png", "result.json"):
                         try:
                             os.unlink(name, dir_fd=fd)
                         except FileNotFoundError:
                             pass
-                (self.scratch / attempt).rmdir()
+                finally:
+                    os.close(fd)
+                os.rmdir(attempt, dir_fd=scratch)
             except FileNotFoundError:
                 pass
-            marker.unlink(missing_ok=True)
+            try:
+                os.unlink(marker, dir_fd=scratch)
+            except FileNotFoundError:
+                pass
         except OSError:
             # An interrupted cleanup can be resumed by the next caller.
             pass
 
-    def _sweep(self):
-        for marker in self.scratch.glob(".studio-segment-*"):
-            match = MARKER.fullmatch(marker.name)
+    def _sweep(self, scratch: int):
+        for marker in os.listdir(scratch):
+            match = MARKER.fullmatch(marker)
             if match is None:
                 continue
             try:
-                facts = marker.lstat()
+                facts = os.stat(marker, dir_fd=scratch, follow_symlinks=False)
             except FileNotFoundError:
                 continue
             if stat.S_ISREG(facts.st_mode) and time() - facts.st_mtime >= SCRATCH_GRACE:
-                self._remove(match[1], marker)
+                self._remove(scratch, match[1], marker)

@@ -247,6 +247,22 @@ def test_needs_hint_does_not_reserve_a_later_ready_completion(world):
     assert journal.completions == [hinted.completion, repeated.completion]
 
 
+@pytest.mark.parametrize("ancestor", [False, True], ids=["root", "ancestor"])
+def test_symlinked_scratch_root_leaves_target_empty(world, ancestor):
+    store, client, weights = world
+    target = client.scratch
+    link = target.with_name("redirect")
+    link.symlink_to(target.parent if ancestor else target, target_is_directory=True)
+    client.scratch = link / target.name if ancestor else link
+    source, _ = library_image(store, Image.new("RGB", SIZE), "set")
+    journal = Journal()
+
+    with Engine(target, weights, client.profile, factory=factory) as engine, listening(client.socket, engine):
+        outcome = run(world, source, journal)
+    assert list(target.iterdir()) == []
+    assert outcome is None and journal.failures == ["lock_path_invalid"]
+
+
 def test_symlink_at_scratch_lock_is_reported_without_following_it(world):
     store, client, _ = world
     source, _ = library_image(store, Image.new("RGB", SIZE), "set")
