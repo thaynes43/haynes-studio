@@ -22,12 +22,14 @@ from haynes_studio.db.engine import connect_engine
 from haynes_studio.db.migrate import migrate
 from haynes_studio.db.schema import asset_media, asset_versions, deliveries, productions, run_lane, stories
 from haynes_studio.db.schema import runs as run_rows
+from haynes_studio.drafting.declaration import READ_TOKEN_HEADER
 from haynes_studio.importer import production as production_import
 from haynes_studio.store import LocalStore, StagingLeftoverWarning
 from tests.build_story.fixtures import OPERATOR, example
 from tests.db.test_studio_api import (
     client, engine, new_production, register_agent, runtime_role, service, sign_in,
 )
+from tests.db.test_media_jobs import PROVENANCE, image_file
 from tests.importer.production_fixture import FRAMES, make_archive
 from tests.queue.fake_wan import Clock
 from tests.support.database import new_schema_name
@@ -131,11 +133,15 @@ def test_import_replay_and_production_scoped_media(operator, service, owner_engi
     with client(app) as owner:
         csrf = sign_in(owner, issuer)
         other = new_production(owner, csrf)
-        approval = owner.post(f'/v1/runs/{result["run_id"]}/go-live-approvals', headers=csrf,
+        approval_path = f'/v1/runs/{result["run_id"]}/go-live-approvals'
+        review = owner.get(approval_path)
+        assert review.status_code == 200
+        approval = owner.post(approval_path, headers=csrf,
                               json={"master_sha256": before["final.mp4"]["sha256"],
                                     "platform_setting": True})
         assert approval.status_code == 422
         assert approval.json()["error"]["code"] == "approval.legacy_run"
+        assert review.json()["approve"] == {"allowed": False, "code": approval.json()["error"]["code"]}
     _, headers = register_agent(owner_engine, {fixture.production_id: ["read"]})
     _, wrong = register_agent(owner_engine, {other: ["read"]})
     production = browser.get(f'/v1/productions/{result["production_id"]}', headers=headers)
@@ -152,6 +158,13 @@ def test_import_replay_and_production_scoped_media(operator, service, owner_engi
     assert doc["provenance"] == fixture.run["provenance"]
     assert marker["source_directory"] == fixture.root.name and marker["imported_at"].endswith("Z")
     assert marker["source_kind"] == ("recovered" if recovered else "canonical")
+    snapshot = browser.get(f'/v1/runs/{result["run_id"]}/snapshot', headers=headers)
+    if recovered:
+        assert snapshot.status_code == 404 and snapshot.json()["error"]["code"] == "run.snapshot_missing"
+    else:
+        assert snapshot.status_code == 200
+        assert snapshot.content == (fixture.root / "snapshot.json").read_bytes()
+        assert snapshot.headers["etag"] == f'"{before["snapshot.json"]["sha256"]}"'
     response = browser.get(f'/v1/runs/{result["run_id"]}/delivery', headers=headers)
     assert response.status_code == 200
     delivery = response.json()
@@ -179,6 +192,44 @@ def test_import_replay_and_production_scoped_media(operator, service, owner_engi
         assert conn.scalar(sa.select(run_lane.c.next_position)) == lane
     assert file_paths(store) == before_paths
     assert fixture.files() == before
+
+
+def test_upload_replacement_for_imported_recorded_only_photo(operator, service, owner_engine, tmp_path, capsys):
+    app, _, _ = service
+    archived_agent = {"kind": "agent", "key_id": Minter().mint("key")}
+    fixture = make_archive(tmp_path / "job", board_creator=archived_agent)
+    assert admin(fixture.args()) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "imported"
+    _, auth = register_agent(owner_engine, {fixture.production_id: ["read", "draft:write", "assets:upload"]})
+    api = client(app)
+    path = f'/v1/boards/{fixture.asset["scope"]["board_id"]}'
+    read = api.get(path, headers=auth)
+    assert read.status_code == 200
+    held = read.json()
+    assert held["drafted_by"] == archived_agent and "created_by" not in held
+    assert held["photo"]["current_version_id"] == fixture.asset["id"]
+    headers = {**auth, "If-Match": read.headers["etag"], "Content-Type": "image/png"}
+    photo = image_file(tmp_path)
+    with_missing_source = {**PROVENANCE, "source_asset_version_ids": [fixture.asset["id"]]}
+    refused = api.post(path + "/photo-versions", content=photo,
+                       headers={**headers, "X-Studio-Photo-Provenance": json.dumps(with_missing_source)})
+    assert refused.status_code == 422
+    assert refused.json()["error"]["code"] == "asset.recorded_without_media"
+
+    uploaded = api.post(path + "/photo-versions", content=photo,
+                        headers={**headers, "X-Studio-Photo-Provenance": json.dumps(PROVENANCE)})
+    assert uploaded.status_code == 201, uploaded.text
+    assert uploaded.json()["selected"] is False
+    assert api.get(path, headers=auth).json() == held
+    replacement = {**held["photo"], "current_version_id": uploaded.json()["version"]["id"]}
+    write = {**auth, "If-Match": read.headers["etag"]}
+    result = api.patch(path, json={"photo": replacement}, headers=write)
+    assert result.status_code == 409 and result.json()["error"]["code"] == "draft.protected"
+    result = api.patch(path, json={"photo": replacement, "acknowledge_person_edit": {
+        "board_revision": held["revision"], "read_token": read.headers[READ_TOKEN_HEADER],
+    }}, headers=write)
+    assert result.status_code == 200, result.text
+    assert result.json()["photo"] == replacement
 
 
 def test_replay_after_production_rename(operator, owner_engine, service, tmp_path, capsys):

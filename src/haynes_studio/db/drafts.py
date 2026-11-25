@@ -381,10 +381,8 @@ def _check_board_write(held: dict, by: dict, acknowledgment: int | None) -> None
     protection = held.get("draft_application", held)
     if acknowledgment is not None:
         require_revision(held["revision"], acknowledgment, "/acknowledge_person_edit/board_revision")
-        if "draft_application" not in held and "person_edit" not in protection:
-            raise invalid("draft.no_protection", "/acknowledge_person_edit",
-                          "Acknowledge a board with a person edit or a draft stamp")
-    elif "person_edit" in protection:
+    elif ("person_edit" in protection or "person_edit" in held
+          or held.get("created_by") != by or held["drafted_by"] != by):
         raise DraftProtected(held)
 
 
@@ -445,7 +443,8 @@ def add_board(conn: sa.Connection, id_: str, revision: int, fields: dict, by: di
         **_with_child_ids(fields, {}, BOARD_CHILDREN, minter,
                           allow_new_line_ids=declaration is not None),
         "schema": "studio.board/v1", "id": id_board, "story_id": id_, "number": number,
-        "revision": 1, "drafted_by": by, "origin": None, "created_at": now, "updated_at": now,
+        "revision": 1, "created_by": by, "drafted_by": by, "origin": None,
+        "created_at": now, "updated_at": now,
     }
     if declaration is not None:
         doc["draft_application"] = _draft_stamp(declaration, 1, now)
@@ -554,16 +553,13 @@ def reorder(conn: sa.Connection, id_: str, revision: int, order: list[str], by: 
     now = timestamp()
     updated = _advance(draft, {"board_order": order}, now)
     updated.boards = dict(draft.boards)
-    changed = []
     for id_board in moved:
         held = draft.boards[id_board]
         acknowledgment = acknowledgments.get(id_board)
         _check_board_write(held, by, acknowledgment)
-        if by["kind"] == "human" or "draft_application" in held or "person_edit" in held:
-            updated.boards[id_board] = _board_changed(held, by, "reordered", now, acknowledgment)
-            changed.append(id_board)
+        updated.boards[id_board] = _board_changed(held, by, "reordered", now, acknowledgment)
     refs = updated.validate(conn)
-    for id_board in changed:
+    for id_board in moved:
         conn.execute(boards.update().where(boards.c.id == id_board).values(
             document=updated.boards[id_board],
         ))
@@ -666,6 +662,9 @@ def _insert_imported_draft(conn: sa.Connection, doc: dict, versions: list[dict])
     _insert_story(conn, doc)
     for board in board_docs:
         board.pop("derived", None)
+        # An archive can establish draft authorship but only local creation
+        # grants an agent permission to edit without an acknowledgment.
+        board.pop("created_by", None)
         _insert_board(conn, board)
     _reserve_ids(conn, ids)
     for version in sorted(versions, key=lambda item: (item["asset_id"], item["number"])):

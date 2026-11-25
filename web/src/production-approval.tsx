@@ -168,10 +168,6 @@ export function GoLive({
     {result.status === "loading" && <p role="status" className="muted">Loading go-live review…</p>}
     {result.status === "failure" && (() => {
       const error = result.error;
-      if (error instanceof ApiError && error.status === 405) {
-        return <p className="muted">{run.status === "imported" || delivery?.store.adapter === "legacy_wan_ledger"
-          ? refusals["approval.legacy_run"] : refusals["approval.review_unavailable"]}</p>;
-      }
       const code = error instanceof ApiError ? error.code : undefined;
       const retryable = !(error instanceof ApiError) || error.status === 0 || error.status >= 500;
       return <>

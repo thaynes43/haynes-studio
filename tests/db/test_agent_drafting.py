@@ -371,6 +371,71 @@ def test_person_creations_and_edits_protect_boards_without_a_draft_stamp(prepare
     asyncio.run(scenario())
 
 
+def test_older_unstamped_board_needs_acknowledgment_for_patch_reorder_and_removal(prepared, owner_engine):
+    api = prepared.browser
+    story = f"/v1/stories/{prepared.story}"
+    headers = prepared.headers
+    old, own = (
+        api.post(story + "/boards", json={"title": title},
+                 headers={**headers, "If-Match": str(rev)}).json()
+        for rev, title in enumerate(("Older board", "New board"), 1)
+    )
+    by = {"kind": "agent", "key_id": prepared.key_id}
+    assert old["created_by"] == own["created_by"] == by
+    assert "draft_application" not in old
+    with owner_engine.begin() as conn:
+        # Older rows carried a drafter but had no server-owned creation record.
+        conn.execute(boards.update().where(boards.c.id == old["id"]).values(
+            document=boards.c.document.op("-")("created_by"),
+        ))
+    path = f'/v1/boards/{old["id"]}'
+    order_path = story + "/board-order"
+    order = {"board_order": [own["id"], old["id"]]}
+    assert "created_by" not in api.get(path).json()
+
+    def acknowledgment():
+        read = api.get(path, headers=headers)
+        return {"board_revision": read.json()["revision"], "read_token": read.headers[READ_TOKEN_HEADER]}
+
+    def attempt(method, url, revision, body, ack_body, success):
+        write_headers = {**headers, "If-Match": str(revision)}
+        refused = api.request(method, url, json=body, headers=write_headers)
+        assert refused.status_code == 409, refused.text
+        assert refused.json()["error"]["board_id"] == old["id"]
+        assert refused.json()["error"]["code"] == "draft.protected"
+        allowed = api.request(method, url, json={**body, "acknowledge_person_edit": ack_body},
+                              headers=write_headers)
+        assert allowed.status_code == success, allowed.text
+
+    attempt("PATCH", path, 1, {"title": "Approved update"}, acknowledgment(), 200)
+    attempt("PUT", order_path, 4, order, {old["id"]: acknowledgment()}, 200)
+    attempt("DELETE", path, 3, {}, acknowledgment(), 204)
+    with owner_engine.connect() as conn:
+        removed = conn.execute(sa.select(boards.c.document, boards.c.tombstone)
+                               .where(boards.c.id == old["id"])).one()
+    assert removed.tombstone
+    assert "person_edit" not in removed.document
+    assert [row["board_revision"] for row in removed.document["person_edit_acknowledgments"]] == [1, 2, 3]
+
+
+def test_agent_fills_and_reorders_a_fresh_story_without_acknowledgment(prepared):
+    api, headers = prepared.browser, prepared.headers
+    story = f"/v1/stories/{prepared.story}"
+    board_ids = []
+    for revision in (1, 2):
+        response = api.post(story + "/boards", json={}, headers={**headers, "If-Match": str(revision)})
+        assert response.status_code == 201, response.text
+        board_ids.append(response.json()["id"])
+    reordered = api.put(story + "/board-order", json={"board_order": board_ids[::-1]},
+                        headers={**headers, "If-Match": "3"})
+    assert reordered.status_code == 200, reordered.text
+    path = f"/v1/boards/{board_ids[0]}"
+    draft = api.patch(path, json={"title": "A finished board"}, headers={**headers, "If-Match": "2"})
+    assert draft.status_code == 200, draft.text
+    assert draft.json()["title"] == "A finished board"
+    assert api.delete(path, headers={**headers, "If-Match": "3"}).status_code == 204
+
+
 def test_acknowledgment_requires_the_current_read_and_preserves_history(prepared, owner_engine):
     async def scenario():
         async with prepared.mcp.router.lifespan_context(prepared.mcp), prepared.session() as session:
@@ -485,13 +550,19 @@ def test_clients_cannot_write_server_managed_board_provenance(prepared):
             headers = {**prepared.headers, "If-Match": "1"}
             forged = {
                 "applied_at": before["updated_at"], "person_edit": "content",
-                "drafted_by": before["drafted_by"], "person_edit_acknowledgments": [],
+                "drafted_by": before["drafted_by"], "created_by": before["created_by"],
+                "person_edit_acknowledgments": [],
             }
             for key, value in forged.items():
                 for body in ({key: value}, {"draft_application": {**declaration, key: value}}):
                     response = prepared.browser.patch(path, json=body, headers=headers)
                     assert response.status_code == 422, response.json()
                     assert response.json()["error"]["path"].endswith(f"/{key}")
+            create = prepared.browser.post(f"/v1/stories/{prepared.story}/boards",
+                                           json={"created_by": before["created_by"]},
+                                           headers={**prepared.headers, "If-Match": str(declaration["story_revision"])})
+            assert create.status_code == 422
+            assert create.json()["error"]["path"] == "/created_by"
             assert prepared.board(a).json() == before
     asyncio.run(scenario())
 

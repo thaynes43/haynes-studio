@@ -173,7 +173,8 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
 
     build_models(*run_routes.transport_models(), *job_routes.transport_models(),
                  approval_routes.ApprovalWrite, approval_routes.ApprovalState,
-                 approval_routes.ApprovalView)
+                 approval_routes.ApprovalView, approval_routes.AllowedDecision,
+                 approval_routes.DeniedDecision, approval_routes.ApprovalReview)
     for model in (ErrorDetail, ErrorEnvelope):
         model.model_config["defer_build"] = False
         model.model_rebuild()

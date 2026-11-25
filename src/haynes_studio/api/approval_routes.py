@@ -1,4 +1,4 @@
-"""The two human-only go-live operations."""
+"""People-only go-live review and decision routes."""
 
 from functools import cache
 from typing import Annotated, Literal
@@ -9,6 +9,7 @@ from pydantic import Field, StringConstraints
 from haynes_studio.build.provenance import Register
 from haynes_studio.canonical.model import to_document
 from haynes_studio.db import catalog, runs
+from haynes_studio.db.engine import snapshot
 from haynes_studio.db.problems import NotFound
 from haynes_studio.golive import checks, records
 from haynes_studio.golive.policy import require_approver
@@ -17,6 +18,7 @@ from haynes_studio.model_register import load_model_register
 from .errors import APIError, ERROR_RESPONSES
 from .models import Body, JsonObject, TransportModel
 from .routes import _id
+from .run_routes import _run_access
 
 
 class ApprovalWrite(Body):
@@ -45,6 +47,24 @@ class ApprovalView(TransportModel):
     derived: ApprovalState
 
 
+class AllowedDecision(TransportModel):
+    allowed: Literal[True]
+
+
+class DeniedDecision(TransportModel):
+    allowed: Literal[False]
+    code: str
+
+
+class ApprovalReview(TransportModel):
+    run_id: str
+    master_sha256: str | None
+    approve: AllowedDecision | DeniedDecision
+    withdraw: AllowedDecision | DeniedDecision
+    release_checks: JsonObject | None
+    approvals: list[ApprovalView]
+
+
 @cache
 def licence_register() -> Register:
     try:
@@ -54,9 +74,71 @@ def licence_register() -> Register:
                        "The model licence register could not be read") from error
 
 
+def _check_approval(run, delivery, master_sha256, platform_setting, active, *, preview=False):
+    evidence = active_refusal = None
+    try:
+        verified = checks.verify_delivery(run, delivery, master_sha256)
+        evidence = {"delivery": verified}
+        if active is not None:
+            active_refusal = APIError(409, "approval.already_active", "The run already has an active approval")
+            if not preview:
+                raise active_refusal
+        evidence = checks.release_checks(run, verified, platform_setting, licence_register())
+    except APIError as error:
+        if not preview:
+            raise
+        if evidence is not None and error.details["code"] == "approval.licence_missing":
+            evidence["licences"] = error.details["evidence"]
+        return evidence, active_refusal or error
+    return evidence, active_refusal
+
+
+def _require_active(active_id, approval_id=None):
+    if active_id is None or (approval_id is not None and approval_id != active_id):
+        raise APIError(409, "approval.already_withdrawn", "The approval has already been withdrawn")
+
+
+def _refusal(check, *args):
+    try:
+        check(*args)
+    except APIError as error:
+        return error
+    return None
+
+
+def _decision(refusal):
+    return {"allowed": True} if refusal is None else {"allowed": False, "code": refusal.details["code"]}
+
+
+def _delivery(conn, run_id):
+    delivery = catalog.get_delivery(conn, run_id)
+    return delivery.document if delivery else None
+
+
 def build_router(CurrentActor, approval_route):
     router = APIRouter(prefix="/v1", tags=["go-live"], responses=ERROR_RESPONSES,
                        route_class=approval_route)
+
+    @router.get("/runs/{id}/go-live-approvals", response_model=ApprovalReview,
+                operation_id="get_go_live_approvals")
+    def get_go_live_approvals(id: str, request: Request, actor: CurrentActor):
+        state = request.app.state
+        with snapshot(state.engine) as conn:
+            row = _run_access(conn, actor, "read", id)
+            identity_refusal = _refusal(require_approver, actor, state.oidc.settings,
+                                        runs.database_time(conn))
+            delivery = _delivery(conn, row["id"])
+            master = delivery["master"]["sha256"] if delivery else None
+            active = conn.scalar(records.active_id(row["id"]))
+            evidence, approval_refusal = _check_approval(
+                row["document"], delivery, master, True, active, preview=True,
+            )
+            return {
+                "run_id": row["id"], "master_sha256": master,
+                "approve": _decision(identity_refusal or approval_refusal),
+                "withdraw": _decision(identity_refusal or _refusal(_require_active, active)),
+                "release_checks": evidence, "approvals": records.history(conn, row["id"]),
+            }
 
     @router.post("/runs/{id}/go-live-approvals", status_code=201, response_model=ApprovalView,
                  operation_id="approve_go_live")
@@ -68,16 +150,13 @@ def build_router(CurrentActor, approval_route):
                 row = runs.get(conn, id, lock=True)
             except NotFound:
                 # Trusted legacy imports have only a delivery in the API database.
-                legacy = catalog.get_delivery(conn, id)
-                checks.refuse_legacy(None, legacy.document if legacy else None)
+                checks.refuse_legacy(None, _delivery(conn, id))
                 raise
             run = row["document"]
-            delivery = catalog.get_delivery(conn, row["id"])
-            delivery_check = checks.verify_delivery(run, delivery.document if delivery else None,
-                                                    body.master_sha256)
-            if conn.scalar(records.active_id(row["id"])) is not None:
-                raise APIError(409, "approval.already_active", "The run already has an active approval")
-            evidence = checks.release_checks(run, delivery_check, body.platform_setting, licence_register())
+            evidence, _ = _check_approval(
+                run, _delivery(conn, row["id"]), body.master_sha256, body.platform_setting,
+                conn.scalar(records.active_id(row["id"])),
+            )
             now = runs.database_time(conn)
             require_approver(actor, state.oidc.settings, now)
             return records.record_approval(conn, run, body.master_sha256, to_document(actor.principal),
@@ -91,8 +170,7 @@ def build_router(CurrentActor, approval_route):
         with state.engine.begin() as conn:
             approval = records.get(conn, _id(id, "apr"))
             runs.get(conn, approval["run_id"], lock=True)
-            if records.get_withdrawal(conn, approval["id"]) is not None:
-                raise APIError(409, "approval.already_withdrawn", "The approval has already been withdrawn")
+            _require_active(conn.scalar(records.active_id(approval["run_id"])), approval["id"])
             now = runs.database_time(conn)
             require_approver(actor, state.oidc.settings, now)
             return records.record_withdrawal(conn, approval, to_document(actor.principal),

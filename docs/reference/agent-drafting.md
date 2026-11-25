@@ -61,13 +61,17 @@ receipt. People can add boards in the editor.
 
 Studio writes the authenticated key ID in `drafted_by` and adds
 `draft_application` with the board key, declared model/session, server
-timestamp, draft hash and resulting board revision. A signed-in person's
+timestamp, draft hash and resulting board revision. On local board creation
+the server also records the immutable `created_by`; archived authorship is
+preserved in `drafted_by` and the frozen snapshot. A signed-in person's
 creation, patch, reorder or tombstone records `person_edit` and
 `person_edit_revision`. Unstamped boards carry these fields on the board
 itself. Stamped boards carry them in `draft_application`. A person can
 continue editing a protected board normally. An
-agent patch, reorder that moves it, or removal requires an acknowledgment of
-its current revision. A re-draft by a different key also requires an
+agent patch, reorder that moves it, or removal can proceed without an
+acknowledgment only when that authenticated key created and still authors
+the board and no person has edited it. Imported and older boards without a
+local creation record and boards drafted by another key require the same
 acknowledgment. A reorder by the original key advances an intact stamp to the
 new `board_revision` and preserves the original `applied_board_revision`.
 Appending or removing a different board leaves the
@@ -94,10 +98,10 @@ When a person asks for changes to a protected board **by board ID**, add
 they named. Each ID must match a board targeted by the draft and bound in the
 previous receipt. The option defaults to off. The applicator reads the
 board's current revision and its agent-specific read token and sends both in
-the patch. Studio preserves the person edit marker and appends an audit
-entry with the agent key, server time and revision replaced. A subsequent
-agent write requires a fresh acknowledgment if the board still carries the
-marker. The receipt lists every requested ID and records the audit entry for
+the patch. Studio preserves any person edit marker and appends an audit
+entry with the agent key, server time and revision replaced. Each subsequent
+write to a protected board requires a fresh acknowledgment. The receipt lists
+every requested ID and records the audit entry for
 each confirmed acknowledged patch.
 
 An invocation that reaches apply writes one create-only, mode-`0600` receipt.

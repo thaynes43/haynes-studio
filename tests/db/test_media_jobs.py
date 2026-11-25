@@ -776,10 +776,12 @@ def test_agent_job_selection_does_not_advance_an_ineligible_stamp(studio, case):
         patch(s, board, {"title": "A separate agent edit"}, by_human=False)
     queued = success(operation(s, board, "photo", "agent-stamp", headers=requester), 202)
     assert image_worker(s)[0].tick()
-    assert job(s, queued["id"])["result_is_current"]
+    result = job(s, queued["id"])
+    assert result["status"] == "succeeded" and result["result_version_id"]
+    assert result["result_is_current"] is (case == "stale-stamp")
     after = current_board(s, board)
     assert after["draft_application"]["board_revision"] == 1
-    assert after["revision"] == (2 if case == "other-agent" else 3)
+    assert after["revision"] == (1 if case == "other-agent" else 3)
 
 
 def test_runtime_cannot_update_job_requester(studio, engine):
@@ -914,7 +916,7 @@ def test_promotion_refuses_recorded_only_version(studio):
 
 
 @pytest.mark.parametrize("use", ["selection", "source"])
-def test_upload_refuses_recorded_only_version(studio, tmp_path, use):
+def test_upload_requires_media_only_for_sources(studio, tmp_path, use):
     s = studio
     board = board_in(s)
     version = recorded_photo(s, board)
@@ -926,13 +928,17 @@ def test_upload_refuses_recorded_only_version(studio, tmp_path, use):
         draft["photo"]["current_version_id"] = version
         with s.owner.begin() as conn:
             conn.execute(boards.update().where(boards.c.id == board).values(document=draft))
-        path = "/photo/current_version_id"
+        result = success(upload(s, board, image_file(tmp_path), declaration), 201)
+        assert result["selected"]
+        selected = result["version"]["id"]
+        assert current_board(s, board)["photo"]["current_version_id"] == selected
     else:
         declaration["source_asset_version_ids"] = [version]
-        path = "/provenance/generator/source_asset_version_ids/0"
-    assert_recorded_problem(upload(s, board, image_file(tmp_path), declaration), path)
+        assert_recorded_problem(upload(s, board, image_file(tmp_path), declaration),
+                                "/provenance/generator/source_asset_version_ids/0")
     versions = success(s.browser.get(f"/v1/boards/{board}/photo-versions"))["items"]
-    assert [row["id"] for row in versions] == [version]
+    expected = {version, selected} if use == "selection" else {version}
+    assert {row["id"] for row in versions} == expected
 
 
 @pytest.mark.parametrize("scope", ["another-board", "another-production"])

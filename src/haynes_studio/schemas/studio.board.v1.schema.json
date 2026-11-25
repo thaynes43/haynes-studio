@@ -331,6 +331,11 @@
     "drafted_by": {
       "$ref": "studio.defs.v1.schema.json#/$defs/principal"
     },
+    "created_by": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/principal",
+      "description": "Set by the server at local board creation. Absent on imported and older boards.",
+      "readOnly": true
+    },
     "person_edit": {"$ref": "#/$defs/person_edit"},
     "person_edit_revision": {"$ref": "studio.defs.v1.schema.json#/$defs/positive"},
     "person_edit_acknowledgments": {"$ref": "#/$defs/person_edit_acknowledgments"},
