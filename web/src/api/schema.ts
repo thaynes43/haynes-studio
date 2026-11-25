@@ -139,6 +139,23 @@ export interface paths {
         patch: operations["update_board"];
         trace?: never;
     };
+    "/v1/go-live-approvals/{id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Withdraw Go Live */
+        post: operations["withdraw_go_live"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me": {
         parameters: {
             query?: never;
@@ -330,6 +347,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/runs/{id}/go-live-approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve Go Live */
+        post: operations["approve_go_live"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/stories/{id}": {
         parameters: {
             query?: never;
@@ -438,6 +472,63 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ApprovalState */
+        ApprovalState: {
+            /** Publication Ids */
+            publication_ids: string[];
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "active" | "withdrawn";
+            /** Withdrawal */
+            withdrawal: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+        };
+        /** ApprovalView */
+        ApprovalView: {
+            /** Approved At */
+            approved_at: string;
+            /** Approver */
+            approver: {
+                [key: string]: string;
+            };
+            /** Approver Display Name */
+            approver_display_name: string | null;
+            /** Auth Time */
+            auth_time: string;
+            /** Delivery Id */
+            delivery_id: string;
+            derived: components["schemas"]["ApprovalState"];
+            /** Id */
+            id: string;
+            /** Master Sha256 */
+            master_sha256: string;
+            /** Release Checks */
+            release_checks: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /** Run Id */
+            run_id: string;
+            /** Run Snapshot Sha256 */
+            run_snapshot_sha256: string;
+            /**
+             * Schema
+             * @constant
+             */
+            schema: "studio.go-live-approval/v1";
+        };
+        /** ApprovalWrite */
+        ApprovalWrite: {
+            /** Master Sha256 */
+            master_sha256: string;
+            /**
+             * Platform Setting
+             * @default false
+             */
+            platform_setting: boolean;
+        };
         /** studio.asset/v1: a library item; its versions are studio.asset-version/v1 (contract section 9) */
         Asset: {
             attributes: components["schemas"]["Asset_attributes"];
@@ -1013,6 +1104,12 @@ export interface components {
             code: string;
             /** Current Revision */
             current_revision?: number | null;
+            /** Evidence */
+            evidence?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+            /** Existing Entity Id */
+            existing_entity_id?: string | null;
             /** Http Status */
             http_status: number;
             /** Message */
@@ -1215,6 +1312,7 @@ export interface components {
          * @description The contract's fields are id, story_id, number, status with wait_reason, the snapshot (its sha256, the story revision, the board count and the blob's locator), queued_by, queued_at, idempotency_key, the estimate, progress, stages, outputs, checks, provenance (toolchain, engines, inputs_externally_generated, usage, public credits), delivery_id, legacy, started_at and finished_at. Story 406 proposes the rest: transitions (every status change with time, actor and reason), error (the code, board and stage a failed run stopped at), phase, and the per-board and per-check detail fields listed below.
          */
         RunView: {
+            active_approval_id: string | null;
             cancel_requested: boolean;
             check_overrides?: components["schemas"]["CheckOverrideView"][];
             checks: components["schemas"]["RunView_check"][] | null;
@@ -1431,6 +1529,7 @@ export interface components {
         };
         /** studio.story/v1: one video, its boards in order (contract section 2) */
         Story: {
+            approved: boolean;
             beds: components["schemas"]["StudioDefs_bed_cue"][];
             board_order: components["schemas"]["StudioDefs_brd_id"][];
             cast: {
@@ -1459,6 +1558,14 @@ export interface components {
             };
             format_version_id: components["schemas"]["StudioDefs_fmv_id_or_null"];
             id: components["schemas"]["StudioDefs_sty_id"];
+            latest_finished_run: {
+                active_approval_id: string | null;
+                /** Format: date-time */
+                finished_at: string;
+                id: string;
+                /** @enum {unknown} */
+                status: "succeeded" | "failed" | "cancelled";
+            } | null;
             layouts: {
                 [key: string]: Record<string, never>;
             };
@@ -1477,6 +1584,7 @@ export interface components {
                 tracker: string | null;
             } | null;
             production_id: components["schemas"]["StudioDefs_prd_id"];
+            published: boolean;
             revision: components["schemas"]["StudioDefs_positive"];
             /** @constant */
             schema: "studio.story/v1";
@@ -1730,9 +1838,9 @@ export type $defs = Record<string, never>;
 export interface operations {
     callback: {
         parameters: {
-            query: {
-                state: string;
-                code?: string | null;
+            query?: {
+                state?: string;
+                code?: string;
             };
             header?: never;
             path?: never;
@@ -1841,7 +1949,10 @@ export interface operations {
     };
     login: {
         parameters: {
-            query?: never;
+            query?: {
+                return_to?: string;
+                fresh?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2607,6 +2718,121 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Board"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    withdraw_go_live: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required on unsafe methods when authenticating with the session cookie */
+                "X-Studio-CSRF"?: string | null;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalView"];
                 };
             };
             /** @description Authentication required */
@@ -4383,6 +4609,125 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Delivery"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    approve_go_live: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required on unsafe methods when authenticating with the session cookie */
+                "X-Studio-CSRF"?: string | null;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApprovalWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalView"];
                 };
             };
             /** @description Authentication required */
