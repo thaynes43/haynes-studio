@@ -11,12 +11,14 @@ signed-in installed journey is **Expected**. [Deployment evidence, comment
 ## Sign in and find a film
 
 1. On your home network, open [Haynes Studio](https://studio.haynesops.com).
-   Press **Sign in** and use your existing Authentik account. Studio returns
-   to the page you opened. If your session expires, press **Sign in** again.
+   Press **Sign in** and use your existing Authentik account. From the home
+   link in a fresh tab, Studio opens **Productions**. It can restore a
+   permitted deep link. If your session expires, press **Sign in** again.
    If Authentik or Studio refuses access, give the operator the error and any
    Request ID shown. **Proven on the installed app** through the sign-in
-   redirect. **Proven against the mock only** for the completed browser
-   sign-in and return to the same page. [LAN install, OP434](https://work.haynesnetwork.com/work_packages/434) ·
+   redirect. **Proven against the mock only** for the fresh-tab landing and
+   the permitted deep-link return. [LAN install, OP434](https://work.haynesnetwork.com/work_packages/434) ·
+   [Fresh-tab sign-in probe](https://github.com/thaynes43/haynes-studio/pull/141#issuecomment-7163510797) ·
    [Sign-in tests](../../web/e2e/shell.spec.ts)
 2. Open **Productions**, choose **One More Meeting** or **The Winter Menu**,
    then **Shorts 9:16**, the story title and its **Imported** run. If a story
@@ -43,19 +45,42 @@ signed-in installed journey is **Expected**. [Deployment evidence, comment
    **Production name** and press **Create production**. Choose **Short 9:16**
    or **Video 16:9**. If the type is missing, use **+ Short · 9:16** or
    **+ Video · 16:9**. Enter a **Story title** and press **Create story**.
-   Studio opens an empty storyboard. If a name is taken, open the existing
-   item or choose a different name. If the production changed, wait for
-   Studio to refresh the media types and choose from the updated list.
-   **Proven against the mock only.** [Editor tests](../../web/e2e/editor-entry.spec.ts)
+   Studio opens an empty storyboard. **Create story** sends only the title.
+   The new draft has no pinned format, cast or narrator voice. The editor
+   has no format pin control, so a story created in the app cannot reach
+   feedback or a release package through the UI alone. If a name is taken,
+   open the existing item or choose a different name. If the production
+   changed, wait for the media types to refresh and choose again.
+   **Proven against the mock only** for creating the empty storyboard.
+   [Editor tests](../../web/e2e/editor-entry.spec.ts)
+
+   Before the first build for review, ask an operator to pin a format
+   version that matches the story's media type and includes a feedback
+   target and a YouTube Shorts release target with a maximum duration.
+   For spoken boards, have the operator set a narrator or cast voice
+   version in the production's scope before generating voice. A signed-in
+   operator or an agent with `draft:write` for the production can set those
+   fields through `PATCH /v1/stories/{id}`. Send the current revision ETag
+   in `If-Match` and set `format_version_id` for the pin.
+   Build freezes the format and targets at enqueue. The continuous
+   create-to-review journey is **Expected**. The feedback and package
+   browser checks started with preconfigured fixtures.
+   [Format pin and scopes](../reference/formats.md#api-and-scopes) ·
+   [Revision headers](../reference/studio-api.md#records-and-revisions) ·
+   [Release target checks](../reference/release-package.md)
 2. Press **Add board**, then use the **Boards** filmstrip to select a panel.
    The stage shows that board's photo and timing. In **Board inspector**,
    edit the lines, speakers, method or direction and press **Save board**.
    The inspector shows **Board saved.** Use **Move earlier** or **Move
    later** to change the selected board's position. The number changes and
    the same board stays selected. If the save conflicts, compare **Your
-   unsaved version** with **Latest saved version**, then save the intended
-   edits. For a reorder conflict, check the refreshed filmstrip before
-   trying again. **Proven against the mock only.**
+   unsaved version** with **Latest saved version**. **Save board** stays
+   disabled until you choose **Keep my edited fields** or **Use latest saved
+   version**. Choose **Keep my edited fields** to reapply your changes to
+   the latest revision, then press **Save board**. Choose **Use latest saved
+   version** to discard your conflicting edits. For a reorder conflict,
+   check the refreshed filmstrip before trying again. **Proven against the
+   mock only** for editing, reordering and saving kept edits after a conflict.
    [Storyboard tests](../../web/e2e/storyboard-workspace.spec.ts) ·
    [Inspector tests](../../web/e2e/board-inspector.spec.ts)
 3. Use the breadcrumb to go up a level and clear deeper selections. Open
@@ -116,22 +141,26 @@ signed-in installed journey is **Expected**. [Deployment evidence, comment
 
 ## Build and compare
 
-1. From the storyboard, press **Build**. **Runs** opens with a numbered run,
-   a queue position and any available estimate. A run freezes the saved
-   board order and asset versions. **Paused · Held** means that run is
+1. From the storyboard, press **Build**. Studio sends `POST /v1/stories/{id}/runs`
+   and refreshes the inline **Runs** list on the storyboard with a numbered
+   run, a queue position and any available estimate. The **Runs** link opens
+   its own page. A run freezes the saved board order, asset versions and
+   any pinned format. **Paused · Held** means that run is
    waiting for the worker to reconcile it. A lane pause holds new claims
    while already claimed work can finish. Open **Details** to see the
    stage and reason, and give the operator the run ID if it stays held.
    For a preflight refusal, fix the listed boards or missing inputs. For
    a revision conflict, use **Reload draft** and check the latest edits.
    Use **Retry build** after a lost reply to the same press. **Proven
-   against the mock only.** [Runs tests](../../web/e2e/story-runs.spec.ts) ·
+   against the mock only** for the inline queue update and run states.
+   [Runs tests](../../web/e2e/story-runs.spec.ts) ·
    [Operator queue steps](studio-operator-runbook.md#paused-lane-stuck-run-or-failed-job)
-2. When the run finishes, press **View run** → **Review in Productions** to
-   play the finished delivery. To compare, edit the draft and queue a second
-   build. In **Runs**, open **Compare runs** and choose **Left run** and
-   **Right run**. The panes stack on a phone. Check both videos and **Board
-   comparison** for changes to the frozen snapshots. If a snapshot is
+2. When a run has a delivery, press **View run** to play its phone proxy
+   or follow **Review in Productions** for the review page. A failed or
+   cancelled run still uses **Details**. To compare, edit the draft and
+   queue a second build. In **Runs**, open **Compare runs** and choose
+   **Left run** and **Right run**. The panes stack on a phone. Check both
+   videos and **Board comparison** for changes to the frozen snapshots. If a snapshot is
    missing, use the available players. **Proven against the mock only.**
    [Runs and comparison tests](../../web/e2e/story-runs.spec.ts)
 
@@ -142,7 +171,9 @@ signed-in installed journey is **Expected**. [Deployment evidence, comment
   note**, then press **Add feedback**. Use **Boards (optional)** to attach
   a reference from that run. If the target is refused, check the run's
   format target. If a draft iteration conflicts, reload and review the
-  current draft before starting it again. **Proven against the mock only.**
+  current draft before starting it again. **Proven against the mock only**
+  with a preconfigured format and feedback target. An unpinned run shows
+  **This run has no pinned targets.**
   [Feedback tests](../../web/e2e/candidate-feedback.spec.ts)
 - Review the run you intend to release in **Productions**. For an eligible
   target, use **Release package** → **Release target** → **Prepare package**.
@@ -150,13 +181,15 @@ signed-in installed journey is **Expected**. [Deployment evidence, comment
   **Go-live** panel lets Tom, once on the approver list, confirm the
   AI-generated platform setting and press **Approve for go-live**. It
   records his decision for that exact run and master. If the format is
-  missing or has no release target, ask the operator to check the format
-  before building a replacement run. If Studio asks for fresh sign-in,
+  missing or has no release target, Studio shows **This run has no frozen
+  YouTube Shorts target.** Ask the operator to check the format before
+  building a replacement run. If Studio asks for fresh sign-in,
   return to the same run and confirm again. If it reports a failed check,
   address the reason before trying again. Imported runs are ineligible and the
   installed approver list is empty. **Proven against the mock only** for
-  package preparation and approval. **Proven on the installed app** for
-  the imports' legacy refusal in the deployment probe.
+  package preparation and approval with preconfigured run fixtures.
+  **Proven on the installed app** for the imports' legacy refusal in the
+  deployment probe.
   [Approval tests](../../web/e2e/production-review.spec.ts) ·
   [Release package tests](../../web/e2e/release-package.spec.ts) ·
   [Format recipes](../reference/formats.md#drafts-and-queued-runs) ·
@@ -178,6 +211,9 @@ platform publishing integration. [Decisions D29, D43 and D52](../proposals/0003-
 | --- | --- | --- |
 | LAN sign-in, selection and phone playback | Installed evidence ends at the sign-in redirect and scoped range reads. The installed browser spec awaits a person's session. | Sign in, navigate to both imports, play with audible sound and seek on a phone, then verify access ends on sign-out or expiry. [Installed journey](../reference/web-behaviour-matrix.md#installed-playback--expected) · [OP944](https://work.haynesnetwork.com/work_packages/944) |
 | Edit, generate, upload, promote, build and compare | Nobody has recorded a voice take, uploaded a photo, given feedback or built a release package on the installed app. Workers have proved reachability and idle claims. | Use a person's session for the first end-to-end private trial and record the actual versions, run IDs and private playback results. Use an authorized uploader for the external photo. [OP961](https://work.haynesnetwork.com/work_packages/961) · [OP964](https://work.haynesnetwork.com/work_packages/964) |
+| Create a story and take it all the way to review in the UI | Product gap at `80975a9`. The new draft lacks a format pin and the editor has no control to set one. The mock feedback and package exercises start with configured runs. | Use an editor control to pin a compatible format, build with the required scoped inputs, and reach feedback and package preparation in a signed-in session. [Coordinator record, OP440 comment 10145](https://work.haynesnetwork.com/work_packages/440) |
 | Assets search and missing candidate job | The installed pin predates the fixes for fast typing in **Search** and keeping image-lane status current after a job link returns 404. | Verify both behaviours after a pin that includes OP438, in a signed-in session. [Browser behaviour matrix](../reference/web-behaviour-matrix.md) |
 | Feedback, release package and go-live | A real eligible run and real feedback and package are still due. The go-live approver list is empty. | Record feedback and a private package for an eligible Studio-built run. Tom's explicit decision on an exact master proves go-live approval. [OP964](https://work.haynesnetwork.com/work_packages/964) · [Go-live](../reference/go-live.md) |
+| Local model on Wan | The dormant model awaits Tom's approval of the restart-only step. | Verify startup and Studio-client health after the approved restart. Model inference and handover need a separately authorized leased smoke. [OP442, comment 10134](https://work.haynesnetwork.com/work_packages/442) |
+| Isolated database restore | The drill awaits Tom's archive credential decision. | Restore into the authorized isolated target and check the catalog and media references before teardown. [Operator recovery procedure](studio-operator-runbook.md#backup-and-recovery) · [OP436, comment 10072](https://work.haynesnetwork.com/work_packages/436) |
 | Matte and occlusion on a real board | The backend smokes and weights are staged, and the third pin has no serving matting or segmentation sidecar or matte jobs. | Run a private cast-photo matte and a real staged occlusion check with installed backends, then inspect the results. [Matte jobs](https://work.haynesnetwork.com/work_packages/965) · [Occlusion](https://work.haynesnetwork.com/work_packages/452) |
