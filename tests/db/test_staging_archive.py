@@ -557,6 +557,14 @@ def test_human_archive_revision_is_a_person_edit(studio):
     replay = apply(studio, second, receipt["revision"], person=True)
     assert replay.json()["boards"][0]["reason"] == "already_applied"
     assert replay.json()["revision"] == receipt["revision"]
+    third = revise(studio, archive["id"], second, draft(studio, "Later person apply", "one"), "third")
+    later = apply(studio, third, receipt["revision"], person=True)
+    assert later.status_code == 200, later.json()
+    assert later.json()["boards"] == [
+        {"key": "one", "board_id": board_id, "outcome": "conflict", "reason": "edited_by_person"},
+    ]
+    assert later.json()["revision"] == receipt["revision"]
+    assert studio.browser.get(board_path(board_id)).json() == board
     protected = client(studio.api).patch(board_path(board_id), json={"title": "Agent edit"},
                                          headers={**studio.headers, "If-Match": str(board["revision"])})
     assert (protected.status_code, protected.json()["error"]["code"]) == (409, "draft.protected")

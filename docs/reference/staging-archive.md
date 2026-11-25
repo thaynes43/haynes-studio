@@ -35,7 +35,9 @@ lowercase SHA-256 hex digest of the private passage. Studio decodes that digest
 and stores an HMAC-SHA-256 as `source_locator.hmac_sha256` alongside the label.
 The API derives a separate key for each production from the existing OIDC
 client secret and an archive-specific context. Responses expose the label and
-keyed digest.
+keyed digest. Rotating the OIDC client secret changes the digest for new writes
+of the same passage. Existing versions keep their stored digests. Compare
+digests within the same production and key configuration.
 
 A revision takes the same version fields plus `revises_version_id`. Supply the
 current `head_version_id`. If another revision arrived first, the API returns
@@ -90,7 +92,10 @@ in the same record. An older version or one from a different record reports
 `archive.version_not_descendant` with the board's `stamped_version_id`. An
 eligible board already on the exact version is skipped. A person edit, missing
 stamp, ambiguous key or stamp the key cannot revise produces a per-board
-conflict. Unbound proposals are reported on an existing story. Apply preserves
+conflict. Person-edit protection applies to archive replacement by every caller,
+including the person who applied the earlier version. That person can replay
+the exact version without a write and can edit the board normally in the editor.
+Unbound proposals are reported on an existing story. Apply preserves
 board order and performs eligible writes in one transaction. If validation fails
 during the transaction, all board writes roll back. A stale story revision
 returns 409 `conflict.revision`.
