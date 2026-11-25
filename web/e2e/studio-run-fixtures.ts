@@ -94,7 +94,7 @@ export function runFixtures(story: Schemas["Story"], media: ReviewMedia) {
       run.delivery_id = id;
       run.progress = { percent: 100, stage: "delivered" };
       run.outputs = {
-        fps: 24, frames: delivery.verification.decoded_frames,
+        fps: 24, frames: delivery.master.frames,
         master_sha256: delivery.master.sha256, proxy_sha256: delivery.proxy.sha256,
       };
       run.provenance = {

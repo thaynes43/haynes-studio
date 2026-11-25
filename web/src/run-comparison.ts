@@ -70,11 +70,38 @@ function boardIndex(boards: FrozenBoard[]) {
   return new Map(boards.map((board, index) => [board.id, { board, index }]));
 }
 
+function boardsInSameOrder(before: Iterable<string>, after: ReadonlyMap<string, { index: number }>) {
+  const shared = [...before].flatMap((id) => {
+    const entry = after.get(id);
+    return entry ? [{ id, position: entry.index }] : [];
+  });
+  // Keep a longest increasing subsequence of positions. Each entry in ends
+  // indexes the lowest-position board that can end a subsequence of that length.
+  const ends: number[] = [];
+  const previous: (number | undefined)[] = [];
+  for (const [index, { position }] of shared.entries()) {
+    let low = 0;
+    let high = ends.length;
+    while (low < high) {
+      const middle = Math.floor((low + high) / 2);
+      if (shared[ends[middle]].position < position) low = middle + 1;
+      else high = middle;
+    }
+    previous[index] = low > 0 ? ends[low - 1] : undefined;
+    ends[low] = index;
+  }
+
+  const unchanged = new Set<string>();
+  for (let index = ends.at(-1); index !== undefined; index = previous[index]) {
+    unchanged.add(shared[index].id);
+  }
+  return unchanged;
+}
+
 export function compareSnapshots(before: FrozenSnapshot, after: FrozenSnapshot) {
   const left = boardIndex(before.boards);
   const right = boardIndex(after.boards);
-  const commonBefore = new Map([...left.keys()].filter((id) => right.has(id)).map((id, i) => [id, i]));
-  const commonAfter = new Map([...right.keys()].filter((id) => left.has(id)).map((id, i) => [id, i]));
+  const unchangedOrder = boardsInSameOrder(left.keys(), right);
   return [...new Set([...right.keys(), ...left.keys()])].map((id) => {
     const from = left.get(id);
     const to = right.get(id);
@@ -82,7 +109,7 @@ export function compareSnapshots(before: FrozenSnapshot, after: FrozenSnapshot) 
     if (!from) changes.push("Added");
     else if (!to) changes.push("Removed");
     else {
-      if (commonBefore.get(id) !== commonAfter.get(id)) changes.push("Reordered");
+      if (!unchangedOrder.has(id)) changes.push("Reordered");
       if (script(from.board) !== script(to.board)) changes.push("Script");
       if (from.board.photo.current_version_id !== to.board.photo.current_version_id) changes.push("Photo version");
       if (from.board.voice.current_version_id !== to.board.voice.current_version_id) changes.push("Voice version");

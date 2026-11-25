@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
@@ -42,7 +43,7 @@ describe("frozen snapshot comparison", () => {
     };
     const rows = compareSnapshots({ boards: [first, second, removed, fixed] }, { boards: [added, second, changed, fixed] });
     expect(rows.map(({ id, changes }) => [id, changes])).toEqual([
-      ["added", ["Added"]], ["second", ["Reordered"]],
+      ["added", ["Added"]], ["second", []],
       ["first", ["Reordered", "Script", "Photo version", "Voice version", "Method"]],
       ["fixed", []], ["removed", ["Removed"]],
     ]);
@@ -59,6 +60,14 @@ describe("frozen snapshot comparison", () => {
     const [first, second, added] = ["first", "second", "added"].map(makeBoard);
     const rows = compareSnapshots({ boards: [first, second] }, { boards: [added, first, second] });
     expect(rows.map(({ changes }) => changes)).toEqual([["Added"], [], []]);
+  });
+
+  it("marks the board that moved to the front without marking the boards it passed", () => {
+    const [first, second, last] = ["first", "second", "last"].map(makeBoard);
+    const rows = compareSnapshots({ boards: [first, second, last] }, { boards: [last, first, second] });
+    expect(rows.map(({ id, changes }) => [id, changes])).toEqual([
+      ["last", ["Reordered"]], ["first", []], ["second", []],
+    ]);
   });
 
   it("reads exact snapshot bytes by hash and handles a missing or mismatched blob", async () => {
@@ -80,9 +89,15 @@ describe("frozen snapshot comparison", () => {
   it("renders stable board IDs, positions, version IDs and field changes in the comparison", () => {
     const first = makeBoard("board-first");
     const second = makeBoard("board-second");
-    const html = renderToStaticMarkup(<BoardComparison left={{ boards: [first, second, makeBoard("board-removed")] }}
-      right={{ boards: [second, { ...first, photo: { current_version_id: "photo-two" }, voice: { current_version_id: "voice-two" } },
-        makeBoard("board-added")] }} leftRun={1} rightRun={2} />);
+    const changed: FrozenBoard = {
+      ...first, photo: { current_version_id: "photo-two" }, voice: { current_version_id: "voice-two" },
+    };
+    const html = renderToStaticMarkup(createElement(BoardComparison, {
+      left: { boards: [first, second, makeBoard("board-removed")] },
+      right: { boards: [second, changed, makeBoard("board-added")] },
+      leftRun: 1,
+      rightRun: 2,
+    }));
     for (const expected of [
       "board-first", "Board 01", "Board 02", "Reordered · Photo version · Voice version",
       "photo-one", "photo-two", "voice-one", "voice-two", "board-added", "Added", "board-removed", "Removed",
