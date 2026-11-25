@@ -252,11 +252,16 @@ one request at a time. The trusted render caller stages authorized bytes and
 owns the store writes and job fence. Give the companion only the selected
 weights and per-request scratch. A socket call supplies the fixed request with
 a caller-owned staging handle, never an arbitrary file path. Give it no
-network listener, token, GPU device or runtime download. Keep the combined
-worker at the observed 20 vCPUs and 32 GiB, with up to 18 vCPUs and 24 GiB for
-the other container when the companion's 2 vCPUs and 8 GiB are enabled.
-Check existing render health and headroom before and after the change. Ready
-means the pinned runtime, manifest, files and socket verify and both models
+network listener, token, GPU device or runtime download.
+
+The live deployment limit was 20 vCPUs and 32 GiB on 2026-11-25. D18 and the
+service reference list the earlier 24-vCPU limit, with up to 22 render
+workers. Preserve the observed combined limit. If the companion takes 2
+vCPUs and 8 GiB, the render container has 18 vCPUs and 24 GiB. Cap its
+`--workers` at 16 while that split is active, leaving two vCPUs for encoder
+and coordination overhead. Check existing render health and headroom before
+and after the change. Ready means the pinned runtime, manifest, files and
+socket verify and both models
 load within the startup deadline. Use the current probe pattern without
 inference during health polls. Revert the pin or disable the companion via
 GitOps if readiness, the bounded smoke, or existing render health fails.
