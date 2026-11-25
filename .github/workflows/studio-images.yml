@@ -50,8 +50,14 @@ jobs:
           epoch=$(git show -s --format=%ct "$revision")
           for name in studio studio-web studio-matting; do
             image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/haynes-$name:sha-$revision"
+            labels=()
+            if [[ $name = studio-matting ]]; then
+              resources=$(cat src/haynes_studio/matting/resources.json)
+              labels+=(--label "io.haynes-studio.matting.resources=$resources")
+            fi
             docker buildx build --platform linux/amd64 --provenance=false \
               --build-arg "SOURCE_DATE_EPOCH=$epoch" --build-arg "REVISION=$revision" \
+              "${labels[@]}" \
               --file "docker/$name.Dockerfile" --tag "$image" \
               --output "type=docker,dest=$IMAGE_DIR/$name.tar,rewrite-timestamp=true" \
               --metadata-file "$IMAGE_DIR/$name.json" .

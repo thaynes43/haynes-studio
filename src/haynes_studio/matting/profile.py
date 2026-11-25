@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from importlib.metadata import version
+from importlib.resources import files
 from pathlib import Path
 
 from haynes_studio.store import canonical_json
@@ -36,6 +38,8 @@ UNMIX_FLOOR = 21
 PNG_COMPRESSION = 6
 STARTUP_SECONDS = 120
 REQUEST_SECONDS = 30
+MEMORY_RESOURCES = json.loads(files(__package__).joinpath("resources.json").read_text(encoding="utf-8"))
+MEMORY_LIMIT_BYTES = MEMORY_RESOURCES["limit_gib"] * 1024**3
 
 REQUEST_INVALID = "adapter.request_invalid"
 PIN_MISMATCH = "adapter.pin_mismatch"
@@ -53,11 +57,21 @@ class MatteError(Exception):
 
 
 @dataclass(frozen=True)
+class SessionSettings:
+    cpu_arena: bool = True
+    memory_pattern: bool = True
+    graph_optimization: str = "all"
+    arena_growth: str = "default"
+    shrink_cpu_arena: bool = False
+
+
+@dataclass(frozen=True)
 class Profile:
     image_digest: str
     app_build: str
     graph_bytes: int = GRAPH_BYTES
     graph_sha256: str = GRAPH_SHA256
+    session: SessionSettings = SessionSettings()
 
     @classmethod
     def installed(cls) -> Profile:
@@ -105,6 +119,7 @@ class Profile:
                     "execution": "sequential", "intra_op_threads": 2,
                     "inter_op_threads": 1, "spinning": False, "in_flight": 1,
                     "startup_seconds": STARTUP_SECONDS, "request_seconds": REQUEST_SECONDS,
+                    **asdict(self.session),
                 },
             },
         }
@@ -115,6 +130,7 @@ class Profile:
             "app_build": self.app_build,
             "graph_bytes": self.graph_bytes,
             "runtime_wheel": WHEEL_NAME,
+            "memory": MEMORY_RESOURCES,
             **self.provenance(),
         })
 
