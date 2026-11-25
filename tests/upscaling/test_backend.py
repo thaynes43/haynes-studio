@@ -12,6 +12,7 @@ import pytest
 from PIL import Image, PngImagePlugin
 
 from haynes_studio.store import canonical_json
+from haynes_studio.upscaling import observe
 from haynes_studio.upscaling import smoke as measuring
 from haynes_studio.upscaling.backend import Engine, envelope, verify_result
 from haynes_studio.upscaling.comparison import _source, compare
@@ -241,6 +242,9 @@ def test_fixture_geometry():
 
 def test_measuring_smoke(tmp_path, pins, monkeypatch):
     weights, profile, _ = pins
+    # The hosted runner need not expose its job's cgroup at the mount root.
+    # Supply cgroup readings while preserving the real worker's /proc samples.
+    monkeypatch.setattr(observe, "_read", lambda _name: 1)
     # The separate timeout test drives a real stall and a replacement child.
     monkeypatch.setattr(measuring, "_deadline", lambda *_: True)
     report = measuring.smoke(tmp_path, weights, profile, factory=FakeFsrcnn)
@@ -260,7 +264,6 @@ def test_measuring_smoke(tmp_path, pins, monkeypatch):
     default["quality_verdicts"] = {}
     default["timing"] = {"warm_mean_seconds": 0.1, "warm_p95_seconds": 0.2, "max_seconds": 0.3}
     monkeypatch.setattr(measuring, "_exercise", lambda *_args, **_kwargs: default)
-    monkeypatch.setattr(measuring, "cgroup_peak", lambda: 1)
     single = measuring.smoke(tmp_path, weights, profile, try_compact=False)
     assert single["passed"]
     assert "allocator_measured" not in single["verdicts"]
