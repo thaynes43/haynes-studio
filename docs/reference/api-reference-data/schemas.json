@@ -6424,6 +6424,28 @@
           "cast": {
             "additionalProperties": false,
             "properties": {
+              "matte_slots": {
+                "additionalProperties": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "target_height_px": {
+                      "maximum": 2048,
+                      "minimum": 1,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "target_height_px"
+                  ],
+                  "type": "object"
+                },
+                "maxProperties": 26,
+                "minProperties": 1,
+                "propertyNames": {
+                  "$ref": "#/components/schemas/StudioDefs_slot"
+                },
+                "type": "object"
+              },
               "rules": {
                 "$ref": "#/components/schemas/FormatRecipe_notes"
               },
