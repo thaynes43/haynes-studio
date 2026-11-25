@@ -1,4 +1,4 @@
-"""Provision or revoke scoped Studio agent keys and queue worker tokens."""
+"""Administer Studio credentials and import finished productions."""
 
 import argparse
 import json
@@ -249,8 +249,13 @@ def _worker_admin(conn, options, secret_digest: str | None) -> tuple[dict, int]:
 
 
 def run(argv=None) -> int:
+    from haynes_studio.importer import production
+
     parser = AdminParser(description=__doc__)
     tasks = parser.add_subparsers(dest="action", required=True)
+    production.add_arguments(tasks.add_parser(
+        "import-production", help="Import a verified finished production archive",
+    ))
     create = tasks.add_parser("create", help="Generate a new key")
     create.add_argument("--out", type=Path, metavar="PATH", help="Write the key to a new private file")
     register = tasks.add_parser("register", help="Register a key supplied in a file")
@@ -275,6 +280,9 @@ def run(argv=None) -> int:
     worker_revoke = worker_tasks.add_parser("revoke", help="Revoke tokens by worker ID")
     worker_revoke.add_argument("worker_id")
     options = parser.parse_args(argv)
+
+    if options.action == "import-production":
+        return production.run(options)
 
     worker_mode = options.action == "worker-token"
     key_id = getattr(options, "key_id", None)

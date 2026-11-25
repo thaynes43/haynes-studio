@@ -1251,6 +1251,31 @@
             "type": "object"
           }
         },
+        "archive_import": {
+          "type": "object",
+          "required": [
+            "source_directory",
+            "receipt_sha256",
+            "source_kind",
+            "imported_at"
+          ],
+          "properties": {
+            "source_directory": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+            },
+            "receipt_sha256": {
+              "$ref": "studio.defs.v1.schema.json#/$defs/sha256"
+            },
+            "source_kind": {
+              "enum": ["canonical", "recovered"]
+            },
+            "imported_at": {
+              "$ref": "studio.defs.v1.schema.json#/$defs/timestamp"
+            }
+          },
+          "additionalProperties": false
+        },
         "inputs_externally_generated": {
           "type": "array"
         },
