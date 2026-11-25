@@ -62,8 +62,10 @@ def job_document(row):
     )])
 
 
-def get(conn, job_id, *, lock=False):
+def get(conn, job_id, *, lock=False, lane=None):
     stmt = sa.select(media_jobs).where(media_jobs.c.id == job_id)
+    if lane is not None:
+        stmt = stmt.where(media_jobs.c.lane == lane)
     if lock:
         stmt = stmt.with_for_update()
     row = conn.execute(stmt).mappings().one_or_none()
@@ -127,8 +129,8 @@ def claim(conn, worker_id, lane):
                 worker_id=worker_id, claim_until=now + LEASE)
 
 
-def lock_claim(conn, job_id, worker_id, fence):
-    row = get(conn, job_id, lock=True)
+def lock_claim(conn, job_id, worker_id, fence, *, lane):
+    row = get(conn, job_id, lock=True, lane=lane)
     now = database_time(conn)
     if (row["worker_id"] != worker_id or row["fence"] != fence or
             row["claim_until"] is None or row["claim_until"] <= now):
