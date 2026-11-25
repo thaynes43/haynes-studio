@@ -1,0 +1,82 @@
+{
+  "schema": "studio.format-recipe/v1",
+  "frame": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 24
+  },
+  "length": {
+    "min_ms": 8166,
+    "max_ms": 45292
+  },
+  "shot_types": {
+    "speaking": [
+      {
+        "layer": "layered",
+        "motion": "s2v"
+      }
+    ],
+    "reaction": [
+      {
+        "layer": "layered",
+        "motion": "i2v"
+      }
+    ],
+    "ambient": [
+      {
+        "layer": "whole_frame",
+        "motion": "i2v"
+      }
+    ]
+  },
+  "cast": {
+    "rules": [
+      "Original adult fashion dolls with visibly molded plastic, joints and synthetic hair.",
+      "Keep the molded expression fixed in the reference image. Use a new image from the next cut for a different expression.",
+      "Miniature 1:6 sets with a clear middle and foreground edge. Use a set loop on layered shots when available."
+    ],
+    "team_costumes": {}
+  },
+  "voice": {
+    "engine": "Kokoro",
+    "style": [
+      "One distinct stock synthetic voice per doll.",
+      "Deadpan delivery.",
+      "Voice cloning is excluded."
+    ]
+  },
+  "audio": {
+    "style": [
+      "Sparse sound effects.",
+      "Short fades at both edges of each line."
+    ],
+    "line_rms_dbfs": -22,
+    "master_lufs": -20,
+    "true_peak_dbtp": -3.5
+  },
+  "checks": {
+    "decal.drift": {
+      "min_ecc": 0.8
+    },
+    "wardrobe.attributes": {},
+    "frame_count": {},
+    "master.loudness": {
+      "target_lufs": -20,
+      "tolerance_lu": 1.5
+    },
+    "master.true_peak": {
+      "max_dbtp": -2.5
+    },
+    "master.clipping": {
+      "max_clipped_samples": 0
+    },
+    "master.transcript": {}
+  },
+  "human_gates": [
+    "go_live"
+  ],
+  "targets": [],
+  "notes": [
+    "Synthetic OP455 pin. Frame, length, shot methods, cast style, voice and mix match the doll-short v1 recipe."
+  ]
+}
