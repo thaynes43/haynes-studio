@@ -8,11 +8,14 @@ from haynes_studio.canonical.facts import Facts, PhotoVersionFacts
 from haynes_studio.canonical.model import Board, Story
 from haynes_studio.delivery.model import MASTER_SIZES
 from haynes_studio.errors import ContractError
+from haynes_studio.jsonio import thaw
+from haynes_studio.layered import compose
 from haynes_studio.layered.errors import LayeredError
+from haynes_studio.layered.matte_size import ENGINE, SIZE_POLICY
 from haynes_studio.layered.photo import PhotoInputs, photo_inputs
 from haynes_studio.library import Library
 from haynes_studio.library.library import require_media
-from haynes_studio.library.model import BOARD, AssetVersion, Content, Scope, signature
+from haynes_studio.library.model import BOARD, PROMOTED, AssetVersion, Content, Scope, signature
 from haynes_studio.library.resolve import BYTES_MISSING, KIND_MISMATCH, SCOPE_MISMATCH
 
 from .validation import IMAGE_TYPES, error, text_is_encodable
@@ -91,7 +94,36 @@ def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: b
             ids = (story.set.asset_version_id, *ids)
         sources = sources_for(library, scope, ids, "/layers", metadata_only=metadata_only)
         blobs = {source.version_id: source.content.sha256 for source in sources}
-        layers = photo_inputs(story, board, blobs=blobs, width=size[0], height=size[1])
+        matte_sizes = {}
+        for entry in board.cast:
+            version = library.version(entry.asset_version_id)
+            generator = version.provenance.get("generator") or {}
+            if generator.get("engine") != ENGINE:
+                continue
+            if version.state != PROMOTED:
+                raise error("ref.unpromoted", "/layers", "A cast matte needs library promotion before use")
+            params = generator.get("params", {})
+            target = params.get("normalization", {})
+            height = target.get("target_height_px")
+            if (target.get("policy") != SIZE_POLICY or target.get("slot") != entry.slot
+                    or target.get("format_version_id") != story.format_version_id
+                    or type(height) is not int or not 1 <= height <= 2048):
+                raise error("matting.slot_mismatch", "/layers",
+                            "The cast matte needs the pinned format and slot it was sized for")
+            matte_sizes[entry.slot] = {"target_height_px": height,
+                                       "shape": thaw(params.get("receipt", {}).get("shape"))}
+        layers = photo_inputs(story, board, blobs=blobs, width=size[0], height=size[1],
+                              matte_sizes=matte_sizes)
+        for slot_name, matte in matte_sizes.items():
+            try:
+                bottom = compose.slot_of(thaw(layers.layout), slot_name).bottom
+            except LayeredError:
+                continue  # the composer reports an invalid layout itself
+            if matte["target_height_px"] > bottom:
+                # Refuse before a build is queued; the composer repeats the check
+                # with the sprite's fringe included.
+                raise error("matting.target_exceeds_frame", "/layers",
+                            "The cast matte is taller than the space above its slot's bottom line")
         return PhotoPlan(scope, LAYERED, size, None, sources, selected, layers)
 
     prompt = board.photo.prompt

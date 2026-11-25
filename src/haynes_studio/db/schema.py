@@ -237,15 +237,23 @@ release_packages = sa.Table(
     sa.Column("bytes", sa.BigInteger, nullable=False),
     sa.Column("document_bytes", sa.LargeBinary, nullable=False),
     sa.Column("position", sa.BigInteger, sa.Identity(always=True), nullable=False),
+    sa.CheckConstraint("octet_length(document_bytes) = bytes", name="release_packages_document_length"),
+    sa.UniqueConstraint("sha256", "run_id", "target_id", name="release_packages_run_target_key"),
 )
 publications = sa.Table(
     "publications", metadata, identifier(),
-    sa.Column("package_sha256", sa.String(64), sa.ForeignKey("release_packages.sha256"),
-              nullable=False, unique=True),
+    sa.Column("package_sha256", sa.String(64), nullable=False, unique=True),
     foreign("approval_id", "go_live_approvals.id"), foreign("run_id", "runs.id"),
+    sa.Column("target_id", sa.Text, nullable=False),
     sa.Column("idempotency_actor", sa.Text, nullable=False),
     sa.Column("idempotency_key", sa.Text, nullable=False), document(),
     sa.UniqueConstraint("run_id", "idempotency_actor", "idempotency_key"),
+    sa.UniqueConstraint("run_id", "target_id", name="publications_run_target_key"),
+    sa.ForeignKeyConstraint(
+        ("package_sha256", "run_id", "target_id"),
+        ("release_packages.sha256", "release_packages.run_id", "release_packages.target_id"),
+        name="publications_package_run_target_fkey",
+    ),
 )
 
 run_candidates = sa.Table(
