@@ -1,11 +1,12 @@
 import type { BrowserContext, Route } from "@playwright/test";
-import type { components } from "../src/api/schema";
+import type { components, paths } from "../src/api/schema";
 import { treePath, type MediaKind } from "../src/routes";
 import { latestRun, photoVersion, reviewFixtures, voiceVersion } from "./studio-review-fixtures";
 import { mediaResponse, type ReviewMedia } from "./studio-review-media";
 import { boardVersions, formatId, storyTiming } from "./studio-storyboard-fixtures";
 
 type Schemas = components["schemas"];
+type BoardCreateBody = paths["/v1/stories/{id}/boards"]["post"]["requestBody"]["content"]["application/json"];
 
 export const production = {
   schema: "studio.production/v1",
@@ -408,7 +409,7 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
         const refused = requireRevision(route, draft.revision);
         if (refused) return refused;
         const number = Math.max(0, ...[...boards.values()].filter((board) => board.story_id === storyId).map((board) => board.number)) + 1;
-        const requestBody = request.postDataJSON() as Schemas["BoardWrite"];
+        const requestBody = request.postDataJSON() as BoardCreateBody;
         const board = {
           ...selectedBoard, title: requestBody.title ?? `Board ${number}`, story_id: storyId, number,
           id: nextId(selectedBoard.id, ++lastBoardId), layout: { preset: "default", foreground: true },
