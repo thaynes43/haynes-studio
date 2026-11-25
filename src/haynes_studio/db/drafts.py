@@ -500,9 +500,13 @@ def edit_board(conn: sa.Connection, story_id: str, id_: str, revision: int,
 
 
 def select_board_media(conn: sa.Connection, draft: Draft, board_id: str, kind: Literal["photo", "voice"],
-                       version_id: str) -> int:
-    """Attach a current media result to the caller's locked draft."""
+                       version_id: str, by: dict) -> int | None:
+    """Attach a current result to the locked board under its person-edit protection."""
     held = draft.boards[board_id]
+    try:
+        _check_board_write(held, by, acknowledgment=None)
+    except DraftProtected:
+        return None
     media = held[kind]
     if media["current_version_id"] == version_id:
         return held["revision"]

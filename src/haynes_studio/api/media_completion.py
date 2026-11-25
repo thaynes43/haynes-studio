@@ -71,7 +71,8 @@ def record_board_photo(conn, store, draft, prepared, by, now):
                                  received_sha256=received)
     selected = can_select_photo(version, plan, model, None if model is None else model.boards[0],
                                 outcome.library)
-    revision = drafts.select_board_media(conn, draft, board_id, "photo", version.id) if selected else None
+    revision = (drafts.select_board_media(conn, draft, board_id, "photo", version.id, to_document(by))
+                if selected else None)
     return document, revision
 
 
@@ -109,7 +110,8 @@ def complete_voice(conn, store, row, job, result):
         selected = (current_id in (version.id, row["inputs"]["selected_version_id"])
                     and is_current(job, story, library))
         if selected:
-            drafts.select_board_media(conn, draft, board["id"], "voice", version.id)
+            selected = drafts.select_board_media(conn, draft, board["id"], "voice", version.id,
+                                                 to_document(job.created_by)) is not None
     return version.id, selected
 
 

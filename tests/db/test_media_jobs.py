@@ -64,7 +64,7 @@ def studio(service, owner_engine):
     story_id = new_story(browser, csrf, production_id)
     other = new_production(browser, csrf)
     _, agent = register_agent(owner_engine, {
-        production_id: ["read", "assets:generate", "assets:upload", "runs:queue"],
+        production_id: ["read", "assets:generate", "assets:upload", "draft:write", "runs:queue"],
     })
     _, reader = register_agent(owner_engine, {production_id: ["read"]})
     _, outsider = register_agent(owner_engine, {other: ["read", "assets:generate", "assets:upload"]})
@@ -73,7 +73,7 @@ def studio(service, owner_engine):
                            production_id=production_id, story_id=story_id)
 
 
-def board_in(s, *, spoken=False):
+def board_in(s, *, spoken=False, by_human=False):
     if spoken:
         library = winter_menu().library
         stock = next(v for v in library.versions.values() if v.kind == "voice")
@@ -95,8 +95,9 @@ def board_in(s, *, spoken=False):
             timing={"lead_ms": 0, "tail_ms": 750, "hold_ms": None},
             voice={"style": "cast", "current_version_id": None},
         )
-    doc = success(s.browser.post(f"/v1/stories/{s.story_id}/boards", json=values,
-                                 headers={**s.csrf, "If-Match": str(current["revision"])}), 201)
+    browser, credentials = (s.browser, s.csrf) if by_human else (s.agent, s.auth)
+    doc = success(browser.post(f"/v1/stories/{s.story_id}/boards", json=values,
+                               headers={**credentials, "If-Match": str(current["revision"])}), 201)
     return doc["id"]
 
 
@@ -113,9 +114,10 @@ def current_board(s, board):
     return success(s.browser.get(f"/v1/boards/{board}"))
 
 
-def patch(s, board, payload):
-    return success(s.browser.patch(f"/v1/boards/{board}", json=payload, headers={
-        **s.csrf, "If-Match": str(current_board(s, board)["revision"]),
+def patch(s, board, payload, *, by_human=True):
+    browser, credentials = (s.browser, s.csrf) if by_human else (s.agent, s.auth)
+    return success(browser.patch(f"/v1/boards/{board}", json=payload, headers={
+        **credentials, "If-Match": str(current_board(s, board)["revision"]),
     }))
 
 
@@ -198,7 +200,7 @@ def test_photo_candidate_preview_and_promotion(studio):
     assert s.browser.get(url).status_code == 200
 
     patch(s, board, {"photo": {"current_version_id": None, "prompt": "A closer view",
-                               "input_asset_version_ids": [version]}})
+                               "input_asset_version_ids": [version]}}, by_human=False)
     first = operation(s, board, "photo", "photo-1", body={"seed": 17})
     queued = success(first, 202)
     assert first.headers["location"] == f'/v1/jobs/{queued["id"]}'
@@ -528,7 +530,7 @@ def test_agent_cannot_read_unselected_board_photo_by_hash(studio, tmp_path):
     assert s.browser.get(f"/v1/asset-versions/{doc['id']}/media/{digest}").status_code == 200
 
 
-def test_upload_selects_current_media_and_preserves_person_edit_protection(studio, tmp_path):
+def test_upload_keeps_result_unselected_on_person_edited_board(studio, tmp_path):
     s = studio
     board = board_in(s)
     before = patch(s, board, {"title": "A person's draft title"})
@@ -540,11 +542,37 @@ def test_upload_selects_current_media_and_preserves_person_edit_protection(studi
 
     uploaded = success(upload(s, board, image_file(tmp_path)), 201)
     after = current_board(s, board)
-    assert uploaded["selected"]
-    assert after["photo"]["current_version_id"] == uploaded["version"]["id"]
-    assert after["revision"] == before["revision"] + 1
+    assert uploaded["selected"] is False and uploaded["board_revision"] is None
+    assert after["photo"] == before["photo"]
+    for field in ("title", "revision", "drafted_by", "person_edit", "person_edit_revision"):
+        assert after[field] == before[field]
+    versions = success(s.browser.get(path + "/photo-versions"))["items"]
+    assert [version["id"] for version in versions] == [uploaded["version"]["id"]]
+
+
+@pytest.mark.parametrize("kind", ["photo", "voice"])
+@pytest.mark.parametrize("by_human", [False, True], ids=["agent", "person"])
+def test_job_media_selection_respects_person_edit(studio, kind, by_human):
+    s = studio
+    board = board_in(s, spoken=kind == "voice")
+    before = patch(s, board, {"title": "Person's title"})
+    if by_human:
+        response = s.browser.post(f"/v1/boards/{board}/{kind}-jobs", json={},
+                                  headers={**s.csrf, "Idempotency-Key": "protected"})
+    else:
+        response = operation(s, board, kind, "protected")
+    queued = success(response, 202)["id"]
+    worker = speech_worker(s, FakeKokoro()) if kind == "voice" else image_worker(s)[0]
+    assert worker.tick()
+    result = job(s, queued)
+    assert result["status"] == "succeeded" and result["result_is_current"] is by_human
+    after = current_board(s, board)
     for field in ("title", "drafted_by", "person_edit", "person_edit_revision"):
         assert after[field] == before[field]
+    assert after[kind]["current_version_id"] == (result["result_version_id"] if by_human else None)
+    assert after["revision"] == before["revision"] + int(by_human)
+    versions = success(s.browser.get(f"/v1/boards/{board}/{kind}-versions"))["items"]
+    assert [version["id"] for version in versions] == [result["result_version_id"]]
 
 
 @pytest.mark.parametrize("scope", ["another-board", "another-production"])
@@ -556,7 +584,7 @@ def test_worker_cannot_complete_voice_for_another_scope(studio, scope):
         production = new_production(s.browser, s.csrf)
         foreign = SimpleNamespace(**{**vars(s), "production_id": production,
                                     "story_id": new_story(s.browser, s.csrf, production)})
-    other_board = board_in(foreign)
+    other_board = board_in(foreign, by_human=True)
     queued = success(operation(s, board, "voice", "scoped-voice"), 202)
     claim = worker_api(s).claim("voice")
     result = speech_worker(s, FakeKokoro())._result(Job.from_document(claim.body["job"]), claim, claim.publish)
@@ -600,7 +628,7 @@ def test_runtime_cannot_rewrite_promoted_pinned_or_foreign_asset_versions(queue)
     production = new_production(q.browser, q.csrf)
     foreign = SimpleNamespace(**{**vars(q), "production_id": production,
                                  "story_id": new_story(q.browser, q.csrf, production)})
-    board = board_in(foreign)
+    board = board_in(foreign, by_human=True)
     other = example("asset-version-photo-external.json")
     other.update(id=Minter().mint("asv"), asset_id=Minter().mint("ast"),
                  scope={"production_id": production, "story_id": foreign.story_id, "board_id": board})

@@ -378,8 +378,11 @@ or remote location. A valid upload immediately returns 201 with `version`,
 during validation, the API keeps the upload with `selected: false` and a null
 `board_revision`.
 
-Automatic selection of a current job or upload result keeps the board's
-draft provenance and person-edit protection.
+Automatic selection uses the job requester or uploader. On a person-edited
+board, an agent-requested result is kept in version history with
+`result_is_current: false` for a job or `selected: false` for an upload.
+A person's job selects a current result and preserves the board's draft
+provenance and person-edit record.
 
 An API process accepts one upload at a time. A concurrent upload returns 503
 `photo.upload_busy` with `Retry-After`. Retry using the current board revision
