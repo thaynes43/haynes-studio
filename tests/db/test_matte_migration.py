@@ -49,13 +49,16 @@ def predecessor(owner_engine, runtime_role):
 def test_predecessor_readiness_overlaps_upgrade(
     first, predecessor, owner_engine, engine, runtime_role, record_property,
 ):
-    first_locked, second_entered = Event(), Event()
+    first_locked, second_entered, readiness_released = Event(), Event(), Event()
     lock_acquired = None
+    migration_pid = None
 
     def before_ddl(conn, cursor, statement, parameters, context, executemany):
+        nonlocal migration_pid
         if first == "readiness" and statement.startswith(
             ("LOCK TABLE worker_lane_grants", "ALTER TABLE worker_lane_grants")
         ):
+            migration_pid = conn.connection.driver_connection.info.backend_pid
             second_entered.set()
 
     def after_ddl(conn, cursor, statement, parameters, context, executemany):
@@ -65,6 +68,10 @@ def test_predecessor_readiness_overlaps_upgrade(
             if first == "migration":
                 first_locked.set()
                 assert second_entered.wait(timeout=3)
+            else:
+                # PostgreSQL can grant this lock while the readiness backend
+                # is still releasing the relations used by the NOWAIT locks.
+                assert readiness_released.wait(timeout=3)
 
     with ThreadPoolExecutor(max_workers=1) as background, engine.connect() as read:
         read.exec_driver_sql("SET LOCAL statement_timeout = '3s'")
@@ -72,6 +79,7 @@ def test_predecessor_readiness_overlaps_upgrade(
             read.exec_driver_sql(query)
         if first == "readiness":
             read.exec_driver_sql(GRANTS)
+            readiness_pid = read.connection.driver_connection.info.backend_pid
         sa.event.listen(owner_engine, "before_cursor_execute", before_ddl)
         sa.event.listen(owner_engine, "after_cursor_execute", after_ddl)
         try:
@@ -88,12 +96,22 @@ def test_predecessor_readiness_overlaps_upgrade(
                 for query in AFTER_GRANTS:
                     read.exec_driver_sql(query)
                 readiness_seconds = monotonic() - started
+                if first == "readiness":
+                    wait_for_blocker(read, migration_pid, readiness_pid)
             finally:
                 read.rollback()
+            if first == "readiness":
+                with engine.connect() as observer:
+                    assert observer.exec_driver_sql(
+                        "SELECT NOT EXISTS (SELECT FROM pg_locks WHERE pid = %s AND locktype = 'relation')",
+                        (readiness_pid,),
+                    ).scalar_one()
+                readiness_released.set()
             upgraded.result(timeout=3)
             lock_seconds = monotonic() - lock_acquired
         finally:
             second_entered.set()
+            readiness_released.set()
             read.rollback()
             sa.event.remove(owner_engine, "before_cursor_execute", before_ddl)
             sa.event.remove(owner_engine, "after_cursor_execute", after_ddl)
@@ -114,6 +132,24 @@ def wait_for_blocker(observer, blocked_pid, blocker_pid):
             return
         sleep(0.005)
     pytest.fail(f"PostgreSQL did not queue backend {blocked_pid} behind {blocker_pid}")
+
+
+def test_upgrade_refuses_late_readiness_lock_then_retries(predecessor, owner_engine, engine, runtime_role):
+    with engine.connect() as readiness:
+        # Model the observable release order: grants are free and a later
+        # relation from predecessor readiness still has an AccessShareLock.
+        readiness.exec_driver_sql(AFTER_GRANTS[0])
+        with pytest.raises(OperationalError, match="could not obtain lock") as caught:
+            migrate(owner_engine, runtime_role=runtime_role[0])
+        assert caught.value.orig.sqlstate == "55P03"
+        assert caught.value.statement.startswith("LOCK TABLE media_job_lanes,")
+        assert caught.value.statement.endswith("NOWAIT")
+        with owner_engine.connect() as owner:
+            assert owner.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == PREDECESSOR
+
+    migrate(owner_engine, runtime_role=runtime_role[0])
+    with owner_engine.connect() as owner:
+        assert owner.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == TARGET
 
 
 @pytest.mark.parametrize("release_holder", [True, False], ids=["commit", "timeout"])
