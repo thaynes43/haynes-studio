@@ -2,20 +2,25 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+from dataclasses import replace
 from functools import partial
 from hashlib import sha1, sha256
+from io import BytesIO
 import json
+import os
 from threading import Event
 from time import monotonic, sleep
 
 import pytest
-from PIL import Image, PngImagePlugin
+from PIL import Image, ImageDraw, PngImagePlugin
 
+from haynes_studio.render.delivery_profile import fit_set_plate, resolve_delivery_upscaler
 from haynes_studio.store import canonical_json
-from haynes_studio.upscaling import observe
+from haynes_studio.upscaling import comparison, observe
+from haynes_studio.upscaling import profile as profile_module
 from haynes_studio.upscaling import smoke as measuring
-from haynes_studio.upscaling.backend import Engine, envelope, verify_result
-from haynes_studio.upscaling.comparison import _source, compare
+from haynes_studio.upscaling.backend import PLATE_COMPARISON_SCHEMA, Engine, envelope, verify_result
+from haynes_studio.upscaling.comparison import _decode, _publish, _source, compare
 from haynes_studio.upscaling.fixtures import Motion, portrait, scores
 from haynes_studio.upscaling.pixels import crop_plate, decode_png, encode_png
 from haynes_studio.upscaling.profile import (
@@ -142,6 +147,29 @@ def test_manifest_pins(tmp_path, pins):
         Engine(tmp_path, weights, profile, factory=FakeFsrcnn)
 
 
+def test_git_blob_pin(pins):
+    weights, profile, _ = pins
+    graph = (weights / GRAPH_NAME).read_bytes()
+    assert profile.verify(weights)[1] == graph
+    profile = replace(profile, graph_blob="0" * 40)
+    manifest = profile.manifest()
+    (weights / "profile.json").write_bytes(manifest)
+    (weights / "profile.sha256").write_text(sha256(manifest).hexdigest() + "\n")
+    with pytest.raises(UpscaleError, match=PIN_MISMATCH):
+        profile.verify(weights)
+
+
+def test_installed_refuses_glibc_tunables(monkeypatch):
+    monkeypatch.setenv("STUDIO_UPSCALING_IMAGE", profile_module.IMAGE_REPOSITORY + "@sha256:" + "a" * 64)
+    monkeypatch.setenv("STUDIO_UPSCALING_REVISION", "1" * 40)
+    monkeypatch.setattr(profile_module, "runtime_identity", lambda: b"{}")
+    monkeypatch.delenv("GLIBC_TUNABLES", raising=False)
+    assert Profile.installed().settings == "default"
+    monkeypatch.setenv("GLIBC_TUNABLES", "glibc.malloc.arena_max=1")
+    with pytest.raises(UpscaleError, match=PIN_MISMATCH):
+        Profile.installed()
+
+
 def test_timeout(tmp_path, pins, rgb):
     weights, profile, digest = pins
     socket = tmp_path / "s"
@@ -194,33 +222,122 @@ def test_result(tmp_path, pins, rgb):
         verify_result(request, receipt, data[:-1], profile)
 
 
-def test_comparison(tmp_path, pins, rgb):
+@pytest.fixture
+def compare_still(tmp_path, pins, monkeypatch):
     weights, profile, _ = pins
-    source, output = tmp_path / "source", tmp_path / "jobs"
+    source, output = tmp_path / "source", tmp_path / "output"
     source.mkdir()
     output.mkdir()
-    png = encode_png(rgb)
-    (source / "private.png").write_bytes(png)
-    config = {"relative": "private.png", "source_sha256": sha256(png).hexdigest(),
-              "allocation": "upscaling-op461-compare-000000000001", "target": TARGET,
-              "rois": {"lettering": (0, 0, 15, 15)}, "factory": FakeFsrcnn}
-    summary = compare(tmp_path, weights, source, output, profile, **config)
-    completed = output / config["allocation"]
-    report = json.loads((completed / "report.json").read_bytes())
+    monkeypatch.setattr(comparison, "RESERVE", 0)
+    monkeypatch.setattr(comparison, "BUDGET", 0)
+
+    def run(image, **overrides):
+        png = encode_png(image)
+        (source / "private.png").write_bytes(png)
+        config = {"relative": "private.png", "source_sha256": sha256(png).hexdigest(), "target": TARGET,
+                  "rois": {"lettering": (0, 0, 15, 15)}, "factory": FakeFsrcnn, **overrides}
+        return compare(tmp_path, weights, source, output, profile, **config)
+
+    return run, source, output
+
+
+@pytest.mark.parametrize("plate", [False, True], ids=["frame", "fractional-cover-plate"])
+def test_comparison_uses_delivery_bytes(compare_still, plate):
+    run, source, output = compare_still
+    # A 900x999 plate has a 561.9375-pixel-wide center crop. Give the crop
+    # boundaries asymmetric detail so a whole-pixel crop cannot match it.
+    size = (900, 999) if plate else (576, 1024)
+    image = Image.new("RGB", size, (20, 70, 180))
+    draw = ImageDraw.Draw(image)
+    for x in range(145, 186, 3):
+        draw.line((x, 0, x, size[1] - 1), fill=(250, 192, 24))
+    draw.rectangle((48, 80, size[0] - 65, 130), outline=(30, 220, 0), width=3)
+    summary = run(image, plate=plate)
+    report = json.loads((output / "report.json").read_bytes())
     assert "private.png" not in json.dumps(summary) + json.dumps(report)
-    assert len(list(completed.iterdir())) == 3
+    assert len(list(output.iterdir())) == 3
     assert report["review"] == "comparison pending"
+    assert report["plate"] == plate
+    assert report["source"]["sha256"] == summary["source"]["sha256"] == sha256(
+        (source / "private.png").read_bytes(),
+    ).hexdigest()
+    expected = fit_set_plate if plate else resolve_delivery_upscaler(None).scale
+    assert (output / "lanczos.png").read_bytes() == encode_png(expected(image, TARGET))
+    doubled = FakeFsrcnn(b"toy-graph")(image)
+    assert (output / "fsrcnn.png").read_bytes() == encode_png(expected(doubled, TARGET))
     for label, artifact in summary["outputs"].items():
-        data = (completed / f"{label}.png").read_bytes()
+        data = (output / f"{label}.png").read_bytes()
         assert artifact["sha256"] == sha256(data).hexdigest()
-    with pytest.raises(FileExistsError):
-        compare(tmp_path, weights, source, output, profile, **config)
-    assert json.loads((completed / "report.json").read_bytes()) == report
-    (source / "link").symlink_to(source / "private.png")
-    with pytest.raises(OSError):
-        _source(source, "link")
+
+
+def test_plate_comparison_request_is_refused_by_service(tmp_path, pins):
+    weights, profile, digest = pins
+    socket = tmp_path / "s"
+    rgb = Image.new("RGB", (900, 999))
+    value = stage(tmp_path, encode_png(rgb), rgb.size, TARGET, digest, schema=PLATE_COMPARISON_SCHEMA)
+    with Engine(tmp_path, weights, profile, factory=FakeFsrcnn) as engine, listening(socket, engine):
+        assert local_call(socket, "POST", "/v1/upscale-frame", value) == (400, {"code": REQUEST_INVALID})
+
+
+def test_comparison_source_hash(compare_still, rgb, monkeypatch):
+    run, _, output = compare_still
+
+    def reject_unverified_decode(_data):
+        pytest.fail("unverified source reached the decoder")
+
+    monkeypatch.setattr(comparison, "_decode", reject_unverified_decode)
+    with pytest.raises(UpscaleError, match=PIN_MISMATCH):
+        run(rgb, source_sha256="0" * 64)
+    assert not list(output.iterdir())
+
+
+@pytest.mark.parametrize("mode", ["RGBA", "I;16", "P"])
+def test_comparison_refuses_source_mode(mode):
+    buffer = BytesIO()
+    Image.new(mode, SOURCE).save(buffer, format="PNG")
     with pytest.raises(UpscaleError, match=REQUEST_INVALID):
-        _source(source, "../private.png")
+        _decode(buffer.getvalue())
+
+
+@pytest.mark.parametrize("roi", [(-1, 0, 15, 15), (0, 0, 1081, 15), (0, 0, 15, 1921), (0, 0, 1, 15)])
+def test_comparison_roi_bounds(compare_still, rgb, roi, monkeypatch):
+    run, _, output = compare_still
+
+    def reject_read_with_invalid_roi(*_args):
+        pytest.fail("out-of-bounds ROI reached the source read")
+
+    monkeypatch.setattr(comparison, "_source", reject_read_with_invalid_roi)
+    with pytest.raises(UpscaleError, match=REQUEST_INVALID):
+        run(rgb, rois={"lettering": roi})
+    assert not list(output.iterdir())
+
+
+def test_comparison_refuses_nonempty_output(compare_still):
+    _, _, output = compare_still
+    existing = output / "unrelated"
+    existing.write_bytes(b"retain")
+    with pytest.raises(UpscaleError, match=REQUEST_INVALID):
+        _publish(output, {"lanczos": b"new"}, {"memory_by_phase": {}})
+    assert list(output.iterdir()) == [existing]
+    assert existing.read_bytes() == b"retain"
+
+
+def test_comparison_source_path(tmp_path):
+    (tmp_path / "private.png").write_bytes(b"source")
+    (tmp_path / "link").symlink_to(tmp_path / "private.png")
+    with pytest.raises(OSError):
+        _source(tmp_path, "link")
+    with pytest.raises(UpscaleError, match=REQUEST_INVALID):
+        _source(tmp_path, "../private.png")
+
+
+def test_source_refuses_hard_links(tmp_path):
+    path = tmp_path / "private.png"
+    path.write_bytes(b"source")
+    assert _source(tmp_path, path.name) == b"source"
+    os.link(path, tmp_path / "other-name.png")
+    with pytest.raises(UpscaleError, match=REQUEST_INVALID):
+        _source(tmp_path, path.name)
 
 
 def test_fixture_geometry():
@@ -244,10 +361,11 @@ def test_measuring_smoke(tmp_path, pins, monkeypatch):
     weights, profile, _ = pins
     # The hosted runner need not expose its job's cgroup at the mount root.
     # Supply cgroup readings while preserving the real worker's /proc samples.
-    monkeypatch.setattr(observe, "_read", lambda _name: 1)
+    monkeypatch.setattr(observe, "_read", lambda name: 7 * 1024**3 if name == "memory.max" else 1)
     # The separate timeout test drives a real stall and a replacement child.
     monkeypatch.setattr(measuring, "_deadline", lambda *_: True)
     report = measuring.smoke(tmp_path, weights, profile, factory=FakeFsrcnn)
+    assert report["measuring_limit_bytes"] == 7 * 1024**3
     assert report["verdicts"]["allocator_measured"] and report["verdicts"]["allocator_byte_match"]
     assert report["verdicts"]["fresh_worker_repeat"] and report["verdicts"]["plate_crop"]
     for item in report["settings"].values():
@@ -268,3 +386,13 @@ def test_measuring_smoke(tmp_path, pins, monkeypatch):
     assert single["passed"]
     assert "allocator_measured" not in single["verdicts"]
     assert list(single["settings"]) == ["default"]
+
+
+def test_cgroup_memory_limit(tmp_path, monkeypatch):
+    monkeypatch.setattr(observe, "CGROUP", tmp_path)
+    assert observe.cgroup_limit() is None
+    limit = tmp_path / "memory.max"
+    limit.write_text("max\n")
+    assert observe.cgroup_limit() is None
+    limit.write_text("1073741824\n")
+    assert observe.cgroup_limit() == 1073741824

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import signal
 from hashlib import sha256
 from http.client import HTTPException
@@ -11,7 +12,7 @@ from threading import Event
 
 from haynes_studio.store import canonical_json
 
-from .profile import COMMAND_FAILED, NOT_FOUND, PROFILE_ID, PROVIDER, RESOURCES, TARGETS, Profile, UpscaleError
+from .profile import COMMAND_FAILED, NOT_FOUND, PROFILE_ID, PROVIDER, REQUEST_INVALID, RESOURCES, TARGETS, Profile, UpscaleError
 
 
 def _serve(scratch, weights):
@@ -49,11 +50,10 @@ def main() -> int:
     measure = commands.add_parser("smoke")
     measure.add_argument("--allocator", choices=("compare", "default"), default="compare")
     trial = commands.add_parser("compare")
-    trial.add_argument("--input", required=True, help="Relative path on the read-only Studio share")
+    trial.add_argument("--input", required=True, help="Hash-named file in the read-only input mount")
     trial.add_argument("--input-sha256", required=True)
-    trial.add_argument("--allocation", required=True)
     trial.add_argument("--orientation", choices=("portrait", "landscape"), default="portrait")
-    trial.add_argument("--plate", action="store_true", help="Center-crop to the target aspect before scaling")
+    trial.add_argument("--plate", action="store_true", help="Use the delivery plate's centered cover fit")
     for name in ("lettering", "face", "hair"):
         trial.add_argument(f"--{name}-roi", nargs=4, type=int, metavar=("X0", "Y0", "X1", "Y1"))
 
@@ -79,11 +79,13 @@ def main() -> int:
         else:
             from .comparison import compare
 
+            if not re.fullmatch(rf"{re.escape(args.input_sha256)}\.(?:jpg|png)", args.input):
+                raise UpscaleError(REQUEST_INVALID)
             rois = {name: box for name in ("lettering", "face", "hair")
                     if (box := getattr(args, name + "_roi")) is not None}
             report = compare(
-                scratch, weights, Path("/studio-source"), Path("/jobs"), profile,
-                relative=args.input, source_sha256=args.input_sha256, allocation=args.allocation,
+                scratch, weights, Path("/input"), Path("/output"), profile,
+                relative=args.input, source_sha256=args.input_sha256,
                 target=TARGETS[0] if args.orientation == "portrait" else TARGETS[1], plate=args.plate, rois=rois,
             )
         print(canonical_json(report).decode(), flush=True)

@@ -108,6 +108,8 @@ def main():
     assert os.geteuid() == os.getegid() == 10001
     assert os.statvfs("/").f_flag & os.ST_RDONLY
     assert not any(Path("/weights").iterdir())
+    notice = Path("/opt/studio/FSRCNN-NOTICE").read_text(encoding="utf-8")
+    assert "Repository licence: Apache-2.0" in notice and GRAPH_NAME in notice
     assert sys.version_info[:2] == (3, 12)
     recorded = {}
     for line in Path("/opt/studio/upscaling-wheels.sha256").read_text().splitlines():

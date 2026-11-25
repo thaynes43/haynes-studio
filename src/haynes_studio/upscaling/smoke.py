@@ -12,13 +12,14 @@ from time import monotonic, sleep
 import numpy as np
 from PIL import Image
 
+from haynes_studio.render.delivery_profile import resolve_delivery_upscaler
 from haynes_studio.store import canonical_json
 
 from .backend import Engine
 from .fixtures import EDGE_ROWS, FEATURES, FLAT, MOTION, STATIC, Motion, portrait, scores, verdicts
-from .observe import cgroup_peak, phase
+from .observe import cgroup_limit, cgroup_peak, phase
 from .opencv import Fsrcnn
-from .pixels import crop_plate, decode_png, describe, encode_png, lanczos
+from .pixels import crop_plate, decode_png, describe, encode_png
 from .profile import (
     MAX_INPUT, PIN_MISMATCH, PROVIDER, REQUEST_INVALID, REQUEST_SECONDS, RESOURCES, RESPONSE_INVALID,
     TIMEOUT, UpscaleError,
@@ -62,7 +63,7 @@ def _exercise(root: Path, weights: Path, pinned, settings, captured: Path, *, fa
         def run_one(name, rgb, target):
             nonlocal replay_png, replay_receipt
             with phase(phases, name + "_lanczos"):
-                baseline = lanczos(rgb, target)
+                baseline = resolve_delivery_upscaler(None).scale(rgb, target)
                 baseline_png = encode_png(baseline)
             with phase(phases, name + "_fsrcnn"):
                 data, receipt, attempt = frame(root, socket, rgb, target, engine.profile, digest)
@@ -199,7 +200,7 @@ def smoke(scratch: Path, weights: Path, profile, *, try_compact=True, factory=No
         "cpu": profile.document()["cpu"],
         "rois": {"face": FEATURES, "flat": FLAT, "edge_rows": EDGE_ROWS, "motion": MOTION, "static": STATIC},
         "quality_peak_bytes": RESOURCES["quality_peak_gib"] * 1024**3,
-        "measuring_limit_bytes": RESOURCES["measuring"]["limit_gib"] * 1024**3,
+        "measuring_limit_bytes": cgroup_limit(),
         "settings": {},
     }
     with TemporaryDirectory(prefix="smoke-", dir=scratch) as work:

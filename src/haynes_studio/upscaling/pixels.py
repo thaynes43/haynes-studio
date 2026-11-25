@@ -1,4 +1,4 @@
-"""Bounded, opaque PNG artifacts and the two fixed resize operations."""
+"""Bounded, opaque PNG artifacts and source geometry checks."""
 
 from hashlib import sha256
 from io import BytesIO
@@ -17,6 +17,13 @@ def fits(source: tuple[int, int], target: tuple[int, int]) -> bool:
     tw, th = target
     return (0 < width <= MAX_LONG_EDGE and 0 < height <= MAX_LONG_EDGE and width * height <= MAX_PIXELS
             and width * th == height * tw and width < tw <= width * 2)
+
+
+def fits_plate(source: tuple[int, int], target: tuple[int, int]) -> bool:
+    width, height = source
+    tw, th = target
+    return (0 < width <= MAX_LONG_EDGE and 0 < height <= MAX_LONG_EDGE and width * height <= MAX_PIXELS
+            and tw <= width * 2 and th <= height * 2 and (width < tw or height < th))
 
 
 def describe(data: bytes, size: tuple[int, int]) -> dict:
@@ -64,12 +71,6 @@ def encode_png(rgb: Image.Image) -> bytes:
     rgb.info.clear()
     rgb.save(buffer, format="PNG", compress_level=1, optimize=False)
     return buffer.getvalue()
-
-
-def lanczos(rgb: Image.Image, target: tuple[int, int]) -> Image.Image:
-    if rgb.size == target:
-        return rgb
-    return rgb.resize(target, Image.Resampling.LANCZOS)
 
 
 def crop_plate(rgb: Image.Image, target: tuple[int, int]) -> tuple[Image.Image, tuple[int, int, int, int]]:

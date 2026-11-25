@@ -14,7 +14,7 @@ from .profile import COMMAND_FAILED, MAX_INPUT, MAX_OUTPUT, PROFILE_ID, REQUEST_
 from .service import local_call
 
 
-def stage(scratch: Path, data: bytes, size, target, digest: str) -> dict:
+def stage(scratch: Path, data: bytes, size, target, digest: str, *, schema=REQUEST_SCHEMA) -> dict:
     if not 0 < len(data) <= MAX_INPUT:
         raise UpscaleError(REQUEST_INVALID)
     attempt = uuid4().hex
@@ -25,18 +25,26 @@ def stage(scratch: Path, data: bytes, size, target, digest: str) -> dict:
         os.fchmod(directory, 0o2770)
         create_file(directory, "input.png", data)
     return {"attempt_id": attempt, "request": {
-        "schema": REQUEST_SCHEMA, "source": describe(data, size),
+        "schema": schema, "source": describe(data, size),
         "target": {"width": target[0], "height": target[1]},
         "profile_id": PROFILE_ID, "profile_sha256": digest,
     }}
 
 
 def frame(root: Path, socket: Path, rgb: Image.Image, size, profile, digest: str):
-    value = stage(root, encode_png(rgb), rgb.size, size, digest)
-    try:
+    def request(value):
         status, receipt = local_call(socket, "POST", "/v1/upscale-frame", value)
         if status != 200:
             raise UpscaleError(receipt.get("code", COMMAND_FAILED))
+        return receipt
+
+    value = stage(root, encode_png(rgb), rgb.size, size, digest)
+    return evaluate(root, value, profile, request)
+
+
+def evaluate(root: Path, value: dict, profile, request):
+    try:
+        receipt = request(value)
         with open_directory(root / value["attempt_id"] / "result") as directory:
             png = read_file(directory, "output.png", MAX_OUTPUT, RESPONSE_INVALID)
         verify_result(value["request"], receipt, png, profile)

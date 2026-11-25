@@ -52,6 +52,7 @@ RUN groupadd --gid 10001 studio \
 FROM scratch
 COPY --from=runtime / /
 COPY --from=build /opt/studio /opt/studio
+COPY docker/fsrcnn-notice.txt /opt/studio/FSRCNN-NOTICE
 ARG REVISION
 LABEL org.opencontainers.image.source="https://github.com/thaynes43/haynes-studio" \
     org.opencontainers.image.revision="${REVISION}" \

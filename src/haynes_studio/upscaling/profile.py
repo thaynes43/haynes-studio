@@ -149,6 +149,7 @@ class Profile:
         adapter = {name: digest_path(Path(__file__).with_name(name)) for name in (
             "backend.py", "files.py", "opencv.py", "pixels.py", "profile.py", "service.py",
         )}
+        adapter["delivery_profile.py"] = digest_path(Path(__file__).parent.parent / "render/delivery_profile.py")
         return {
             "profile_id": PROFILE_ID, "image_digest": self.image_digest, "app_build": self.app_build,
             "model": {"repository": REPOSITORY, "revision": REVISION, "path": f"models/{GRAPH_NAME}",
@@ -163,6 +164,7 @@ class Profile:
             "resize": {"algorithm": "fsrcnn", "scale": 2, "input": "RGB8 to BGR8",
                        "output": "BGR8 to RGB8", "chroma": "OpenCV YCrCb linear",
                        "tiles": "whole-frame", "overlap_px": 0, "fit": "exact-aspect center crop upstream",
+                       "plate_comparison_fit": "centered cover after inference, one-shot comparison only",
                        "final_resize": "Pillow Lanczos", "targets": [list(size) for size in TARGETS]},
             "png": {"mode": "RGB8", "compress_level": 1, "optimize": False, "metadata": False},
             "limits": {"input_bytes": MAX_INPUT, "output_bytes": MAX_OUTPUT, "input_pixels": MAX_PIXELS,

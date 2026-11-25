@@ -21,6 +21,10 @@ def cgroup_peak() -> int | None:
     return _read("memory.peak")
 
 
+def cgroup_limit() -> int | None:
+    return _read("memory.max")
+
+
 @contextmanager
 def phase(report: dict, name: str):
     """Worker peaks use VmHWM. Cgroup phase peaks are sampled every 20 ms."""

@@ -1,0 +1,12 @@
+FSRCNN x2 model provenance and licence notice
+
+Publisher: Saafke/FSRCNN_Tensorflow
+Revision: 6a4812c4ef1c4f5947d79beafa32a05a6eb4a94d
+Artifact: models/FSRCNN_x2.pb
+Repository licence: Apache-2.0
+https://github.com/Saafke/FSRCNN_Tensorflow/blob/6a4812c4ef1c4f5947d79beafa32a05a6eb4a94d/LICENSE
+
+The graph is distributed in the publisher's source repository. The specific
+weight grant, redistribution terms and separate output rights are unconfirmed.
+Haynes Studio uses the graph privately for research and personal comparison
+under D48/D49 while those terms are unconfirmed.

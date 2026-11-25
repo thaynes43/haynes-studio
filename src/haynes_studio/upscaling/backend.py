@@ -14,11 +14,12 @@ from multiprocessing.process import BaseProcess
 from pathlib import Path
 from time import monotonic
 
+from haynes_studio.render.delivery_profile import fit_set_plate, resolve_delivery_upscaler
 from haynes_studio.store import canonical_json
 
 from .files import create_file, open_directory, read_file
 from .opencv import Fsrcnn
-from .pixels import decode_png, describe, encode_png, fits, lanczos
+from .pixels import decode_png, describe, encode_png, fits, fits_plate
 from .profile import (
     BUSY, COMMAND_FAILED, MAX_INPUT, MAX_OUTPUT, NOT_FOUND, PIN_MISMATCH, PROFILE_ID,
     PROVIDER, REQUEST_INVALID, REQUEST_SECONDS, RESPONSE_INVALID, SETTINGS, STARTUP_SECONDS,
@@ -26,6 +27,7 @@ from .profile import (
 )
 
 REQUEST_SCHEMA = "studio.upscale-frame-request/v1"
+PLATE_COMPARISON_SCHEMA = "studio.upscaling-plate-comparison-request/v1"
 RESULT_SCHEMA = "studio.upscale-frame-result/v1"
 ATTEMPT_ID = re.compile("[a-f0-9]{32}")
 DIGEST = re.compile("[a-f0-9]{64}")
@@ -39,12 +41,17 @@ def _digest(value) -> bool:
 
 
 def envelope(value: object) -> tuple[str, dict]:
+    return _envelope(value, plate=False)
+
+
+def _envelope(value: object, *, plate: bool) -> tuple[str, dict]:
     if (not isinstance(value, dict) or set(value) != {"attempt_id", "request"}
             or not isinstance(value["attempt_id"], str) or not ATTEMPT_ID.fullmatch(value["attempt_id"])):
         raise UpscaleError(REQUEST_INVALID)
     request = value["request"]
+    schema = PLATE_COMPARISON_SCHEMA if plate else REQUEST_SCHEMA
     if (not isinstance(request, dict) or set(request) != {"schema", "source", "target", "profile_id", "profile_sha256"}
-            or request["schema"] != REQUEST_SCHEMA or not _digest(request["profile_sha256"])
+            or request["schema"] != schema or not _digest(request["profile_sha256"])
             or not isinstance(request["profile_id"], str)):
         raise UpscaleError(REQUEST_INVALID)
     source, target = request["source"], request["target"]
@@ -57,7 +64,8 @@ def envelope(value: object) -> tuple[str, dict]:
             or not 0 < source["bytes"] <= MAX_INPUT):
         raise UpscaleError(REQUEST_INVALID)
     size = (target["width"], target["height"])
-    if size not in TARGETS or not fits((source["width"], source["height"]), size):
+    fits_target = fits_plate if plate else fits
+    if size not in TARGETS or not fits_target((source["width"], source["height"]), size):
         raise UpscaleError(REQUEST_INVALID)
     return value["attempt_id"], request
 
@@ -96,7 +104,9 @@ def _infer(root: Path, attempt: str, request: dict, profile: Profile, upscale) -
                 enlarged = upscale(rgb)
                 if enlarged.mode != "RGB" or enlarged.size != (rgb.width * 2, rgb.height * 2):
                     raise UpscaleError(RESPONSE_INVALID)
-                png = encode_png(lanczos(enlarged, target))
+                resize = (fit_set_plate if request["schema"] == PLATE_COMPARISON_SCHEMA
+                          else resolve_delivery_upscaler(None).scale)
+                png = encode_png(resize(enlarged, target))
                 receipt = _receipt(request, profile, describe(png, target))
                 if len(png) > MAX_OUTPUT:
                     raise UpscaleError(RESPONSE_INVALID)
@@ -275,7 +285,13 @@ class Engine:
                     return
 
     def run(self, value: object) -> dict:
-        attempt, request = envelope(value)
+        return self._run(*envelope(value))
+
+    def compare_plate(self, value: object) -> dict:
+        """The one-shot CLI can cover-fit a plate. The Unix service only calls run."""
+        return self._run(*_envelope(value, plate=True))
+
+    def _run(self, attempt: str, request: dict) -> dict:
         if not self._lock.acquire(blocking=False):
             raise UpscaleError(BUSY if self._digest is not None else NOT_FOUND)
         try:

@@ -11,20 +11,19 @@ from tempfile import TemporaryDirectory
 import numpy as np
 from PIL import Image
 
+from haynes_studio.render.delivery_profile import fit_set_plate, resolve_delivery_upscaler
 from haynes_studio.store import canonical_json
 
-from .backend import DIGEST, Engine
+from .backend import DIGEST, PLATE_COMPARISON_SCHEMA, Engine
 from .files import create_file, open_directory, read_file
 from .fixtures import luma
 from .observe import cgroup_peak, phase
-from .pixels import crop_plate, decode_png, describe, encode_png, fits, lanczos
+from .pixels import decode_png, describe, encode_png, fits, fits_plate
 from .profile import (
     MAX_INPUT, MAX_LONG_EDGE, MAX_OUTPUT, MAX_PIXELS, PIN_MISMATCH, REQUEST_INVALID, RESPONSE_INVALID, UpscaleError,
 )
-from .service import listening, local_call
-from .trial import frame
+from .trial import evaluate, stage
 
-RUN = re.compile(r"upscaling-op461-compare-[a-f0-9]{12}")
 RESERVE = 32 * 1024**3
 BUDGET = 8 * 1024**3
 
@@ -81,33 +80,30 @@ def _measure(rgb, baseline, learned, rois):
     return comparison
 
 
-def _publish(jobs: Path, allocation: str, pngs: dict, report: dict) -> int | None:
-    with open_directory(jobs) as root:
-        space = os.fstatvfs(root)
-        if space.f_bavail * space.f_frsize < RESERVE + BUDGET:
+def _publish(directory: Path, pngs: dict, report: dict) -> int | None:
+    with open_directory(directory) as output:
+        space = os.fstatvfs(output)
+        if os.listdir(output) or space.f_bavail * space.f_frsize < RESERVE + BUDGET:
             raise UpscaleError(REQUEST_INVALID)
-        os.mkdir(allocation, mode=0o750, dir_fd=root)
-        os.fsync(root)
-        with open_directory(allocation, dir_fd=root) as output:
-            with phase(report["memory_by_phase"], "publish_pngs"):
-                for label, data in pngs.items():
-                    name = label + ".png"
-                    create_file(output, name, data, durable=True)
-                    saved = read_file(output, name, MAX_OUTPUT, RESPONSE_INVALID)
-                    if saved != data:
-                        raise UpscaleError(RESPONSE_INVALID)
-            report["whole_job_cgroup_peak_bytes"] = cgroup_peak()
-            manifest = canonical_json(report)
-            create_file(output, ".report.part", manifest, durable=True)
-            os.link(".report.part", "report.json", src_dir_fd=output, dst_dir_fd=output, follow_symlinks=False)
-            os.unlink(".report.part", dir_fd=output)
-            os.fsync(output)
-            return report["whole_job_cgroup_peak_bytes"]
+        with phase(report["memory_by_phase"], "publish_pngs"):
+            for label, data in pngs.items():
+                name = label + ".png"
+                create_file(output, name, data, durable=True)
+                saved = read_file(output, name, MAX_OUTPUT, RESPONSE_INVALID)
+                if saved != data:
+                    raise UpscaleError(RESPONSE_INVALID)
+        report["whole_job_cgroup_peak_bytes"] = cgroup_peak()
+        manifest = canonical_json(report)
+        create_file(output, ".report.part", manifest, durable=True)
+        os.link(".report.part", "report.json", src_dir_fd=output, dst_dir_fd=output, follow_symlinks=False)
+        os.unlink(".report.part", dir_fd=output)
+        os.fsync(output)
+        return report["whole_job_cgroup_peak_bytes"]
 
 
-def compare(scratch: Path, weights: Path, share: Path, jobs: Path, profile, *,
-            relative: str, source_sha256: str, allocation: str, target, plate=False, rois=None, factory=None) -> dict:
-    if not RUN.fullmatch(allocation) or not DIGEST.fullmatch(source_sha256):
+def compare(scratch: Path, weights: Path, share: Path, output: Path, profile, *,
+            relative: str, source_sha256: str, target, plate=False, rois=None, factory=None) -> dict:
+    if not DIGEST.fullmatch(source_sha256):
         raise UpscaleError(REQUEST_INVALID)
     rois = rois or {}
     for name, (x0, y0, x1, y1) in rois.items():
@@ -118,52 +114,52 @@ def compare(scratch: Path, weights: Path, share: Path, jobs: Path, profile, *,
     phases, memory = {}, {}
     with phase(phases, "read_normalize"):
         data = _source(share, relative)
-        if sha256(data).hexdigest() != source_sha256:
+        source_hash = sha256(data).hexdigest()
+        if source_hash != source_sha256:
             raise UpscaleError(PIN_MISMATCH)
         rgb = _decode(data)
-        original_size = rgb.size
-        crop = None
-        if plate:
-            rgb, crop = crop_plate(rgb, target)
-        if not fits(rgb.size, target):
+        fits_target = fits_plate if plate else fits
+        if not fits_target(rgb.size, target):
             raise UpscaleError(REQUEST_INVALID)
-        normalized = describe(encode_png(rgb), rgb.size)
+        normalized_png = encode_png(rgb)
     with phase(phases, "lanczos"):
-        baseline = lanczos(rgb, target)
+        resize = fit_set_plate if plate else resolve_delivery_upscaler(None).scale
+        baseline = resize(rgb, target)
         baseline_png = encode_png(baseline)
         if len(baseline_png) > MAX_OUTPUT:
             raise UpscaleError(RESPONSE_INVALID)
         decode_png(baseline_png, target, RESPONSE_INVALID)
     with TemporaryDirectory(prefix="compare-", dir=scratch) as work:
         root = Path(work)
-        socket = root / "upscale.sock"
         with phase(phases, "startup"):
             engine = Engine(root, weights, profile, memory=memory, factory=factory)
-        with engine, listening(socket, engine):
-            status, ready = local_call(socket, "GET", "/v1/ready")
-            if status != 200:
+        with engine:
+            ready = engine.readiness
+            if ready is None:
                 raise UpscaleError(PIN_MISMATCH)
             with phase(phases, "fsrcnn"):
-                learned_png, receipt, attempt = frame(
-                    root, socket, rgb, target, engine.profile, ready["profile_sha256"],
-                )
+                stage_options = {"schema": PLATE_COMPARISON_SCHEMA} if plate else {}
+                value = stage(root, normalized_png, rgb.size, target, ready["profile_sha256"], **stage_options)
+                learned_png, receipt, attempt = evaluate(root, value, engine.profile,
+                                                         engine.compare_plate if plate else engine.run)
     phases["startup"]["worker"] = memory["startup"][0]
     phases["fsrcnn"]["worker"] = memory["requests"][attempt]
     with phase(phases, "metrics"):
         learned = decode_png(learned_png, target, RESPONSE_INVALID)
-        objective = _measure(rgb, baseline, learned, rois)
+        reference = fit_set_plate(rgb, (target[0] // 2, target[1] // 2)) if plate else rgb
+        objective = _measure(reference, baseline, learned, rois)
     summary = {
-        "source": {"sha256": source_sha256, "bytes": len(data), "size": list(original_size)},
-        "normalized_source": normalized,
+        "source": {"sha256": source_hash, "bytes": len(data), "size": list(rgb.size)},
+        "normalized_source": value["request"]["source"],
         "outputs": {"lanczos": describe(baseline_png, target), "fsrcnn": receipt["output"]},
         "profile_sha256": receipt["provenance"]["profile_sha256"],
         "receipt_sha256": sha256(canonical_json(receipt)).hexdigest(),
         "memory_by_phase": phases,
         "objective_measures": objective,
     }
-    report = {"schema": "studio.upscaling-comparison/v1", **summary, "crop_xyxy": crop,
+    report = {"schema": "studio.upscaling-comparison/v1", **summary, "plate": plate,
               "rois_xyxy": rois, "receipt": receipt, "review": "comparison pending"}
     summary["whole_job_cgroup_peak_bytes"] = _publish(
-        jobs, allocation, {"lanczos": baseline_png, "fsrcnn": learned_png}, report,
+        output, {"lanczos": baseline_png, "fsrcnn": learned_png}, report,
     )
     return summary

@@ -205,8 +205,10 @@ original 24-vCPU render allocation by four. The pilot uses the observed
   flushing and dropping its write cache. Provision on talosw01 to capture
   the exact CPU model and OpenCV CPU features in the immutable manifest. Finalize
   create-only and mount that job's immutable weight directory read-only at
-  `/weights`. Refuse extra or mismatched bytes, recheck the provisioned file at
-  startup, and keep weights out of build layers and public git.
+  `/weights`. The allocation carries `FSRCNN-NOTICE` from the pinned Studio
+  image. It records the publisher's Apache-2.0 repository licence and the
+  unconfirmed weight and output terms. Recheck the provisioned file at startup
+  and keep weights out of build layers and public git.
   [Pinned weight URL](https://raw.githubusercontent.com/Saafke/FSRCNN_Tensorflow/6a4812c4ef1c4f5947d79beafa32a05a6eb4a94d/models/FSRCNN_x2.pb)
 - Reserve **8 GiB and at most 1,024 new filesystem entries** for one install,
   smoke and one bounded comparison or up-to-300-frame clip. Allow up to 600
@@ -329,16 +331,28 @@ Measure luma as `0.2126R + 0.7152G + 0.0722B` on the encoded RGB samples.
    two settings, and each setting's PNG and canonical receipt against its
    fresh-worker replay. Record worker phase high-water and post-phase RSS,
    sampled cgroup memory by phase and the kernel's whole-job cgroup peak.
+   Report the running container's cgroup memory limit from `memory.max`.
    The serving profile has no allocator override. The generated
    maximum-size graph input adds a 19th evaluated frame per setting.
 
 The Studio coordinator owns the graph provisioning and cluster smoke.
 The staged one-shot comparison Job uses a single authorized opaque PNG/JPEG
-frame or still, verified by its byte hash. The Job publishes two PNGs and
-a create-only report in a new private jobs allocation. It logs only hashes,
+frame or still from the content-addressed Studio store, verified by its byte
+hash. Both arms start with the same decoded RGB8 image. For frames, the
+baseline calls the delivery profile's exact-aspect Lanczos scaler. For plates,
+it calls `fit_set_plate`, which combines a centered, fractional cover crop with
+Lanczos in one operation. The FSRCNN arm processes the same full RGB8 image
+through ×2 inference immediately before that same final delivery function.
+For a plate the cover box scales with the ×2 image, so both arms use the same
+field of view. The cover-fit request is internal to the one-shot command.
+
+An init container reserves one new group-writable private jobs directory. The
+comparison mounts that directory for its two PNGs and create-only report. Its
+input directory and pinned weights are read-only. It logs only hashes,
 sizes, timing, memory and objective measurements. With a still and no
 high-resolution truth, report luma differences at output and source scale,
 edge energy and fixed lettering, face or hair ROI scores where supplied.
+Plate source-scale scores use the cover-fitted half-delivery grid.
 Inspect glyphs, face geometry and halos at 1:1 using the private pair.
 **Comparison pending.**
 
