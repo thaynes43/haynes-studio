@@ -1,0 +1,202 @@
+{
+  "schema": "studio.drafting-benchmark-corpus/v1",
+  "agent_key_id": "key_000000000000000000000000E7",
+  "recipe": "recipe.json",
+  "assets": "assets.json",
+  "cases": {
+    "chorus": {
+      "stress": "cast_size",
+      "brief": "briefs/chorus.md",
+      "brief_version": 1,
+      "story": "stories/chorus.json",
+      "boards": [
+        {
+          "key": "roll-call",
+          "expect": {
+            "cast_slots": [
+              "a",
+              "b",
+              "c",
+              "d"
+            ],
+            "speakers": [
+              "a",
+              "b",
+              "c",
+              "d"
+            ]
+          }
+        },
+        {
+          "key": "clothespin",
+          "expect": {
+            "speakers": []
+          }
+        }
+      ],
+      "protected_boards": [],
+      "frontier_baseline": {
+        "status": "absent",
+        "provenance": null
+      }
+    },
+    "two-sets": {
+      "stress": "set_count",
+      "brief": "briefs/two-sets.md",
+      "brief_version": 1,
+      "story": "stories/two-sets.json",
+      "boards": [
+        {
+          "key": "locker",
+          "expect": {
+            "photo_inputs": [
+              "asv_00000000000000000000001CMR"
+            ],
+            "speakers": [],
+            "cast_slots": []
+          }
+        }
+      ],
+      "protected_boards": [
+        "brd_00000000000000000000001CM5",
+        "brd_00000000000000000000001CM6"
+      ],
+      "frontier_baseline": {
+        "status": "absent",
+        "provenance": null
+      }
+    },
+    "focal-prop": {
+      "stress": "focal_prop",
+      "brief": "briefs/focal-prop.md",
+      "brief_version": 1,
+      "story": "stories/focal-prop.json",
+      "boards": [
+        {
+          "key": "inspection",
+          "expect": {
+            "speakers": [
+              "a"
+            ]
+          }
+        },
+        {
+          "key": "marble-insert",
+          "expect": {
+            "photo_inputs": [
+              "asv_00000000000000000000001CQW"
+            ],
+            "speakers": [],
+            "cast_slots": []
+          }
+        }
+      ],
+      "protected_boards": [],
+      "frontier_baseline": {
+        "status": "absent",
+        "provenance": null
+      }
+    },
+    "dense-dialogue": {
+      "stress": "dialogue_density",
+      "brief": "briefs/dense-dialogue.md",
+      "brief_version": 1,
+      "story": "stories/dense-dialogue.json",
+      "boards": [
+        {
+          "key": "exchange",
+          "expect": {
+            "cast_slots": [
+              "a",
+              "b"
+            ],
+            "speakers": [
+              "a",
+              "b",
+              "a",
+              "b",
+              "a",
+              "b"
+            ]
+          }
+        }
+      ],
+      "protected_boards": [
+        "brd_00000000000000000000001CTD",
+        "brd_00000000000000000000001CTF"
+      ],
+      "frontier_baseline": {
+        "status": "absent",
+        "provenance": null
+      }
+    },
+    "timed-button": {
+      "stress": "timing_constraint",
+      "brief": "briefs/timed-button.md",
+      "brief_version": 1,
+      "story": "stories/timed-button.json",
+      "boards": [
+        {
+          "key": "promise",
+          "expect": {
+            "speakers": [
+              "a"
+            ]
+          }
+        },
+        {
+          "key": "latch",
+          "expect": {
+            "speakers": [],
+            "hold_ms": 2000,
+            "cue_times_ms": [
+              1250
+            ],
+            "cast_slots": [
+              "a"
+            ],
+            "sound_inputs": [
+              "asv_00000000000000000000001CY4"
+            ]
+          }
+        }
+      ],
+      "protected_boards": [],
+      "frontier_baseline": {
+        "status": "absent",
+        "provenance": null
+      }
+    }
+  },
+  "historical_frontier_provenance": [
+    {
+      "brief": "titles/the-winter-menu/brief.md",
+      "prompts": "titles/the-winter-menu/prompts.json",
+      "record": "titles/the-winter-menu/run-log.md",
+      "corresponds_to_case": null,
+      "usage": null
+    },
+    {
+      "brief": "titles/one-more-meeting/brief.md",
+      "prompts": "titles/one-more-meeting/prompts.json",
+      "record": "titles/one-more-meeting/manifest.json",
+      "corresponds_to_case": null,
+      "usage": null
+    }
+  ],
+  "files": {
+    "assets.json": "9e36e7338aaadb9a255a2e5f909c7af2e90c4eec96edf69678390c19c59ac903",
+    "briefs/chorus.md": "f4238deeef71e9c66362de1216dd17f18db7b13debac88e7f354b9d8624359b4",
+    "briefs/dense-dialogue.md": "d7e42b4d7158f9a62ed99f405e7ba6ff605fde850117bbb39a13222d96496771",
+    "briefs/focal-prop.md": "91b8cdc8b4711f9c007c6dace3143f74f17575d1f5ee2ef7984f34e05701d8a1",
+    "briefs/timed-button.md": "99b191b463ebad9dd006753d8c6849052740a38a92faa04795da4e416de83ce5",
+    "briefs/two-sets.md": "c1bc9acf7b728d8c3d07d9b6a0227e9c753e753dcbd526a48557322bab3b5084",
+    "recipe.json": "995836ab4b579bab3a52c73904f11ebd36a77455fa5261e5561947d46ed810d6",
+    "stories/chorus.json": "b4a9e2fc302ccb0a5039f1629558119d5f20567aa179f16b02de065b1e989b17",
+    "stories/dense-dialogue.json": "c4de803e30c8f8a2fc09c4d7210e5a6426a5b19b2246bbaaeda61370a605509b",
+    "stories/focal-prop.json": "bf003fee79fff140295f61ab45705eae072f41c49a22686caee9dca598ff149e",
+    "stories/timed-button.json": "5ad25ae8436877f621c679990841602e4cd6dd28c67026ee0739b5654d825d2a",
+    "stories/two-sets.json": "65f9b06e4752f22f84e60c22e5bc3bc6868c48ca2251f3469211b7c520febff8"
+  },
+  "version": "sha256:46b8cc4f656d493754defad2ce275cc3acffdbf9fa5d31626757b87ccd8370b2"
+}

@@ -20,7 +20,7 @@ from haynes_studio.canonical.ids import Minter
 from haynes_studio.canonical.model import Board, Story
 from haynes_studio.db import drafts, identity, runs
 from haynes_studio.db.catalog import record_asset_version
-from haynes_studio.db.schema import run_wan_attempts, worker_tokens
+from haynes_studio.db.schema import run_wan_attempts, worker_lane_grants, worker_tokens
 from haynes_studio.library import Library
 from haynes_studio.photo.plan import plan_photo
 from haynes_studio.queue.wan import GPU_REFUSALS, LanePaused, ProductClips, ProductWan, product_request
@@ -38,11 +38,13 @@ from tests.queue.fake_wan import Clock, FakeWan, STORY
 pytestmark = pytest.mark.db
 
 
-def worker_credentials(engine):
+def worker_credentials(engine, *, lane="run"):
     secret = worker_bearer(token_hex(24))
+    worker_id = "fixture-" + Minter().mint("run")
     with engine.begin() as conn:
-        conn.execute(worker_tokens.insert().values(digest=identity.digest(secret),
-                                                   worker_id="fixture-" + Minter().mint("run")))
+        conn.execute(worker_tokens.insert().values(digest=identity.digest(secret), worker_id=worker_id))
+        if lane is not None:
+            conn.execute(worker_lane_grants.insert().values(worker_id=worker_id, lane=lane))
     return bearer(secret)
 
 
@@ -64,7 +66,8 @@ def queue(service, engine, owner_engine, monkeypatch, tmp_path):
     app.state.build_stage_root = stage_root
     with owner_engine.begin() as conn:
         conn.exec_driver_sql("TRUNCATE escalation_events, escalation_packages, escalation_check_failures, "
-                             "go_live_withdrawals, go_live_approvals, run_check_overrides, run_wan_attempts")
+                             "publications, release_packages, go_live_withdrawals, go_live_approvals, "
+                             "run_check_overrides, run_wan_attempts, feedback_iteration_clears")
         conn.exec_driver_sql("UPDATE stories SET feedback_iteration_id = NULL WHERE feedback_iteration_id IS NOT NULL")
         conn.exec_driver_sql("DELETE FROM feedback_iterations")
         conn.exec_driver_sql("DELETE FROM candidate_feedback")
@@ -119,9 +122,9 @@ def queue_run(q, key, *, rev=3, headers=None):
                                    "Idempotency-Key": key, "If-Match": str(rev)})
 
 
-def worker_api(q, *, app=None, headers=None):
+def worker_api(q, *, app=None, headers=None, lane="run"):
     if headers is None:
-        headers = worker_credentials(q.owner)
+        headers = worker_credentials(q.owner, lane=lane)
     return WorkerAPI(LocalWorkerHTTP(app or q.app, headers))
 
 
@@ -282,6 +285,19 @@ def test_snapshot_reader_caps_blob_io(queue, monkeypatch):
     assert response.status_code == 503 and response.json()["error"]["code"] == "run.snapshot_too_large"
     assert reads == [65]
     assert "etag" not in response.headers
+
+
+def test_oversized_server_built_snapshot_is_unprocessable_and_not_queued(queue, monkeypatch):
+    from haynes_studio.api import run_routes
+
+    q = queue
+    monkeypatch.setattr(run_routes, "MAX_SNAPSHOT_BYTES", 1)
+    response = queue_run(q, "draft-too-large")
+    assert response.status_code == 422, response.text
+    error = response.json()["error"]
+    assert error["code"] == "run.snapshot_too_large"
+    assert error["evidence"]["bytes"] > error["evidence"]["max_bytes"] == 1
+    assert q.browser.get(f"/v1/stories/{q.story_id}/runs").json()["items"] == []
 
 
 def test_worker_auth_rejects_credentials_before_body_or_query(queue):

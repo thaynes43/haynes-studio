@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { assetsPath, parseRoute, safePath, treePath } from "./routes";
+import { assetSearchLimit, assetsPath, liveAssetFilters, parseRoute, safePath, treePath } from "./routes";
 import { readDestinations } from "./selections";
 
 const production = "prd_01M79V9FC00000000000000001";
@@ -9,6 +9,18 @@ const board = "brd_01M79V9FC00000000000000002";
 const context = { production, media, story, board };
 
 describe("shell routes", () => {
+  test("a filter change starts from the address, not from filters one render behind", () => {
+    // The page last rendered with "sOu"; the address already holds the next key.
+    const rendered = { scope: "library" as const, kind: "prop", search: "sOu" };
+    const address = assetsPath(context, false, { ...rendered, search: "sOuP" });
+    const [pathname, search] = address.split("?");
+    const live = liveAssetFilters(rendered, pathname, "?" + search);
+    expect(live.search).toBe("sOuP");
+    expect(assetsPath(context, false, { ...live, target: board })).toContain("q=sOuP");
+    // Away from an Assets address the rendered filters are all there is.
+    expect(liveAssetFilters(rendered, "/editor", "")).toBe(rendered);
+  });
+
   test("deep routes preserve their own entity context", () => {
     const path = treePath("board", context, "photo");
     expect(parseRoute(path)).toEqual({ area: "board", context, page: "photo" });
@@ -17,12 +29,20 @@ describe("shell routes", () => {
     const scoped = assetsPath(context, true);
     expect(safePath(scoped)).toBe(scoped);
     const [pathname, search] = scoped.split("?");
-    expect(parseRoute(pathname, search)).toEqual({ area: "assets", context, generate: true });
+    expect(parseRoute(pathname, search)).toMatchObject({ area: "assets", context, generate: true });
   });
 
   test("dropping a scope removes all of its descendants", () => {
     expect(assetsPath({ production })).toBe(`/editor/assets?production=${production}`);
     expect(treePath("board", { production })).toBe(`/editor/board/${production}`);
+  });
+
+  test("caps a crafted Assets search query at the input limit", () => {
+    const prefix = "a".repeat(assetSearchLimit);
+    const query = new URLSearchParams({ q: `${prefix}extra` });
+    expect(parseRoute("/editor/assets", query.toString())).toMatchObject({
+      area: "assets", filters: { search: prefix },
+    });
   });
 
   test.each([

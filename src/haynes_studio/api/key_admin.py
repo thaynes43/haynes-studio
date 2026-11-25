@@ -9,6 +9,7 @@ import secrets
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import get_args
 from uuid import uuid4
 
 import sqlalchemy as sa
@@ -19,7 +20,8 @@ from haynes_studio.agent_tokens import MAX_AGENT_TOKEN_LENGTH, valid_agent_token
 from haynes_studio.canonical.ids import Minter, is_id
 from haynes_studio.db.engine import connect_engine
 from haynes_studio.db.identity import AGENT_SCOPES, digest
-from haynes_studio.db.schema import agent_grants, agent_keys, productions, worker_tokens
+from haynes_studio.db.schema import agent_grants, agent_keys, productions, worker_lane_grants, worker_tokens
+from haynes_studio.queue.protocol import WorkLane
 from haynes_studio.queue.worker_tokens import MAX_SECRET_LENGTH, worker_bearer
 
 from .transport import access_log
@@ -38,7 +40,7 @@ class AdminParser(argparse.ArgumentParser):
         self.exit(2, "key_admin.invalid_arguments: see --help for accepted options\n")
 
 
-def _admin_role(conn, *, worker: bool) -> str:
+def _admin_role(conn, *, worker_action: str | None) -> str:
     role, can_administer = conn.execute(sa.text("""
         SELECT current_user, COALESCE(has_schema_privilege(current_schema(), 'USAGE'), false)
             AND bool_and(COALESCE(has_column_privilege(to_regclass(table_name), column_name, privilege), false))
@@ -50,13 +52,18 @@ def _admin_role(conn, *, worker: bool) -> str:
             (false, 'agent_grants', 'SELECT', ARRAY['key_id', 'production_id', 'scope', 'active']),
             (false, 'agent_grants', 'INSERT', ARRAY['key_id', 'production_id', 'scope']),
             (false, 'agent_grants', 'UPDATE', ARRAY['active']),
+            (true, 'worker_lane_grants', 'SELECT', ARRAY['worker_id', 'lane']),
             (true, 'worker_tokens', 'SELECT', ARRAY['digest', 'worker_id', 'expires_at', 'revoked_at']),
             (true, 'worker_tokens', 'INSERT', ARRAY['digest', 'worker_id']),
             (true, 'worker_tokens', 'UPDATE', ARRAY['revoked_at'])
         ) AS required(worker, table_name, privilege, columns)
         CROSS JOIN LATERAL unnest(columns) AS fields(column_name)
         WHERE worker = :worker
-    """), {"worker": worker}).one()
+            AND (table_name != 'worker_lane_grants' OR :read_worker_lanes)
+    """), {
+        "worker": worker_action is not None,
+        "read_worker_lanes": worker_action in ("register", "list"),
+    }).one()
     if not can_administer:
         raise AdminProblem("key_admin.privileges_required", 403)
     return role
@@ -209,12 +216,16 @@ def _worker_digest(path: Path, worker_id: str) -> str:
 
 def _worker_admin(conn, options, secret_digest: str | None) -> tuple[dict, int]:
     columns = worker_tokens.c
+    grants = worker_lane_grants.c
     if options.worker_action == "list":
-        rows = conn.execute(sa.select(columns.worker_id, columns.expires_at, columns.revoked_at)
+        rows = conn.execute(sa.select(columns.worker_id, grants.lane, columns.expires_at, columns.revoked_at)
+                            .select_from(worker_tokens.outerjoin(
+                                worker_lane_grants, columns.worker_id == grants.worker_id,
+                            ))
                             .order_by(columns.worker_id, columns.revoked_at, columns.expires_at))
-        return {"workers": [{"worker_id": worker_id, "expires_at": _isoformat(expires_at),
-                             "revoked_at": _isoformat(revoked_at)}
-                            for worker_id, expires_at, revoked_at in rows]}, 200
+        return {"workers": [{"worker_id": worker_id, "lane": lane,
+                             "expires_at": _isoformat(expires_at), "revoked_at": _isoformat(revoked_at)}
+                            for worker_id, lane, expires_at, revoked_at in rows]}, 200
 
     worker_id = options.worker_id
     # The digest is unique in PostgreSQL. Serialize changes within the schema
@@ -239,6 +250,18 @@ def _worker_admin(conn, options, secret_digest: str | None) -> tuple[dict, int]:
             raise AdminProblem("key_admin.worker_token_conflict", 409)
         if row.revoked_at is not None:
             raise AdminProblem("key_admin.worker_token_revoked", 409)
+
+    lane = conn.scalar(sa.select(grants.lane).where(grants.worker_id == worker_id))
+    if lane is None:
+        if options.lane is None:
+            raise AdminProblem("key_admin.worker_lane_required", 422)
+        if not conn.scalar(sa.text("SELECT has_table_privilege('worker_lane_grants', 'INSERT')")):
+            raise AdminProblem("key_admin.privileges_required", 403)
+        conn.execute(worker_lane_grants.insert().values(worker_id=worker_id, lane=options.lane))
+    elif options.lane is not None and options.lane != lane:
+        raise AdminProblem("key_admin.worker_lane_conflict", 409)
+
+    if row is not None:
         return {"worker_id": worker_id}, 200
     if conn.scalar(sa.select(sa.select(columns.worker_id).where(by_worker).exists())):
         if not options.replace:
@@ -275,8 +298,10 @@ def run(argv=None) -> int:
     worker_register = worker_tasks.add_parser("register", help="Register a worker token supplied in a file")
     worker_register.add_argument("--worker-id", required=True)
     worker_register.add_argument("--token-file", type=Path, required=True, metavar="PATH")
+    worker_register.add_argument("--lane", choices=get_args(WorkLane),
+                                 help="Lane for an unbound worker ID. Existing bindings are preserved.")
     worker_register.add_argument("--replace", action="store_true", help="Revoke prior tokens for this worker ID")
-    worker_tasks.add_parser("list", help="List worker IDs, expiry and revocation")
+    worker_tasks.add_parser("list", help="List worker IDs, lanes, expiry and revocation")
     worker_revoke = worker_tasks.add_parser("revoke", help="Revoke tokens by worker ID")
     worker_revoke.add_argument("worker_id")
     options = parser.parse_args(argv)
@@ -313,7 +338,7 @@ def run(argv=None) -> int:
         engine = connect_engine(dsn, os.getenv("STUDIO_DATABASE_SCHEMA", "studio"))
         status = 200
         with engine.begin() as conn:
-            audit["principal_id"] = _admin_role(conn, worker=worker_mode)
+            audit["principal_id"] = _admin_role(conn, worker_action=getattr(options, "worker_action", None))
             if worker_mode:
                 result, status = _worker_admin(conn, options, worker_digest)
             elif secret is not None:

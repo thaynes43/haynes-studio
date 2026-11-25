@@ -42,14 +42,16 @@ opaque still and leave cutout, mask, keying and motion capability to their own s
 | Action | Version state afterward | Normal picker | Private result |
 |---|---|---|---|
 | Record a successful candidate job | `candidate` | Hidden | Version and PNG retained |
-| Decline the preview or generate again | `candidate` | Hidden | Previous version and PNG retained |
+| Choose Not now or generate again | `candidate` | Hidden | Previous version and PNG retained |
 | Explicit human `library.promote(library, version_id, by=..., now=...)` | `promoted` | Visible in scope | Same version, pin, provenance and capabilities |
 | Retry promotion | `promoted` | Visible in scope | Same record returned |
 
-Declining a preview leaves its existing `candidate` state. Generate again starts a
-new job and reserves a new asset ID. Promotion changes only the version's state. A
-board still pins a version ID. For a whole-frame reference photo, add the promoted
-version ID to `photo.input_asset_version_ids` and pass the draft to `plan_photo`.
+Choosing **Not now** hides the preview in the current tab and records no server
+decision (CR-14, provisional CR-44). **Review again** reopens it in that tab.
+Generate again starts a new job and reserves a new asset ID. Promotion changes
+only the version's state. A board still pins a version ID. For a whole-frame
+reference photo, add the promoted version ID to `photo.input_asset_version_ids`
+and pass the draft to `plan_photo`.
 [Board reference photos](studio-photo.md)
 
 ## API and UI integration
@@ -65,10 +67,26 @@ version ID to `photo.input_asset_version_ids` and pass the draft to `plan_photo`
   metadata before previewing its content through the
   [private playback routes](studio-api.md#private-playback). Normal library
   search and board pickers use eligible versions in scope.
-- The UI polls the job for the preview ID and shows Promote as an explicit action.
-  Decline or Generate again can leave the prior preview private. Use the returned
-  promoted version ID when adding the still to a board. Show the capabilities and
-  refresh the photo's freshness after changing its inputs.
+- The Assets page opens on the references of the board in the
+  [composer's handoff URL](photo-composer.md#assets-handoff). The `scope` parameter
+  can widen the view to `story`, `production` or `library`. A story combines its
+  direct pins and all its boards' references. `target` can select another board
+  in that story. `q` and `kind` filter the versions returned for the scope.
+  Removing a scope chip keeps the target. The saved Assets destination keeps scope,
+  target and kind. Using a promoted still returns its exact version ID to the composer.
+- Assets uses the shared image lane read and follows the job in the `job` URL
+  parameter. Open a candidate's job link to review or promote its result. If the
+  job read is refused, polling stops and a new request is available. Job IDs travel
+  between the library and generation views after a successful read. The API exposes
+  individual job results and has no candidate history listing.
+  Promote sends a bodyless request keyed by the immutable version ID. Uploaded
+  board photos are available through Board photo history and promote as a new
+  reusable version.
+- Candidate job previews use the job media route. Photo and board voice previews
+  use the version route. Other promoted media uses the hash route, except a
+  generated global still can use its source job. Unreferenced global media without
+  a source job may show an unavailable preview under the current media policy.
+  Recorded-only versions show their metadata. All previews use the session cookie.
   [Library UI story 456](https://work.haynesnetwork.com/work_packages/456)
 
 ## Validation

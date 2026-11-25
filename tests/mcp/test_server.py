@@ -14,7 +14,9 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from jsonschema import Draft202012Validator
 
 from haynes_studio.canonical.ids import Minter
-from haynes_studio.mcp.server import MAX_ARGUMENT_BYTES, MAX_REQUEST_BYTES, MAX_RESULT_BYTES, _api_origin, create_app
+from haynes_studio.mcp.server import (
+    MAX_ARCHIVE_REQUEST_BYTES, MAX_ARGUMENT_BYTES, MAX_REQUEST_BYTES, MAX_RESULT_BYTES, _api_origin, create_app,
+)
 from haynes_studio.mcp.upstream import MAX_ERROR_BYTES
 from tests.canonical.fixtures import example
 from tests.formats.fixtures import doll_short
@@ -26,9 +28,12 @@ pytestmark = pytest.mark.anyio
 NAMES = set("""
 studio_list_productions studio_get_production studio_list_stories studio_create_story
 studio_get_story_summary studio_patch_story studio_get_story_timing studio_add_board
+studio_list_candidates
 studio_get_board studio_patch_board studio_reorder_boards studio_remove_board
 studio_search_assets studio_get_asset studio_get_delivery
 studio_list_formats studio_list_format_versions studio_get_format_version
+studio_create_archive_record studio_add_archive_version studio_list_archive_records
+studio_get_archive_record studio_get_archive_version studio_apply_archive_storyboard
 studio_generate_voice studio_generate_photo studio_get_job
 studio_estimate_run studio_queue_run studio_list_runs studio_get_run studio_cancel_run
 """.split())
@@ -52,6 +57,7 @@ class FakeStudio:
         self.bid, self.bid2 = minter.mint("brd"), minter.mint("brd")
         self.aid, self.vid, self.rid = (minter.mint(prefix) for prefix in ("ast", "asv", "run"))
         self.fmv = minter.mint("fmv")
+        self.cid, self.fid = minter.mint("cnd"), minter.mint("fbk")
         self.authorization = "bEaReR " + secrets.token_urlsafe(32)
         self.requests = []
         self.override = None
@@ -95,6 +101,13 @@ class FakeStudio:
         elif path == f"/v1/stories/{self.sid}/timing":
             doc = {"story_id": self.sid, "story_revision": self.story["revision"], "build_blockers": [],
                    "boards": [{"board_id": id_, "frames": 24} for id_ in self.story["board_order"]]}
+        elif path == f"/v1/stories/{self.sid}/candidates":
+            doc = {"revision": 5, "iteration": None, "next_cursor": None, "items": [{
+                "id": self.cid, "run_id": self.rid, "target_id": "fixture-shorts",
+                "notes": [{"id": self.fid, "text": "Hold the last reaction", "board_ids": [self.bid],
+                           "internal": "not projected"}],
+                "answering_runs": [],
+            }]}
         elif path == "/v1/assets":
             doc = {"items": [self.version], "next_cursor": self.vid}
         elif path == f"/v1/assets/{self.aid}":
@@ -113,6 +126,24 @@ class FakeStudio:
         else:
             raise AssertionError(f"Unhandled API route {path}")
         return httpx.Response(status, json=doc, headers={"X-Request-ID": "req-fixture"})
+
+
+async def test_find_selected_feedback_through_read_only_mcp(api):
+    async with api.app.router.lifespan_context(api.app), connect(api.app, api.authorization) as session:
+        tools = (await session.list_tools()).tools
+        tool = next(tool for tool in tools if tool.name == "studio_list_candidates")
+        assert tool.annotations.readOnlyHint is True
+        page = await call(session, tool.name, story_id=api.sid, candidate_id=api.cid,
+                          run_id=api.rid, note_ids=[api.fid])
+        assert page["items"][0]["notes"] == [{
+            "id": api.fid, "text": "Hold the last reaction", "board_ids": [api.bid],
+        }]
+        request = api.requests[-1]
+        assert request.method == "GET" and request.content == b""
+        assert request.url.path == f"/v1/stories/{api.sid}/candidates"
+        assert dict(request.url.params) == {
+            "candidate_id": api.cid, "run_id": api.rid, "note_ids": api.fid, "limit": "1",
+        }
 
 
 async def test_discovery_pages_and_projections(api):
@@ -248,6 +279,23 @@ async def test_transport_auth_host_origin_and_request_limit(api, caplog):
     assert api.authorization.split()[1] not in caplog.text
 
 
+async def test_sdk_validation_logs_do_not_echo_archive_text(api, caplog):
+    caplog.set_level(logging.DEBUG)
+    text = "The mistook umbrella travels only by train."
+    async with api.app.router.lifespan_context(api.app), httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=api.app),
+        headers={"Accept": "application/json, text/event-stream", "Authorization": api.authorization},
+    ) as http:
+        response = await http.post(MCP_URL, json={
+            "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": {"name": "studio_create_archive_record", "arguments": [{"text": text}]},
+        })
+    assert response.json()["error"]["message"] == "Invalid request parameters"
+    assert "Failed to validate request" in caplog.text
+    assert text not in caplog.text
+    assert not api.requests
+
+
 async def test_upload_tool_has_its_own_endpoint_and_main_requests_stay_bounded(api):
     headers = {"Accept": "application/json, text/event-stream", "Authorization": api.authorization,
                "Content-Type": "application/json"}
@@ -260,9 +308,42 @@ async def test_upload_tool_has_its_own_endpoint_and_main_requests_stay_bounded(a
         assert (await fail(uploads, "studio_get_board", board_id=api.bid))["code"] == "tool.not_found"
 
         oversized = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
-            "name": "studio_get_board", "arguments": {"board_id": "x" * (256 * 1024)},
+            "name": "studio_get_board", "arguments": {"board_id": "x" * MAX_REQUEST_BYTES},
         }}
         assert (await http.post(MCP_URL, json=oversized)).status_code == 413
+        assert not api.requests
+
+
+async def test_only_archive_text_writers_get_larger_mcp_envelopes(api):
+    headers = {"Accept": "application/json, text/event-stream", "Authorization": api.authorization,
+               "Content-Type": "application/json"}
+    async with api.app.router.lifespan_context(api.app), httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=api.app), headers=headers,
+    ) as http:
+        for method, name in (
+            ("tools/call", "studio_get_board"),
+            ("tools/call", "studio_get_archive_version"),
+            ("tools/call", "studio_apply_archive_storyboard"),
+            ("tools/list", "studio_create_archive_record"),
+        ):
+            body = {"jsonrpc": "2.0", "id": 1, "method": method,
+                    "params": {"name": name, "arguments": {"text": "x" * (256 * 1024)}}}
+            assert (await http.post(MCP_URL, json=body)).status_code == 413
+
+        async def chunks(body):
+            yield body[:128 * 1024]
+            yield body[128 * 1024:]
+
+        body["method"] = "tools/call"
+        body["params"]["name"] = "studio_get_board"
+        assert (await http.post(MCP_URL, content=chunks(json.dumps(body).encode()))).status_code == 413
+        body["params"]["name"] = "studio_add_archive_version"
+        assert (await http.post(MCP_URL, json={key: value for key, value in body.items()
+                                              if key != "id"})).status_code == 413
+        body["params"]["arguments"]["text"] = "x" * MAX_ARCHIVE_REQUEST_BYTES
+        oversized = json.dumps(body).encode()
+        assert (await http.post(MCP_URL, content=oversized)).status_code == 413
+        assert (await http.post(MCP_URL, content=chunks(oversized))).status_code == 413
         assert not api.requests
 
 

@@ -8,8 +8,8 @@ times. Draft edits leave the run and its eligibility intact. Each run can have
 one active approval. Withdrawing it appends a second record. A new approval
 after withdrawal gets a new ID.
 
-The approval is for manual release. Story [449](https://work.haynesnetwork.com/work_packages/449)
-owns the release package, additional rights checks and recording a manual drop.
+The approval is for manual release. See [release packages](release-package.md)
+for preparation and recording a manual drop.
 See [story 412](https://work.haynesnetwork.com/work_packages/412) for the approval
 record and [decisions D29, D43, D44, D49 and D52](../proposals/0003-studio-plan.md#decisions-so-far)
 for its rules.
@@ -58,7 +58,9 @@ checks current identity and eligibility again.
 - `POST /v1/runs/{id}/go-live-approvals` takes `master_sha256` from the
   reviewed delivery and `platform_setting: true` for the required
   synthetic-content setting. A successful request returns 201 and the
-  approval with its evidence.
+  approval with freshly checked evidence. The response includes
+  `package_evidence_older: true` when a prepared target's package evidence
+  differs and the current checks still pass.
 - `POST /v1/go-live-approvals/{id}/withdraw` returns 201 and the original
   approval with the appended withdrawal in `derived.withdrawal`.
   `derived.state` reads `active` or `withdrawn`.
@@ -85,7 +87,11 @@ locations. Approval and withdrawal use the checked metadata in PostgreSQL.
 | 403 | `approval.approver_not_configured`, `approval.subject_not_permitted`, `approval.group_not_permitted`, `approval.approver_not_permitted` (agent), `approval.worker_not_permitted`, `approval.sign_in_again` |
 | 409 | `approval.already_active`, `approval.already_withdrawn` |
 | 422 | `approval.legacy_run`, `approval.run_unfinished`, `approval.delivery_unverified`, `approval.delivery_mismatch`, `approval.not_exact_run`, `approval.provenance_missing`, `approval.licence_missing`, `approval.ai_label_missing` |
-| 503 | `approval.licence_register_unavailable` |
+| 503 | `approval.licence_register_unavailable`, `release.package_record_changed` |
+
+If an eligibility check fails against a prepared package, the refusal identifies
+the check and the package list reports stale evidence. Resolve the failure and
+prepare the package again.
 
 The API's decal override route rejects these release checks.
 
@@ -97,6 +103,6 @@ time. `approved` means some run of the story has an active approval, including
 an older run when a newer one has finished. Individual run reads and lists
 expose `active_approval_id`.
 
-`published` is independent recorded metadata and defaults to false. The
+`published` is derived from the story's recorded drops and defaults to false. The
 `publication=unpublished|published` and `approved=true|false` filters combine
 before pagination. A manual drop can remain recorded after approval withdrawal.
