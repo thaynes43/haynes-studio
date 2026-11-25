@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { assetKinds, assetPreview, assetTarget, assetUseProblem, groupAssets, visibleAssetScope, widenAssetScope } from "./asset-library-model";
+import { assetKinds, assetPreview, assetTarget, assetUseProblem, canCutOut, groupAssets, visibleAssetScope, widenAssetScope } from "./asset-library-model";
 import type { AssetVersion } from "./photo-composer-model";
 import { assetsPath, parseRoute, routePath, safePath, type AssetScope } from "./routes";
 import { readDestinations } from "./selections";
@@ -69,6 +69,13 @@ describe("asset library filters", () => {
 });
 
 describe("asset use and private previews", () => {
+  test("offers cutouts for opaque library photos in the story's production or the shared library", () => {
+    expect(canCutOut(version, target.production)).toBe(true);
+    expect(canCutOut({ ...version, capabilities: [] }, target.production)).toBe(false);
+    expect(canCutOut({ ...version, scope: { production_id: null } }, target.production)).toBe(true);
+    expect(canCutOut(version, "prd_01M79V9FC00000000000000002")).toBe(false);
+  });
+
   test("only an eligible promoted still with media can return to the target board", () => {
     expect(assetUseProblem(version, target, false)).toBeUndefined();
     expect(assetUseProblem({ ...version, state: "candidate" }, target, false)).toBe("Promote before use");

@@ -19,14 +19,18 @@ function ambiguous(error: unknown) {
   return !(error instanceof ApiError) || error.status === 0 || error.status >= 500;
 }
 
+export type CandidatePress<Body> = { body: Body; key: string };
+
 function useCandidatePress<Body>(
   api: StudioClient,
   queue: (api: StudioClient, body: Body, key: string, signal: AbortSignal) => Promise<CandidateStatus>,
   onJob: (id: string) => void,
+  presses: Map<string, CandidatePress<Body>>,
+  intention: string,
 ) {
-  const [press, setPress] = useState<{ body: Body; key: string }>();
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<unknown>();
+  const [error, setError] = useState<{ intention: string; value: unknown }>();
+  const press = presses.get(intention);
   const request = useRef<AbortController | null>(null);
   const showJob = useRef(onJob);
   useEffect(() => () => request.current?.abort(), []);
@@ -35,6 +39,7 @@ function useCandidatePress<Body>(
   async function submit(body: () => Body) {
     if (request.current) return;
     const attempt = press ?? { body: body(), key: crypto.randomUUID() };
+    presses.set(intention, attempt);
     const pending = new AbortController();
     request.current = pending;
     setSaving(true);
@@ -42,12 +47,12 @@ function useCandidatePress<Body>(
     try {
       const queued = await queue(api, attempt.body, attempt.key, pending.signal);
       if (pending.signal.aborted) return;
-      setPress(undefined);
+      presses.delete(intention);
       showJob.current(queued.id);
     } catch (error) {
       if (!pending.signal.aborted) {
-        setPress(ambiguous(error) ? attempt : undefined);
-        setError(error);
+        if (!ambiguous(error)) presses.delete(intention);
+        setError({ intention, value: error });
       }
     } finally {
       if (!pending.signal.aborted) {
@@ -56,7 +61,7 @@ function useCandidatePress<Body>(
       }
     }
   }
-  return { retrying: Boolean(press), saving, error, submit };
+  return { retrying: Boolean(press), saving, error: error?.intention === intention ? error.value : undefined, submit };
 }
 
 function useAssetPoll<T>(
@@ -125,47 +130,90 @@ function CandidateResult({ api, job, target, onPromoted, onCutout }: {
   </section>;
 }
 
-function CandidateJob({ api, status, paused, target, onPromoted, onCutout }: {
-  api: StudioClient; status: ReturnType<typeof useCandidateJob>; paused: boolean; target?: AssetTarget;
+function cutoutAdvice(code: string) {
+  switch (code) {
+    case "matting.shape_invalid":
+    case "matting.target_exceeds_frame":
+    case "adapter.request_invalid":
+      return "Try another cast slot or another photo.";
+    case "matting.sidecar_unavailable":
+    case "adapter.not_found":
+    case "adapter.busy":
+    case "adapter.timeout":
+    case "adapter.pin_mismatch":
+    case "adapter.command_failed":
+    case "adapter.response_invalid":
+    case "work.dispatch_unconfirmed":
+    case "work.result_rejected":
+    case "service_unavailable":
+      return "Try requesting the cutout again later.";
+  }
+}
+
+function CandidateJob({ api, status, matte, paused, focus, target, onPromoted, onCutout }: {
+  api: StudioClient; status: ReturnType<typeof useCandidateJob>; matte: boolean; paused: boolean; focus: boolean;
+  target?: AssetTarget;
   onPromoted: () => void; onCutout?: SelectCutout;
 }) {
   const { value: job, error, retry } = status;
-  if (status.missing) return <p role="alert">Candidate job not found.</p>;
+  const region = useRef<HTMLDivElement>(null);
+  const statusLine = useRef<HTMLParagraphElement>(null);
+  const focused = useRef(false);
+  const firstRead = useRef(false);
+  useLayoutEffect(() => {
+    if (!focus) return;
+    const heading = region.current?.querySelector<HTMLElement>("#asset-candidates-heading");
+    if (!focused.current) {
+      (heading ?? statusLine.current ?? region.current)?.focus();
+      focused.current = true;
+    } else if (!firstRead.current && heading && document.activeElement === statusLine.current) {
+      heading.focus();
+    }
+    if (job) firstRead.current = true;
+  }, [focus, job]);
 
-  const matte = job?.kind === "matte";
-  const subject = matte ? "Matte" : "Candidate";
+  const subject = matte ? "Cutout" : "Candidate";
+  const jobName = matte ? "cutout job" : "candidate job";
   const label = job ? {
     queued: paused ? `${subject} queued · ${matte ? "matte" : "image"} lane paused` : `${subject} queued`,
     running: `${subject} running`,
     succeeded: `${subject} ready`,
     failed: `${subject} failed`,
     cancelled: `${subject} cancelled`,
-  }[job.status] : error == null ? "Reading candidate job…" : undefined;
+  }[job.status] : error == null ? `Reading ${jobName}…` : undefined;
+  const advice = matte && job?.status === "failed" && job.error ? cutoutAdvice(job.error.code) : undefined;
 
-  return <div className="asset-job">
-    {label && <p role="status">{label}</p>}
-    {error != null && <AssetProblem error={error} retry={retry} />}
-    {job?.status === "failed" && job.error && <p role="alert">{job.error.message} · {job.error.code}</p>}
+  return <div className="asset-job" ref={region} tabIndex={-1}>
+    {status.missing ? <p role="alert">{subject} job not found.</p> : <>
+      {label && <p ref={statusLine} role="status" tabIndex={-1}>{label}</p>}
+      {error != null && <AssetProblem error={error} retry={retry} />}
+    </>}
+    {matte && job?.status === "queued" && paused &&
+      <p className="muted">A signed-in Studio user can resume the matte lane.</p>}
+    {job?.status === "failed" && job.error && <p role="alert">
+      {job.error.message} · {job.error.code}{advice && <> <span>{advice}</span></>}
+    </p>}
     {job?.status === "succeeded" && <CandidateResult api={api} job={job} target={target}
       onPromoted={onPromoted} onCutout={onCutout} />}
   </div>;
 }
 
-export function AssetGeneration({ api, generate, production, scopeReady, job, jobStatus, target, onJob,
+export function AssetGeneration({ api, generate, production, scopeReady, job, jobStatus, matte, focusJob, target, onJob,
   onPromoted, onCutout, cuttingOut }: {
   api: StudioClient; generate: boolean; production?: Production; scopeReady: boolean;
-  job?: string; jobStatus: ReturnType<typeof useCandidateJob>; target?: AssetTarget;
+  job?: string; jobStatus: ReturnType<typeof useCandidateJob>; matte: boolean; focusJob: boolean; target?: AssetTarget;
   onJob: (job?: string) => void; onPromoted: () => void; onCutout?: SelectCutout; cuttingOut: boolean;
 }) {
   const [name, setName] = useState("");
   const [prompt, setPrompt] = useState("");
   const [kind, setKind] = useState<CandidateRequest["kind"]>("cast");
-  const { retrying, saving, error, submit } = useCandidatePress(api, queueCandidate, onJob);
+  const presses = useRef(new Map<string, CandidatePress<CandidateRequest>>()).current;
+  const { retrying, saving, error, submit } = useCandidatePress(api, queueCandidate, onJob, presses, "candidate");
   const { active: jobActive } = jobStatus;
   const loadLanes = useCallback((signal: AbortSignal) => loadAssetLanes(api, signal), [api]);
   const lanes = useAssetPoll(loadLanes, keepPollingLane, generate || jobActive);
   const imageLane = lanes.value?.image;
-  const jobLane = jobStatus.value?.kind === "matte" ? lanes.value?.matte : imageLane;
+  const jobLane = matte ? lanes.value?.matte : imageLane;
   const unavailable = jobActive || cuttingOut || (!retrying && (!scopeReady || !name.trim() || !prompt.trim()));
 
   function request(event: FormEvent<HTMLFormElement>) {
@@ -197,7 +245,8 @@ export function AssetGeneration({ api, generate, production, scopeReady, job, jo
       </button>
       {error != null && <AssetProblem error={error} />}
     </form>}
-    {job && <CandidateJob key={job} status={jobStatus} api={api} paused={jobLane?.paused === true} target={target}
+    {job && <CandidateJob key={job} status={jobStatus} api={api} matte={matte} focus={focusJob}
+      paused={jobLane?.paused === true} target={target}
       onPromoted={onPromoted} onCutout={saving || retrying ? undefined : onCutout} />}
     {job && <div className="asset-actions"><button className="pill" type="button" disabled={saving || retrying || cuttingOut}
       onClick={() => {
@@ -207,13 +256,16 @@ export function AssetGeneration({ api, generate, production, scopeReady, job, jo
   </div>;
 }
 
-export function MatteForm({ api, source, format, slots, onJob, onClose }: {
+export function MatteForm({ api, source, format, slots, presses, onJob, onClose }: {
   api: StudioClient; source: AssetVersion; format: { id: string; format_id: string; number: number };
-  slots: string[]; onJob: (job: string) => void; onClose: () => void;
+  slots: string[]; presses: Map<string, CandidatePress<MatteRequest>>;
+  onJob: (job: string) => void; onClose: () => void;
 }) {
   const [slot, setSlot] = useState("");
   const select = useRef<HTMLSelectElement>(null);
-  const { retrying, saving, error, submit } = useCandidatePress<MatteRequest>(api, queueMatte, onJob);
+  const intention = JSON.stringify([source.id, format.id, slot]);
+  const { retrying, saving, error, submit } = useCandidatePress(api, queueMatte, onJob, presses, intention);
+  const advice = error instanceof ApiError && error.code ? cutoutAdvice(error.code) : undefined;
   useEffect(() => { select.current?.focus(); }, []);
 
   function request(event: FormEvent<HTMLFormElement>) {
@@ -225,7 +277,7 @@ export function MatteForm({ api, source, format, slots, onJob, onClose }: {
     <h2>Cut out {source.name} · v{source.number}</h2>
     <p className="muted">Format {format.format_id} · v{format.number}</p>
     <label>Cast slot<select ref={select} required value={slot}
-      disabled={saving || retrying} onChange={(event) => setSlot(event.currentTarget.value)}>
+      disabled={saving} onChange={(event) => setSlot(event.currentTarget.value)}>
       <option value="" disabled>Choose a slot</option>
       {slots.map((value) => <option key={value} value={value}>{value.toUpperCase()}</option>)}
     </select></label>
@@ -236,5 +288,6 @@ export function MatteForm({ api, source, format, slots, onJob, onClose }: {
       <button className="pill" type="button" disabled={saving} onClick={onClose}>Close cutout</button>
     </div>
     {error != null && <AssetProblem error={error} />}
+    {advice && <p className="muted">{advice}</p>}
   </form>;
 }

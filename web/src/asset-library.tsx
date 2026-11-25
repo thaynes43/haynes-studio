@@ -3,8 +3,8 @@ import { Link, useNavigate } from "react-router";
 
 import type { StudioClient } from "./api/client";
 import { AssetProblem, CandidateReview } from "./asset-candidate-review";
-import { AssetGeneration, MatteForm, useCandidateJob } from "./asset-generation";
-import { boardPhotoHistory, listAssetScope, loadAssetContext, loadMatteFormat } from "./asset-library-data";
+import { AssetGeneration, MatteForm, useCandidateJob, type CandidatePress } from "./asset-generation";
+import { boardPhotoHistory, listAssetScope, loadAssetContext, loadMatteFormat, type MatteRequest } from "./asset-library-data";
 import { assetKinds, assetOrigins, assetTarget, groupAssets, kindLabel, visibleAssetScope, widenAssetScope } from "./asset-library-model";
 import { LibraryVersion, type AssetTarget, type SelectCutout } from "./asset-version-card";
 import type { AssetVersion } from "./photo-composer-model";
@@ -166,6 +166,9 @@ export function AssetLibraryPage({ api, route, selections, before }: {
     ? { scope: targetScope, board: record } : undefined;
   const targetReady = target !== undefined;
   const jobStatus = useCandidateJob(api, filters.job);
+  const matteJob = jobStatus.value ? jobStatus.value.kind === "matte" : filters.jobKind === "matte";
+  const [focusCutout, setFocusCutout] = useState<string>();
+  const mattePresses = useRef(new Map<string, CandidatePress<MatteRequest>>());
   const formatId = data?.story?.id === story ? data?.story?.format_version_id : undefined;
   const loadFormat = useCallback((signal: AbortSignal) => formatId
     ? loadMatteFormat(api, formatId, signal) : Promise.resolve(undefined), [api, formatId]);
@@ -175,9 +178,9 @@ export function AssetLibraryPage({ api, route, selections, before }: {
   const matteSlots = Object.keys(format?.recipe.cast.matte_slots ?? {}).sort();
   const [cutout, setCutout] = useState<{ source: AssetVersion; story?: string; formatId: string }>();
   const cuttingOut = cutout !== undefined && cutout.story === story && cutout.formatId === format?.id;
-  const onCutout: SelectCutout | undefined = format && matteSlots.length && !jobStatus.active && !cuttingOut
-    ? (source) => setCutout({ source, story, formatId: format.id }) : undefined;
-  const linkFilters = { ...filters, job: jobStatus.value?.id };
+  const onCutout: SelectCutout | undefined = production && format && matteSlots.length && !jobStatus.active && !cuttingOut
+    ? { production, select: (source) => setCutout({ source, story, formatId: format.id }) } : undefined;
+  const linkFilters = { ...filters, job: jobStatus.value?.id, jobKind: matteJob ? "matte" as const : undefined };
   const path = routePath(route);
   const libraryPath = assetsPath(context, false, linkFilters);
   const destination = assetsDestination(context, filters);
@@ -229,9 +232,14 @@ export function AssetLibraryPage({ api, route, selections, before }: {
           {index === -1 && <p className="muted" role="status">Target board unavailable.</p>}
           {targetBoard.result.status === "failure" && <AssetProblem error={targetBoard.result.error} retry={targetBoard.retry} />}
         </div>}
+        {!generate && data?.story && !formatId &&
+          <p className="muted">This story needs a pinned format to request cutouts.</p>}
+        {!generate && format && !matteSlots.length &&
+          <p className="muted">The pinned format has no sized cast slots for cutouts.</p>}
         {cuttingOut && format && <MatteForm key={cutout.source.id} api={api} source={cutout.source}
-          format={format} slots={matteSlots} onJob={(job) => {
-            change({ job });
+          format={format} slots={matteSlots} presses={mattePresses.current} onJob={(job) => {
+            setFocusCutout(job);
+            change({ job, jobKind: "matte" });
             setCutout(undefined);
           }} onClose={() => {
             setCutout(undefined);
@@ -239,7 +247,11 @@ export function AssetLibraryPage({ api, route, selections, before }: {
           }} />}
         {(generate || filters.job) && <AssetGeneration key={generate ? "generate" : "result"} api={api}
           generate={generate} production={scope === "library" ? undefined : data?.production}
-          scopeReady={scopeReady} job={filters.job} jobStatus={jobStatus} target={target} onJob={(job) => change({ job })}
+          scopeReady={scopeReady} job={filters.job} jobStatus={jobStatus} matte={matteJob}
+          focusJob={focusCutout !== undefined && focusCutout === filters.job} target={target} onJob={(job) => {
+            setFocusCutout(undefined);
+            change({ job, jobKind: undefined });
+          }}
           onPromoted={refresh} onCutout={onCutout} cuttingOut={cuttingOut} />}
         {!generate && <>
           {(scope === "library" || scope === "production" || ready) &&

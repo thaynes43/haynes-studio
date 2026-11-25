@@ -7,7 +7,7 @@ import { mediaUrl, readObject } from "./production-review-data";
 import type { Board } from "./route-data";
 
 export type AssetTarget = { scope: PhotoBoardScope; board: Board };
-export type SelectCutout = (version: AssetVersion) => void;
+export type SelectCutout = { production: string; select: (version: AssetVersion) => void };
 
 function Preview({ url, type, label }: { url: string; type: string; label: string }) {
   const [failed, setFailed] = useState(false);
@@ -73,8 +73,8 @@ export function UseAsset({ version, target, declined = false }: {
 }
 
 export function CutOutAction({ version, onCutout }: { version: AssetVersion; onCutout?: SelectCutout }) {
-  if (!onCutout || !canCutOut(version)) return null;
-  return <button type="button" className="pill" onClick={() => onCutout(version)}>Cut out</button>;
+  if (!onCutout || !canCutOut(version, onCutout.production)) return null;
+  return <button type="button" className="pill" onClick={() => onCutout.select(version)}>Cut out</button>;
 }
 
 export function LibraryVersion({ version, latest, target, onCutout }: {

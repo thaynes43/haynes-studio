@@ -52,8 +52,9 @@ export function candidateJobId(version: AssetVersion) {
 
 export const isJobId = (id: string) => /^job_[0-7][0-9A-HJKMNP-TV-Z]{25}$/.test(id);
 
-export function canCutOut(version: AssetVersion) {
+export function canCutOut(version: AssetVersion, production: string) {
   return !version.recorded_without_media && !version.scope.story_id && !version.scope.board_id &&
+    (version.scope.production_id === null || version.scope.production_id === production) &&
     version.capabilities.includes("opaque_photo") &&
     (version.content?.media_type === "image/png" || version.content?.media_type === "image/jpeg");
 }

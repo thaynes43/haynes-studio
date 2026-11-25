@@ -445,11 +445,73 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       });
     });
 
-    test("requests a pinned cutout, reads matte lane and job states, and promotes the result", async ({ page, mock }) => {
+    for (const status of [404, 403]) {
+      test(`uses cutout wording while reading a job and handles a ${status} reply`, async ({ page, mock }) => {
+        const job = "job_01M79V9FC00000000000000001";
+        const path = `/v1/jobs/${job}`;
+        expect(mock.api.assets).toBeDefined();
+        let respond!: () => void;
+        const held = new Promise<void>((resolve) => { respond = resolve; });
+        await page.route(path, async (route) => {
+          await held;
+          await route.fulfill({ status, json: { error: {
+            status: status === 404 ? "not_found" : "forbidden",
+            code: status === 404 ? "not_found" : "auth.forbidden",
+            message: "Cutout job access was refused.", path: "", http_status: status, request_id: "mock-job-read",
+          } } });
+        });
+        const requested = page.waitForRequest((request) => new URL(request.url()).pathname === path);
+        const replied = page.waitForResponse((response) => new URL(response.url()).pathname === path);
+        try {
+          await page.goto(assetsPath(boardContext, false, { job, jobKind: "matte" }));
+          await requested;
+          await expect(page.getByText("Reading cutout job…", { exact: true })).toBeVisible();
+        } finally {
+          respond();
+        }
+        expect((await replied).status()).toBe(status);
+        if (status === 404) await expect(page.getByRole("alert")).toHaveText("Cutout job not found.");
+        else await expect(page.getByRole("alert")).toContainText("auth.forbidden");
+        await expect(page.getByText("Reading cutout job…", { exact: true })).toHaveCount(0);
+      });
+    }
+
+    test("explains a missing format pin and a pinned recipe with no sized slots", async ({ page, mock }) => {
+      expect(mock.api.assets).toBeDefined();
+      let pin: string | null = null;
+      await page.route(`/v1/stories/${story.id}`, (route) =>
+        route.fulfill({ json: { ...story, format_version_id: pin } }));
+      await page.route(`/v1/format-versions/${formatFixture.id}`, (route) =>
+        route.fulfill({ json: { ...formatFixture, recipe: {
+          ...formatFixture.recipe, cast: { ...formatFixture.recipe.cast, matte_slots: {} },
+        } } }));
+      const cutout = card(page, "Soup bowl").getByRole("button", { name: "Cut out" });
+      await page.goto(productionRoute);
+      await expect(page.getByText("This story needs a pinned format to request cutouts.")).toBeVisible();
+      await expect(card(page, "Soup bowl")).toBeVisible();
+      await expect(cutout).toHaveCount(0);
+
+      pin = formatFixture.id;
+      const loaded = page.waitForResponse((response) => new URL(response.url()).pathname === `/v1/format-versions/${pin}`);
+      await page.reload();
+      expect((await loaded).status()).toBe(200);
+      await expect(page.getByText("The pinned format has no sized cast slots for cutouts.")).toBeVisible();
+      await expect(card(page, "Soup bowl")).toBeVisible();
+      await expect(cutout).toHaveCount(0);
+    });
+
+    test("keeps cutout presses by slot, focuses job status and results, and promotes", async ({ page, mock }) => {
       type Job = components["schemas"]["JobView"];
       type MatteRequest = components["schemas"]["MatteRequest"];
       const assets = mock.api.assets!;
       const source = assets.versions.find(({ id }) => id === propPin)!;
+      const otherProduction = "prd_01M79V9FC00000000000000002";
+      for (const [number, name, production_id] of [
+        [555, "Shared bowl", null], [556, "Another production’s bowl", otherProduction],
+      ] as const) assets.versions.push({
+        ...source, id: photoVersionId(number), name, scope: { production_id },
+        asset_id: photoVersionId(number).replace("asv_", "ast_"),
+      });
       const recipe = {
         ...formatFixture.recipe, cast: { ...formatFixture.recipe.cast,
           matte_slots: { a: { target_height_px: 160 }, c: { target_height_px: 220 } } },
@@ -464,11 +526,18 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
         { lane: "image", paused: false, changed_at: null, changed_by: null },
       ] } }));
 
-      const ids = [550, 551, 552].map((number) => photoVersionId(number).replace("asv_", "job_"));
+      const [lostC, lostA, implausible, oversize, ready] = [550, 551, 552, 557, 558]
+        .map((number) => photoVersionId(number).replace("asv_", "job_"));
+      const ids = [lostC, lostA, implausible, oversize, ready];
+      const failures = new Map([
+        [implausible, { code: "matting.shape_invalid", message: "The shape is implausible." }],
+        [oversize, { code: "matting.target_exceeds_frame", message: "The target exceeds the frame." }],
+      ]);
       const jobs = new Map<string, Job>();
       const presses: { key: string; body: MatteRequest }[] = [];
       const keys = new Map<string, string>();
-      await page.route("/v1/asset-jobs/matte", (route) => {
+      const mattePath = "/v1/asset-jobs/matte";
+      await page.route(mattePath, (route) => {
         const key = route.request().headers()["idempotency-key"];
         const body = route.request().postDataJSON() as MatteRequest;
         presses.push({ key, body });
@@ -477,15 +546,17 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
         const id = ids[keys.size];
         keys.set(key, id);
         const job: Job = {
-          schema: "studio.job/v1", id, target_id: source.id, kind: "matte", status: "queued",
+          schema: "studio.job/v1", id, target_id: source.id, kind: "matte",
+          status: id === ready ? "succeeded" : failures.has(id) ? "failed" : "queued",
           input_signature: "sha256:" + "a".repeat(64), created_at: source.provenance.created_at,
           updated_at: source.provenance.created_at, created_by: source.provenance.created_by,
-          result_version_id: null, result_is_current: null, error: null,
+          result_version_id: id === ready ? output.id : null,
+          result_is_current: id === ready ? false : null, error: failures.get(id) ?? null,
           matte: { ...body, source_sha256: source.content!.sha256, format_sha256: format.sha256, kind: "prop",
             production_id: source.scope.production_id, target_height_px: 220 },
         };
         jobs.set(id, job);
-        return presses.length === 1 ? route.abort("failed") : route.fulfill({ status: 202, json: job });
+        return id === lostC || id === lostA ? route.abort("failed") : route.fulfill({ status: 202, json: job });
       });
       const outputFile = mock.media[5];
       const output = {
@@ -495,7 +566,7 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
         provenance: { ...source.provenance, origin: "derived" as const, source_key: "matting:" + "a".repeat(64),
           generator: { role: "composite" as const, engine: "studio-matting", source_asset_version_ids: [source.id] } },
       };
-      Object.assign(output.provenance.generator, { params: { receipt: { job_id: ids[2] } } });
+      Object.assign(output.provenance.generator, { params: { receipt: { job_id: ready } } });
       for (const id of ids) {
         const path = `/v1/jobs/${id}`;
         await page.route(path, (route) => route.fulfill({ json: jobs.get(id) }));
@@ -507,55 +578,86 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       const cutout = card(page, "Soup bowl").getByRole("button", { name: "Cut out", exact: true });
       const form = page.getByRole("form", { name: "Request matte" });
       const promotions = () => page.getByRole("button", { name: "Promote", exact: true });
-      async function selectSlot() {
+      async function selectSlot(value: "a" | "c") {
         await cutout.click();
         const slot = form.getByRole("combobox", { name: "Cast slot" });
         await expect(slot).toBeFocused();
+        await noOverflow(page, viewport.width);
         await expect(slot.getByRole("option")).toHaveText(["Choose a slot", "A", "C"]);
         await expect(form).toContainText(`Format ${format.format_id} · v${format.number}`);
-        await slot.selectOption("c");
+        await slot.selectOption(value);
+      }
+      async function loseReply() {
+        const failed = page.waitForEvent("requestfailed", (request) => new URL(request.url()).pathname === mattePath);
         await form.getByRole("button", { name: "Request matte", exact: true }).click();
+        await failed;
+        await expect(form.getByRole("button", { name: "Retry matte request" })).toBeVisible();
+        await form.getByRole("button", { name: "Close cutout" }).click();
+        await expect(form).toHaveCount(0);
       }
 
-      await page.goto(productionRoute);
+      await page.goto(assetsPath(boardContext, false, { scope: "library" }));
+      await expect(card(page, "Shared bowl").getByRole("button", { name: "Cut out" })).toBeVisible();
+      await expect(card(page, "Another production’s bowl")).toBeVisible();
+      await expect(card(page, "Another production’s bowl").getByRole("button", { name: "Cut out" })).toHaveCount(0);
       await expect(card(page, "Recorded spoon").getByRole("button", { name: "Cut out" })).toHaveCount(0);
-      await selectSlot();
+      await selectSlot("c");
+      await loseReply();
+      await selectSlot("a");
+      await loseReply();
+      expect(presses[1].key).not.toBe(presses[0].key);
+      expect(presses[1].body.slot).toBe("a");
+      await selectSlot("c");
       await form.getByRole("button", { name: "Retry matte request" }).click();
-      await expect(state("Matte queued · matte lane paused")).toBeVisible();
-      await expect(page).toHaveURL((url) => url.searchParams.get("job") === ids[0]);
+      await expect(state("Cutout queued · matte lane paused")).toBeFocused();
+      await expect(page.getByText("A signed-in Studio user can resume the matte lane.")).toBeVisible();
+      await expect(page).toHaveURL((url) => url.searchParams.get("job") === lostC &&
+        url.searchParams.get("job_kind") === "matte");
       expect(presses[0].key).toMatch(/^[0-9a-f-]{36}$/);
       expect(presses[0].body).toEqual({ slot: "c", format_version_id: format.id, source_version_id: source.id });
-      expect(presses[1]).toEqual(presses[0]);
+      expect(presses[2]).toEqual(presses[0]);
       await expect(promotions()).toHaveCount(0);
       paused = false;
       await showPoll(page);
-      await expect(page.getByText("Matte queued", { exact: true })).toBeVisible();
-      jobs.get(ids[0])!.status = "running";
+      await expect(page.getByText("Cutout queued", { exact: true })).toBeVisible();
+      jobs.get(lostC)!.status = "running";
       await showPoll(page);
-      await expect(state("Matte running")).toBeVisible();
+      await expect(state("Cutout running")).toBeVisible();
       await expect(promotions()).toHaveCount(0);
-      Object.assign(jobs.get(ids[0])!, { status: "failed", error: { code: "adapter.timeout", message: "Matting timed out." } });
+      Object.assign(jobs.get(lostC)!, { status: "failed", error: { code: "adapter.timeout", message: "Matting timed out." } });
       await showPoll(page);
-      await expect(state("Matte failed")).toBeVisible();
+      await expect(state("Cutout failed")).toBeVisible();
       await expect(page.getByRole("alert")).toContainText("adapter.timeout");
+      await expect(page.getByRole("alert")).toContainText("Try requesting the cutout again later.");
       await expect(promotions()).toHaveCount(0);
 
-      await selectSlot();
-      await expect(page.getByText("Matte queued", { exact: true })).toBeVisible();
-      expect(presses[2].key).not.toBe(presses[0].key);
-      jobs.get(ids[1])!.status = "cancelled";
+      await selectSlot("a");
+      await form.getByRole("button", { name: "Retry matte request" }).click();
+      await expect(page.getByText("Cutout queued", { exact: true })).toBeFocused();
+      expect(presses[3]).toEqual(presses[1]);
+      jobs.get(lostA)!.status = "cancelled";
       await showPoll(page);
-      await expect(state("Matte cancelled")).toBeVisible();
+      await expect(state("Cutout cancelled")).toBeVisible();
       await expect(promotions()).toHaveCount(0);
 
-      await selectSlot();
-      await expect(page.getByText("Matte queued", { exact: true })).toBeVisible();
+      for (const [id, failure] of failures) {
+        await selectSlot("c");
+        await form.getByRole("button", { name: "Request matte", exact: true }).click();
+        await expect(state("Cutout failed")).toBeFocused();
+        await expect(page).toHaveURL((url) => url.searchParams.get("job") === id);
+        await expect(page.getByRole("alert")).toContainText(failure.code);
+        await expect(page.getByRole("alert")).toContainText("Try another cast slot or another photo.");
+      }
+      expect(presses[4].key).not.toBe(presses[0].key);
+
       assets.versions.push(output);
-      Object.assign(jobs.get(ids[2])!, { status: "succeeded", result_version_id: output.id, result_is_current: false });
+      await selectSlot("c");
+      await form.getByRole("button", { name: "Request matte", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "Candidates" })).toBeFocused();
       await page.reload();
-      await expect(state("Matte ready")).toBeVisible();
+      await expect(state("Cutout ready")).toBeVisible();
       const review = page.getByRole("article", { name: "Soup bowl candidate review" });
-      await expect(review.getByRole("img")).toHaveAttribute("src", `/v1/jobs/${ids[2]}/media/${outputFile.hash}`);
+      await expect(review.getByRole("img")).toHaveAttribute("src", `/v1/jobs/${ready}/media/${outputFile.hash}`);
       await expect(review.getByText("Promote before use")).toBeVisible();
       await review.getByRole("button", { name: "Promote", exact: true }).click();
       await expect(review.getByText("Promoted to library")).toBeFocused();
