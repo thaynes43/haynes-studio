@@ -18,6 +18,7 @@ from starlette.concurrency import run_in_threadpool
 from haynes_studio.canonical.model import Principal
 from haynes_studio.db import identity
 from haynes_studio.db.engine import snapshot
+from haynes_studio.escalation import responder
 from haynes_studio.golive.policy import require_approver, require_person
 from haynes_studio.queue.worker_tokens import valid_worker_bearer
 
@@ -218,6 +219,10 @@ def build_router():
         def get_route_handler(self):
             handler = super().get_route_handler()
 
+            def require_responder_route(request, key_id):
+                with snapshot(request.app.state.engine) as conn:
+                    responder.require_route(conn, key_id, self.operation_id, request.path_params)
+
             async def authenticated(request):
                 # FastAPI would otherwise parse the body before solving dependencies.
                 actor = await run_in_threadpool(
@@ -225,6 +230,8 @@ def build_router():
                     request.headers.get(CSRF_HEADER),
                 )
                 request.state.actor = actor
+                if responder.is_responder(actor.principal.key_id):
+                    await run_in_threadpool(require_responder_route, request, actor.principal.key_id)
                 return await handler(request)
 
             return authenticated

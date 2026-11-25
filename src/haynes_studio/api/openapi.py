@@ -26,6 +26,7 @@ _CANONICAL = {
     "studio.run-snapshot.v1.schema.json": "RunSnapshot",
     "studio.format-recipe.v1.schema.json": "FormatRecipe",
     "studio.job.v1.schema.json": "JobView",
+    "studio.escalation.v1.schema.json": "EscalationPackage",
 }
 
 
@@ -107,7 +108,8 @@ def _write_schemas(schemas):
 
 
 _HUMAN_OPERATIONS = {"get_selections", "put_selections", "create_production", "enable_media_type",
-                     "logout", "get_queue_lanes", "set_queue_lane"}
+                     "logout", "get_queue_lanes", "set_queue_lane",
+                     "authorize_escalation", "decline_escalation", "cancel_escalation"}
 _PREVIEW = {"get_job_result", "get_version_media", "head_version_media", "get_job_media", "head_job_media"}
 _ASSET_OPERATIONS = {"generate_board_voice": "assets:generate", "generate_board_photo": "assets:generate",
                      "generate_asset_candidate": "assets:generate", "upload_board_photo": "assets:upload"}
@@ -155,9 +157,13 @@ def _document_access(document: dict) -> None:
                 operation["x-studio-scope"] = "draft:write"
             elif name in _FORMAT_WRITE_OPERATIONS:
                 operation["x-studio-scope"] = "formats:write"
+            elif name == "report_escalation":
+                operation["security"] = [{"StudioBearer": []}]
+                operation["x-studio-scope"] = "read"
+                operation["x-studio-key"] = "package responder"
             elif name != "get_me":
                 operation["x-studio-scope"] = "read"
-            if method in ("get", "head") and "parameters" in operation:
+            if (method in ("get", "head") or name == "report_escalation") and "parameters" in operation:
                 operation["parameters"] = [
                     value for value in operation["parameters"] if value["name"] != "X-Studio-CSRF"
                 ]
@@ -208,6 +214,7 @@ def install_openapi(app: FastAPI):
                                     }},
         })
         schemas["AssetDetail"]["properties"]["asset"] = {"$ref": "#/components/schemas/Asset"}
+        schemas["EscalationView"]["properties"]["package"] = {"$ref": "#/components/schemas/EscalationPackage"}
         run = schemas["RunView"]
         run["required"].extend(["revision", "cancel_requested", "estimate_methods", "queue_wait",
                                 "active_approval_id"])
