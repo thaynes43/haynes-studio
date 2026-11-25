@@ -972,10 +972,11 @@ outside the recipe can save as a draft and gives `method.unavailable` at preflig
 matting pilot. Clips keep existing chroma keying, APNG, decal gating and clocks.
 Any temporal refinement needs a new keyed cache input and paired clip evidence.
 Grounding DINO Tiny and SAM 2.1 Hiera Tiny supply source-sized targets for the
-proposed visibility checker. It projects source geometry into the pose, subtracts
-slot and frame clipping and layers above the target, rejects hidden targets at
-preflight and sends uncertain targets to a person. It preserves legacy foreground
-edge and feather inputs. Pillow Lanczos remains the delivery default. FSRCNN ×2
+layered visibility checker. It measures cast faces and baked plate props through
+the compositor's cast draw order, legacy edge and feather redraw, and framing.
+Preflight refuses hidden targets and unsupported declarations. Uncertain counts
+go to a person. [Visibility contract](../reference/occlusion-masks.md#visibility-check).
+Pillow Lanczos remains the delivery default. FSRCNN ×2
 is for comparison only, as recorded in [ruling 35](#ruling-35). A selectable
 learned profile would pin its backend manifest in `studio.delivery-conversion/v1`
 and apply FSRCNN ×2 then Lanczos to opaque exact-aspect clips and centered plate

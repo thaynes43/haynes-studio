@@ -14,6 +14,7 @@ import sqlalchemy as sa
 
 from haynes_studio.build.run import advance, new_run, update
 from haynes_studio.canonical.ids import Minter
+from haynes_studio.layered.visibility import CHECK as VISIBILITY_CHECK, evidence_sha256
 from haynes_studio.store import blob_locator, canonical_json
 
 from .problems import NotFound, StaleRevision
@@ -25,6 +26,7 @@ PENDING = ("reserved", "sent")
 LEASE = timedelta(seconds=90)
 BACKOFF = timedelta(seconds=15)
 CHECK_OVERRIDABLE = "layered.decal_gate"
+OVERRIDABLE_CHECKS = (CHECK_OVERRIDABLE, VISIBILITY_CHECK)
 STATUS = runs.c.document["status"].astext
 ATTEMPTS = run_wan_attempts.c
 
@@ -360,24 +362,55 @@ def finish(conn, row, now, actor, target, reason, fields, *, wait_reason=None,
     return _save(conn, row, document=doc, **defer, **_clear_claim())
 
 
-def record_override(conn, row, revision, *, artifact, reason, actor):
+def visibility_approvals(conn, story_id, snapshot, artifacts):
+    """Reuse human overrides only for the same frozen build inputs and evidence."""
+    candidates = conn.execute(sa.select(run_check_overrides.c.artifact, runs.c.snapshot).join(
+        runs, runs.c.id == run_check_overrides.c.run_id,
+    ).where(
+        runs.c.story_id == story_id,
+        run_check_overrides.c.document["check"].astext == VISIBILITY_CHECK,
+        run_check_overrides.c.artifact.in_(artifacts),
+    ))
+    # Compare canonical bytes because PostgreSQL JSONB equality equates 1 and 1.0.
+    frozen_inputs = canonical_json(snapshot)
+    return tuple(sorted({artifact for artifact, previous in candidates if canonical_json({
+        key: value for key, value in previous.items() if key != "visibility_overrides"
+    }) == frozen_inputs}))
+
+
+def _override_evidence(check):
+    evidence = check.get("actual")
+    if (isinstance(evidence, dict) and evidence.get("check") == VISIBILITY_CHECK
+            and evidence.get("result") == "uncertain"
+            and isinstance(evidence.get("measured"), dict)
+            and evidence["measured"].get("status") == "uncertain"
+            and evidence.get("escalation") == {"action": "review", "check": VISIBILITY_CHECK}
+            and evidence.get("artifact") == check["artifact"] == evidence_sha256(evidence)):
+        return evidence
+    return None
+
+
+def record_override(conn, row, revision, *, check, artifact, reason, actor):
     if row["revision"] != revision:
         raise StaleRevision(row["revision"])
     doc = row["document"]
-    checks = [*(doc["checks"] or []), *(check for stage in doc["stages"]
-                                        for check in (stage.get("checks") or []))]
-    if doc["status"] not in ("failed", "succeeded") or not any(
-        check["check"] == CHECK_OVERRIDABLE and check.get("artifact") == artifact and
-        check["result"] == "fail" for check in checks
-    ):
-        raise QueueConflict("check.not_overridable", "This artifact has no failed, overridable decal check")
+    checks = [*(doc["checks"] or []), *(entry for stage in doc["stages"]
+                                        for entry in (stage.get("checks") or []))]
+    matched = next((entry for entry in checks if entry["check"] == check
+                    and entry.get("artifact") == artifact and entry["result"] == "fail"), None)
+    evidence = _override_evidence(matched) if matched is not None and check == VISIBILITY_CHECK else None
+    if (doc["status"] not in ("failed", "succeeded") or matched is None
+            or check not in OVERRIDABLE_CHECKS or check == VISIBILITY_CHECK and evidence is None):
+        raise QueueConflict("check.not_overridable", "This artifact has no overridable check of this kind")
     exists = conn.scalar(sa.select(sa.exists().where(
         run_check_overrides.c.run_id == row["id"], run_check_overrides.c.artifact == artifact,
     )))
     if exists:
         raise QueueConflict("check.override_exists", "This artifact already has an override")
-    override = {"check": CHECK_OVERRIDABLE, "artifact": artifact, "reason": reason,
+    override = {"check": check, "artifact": artifact, "reason": reason,
                 "by": actor, "at": timestamp(database_time(conn))}
+    if evidence is not None:
+        override["evidence"] = evidence
     conn.execute(run_check_overrides.insert().values(run_id=row["id"], artifact=artifact, document=override))
     _save(conn, row)
     return override

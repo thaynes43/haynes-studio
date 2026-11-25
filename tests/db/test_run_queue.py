@@ -17,11 +17,15 @@ from haynes_studio.adapters import wan
 from haynes_studio.api.app import create_app
 from haynes_studio.api.auth import SESSION_COOKIE
 from haynes_studio.canonical.ids import Minter
-from haynes_studio.canonical.model import Board, Story
+from haynes_studio.build import prebuild
+from haynes_studio.canonical.model import Board, CheckPose, Story
+from haynes_studio.checks._evidence import as_run_check
 from haynes_studio.db import drafts, identity, runs
 from haynes_studio.db.catalog import record_asset_version
 from haynes_studio.db.schema import run_wan_attempts, worker_lane_grants, worker_tokens
 from haynes_studio.library import Library
+from haynes_studio.layered.visibility import SEPARATE_PROP_UNSUPPORTED, _result as visibility_result
+from haynes_studio.layered.visibility import evidence_sha256
 from haynes_studio.photo.plan import plan_photo
 from haynes_studio.queue.wan import GPU_REFUSALS, LanePaused, ProductClips, ProductWan, product_request
 from haynes_studio.queue.worker import BuildWorker
@@ -798,6 +802,144 @@ def test_only_a_person_can_append_an_override_without_mutating_the_run(queue):
     assert current["status"] == "failed" and current["checks"] == original["checks"]
     assert current["check_overrides"] == [result.json()]
     assert result.json()["by"]["kind"] == "human"
+
+
+def test_visibility_review_can_build_only_after_a_matching_human_override(queue, monkeypatch, tmp_path):
+    from tests.delivery.media import write_master
+
+    q = queue
+    clip = write_master(tmp_path / "visibility-clip.mp4", frames=121, width=576, height=1024,
+                        audio_codec=None).read_bytes()
+    add_sound_bed(q, tmp_path)
+    mask_sha = "2" * 64
+
+    def measure(story, board, library, *, frame_size, poses):
+        return [visibility_result(board, "face", "a", CheckPose("still", 0), frame_size,
+                                  (0, 0, *frame_size), {"layout": "1" * 64, "face:a:mask": mask_sha},
+                                  lower=280, upper=280, total=400)]
+
+    monkeypatch.setattr(prebuild, "evaluate_visibility", measure)
+    # A pose-only opt-in exercises the product queue while the pose provider is pending.
+    board_path = f"/v1/boards/{q.board_id}"
+    board = q.browser.get(board_path).json()
+    layout = {**board["layout"], "check_poses": [{"key": "still", "frame": 0}]}
+    response = q.browser.patch(board_path, headers={**q.csrf, "If-Match": str(board["revision"])},
+                               json={"layout": layout})
+    assert response.status_code == 200, response.text
+    first = queue_run(q, "review-visibility", rev=5)
+    assert first.status_code == 201, first.text
+    original = first.json()["id"]
+    fake = FakeWan(clip)
+    with fake.client() as wan_http:
+        worker = BuildWorker(worker_api(q), ProductWan(wan_http), store=q.store, stage_root=q.stage_root,
+                             register=register(), tracker_story=STORY, clock=q.clock.monotonic,
+                             pause=q.clock.advance,
+                             transcriber=SimpleNamespace(name="Fixture ASR", transcribe=lambda _: ""))
+        assert worker.tick()
+        stopped, etag = read_run(q, original)
+        assert stopped["status"] == "failed" and stopped["error"]["code"] == "occlusion.review"
+        assert not fake.events and stopped["delivery_id"] is None
+        (check,) = stopped["checks"]
+        assert check["actual"]["measured"]["visible_lower_pixels"] == 280
+        assert check["actual"]["measured"]["visible_upper_pixels"] == 280
+        url = f"/v1/runs/{original}/checks/occlusion.visibility/overrides"
+        body = {"artifact": check["artifact"], "reason": "The face is readable at the held pose"}
+        _, agent = register_agent(q.owner, {q.production_id: ["runs:queue"]})
+        assert q.browser.post(url, json=body, headers={**agent, "If-Match": etag}).status_code == 403
+        recorded = q.browser.post(url, json=body, headers={**q.csrf, "If-Match": etag})
+        assert recorded.status_code == 201, recorded.text
+        assert recorded.json()["evidence"] == check["actual"]
+        assert read_run(q, original)[0]["check_overrides"] == [recorded.json()]
+
+        mask_sha = "3" * 64
+        changed = queue_run(q, "changed-evidence", rev=5)
+        assert changed.status_code == 201, changed.text
+        changed_id = changed.json()["id"]
+        assert "visibility_overrides" not in q.browser.get(f"/v1/runs/{changed_id}/snapshot").json()
+        assert worker.tick()
+        stopped, _ = read_run(q, changed_id)
+        assert stopped["error"]["code"] == "occlusion.review" and not fake.puts()
+        assert stopped["checks"][0]["artifact"] != check["artifact"]
+
+        mask_sha = "2" * 64
+        frozen_approval = queue_run(q, "evidence-changes-after-queue", rev=5)
+        assert frozen_approval.status_code == 201, frozen_approval.text
+        frozen_id = frozen_approval.json()["id"]
+        assert q.browser.get(f"/v1/runs/{frozen_id}/snapshot").json()["visibility_overrides"] == [check["artifact"]]
+        mask_sha = "3" * 64
+        assert worker.tick()
+        stopped, etag = read_run(q, frozen_id)
+        assert stopped["status"] == "failed"
+        assert stopped["error"]["code"] == "occlusion.review" and not fake.events
+        (new_check,) = stopped["checks"]
+        new_artifact = new_check["artifact"]
+        assert new_artifact != check["artifact"]
+        recorded = q.browser.post(f"/v1/runs/{frozen_id}/checks/occlusion.visibility/overrides",
+                                  json={"artifact": new_artifact, "reason": "Reviewed the new measurement"},
+                                  headers={**q.csrf, "If-Match": etag})
+        assert recorded.status_code == 201, recorded.text
+        assert recorded.json()["evidence"] == new_check["actual"]
+
+        approved_b = queue_run(q, "approved-b-changes-back-to-a", rev=5)
+        assert approved_b.status_code == 201, approved_b.text
+        b_run_id = approved_b.json()["id"]
+        assert q.browser.get(f"/v1/runs/{b_run_id}/snapshot").json()["visibility_overrides"] == [new_artifact]
+        mask_sha = "2" * 64
+        assert worker.tick()
+        stopped, _ = read_run(q, b_run_id)
+        assert stopped["error"]["code"] == "occlusion.review" and not fake.events
+        assert stopped["checks"][0]["artifact"] == check["artifact"]
+
+        mask_sha = "3" * 64
+        allowed = queue_run(q, "approved-visibility", rev=5)
+        assert allowed.status_code == 201, allowed.text
+        run_id = allowed.json()["id"]
+        frozen = q.browser.get(f"/v1/runs/{run_id}/snapshot").json()
+        assert frozen["visibility_overrides"] == [new_artifact]
+        assert worker.tick()
+        built, _ = read_run(q, run_id)
+        assert built["status"] == "succeeded", built["error"]
+        assert len(fake.puts()) == 1
+
+        # Even when the visibility measurement is unchanged, a new snapshot needs review again.
+        edited = q.browser.patch(f"/v1/stories/{q.story_id}", headers={**q.csrf, "If-Match": "5"},
+                                 json={"title": "Edited after visibility review"})
+        assert edited.status_code == 200, edited.text
+        stale = queue_run(q, "edited-visibility", rev=6)
+        assert stale.status_code == 201, stale.text
+        assert worker.tick()
+        stopped, _ = read_run(q, stale.json()["id"])
+        assert stopped["error"]["code"] == "occlusion.review" and len(fake.puts()) == 1
+
+
+@pytest.mark.parametrize("fault", ["hidden", "unsupported", "tampered", "measured_status", "escalation"])
+def test_invalid_visibility_check_cannot_use_the_override_endpoint(queue, fault):
+    q = queue
+    response = queue_run(q, "hidden-visibility")
+    assert response.status_code == 201, response.text
+    run_id = response.json()["id"]
+    claim = worker_api(q).claim()
+    board = Board.from_document(claim.body["snapshot"]["story"]["boards"][0])
+    visible = 200 if fault == "hidden" else 280
+    evidence = visibility_result(board, "face", "a", CheckPose("still", 0), (64, 48), (0, 0, 64, 48),
+                                 {"layout": "a" * 64}, lower=visible, upper=visible, total=400)
+    if fault == "unsupported":
+        evidence = visibility_result(board, "face", "a", CheckPose("still", 0), (64, 48), None,
+                                     {"layout": "a" * 64}, reason=SEPARATE_PROP_UNSUPPORTED)
+    elif fault == "tampered":
+        evidence["thresholds"]["visible_min_percent"] = 90
+    elif fault == "measured_status":
+        evidence["measured"]["status"] = "hidden"
+        evidence["artifact"] = evidence_sha256(evidence)
+    elif fault == "escalation":
+        evidence["escalation"] = None
+        evidence["artifact"] = evidence_sha256(evidence)
+    claim.fail(status="failed", reason="Fixture failed check", checks=[as_run_check(evidence)])
+    _, etag = read_run(q, run_id)
+    response = q.browser.post(f"/v1/runs/{run_id}/checks/occlusion.visibility/overrides",
+                              json={"artifact": evidence["artifact"], "reason": "Attempt to bypass hidden"},
+                              headers={**q.csrf, "If-Match": etag})
+    assert response.status_code == 409 and response.json()["error"]["code"] == "check.not_overridable"
 
 
 def add_sound_bed(q, tmp_path):

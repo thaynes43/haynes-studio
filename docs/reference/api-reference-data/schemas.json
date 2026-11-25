@@ -1439,6 +1439,9 @@
           "number": {
             "$ref": "#/components/schemas/StudioDefs_positive"
           },
+          "occlusion": {
+            "$ref": "#/components/schemas/AssetVersion_occlusion"
+          },
           "provenance": {
             "$ref": "#/components/schemas/AssetVersion_provenance"
           },
@@ -2255,6 +2258,173 @@
           "keys"
         ],
         "type": "object"
+      },
+      "AssetVersion_occlusion": {
+        "additionalProperties": false,
+        "properties": {
+          "focal_props": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "depth": {
+                  "enum": [
+                    "background",
+                    "foreground",
+                    "separate",
+                    "unspecified"
+                  ]
+                },
+                "foreground_role": {
+                  "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                  "type": "string"
+                },
+                "hint": {
+                  "$ref": "#/components/schemas/AssetVersion_occlusion_hint"
+                },
+                "key": {
+                  "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                  "type": "string"
+                },
+                "label": {
+                  "maxLength": 80,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "layer_order": {
+                  "maximum": 1024,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "source_asset_version_id": {
+                  "$ref": "#/components/schemas/StudioDefs_asv_id"
+                }
+              },
+              "required": [
+                "key",
+                "label",
+                "depth"
+              ],
+              "type": "object"
+            },
+            "maxItems": 16,
+            "type": "array"
+          },
+          "foreground": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "hint": {
+                  "$ref": "#/components/schemas/AssetVersion_occlusion_hint"
+                },
+                "key": {
+                  "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                  "type": "string"
+                },
+                "label": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "maxLength": 80,
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  ]
+                },
+                "layer_order": {
+                  "maximum": 1024,
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "key",
+                "label",
+                "layer_order"
+              ],
+              "type": "object"
+            },
+            "maxItems": 16,
+            "type": "array"
+          }
+        },
+        "required": [
+          "foreground",
+          "focal_props"
+        ],
+        "type": "object"
+      },
+      "AssetVersion_occlusion_hint": {
+        "oneOf": [
+          {
+            "type": "null"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "point"
+              },
+              "xy": {
+                "items": {
+                  "maximum": 1920,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "type": "array"
+              }
+            },
+            "required": [
+              "kind",
+              "xy"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "box"
+              },
+              "xyxy": {
+                "items": {
+                  "maximum": 1920,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "maxItems": 4,
+                "minItems": 4,
+                "type": "array"
+              }
+            },
+            "required": [
+              "kind",
+              "xyxy"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "text"
+              },
+              "text": {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "text"
+            ],
+            "type": "object"
+          }
+        ]
       },
       "AssetVersion_provenance": {
         "additionalProperties": false,
@@ -3520,6 +3690,29 @@
           "layout": {
             "additionalProperties": false,
             "properties": {
+              "check_poses": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "frame": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "key": {
+                      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "frame"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 16,
+                "minItems": 1,
+                "type": "array"
+              },
               "foreground": {
                 "type": "boolean"
               },
@@ -3992,6 +4185,29 @@
           "layout": {
             "additionalProperties": false,
             "properties": {
+              "check_poses": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "frame": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "key": {
+                      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "frame"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 16,
+                "minItems": 1,
+                "type": "array"
+              },
               "foreground": {
                 "type": "boolean"
               },
@@ -4422,6 +4638,29 @@
           "layout": {
             "additionalProperties": false,
             "properties": {
+              "check_poses": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "frame": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "key": {
+                      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "frame"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 16,
+                "minItems": 1,
+                "type": "array"
+              },
               "foreground": {
                 "type": "boolean"
               },
@@ -5067,9 +5306,24 @@
             "type": "object"
           },
           "check": {
-            "const": "layered.decal_gate",
+            "enum": [
+              "layered.decal_gate",
+              "occlusion.visibility"
+            ],
             "title": "Check",
             "type": "string"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence"
           },
           "reason": {
             "maxLength": 500,
@@ -9093,7 +9347,7 @@
       },
       "RunSnapshot": {
         "additionalProperties": false,
-        "description": "The story with its boards embedded, every asset version the build reads pinned by content hash (or definition_signature for a voice, input_signature and take hashes for a board voice), and the toolchain the run was asked for. It holds no run ID and no time of the run, so the same draft always gives the same canonical bytes and hash. The story's own fields are checked by studio.story/v1.",
+        "description": "The story with its boards embedded, every asset version the build reads pinned by content hash (or definition_signature for a voice, input_signature and take hashes for a board voice), the requested toolchain and any applicable visibility overrides. It holds no run ID or run time. Identical frozen inputs and approvals yield the same canonical bytes and hash. The story's own fields are checked by studio.story/v1.",
         "properties": {
           "format_version": {
             "additionalProperties": false,
@@ -9568,6 +9822,15 @@
               "studio"
             ],
             "type": "object"
+          },
+          "visibility_overrides": {
+            "description": "SHA-256 hashes of uncertain visibility evidence reviewed and overridden by a person for these frozen inputs.",
+            "items": {
+              "$ref": "#/components/schemas/StudioDefs_sha256"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
           }
         },
         "required": [

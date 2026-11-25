@@ -24,7 +24,6 @@ from typing import Any, BinaryIO
 import numpy as np
 import PIL
 import PIL.Image
-import PIL.ImageOps
 
 from haynes_studio.adapters.errors import AdapterError
 from haynes_studio.canonical.model import Board, CameraCue, Story
@@ -35,6 +34,7 @@ from haynes_studio.layered.keyed import read_verified
 from haynes_studio.layered.matte_size import MatteSize
 from haynes_studio.matting.pixels import measure_shape
 from haynes_studio.matting.profile import MatteError
+from haynes_studio.render.delivery_profile import fit_set_plate
 from haynes_studio.store import canonical_json
 
 SCHEMA = "studio.layered-photo/v1"  # proposal: the photo's named inputs
@@ -90,10 +90,7 @@ def photo_inputs(story: Story, board: Board, *, blobs: Mapping[str, str], width:
         if entry.asset_version_id not in blobs:
             raise LayeredError(UNSUPPORTED, f"cast still {entry.asset_version_id} is not resolved")
         cast.append((entry.slot, blobs[entry.asset_version_id]))
-    foreground = None
-    if board.layout.foreground and story.set.foreground_edge_px is not None:
-        foreground = {"edge_px": [list(p) for p in story.set.foreground_edge_px],
-                      "feather_px": story.set.foreground_feather_px}
+    foreground = foreground_inputs(story, board)
     cue = next((c for c in reversed(board.cues) if isinstance(c, CameraCue)), None)
     camera = None if cue is None else {"zoom": cue.zoom_to, "center_px": list(cue.center_px)}
     return PhotoInputs(width=width, height=height, set=blobs[story.set.asset_version_id],
@@ -101,6 +98,14 @@ def photo_inputs(story: Story, board: Board, *, blobs: Mapping[str, str], width:
                        foreground=None if foreground is None else freeze(foreground),
                        camera=None if camera is None else freeze(camera),
                        matte_sizes=freeze(dict(matte_sizes)) if matte_sizes else None)
+
+
+def foreground_inputs(story: Story, board: Board) -> dict[str, Any] | None:
+    """The plate redraw the compositor actually uses for this board."""
+    if board.layout.foreground and story.set is not None and story.set.foreground_edge_px is not None:
+        return {"edge_px": [list(p) for p in story.set.foreground_edge_px],
+                "feather_px": story.set.foreground_feather_px}
+    return None
 
 
 def _image(data: bytes, what: str) -> PIL.Image.Image:
@@ -112,10 +117,11 @@ def _image(data: bytes, what: str) -> PIL.Image.Image:
         raise LayeredError(CLIP_INVALID, f"{what} does not decode: {type(error).__name__}") from error
 
 
-def _place_still(cutout, slot, slot_name, frame_width, frame_height, matte):
+def still_geometry(cutout, slot, slot_name, frame_width, frame_height, matte):
+    """Return the source crop, sprite size and placement, including measured mattes."""
     if matte is None:
-        art = compose.sprite(cutout, slot)
-        return art, compose.place(art.size, slot, frame_width, slot_name)
+        crop, size = compose.sprite_geometry(cutout.size, slot)
+        return crop, size, compose.place(size, slot, frame_width, slot_name)
     if slot.crop is not None:
         raise LayeredError(LAYOUT_INVALID, "A size-matched cast still cannot use a layout crop")
     target = matte["target_height_px"]
@@ -129,14 +135,19 @@ def _place_still(cutout, slot, slot_name, frame_width, frame_height, matte):
         size = MatteSize.measured(measured, cutout.size, target)
     except (MatteError, AdapterError):
         raise LayeredError(CLIP_INVALID, "The cast matte has invalid silhouette geometry") from None
-    art, silhouette, inset = size.sprite(cutout)
-    where = compose.place(art.size, slot, frame_width, slot_name, silhouette=silhouette, inset=inset)
+    crop, sprite_size, silhouette, inset = size.geometry(cutout)
+    where = compose.place(sprite_size, slot, frame_width, slot_name, silhouette=silhouette, inset=inset)
     if where.y < 0:
         # The plate would cut the doll at the top of the frame without saying so.
         raise LayeredError("matting.target_exceeds_frame",
                            f"Slot {slot_name!r} target height {target} px does not fit above its bottom "
                            f"line at {slot.bottom:g} px")
-    return art, where
+    return crop, sprite_size, where
+
+
+def _place_still(cutout, slot, slot_name, frame_width, frame_height, matte):
+    crop, size, where = still_geometry(cutout, slot, slot_name, frame_width, frame_height, matte)
+    return cutout.crop(crop).resize(size, PIL.Image.Resampling.LANCZOS), where
 
 
 def compose_photo(inputs: PhotoInputs, read: Callable[[str], BinaryIO]) -> bytes:
@@ -144,8 +155,8 @@ def compose_photo(inputs: PhotoInputs, read: Callable[[str], BinaryIO]) -> bytes
     hash; every still is re-hashed. A cast still with no transparent pixel is not a
     cutout (``layered.unsupported``)."""
     width, height = inputs.width, inputs.height
-    background = PIL.ImageOps.fit(_image(read_verified(read, inputs.set, "the set still"), "the set still")
-                                  .convert("RGB"), (width, height), method=PIL.Image.Resampling.LANCZOS)
+    background = fit_set_plate(_image(read_verified(read, inputs.set, "the set still"), "the set still")
+                               .convert("RGB"), (width, height))
     frame = background.convert("RGBA")
     layout = thaw(inputs.layout)
     for slot_name, still in inputs.cast:

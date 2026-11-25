@@ -77,6 +77,24 @@ def sources_for(library: Library, scope: Scope, ids: tuple[str, ...],
     return tuple(sources)
 
 
+def cast_matte_size(story, entry, version):
+    """Read the same pinned matte geometry for a photo or an individual layer."""
+    generator = version.provenance.get("generator") or {}
+    if generator.get("engine") != ENGINE:
+        return None
+    if version.state != PROMOTED:
+        raise error("ref.unpromoted", "/layers", "A cast matte needs library promotion before use")
+    params = generator.get("params", {})
+    target = params.get("normalization", {})
+    height = target.get("target_height_px")
+    if (target.get("policy") != SIZE_POLICY or target.get("slot") != entry.slot
+            or target.get("format_version_id") != story.format_version_id
+            or type(height) is not int or not 1 <= height <= 2048):
+        raise error("matting.slot_mismatch", "/layers",
+                    "The cast matte needs the pinned format and slot it was sized for")
+    return {"target_height_px": height, "shape": thaw(params.get("receipt", {}).get("shape"))}
+
+
 def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: bool = False) -> PhotoPlan:
     """Take canonical story and board values and the relevant library records.
 
@@ -96,22 +114,9 @@ def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: b
         blobs = {source.version_id: source.content.sha256 for source in sources}
         matte_sizes = {}
         for entry in board.cast:
-            version = library.version(entry.asset_version_id)
-            generator = version.provenance.get("generator") or {}
-            if generator.get("engine") != ENGINE:
-                continue
-            if version.state != PROMOTED:
-                raise error("ref.unpromoted", "/layers", "A cast matte needs library promotion before use")
-            params = generator.get("params", {})
-            target = params.get("normalization", {})
-            height = target.get("target_height_px")
-            if (target.get("policy") != SIZE_POLICY or target.get("slot") != entry.slot
-                    or target.get("format_version_id") != story.format_version_id
-                    or type(height) is not int or not 1 <= height <= 2048):
-                raise error("matting.slot_mismatch", "/layers",
-                            "The cast matte needs the pinned format and slot it was sized for")
-            matte_sizes[entry.slot] = {"target_height_px": height,
-                                       "shape": thaw(params.get("receipt", {}).get("shape"))}
+            matte = cast_matte_size(story, entry, library.version(entry.asset_version_id))
+            if matte is not None:
+                matte_sizes[entry.slot] = matte
         layers = photo_inputs(story, board, blobs=blobs, width=size[0], height=size[1],
                               matte_sizes=matte_sizes)
         for slot_name, matte in matte_sizes.items():

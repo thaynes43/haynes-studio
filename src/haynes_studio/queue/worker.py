@@ -14,7 +14,7 @@ import httpx
 from haynes_studio.build.errors import BuildError, failure_of
 from haynes_studio.build.live import WanChainSource, WanS2VSource, check_request
 from haynes_studio.build.pipeline import ALL, BuildInputs, QueuedBuild, build_story
-from haynes_studio.build.prebuild import snapshot_bytes
+from haynes_studio.build.prebuild import VisibilityReviewRequired, snapshot_bytes
 from haynes_studio.build.sources import ClipSources
 from haynes_studio.library import Library
 from haynes_studio.model_register import load_model_register
@@ -113,14 +113,17 @@ class BuildWorker:
         library = Library.from_version_documents(claim.body["library"])
         story = frozen["story"]
         format_version = frozen.get("format_version")
-        prepared = prepare_queue(story, library, format_version=format_version)
-        prepared.ensure_buildable()
+        overrides = tuple(frozen.get("visibility_overrides", ()))
+        prepared = prepare_queue(story, library, format_version=format_version, visibility_overrides=overrides)
+        prepared.ensure_preflight()
         verified, _ = freeze(prepared, studio=self.studio)
         if snapshot_bytes(verified)[1] != digest:
             raise BuildError("run.snapshot_changed", "The frozen assets no longer match the snapshot",
                              stage="prebuild")
+        prepared.ensure_buildable()
         return BuildInputs(story, library, self.register, studio=self.studio,
-                           image_digest=self.image_digest, format_version=format_version)
+                           image_digest=self.image_digest, format_version=format_version,
+                           visibility_overrides=overrides)
 
     def _render(self, claim, active, clips, inputs):
         s2v, i2v = WanS2VSource(clips), WanChainSource(clips)
@@ -163,6 +166,10 @@ class BuildWorker:
                 failure = failure_of(error.error)
                 claim.fail(status="failed", reason=failure.message[:500], error=failure.to_document(),
                            wan_job_id=error.job_id)
+                return True
+            except VisibilityReviewRequired as error:
+                claim.fail(status="failed", reason=error.message, error=failure_of(error).to_document(),
+                           checks=error.checks)
                 return True
             except (WorkerAPIError, OSError):
                 # Ownership or the reply is ambiguous. Relinquish by expiry;

@@ -5,7 +5,7 @@ import { ApiError, type StudioClient } from "./api/client";
 import type { components } from "./api/schema";
 import { hasDelivery, readObject, runStates } from "./production-review-data";
 import { boardLabel } from "./route-data";
-import { activeRun, cancelRun, canOverride, retryableRead, runDetail, runProblem, runProblems, visualCheck, type RunView } from "./run-data";
+import { activeRun, cancelRun, canOverride, retryableRead, runDetail, runProblem, runProblems, visibilityCheck, type RunView } from "./run-data";
 import { RunDelivery } from "./run-delivery";
 import { RunProblemList } from "./run-problems";
 import { treePath, type Context } from "./routes";
@@ -74,8 +74,8 @@ function RunProgress({ run }: { run: RunView }) {
   </>;
 }
 
-function OverrideCheck({ api, detail, artifact, onRecorded }: {
-  api: StudioClient; detail: RunDetail; artifact: string;
+function OverrideCheck({ api, detail, check, artifact, onRecorded }: {
+  api: StudioClient; detail: RunDetail; check: string; artifact: string;
   onRecorded: (record: components["schemas"]["CheckOverrideView"]) => void;
 }) {
   const [reason, setReason] = useState("");
@@ -94,7 +94,7 @@ function OverrideCheck({ api, detail, artifact, onRecorded }: {
     try {
       const { data } = await api.POST("/v1/runs/{id}/checks/{check}/overrides", {
         signal: request.signal, params: {
-          path: { id: detail.run.id, check: visualCheck }, header: { "If-Match": detail.etag },
+          path: { id: detail.run.id, check }, header: { "If-Match": detail.etag },
         }, body: { artifact, reason: reason.trim() },
       });
       if (!request.signal.aborted && data) onRecorded(data);
@@ -108,12 +108,37 @@ function OverrideCheck({ api, detail, artifact, onRecorded }: {
 
   return <form className="run-override" onSubmit={(event) => void submit(event)}>
     <p>Artifact <code>{artifact}</code></p>
-    <label>Reason for visual override
+    <label>{check === visibilityCheck ? "Reason for visibility override" : "Reason for visual override"}
       <input required maxLength={500} value={reason} onChange={(event) => setReason(event.target.value)} />
     </label>
     <button className="pill" type="submit" disabled={pending || !reason.trim()}>Record override</button>
     {error != null && <RunRefusal error={error} />}
   </form>;
+}
+
+function VisibilityMeasurement({ evidence }: { evidence: unknown }) {
+  const { measured, thresholds } = readObject(evidence);
+  const { target, pose, total_pixels, visible_lower_pixels, visible_upper_pixels, visible_pixels,
+    unknown_occluders, reason } = readObject(measured);
+  const lower = visible_lower_pixels ?? visible_pixels;
+  const upper = visible_upper_pixels ?? visible_pixels;
+  const { key } = readObject(target);
+  const { key: poseKey } = readObject(pose);
+  const { visible_min_percent, hidden_max_percent } = readObject(thresholds);
+  if (typeof key !== "string" || typeof poseKey !== "string" || typeof total_pixels !== "number" ||
+      typeof lower !== "number" || typeof upper !== "number" || typeof visible_min_percent !== "number" ||
+      typeof hidden_max_percent !== "number") return null;
+  const count = lower === upper ? lower : `${lower}–${upper}`;
+  const unknown = Array.isArray(unknown_occluders) ? unknown_occluders.flatMap((occluder: unknown) => {
+    const { key } = readObject(occluder);
+    return typeof key === "string" ? [key] : [];
+  }) : [];
+  return <div>
+    <p>{key} at {poseKey} · {total_pixels > 0 ? `${count} of ${total_pixels} pixels visible`
+      : "Geometry unavailable"} · visible ≥ {visible_min_percent}%, hidden ≤ {hidden_max_percent}%</p>
+    {total_pixels === 0 && typeof reason === "string" && <p>{reason.replaceAll("_", " ")}</p>}
+    {unknown.length > 0 && <p>Unmeasured occluders · {unknown.join(", ")}</p>}
+  </div>;
 }
 
 function RunRefusal({ error }: { error: unknown }) {
@@ -134,18 +159,22 @@ function RunChecks({ api, detail, change }: { api: StudioClient; detail: RunDeta
       const override = overrides.find(({ check: name, artifact }) => name === check.check && artifact === check.artifact);
       const first = checks.findIndex(({ check: item }) => item.check === check.check && item.result === "fail" &&
         item.artifact === check.artifact) === index;
+      const uncertain = check.check === visibilityCheck && readObject(check.actual).result === "uncertain";
       return <li key={index}>
         <p>{[board, check.check, check.slot?.toUpperCase()].filter(Boolean).join(" · ")} · <strong>
-          {override ? results.overridden : results[check.result]}
+          {override ? results.overridden : uncertain ? "Needs review" : results[check.result]}
         </strong></p>
+        {check.check === visibilityCheck && <VisibilityMeasurement evidence={override?.evidence ?? check.actual} />}
         {override && <p>{override.reason}</p>}
         {first && !override && detail.etag && canOverride(run, check) && check.artifact &&
-          <OverrideCheck api={api} detail={detail} artifact={check.artifact} onRecorded={(record) => {
+          <OverrideCheck api={api} detail={detail} check={check.check} artifact={check.artifact} onRecorded={(record) => {
             setRecorded((prior) => [...prior, record]);
             change();
           }} />}
       </li>;
     })}</ul> : <p className="muted">No checks recorded.</p>}
+    {overrides.some(({ check }) => check === visibilityCheck) &&
+      <p>After all visibility checks are reviewed, select Build again.</p>}
   </section>;
 }
 

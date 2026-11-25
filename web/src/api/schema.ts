@@ -1512,6 +1512,7 @@ export interface components {
             motion?: components["schemas"]["AssetVersion_motion"];
             name: components["schemas"]["Asset_name"];
             number: components["schemas"]["StudioDefs_positive"];
+            occlusion?: components["schemas"]["AssetVersion_occlusion"];
             provenance: components["schemas"]["AssetVersion_provenance"];
             /**
              * @description A production archive supplied this asset version's record only.
@@ -1604,6 +1605,37 @@ export interface components {
             use: "loop" | "timed";
             width: components["schemas"]["StudioDefs_positive"];
         } & (unknown & unknown & unknown);
+        AssetVersion_occlusion: {
+            focal_props: {
+                /** @enum {unknown} */
+                depth: "background" | "foreground" | "separate" | "unspecified";
+                foreground_role?: string;
+                hint?: components["schemas"]["AssetVersion_occlusion_hint"];
+                key: string;
+                label: string;
+                layer_order?: number;
+                source_asset_version_id?: components["schemas"]["StudioDefs_asv_id"];
+            }[];
+            foreground: {
+                hint?: components["schemas"]["AssetVersion_occlusion_hint"];
+                key: string;
+                label: null | string;
+                layer_order: number;
+            }[];
+        };
+        AssetVersion_occlusion_hint: null | {
+            /** @constant */
+            kind: "point";
+            xy: number[];
+        } | {
+            /** @constant */
+            kind: "box";
+            xyxy: number[];
+        } | {
+            /** @constant */
+            kind: "text";
+            text: string;
+        };
         AssetVersion_provenance: {
             created_at: components["schemas"]["StudioDefs_timestamp"];
             created_by: components["schemas"]["StudioDefs_principal"];
@@ -1755,6 +1787,10 @@ export interface components {
             duration_ms?: components["schemas"]["StudioDefs_duration_is_derived"];
             id: components["schemas"]["StudioDefs_brd_id"];
             layout: {
+                check_poses?: {
+                    frame: number;
+                    key: string;
+                }[];
                 foreground: boolean;
                 preset: string;
             };
@@ -1832,6 +1868,10 @@ export interface components {
                 session: string;
             };
             layout?: {
+                check_poses?: {
+                    frame: number;
+                    key: string;
+                }[];
                 foreground: boolean;
                 preset: string;
             };
@@ -1913,6 +1953,10 @@ export interface components {
                 story_revision: number;
             };
             layout?: {
+                check_poses?: {
+                    frame: number;
+                    key: string;
+                }[];
                 foreground: boolean;
                 preset: string;
             };
@@ -2084,9 +2128,13 @@ export interface components {
             };
             /**
              * Check
-             * @constant
+             * @enum {string}
              */
-            check: "layered.decal_gate";
+            check: "layered.decal_gate" | "occlusion.visibility";
+            /** Evidence */
+            evidence?: {
+                [key: string]: unknown;
+            } | null;
             /** Reason */
             reason: string;
         };
@@ -3057,7 +3105,7 @@ export interface components {
         };
         /**
          * studio.run-snapshot/v1: the story a run builds, by value (contract section 8)
-         * @description The story with its boards embedded, every asset version the build reads pinned by content hash (or definition_signature for a voice, input_signature and take hashes for a board voice), and the toolchain the run was asked for. It holds no run ID and no time of the run, so the same draft always gives the same canonical bytes and hash. The story's own fields are checked by studio.story/v1.
+         * @description The story with its boards embedded, every asset version the build reads pinned by content hash (or definition_signature for a voice, input_signature and take hashes for a board voice), the requested toolchain and any applicable visibility overrides. It holds no run ID or run time. Identical frozen inputs and approvals yield the same canonical bytes and hash. The story's own fields are checked by studio.story/v1.
          */
         RunSnapshot: {
             format_version?: {
@@ -3145,6 +3193,8 @@ export interface components {
             toolchain_request: {
                 studio: string;
             };
+            /** @description SHA-256 hashes of uncertain visibility evidence reviewed and overridden by a person for these frozen inputs. */
+            visibility_overrides?: components["schemas"]["StudioDefs_sha256"][];
         };
         /**
          * studio.run/v1: one build of one story snapshot (contract sections 7 and 8, D30)

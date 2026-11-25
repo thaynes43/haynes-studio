@@ -19,6 +19,7 @@ accepted, so a malformed document never raises. Rules that need the asset librar
 
 from __future__ import annotations
 
+import re
 import unicodedata
 from collections.abc import Collection, Iterable, Mapping
 from typing import Any
@@ -232,6 +233,13 @@ def board_rules(document: Mapping, prefix: str, *, context: str, facts: Facts,
                         f"layout preset {board.layout.preset!r} is not in the story's layouts"))
     found += _duplicates(((at("cast", i, "slot"), e.slot) for i, e in enumerate(board.cast)),
                          "cast slot")
+    poses = board.layout.check_poses or ()
+    found += _duplicates(((at("layout", "check_poses", i, "key"), pose.key)
+                          for i, pose in enumerate(poses)), "check pose key")
+    for i, pose in enumerate(poses):
+        if re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", pose.key) is None:
+            found.append(_v(SCHEMA_INVALID, at("layout", "check_poses", i, "key"),
+                            "the pose key must match the segmentation target grammar"))
     if check_ids:
         found += _duplicates(_board_ids(board, prefix), "ID")
 

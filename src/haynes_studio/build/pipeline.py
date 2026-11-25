@@ -98,7 +98,7 @@ from haynes_studio.build.errors import (
     failure_of,
 )
 from haynes_studio.build.live import KEPT, PlannedClip, planned_clips
-from haynes_studio.build.prebuild import Prepared, make_snapshot, prepare, snapshot_bytes
+from haynes_studio.build.prebuild import Prepared, VisibilityReviewRequired, make_snapshot, prepare, snapshot_bytes
 from haynes_studio.build.provenance import Register, Use, library_uses, provenance, toolchain_record
 from haynes_studio.build.run import (
     CANCELLED,
@@ -177,6 +177,7 @@ class BuildInputs:
     studio: str = "git:unknown"
     image_digest: str | None = None
     format_version: Mapping[str, Any] | None = None
+    visibility_overrides: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -815,7 +816,8 @@ def build_story(inputs: BuildInputs, *, store: Store, phase: str, sources: ClipS
     toolchain = build_toolchain(inputs.toolchain)
     prepared = prepare(inputs.story, library=library, store=store, toolchain=toolchain,
                        frame_size=(media.width, media.height),
-                       current_engine=Engine().signing_name, format_version=inputs.format_version)
+                       current_engine=Engine().signing_name, format_version=inputs.format_version,
+                       visibility_overrides=inputs.visibility_overrides)
     if phase == OFFLINE:  # the recognizer is a service: the offline phase reads the cache only
         transcriber = None
     return _build(inputs, prepared, store=store, phase=phase, sources=sources,
@@ -1008,6 +1010,8 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
         failure = replace(failure, board_number=failure.board_number or number)
         if queued is not None and isinstance(error, LayeredError) and error.check is not None:
             checks = [*(checks or []), _check_entry(error.check)]
+        if isinstance(error, VisibilityReviewRequired):
+            checks = error.checks
         if build is not None and not checked_locally:  # the local pass: nothing was asked
             failure = replace(failure, message=f"{failure.message} (found before any clip was "
                               "requested)")

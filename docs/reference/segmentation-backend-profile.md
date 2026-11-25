@@ -21,6 +21,7 @@ their existing owners. [Studio plan, D15, D22–D24 and E0](../proposals/0003-st
 · [Doll format](doll-format.md) · [Layered compositor](layered-adapter.md)
 · [Wardrobe and decal evidence](wardrobe-decal-checks.md)
 · [Story 452](https://work.haynesnetwork.com/work_packages/452)
+· [Studio occlusion adapter and layout check](occlusion-masks.md)
 · [Local model](local-model-profile.md)
 
 ## Candidates
