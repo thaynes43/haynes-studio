@@ -217,3 +217,22 @@ Pillow (MIT-CMU in the package metadata). The terms above permit commercial
 use of the licensed models and code subject to their stated terms. A
 commercial Studio plan would reopen the output-use review. D49 keeps the
 private research pilot available. [D48 and D49](../proposals/0003-studio-plan.md)
+
+## Proposed upscaling profiles
+
+Story [461](https://work.haynesnetwork.com/work_packages/461) proposes a
+CPU pilot with the existing Lanczos fallback. Checked 2026-11-25 by dev-env
+agent session `haynes-studio-1125-050137` (Codex, `gpt-6.2-sol`). The
+[profile proposal](upscaling-backend-profile.md) records the compared models,
+their source terms and the evidence needed for installation. Pins and terms
+for the selected profiles are in `proposals.upscaling` in the
+[packaged JSON register](../../src/haynes_studio/model_licences.json).
+
+| Proposed profile | File | Licence evidence | Separate output terms |
+|---|---|---|---|
+| FSRCNN ×2 FP32 (primary) | `models/FSRCNN_x2.pb` | Repository Apache-2.0 grants rights to “reproduce, prepare Derivative Works of” the Work with redistribution notices. Application to the checked-in graph is an inference. The specific weight grant is unknown. [Pinned publisher licence](https://github.com/Saafke/FSRCNN_Tensorflow/blob/6a4812c4ef1c4f5947d79beafa32a05a6eb4a94d/LICENSE) | Unknown |
+| OpenCV DNN (primary runtime) | OpenCV contrib headless 4.14.0.94 Linux amd64 wheel | Publisher says “OpenCV itself is available under Apache 2 license.” Packaging scripts are MIT and the wheel ships FFmpeg under LGPLv2.1. The image builder must meet the applicable redistribution terms for included components. [Wheel publisher](https://pypi.org/project/opencv-contrib-python-headless/4.14.0.94/#licensing) | Unknown |
+| Lanczos (fallback and primary final fit) | Pillow 13.0.0 Linux amd64 CPython 3.12 wheel, zero weights | MIT-CMU grants use and distribution “for any purpose and without fee” with copyright and permission notices and a condition on publicity. [Pinned Pillow licence](https://github.com/python-pillow/Pillow/blob/13.0.0/LICENSE) | Unknown |
+
+D49 keeps private research and personal development available. Reopen commercial
+review of the weight grant, output terms and input chain before commercial use.

@@ -1842,6 +1842,175 @@
           }
         ]
       }
+    },
+    "upscaling": {
+      "story": "https://work.haynesnetwork.com/work_packages/461",
+      "status": "profile proposed, install not started",
+      "runtimes": [
+        {
+          "profiles": [
+            "fsrcnn-x2-opencv-cpu-v1"
+          ],
+          "name": "OpenCV DNN CPU 4.14.0 (contrib headless 4.14.0.94)",
+          "source": "https://pypi.org/project/opencv-contrib-python-headless/4.14.0.94/",
+          "file": "opencv_contrib_python_headless-4.14.0.94-cp37-abi3-manylinux_2_28_x86_64.whl",
+          "size_bytes": 68184831,
+          "sha256": "3ee9718fc1eb2d4439c72ec6ad65831ff6d0802ff6eacab834905d67686f2a38",
+          "evidence": [
+            {
+              "url": "https://pypi.org/project/opencv-contrib-python-headless/4.14.0.94/#licensing",
+              "quote": "OpenCV itself is available under Apache 2 license."
+            },
+            {
+              "url": "https://pypi.org/project/opencv-contrib-python-headless/4.14.0.94/#licensing",
+              "quote": "All wheels ship with FFmpeg licensed under the LGPLv2.1."
+            }
+          ],
+          "licence": {
+            "name": "Apache-2.0",
+            "url": "https://pypi.org/project/opencv-contrib-python-headless/4.14.0.94/#licensing",
+            "commercial_use": "unknown",
+            "attribution_required": null,
+            "checked_at": "2026-11-25T05:17:33Z",
+            "checked_by": {
+              "kind": "agent_session",
+              "session": "haynes-studio-1125-050137",
+              "harness": "Codex",
+              "model": "gpt-6.2-sol"
+            },
+            "note": "Apache-2.0 applies to OpenCV itself. Packaging scripts are MIT and bundled FFmpeg is LGPLv2.1. The distributor must meet the terms of the bundled libraries, including any source or relinking obligations. Separate output terms are unknown."
+          }
+        },
+        {
+          "profiles": [
+            "fsrcnn-x2-opencv-cpu-v1",
+            "lanczos"
+          ],
+          "name": "Pillow 13.0.0 CPU",
+          "source": "https://pypi.org/project/pillow/13.0.0/",
+          "file": "pillow-13.0.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+          "size_bytes": 7144542,
+          "sha256": "42d63be3af4f9b951b199b0a9d23365d37ab14687e6d77b74940432c8515c4ca",
+          "evidence": [
+            {
+              "url": "https://github.com/python-pillow/Pillow/blob/13.0.0/LICENSE",
+              "quote": "for any purpose and without fee is hereby granted"
+            }
+          ],
+          "licence": {
+            "name": "MIT-CMU",
+            "url": "https://github.com/python-pillow/Pillow/blob/13.0.0/LICENSE",
+            "commercial_use": "unknown",
+            "attribution_required": null,
+            "checked_at": "2026-11-25T05:17:33Z",
+            "checked_by": {
+              "kind": "agent_session",
+              "session": "haynes-studio-1125-050137",
+              "harness": "Codex",
+              "model": "gpt-6.2-sol"
+            },
+            "note": "The code grant covers use and distribution with copyright and permission notices and a condition on publicity. Separate output and attribution terms are unknown."
+          }
+        }
+      ],
+      "engines": [
+        {
+          "key": "fsrcnn-x2-opencv-cpu-v1",
+          "role": "composite",
+          "name": "FSRCNN x2 FP32 on OpenCV DNN CPU",
+          "recorded_as": [
+            "fsrcnn-x2-opencv-cpu-v1"
+          ],
+          "where": "Studio CPU allocation on talosw01",
+          "makes": "opaque upscaled video frames and fitted plates (proposed)",
+          "for_tom": null,
+          "outputs_commercial_use": "unknown",
+          "files": [
+            "fsrcnn-x2-opencv-cpu-v1-weights"
+          ],
+          "licence": {
+            "name": "Apache-2.0",
+            "url": "https://github.com/Saafke/FSRCNN_Tensorflow/blob/6a4812c4ef1c4f5947d79beafa32a05a6eb4a94d/LICENSE",
+            "commercial_use": "unknown",
+            "attribution_required": null,
+            "checked_at": "2026-11-25T05:17:33Z",
+            "checked_by": {
+              "kind": "agent_session",
+              "session": "haynes-studio-1125-050137",
+              "harness": "Codex",
+              "model": "gpt-6.2-sol"
+            },
+            "note": "Apache-2.0 is the repository licence. Applying it to the checked-in graph is an inference. Specific weight and separate output terms are unknown."
+          }
+        },
+        {
+          "key": "lanczos",
+          "role": "composite",
+          "name": "Pillow Lanczos v1",
+          "recorded_as": [
+            "lanczos"
+          ],
+          "where": "Studio CPU allocation on talosw01",
+          "makes": "opaque delivery-size frames and fitted plates (existing fallback)",
+          "for_tom": null,
+          "outputs_commercial_use": "unknown",
+          "files": [],
+          "licence": {
+            "name": "MIT-CMU",
+            "url": "https://github.com/python-pillow/Pillow/blob/13.0.0/LICENSE",
+            "commercial_use": "unknown",
+            "attribution_required": null,
+            "checked_at": "2026-11-25T05:17:33Z",
+            "checked_by": {
+              "kind": "agent_session",
+              "session": "haynes-studio-1125-050137",
+              "harness": "Codex",
+              "model": "gpt-6.2-sol"
+            },
+            "note": "The code grant covers use and distribution with copyright and permission notices and a condition on publicity. Separate output and attribution terms are unknown."
+          }
+        }
+      ],
+      "files": [
+        {
+          "key": "fsrcnn-x2-opencv-cpu-v1-weights",
+          "engine": "fsrcnn-x2-opencv-cpu-v1",
+          "name": "models/FSRCNN_x2.pb",
+          "recorded_as": [
+            "FSRCNN_x2.pb"
+          ],
+          "kind": "TensorFlow frozen luma super-resolution graph and weights (FP32 x2)",
+          "source": "https://raw.githubusercontent.com/Saafke/FSRCNN_Tensorflow/6a4812c4ef1c4f5947d79beafa32a05a6eb4a94d/models/FSRCNN_x2.pb",
+          "source_revision": "6a4812c4ef1c4f5947d79beafa32a05a6eb4a94d",
+          "sha256": null,
+          "git_blob_sha1": "2509b0e19b8a45ebce2ba50128e2fcb43ce8589c",
+          "size_bytes": 38973,
+          "pin_note": "Publisher Git tree metadata supplies the blob SHA-1. File SHA-256 is unknown until installation verifies the Git object and hashes the raw bytes.",
+          "upstream": "https://github.com/Saafke/FSRCNN_Tensorflow",
+          "weights_commercial_use": "unknown",
+          "outputs_commercial_use": "unknown",
+          "evidence": [
+            {
+              "url": "https://github.com/Saafke/FSRCNN_Tensorflow/blob/6a4812c4ef1c4f5947d79beafa32a05a6eb4a94d/LICENSE",
+              "quote": "reproduce, prepare Derivative Works of"
+            }
+          ],
+          "licence": {
+            "name": "Apache-2.0",
+            "url": "https://github.com/Saafke/FSRCNN_Tensorflow/blob/6a4812c4ef1c4f5947d79beafa32a05a6eb4a94d/LICENSE",
+            "commercial_use": "unknown",
+            "attribution_required": null,
+            "checked_at": "2026-11-25T05:17:33Z",
+            "checked_by": {
+              "kind": "agent_session",
+              "session": "haynes-studio-1125-050137",
+              "harness": "Codex",
+              "model": "gpt-6.2-sol"
+            },
+            "note": "Apache-2.0 is the repository licence. Applying it to the checked-in graph is an inference. Specific weight and separate output terms are unknown."
+          }
+        }
+      ]
     }
   }
 }
