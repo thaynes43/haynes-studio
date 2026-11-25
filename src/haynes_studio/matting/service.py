@@ -23,6 +23,7 @@ from .profile import (
 
 MAX_REQUEST = 4096
 MAX_REPLY = 8192
+MAX_DRAIN = 64 * 1024
 STATUS = {
     BUSY: 409, COMMAND_FAILED: 500, NOT_FOUND: 503, PIN_MISMATCH: 409,
     REQUEST_INVALID: 400, RESPONSE_INVALID: 502, TIMEOUT: 504,
@@ -48,6 +49,23 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _refuse_unread(self, lengths: list[str]):
+        # The caller writes its body after its headers. Replying and closing
+        # before that write arrives turns the refusal into a broken pipe on the
+        # caller's side, so read a bounded amount of the declared body first.
+        # The handler's socket timeout bounds a caller that sends less.
+        if len(lengths) == 1 and re.fullmatch(r"[0-9]{1,9}", lengths[0]):
+            remaining = min(int(lengths[0]), MAX_DRAIN)
+            try:
+                while remaining:
+                    chunk = self.rfile.read(min(remaining, 8192))
+                    if not chunk:
+                        break
+                    remaining -= len(chunk)
+            except OSError:
+                pass
+        self._reply(400, {"code": REQUEST_INVALID})
+
     def do_GET(self):
         if self.path != "/v1/ready":
             self._reply(404, {"code": NOT_FOUND})
@@ -64,7 +82,7 @@ class _Handler(BaseHTTPRequestHandler):
         if (len(lengths) != 1 or not re.fullmatch(r"[0-9]{1,4}", lengths[0])
                 or not 0 < int(lengths[0]) <= MAX_REQUEST or self.headers.get("Transfer-Encoding")
                 or self.headers.get_content_type() != "application/json"):
-            self._reply(400, {"code": REQUEST_INVALID})
+            self._refuse_unread(lengths)
             return
         try:
             body = self.rfile.read(int(lengths[0]))
