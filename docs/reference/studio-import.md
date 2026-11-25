@@ -84,6 +84,23 @@ immutable run and delivery and re-hashes the published blobs. It exits 0 with
 a conflicting identity causes a nonzero exit.
 If the store reports staging leftovers on success, the JSON includes their count.
 
+Two limits to know before running it:
+
+- **The directory name is part of the import's identity.** The marker records
+  the archive directory's basename, so a repeat from a renamed or re-copied
+  directory is refused with `identity_conflict` and changes nothing. Run a
+  repeat from a directory with the original name.
+- **An asset or version ID that already exists is a conflict.** Every pinned
+  version is cataloged in the imported production's scope under its original
+  IDs, and an existing asset ID, version ID or source key is refused before
+  anything is published. A second archive that pins the same library version as
+  an earlier import, or a version already in the installed catalog, therefore
+  cannot be imported yet. Before running, compare the archive's
+  `asset-versions.json` IDs with the catalog and with the other archives.
+  Referencing an identical existing version instead of refusing is recorded as
+  a follow-up on
+  [story 957](https://work.haynesnetwork.com/work_packages/957).
+
 Read the delivery with `GET /v1/runs/{id}/delivery` and the two MP4s with
 `GET /v1/media/{sha256}`. Media authorization follows the production that owns
 the delivery. The API supports byte ranges. [Private playback](studio-api.md#private-playback)
