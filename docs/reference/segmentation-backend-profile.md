@@ -288,9 +288,29 @@ had the lower measured cgroup peak and byte-identical output. The sidecar
 and serving smoke request 4 GiB and have a 5 GiB limit (5,368,709,120
 bytes), about 1.45 times the higher peak. The serving manifest uses a new
 ID and a new SHA-256 that includes the serving resource and load contract.
-The new profile still needs the serving smoke with the published image
-and publisher weights. Private set quality belongs to
-[story 452](https://work.haynesnetwork.com/work_packages/452).
+Private set quality belongs to [story 452](https://work.haynesnetwork.com/work_packages/452).
+
+**Changed (2026-11-25).** The real-weight serving smoke
+`studio-segmentation-smoke-03` ran on `talosw01` using allocation
+`segmentation-op460-dino-sam-v1-03`, image
+`sha256:05de65b703506a4591887e3063dde04a03aa142f28bacde5b3101a495b6a53c0`
+and profile SHA-256
+`5cf7324789d63cce25528dad320fe5bbe9bd85230ed94eb35dfeb78f1b44cad6`.
+It exited 1 with `passed: false`. The only false verdict was `memory_stable`.
+The cgroup peak was 3,060,940,800 bytes against the 5 GiB limit. Cold load
+took 19,786 ms. All twelve calls had the expected status, readiness matched
+before and after, and the report was the last line written.
+
+| Measured | Pass 1 | Pass 2 |
+|---|---|---|
+| Worker resident memory after each request (MiB) | 836, 828, 1008, 1008, 1686, 1624 | 1624, 1624, 1624, 1624, 1624, 1624 |
+| Cgroup resident memory at pass end (bytes) | 1,795,043,328 | 1,795,268,608 |
+
+The verdict compared pass 2 with pass 1 request by request. That counted
+first-use paging as growth. SAM's memory-mapped weights are touched during
+the mask-only cases. The detector's weights are first touched on request
+five. Worker residency was flat throughout pass 2. A passing real-weight
+serving smoke remains pending. [Story 460, comment 10156](https://work.haynesnetwork.com/projects/haynes-studio/work_packages/460/activity#comment-10156).
 
 ## Provisioning and GitOps
 
@@ -366,11 +386,15 @@ a successful reply that matches the staged receipt and mask.
 
 ## Expected smoke and private quality check
 
-The serving smoke reports worker resident RSS and cgroup resident bytes for
-the matching request phases in both passes. It separately records cgroup
-resident bytes at the end of each pass. Each second-pass sample may exceed
-its first-pass sample by at most 64 MiB (67,108,864 bytes) to allow ordinary
-allocator and page-cache variation. The absolute 5 GiB limit still applies.
+The serving smoke records worker resident RSS and cgroup resident bytes for
+each request phase in all three passes, plus cgroup resident bytes at the end
+of each pass. Pass 1 warms the models. The stability verdict compares each
+sample in pass 3 with its counterpart in pass 2 and allows up to 64 MiB
+(67,108,864 bytes) of growth. The other verdicts still cover all three
+passes, including the absolute 5 GiB memory limit. Two flat passes cannot
+rule out a slow leak. The reviewer estimated that a leak under about 10 MiB
+per request could pass and consume roughly 2 GiB of headroom in about
+200 requests. Watch resident memory during serving to detect that growth.
 
 1. Generate deterministic PNG inputs outside the checkout with Pillow.
    At 1080×1920 draw an RGB `(32,40,56)` background and a trapezoid with
@@ -388,7 +412,7 @@ allocator and page-cache variation. The absolute 5 GiB limit still applies.
    targets. Supply one tight valid box hint per object. A stub returning
    truth masks first verifies the exact counts and the source-to-layout
    transforms independently of inference.
-2. The serving smoke starts one fresh worker, then runs two passes of the
+2. The serving smoke starts one fresh worker, then runs three passes of the
    same six observations over its Unix socket. For the three box-hinted
    observations and a positive point on the visible marker, require mask IoU ≥0.90,
    each tight box IoU ≥0.85, full source-size binary output, and valid
@@ -399,7 +423,7 @@ allocator and page-cache variation. The absolute 5 GiB limit still applies.
    and a final mask IoU ≥0.85. For an absent `gavel` in a uniform plate,
    require `needs_hint` without usable geometry. These are checks on the
    pinned pipeline. Quality evidence for doll faces and props comes from
-   the private fixture. The serving smoke verifies both passes and checks
+   the private fixture. The serving smoke verifies all three passes and checks
    create-only replay. For a separate measurement under the 16 GiB
    minimum allowance, use `smoke --compare-load-strategy buffered`.
    This runs one pass with each load setting in a fresh inference process and
@@ -410,8 +434,12 @@ allocator and page-cache variation. The absolute 5 GiB limit still applies.
    the same completed request and verify the same references and no
    overwrite. Record the cold start, each request's elapsed time, phase
    worker RSS and cgroup memory, model and image digests and verdicts.
-   The serving smoke checks the exact 5 GiB cgroup limit and fits one
-   60 s startup and twelve 60 s request bounds within its 900 s Job deadline.
+   The serving smoke checks the exact 5 GiB cgroup limit. Twelve fixture calls
+   took about 58 s in allocation 03. At the same rate eighteen calls are
+   estimated to take about 87 s, or about 107 s including the measured cold
+   load. Startup and inference keep their 60 s bounds. The smoke stops
+   starting fixture calls when fewer than 65 s remain in its 840 s run
+   budget so it can report a failure before the Job's 900 s deadline.
    Read back readiness and render-worker health. Keep media and exact
    private artifact locators in the private job record.
 4. For story 452, take **one authorized private miniature set** with one
@@ -434,7 +462,8 @@ to check fixture geometry, byte verification, wheel identities and local
 service. A separate offline built-image step saves tiny random Grounding
 DINO and SAM 2 models, runs the production loader in both load modes and
 runs a forward pass with each class. The measuring image ran both publisher
-checkpoints on the portrait fixtures. The serving image's workload, rollout
-health, rollback and private set quality still require their own runs.
+checkpoints on the portrait fixtures. The first serving smoke failed its
+stability verdict. The revised smoke, rollout health, rollback and private
+set quality still require their own runs.
 Free inodes are unreported over NFS. The coordinator accepted the small
 file-count budget in story 460, comment 9946.
