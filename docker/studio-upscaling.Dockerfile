@@ -56,7 +56,7 @@ COPY docker/fsrcnn-notice.txt /opt/studio/FSRCNN-NOTICE
 ARG REVISION
 LABEL org.opencontainers.image.source="https://github.com/thaynes43/haynes-studio" \
     org.opencontainers.image.revision="${REVISION}" \
-    io.haynes-studio.upscaling.comparison="stored-proxy-frame-v1" \
+    io.haynes-studio.upscaling.comparison="stored-proxy-frame-v2" \
     org.opencontainers.image.title="Haynes Studio Upscaling"
 ENV PATH=/opt/studio/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
     HOME=/upscaling TMPDIR=/upscaling LANG=C.UTF-8 \

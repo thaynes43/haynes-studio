@@ -352,17 +352,33 @@ decimal seconds from the first frame, with up to nine decimal places. It
 selects the frame displayed at that time (`floor(seconds × 24)`). The pinned
 OpenCV wheel's FFmpeg backend decodes the selected frame directly from the
 hashed, read-only file descriptor with one decoder thread. The files must
-follow the 24 fps delivery clock and the selected frame must exist on that
-clock. Each MP4 has a 256 MiB bound. Proxy frames must meet the 1280 px long
+follow the zero-based 24 fps delivery clock and the selected frame must exist
+on that clock. The reader checks the first presentation timestamp against the
+sample and edit tables in an unfragmented MP4 with a single video track,
+before OpenCV can round or rebase it. A nonzero
+origin is refused with `adapter.nonzero_start_timestamp`. The decoder also
+checks the selected frame in delivery frame ticks.
+Each MP4 has a 256 MiB bound. Proxy frames must meet the 1280 px long
 edge and 921,600 pixel limits, match the target aspect and scale by more than
-1× and at most 2×. An optional `--master` from the same delivery supplies the
-same frame index, at the exact target size and with the same frame count.
+1× and at most 2×. An optional `--master` supplies the same frame index, at
+the exact target size and with the same frame count. The caller verifies
+the pairing against the delivery record and supplies its `--delivery-id`.
+A master without that ID is refused with `adapter.delivery_id_required`.
+The report records the ID beside both hashes and credits the caller with
+verifying the pairing.
 The Job refuses invalid locators, file types, sizes, frame geometry and
 decode failures with `adapter.request_invalid`, a wrong content hash with
 `adapter.pin_mismatch`, and a selector beyond the file with
 `adapter.frame_out_of_range`.
 [Delivery clock and format](studio-delivery.md#checks) ·
 [OpenCV FFmpeg capture](https://github.com/opencv/opencv/blob/4.14.0/modules/videoio/src/cap_ffmpeg_impl.hpp)
+
+Run `studio-upscaling compare --probe` with the same video locators,
+delivery ID when paired, orientation and frame selector before the idle
+gate. The probe hashes and decodes the inputs without loading the model or
+running a scaler. It prints one JSON line with the frame count, dimensions,
+first timestamp in seconds and selector result for the inputs it reads.
+Refusals exit nonzero and include a code and any available frame facts.
 
 An init container reserves one new group-writable private jobs directory. The
 comparison writes `lanczos.png`, `fsrcnn.png`, and `report.json` there, plus
@@ -377,7 +393,8 @@ use the cover-fitted half-delivery grid.
 With a master, also report normalized luma MAE, luma PSNR in dB and luma SSIM
 for each arm against the decoded master, plus reference MAE for each supplied
 ROI. PSNR is recorded as `null` on an exact luma match. SSIM averages 11 × 11
-Gaussian windows (σ = 1.5) wholly inside the frame. The proxy is an encoded
+Gaussian windows (σ = 1.5) wholly inside the frame. The report and printed JSON
+carry `ground_truth_scope` alongside the metrics. The proxy is an encoded
 downscale of the master. These measures reward undoing that specific encode
 and do not establish quality on real low-resolution sources. The analytic
 glyph, edge and cadence checks above apply to the generated smoke fixtures.

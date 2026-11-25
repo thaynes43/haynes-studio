@@ -56,6 +56,8 @@ def main() -> int:
     source.add_argument("--proxy", help="Stored MP4 proxy locator containing its SHA-256")
     trial.add_argument("--input-sha256")
     trial.add_argument("--master", help="Stored MP4 locator of the same delivery's master")
+    trial.add_argument("--delivery-id", help="Delivery ID whose pairing the caller verified")
+    trial.add_argument("--probe", action="store_true", help="Check stored MP4 frames without running either scaler")
     selector = trial.add_mutually_exclusive_group()
     selector.add_argument("--frame-index", help="Zero-based delivery frame index")
     selector.add_argument("--timestamp", help="Nonnegative seconds on the delivery clock")
@@ -83,29 +85,36 @@ def main() -> int:
 
             report = smoke(scratch, weights, Profile.installed(), try_compact=args.allocator == "compare")
         else:
-            from .comparison import compare
-            from .video import frame_selector
+            from .video import frame_selector, probe_frames, require_delivery_id
 
             index = None
             if args.proxy is not None:
                 if args.input_sha256 is not None or args.plate:
                     raise UpscaleError(REQUEST_INVALID)
                 index = frame_selector(args.frame_index, args.timestamp)
-            elif (args.master is not None or args.frame_index is not None or args.timestamp is not None
-                    or args.input_sha256 is None
+                if not args.probe:
+                    require_delivery_id(args.master, args.delivery_id)
+            elif (args.probe or args.master is not None or args.delivery_id is not None
+                    or args.frame_index is not None or args.timestamp is not None or args.input_sha256 is None
                     or not re.fullmatch(rf"{re.escape(args.input_sha256)}\.(?:jpg|png)", args.input)):
                 raise UpscaleError(REQUEST_INVALID)
-            rois = {name: box for name in ("lettering", "face", "hair")
-                    if (box := getattr(args, name + "_roi")) is not None}
-            report = compare(
-                scratch, weights, Path("/store" if args.proxy is not None else "/input"), Path("/output"),
-                Profile.installed(),
-                relative=args.input, source_sha256=args.input_sha256,
-                proxy=args.proxy, master=args.master, frame_index=index,
-                target=TARGETS[0] if args.orientation == "portrait" else TARGETS[1], plate=args.plate, rois=rois,
-            )
+            target = TARGETS[0] if args.orientation == "portrait" else TARGETS[1]
+            if args.probe:
+                report = probe_frames(Path("/store"), args.proxy, index, target,
+                                      master=args.master, delivery_id=args.delivery_id)
+            else:
+                from .comparison import compare
+
+                rois = {name: box for name in ("lettering", "face", "hair")
+                        if (box := getattr(args, name + "_roi")) is not None}
+                report = compare(
+                    scratch, weights, Path("/store" if args.proxy is not None else "/input"), Path("/output"),
+                    Profile.installed(), relative=args.input, source_sha256=args.input_sha256,
+                    proxy=args.proxy, master=args.master, delivery_id=args.delivery_id, frame_index=index,
+                    target=target, plate=args.plate, rois=rois,
+                )
         print(canonical_json(report).decode(), flush=True)
-        return int(args.command == "smoke" and not report["passed"])
+        return int(not report.get("passed", True))
     except (UpscaleError, OSError, HTTPException) as error:
         # Logs contain no caller paths, exception text or private pixels.
         print(canonical_json({"code": getattr(error, "code", COMMAND_FAILED)}).decode(), flush=True)

@@ -25,13 +25,16 @@ from .profile import (
     THREADS, UpscaleError,
 )
 from .trial import evaluate, stage
-from .video import read_frame
+from .video import read_frame, require_delivery_id
 
 RESERVE = 32 * 1024**3
 BUDGET = 8 * 1024**3
 GROUND_TRUTH_SCOPE = (
     "The proxy is an encoded downscale of the master. These measures reward undoing that specific encode. "
     "They do not establish quality on real low-resolution sources. Tom's visual comparison is pending."
+)
+PAIRING_VERIFICATION = (
+    "The caller verified the pairing against the delivery record. The Job relies on the caller for pairing."
 )
 
 
@@ -137,9 +140,10 @@ def _publish(directory: Path, pngs: dict, report: dict) -> int | None:
 def compare(scratch: Path, weights: Path, share: Path, output: Path, profile, *, target,
             relative: str | None = None, source_sha256: str | None = None, plate=False, rois=None,
             proxy: str | None = None, frame_index: int | None = None, master: str | None = None,
-            factory=None) -> dict:
+            delivery_id: str | None = None, factory=None) -> dict:
     if target not in TARGETS:
         raise UpscaleError(REQUEST_INVALID)
+    require_delivery_id(master, delivery_id)
     if proxy is None:
         if (relative is None or source_sha256 is None or not DIGEST.fullmatch(source_sha256)
                 or frame_index is not None or master is not None):
@@ -215,10 +219,11 @@ def compare(scratch: Path, weights: Path, share: Path, output: Path, profile, *,
     if reference_facts is not None:
         summary["reference"] = reference_facts
         summary["normalized_reference"] = describe(decoded["master"], target)
+        summary["delivery_id"] = delivery_id
+        summary["pairing_verification"] = PAIRING_VERIFICATION
+        summary["ground_truth_scope"] = GROUND_TRUTH_SCOPE
     report = {"schema": "studio.upscaling-comparison/v1", **summary, "plate": plate,
               "rois_xyxy": rois, "receipt": receipt, "review": "comparison pending"}
-    if reference_facts is not None:
-        report["ground_truth_scope"] = GROUND_TRUTH_SCOPE
     summary["whole_job_cgroup_peak_bytes"] = _publish(
         output, {**decoded, "lanczos": baseline_png, "fsrcnn": learned_png}, report,
     )

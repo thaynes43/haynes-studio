@@ -15,7 +15,7 @@ from haynes_studio.upscaling.backend import Engine
 from haynes_studio.upscaling.profile import GRAPH_NAME, PROFILE_ID, PROVIDER, WHEELS, Profile, runtime_identity
 from haynes_studio.upscaling.service import listening, local_call
 from haynes_studio.upscaling.trial import frame
-from haynes_studio.upscaling.video import frame_selector, read_frame
+from haynes_studio.upscaling.video import frame_selector, probe_frames, read_frame
 
 
 def varint(number):
@@ -82,9 +82,13 @@ def exercise_video(scratch):
     locator = blob_locator("library", hashlib.sha256(source.read_bytes()).hexdigest(), "video/mp4")
     (scratch / locator).parent.mkdir(parents=True)
     source.rename(scratch / locator)
-    image, evidence = read_frame(scratch, locator, frame_selector(None, "0.09"), (108, 192))
+    index = frame_selector(None, "0.09")
+    image, evidence = read_frame(scratch, locator, index, (108, 192))
     assert evidence["frame_index"] == 2 and evidence["frame_count"] == 3
     assert all(channel > 210 for channel in image.getpixel((0, 0)))
+    assert probe_frames(scratch, locator, index, (108, 192)) == {
+        "passed": True, "source": {**evidence, "first_timestamp_seconds": 0, "resolved": True},
+    }
     return evidence
 
 

@@ -73,6 +73,8 @@ COMMAND_FAILED = "adapter.command_failed"
 NOT_FOUND = "adapter.not_found"
 BUSY = "adapter.busy"
 FRAME_OUT_OF_RANGE = "adapter.frame_out_of_range"
+NONZERO_START_TIMESTAMP = "adapter.nonzero_start_timestamp"
+DELIVERY_ID_REQUIRED = "adapter.delivery_id_required"
 
 
 class UpscaleError(Exception):
