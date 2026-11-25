@@ -22,7 +22,7 @@ dependencies = [
     # binary, because session pods have no system ffmpeg.
     "numpy>=2.4,<2.5",  # one version for Python 3.11 and 3.12 (2.5 needs 3.12)
     "Pillow>=13,<14",
-    "av>=18.1,<19",
+    "av>=18.1.1,<19",  # 18.1.0 was yanked: a double free decoding audio with a custom channel layout
     "imageio-ffmpeg>=0.7,<0.8",
     # What the PoC's layered code already uses (contract section 13), locked ahead of
     # story 426, which ports it: scipy for chroma keying (poc/cutout.py, ndimage) and
