@@ -5,10 +5,14 @@ from datetime import timedelta
 from haynes_studio.api.errors import forbidden
 
 
-def require_approver(actor, settings, now):
-    principal = actor.principal
-    if principal.kind != "human":
+def require_person(actor):
+    if actor.principal.kind != "human":
         raise forbidden("approval.approver_not_permitted", "Go-live requires a signed-in person")
+
+
+def require_approver(actor, settings, now):
+    require_person(actor)
+    principal = actor.principal
     allowed = settings.go_live_approver_subjects
     if not allowed:
         raise forbidden("approval.approver_not_configured", "No go-live approvers are configured")

@@ -53,6 +53,11 @@ def test_approval_operations_document_the_cookie_only_scope():
         assert route["operationId"] == operation
         assert route["security"] == [{"StudioSession": []}]
         assert route["x-studio-scope"] == "go_live:approve"
+    review = paths["/v1/runs/{id}/go-live-approvals"]["get"]
+    assert review["operationId"] == "get_go_live_approvals"
+    assert review["security"] == [{"StudioSession": []}]
+    assert review["x-studio-scope"] == "read"
+    assert [parameter["name"] for parameter in review["parameters"]] == ["id"]
 
 
 def test_approver_configuration_defaults_empty_and_rejects_wrong_type(monkeypatch):

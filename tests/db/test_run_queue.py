@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+from pathlib import Path
 from secrets import token_hex
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
@@ -192,11 +193,60 @@ def test_queued_inputs_order_estimate_idempotency_and_production_scope(queue):
                               headers=agent).json()
     assert next_page["items"][0]["id"] == second["id"]
     _, unscoped = register_agent(q.owner, {})
-    assert q.browser.get(f'/v1/runs/{first["id"]}', headers=unscoped).status_code == 403
+    assert q.browser.get(f'/v1/runs/{first["id"]}', headers=unscoped).status_code == 404
     cancelled = cancel(q, first["id"], '"1"', auth=agent)
     assert cancelled.status_code == 200 and cancelled.json()["status"] == "cancelled"
     assert cancel(q, first["id"], '"1"', auth=agent).status_code == 409
     assert worker_api(q).claim().identity["run_id"] == second["id"]
+
+
+def test_snapshot_serves_exact_run_bytes_to_scoped_readers(queue):
+    q = queue
+    queued = queue_run(q, "snapshot-read")
+    assert queued.status_code == 201, queued.text
+    run = queued.json()
+    path = f'/v1/runs/{run["id"]}/snapshot'
+    pin = run["snapshot"]
+    with q.store.open(pin["locator"]) as handle:
+        frozen = handle.read()
+    assert hashlib.sha256(frozen).hexdigest() == pin["sha256"]
+    updated = q.browser.patch(f"/v1/stories/{q.story_id}", json={"title": "Edited after queueing"},
+                              headers={**q.csrf, "If-Match": "3"})
+    assert updated.status_code == 200, updated.text
+
+    _, reader = register_agent(q.owner, {q.production_id: ["read"]})
+    for response in (q.browser.get(path), client(q.app).get(path, headers=reader)):
+        assert response.status_code == 200, response.text
+        assert response.content == frozen
+        assert response.json()["schema"] == "studio.run-snapshot/v1"
+        assert response.headers["content-type"] == "application/json"
+        assert response.headers["etag"] == f'"{pin["sha256"]}"'
+        assert response.headers["cache-control"] == "private, no-store"
+    assert q.browser.get(f'/v1/media/{pin["sha256"]}').status_code == 404
+
+    other = new_production(q.browser, q.csrf)
+    _, outsider = register_agent(q.owner, {other: ["read"]})
+    _, no_read = register_agent(q.owner, {q.production_id: ["runs:queue"]})
+    missing = Minter().mint("run")
+    for credentials in (outsider, no_read):
+        for private in (path, f"/v1/runs/{missing}/snapshot", f'/v1/runs/{run["id"]}'):
+            refused = client(q.app).get(private, headers=credentials)
+            assert refused.status_code == 404
+            assert refused.json()["error"]["code"] == "not_found"
+            assert refused.headers["cache-control"] == "private, no-store"
+    for credentials in ({}, worker_credentials(q.owner)):
+        refused = client(q.app).get(path, headers=credentials)
+        assert refused.status_code == 401
+        assert refused.json()["error"]["code"] == "auth.required"
+
+    blob = Path(q.store.root) / pin["locator"]
+    blob.rename(blob.with_suffix(".original"))
+    missing_blob = q.browser.get(path)
+    assert missing_blob.status_code == 404 and missing_blob.json()["error"]["code"] == "run.snapshot_missing"
+    blob.write_bytes(frozen + b" ")
+    corrupt = q.browser.get(path)
+    assert corrupt.status_code == 503 and corrupt.json()["error"]["code"] == "run.snapshot_changed"
+    assert "etag" not in corrupt.headers
 
 
 def test_worker_auth_rejects_credentials_before_body_or_query(queue):

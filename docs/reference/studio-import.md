@@ -107,10 +107,12 @@ the delivery. The API supports byte ranges. [Private playback](studio-api.md#pri
 
 The imported story is readable and its finished delivery plays in the studio.
 The archive records the pinned input versions as `recorded_without_media`. Pins
-from the shared library are cataloged in the imported production's scope. To
-rebuild, import the inputs through their own asset paths and pin the resulting
-versions in the draft. A recovered archive also requires reconstructing the lost
-boards.
+from the shared library are cataloged in the imported production's scope.
+A replacement photo can be uploaded while the old photo is still selected.
+The upload is saved unselected until a person or an agent with a current
+revision acknowledgment selects it. To rebuild, import the inputs through
+their own asset paths and pin the resulting versions in the draft. A recovered
+archive also requires reconstructing the lost boards.
 
 Imported runs retain their original terminal status and have
 `legacy.archive_import` in the run document. Its fields are `source_directory`

@@ -103,7 +103,6 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
   let next: User = "lena";
   let failure: Failure | undefined;
   let configured = true;
-  let reviewAvailable = true;
   let freshRequired = false;
   let runRefusal: string | undefined;
   const review = reviewMedia && reviewFixtures(story, reviewMedia);
@@ -511,6 +510,15 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
       if (!run || !draft || !visible[user].has(draft.production_id)) return reject(route, 404, "not_found", "not_found");
       const etag = () => `"${run.revision}"`;
       if (!resource && method === "GET") return route.fulfill({ headers: { etag: etag() }, json: queue.view(run, true) });
+      if (resource === "snapshot" && method === "GET") {
+        const snapshot = queue.snapshots.get(id);
+        if (!snapshot) return reject(route, 404, "not_found", "run.snapshot_missing");
+        return route.fulfill({
+          contentType: "application/json",
+          headers: { etag: `"${run.snapshot.sha256}"`, "cache-control": "private, no-store" },
+          body: JSON.stringify(snapshot),
+        });
+      }
       if (resource === "delivery" && method === "GET") {
         const delivery = queue.deliveries.get(id);
         return delivery ? route.fulfill({ json: delivery }) : reject(route, 404, "not_found", "not_found");
@@ -563,9 +571,9 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
       if (resource === "go-live-approvals") {
         const refusal = identityRefusal(user);
         const preview = review.preview(run, refusal, runRefusal);
-        if (method === "GET") return reviewAvailable
-          ? route.fulfill({ json: preview })
-          : reject(route, 405, "invalid", "method.not_allowed");
+        if (method === "GET") return route.fulfill({
+          json: preview, headers: { "cache-control": "private, no-store" },
+        });
         if (method === "POST") {
           const body = request.postDataJSON() as Schemas["ApprovalWrite"];
           approvalWrites.push({ run: id, body });
@@ -595,7 +603,6 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
     signInAs: (user: User) => { next = user; },
     requireFreshSignIn: () => { freshRequired = true; },
     disableApprovals: () => { configured = false; },
-    disableApprovalRead: () => { reviewAvailable = false; },
     refuseRun: (code: string) => { runRefusal = code; },
     recordManualPublication: () => { stories[0].published = true; },
     editDraft: () => { stories[0].revision += 1; firstBoard.lines[0].text = "New draft line."; },

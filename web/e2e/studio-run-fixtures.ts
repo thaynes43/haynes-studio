@@ -25,7 +25,7 @@ export function runFixtures(story: Schemas["Story"], media: ReviewMedia) {
   const fixtures = reviewFixtures(story, media);
   const runs: FixtureRun[] = [];
   const deliveries = new Map<string, NonNullable<ReturnType<typeof fixtures.deliveries.get>>>();
-  const snapshots = new Map<string, { story: Schemas["Story"] & { boards: Schemas["Board"][] } }>();
+  const snapshots = new Map<string, Schemas["RunSnapshot"]>();
   const presses: { key: string; revision: string }[] = [];
   const cancelWrites: { id: string; revision: string }[] = [];
   const overrideWrites: { id: string; revision: string; body: Schemas["CheckOverride"] }[] = [];
@@ -34,9 +34,13 @@ export function runFixtures(story: Schemas["Story"], media: ReviewMedia) {
   function add(draft: Schemas["Story"], boards: Schemas["Board"][], key: string) {
     const number = runs.length + 1;
     const id = `run_01M79V9FC000000000000000${String(number).padStart(2, "0")}`;
-    const frozen = {
+    const { approved: _approved, published: _published, latest_finished_run: _latest, derived: _derived,
+      ...canonicalStory } = draft;
+    const frozen: Schemas["RunSnapshot"] = {
       schema: "studio.run-snapshot/v1",
-      story: structuredClone({ ...draft, boards }),
+      story: structuredClone({
+        ...canonicalStory, boards: boards.map(({ derived: _boardDerived, ...board }) => board),
+      }),
       resolved_asset_versions: [],
       toolchain_request: { studio: "git:fixture" },
     };

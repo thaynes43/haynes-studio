@@ -2,6 +2,7 @@
 
 import os
 from datetime import datetime
+from hashlib import sha256
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Header, Request, Response
@@ -12,7 +13,7 @@ from haynes_studio.canonical.model import to_document
 from haynes_studio.db import catalog, drafts, jobs, queue_controls, runs
 from haynes_studio.golive import records as go_live
 from haynes_studio.db.engine import snapshot
-from haynes_studio.db.problems import StaleRevision, require_valid
+from haynes_studio.db.problems import NotFound, StaleRevision, require_valid
 from haynes_studio.delivery import read_delivery
 from haynes_studio.delivery.errors import DeliveryError
 from haynes_studio.escalation import responder
@@ -25,7 +26,8 @@ from haynes_studio.queue.protocol import (
     WorkCompletion, WorkFailure, WorkLane, WorkReserve,
 )
 from haynes_studio.queue.staging import BuildStageStore, publish_staged_delivery
-from haynes_studio.store import StoreError
+from haynes_studio.store import BLOB_MISSING, StoreError
+from haynes_studio.store.layout import blob_locator
 
 from . import media_work
 from .auth import WorkerRoute
@@ -132,8 +134,34 @@ def _read_view(conn, row, *, detail=True, worker_present=None):
 
 def _run_access(conn, actor, scope, run_id, *, lock=False):
     row = runs.get(conn, _id(run_id, "run"), lock=lock)
-    actor.require(scope, row["production_id"])
+    if scope == "read":
+        productions = actor.productions(scope)
+        if productions is not None and row["production_id"] not in productions:
+            raise NotFound
+    else:
+        actor.require(scope, row["production_id"])
     return row
+
+
+def _stored_snapshot(store, row):
+    if row["snapshot"] is None:
+        raise APIError(404, "run.snapshot_missing", "This run has no frozen snapshot")
+    pin = row["document"]["snapshot"]
+    digest = pin["sha256"]
+    try:
+        locator = blob_locator(row["production_id"], digest, "application/json")
+        if locator == pin["locator"]:
+            with store.open(locator) as handle:
+                data = handle.read()
+            if sha256(data).hexdigest() == digest:
+                return Response(data, media_type="application/json", headers={"ETag": f'"{digest}"'})
+    except StoreError as error:
+        if error.code == BLOB_MISSING:
+            raise APIError(404, "run.snapshot_missing", "This run has no stored snapshot") from error
+        raise APIError(503, "run.snapshot_store_unavailable", "The snapshot could not be read") from error
+    except OSError as error:
+        raise APIError(503, "run.snapshot_store_unavailable", "The snapshot could not be read") from error
+    raise APIError(503, "run.snapshot_changed", "The stored run snapshot does not match its pin")
 
 
 def build_router(CurrentActor, authenticated_route):
@@ -215,6 +243,19 @@ def build_router(CurrentActor, authenticated_route):
     def get_run(id: str, request: Request, response: Response, actor: CurrentActor):
         with snapshot(request.app.state.engine) as conn:
             return _etag(response, _read_view(conn, _run_access(conn, actor, "read", id)))
+
+    @router.get("/runs/{id}/snapshot", response_class=Response, operation_id="get_run_snapshot",
+                responses={200: {
+                    "description": "Original canonical studio.run-snapshot/v1 bytes",
+                    "headers": {"ETag": {"schema": {"type": "string"},
+                                         "description": "The quoted SHA-256 of the snapshot bytes"}},
+                    "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RunSnapshot"}}},
+                }})
+    def get_run_snapshot(id: str, request: Request, actor: CurrentActor):
+        state = request.app.state
+        with snapshot(state.engine) as conn:
+            row = _run_access(conn, actor, "read", id)
+        return _stored_snapshot(state.store, row)
 
     @router.post("/runs/{id}/cancel", response_model=RunView, responses={200: {"headers": ETAG}},
                  operation_id="cancel_run")

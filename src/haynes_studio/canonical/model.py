@@ -290,9 +290,10 @@ class Board:
     person_edit: str | None = None
     person_edit_revision: int | None = None
     person_edit_acknowledgments: tuple[Mapping[str, Any], ...] | None = None
+    created_by: Principal | None = None
 
     _omit_none = ("derived", "created_at", "updated_at", "draft_application",
-                  "person_edit", "person_edit_revision", "person_edit_acknowledgments")
+                  "person_edit", "person_edit_revision", "person_edit_acknowledgments", "created_by")
 
     @property
     def spoken(self) -> bool:
@@ -329,6 +330,7 @@ class Board:
             person_edit=doc.get("person_edit"),
             person_edit_revision=doc.get("person_edit_revision"),
             person_edit_acknowledgments=_verbatim(doc.get("person_edit_acknowledgments")),
+            created_by=Principal.from_document(doc["created_by"]) if "created_by" in doc else None,
         )
 
 
