@@ -50,7 +50,7 @@ def setup(service, owner_engine):
                            list_path=f"/v1/productions/{production}/media-types/short/stories")
 
 
-def finished_fixture(s, *, failure=None):
+def finished_fixture(s, *, failure=None, queued_id=None):
     uses = {"wan-ti2v": Use("video", hardware="two RTX 3090s"),
             "kokoro": Use("voice"), "stable-audio": Use("sound"),
             "qwen-image": Use("image"), "asr": Use("check")}
@@ -73,11 +73,14 @@ def finished_fixture(s, *, failure=None):
     if failure == "no_video":
         provenance["engines"] = [engine for engine in engine_list if engine["role"] != "video"]
     with s.owner.begin() as conn:
-        draft = conn.scalar(sa.select(stories.c.document).where(stories.c.id == s.story))
-        key = Minter().mint("run")
-        row = runs.enqueue(conn, snapshot={"story": {**draft, "boards": []}},
-                           snapshot_sha256=digest("snapshot " + key), library={}, actor=APPROVER,
-                           key=key, estimate={"estimate": {}, "methods": []})
+        if queued_id is None:
+            draft = conn.scalar(sa.select(stories.c.document).where(stories.c.id == s.story))
+            key = Minter().mint("run")
+            row = runs.enqueue(conn, snapshot={"story": {**draft, "boards": []}},
+                               snapshot_sha256=digest("snapshot " + key), library={}, actor=APPROVER,
+                               key=key, estimate={"estimate": {}, "methods": []})
+        else:
+            row = runs.get(conn, queued_id)
         delivery = example("valid/delivery.json")
         delivery.update(id=Minter().mint("dlv"), run_id=row["id"])
         for name in ("master", "proxy"):
@@ -273,11 +276,36 @@ def test_review_refuses_the_same_identity_as_both_writes(setup, identity_kind, c
         csrf = sign_in(browser, s.issuer, auth_time=int(old.timestamp()))
 
     review = read_review(s, held, browser)
-    assert review["approvals"] == [approved.json()]
+    expected = approved.json()
+    if identity_kind != "stale":
+        assert {"approver", "auth_time"}.isdisjoint(review["approvals"][0])
+        expected.pop("approver")
+        expected.pop("auth_time")
+    assert review["approvals"] == [expected]
     assert review["release_checks"] == approved.json()["release_checks"]
     assert_decision(review["approve"], browser.post(held.path, headers=csrf, json=held.body), code)
     path = f"/v1/go-live-approvals/{approved.json()['id']}/withdraw"
     assert_decision(review["withdraw"], browser.post(path, headers=csrf), code)
+
+
+def test_approval_review_hides_withdrawal_identity_from_non_approvers(setup):
+    s = setup
+    run = finished_fixture(s)
+    approval = s.browser.post(run.path, headers=s.csrf, json=run.body).json()
+    path = f"/v1/go-live-approvals/{approval['id']}/withdraw"
+    withdrawn = s.browser.post(path, headers=s.csrf)
+    assert withdrawn.status_code == 201
+    private = withdrawn.json()
+    assert read_review(s, run)["approvals"] == [private]
+    reader = client(s.app)
+    sign_in(reader, s.issuer, "two")
+    public = read_review(s, run, reader)["approvals"][0]
+    assert public["approver_display_name"] == private["approver_display_name"]
+    assert public["approved_at"] == private["approved_at"]
+    assert {"approver", "auth_time"}.isdisjoint(public)
+    assert public["derived"]["withdrawal"] == {
+        key: private["derived"]["withdrawal"][key] for key in ("schema", "approval_id", "withdrawn_at")
+    }
 
 
 def test_review_scope_and_principal_refusals(setup, monkeypatch):
@@ -317,10 +345,10 @@ def test_review_keeps_one_snapshot_across_a_concurrent_withdrawal(setup, monkeyp
     path = f"/v1/go-live-approvals/{approval['id']}/withdraw"
     history = records.history
     with monkeypatch.context() as patch:
-        def withdraw_then_read(conn, run_id):
+        def withdraw_then_read(conn, run_id, *, show_identity):
             result = s.browser.post(path, headers=s.csrf)
             assert result.status_code == 201, result.text
-            return history(conn, run_id)
+            return history(conn, run_id, show_identity=show_identity)
 
         patch.setattr(records, "history", withdraw_then_read)
         old = s.browser.get(held.path)

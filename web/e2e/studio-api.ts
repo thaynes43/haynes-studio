@@ -3,6 +3,7 @@ import type { components, paths } from "../src/api/schema";
 import { treePath, type MediaKind } from "../src/routes";
 import { latestRun, photoVersion, reviewFixtures, voiceVersion } from "./studio-review-fixtures";
 import { mediaResponse, type ReviewMedia } from "./studio-review-media";
+import { feedbackFixtures } from "./studio-feedback-fixtures";
 import { runFixtures } from "./studio-run-fixtures";
 import { formatFixture, inspectorBoards, voiceFixtures } from "./studio-inspector-fixtures";
 import { boardVersions, formatId, storyTiming } from "./studio-storyboard-fixtures";
@@ -173,6 +174,8 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
       { ...story, id: nextId(story.id, 4), title: "Manual release", published: true, board_order: [] },
     );
   }
+  const feedback = feedbackFixtures(stories[0], [...boards.values()].filter(({ id }) =>
+    story.board_order.includes(id)), review?.runs ?? []);
   const selections: Record<User, Selection> = {
     lena: { revision: 0, values: {} },
     arden: { revision: 0, values: {
@@ -409,6 +412,7 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
       if (resource === "timing" && method === "GET") {
         return route.fulfill({ json: storyTiming(draft, boards, versions, voice.matches) });
       }
+      if (resource === "candidates" && method === "GET") return feedback.list(route, draft);
       if (resource === "runs" && method === "GET") {
         if (queue) {
           const items = queue.runs.filter((run) => run.story_id === draft.id).map((run) => queue.view(run));
@@ -636,6 +640,10 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
         return route.fulfill({ status: 201, json: record });
       }
     }
+    if (path.startsWith("/v1/candidates/") && review && method === "POST" && visible[user].has(production.id)) {
+      const [, , , id, resource] = path.split("/");
+      return feedback.write(route, id, resource, people[user].displayName);
+    }
     if (path.startsWith("/v1/runs/") && review) {
       const [, , , id, resource] = path.split("/");
       const run = review.runs.find((item) => item.id === id);
@@ -645,6 +653,8 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
         const delivery = review.deliveries.get(id);
         return delivery ? route.fulfill({ json: delivery }) : reject(route, 404, "not_found", "not_found");
       }
+      if (resource === "snapshot" && method === "GET") return feedback.snapshot(route, run);
+      if (resource === "candidates" && method === "POST") return feedback.present(route, run, people[user].displayName);
       if (resource === "go-live-approvals") {
         const refusal = identityRefusal(user);
         const preview = review.preview(run, refusal, runRefusal);
@@ -675,7 +685,7 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
   });
 
   return {
-    calls, violations, writes, selections, loginRequests, approvalWrites, boardWrites, queue, contentEdits, voice,
+    calls, violations, writes, selections, loginRequests, approvalWrites, boardWrites, queue, contentEdits, voice, feedback,
     completeVoice: (id: string, boardId: string, duration: number) => voice.complete(id, boards.get(boardId)!, stories[0], duration),
     expire: () => { current = null; },
     signInAs: (user: User) => { next = user; },

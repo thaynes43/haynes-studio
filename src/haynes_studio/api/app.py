@@ -20,7 +20,8 @@ from haynes_studio.db import runs
 from haynes_studio.db.engine import connect_engine
 from haynes_studio.db.problems import DraftProtected, NotFound, StaleRevision
 from haynes_studio.db.schema import (
-    format_versions, go_live_approvals, media_job_lanes, queue_lane_events, run_lane, sessions,
+    candidate_feedback, feedback_iterations, format_versions, go_live_approvals,
+    media_job_lanes, queue_lane_events, run_candidates, run_lane, sessions, stories,
 )
 from haynes_studio.errors import ContractError, pointer
 from haynes_studio.escalation.lifecycle import EscalationError
@@ -29,7 +30,9 @@ from haynes_studio.escalation.storage import packages
 from haynes_studio.photo_limits import UploadBodyLimits
 from haynes_studio.store.local import LocalStore
 
-from . import approval_routes, auth, escalation_routes, format_routes, job_routes, media, routes, run_routes
+from . import (
+    approval_routes, auth, escalation_routes, feedback_routes, format_routes, job_routes, media, routes, run_routes,
+)
 from .config import DEFAULT_STORE_FRESHNESS_SECONDS, from_environment, store_freshness_from_environment
 from .errors import APIError, ErrorDetail, ErrorEnvelope, STATUS, error_response, missing
 from .models import build_models
@@ -184,8 +187,9 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
 
     build_models(*run_routes.transport_models(), *job_routes.transport_models(),
                  *format_routes.transport_models(), *escalation_routes.transport_models(),
+                 *feedback_routes.transport_models(),
                  approval_routes.ApprovalWrite, approval_routes.ApprovalState,
-                 approval_routes.ApprovalView, approval_routes.AllowedDecision,
+                 approval_routes.ApprovalHistoryItem, approval_routes.ApprovalView, approval_routes.AllowedDecision,
                  approval_routes.DeniedDecision, approval_routes.ApprovalReview)
     for model in (ErrorDetail, ErrorEnvelope):
         model.model_config["defer_build"] = False
@@ -198,6 +202,7 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
     app.include_router(run_routes.build_router(current_actor, authenticated_route))
     app.include_router(job_routes.build_router(current_actor, authenticated_route))
     app.include_router(approval_routes.build_router(current_actor, approval_route))
+    app.include_router(feedback_routes.build_router(current_actor, authenticated_route))
     app.include_router(format_routes.build_router(current_actor, authenticated_route))
     app.include_router(escalation_routes.build_router(current_actor, authenticated_route))
     app.include_router(escalation_routes.worker_router())
@@ -219,6 +224,8 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
                 conn.execute(sa.select(go_live_approvals.c.id).limit(0))
                 conn.execute(sa.select(format_versions.c.id).limit(0))
                 conn.execute(sa.select(packages.c.id).limit(0))
+                conn.execute(sa.select(stories.c.feedback_iteration_id)
+                             .join(feedback_iterations).join(run_candidates).join(candidate_feedback).limit(0))
         except (SQLAlchemyError, OSError):
             return False
         return True

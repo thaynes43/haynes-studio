@@ -61,12 +61,17 @@ def get(conn, approval_id):
     return result
 
 
-def history(conn, run_id):
+def history(conn, run_id, *, show_identity):
     approved_at = sa.cast(approvals.c.document["approved_at"].astext, sa.DateTime(timezone=True))
     rows = conn.execute(sa.select(approvals.c.document, withdrawals.c.document).select_from(_active)
                         .where(approvals.c.run_id == run_id)
                         .order_by(approved_at.desc(), approvals.c.id.desc()))
-    return [_view(document, withdrawal) for document, withdrawal in rows]
+    if show_identity:
+        return [_view(document, withdrawal) for document, withdrawal in rows]
+    return [_view(
+        {key: value for key, value in document.items() if key not in {"approver", "auth_time"}},
+        {key: withdrawal[key] for key in ("schema", "approval_id", "withdrawn_at")} if withdrawal else None,
+    ) for document, withdrawal in rows]
 
 
 def record_withdrawal(conn, approval, by, auth_time, withdrawn_at):

@@ -164,6 +164,11 @@ GRANT UPDATE (format_version_id) ON studio.stories TO studio_app;
 -- Applied by revision 0007_escalation_packages.
 GRANT SELECT, INSERT ON studio.escalation_check_failures, studio.escalation_packages,
     studio.escalation_events TO studio_app;
+
+-- Applied by revision 0008_candidate_feedback.
+GRANT SELECT, INSERT ON studio.run_candidates, studio.candidate_feedback,
+    studio.feedback_iterations TO studio_app;
+GRANT UPDATE (feedback_iteration_id) ON studio.stories TO studio_app;
 ```
 
 Revision `0004_go_live_approvals` uses the PostgreSQL UTF-8 `und-x-icu`
@@ -321,8 +326,14 @@ People and agent keys with production `read` can use it. The run view,
 snapshot and people-only [go-live review](go-live.md#read-a-runs-review) use
 the same scope, `Cache-Control: private, no-store`, and 404 `not_found` for
 unknown or inaccessible runs. An accessible run without a frozen snapshot,
-such as a recovered import, returns 404 `run.snapshot_missing`. The browser
-verifies the bytes against the recorded hash before comparing board IDs.
+such as a recovered import, returns 404 `run.snapshot_missing`. A missing
+pinned blob returns 503 `run.snapshot_lost`. The route checks the recorded
+hash and a 16 MiB read limit before serving bytes or returning 304 for a matching
+`If-None-Match`. The browser verifies the bytes against the recorded hash
+before comparing board IDs.
+
+Use [Candidate feedback](feedback.md) to present a finished run for a frozen
+target, record people's notes and start a new draft revision.
 
 The catalog serves visible canonical versions through `GET /v1/assets`.
 Filter by kind, one or more labels, production or board. The board filter
@@ -470,8 +481,8 @@ STUDIO_THREADS=2 OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 uv run --no-sync pytes
 
 The DB suite reads `STUDIO_TEST_DATABASE_URL` for a disposable PostgreSQL 16
 database. The fixture identity creates a schema and temporary roles. It
-upgrades through `0004_go_live_approvals` to `0005_job_operations`, downgrades to base and
-upgrades from an empty schema. API and store operations run with the executable
+checks the upgrade path through `0008_candidate_feedback` and exercises
+downgrade to base and upgrade from an empty schema. API and store operations run with the executable
 Alembic grants. The suite checks key administration with the dedicated role,
 runtime-role refusal, and protection for ownership, snapshot and Wan attempt
 identity columns. It exercises OIDC with a fake issuer, round-trips The Winter

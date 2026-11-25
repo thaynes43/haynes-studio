@@ -436,6 +436,20 @@ def test_agent_fills_and_reorders_a_fresh_story_without_acknowledgment(prepared)
     assert api.delete(path, headers={**headers, "If-Match": "2"}).status_code == 204
 
 
+def test_another_agent_cannot_write_an_unstamped_agent_board(prepared, owner_engine):
+    api = prepared.browser
+    created = api.post(f"/v1/stories/{prepared.story}/boards", json={},
+                       headers={**prepared.headers, "If-Match": "1"})
+    assert created.status_code == 201, created.text
+    board = created.json()
+    _, other = register_agent(owner_engine, {prepared.production: ["read", "draft:write"]})
+    change = api.patch(f'/v1/boards/{board["id"]}', json={"title": "Unacknowledged edit"},
+                       headers={**other, "If-Match": "1"})
+    assert change.status_code == 409
+    assert change.json()["error"]["code"] == "draft.protected"
+    assert prepared.board(board["id"]).json() == board
+
+
 def test_acknowledgment_requires_the_current_read_and_preserves_history(prepared, owner_engine):
     async def scenario():
         async with prepared.mcp.router.lifespan_context(prepared.mcp), prepared.session() as session:

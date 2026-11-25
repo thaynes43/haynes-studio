@@ -12,7 +12,7 @@ from haynes_studio.db import catalog, runs
 from haynes_studio.db.engine import snapshot
 from haynes_studio.db.problems import NotFound
 from haynes_studio.golive import checks, records
-from haynes_studio.golive.policy import require_approver
+from haynes_studio.golive.policy import require_allowlisted_approver, require_approver
 from haynes_studio.model_register import load_model_register
 
 from .errors import APIError, ERROR_RESPONSES
@@ -32,19 +32,24 @@ class ApprovalState(TransportModel):
     publication_ids: list[str]
 
 
-class ApprovalView(TransportModel):
+class ApprovalHistoryItem(TransportModel):
     schema_version: Literal["studio.go-live-approval/v1"] = Field(alias="schema")
     id: str
     run_id: str
     run_snapshot_sha256: str
     delivery_id: str
     master_sha256: str
-    approver: dict[str, str]
+    approver: dict[str, str] | None = None
     approver_display_name: str | None
-    auth_time: str
+    auth_time: str | None = None
     approved_at: str
     release_checks: JsonObject
     derived: ApprovalState
+
+
+class ApprovalView(ApprovalHistoryItem):
+    approver: dict[str, str]
+    auth_time: str
 
 
 class AllowedDecision(TransportModel):
@@ -62,7 +67,7 @@ class ApprovalReview(TransportModel):
     approve: AllowedDecision | DeniedDecision
     withdraw: AllowedDecision | DeniedDecision
     release_checks: JsonObject | None
-    approvals: list[ApprovalView]
+    approvals: list[ApprovalHistoryItem]
 
 
 @cache
@@ -120,7 +125,7 @@ def build_router(CurrentActor, approval_route):
                        route_class=approval_route)
 
     @router.get("/runs/{id}/go-live-approvals", response_model=ApprovalReview,
-                operation_id="get_go_live_approvals")
+                response_model_exclude_unset=True, operation_id="get_go_live_approvals")
     def get_go_live_approvals(id: str, request: Request, actor: CurrentActor):
         state = request.app.state
         with snapshot(state.engine) as conn:
@@ -133,11 +138,13 @@ def build_router(CurrentActor, approval_route):
             evidence, approval_refusal = _check_approval(
                 row["document"], delivery, master, True, active, preview=True,
             )
+            show_identity = _refusal(require_allowlisted_approver, actor, state.oidc.settings) is None
             return {
                 "run_id": row["id"], "master_sha256": master,
                 "approve": _decision(identity_refusal or approval_refusal),
                 "withdraw": _decision(identity_refusal or _refusal(_require_active, active)),
-                "release_checks": evidence, "approvals": records.history(conn, row["id"]),
+                "release_checks": evidence,
+                "approvals": records.history(conn, row["id"], show_identity=show_identity),
             }
 
     @router.post("/runs/{id}/go-live-approvals", status_code=201, response_model=ApprovalView,

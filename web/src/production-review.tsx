@@ -5,6 +5,7 @@ import { DeliveryPlayer } from "./delivery-player";
 import type { Approval } from "./approval-review-contract";
 import { GoLive, ReviewTime, approvalRefusal } from "./production-approval";
 import { ReviewBoard, StoryBoards } from "./production-boards";
+import { CandidateReview, RunAnswers } from "./production-feedback";
 import { readProductionFilters, toggleProductionFilter, type ProductionFilters } from "./production-filters";
 import { hasDelivery, loadDelivery, loadRuns, runStates, type Run } from "./production-review-data";
 import { boardLabel, listStories, type RouteData, type Story } from "./route-data";
@@ -96,7 +97,9 @@ function FinishedRun({ api, run, path, onDecision }: {
   </>;
 }
 
-function StoryRuns({ api, story, context, run }: { api: StudioClient; story: Story; context: Context; run?: Run }) {
+function StoryRuns({ api, story, context, run, reloadDraft }: {
+  api: StudioClient; story: Story; context: Context; run?: Run; reloadDraft: (signal: AbortSignal) => Promise<void>;
+}) {
   const load = useCallback((signal: AbortSignal) => loadRuns(api, story.id, signal), [api, story.id]);
   const { result, retry } = useRequest(load);
   const [decisions, setDecisions] = useState<Record<string, boolean>>({});
@@ -124,11 +127,14 @@ function StoryRuns({ api, story, context, run }: { api: StudioClient; story: Sto
                 <span>{runStates[selected.status]}</span>
                 <ReviewTime value={selected.queued_at} />
               </div>
+              <RunAnswers run={selected} runs={runs} context={context} />
               {hasDelivery(selected) && <FinishedRun api={api} run={selected}
                 path={treePath("productions", { ...context, run: selected.id })}
                 onDecision={(record) => setDecisions((prior) => ({
                   ...prior, [record.run_id]: record.derived.state === "active",
                 }))} />}
+              {selected.status === "succeeded" && selected.legacy == null &&
+                <CandidateReview api={api} run={selected} context={context} reloadDraft={reloadDraft} />}
             </article>
           : <Empty>This run is no longer available in this story.</Empty>}
       </div>;
@@ -140,6 +146,16 @@ export function ProductionReview({ api, data, context }: {
   api: StudioClient; data: RouteData & { story: Story }; context: Context;
 }) {
   const { story, board } = data;
+  const [draft, setDraft] = useState(story);
+  async function reloadDraft(signal: AbortSignal) {
+    const { data: refreshed } = await api.GET("/v1/stories/{id}", {
+      signal, params: { path: { id: story.id } },
+    });
+    if (!refreshed || refreshed.id !== story.id || refreshed.production_id !== story.production_id ||
+        refreshed.media_kind !== story.media_kind) throw new ApiError(404);
+    if (!signal.aborted) setDraft(refreshed);
+  }
+
   return <>
     <div className="review-toolbar">
       {!board && <p className="review-badges"><span>{storyStatus(story)}</span></p>}
@@ -148,8 +164,8 @@ export function ProductionReview({ api, data, context }: {
     {board
       ? <ReviewBoard api={api} board={board} story={story} />
       : <>
-          <StoryRuns api={api} story={story} context={context} run={data.run} />
-          <StoryBoards api={api} story={story} context={context} />
+          <StoryRuns api={api} story={story} context={context} run={data.run} reloadDraft={reloadDraft} />
+          <StoryBoards api={api} story={draft} context={context} />
         </>}
   </>;
 }

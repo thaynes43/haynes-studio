@@ -68,6 +68,23 @@
       ],
       "$comment": "proposal (story 406): which phase of a build the run ran"
     },
+    "answers": {
+      "type": "object",
+      "description": "The candidate and feedback selected on the draft revision queued for this run.",
+      "required": ["candidate_id", "run_id", "note_ids"],
+      "properties": {
+        "candidate_id": {"type": "string", "pattern": "^cnd_[0-7][0-9A-HJKMNP-TV-Z]{25}$"},
+        "run_id": {"$ref": "studio.defs.v1.schema.json#/$defs/run_id"},
+        "note_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^fbk_[0-7][0-9A-HJKMNP-TV-Z]{25}$"}
+        }
+      },
+      "additionalProperties": false
+    },
     "snapshot": {
       "type": "object",
       "x-studio": {

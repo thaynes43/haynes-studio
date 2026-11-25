@@ -79,4 +79,11 @@ ESCALATION_GRANTS = (
 )
 
 
-RUNTIME_GRANTS = RUN_QUEUE_GRANTS + GO_LIVE_GRANTS + JOB_GRANTS + FORMAT_GRANTS + ESCALATION_GRANTS
+FEEDBACK_GRANTS = (
+    ("SELECT, INSERT", ("run_candidates", "candidate_feedback", "feedback_iterations")),
+    ("UPDATE (feedback_iteration_id)", ("stories",)),
+)
+
+RUNTIME_GRANTS = (
+    RUN_QUEUE_GRANTS + GO_LIVE_GRANTS + JOB_GRANTS + FORMAT_GRANTS + ESCALATION_GRANTS + FEEDBACK_GRANTS
+)

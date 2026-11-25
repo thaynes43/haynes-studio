@@ -10,7 +10,7 @@ def require_person(actor):
         raise forbidden("approval.approver_not_permitted", "Go-live requires a signed-in person")
 
 
-def require_approver(actor, settings, now):
+def require_allowlisted_approver(actor, settings):
     require_person(actor)
     principal = actor.principal
     allowed = settings.go_live_approver_subjects
@@ -20,6 +20,10 @@ def require_approver(actor, settings, now):
         if actor.group_session:
             raise forbidden("approval.group_not_permitted", "Studio group access grants sign-in only")
         raise forbidden("approval.subject_not_permitted", "This subject is outside the go-live allowlist")
+
+
+def require_approver(actor, settings, now):
+    require_allowlisted_approver(actor, settings)
     window = timedelta(seconds=settings.go_live_freshness_seconds)
     if actor.auth_time is None or not timedelta(0) <= now - actor.auth_time <= window:
         raise forbidden("approval.sign_in_again", "Sign in again to make a go-live decision")
