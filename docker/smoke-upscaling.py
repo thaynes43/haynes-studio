@@ -1,4 +1,4 @@
-"""Exercise the contrib wheel, CPU inference and Unix HTTP with a toy graph."""
+"""Exercise the pinned image with a toy graph and a generated delivery proxy."""
 
 import hashlib
 import os
@@ -9,11 +9,13 @@ from tempfile import TemporaryDirectory
 
 from PIL import Image
 
-from haynes_studio.store import canonical_json
+from haynes_studio.store import blob_locator, canonical_json
+from haynes_studio.timebase import DELIVERY_FPS
 from haynes_studio.upscaling.backend import Engine
 from haynes_studio.upscaling.profile import GRAPH_NAME, PROFILE_ID, PROVIDER, WHEELS, Profile, runtime_identity
 from haynes_studio.upscaling.service import listening, local_call
 from haynes_studio.upscaling.trial import frame
+from haynes_studio.upscaling.video import frame_selector, read_frame
 
 
 def varint(number):
@@ -65,6 +67,27 @@ def synthetic_graph():
     )
 
 
+def exercise_video(scratch):
+    import cv2
+    import numpy as np
+
+    source = scratch / "generated.mp4"
+    writer = cv2.VideoWriter(str(source), cv2.CAP_FFMPEG, cv2.VideoWriter_fourcc(*"mp4v"), DELIVERY_FPS, (72, 128))
+    try:
+        assert writer.isOpened()
+        for shade in (32, 128, 224):
+            writer.write(np.full((128, 72, 3), shade, dtype=np.uint8))
+    finally:
+        writer.release()
+    locator = blob_locator("library", hashlib.sha256(source.read_bytes()).hexdigest(), "video/mp4")
+    (scratch / locator).parent.mkdir(parents=True)
+    source.rename(scratch / locator)
+    image, evidence = read_frame(scratch, locator, frame_selector(None, "0.09"), (108, 192))
+    assert evidence["frame_index"] == 2 and evidence["frame_count"] == 3
+    assert all(channel > 210 for channel in image.getpixel((0, 0)))
+    return evidence
+
+
 def exercise(parent):
     graph = synthetic_graph()
     digest = hashlib.sha256(graph).hexdigest()
@@ -101,7 +124,7 @@ def exercise(parent):
         assert outputs[0] == outputs[1]
         return {"graph": "synthetic_luma_pixel_shuffle", "graph_sha256": digest,
                 "output_sha256": hashlib.sha256(outputs[0]).hexdigest(),
-                "provider": PROVIDER, "allocator_byte_match": True}
+                "provider": PROVIDER, "allocator_byte_match": True, "video_frame": exercise_video(scratch)}
 
 
 def main():

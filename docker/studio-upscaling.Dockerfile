@@ -37,7 +37,7 @@ FROM python-base AS runtime
 RUN groupadd --gid 10001 studio \
     && useradd --uid 10001 --gid 10001 --home-dir /upscaling --no-create-home \
         --shell /usr/sbin/nologin studio \
-    && mkdir -p /upscaling /weights \
+    && mkdir -p /upscaling /weights /store \
     && rm -rf /usr/local/include /usr/local/bin/idle* /usr/local/bin/pip* \
         /usr/local/bin/python*-config /usr/local/lib/python3.12/config-* \
         /usr/local/lib/python3.12/ensurepip /usr/local/lib/python3.12/idlelib \
@@ -56,6 +56,7 @@ COPY docker/fsrcnn-notice.txt /opt/studio/FSRCNN-NOTICE
 ARG REVISION
 LABEL org.opencontainers.image.source="https://github.com/thaynes43/haynes-studio" \
     org.opencontainers.image.revision="${REVISION}" \
+    io.haynes-studio.upscaling.comparison="stored-proxy-frame-v1" \
     org.opencontainers.image.title="Haynes Studio Upscaling"
 ENV PATH=/opt/studio/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
     HOME=/upscaling TMPDIR=/upscaling LANG=C.UTF-8 \

@@ -336,9 +336,9 @@ Measure luma as `0.2126R + 0.7152G + 0.0722B` on the encoded RGB samples.
    maximum-size graph input adds a 19th evaluated frame per setting.
 
 The Studio coordinator owns the graph provisioning and cluster smoke.
-The staged one-shot comparison Job uses a single authorized opaque PNG/JPEG
-frame or still from the content-addressed Studio store, verified by its byte
-hash. Both arms start with the same decoded RGB8 image. For frames, the
+Under provisional CR-49, the staged one-shot comparison Job accepts an
+authorized opaque PNG/JPEG still or one frame of a stored MP4 delivery proxy.
+Both arms start with the same decoded RGB8 image. For frames, the
 baseline calls the delivery profile's exact-aspect Lanczos scaler. For plates,
 it calls `fit_set_plate`, which combines a centered, fractional cover crop with
 Lanczos in one operation. The FSRCNN arm processes the same full RGB8 image
@@ -346,13 +346,41 @@ through ×2 inference immediately before that same final delivery function.
 For a plate the cover box scales with the ×2 image, so both arms use the same
 field of view. The cover-fit request is internal to the one-shot command.
 
+For video, pass the canonical store locator via `--proxy` and choose exactly
+one selector. `--frame-index` is zero-based. `--timestamp` is nonnegative
+decimal seconds from the first frame, with up to nine decimal places. It
+selects the frame displayed at that time (`floor(seconds × 24)`). The pinned
+OpenCV wheel's FFmpeg backend decodes the selected frame directly from the
+hashed, read-only file descriptor with one decoder thread. The files must
+follow the 24 fps delivery clock and the selected frame must exist on that
+clock. Each MP4 has a 256 MiB bound. Proxy frames must meet the 1280 px long
+edge and 921,600 pixel limits, match the target aspect and scale by more than
+1× and at most 2×. An optional `--master` from the same delivery supplies the
+same frame index, at the exact target size and with the same frame count.
+The Job refuses invalid locators, file types, sizes, frame geometry and
+decode failures with `adapter.request_invalid`, a wrong content hash with
+`adapter.pin_mismatch`, and a selector beyond the file with
+`adapter.frame_out_of_range`.
+[Delivery clock and format](studio-delivery.md#checks) ·
+[OpenCV FFmpeg capture](https://github.com/opencv/opencv/blob/4.14.0/modules/videoio/src/cap_ffmpeg_impl.hpp)
+
 An init container reserves one new group-writable private jobs directory. The
-comparison mounts that directory for its two PNGs and create-only report. Its
-input directory and pinned weights are read-only. It logs only hashes,
-sizes, timing, memory and objective measurements. With a still and no
-high-resolution truth, report luma differences at output and source scale,
-edge energy and fixed lettering, face or hair ROI scores where supplied.
-Plate source-scale scores use the cover-fitted half-delivery grid.
+comparison writes `lanczos.png`, `fsrcnn.png`, and `report.json` there, plus
+`proxy.png` and, when supplied, `master.png` for video inputs. All files are
+create-only. The Job mounts the input hash shards and pinned weights read-only.
+The report and logs keep store paths and private names out. They record
+hashes, sizes, frame selection, timing, memory and objective measurements.
+Report luma differences at output and source scale, edge energy and fixed
+lettering, face or hair ROI scores where supplied. Plate source-scale scores
+use the cover-fitted half-delivery grid.
+
+With a master, also report normalized luma MAE, luma PSNR in dB and luma SSIM
+for each arm against the decoded master, plus reference MAE for each supplied
+ROI. PSNR is recorded as `null` on an exact luma match. SSIM averages 11 × 11
+Gaussian windows (σ = 1.5) wholly inside the frame. The proxy is an encoded
+downscale of the master. These measures reward undoing that specific encode
+and do not establish quality on real low-resolution sources. The analytic
+glyph, edge and cadence checks above apply to the generated smoke fixtures.
 Inspect glyphs, face geometry and halos at 1:1 using the private pair.
 **Comparison pending.**
 

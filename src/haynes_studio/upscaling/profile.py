@@ -13,6 +13,7 @@ from importlib.resources import files
 from pathlib import Path
 
 from haynes_studio.store import canonical_json
+from haynes_studio.timebase import DELIVERY_FPS
 
 PROFILE_ID = "fsrcnn-x2-opencv-cpu-v1"
 IMAGE_REPOSITORY = "ghcr.io/thaynes43/haynes-studio-upscaling"
@@ -38,6 +39,7 @@ WHEELS = {
 }
 MAX_INPUT = 4 * 1024**2
 MAX_OUTPUT = 8 * 1024**2
+MAX_VIDEO_BYTES = 256 * 1024**2
 MAX_LONG_EDGE = 1280
 MAX_PIXELS = 921_600
 TARGETS = ((1080, 1920), (1920, 1080))
@@ -45,6 +47,10 @@ STARTUP_SECONDS = 30
 REQUEST_SECONDS = 5
 CLIP_SECONDS = 300
 THREADS = 2
+VIDEO_THREADS = 1
+VIDEO_CAPTURE_OPTIONS = (
+    "format_whitelist;mov,mp4,m4a,3gp,3g2,mj2|protocol_whitelist;file|enable_drefs;0"
+)
 PROVIDER = "opencv-dnn-cpu-fp32"
 SETTINGS = {
     "default": "",
@@ -66,6 +72,7 @@ RESPONSE_INVALID = "adapter.response_invalid"
 COMMAND_FAILED = "adapter.command_failed"
 NOT_FOUND = "adapter.not_found"
 BUSY = "adapter.busy"
+FRAME_OUT_OF_RANGE = "adapter.frame_out_of_range"
 
 
 class UpscaleError(Exception):
@@ -147,7 +154,7 @@ class Profile:
 
     def document(self) -> dict:
         adapter = {name: digest_path(Path(__file__).with_name(name)) for name in (
-            "backend.py", "files.py", "opencv.py", "pixels.py", "profile.py", "service.py",
+            "backend.py", "comparison.py", "files.py", "opencv.py", "pixels.py", "profile.py", "service.py", "video.py",
         )}
         adapter["delivery_profile.py"] = digest_path(Path(__file__).parent.parent / "render/delivery_profile.py")
         return {
@@ -167,6 +174,9 @@ class Profile:
                        "plate_comparison_fit": "centered cover after inference, one-shot comparison only",
                        "final_resize": "Pillow Lanczos", "targets": [list(size) for size in TARGETS]},
             "png": {"mode": "RGB8", "compress_level": 1, "optimize": False, "metadata": False},
+            "comparison": {"video": "OpenCV FFmpeg MP4", "video_bytes_per_file": MAX_VIDEO_BYTES,
+                           "fps": DELIVERY_FPS, "decode_threads": VIDEO_THREADS,
+                           "capture_options": VIDEO_CAPTURE_OPTIONS},
             "limits": {"input_bytes": MAX_INPUT, "output_bytes": MAX_OUTPUT, "input_pixels": MAX_PIXELS,
                        "input_long_edge": MAX_LONG_EDGE, "startup_seconds": STARTUP_SECONDS,
                        "request_seconds": REQUEST_SECONDS, "clip_seconds": CLIP_SECONDS, "in_flight": 1},
