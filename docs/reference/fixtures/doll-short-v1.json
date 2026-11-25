@@ -1,0 +1,72 @@
+{
+  "id": "doll-short",
+  "name": "Doll short",
+  "recipe": {
+    "schema": "studio.format-recipe/v1",
+    "frame": {"width": 1080, "height": 1920, "fps": 24},
+    "length": {"min_ms": 8166, "max_ms": 45292},
+    "shot_types": {
+      "speaking": [{"layer": "layered", "motion": "s2v"}],
+      "reaction": [{"layer": "layered", "motion": "i2v"}],
+      "ambient": [{"layer": "whole_frame", "motion": "i2v"}]
+    },
+    "cast": {
+      "rules": [
+        "Original adult fashion dolls with visibly molded plastic, joints and synthetic hair.",
+        "Keep the molded expression fixed in the reference image. Use a new image from the next cut for a different expression.",
+        "Miniature 1:6 sets with a clear middle and foreground edge. Use a set loop on layered shots when available."
+      ],
+      "team_costumes": {
+        "yellowbirds": {
+          "garment": "zip-up team track jacket",
+          "sleeves": "full_length",
+          "garment_color": "royal blue",
+          "sleeve_detail": "thin white stripes",
+          "lettering": "YELLOWBIRDS",
+          "lettering_color": "yellow",
+          "lettering_style": "bold varsity letters across the chest"
+        }
+      }
+    },
+    "voice": {
+      "engine": "Kokoro",
+      "style": ["One distinct stock synthetic voice per doll.", "Deadpan delivery.", "Voice cloning is excluded."]
+    },
+    "audio": {
+      "style": ["Sparse sound effects.", "Short fades at both edges of each line."],
+      "line_rms_dbfs": -22,
+      "master_lufs": -20,
+      "true_peak_dbtp": -3.5
+    },
+    "checks": {
+      "decal.drift": {"min_ecc": 0.8},
+      "wardrobe.attributes": {},
+      "frame_count": {},
+      "master.loudness": {"target_lufs": -20, "tolerance_lu": 1.5},
+      "master.true_peak": {"max_dbtp": -2.5},
+      "master.clipping": {"max_clipped_samples": 0},
+      "master.transcript": {}
+    },
+    "human_gates": ["go_live"],
+    "targets": [
+      {
+        "id": "tom-shorts",
+        "name": "Tom's YouTube Shorts channel",
+        "platform": "youtube-shorts",
+        "state": "placeholder",
+        "account_id": null,
+        "rules": {"max_length_ms": null, "ai_label_required": true, "aspect": "9:16"},
+        "owner_note": "Tom will create and own the channel. The channel focuses on local LLMs and local AI. Use the synthetic-content setting and an AI-generated label in the description."
+      }
+    ],
+    "notes": [
+      "Frame, doll and set rules, Kokoro voice and sparse sound style: docs/reference/doll-format.md.",
+      "Length: One More Meeting at 196 frames (8.166667 s) in titles/one-more-meeting/run-evidence.json and The Winter Menu at 1087 frames (45.2917 s) in titles/the-winter-menu/evidence-r4/validation.json. Bounds are rounded outwards to whole milliseconds and are advisory under D45.",
+      "Methods and set loops: D22–D24 in docs/proposals/0003-studio-plan.md and the buildable matrix in docs/contracts/studio-contracts-v1.md section 5.",
+      "Yellowbirds declaration: titles/the-winter-menu/brief.md and the full-length sleeve correction in titles/the-winter-menu/video-e0/findings-layered.md.",
+      "Wardrobe and minimum ECC: docs/reference/wardrobe-decal-checks.md. Other check parameters are supplied by the check implementation or the individual story.",
+      "Sound targets and limits: docs/reference/studio-mix.md. Frame count and transcript checks: docs/reference/doll-format.md and the run evidence in titles/one-more-meeting/run-evidence.json.",
+      "Go-live gate and target owner note: D29, D43 and D44 in docs/proposals/0003-studio-plan.md. The vertical aspect is this recipe's delivery profile. The platform maximum and channel identifier are unset in the committed sources."
+    ]
+  }
+}

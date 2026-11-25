@@ -14,6 +14,7 @@ def test_layered_estimate_counts_rendered_speakers_once_and_skips_narration(monk
     prepared = SimpleNamespace(
         story=SimpleNamespace(ordered_boards=lambda: [board]),
         facts=None,
+        format_version=None,
         report=SimpleNamespace(blocking=[]),
     )
     monkeypatch.setattr(inputs, "board_clock", lambda board, facts: SimpleNamespace(frames=119))

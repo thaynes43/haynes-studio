@@ -16,6 +16,10 @@ StoryID = Annotated[str, StringConstraints(pattern=rf"^sty_{ULID_PATTERN}$")]
 BoardID = Annotated[str, StringConstraints(pattern=rf"^brd_{ULID_PATTERN}$")]
 AssetID = Annotated[str, StringConstraints(pattern=rf"^ast_{ULID_PATTERN}$")]
 RunID = Annotated[str, StringConstraints(pattern=rf"^run_{ULID_PATTERN}$")]
+FormatID = Annotated[str, StringConstraints(
+    max_length=64, pattern=r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+)]
+FormatVersionID = Annotated[str, StringConstraints(pattern=rf"^fmv_{ULID_PATTERN}$")]
 VersionCursor = Annotated[str, StringConstraints(pattern=rf"^asv_{ULID_PATTERN}$")]
 BoardCursor = Annotated[str, StringConstraints(pattern=rf"^[1-9][0-9]{{0,18}}:brd_{ULID_PATTERN}$")]
 Revision = Annotated[int, Field(ge=1, lt=2**63 - 1)]
@@ -41,7 +45,7 @@ class Arguments(BaseModel):
 
 class StoryFields(Arguments):
     title: StoryTitle | None = None
-    format_version_id: str | None = None
+    format_version_id: FormatVersionID | None = None
     cast: list[dict] | None = None
     narrator_voice_version_id: str | None = None
     set: dict | None = None
@@ -169,6 +173,21 @@ class Asset(Arguments):
 
 class Delivery(Arguments):
     run_id: RunID
+
+
+class ListFormats(Arguments):
+    cursor: FormatID | None = None
+    limit: Limit = 10
+
+
+class ListFormatVersions(Arguments):
+    format_id: FormatID
+    cursor: FormatVersionID | None = None
+    limit: Limit = 10
+
+
+class FormatVersion(Arguments):
+    version_id: FormatVersionID
 
 
 Key = Annotated[str, StringConstraints(pattern=r"^[!-~]{1,255}$")]

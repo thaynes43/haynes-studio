@@ -530,8 +530,7 @@ class BoardTimingRow:
 
 @dataclass(frozen=True, slots=True)
 class FormatLength:
-    """A format's length range (D45). Formats arrive with story 447; until then the
-    caller supplies it."""
+    """A pinned format's advisory length range (D45)."""
 
     format_version_id: str
     min_ms: int

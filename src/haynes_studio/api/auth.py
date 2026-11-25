@@ -177,7 +177,8 @@ def build_router():
                 worker = (identity.get_worker(conn, authorization.credentials)
                           if approval and agent is None and valid_worker_bearer(authorization.credentials) else None)
             if worker is not None:
-                request.state.principal = Principal(kind="worker", worker_id=worker)
+                principal = Principal(kind="worker", worker_id=worker)
+                request.state.principal = principal
                 raise forbidden("approval.worker_not_permitted", "Worker tokens cannot approve go-live")
             if agent is None:
                 raise unauthenticated()
@@ -219,8 +220,11 @@ def build_router():
 
             async def authenticated(request):
                 # FastAPI would otherwise parse the body before solving dependencies.
-                await access(request, await bearer(request), await session_cookie(request),
-                             request.headers.get(CSRF_HEADER))
+                actor = await run_in_threadpool(
+                    resolve_actor, request, await bearer(request), await session_cookie(request),
+                    request.headers.get(CSRF_HEADER),
+                )
+                request.state.actor = actor
                 return await handler(request)
 
             return authenticated

@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://haynes-studio.invalid/schemas/studio.format-recipe.v1.schema.json",
+  "title": "studio.format-recipe/v1",
+  "type": "object",
+  "required": ["schema", "frame", "length", "shot_types", "cast", "voice", "audio", "checks", "human_gates", "targets", "notes"],
+  "properties": {
+    "schema": {
+      "const": "studio.format-recipe/v1",
+      "maxLength": 23,
+      "x-studio": {
+        "const": {"rule": "schema.unsupported", "message": "must be studio.format-recipe/v1"},
+        "maxLength": {"rule": "schema.unsupported", "message": "must be studio.format-recipe/v1"}
+      }
+    },
+    "frame": {
+      "type": "object",
+      "required": ["width", "height", "fps"],
+      "properties": {
+        "width": {"type": "integer", "minimum": 2},
+        "height": {"type": "integer", "minimum": 2},
+        "fps": {"const": 24}
+      },
+      "additionalProperties": false
+    },
+    "length": {
+      "type": "object",
+      "required": ["min_ms", "max_ms"],
+      "properties": {
+        "min_ms": {"type": "integer", "minimum": 1},
+        "max_ms": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    },
+    "shot_types": {
+      "type": "object",
+      "minProperties": 1,
+      "properties": {
+        "speaking": {"$ref": "#/$defs/methods"},
+        "reaction": {"$ref": "#/$defs/methods"},
+        "ambient": {"$ref": "#/$defs/methods"}
+      },
+      "additionalProperties": false
+    },
+    "cast": {
+      "type": "object",
+      "required": ["rules", "team_costumes"],
+      "properties": {
+        "rules": {"$ref": "#/$defs/notes"},
+        "team_costumes": {
+          "type": "object",
+          "propertyNames": {"$ref": "#/$defs/slug"},
+          "additionalProperties": {
+            "type": "object",
+            "minProperties": 1,
+            "propertyNames": {"pattern": "^[a-z][a-z0-9_]{0,63}(?![\\s\\S])", "maxLength": 64},
+            "additionalProperties": {"$ref": "#/$defs/text"}
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "voice": {
+      "type": "object",
+      "required": ["engine", "style"],
+      "properties": {
+        "engine": {"$ref": "#/$defs/optional_text"},
+        "style": {"$ref": "#/$defs/notes"}
+      },
+      "additionalProperties": false
+    },
+    "audio": {
+      "type": "object",
+      "required": ["style", "line_rms_dbfs", "master_lufs", "true_peak_dbtp"],
+      "properties": {
+        "style": {"$ref": "#/$defs/notes"},
+        "line_rms_dbfs": {"$ref": "#/$defs/level"},
+        "master_lufs": {"$ref": "#/$defs/level"},
+        "true_peak_dbtp": {"$ref": "#/$defs/level"}
+      },
+      "additionalProperties": false
+    },
+    "checks": {
+      "type": "object",
+      "properties": {
+        "decal.drift": {
+          "type": "object",
+          "properties": {
+            "min_ecc": {"type": "number"},
+            "max_offset": {"type": "number"},
+            "max_ink_ratio": {"type": "number"},
+            "min_ink_ratio": {"type": "number"},
+            "opaque_alpha": {"type": "integer"},
+            "min_pixels": {"type": "integer"},
+            "max_cloth_aspect_change": {"type": "number"}
+          },
+          "additionalProperties": false
+        },
+        "wardrobe.attributes": {
+          "type": "object",
+          "properties": {
+            "opaque_alpha": {"type": "integer"},
+            "min_opaque_fraction": {"type": "number"},
+            "min_color_fraction": {"type": "number"},
+            "min_opaque_pixels": {"type": "integer"}
+          },
+          "additionalProperties": false
+        },
+        "frame_count": {"$ref": "#/$defs/no_check_parameters"},
+        "mix.length": {
+          "type": "object",
+          "properties": {
+            "samples": {"type": "integer"},
+            "rate": {"type": "integer"},
+            "channels": {"type": "integer"},
+            "bits": {"type": "integer"}
+          },
+          "additionalProperties": false
+        },
+        "mix.loudness": {"$ref": "#/$defs/loudness"},
+        "master.loudness": {"$ref": "#/$defs/loudness"},
+        "mix.true_peak": {"$ref": "#/$defs/true_peak"},
+        "master.true_peak": {"$ref": "#/$defs/true_peak"},
+        "mix.clipping": {"$ref": "#/$defs/clipping"},
+        "master.clipping": {"$ref": "#/$defs/clipping"},
+        "master.transcript": {"$ref": "#/$defs/no_check_parameters"}
+      },
+      "additionalProperties": false
+    },
+    "human_gates": {
+      "type": "array", "minItems": 1, "maxItems": 1,
+      "items": {"const": "go_live", "maxLength": 7}
+    },
+    "targets": {"type": "array", "maxItems": 16, "items": {"$ref": "#/$defs/target"}},
+    "notes": {"$ref": "#/$defs/notes"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "text": {"type": "string", "minLength": 1, "maxLength": 1000, "pattern": "\\S"},
+    "optional_text": {"type": ["string", "null"], "minLength": 1, "maxLength": 1000, "pattern": "\\S"},
+    "slug": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?![\\s\\S])", "maxLength": 64},
+    "notes": {"type": "array", "maxItems": 32, "items": {"$ref": "#/$defs/text"}},
+    "level": {"type": ["number", "null"], "maximum": 0},
+    "no_check_parameters": {"type": "object", "additionalProperties": false},
+    "loudness": {
+      "type": "object",
+      "properties": {"target_lufs": {"type": "number"}, "tolerance_lu": {"type": "number"}},
+      "additionalProperties": false
+    },
+    "true_peak": {
+      "type": "object",
+      "properties": {"max_dbtp": {"type": "number"}},
+      "additionalProperties": false
+    },
+    "clipping": {
+      "type": "object",
+      "properties": {"max_clipped_samples": {"type": "integer"}},
+      "additionalProperties": false
+    },
+    "methods": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": ["layer", "motion"],
+        "properties": {
+          "layer": {"enum": ["layered", "whole_frame"], "maxLength": 11},
+          "motion": {"enum": ["s2v", "i2v"], "maxLength": 3}
+        },
+        "additionalProperties": false
+      }
+    },
+    "target": {
+      "type": "object",
+      "required": ["id", "name", "platform", "state", "account_id", "rules", "owner_note"],
+      "properties": {
+        "id": {"$ref": "#/$defs/slug"},
+        "name": {"$ref": "#/$defs/text"},
+        "platform": {"$ref": "#/$defs/slug"},
+        "state": {"enum": ["placeholder", "existing"], "maxLength": 11},
+        "account_id": {"type": ["string", "null"], "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+(?![\\s\\S])"},
+        "rules": {
+          "type": "object",
+          "required": ["max_length_ms", "ai_label_required", "aspect"],
+          "properties": {
+            "max_length_ms": {"type": ["integer", "null"], "minimum": 1},
+            "ai_label_required": {"type": ["boolean", "null"]},
+            "aspect": {"type": ["string", "null"], "maxLength": 11, "pattern": "^[1-9][0-9]{0,4}:[1-9][0-9]{0,4}(?![\\s\\S])"}
+          },
+          "additionalProperties": false
+        },
+        "owner_note": {"$ref": "#/$defs/optional_text"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

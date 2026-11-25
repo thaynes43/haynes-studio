@@ -156,6 +156,8 @@ def owner_engine(studio_db, runtime_role):
         migrate(engine, target="0002_active_agent_grants")
         migrate(engine, target="0004_go_live_approvals", runtime_role=runtime_role[0])
         migrate(engine, target="0005_job_operations", runtime_role=runtime_role[0])
+        # An earlier module may have left the shared schema at the current head.
+        migrate(engine, "downgrade", "0005_job_operations")
         with engine.connect() as conn:
             assert conn.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == "0005_job_operations"
         migrate(engine, "downgrade", "base")

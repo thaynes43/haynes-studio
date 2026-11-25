@@ -33,6 +33,7 @@ from haynes_studio.canonical import Facts, Story, load_story
 from haynes_studio.canonical.derive import board_clock
 from haynes_studio.canonical.validate import WRITE
 from haynes_studio.errors import WARNING, blocking
+from haynes_studio.formats.recipe import PIN_PATH, method_violation
 from haynes_studio.jsonio import thaw
 from haynes_studio.layered import check_board as layered_check
 from haynes_studio.layered.pin import pin_story
@@ -69,6 +70,7 @@ class Prepared:
     resolved: Mapping[str, ResolvedVersion]
     motion: LayeredMotion | None
     report: PreflightReport
+    format_version: Mapping[str, Any] | None = None
 
     @property
     def ok(self) -> bool:
@@ -151,7 +153,8 @@ def _metadata_present(_locator, _sha):
 
 def prepare(document: Mapping[str, Any], *, library: Library, store: Store | None,
             toolchain: Toolchain, frame_size: tuple[int, int], current_engine: str,
-            jobs: Iterable[Any] = (), check_photo_currency: bool = False) -> Prepared:
+            jobs: Iterable[Any] = (), check_photo_currency: bool = False,
+            format_version: Mapping[str, Any] | None = None) -> Prepared:
     """Run the pre-build check of a draft story (boards embedded). Never raises for a
     story that cannot be built: every problem is in ``report``. With no store,
     resolve declared content identities and require the worker to verify the bytes."""
@@ -173,6 +176,19 @@ def prepare(document: Mapping[str, Any], *, library: Library, store: Store | Non
         facts = facts.merged(photo_facts(story, library))
     report = preflight(story, facts=facts, resolved=resolved, store=store)
     problems = list(report.problems)
+    if story.format_version_id is not None:
+        if format_version is None or format_version["id"] != story.format_version_id:
+            problems.append(Problem("ref.unknown", "invalid", PIN_PATH,
+                                    "The pinned format version is unavailable", field=PIN_PATH))
+        else:
+            for index, board in enumerate(document["boards"]):
+                issue = method_violation(format_version["recipe"], board)
+                if issue is not None:
+                    problems.append(Problem(
+                        issue.rule, issue.status, f"/boards/{index}{issue.path}", issue.message,
+                        board_id=board["id"], board_number=board["number"],
+                        legacy_shot=(board.get("origin") or {}).get("legacy_shot"), field=issue.path,
+                    ))
     # The motion records every layered board plays (story 457's resolver); a board's
     # problems stay on its BoardMotion, and the layered check reports them.
     motion = pin_story(document, library, verify, production_id=story.production_id)
@@ -189,7 +205,7 @@ def prepare(document: Mapping[str, Any], *, library: Library, store: Store | Non
     unique.sort(key=lambda p: (-1 if p.board_id is None else order.get(p.board_id, len(order)),
                                p.field, p.rule, p.message))
     return Prepared(document, library, story, facts, resolution, resolved, motion,
-                    PreflightReport(tuple(unique)))
+                    PreflightReport(tuple(unique)), format_version)
 
 
 def blocking_problems(problems: Iterable[Problem]) -> list[Problem]:
@@ -223,6 +239,9 @@ def make_snapshot(prepared: Prepared, library: Library, *, studio: str) -> dict[
     snapshot = {"schema": SNAPSHOT_SCHEMA, "story": draft_document(prepared.document),
                 "resolved_asset_versions": list(entries.values()),
                 "toolchain_request": {"studio": studio}}
+    if prepared.format_version is not None:
+        snapshot["format_version"] = {key: copy.deepcopy(prepared.format_version[key])
+                                      for key in ("id", "sha256", "recipe")}
     problems = blocking(validate_run_snapshot(snapshot, context=WRITE))
     if problems:  # the story passed its own checks; a snapshot that fails is a bug here
         raise AssertionError("; ".join(str(problem) for problem in problems))

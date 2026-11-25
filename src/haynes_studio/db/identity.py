@@ -11,7 +11,8 @@ from haynes_studio.agent_tokens import valid_agent_token
 from .problems import StaleRevision
 from .schema import agent_grants, agent_keys, login_attempts, selections, sessions, worker_tokens
 
-AGENT_SCOPES = frozenset({"read", "draft:write", "assets:generate", "assets:upload", "runs:queue"})
+AGENT_SCOPES = frozenset({"read", "draft:write", "assets:generate", "assets:upload",
+                          "runs:queue", "formats:write"})
 _TOKEN = re.compile(r"[A-Za-z0-9_-]{43,128}")
 
 
