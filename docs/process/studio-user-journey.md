@@ -45,28 +45,31 @@ signed-in installed journey is **Expected**. [Deployment evidence, comment
    **Production name** and press **Create production**. Choose **Short 9:16**
    or **Video 16:9**. If the type is missing, use **+ Short · 9:16** or
    **+ Video · 16:9**. Enter a **Story title** and press **Create story**.
-   Studio opens an empty storyboard. **Create story** sends only the title.
-   The new draft has no pinned format, cast or narrator voice. The editor
-   has no format pin control, so a story created in the app cannot reach
-   feedback or a release package through the UI alone. If a name is taken,
+   Studio opens an empty storyboard with **No format pinned**. If a name is taken,
    open the existing item or choose a different name. If the production
    changed, wait for the media types to refresh and choose again.
    **Proven against the mock only** for creating the empty storyboard.
    [Editor tests](../../web/e2e/editor-entry.spec.ts)
 
-   Before the first build for review, ask an operator to pin a format
-   version that matches the story's media type and includes a feedback
-   target and a YouTube Shorts release target with a maximum duration.
-   For spoken boards, have the operator set a narrator or cast voice
-   version in the production's scope before generating voice. A signed-in
-   operator or an agent with `draft:write` for the production can set those
-   fields through `PATCH /v1/stories/{id}`. Send the current revision ETag
-   in `If-Match` and set `format_version_id` for the pin.
-   Build freezes the format and targets at enqueue. The continuous
-   create-to-review journey is **Expected**. The feedback and package
-   browser checks started with preconfigured fixtures.
-   [Format pin and scopes](../reference/formats.md#api-and-scopes) ·
-   [Revision headers](../reference/studio-api.md#records-and-revisions) ·
+   Before building for review, open **Format** above the storyboard and
+   choose a **Format version**. Check **Run targets** for the targets you
+   need. For a release package, choose a version with a YouTube Shorts target
+   without the **No platform maximum. A package can’t be prepared.** warning.
+   For spoken boards,
+   choose a **Narrator voice** or **Add cast member** and enter a name and
+   voice for each speaker. Press **Save format** and wait for **Format pinned**.
+   If the save conflicts, **Format change needs review** stays visible with
+   Format closed. Open **Format** to compare **Your unsaved version** and
+   **Latest saved version**. **Build** stays disabled until you choose
+   **Keep my edited fields** or **Use latest saved version**. If you keep
+   your edits, press **Save format** to use them in the next build. If Studio
+   can’t confirm the save, use **Reload draft** to check the saved settings
+   before trying again. Build freezes the saved format and its targets.
+   **Proven against the mock only** from creation to the
+   target and package controls on the next finished run. Installation is
+   **Expected** with a deployment that includes OP977.
+   [Format editor tests](../../web/e2e/story-format.spec.ts) ·
+   [Format recipes](../reference/formats.md#drafts-and-queued-runs) ·
    [Release target checks](../reference/release-package.md)
 2. Press **Add board**, then use the **Boards** filmstrip to select a panel.
    The stage shows that board's photo and timing. In **Board inspector**,
@@ -102,8 +105,8 @@ signed-in installed journey is **Expected**. [Deployment evidence, comment
    the measured duration. For **Voice ready ·
    stale**, save the current inputs, then press **Regenerate voice**. If a
    request loses its reply, use the offered retry. If the lane is paused,
-   leave the existing request queued. If the speaker has no voice, ask the
-   operator to prepare the story's narrator or cast voice before retrying.
+   leave the existing request queued. If the speaker has no voice, use
+   **Format** to set the story's narrator or cast voice before retrying.
    **Proven against the mock only.** [Voice tests](../../web/e2e/board-inspector.spec.ts) ·
    [Installed worker evidence](https://work.haynesnetwork.com/work_packages/961)
 2. On the board, open **Reference photo**. For a whole-frame board, enter a
@@ -172,9 +175,11 @@ signed-in installed journey is **Expected**. [Deployment evidence, comment
   a reference from that run. If the target is refused, check the run's
   format target. If a draft iteration conflicts, reload and review the
   current draft before starting it again. **Proven against the mock only**
-  with a preconfigured format and feedback target. An unpinned run shows
-  **This run has no pinned targets.**
-  [Feedback tests](../../web/e2e/candidate-feedback.spec.ts)
+  with a preconfigured format and feedback target. If a run shows **This
+  run has no pinned targets.**, follow **Pin a format in the story editor**,
+  save a version with the right targets, and build again. The earlier run
+  keeps its original snapshot. [Feedback tests](../../web/e2e/candidate-feedback.spec.ts) ·
+  [Format editor tests](../../web/e2e/story-format.spec.ts)
 - Review the run you intend to release in **Productions**. For an eligible
   target, use **Release package** → **Release target** → **Prepare package**.
   The panel shows the checks and a hold reason while release is held. The
@@ -182,8 +187,8 @@ signed-in installed journey is **Expected**. [Deployment evidence, comment
   AI-generated platform setting and press **Approve for go-live**. It
   records his decision for that exact run and master. If the format is
   missing or has no release target, Studio shows **This run has no frozen
-  YouTube Shorts target.** Ask the operator to check the format before
-  building a replacement run. If Studio asks for fresh sign-in,
+  YouTube Shorts target.** Check **Format** in the editor before building
+  a replacement run. If Studio asks for fresh sign-in,
   return to the same run and confirm again. If it reports a failed check,
   address the reason before trying again. Imported runs are ineligible and the
   installed approver list is empty. **Proven against the mock only** for
@@ -211,7 +216,7 @@ platform publishing integration. [Decisions D29, D43 and D52](../proposals/0003-
 | --- | --- | --- |
 | LAN sign-in, selection and phone playback | Installed evidence ends at the sign-in redirect and scoped range reads. The installed browser spec awaits a person's session. | Sign in, navigate to both imports, play with audible sound and seek on a phone, then verify access ends on sign-out or expiry. [Installed journey](../reference/web-behaviour-matrix.md#installed-playback--expected) · [OP944](https://work.haynesnetwork.com/work_packages/944) |
 | Edit, generate, upload, promote, build and compare | Nobody has recorded a voice take, uploaded a photo, given feedback or built a release package on the installed app. Workers have proved reachability and idle claims. | Use a person's session for the first end-to-end private trial and record the actual versions, run IDs and private playback results. Use an authorized uploader for the external photo. [OP961](https://work.haynesnetwork.com/work_packages/961) · [OP964](https://work.haynesnetwork.com/work_packages/964) |
-| Create a story and take it all the way to review in the UI | Product gap at `80975a9`. The new draft lacks a format pin and the editor has no control to set one. The mock feedback and package exercises start with configured runs. | Use an editor control to pin a compatible format, build with the required scoped inputs, and reach feedback and package preparation in a signed-in session. [Coordinator record, OP440 comment 10145](https://work.haynesnetwork.com/work_packages/440) |
+| Create a story and take it all the way to review in the UI | OP977 proves the editor pin and the new run’s target controls in the browser mock. Installed sign-in and the complete build remain expected. | After a deployment includes OP977, sign in, create a draft, pin a compatible format, build with the required scoped inputs and reach feedback and package preparation. [OP977](https://work.haynesnetwork.com/work_packages/977) |
 | Assets search and missing candidate job | The installed pin predates the fixes for fast typing in **Search** and keeping image-lane status current after a job link returns 404. | Verify both behaviours after a pin that includes OP438, in a signed-in session. [Browser behaviour matrix](../reference/web-behaviour-matrix.md) |
 | Feedback, release package and go-live | A real eligible run and real feedback and package are still due. The go-live approver list is empty. | Record feedback and a private package for an eligible Studio-built run. Tom's explicit decision on an exact master proves go-live approval. [OP964](https://work.haynesnetwork.com/work_packages/964) · [Go-live](../reference/go-live.md) |
 | Local model on Wan | The dormant model awaits Tom's approval of the restart-only step. | Verify startup and Studio-client health after the approved restart. Model inference and handover need a separately authorized leased smoke. [OP442, comment 10134](https://work.haynesnetwork.com/work_packages/442) |

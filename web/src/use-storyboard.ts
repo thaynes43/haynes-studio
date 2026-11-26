@@ -6,12 +6,14 @@ import { loadProduction } from "./route-data";
 import { treePath } from "./routes";
 import { addBoard, loadStoryboardDraft, removeBoard, reorderBoards, type StoryboardDraft, type StoryboardScope } from "./storyboard-data";
 import { boardPosition, moveBoard, selectBoard } from "./storyboard-timeline";
+import { patchStoryFormat, type StoryFormatPatch } from "./story-format-data";
 import { useRequest } from "./use-request";
 
 const changedDraft = "The draft changed. Loaded the latest version.";
 type Change = (signal: AbortSignal) => Promise<{ message?: string; addedId?: string; movedId?: string }>;
+export type FormatChange = { revision: number; patch: StoryFormatPatch };
 
-export function useStoryboard(api: StudioClient, scope: StoryboardScope, requested?: string) {
+export function useStoryboard(api: StudioClient, scope: StoryboardScope, requested?: string, hash = "") {
   const navigate = useNavigate();
   const load = useCallback(async (signal: AbortSignal) => {
     const production = await loadProduction(api, scope.production, signal);
@@ -23,11 +25,14 @@ export function useStoryboard(api: StudioClient, scope: StoryboardScope, request
   const [notice, setNotice] = useState("");
   const [problem, setProblem] = useState<{ error: unknown; reload?: boolean; message?: string }>();
   const [pending, setPending] = useState(false);
+  const [formatNeedsReload, setFormatNeedsReload] = useState(false);
+  const [formatConflict, setFormatConflict] = useState<ApiError>();
   const [focus, setFocus] = useState<{ board?: string }>();
   const lifetime = useRef<AbortController>(null);
   const working = useRef(false);
   const syncingInspector = useRef(false);
   const currentRoute = useRef(requested);
+  const revisionFloor = useRef(0);
 
   useLayoutEffect(() => {
     const controller = new AbortController();
@@ -40,19 +45,31 @@ export function useStoryboard(api: StudioClient, scope: StoryboardScope, request
   const selected = draft && selectBoard(draft.story.board_order, requested, refreshed?.previousOrder);
   const selectedIndex = draft?.boards.findIndex(({ record }) => record.id === selected) ?? -1;
   const boardOrder = useRef(draft?.story.board_order);
-  useLayoutEffect(() => { boardOrder.current = draft?.story.board_order; }, [draft]);
+  useLayoutEffect(() => {
+    boardOrder.current = draft?.story.board_order;
+    if (draft) revisionFloor.current = Math.max(revisionFloor.current, draft.story.revision);
+  }, [draft]);
+
+  const refreshDraft = useCallback(async (signal: AbortSignal) => {
+    const latest = await loadStoryboardDraft(api, scope, signal);
+    if (latest.story.revision < revisionFloor.current) {
+      throw new ApiError(409, "conflict.revision", undefined, { message: "Studio couldn’t load the latest draft." });
+    }
+    if (!signal.aborted) {
+      revisionFloor.current = latest.story.revision;
+      setRefreshed({ draft: latest, previousOrder: boardOrder.current ?? [] });
+    }
+    return latest;
+  }, [api, scope]);
 
   const refreshFromInspector = useCallback(() => {
     const signal = lifetime.current?.signal;
     if (!signal || signal.aborted || working.current || syncingInspector.current) return;
     syncingInspector.current = true;
-    void loadStoryboardDraft(api, scope, signal).then((latest) => {
-      if (!signal.aborted) setRefreshed((previous) => previous && previous.draft.story.revision > latest.story.revision
-        ? previous : { draft: latest, previousOrder: boardOrder.current ?? [] });
-    }, () => {
+    void refreshDraft(signal).catch(() => {
       // Inspector polling will retry on its next observation of a newer board.
     }).finally(() => { syncingInspector.current = false; });
-  }, [api, scope]);
+  }, [refreshDraft]);
 
   useEffect(() => {
     if (!draft || selected === requested) return;
@@ -60,12 +77,12 @@ export function useStoryboard(api: StudioClient, scope: StoryboardScope, request
       setNotice((message) => message === "Board removed." ? message
         : `${message === changedDraft ? `${message} ` : ""}That board is no longer available.`);
     }
-    void navigate(treePath("board", { ...scope, board: selected }), { replace: true });
-  }, [draft, navigate, requested, scope, selected]);
+    void navigate(treePath("board", { ...scope, board: selected }) + hash, { replace: true });
+  }, [draft, hash, navigate, requested, scope, selected]);
 
   async function update(change?: Change) {
     const signal = lifetime.current?.signal;
-    if (!draft || !signal || signal.aborted || working.current || (change && problem?.reload)) return;
+    if (!draft || !signal || signal.aborted || working.current || (change && (problem?.reload || formatNeedsReload))) return;
     working.current = true;
     const routeAtStart = currentRoute.current;
     setPending(true);
@@ -89,10 +106,8 @@ export function useStoryboard(api: StudioClient, scope: StoryboardScope, request
         }
       }
 
-      const latest = await loadStoryboardDraft(api, scope, signal);
+      const latest = await refreshDraft(signal);
       if (signal.aborted) return;
-      setRefreshed((previous) => previous && previous.draft.story.revision > latest.story.revision
-        ? previous : { draft: latest, previousOrder: draft.story.board_order });
       const moved = outcome.movedId ? latest.story.board_order.indexOf(outcome.movedId) : -1;
       setNotice(moved >= 0 ? `Moved to ${boardPosition(moved).toLowerCase()}.` : outcome.message ?? "");
       if (routeAtStart !== currentRoute.current) return;
@@ -109,8 +124,49 @@ export function useStoryboard(api: StudioClient, scope: StoryboardScope, request
     }
   }
 
+  async function updateFormat(change?: FormatChange) {
+    const signal = lifetime.current?.signal;
+    if (!draft || !signal || signal.aborted || working.current || (change && (problem?.reload || formatNeedsReload))) return;
+    working.current = true;
+    setPending(true);
+    let conflict: ApiError | undefined;
+    try {
+      if (change) {
+        try {
+          const revision = await patchStoryFormat(api, draft.story.id, change.revision, change.patch, signal);
+          if (signal.aborted) return;
+          revisionFloor.current = Math.max(revisionFloor.current, revision);
+        } catch (error) {
+          if (signal.aborted) return;
+          if (error instanceof ApiError && error.status === 409 && error.code === "conflict.revision") {
+            conflict = error;
+            setFormatConflict(error);
+            revisionFloor.current = Math.max(revisionFloor.current, error.detail?.current_revision ?? change.revision + 1);
+          } else {
+            const reload = !(error instanceof ApiError) || error.status === 0 || error.status >= 500;
+            setFormatNeedsReload(reload);
+            return { kind: "failure", error, reload } as const;
+          }
+        }
+      }
+      await refreshDraft(signal);
+      if (signal.aborted) return;
+      setFormatNeedsReload(false);
+      return { kind: "ready", conflict } as const;
+    } catch (error) {
+      if (signal.aborted) return;
+      setFormatNeedsReload(true);
+      return { kind: "failure", error, reload: true } as const;
+    } finally {
+      working.current = false;
+      if (!signal.aborted) setPending(false);
+    }
+  }
+
   return {
     result, retry, draft, selected, selectedIndex, pending, notice, problem, focus, refreshFromInspector,
+    draftNeedsReload: Boolean(problem?.reload || formatNeedsReload), updateFormat, formatConflict,
+    clearFormatConflict: () => setFormatConflict(undefined),
     clearNotice: () => setNotice(""),
     reload: () => void update(),
     add: () => draft && void update(async (signal) => ({ message: "Board added.", addedId: await addBoard(api, draft, signal) })),

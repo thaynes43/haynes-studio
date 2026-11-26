@@ -12,8 +12,8 @@ type BuildFailure = {
   reloadFrom?: StoryboardDraft["story"];
 };
 
-export function RunBuild({ api, draft, pending, reload, refresh }: {
-  api: StudioClient; draft: StoryboardDraft; pending: boolean; reload: () => void; refresh: () => void;
+export function RunBuild({ api, draft, pending, formatConflict, reload, refresh }: {
+  api: StudioClient; draft: StoryboardDraft; pending: boolean; formatConflict: boolean; reload: () => void; refresh: () => void;
 }) {
   const [sending, setSending] = useState(false);
   const [failure, setFailure] = useState<BuildFailure>();
@@ -27,9 +27,12 @@ export function RunBuild({ api, draft, pending, reload, refresh }: {
   const stale = failure?.reloadFrom !== undefined;
   const needsReload = failure?.reloadFrom === story;
   const warning = timelineLabels(timing).warning;
+  const locked = pending || needsReload || formatConflict;
+  const description = [formatConflict ? "build-format-conflict" : "", warning ? "build-length-warning" : ""]
+    .filter(Boolean).join(" ");
 
   async function build() {
-    if (request.current || pending || needsReload) return;
+    if (request.current || locked) return;
     const press = failure?.ambiguous ? failure.press : buildPress(story.revision, story.board_order);
     const controller = new AbortController();
     request.current = controller;
@@ -71,10 +74,13 @@ export function RunBuild({ api, draft, pending, reload, refresh }: {
   const problems = failure?.problems ?? [];
   return <div className="run-build">
     <div className="run-build-controls">
-      <button className="pill primary" type="button" disabled={sending || pending || needsReload}
-        aria-describedby={warning ? "build-length-warning" : undefined} onClick={() => void build()}>
+      <button className="pill primary" type="button" disabled={sending || locked}
+        aria-describedby={description || undefined} onClick={() => void build()}>
         {sending ? "Queueing…" : failure?.ambiguous ? "Retry build" : "Build"}
       </button>
+      {formatConflict && <p className="run-build-warning" id="build-format-conflict">
+        Review your unsaved format settings before building.
+      </p>}
       {warning && <p className="run-build-warning" id="build-length-warning">{warning}</p>}
     </div>
     {notice && <p role="status">{notice}</p>}
