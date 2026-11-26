@@ -165,7 +165,7 @@ def _clear_claim():
     return {"worker_id": None, "claim_until": None}
 
 
-def claim(conn, worker_id):
+def claim(conn, worker_id, *, reconcile_paused=False):
     lane = conn.execute(sa.select(run_lane).with_for_update(skip_locked=True)).mappings().one_or_none()
     if lane is None:
         return None
@@ -173,6 +173,8 @@ def claim(conn, worker_id):
     if lane["worker_seen_at"] is None or lane["worker_seen_at"] <= now - BACKOFF:
         conn.execute(run_lane.update().values(worker_seen_at=now))
     paused = is_paused(conn, "run")
+    if paused and not reconcile_paused:
+        return None
     head = sa.select(sa.func.min(runs.c.position)).where(STATUS.in_(ACTIVE)).scalar_subquery()
     row = conn.execute(sa.select(runs).where(runs.c.position == head, STATUS.in_(ACTIVE))
                        .with_for_update(skip_locked=True)).mappings().one_or_none()
@@ -196,10 +198,13 @@ def claim(conn, worker_id):
     earlier_runs = list(conn.scalars(sa.select(runs.c.id).where(
         runs.c.production_id == row["production_id"], runs.c.number < row["number"],
     ).order_by(runs.c.number.desc())))
-    return {"run": view(conn, row, detail=False), "snapshot": row["snapshot"],
-            "library": row["frozen_library"], "fence": row["fence"], "earlier_runs": earlier_runs,
-            "claim_until": row["claim_until"], "actor": actor, "reconcile_only": paused,
-            "pending": None if attempt is None else dict(attempt)}
+    result = {"run": view(conn, row, detail=False), "snapshot": row["snapshot"],
+              "library": row["frozen_library"], "fence": row["fence"], "earlier_runs": earlier_runs,
+              "claim_until": row["claim_until"], "actor": actor,
+              "pending": None if attempt is None else dict(attempt)}
+    if paused:
+        result["reconcile_only"] = True
+    return result
 
 
 def lock_claim(conn, run_id, worker_id, fence, *, wan_dispatch=False):
@@ -251,14 +256,14 @@ def _require_open_lane(conn):
         raise QueueConflict("work.lane_paused", "The run lane is paused for new Wan work")
 
 
-def reserve_attempt(conn, row, now, kind, request):
+def reserve_attempt(conn, row, now, kind, request, *, check_pause=False):
     # The tracker URL labels Wan's ledger. It is not an inference input.
     clip_key = wan_request_hash({key: value for key, value in request.items() if key != "story"})
     latest = conn.execute(sa.select(run_wan_attempts).where(
         ATTEMPTS.run_id == row["id"], ATTEMPTS.clip_key == clip_key,
     ).order_by(ATTEMPTS.attempt.desc()).limit(1)).mappings().one_or_none()
     if latest is not None and latest["state"] in (*PENDING, "succeeded", "failed"):
-        if latest["state"] == "reserved":
+        if check_pause and latest["state"] == "reserved":
             _require_open_lane(conn)
         return latest
     if latest is not None:
@@ -267,7 +272,8 @@ def reserve_attempt(conn, row, now, kind, request):
         raise QueueConflict("run.stopping", "The run cannot start another Wan job")
     if _unsettled(conn, row["id"]) is not None:
         raise QueueConflict("wan.unsettled", "Reconcile the recorded Wan job first")
-    _require_open_lane(conn)
+    if check_pause:
+        _require_open_lane(conn)
     attempt = conn.execute(run_wan_attempts.insert().values(
         job_id=uuid4().hex, run_id=row["id"], clip_key=clip_key, kind=kind, request=request,
         request_sha256=wan_request_hash(request), created_at=now, state="reserved",

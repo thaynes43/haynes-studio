@@ -2900,6 +2900,24 @@ export interface components {
             /** Published At */
             published_at?: string | null;
         };
+        /** QueueLaneRead */
+        QueueLaneRead: {
+            /** Changed At */
+            changed_at: string | null;
+            /** Changed By */
+            changed_by: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Lane
+             * @enum {string}
+             */
+            lane: "run" | "image" | "voice" | "matte";
+            /** Live Claim */
+            live_claim: boolean;
+            /** Paused */
+            paused: boolean;
+        };
         /** QueueLaneStatus */
         QueueLaneStatus: {
             /** Changed At */
@@ -2924,7 +2942,7 @@ export interface components {
         /** QueueStatus */
         QueueStatus: {
             /** Items */
-            items: components["schemas"]["QueueLaneStatus"][];
+            items: components["schemas"]["QueueLaneRead"][];
         };
         /** QueueWait */
         QueueWait: {

@@ -222,16 +222,19 @@ above. A LAN-client sample remains **Expected** for this walkthrough.
 
 ## Paused lane, stuck run or failed job
 
-1. A signed-in person reads `GET /v1/queue/lanes` for `paused`, `changed_by`
-   and `changed_at`. To change it, send `PUT /v1/queue/lanes/{lane}` for
+1. A signed-in person reads `GET /v1/queue/lanes` for `paused`, `changed_by`,
+   `changed_at` and `live_claim`. To change the pause setting, send
+   `PUT /v1/queue/lanes/{lane}` for
    `run`, `voice`, `image` or `matte`, with `X-Studio-CSRF` from the current
    `GET /v1/me` and `Content-Type: application/json`. Use
    `{"paused":true}` to pause or `{"paused":false}` to resume.
-   Read the same lane back. Paused lanes still take submissions and hold
-   queued work in FIFO order. Live claims retain their fences. A replacement
-   run worker can reconcile a recorded sent Wan job while the lane stays
-   paused on a build with OP976. Check the lane status to tell paused from
-   idle. Preserve the request ID on a refusal.
+   Paused lanes still take submissions and stop claiming queued work. Live
+   claims retain their fences and may finish, including a media job's first
+   publish or a run's transcript step. An authorized engine request may start
+   after the pause response. Read the lane back until `paused` is true and
+   `live_claim` is false to observe a quiet lane. The lease expires 90 seconds
+   after its grant or last renewal on the database clock. Preserve the request
+   ID on a refusal.
    **Expected** for an installed person's pause/resume. [Queue controls](../reference/studio-api.md#queue-controls) ·
    [Generated API reference](../reference/api-reference.md) ·
    [Installed worker and lane evidence](https://github.com/thaynes43/haynes-ops/blob/main/docs/reference/studio-deployment.md#worker-lane-grants)
@@ -251,23 +254,25 @@ above. A LAN-client sample remains **Expected** for this walkthrough.
    replacement is needed. [Run queue](../reference/run-queue.md#public-http) ·
    [Media jobs](../reference/studio-api.md#media-operations)
 3. On worker restart, the 90-second claim deadline and fence survive in
-   Postgres. If the run lane is paused, keep submissions stopped as above
-   and inspect its FIFO head. Read the recorded job in the Wan API and
+   Postgres. Keep the run lane paused during investigation and inspect its
+   FIFO head. Read the recorded job in the Wan API and
    check the video and Foley activity and engine queue. Keep the lane
    paused if there is engine work you cannot account for, the engine state
    cannot be read, or Wan reports a render hold. Leave existing engine work
    in place and resolve the hold before admitting work.
    [Wan readiness and job reads](../reference/wan-product-api.md)
-4. On a build with OP976, leave the lane paused while the replacement worker
-   reconciles the head's recorded sent ID. After the old claim expires or is
-   released and any retry delay passes, the replacement gets a fresh fence.
-   It records the outcome of a known job. An absent sent ID stays held for
+4. With `STUDIO_PAUSED_RECONCILE=1`, a compatible replacement run worker can
+   reconcile the head's recorded sent ID while the lane stays paused. After
+   the old claim expires or is released and any retry delay passes, the
+   replacement gets a fresh fence. It records the outcome of a known job
+   without a Wan submission or replay. An absent sent ID stays held for
    another read. A verified result waits at the head for normal claiming to
-   resume. Earlier builds require resume before the replacement can claim
-   the head. Resuming opens the entire FIFO. Resume and reopen submissions
-   when queued work can proceed and the maintenance health gates pass.
-5. While a media lane is paused, the worker can fail an expired dispatch
-   with `work.dispatch_unconfirmed` and leave the rest of the queue alone.
+   resume. With the switch off, resume is required before the replacement
+   can claim the head. Resume opens the FIFO. Resume when queued work can
+   proceed and the maintenance health gates pass.
+5. A poll can fail an expired dispatch in a paused matte lane with
+   `work.dispatch_unconfirmed` and returns 204. The same applies to voice
+   and image when `STUDIO_PAUSED_RECONCILE=1`.
    An expired claim that had yet to dispatch can be reclaimed after resume.
    Before any fresh image request, verify the engine is idle. These
    recovery cases are **Proven in source tests**. An installed restart of
@@ -367,7 +372,7 @@ archive credential scope before a restore ran.
 | --- | --- | --- |
 | LAN playback, new work and lane pause/resume | Installed reads cover signed-out ingress, scoped imports and worker readiness. Person-only controls and first real jobs await a session. | A person's session plays both phone proxies, pauses and resumes lanes without losing queued work, and completes a real private run, voice take and photo. [User journey](studio-user-journey.md) · [OP961](https://work.haynesnetwork.com/work_packages/961) |
 | First photo upload, feedback, release package and go-live | The installed app is awaiting a real photo upload, feedback note and private package. The go-live approver list is empty. | A scoped uploader adds a private photo, a signed-in person records feedback and prepares a package on an eligible run, and Tom records his decision for the exact master using his approved identity. [User journey](studio-user-journey.md#remaining-gaps) · [OP964](https://work.haynesnetwork.com/work_packages/964) |
-| Recover a sent run while its lane stays paused | OP976 has source tests on disposable PostgreSQL with an in-memory Wan service. The fourth pin requires resume for a replacement claim. | After the next plain pin, show recovery of the recorded Wan attempt while the pause holds ordinary claims. [OP976](https://work.haynesnetwork.com/work_packages/976) |
+| Recover a sent run while its lane stays paused | OP976 has source tests on disposable PostgreSQL with an in-memory Wan service. The fourth pin requires resume for a replacement claim. | After every API replica and the run worker are on the new pin, enable the switch in a separate deployment change. Show recovery of the recorded Wan attempt while pause holds queued claims. [OP976](https://work.haynesnetwork.com/work_packages/976) |
 | Worker restart and API replacement with saved work | The API pod drill had no saved selections or queued snapshots. Claimed-job worker recovery has source evidence. | Observe a bounded, authorized recovery with real saved work, including preserved IDs and no duplicate dispatch. [OP437](https://work.haynesnetwork.com/work_packages/437) |
 | Isolated database restore | OP436 awaits Tom's archive credential decision. | Run the authorized isolated drill and compare catalog and media references before teardown. [OP436, comment 10072](https://work.haynesnetwork.com/work_packages/436) |
 | Local model on Wan | The first activation was reverted. The dormant model awaits Tom's approval of the restart-only step. | Record startup and Studio-client health after the approved restart. A separately authorized leased smoke would prove model inference and handover. [OP442, comment 10134](https://work.haynesnetwork.com/work_packages/442) |

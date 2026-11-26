@@ -507,7 +507,7 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
     if (path === "/v1/queue/lanes" && method === "GET") {
       const items = (["run", "image", "voice"] as const).map((lane) => ({
         lane, paused: lane === "voice" && voice.paused() || lane === "image" && Boolean(photos?.paused() || assets?.paused()),
-        changed_at: null, changed_by: null,
+        changed_at: null, changed_by: null, live_claim: false,
       }));
       return route.fulfill({ json: { items } satisfies Schemas["QueueStatus"] });
     }

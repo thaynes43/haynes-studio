@@ -134,19 +134,29 @@ fences publication. `/complete` verifies and registers the resulting delivery,
 and `/fail` records failure, cancellation, a hold or a wait. Losing a lease
 or a fence causes subsequent mutating operations to return 409.
 
-Pausing the lane holds queued work in FIFO order. When the head has an
-unsettled `sent` Wan attempt, a replacement can claim it after the previous
-claim expires or is released and any retry delay passes. The claim carries
-`reconcile_only: true`. The worker reads the stored ID, waits for a known
-active job and records its outcome. It holds a sent ID absent from Wan for
-another read. A verified result is recorded and the run stays held until
-ordinary claiming resumes. A definite job failure or cancellation may
-finish the run while paused.
+Pause stops claiming queued work and preserves FIFO order and live claim
+fences. A worker can finish its claim, including calling ASR after a clip.
+An engine request already authorized under the claim may start after the pause
+response. A lane is quiet at the time of a `GET /v1/queue/lanes` read when
+`paused` is true and `live_claim` is false. The database-clock lease lasts
+90 seconds from its grant or last renewal.
 
-The first send marker and the final fenced heartbeat before any Wan job PUT
-check the lane under its lock. If pause commits first, the worker holds the
-run with `work.lane_paused`. A PUT that already passed its last check may
-still arrive. No database transaction spans a Wan call.
+With `STUDIO_PAUSED_RECONCILE=1`, a worker sends `X-Studio-Paused-Reconcile: 1`
+on `/claim` to opt into paused reconciliation. A paused claim poll otherwise
+returns 204. A compatible replacement can claim the running or held FIFO
+head with an unsettled `sent` Wan attempt after the previous claim expires
+or is released and any retry delay passes. The claim carries
+`reconcile_only: true`. The worker reads the stored ID, waits for a known
+active job and records its outcome without submitting or replaying a Wan job.
+It holds an absent sent ID for another read. A verified result is recorded and
+the run stays held until ordinary claiming resumes. A definite job failure or
+cancellation may finish the run while paused.
+
+When the switch is on, a Wan reservation checks pause. The first send marker
+and the final fenced heartbeat before a Wan job PUT check pause under the lane
+lock. If pause wins, the authorization returns `409 work.lane_paused`. A PUT
+that passes the final check may start after the pause response. No database
+transaction spans a Wan call.
 
 ```mermaid
 flowchart TD
@@ -154,7 +164,7 @@ flowchart TD
     B -- No --> C[Check snapshot revision and Wan readiness]
     C --> R[Reserve ID and stage inputs]
     R --> S[Record fenced sent marker]
-    S --> P[Recheck readiness, fence, pause and cancellation before PUT]
+    S --> P[Recheck readiness, fence and cancellation before PUT, and pause when enabled]
     B -- Yes --> D[GET the persisted ID]
     P -->|Job PUT or ambiguous reply| D
     P -->|Preconnection failure or worker busy| W[Wait and keep the same ID]

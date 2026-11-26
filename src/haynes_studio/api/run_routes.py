@@ -23,7 +23,8 @@ from haynes_studio.escalation import storage as escalation_storage
 from haynes_studio.library.resolve import story_references
 from haynes_studio.queue import inputs
 from haynes_studio.queue.protocol import (
-    MEDIA_LANES, SHA256, WORK_LANES, ClaimFence, Heartbeat, JobId, Payload, Progress, Reason, Reservation, WanResult,
+    MEDIA_LANES, PAUSED_RECONCILE_HEADER, SHA256, WORK_LANES,
+    ClaimFence, Heartbeat, JobId, Payload, Progress, Reason, Reservation, WanResult,
     MatteRelease, MediaCompletion, MediaFailure, MediaFence, MediaHeartbeat, WorkAttempt, WorkClaim,
     WorkCompletion, WorkFailure, WorkLane, WorkReserve,
 )
@@ -103,8 +104,12 @@ class QueueLaneStatus(TransportModel):
     changed_at: datetime | None
 
 
+class QueueLaneRead(QueueLaneStatus):
+    live_claim: bool
+
+
 class QueueStatus(TransportModel):
-    items: list[QueueLaneStatus]
+    items: list[QueueLaneRead]
 
 
 def transport_models():
@@ -114,7 +119,7 @@ def transport_models():
         CheckOverride, CheckOverrideView, ClaimFence, Progress, Heartbeat, Reservation,
         WanResult, WorkReserve, WorkAttempt, WorkCompletion, WorkFailure, WorkClaim,
         MediaFence, MediaHeartbeat, MediaCompletion, MediaFailure, MatteRelease,
-        QueueLaneUpdate, QueueLaneStatus, QueueStatus,
+        QueueLaneUpdate, QueueLaneStatus, QueueLaneRead, QueueStatus,
     )
 
 
@@ -309,7 +314,7 @@ def _lock(conn, request, body, *, wan_dispatch=False):
     if not body.valid_run():
         _id(body.run_id, "run", "/run_id")
     return runs.lock_claim(conn, body.run_id, request.state.principal.worker_id, body.fence,
-                           wan_dispatch=wan_dispatch)
+                           wan_dispatch=wan_dispatch and request.app.state.paused_reconcile)
 
 
 def _delivery(conn, request, row, body):
@@ -366,13 +371,17 @@ def worker_router():
         lane = "run" if body is None else body.lane
         require_worker_lane(request, lane)
         worker_id = request.state.principal.worker_id
+        paused_reconcile = request.app.state.paused_reconcile
         with request.app.state.engine.begin() as conn:
             if body is not None and body.settle_only:
                 require_worker_lane(request, "matte")
                 jobs.claim(conn, worker_id, lane, settle_only=True)
                 claim = None
+            elif lane == "run":
+                supported = request.headers.get(PAUSED_RECONCILE_HEADER) == "1"
+                claim = runs.claim(conn, worker_id, reconcile_paused=paused_reconcile and supported)
             else:
-                claim = runs.claim(conn, worker_id) if lane == "run" else media_work.claim(conn, worker_id, lane)
+                claim = media_work.claim(conn, worker_id, lane, settle_while_paused=paused_reconcile)
         return claim if claim is not None else Response(status_code=204)
 
     @router.post("/heartbeat", operation_id="heartbeat_work")
@@ -399,7 +408,8 @@ def worker_router():
             raise APIError(422, "wan.profile", "The request does not match a supported Wan profile")
         with request.app.state.engine.begin() as conn:
             row, now = _lock(conn, request, body)
-            return dict(runs.reserve_attempt(conn, row, now, body.proposal.kind, body.proposal.product_request()))
+            return dict(runs.reserve_attempt(conn, row, now, body.proposal.kind, body.proposal.product_request(),
+                                             check_pause=request.app.state.paused_reconcile))
 
     @router.post("/attempts/{job_id}", operation_id="update_wan_attempt")
     def update_wan_attempt(job_id: JobId, body: WorkAttempt, request: Request):

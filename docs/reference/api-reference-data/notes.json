@@ -17,7 +17,7 @@
     "get_job_result": "Signed-in person required. [Asset candidates](asset-candidates.md#api-and-ui-integration).",
     "get_me": "MCP uses this as its bearer identity check. [MCP transport](studio-mcp.md).",
     "get_media": "MCP returns compact metadata and excludes byte reads. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41).",
-    "get_queue_lanes": "Signed-in person required. See the HTTP access column.",
+    "get_queue_lanes": "Signed-in person required. Each lane reports whether it has a live claim. [Queue controls](studio-api.md#queue-controls).",
     "get_selections": "Signed-in person required. See the HTTP access column.",
     "get_version_media": "MCP returns compact metadata and excludes byte reads. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41).",
     "head_job_media": "MCP returns compact metadata and excludes byte reads. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41).",

@@ -111,10 +111,13 @@ def finish(conn, row, job, **values):
     return document
 
 
-def claim(conn, worker_id, lane, *, settle_only=False):
+def claim(conn, worker_id, lane, *, settle_only=False, settle_while_paused=False):
     if lock_lane(conn, lane, skip_locked=True) is None:
         return None
-    settle_dispatch = settle_only or is_paused(conn, lane)
+    paused = not settle_only and is_paused(conn, lane)
+    if paused and lane != "matte" and not settle_while_paused:
+        return None
+    settle_dispatch = settle_only or paused
     head = sa.select(sa.func.min(media_jobs.c.position)).where(
         media_jobs.c.lane == lane, STATUS.in_(ACTIVE),
     ).scalar_subquery()
