@@ -134,18 +134,33 @@ fences publication. `/complete` verifies and registers the resulting delivery,
 and `/fail` records failure, cancellation, a hold or a wait. Losing a lease
 or a fence causes subsequent mutating operations to return 409.
 
+Pausing the lane holds queued work in FIFO order. When the head has an
+unsettled `sent` Wan attempt, a replacement can claim it after the previous
+claim expires or is released and any retry delay passes. The claim carries
+`reconcile_only: true`. The worker reads the stored ID, waits for a known
+active job and records its outcome. It holds a sent ID absent from Wan for
+another read. A verified result is recorded and the run stays held until
+ordinary claiming resumes. A definite job failure or cancellation may
+finish the run while paused.
+
+The first send marker and the final fenced heartbeat before any Wan job PUT
+check the lane under its lock. If pause commits first, the worker holds the
+run with `work.lane_paused`. A PUT that already passed its last check may
+still arrive. No database transaction spans a Wan call.
+
 ```mermaid
 flowchart TD
     A[Claim the FIFO head] --> B{Pending Wan attempt?}
     B -- No --> C[Check snapshot revision and Wan readiness]
     C --> R[Reserve ID and stage inputs]
     R --> S[Record fenced sent marker]
-    S --> P[Recheck readiness, fence and cancellation before PUT]
+    S --> P[Recheck readiness, fence, pause and cancellation before PUT]
     B -- Yes --> D[GET the persisted ID]
     P -->|Job PUT or ambiguous reply| D
     P -->|Preconnection failure or worker busy| W[Wait and keep the same ID]
     W --> A
-    D -->|Absent, sent marker and no cancel| P
+    D -->|Absent, sent marker, lane open and no cancel| P
+    D -->|Absent during pause reconciliation| J[Hold the sent ID for another read]
     D -->|Absent, reserved and no cancel| C
     D -->|Queued or running| D
     D -->|Terminal with cancel pending| X[Settle attempt and cancel run]
@@ -153,18 +168,21 @@ flowchart TD
     H --> X
     D -->|Terminal pre-admission refusal| Y[Mark busy and defer the head]
     Y --> A
-    D -->|Definite restart failure| C
+    D -->|Definite restart failure with lane open| C
+    D -->|Definite restart failure during pause reconciliation| K[Record outcome and hold for resume]
     D -->|Succeeded| V[Verify graph, bytes and decoded clip]
-    V -->|Verified| Z[Record result and continue build]
+    V -->|Verified with ordinary claim| Z[Record result and continue build]
+    V -->|Verified with reconciliation-only claim| K
     V -->|Mismatch| F[Settle attempt and fail run]
     D -->|Other terminal failure| F
+    P -->|Pause committed| J
     P -->|Definite client rejection| F
 ```
 
 Provisional coordinator ruling CR-19 resolves Q-410-01. Wan's product API owns
 the compute lease and deduplicates by caller-selected job ID and request body.
-After a lost reply the worker reads the recorded ID. If Wan reports it absent,
-the worker can replay the exact same PUT with the original ID and stored body,
+After a lost reply the worker reads the recorded ID. If Wan reports it absent
+while the lane is open, the worker can replay the exact same PUT with the original ID and stored body,
 including when an earlier worker's request arrives late. The worker makes at
 most one absent-ID replay per claim. A connection failure before any bytes were
 sent gets its own code. A replacement still reads the durable ID before any PUT.
@@ -192,6 +210,7 @@ restart failure allows one fresh attempt per claim before yielding.
 | `wan.submit_not_sent` | The connection failed before the PUT could be written. Recheck the saved ID and readiness after the wait. |
 | `wan.ambiguous_submit` | Reconciliation still found no record after a same-ID replay. Keep the head and retry reconciliation. |
 | `wan.cancel_waiting_for_absence` | Cancellation is pending for a sent ID. Hold the FIFO head and check the same ID for a second absence after the safety window. |
+| `work.lane_paused` | Hold the run at the FIFO head. Keep a sent attempt with an unknown outcome for reconciliation. Resume the lane when ordinary work can continue. |
 | `wan.foreign_engine_queue`, `wan.busy` | Honor the admission cooldown. Use a new ID only after a recorded terminal refusal. |
 | `wan.pre_admission_failed`, `wan.admission_unknown` | Hold the run and retain its sent attempt for inspection. |
 | `wan.id_conflict`, `wan.submit_rejected` | Fail the attempt and run on a conflicting ID or another definite PUT client error. |

@@ -491,8 +491,14 @@ for `run`, `voice`, `image` or `matte`. The write requires `X-Studio-CSRF`.
 The response and lane list show `paused`, `changed_by` and `changed_at`.
 An untouched lane starts open with null change fields. Repeating its current
 setting returns the previous decision. Each transition appends a decision.
-Paused lanes still accept new work and in-flight claims can finish.
-Workers receive 204 for new claims until the lane resumes.
+Paused lanes still accept submissions and keep queued work in FIFO order.
+A run worker can reclaim the FIFO head after its claim expires or is released
+if a recorded Wan attempt is still marked sent. The worker reconciles that job
+and defers fresh Wan submissions and replays until resume. On voice, image and
+matte, a poll can fail an expired dispatch with `work.dispatch_unconfirmed`
+and returns 204. Live claims retain their fences. Resume restores regular FIFO
+claiming. [Run claims](run-queue.md#claims-and-reconciliation) ·
+[Media claims](media-jobs.md#claims-and-results)
 
 ## Private playback
 

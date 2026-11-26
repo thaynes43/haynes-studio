@@ -5,6 +5,7 @@ import hashlib
 from pathlib import Path
 from secrets import token_hex
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 from types import SimpleNamespace
 
 import httpx
@@ -18,8 +19,9 @@ from haynes_studio.api.app import create_app
 from haynes_studio.api.auth import SESSION_COOKIE
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.canonical.model import Board, Story
-from haynes_studio.db import drafts, identity, runs
+from haynes_studio.db import drafts, identity, queue_controls, runs
 from haynes_studio.db.catalog import record_asset_version
+from haynes_studio.db.runs import database_time
 from haynes_studio.db.schema import run_wan_attempts, worker_lane_grants, worker_tokens
 from haynes_studio.library import Library
 from haynes_studio.photo.plan import plan_photo
@@ -30,7 +32,7 @@ from haynes_studio.queue.worker_tokens import worker_bearer
 
 from tests.build_story.fixtures import example, photo_png, register
 from tests.db.test_studio_api import (
-    bearer, client, engine, new_production, new_story, owner_engine,
+    ISSUER, bearer, client, engine, new_production, new_story, owner_engine,
     register_agent, runtime_db, runtime_role, service, sign_in,
 )
 from tests.queue.fake_wan import Clock, FakeWan, STORY
@@ -435,6 +437,151 @@ def test_late_put_from_fenced_worker_is_deduplicated(queue, monkeypatch):
     assert fake.submissions == [fake.put_bodies[0][0]]
     assert [verb for verb, path in fake.events if path == fake.puts()[0]] == ["PUT", "GET", "PUT", "GET"]
     assert worker_api(q).claim().identity["run_id"] == second
+
+
+def _pause_run_lane(q, paused):
+    response = q.browser.put("/v1/queue/lanes/run", headers=q.csrf, json={"paused": paused})
+    assert response.status_code == 200
+    assert response.json()["paused"] is paused
+
+
+def _expire_run_claim(q, run_id):
+    with q.owner.begin() as conn:
+        expires = database_time(conn) - timedelta(seconds=1)
+        conn.execute(runs.runs.update().where(runs.runs.c.id == run_id).values(claim_until=expires))
+
+
+def _elapse_run_retry(q, run_id):
+    with q.owner.begin() as conn:
+        conn.execute(runs.runs.update().where(runs.runs.c.id == run_id)
+                     .values(retry_at=database_time(conn) - timedelta(seconds=1)))
+
+
+def _dispatch_to_fake_wan(q, claim, transport):
+    request = request_for(q)
+    body = product_request(request)
+    attempt = claim.reserve("i2v", body)
+    transport.stage(request.image_png, body["image_sha256"], "png")
+    sent = claim.attempt(attempt["job_id"], "sent")
+    transport.submit(sent)
+    return attempt["job_id"]
+
+
+@pytest.mark.parametrize("outcome", ["succeeded", "failed"])
+def test_pause_before_reclaim_drains_the_sent_job_and_preserves_fifo(queue, monkeypatch, outcome):
+    q = queue
+    monkeypatch.setattr(runs, "database_time", database_time)
+    monkeypatch.setattr(wan, "measure_clip", lambda data: wan.Measured(5, 64, 64, "24"))
+    first, second, third = [queue_run(q, key).json()["id"] for key in ("sent-head", "next", "last")]
+    old = worker_api(q).claim()
+    replacement = worker_api(q)
+    fake = FakeWan()
+    with fake.client() as wan_http:
+        job_id = _dispatch_to_fake_wan(q, old, ProductWan(wan_http))
+        states = iter(("running", outcome))
+        fake.before_get = lambda key: fake.jobs[key].update(state=next(states))
+        _pause_run_lane(q, True)
+        assert replacement.claim() is None  # Even dispatched work keeps its live fence.
+        _expire_run_claim(q, first)
+
+        worker = clip_worker(q, wan_http, api=replacement)
+        assert worker.tick()
+        with pytest.raises(WorkerAPIError, match="work.fence_lost"):
+            old.heartbeat()
+        assert not worker.tick()
+    assert fake.submissions == [job_id]
+    put, = fake.puts()
+    assert fake.events.count(("GET", put)) == 2
+    head, _ = read_run(q, first)
+    assert head["status"] == ("held" if outcome == "succeeded" else "failed")
+    assert head["wan_attempts"] == [{"job_id": job_id, "kind": "i2v", "attempt": 1, "state": outcome}]
+    assert [read_run(q, ident)[0]["status"] for ident in (second, third)] == ["queued", "queued"]
+
+    _pause_run_lane(q, False)
+    if outcome == "succeeded":
+        _elapse_run_retry(q, first)
+    expected = (first, second, third) if outcome == "succeeded" else (second, third)
+    for ident in expected:
+        claim = replacement.claim()
+        assert claim is not None and claim.identity["run_id"] == ident
+        claim.fail(status="failed", reason="Fixture settles the FIFO head")
+
+
+def test_pause_transaction_races_reclaim_of_a_released_sent_job(queue, monkeypatch):
+    q = queue
+    monkeypatch.setattr(runs, "database_time", database_time)
+    first, second = [queue_run(q, key).json()["id"] for key in ("unconfirmed-head", "next")]
+    old = worker_api(q).claim()
+    attempt = old.reserve("i2v", product_request(request_for(q)))
+    job_id = attempt["job_id"]
+    old.attempt(job_id, "sent")
+    old.fail(status="held", reason="Fixture loses the PUT before Wan receives it")
+    _elapse_run_retry(q, first)
+
+    fake = FakeWan()
+    with fake.client() as wan_http:
+        replacement = clip_worker(q, wan_http)
+        with q.engine.begin() as conn:
+            queue_controls.set_paused(conn, "run", True,
+                                      {"kind": "human", "iss": ISSUER, "sub": "one"}, database_time)
+            # The pause transaction still holds the lane row when this poll arrives.
+            assert not replacement.tick()
+            assert fake.events == []
+        assert replacement.tick()
+        assert fake.events == [("GET", f"/v1/jobs/i2v/{job_id}")]
+
+        head, _ = read_run(q, first)
+        assert head["status"] == "held" and head["error"]["code"] == "work.lane_paused"
+        assert head["wan_attempts"][0]["state"] == "sent"
+        assert read_run(q, second)[0]["status"] == "queued"
+
+
+@pytest.mark.parametrize("replay", [False, True], ids=["first-send", "same-id-replay"])
+def test_pause_after_claim_blocks_wan_dispatch(queue, monkeypatch, replay):
+    q = queue
+    monkeypatch.setattr(runs, "database_time", database_time)
+    run_id = queue_run(q, "pause-race").json()["id"]
+    fake = FakeWan()
+    with fake.client() as wan_http:
+        worker = clip_worker(q, wan_http)
+        if replay:
+            old = worker_api(q).claim()
+            job_id = old.reserve("i2v", product_request(request_for(q)))["job_id"]
+            old.attempt(job_id, "sent")
+            _expire_run_claim(q, run_id)
+            # Reclaim wins the lock while the lane is open. Pause as it reads
+            # the saved ID, before authorization to replay the missing PUT.
+            fake.before_get = lambda key: _pause_run_lane(q, True)
+        else:
+            ready = worker.wan.ready
+
+            def ready_then_pause(kind=None):
+                ready(kind)
+                if read_run(q, run_id)[0]["wan_attempts"] and kind is None:
+                    _pause_run_lane(q, True)
+
+            monkeypatch.setattr(worker.wan, "ready", ready_then_pause)
+        assert worker.tick()
+    assert fake.puts() == []
+    head, _ = read_run(q, run_id)
+    assert head["status"] == "held" and head["error"]["code"] == "work.lane_paused"
+    assert head["wan_attempts"][0]["state"] == "sent"
+
+
+def test_paused_lane_does_not_reclaim_a_reserved_wan_job(queue, monkeypatch):
+    q = queue
+    monkeypatch.setattr(runs, "database_time", database_time)
+    run_id = queue_run(q, "reserved-only").json()["id"]
+    old = worker_api(q).claim()
+    job_id = old.reserve("i2v", product_request(request_for(q)))["job_id"]
+    _expire_run_claim(q, run_id)
+    _pause_run_lane(q, True)
+    replacement = worker_api(q)
+    assert replacement.claim() is None
+    _pause_run_lane(q, False)
+    claim = replacement.claim()
+    assert claim.identity == {"run_id": run_id, "fence": old.identity["fence"] + 1}
+    assert claim.body["pending"]["job_id"] == job_id
 
 
 @pytest.mark.parametrize("state", ["sent", "busy"])

@@ -304,11 +304,12 @@ def build_router(CurrentActor, authenticated_route):
     return router
 
 
-def _lock(conn, request, body):
+def _lock(conn, request, body, *, wan_dispatch=False):
     require_worker_lane(request, "run")
     if not body.valid_run():
         _id(body.run_id, "run", "/run_id")
-    return runs.lock_claim(conn, body.run_id, request.state.principal.worker_id, body.fence)
+    return runs.lock_claim(conn, body.run_id, request.state.principal.worker_id, body.fence,
+                           wan_dispatch=wan_dispatch)
 
 
 def _delivery(conn, request, row, body):
@@ -380,7 +381,9 @@ def worker_router():
             if isinstance(body, MediaHeartbeat):
                 row, now = media_work.lock(conn, request, body)
                 return jobs.heartbeat(conn, row, now)
-            row, now = _lock(conn, request, body)
+            # The worker uses this fenced heartbeat immediately before every Wan job PUT.
+            dispatch = body.progress is not None and body.progress.stage == "wan_submitting"
+            row, now = _lock(conn, request, body, wan_dispatch=dispatch)
             return runs.heartbeat(conn, row, now, body.progress.model_dump() if body.progress else None)
 
     @router.post("/resume", operation_id="resume_work")
@@ -403,7 +406,7 @@ def worker_router():
         if (body.state == "succeeded") != (body.result is not None):
             raise APIError(422, "wan.result", "A verified result is required only for a successful attempt")
         with request.app.state.engine.begin() as conn:
-            row, now = _lock(conn, request, body)
+            row, now = _lock(conn, request, body, wan_dispatch=body.state == "sent")
             return dict(runs.attempt_action(conn, row, now, job_id, body.state,
                                           body.result.model_dump() if body.result else None))
 

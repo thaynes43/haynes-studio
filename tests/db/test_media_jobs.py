@@ -1184,7 +1184,7 @@ def test_pausing_media_lane_leaves_requests_queued_until_resumed(studio, lane):
 
 
 @pytest.mark.parametrize(("lane", "kind"), [("image", "photo"), ("voice", "voice")], ids=["image", "voice"])
-def test_paused_media_lane_leaves_expired_dispatch_running_until_resumed(studio, lane, kind):
+def test_paused_media_lane_retires_expired_dispatch_without_claiming_queue(studio, lane, kind):
     s = studio
     board = board_in(s, spoken=lane == "voice")
     identifier = success(operation(s, board, kind, "paused-dispatch"), 202)["id"]
@@ -1194,19 +1194,22 @@ def test_paused_media_lane_leaves_expired_dispatch_running_until_resumed(studio,
 
     path = f"/v1/queue/lanes/{lane}"
     assert success(s.browser.put(path, headers=s.csrf, json={"paused": True}))["paused"]
+    following = success(operation(s, board, kind, "following-dispatch"), 202)["id"]
+    poller = worker_api(s, lane=lane)
+    assert poller.claim(lane) is None
+    assert job(s, identifier)["status"] == "running"
     with s.owner.begin() as conn:
         expired = database_time(conn) - timedelta(seconds=1)
         conn.execute(media_jobs.update().where(media_jobs.c.id == identifier).values(claim_until=expired))
 
-    poller = worker_api(s, lane=lane)
-    assert poller.claim(lane) is None
-    view = job(s, identifier)
-    assert view["status"] == "running" and view["error"] is None
-
-    assert not success(s.browser.put(path, headers=s.csrf, json={"paused": False}))["paused"]
     assert poller.claim(lane) is None
     view = job(s, identifier)
     assert view["status"] == "failed" and view["error"]["code"] == "work.dispatch_unconfirmed"
+    assert poller.claim(lane) is None
+    assert job(s, following)["status"] == "queued"
+
+    assert not success(s.browser.put(path, headers=s.csrf, json={"paused": False}))["paused"]
+    assert poller.claim(lane).identity["job_id"] == following
 
 
 def test_photo_currency_blocks_build_and_preserves_frozen_run(queue):
