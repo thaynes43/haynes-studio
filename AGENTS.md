@@ -5,8 +5,9 @@ Instructions for any agent (Claude Code, Codex or others) working in
 
 ## What this repo is
 
-Haynes Studio is building a private **doll short** workflow. The saga has
-been in execution since 2026-11-24. [Saga 362, comment 9653](https://work.haynesnetwork.com/work_packages/362/activity#comment-9653).
+Haynes Studio makes short-form comedy videos (currently the **doll short** format)
+on in-cluster GPU, TTS and ASR services. The manual proof of concept is complete.
+The saga has been in execution since 2026-11-24. [Saga 362, comment 9653](https://work.haynesnetwork.com/work_packages/362/activity#comment-9653).
 E1 archived two shorts privately and Tom's acceptance remains open.
 [Epic 372, comment 9654](https://work.haynesnetwork.com/work_packages/372/activity#comment-9654).
 Scoped range reads of both imports passed. Human sign-in and phone playback
@@ -19,7 +20,9 @@ read back at all six encoder locations.
 [Story 967, comments 10322](https://work.haynesnetwork.com/work_packages/967/activity#comment-10322), [10327](https://work.haynesnetwork.com/work_packages/967/activity#comment-10327) and [10329](https://work.haynesnetwork.com/work_packages/967/activity#comment-10329).
 The matte isolation policy is installed and selects zero pods. A cutout
 request is accepted and waits. Activation is held on Tom's decision and
-haynes-ops PR 5096 stays open and unmerged. No independent review is recorded yet.
+haynes-ops PR 5096 stays open and unmerged. Its independent review found a
+blocking defect in the launcher's isolation proof, so it is not mergeable as it stands
+([comment 10358](https://work.haynesnetwork.com/work_packages/970/activity#comment-10358)).
 [Story 970, comments 10332](https://work.haynesnetwork.com/work_packages/970/activity#comment-10332), [10333](https://work.haynesnetwork.com/work_packages/970/activity#comment-10333), [10335](https://work.haynesnetwork.com/work_packages/970/activity#comment-10335) and [10338](https://work.haynesnetwork.com/work_packages/970/activity#comment-10338).
 Segmentation is provisioned and smoked with serving inactive. The client
 adapter is on `main` with no caller.
