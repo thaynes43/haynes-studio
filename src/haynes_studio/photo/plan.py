@@ -10,8 +10,8 @@ from haynes_studio.delivery.model import MASTER_SIZES
 from haynes_studio.errors import ContractError
 from haynes_studio.jsonio import thaw
 from haynes_studio.layered import compose
-from haynes_studio.layered.errors import LayeredError
-from haynes_studio.layered.foreground import resolve_roles
+from haynes_studio.layered.errors import UNSUPPORTED, LayeredError
+from haynes_studio.layered.foreground import resolve_picture_roles
 from haynes_studio.layered.matte_size import ENGINE, SIZE_POLICY
 from haynes_studio.layered.photo import PhotoInputs, photo_inputs
 from haynes_studio.library import Library
@@ -56,7 +56,8 @@ class PhotoPlan:
 
 
 def sources_for(library: Library, scope: Scope, ids: tuple[str, ...],
-                path: str, *, images_only: bool = True, metadata_only: bool = False) -> tuple[PhotoSource, ...]:
+                path: str, *, images_only: bool = True, metadata_only: bool = False,
+                composited_set_id: str | None = None) -> tuple[PhotoSource, ...]:
     sources = []
     for index, version_id in enumerate(ids):
         at = f"{path}/{index}"
@@ -68,6 +69,8 @@ def sources_for(library: Library, scope: Scope, ids: tuple[str, ...],
                 or owner.story_id not in (None, scope.story_id)
                 or owner.board_id not in (None, scope.board_id)):
             raise error(SCOPE_MISMATCH, at, "the source belongs to another production, story or board")
+        if version.id != composited_set_id:
+            resolve_picture_roles(version, None, library, production_id=scope.production_id)
         if not metadata_only:
             require_media(version, at)
         if version.content is None:
@@ -89,15 +92,21 @@ def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: b
     scope = Scope(story.production_id, story.id, board.id)
     size = MASTER_SIZES[story.media_kind]
     selected = board.photo.current_version_id
+    set_id = None if story.set is None else story.set.asset_version_id
+    set_version = None if set_id is None else library.get(set_id)
+    if set_id is not None and set_version is None:
+        raise error("ref.unknown", "/set/asset_version_id", "no such selected set version")
+    roles = resolve_picture_roles(
+        set_version, board, library, production_id=story.production_id,
+        set_loop=story.set is not None and story.set.motion_asset_version_id is not None,
+    )
     if board.method.layer == LAYERED:
+        if set_version is None:
+            raise LayeredError(UNSUPPORTED, "the story has no set still to compose on", where="/set")
         ids = tuple(entry.asset_version_id for entry in board.cast)
-        roles = ()
-        if story.set is not None:
-            ids = (story.set.asset_version_id, *ids)
-            roles = resolve_roles(story, library.get(story.set.asset_version_id), library)
-        sources = sources_for(library, scope, ids, "/layers", metadata_only=metadata_only)
-        if board.layout.foreground:
-            sources += tuple(PhotoSource(role.version_id, role.content) for role in roles)
+        sources = sources_for(library, scope, (set_id, *ids), "/layers", metadata_only=metadata_only,
+                              composited_set_id=set_id)
+        sources += tuple(PhotoSource(role.version_id, role.content) for role in roles)
         blobs = {source.version_id: source.content.sha256 for source in sources}
         matte_sizes = {}
         for entry in board.cast:
@@ -118,7 +127,7 @@ def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: b
             matte_sizes[entry.slot] = {"target_height_px": height,
                                        "shape": thaw(params.get("receipt", {}).get("shape"))}
         layers = photo_inputs(story, board, blobs=blobs, width=size[0], height=size[1],
-                              matte_sizes=matte_sizes, roles=roles)
+                              set_sha256=blobs[set_id], matte_sizes=matte_sizes, roles=roles)
         for slot_name, matte in matte_sizes.items():
             try:
                 bottom = compose.slot_of(thaw(layers.layout), slot_name).bottom

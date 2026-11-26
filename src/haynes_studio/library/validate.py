@@ -80,16 +80,40 @@ def validate_asset(document: Any, *, context: str = READ) -> list[Violation]:
 def validate_asset_version(document: Any, *, context: str = READ) -> list[Violation]:
     """Every rule a ``studio.asset-version/v1`` document breaks, sorted by path."""
     _check_context(context)
+    raw = document
     document, stop = _prepare(document, ASSET_VERSION_SCHEMA)
     if stop is not None:
         return stop
+    if problem := noncanonical_occlusion(raw):
+        return [problem]
     found = schema_violations(ASSET_VERSION_FILE, document, default_rule=SCHEMA_INVALID)
     if not _blocking(found):
-        document = AssetVersion.canonical_document(document)
         found += _asset_rules(document) + _version_rules(document)
         if "occlusion" in document:
             found += _occlusion(document)
     return _sorted(found)
+
+
+def noncanonical_occlusion(document: Mapping[str, Any]) -> Violation | None:
+    """Read boundaries accept a declaration only in its stored form."""
+    if "occlusion" not in document:
+        return None
+    if "occlusion" not in AssetVersion.canonical_document(document):
+        return _v("occlusion.noncanonical", "/occlusion", "omit an empty foreground declaration")
+    block = document["occlusion"]
+    roles = block.get("foreground") if isinstance(block, Mapping) else None
+    for index, role in enumerate(roles if isinstance(roles, (list, tuple)) else ()):
+        if not isinstance(role, Mapping):
+            continue
+        mask = role.get("mask")
+        at = pointer("occlusion", "foreground", index)
+        integers = [(at + "/layer_order", role.get("layer_order"))]
+        if isinstance(mask, Mapping):
+            integers += [(at + "/mask/" + axis, mask.get(axis)) for axis in ("width", "height")]
+        for path, value in integers:
+            if isinstance(value, float) and value.is_integer():
+                return _v("occlusion.noncanonical", path, "use an integer in the stored declaration")
+    return None
 
 
 # Asset fields (shared by both documents) ---------------------------------------------------

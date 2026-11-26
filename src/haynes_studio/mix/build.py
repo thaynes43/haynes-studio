@@ -6,7 +6,7 @@
 
     sound = SoundBuilder(cache, story=story, upstream=adapters)
     picture = PictureBuilder(cache, renderer, upstream=sound)
-    plan = plan_story(story, ..., toolchain=sound_toolchain(toolchain), content=picture)
+    plan = plan_story(story, ..., toolchain=sound_toolchain(toolchain), content=picture, library=library)
     result = film_sound(story, plan, sound)
 
 For a ``mix`` key it returns the cached mix, or mixes and commits it with its placement

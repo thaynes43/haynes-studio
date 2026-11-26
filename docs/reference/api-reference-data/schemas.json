@@ -1440,18 +1440,7 @@
             "$ref": "#/components/schemas/StudioDefs_positive"
           },
           "occlusion": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/AssetVersion_occlusion"
-              },
-              {
-                "type": "null"
-              },
-              {
-                "maxItems": 0,
-                "type": "array"
-              }
-            ],
+            "$ref": "#/components/schemas/AssetVersion_occlusion",
             "description": "Foreground role masks for an opaque set still. Each mask pins a promoted library version, its content hash, and the original set still hash and dimensions."
           },
           "provenance": {
@@ -2326,12 +2315,13 @@
               "type": "object"
             },
             "maxItems": 16,
-            "type": [
-              "array",
-              "null"
-            ]
+            "minItems": 1,
+            "type": "array"
           }
         },
+        "required": [
+          "foreground"
+        ],
         "type": "object"
       },
       "AssetVersion_provenance": {

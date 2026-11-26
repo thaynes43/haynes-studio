@@ -12,6 +12,7 @@ from haynes_studio.canonical.model import Principal
 from haynes_studio.library import Library
 from haynes_studio.library.model import locator_for
 from tests.canonical.fixtures import example
+from tests.motion.fixtures import still_version
 
 PNG = "image/png"
 BY = Principal("agent", key_id="key_01M79V9FC00000000000000001")
@@ -48,6 +49,9 @@ def world(tmp_path):
         files[locator] = path
         documents.append(asset)
     ids = tuple(doc["id"] for doc in documents)
+    plate = still_version(77, "e" * 64, kind="set")
+    plate["id"] = story.set.asset_version_id
+    documents.append(plate)
 
     def fetch(locator, digest):
         if locator in files:

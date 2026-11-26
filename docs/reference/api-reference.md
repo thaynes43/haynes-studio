@@ -1,7 +1,7 @@
 # Studio API and MCP reference
 
 API **1.0.0**, OpenAPI **3.1.0**, studio-mcp **1.0.0**.
-Source contract build SHA-256 `7162760052f646708bda599a8622501b1c1431b6e2763f684dd3f9678eeb5bd0`.
+Source contract build SHA-256 `c6707ef4156f8e197f6d3e84d50e7d3e6116c21cf4e0bd062130d81d8b387faa`.
 The build digest identifies the offline OpenAPI export, MCP tool descriptors and excluded worker route index.
 
 Regenerate this page and its schema data when a PR changes an operation, tool or schema.

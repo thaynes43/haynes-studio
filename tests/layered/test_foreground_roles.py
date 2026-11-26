@@ -9,7 +9,6 @@ import pytest
 from PIL import Image
 
 from haynes_studio.canonical import load_story
-from haynes_studio.layered.errors import LayeredError
 from haynes_studio.layered.keyed import SCHEMA, _frame_png, write_apng
 from haynes_studio.layered.photo import PhotoInputs, compose_photo, photo_inputs
 from haynes_studio.layered.renderer import LayeredRenderer
@@ -135,28 +134,7 @@ def test_reference_photo_ignores_cast_moves_and_uses_the_camera_end():
     story = load_story(document)
     board = next(item for item in story.boards if item.id == B2)
     planned = photo_inputs(story, board, blobs={
-        story.set.asset_version_id: inputs.set, board.cast[0].asset_version_id: inputs.cast[0][1],
-    }, width=SIZE[0], height=SIZE[1])
+        board.cast[0].asset_version_id: inputs.cast[0][1],
+    }, width=SIZE[0], height=SIZE[1], set_sha256=inputs.set, roles=())
     assert planned.camera["zoom"] == 2
     assert compose_photo(planned, images.open) == compose_photo(replace(inputs, foreground=None), images.open)
-
-
-def test_photo_inputs_refuse_disabling_declared_foreground_roles():
-    from haynes_studio.layered.foreground import RoleMask
-    from haynes_studio.library.model import Content
-
-    images, inputs = scene(right=19)
-    document = story_document()
-    chosen = next(item for item in document["boards"] if item["id"] == B2)
-    chosen["layout"]["foreground"] = False
-    story = load_story(document)
-    board = next(item for item in story.boards if item.id == B2)
-    pin = inputs.foreground["roles"][0]
-    role = RoleMask("table", 30, "ver_mask", "mask",
-                    Content(pin["sha256"], 1, "image/png", "memory:mask", *SIZE), SIZE)
-    with pytest.raises(LayeredError) as refused:
-        photo_inputs(story, board, blobs={
-            story.set.asset_version_id: inputs.set,
-            **{entry.asset_version_id: inputs.cast[0][1] for entry in board.cast},
-        }, width=SIZE[0], height=SIZE[1], roles=(role,))
-    assert refused.value.code == "occlusion.foreground_required"

@@ -36,12 +36,16 @@ def request(document):
 
 
 @pytest.mark.parametrize("optional", [[], None, {}, {"foreground": []}, {"foreground": None}])
-def test_asset_version_normalizes_absent_declarations(optional):
+def test_asset_version_readers_refuse_noncanonical_empty_declarations(optional):
     doc = example("asset-version-cast.json")
     with_empty = {**doc, "occlusion": optional}
-    library = Library.from_version_documents([with_empty], context="write")
-    assert library.documents() == [doc]
-    typed = AssetVersion.from_document(with_empty)
+    for read in (AssetVersion.from_document, lambda doc: Library.from_version_documents([doc])):
+        with pytest.raises(ContractError) as refused:
+            read(with_empty)
+        assert [(issue.rule, issue.path) for issue in refused.value.violations] == [
+            ("occlusion.noncanonical", "/occlusion"),
+        ]
+    typed = replace(AssetVersion.from_document(doc), occlusion=optional)
     assert version_document(typed, Asset.from_version_document(doc)) == doc
 
 
@@ -98,11 +102,16 @@ def test_roles_have_unique_keys_and_orders(field):
     assert error.value.violations[0].rule == "ref.duplicate"
 
 
-def test_model_canonicalizes_an_integral_layer_order_for_the_renderer():
+def test_transport_normalizes_an_integral_layer_order_and_reader_requires_an_integer():
+    from haynes_studio.api.models import AssetVersion as TransportAssetVersion
+
     doc = declared_set()
     doc["occlusion"]["foreground"][0]["layer_order"] = 11.0
-    model = AssetVersion.from_document(doc)
-    assert type(model.occlusion["foreground"][0]["layer_order"]) is int
+    with pytest.raises(ContractError) as refused:
+        Library.from_version_documents([doc])
+    assert refused.value.violations[0].rule == "occlusion.noncanonical"
+    model = TransportAssetVersion.model_validate(doc)
+    assert type(model.root["occlusion"]["foreground"][0]["layer_order"]) is int
 
 
 def test_legacy_story_nine_boards_and_three_versions_match_pinned_main():

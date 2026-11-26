@@ -237,7 +237,7 @@ def build(world: World, document: dict[str, Any], run_id: str, earlier: tuple[st
     story = load_story(copy.deepcopy(document), context="write", source="layered fixture")
     lib = library or world.library()
     plan = plan_story(story, voices=world.voices(story), blobs=world.blobs, voice_ids=VOICE_IDS,
-                      toolchain=tools, media=MEDIA, content=builder,
+                      toolchain=tools, media=MEDIA, content=builder, library=lib,
                       motion=pin_story(document, lib, world.store.verify, production_id=PRODUCTION))
     return Build(plan=plan, builder=builder, stages=stages, renderer=renderer, source=source,
                  cache=cache)

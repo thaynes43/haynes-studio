@@ -8,10 +8,11 @@ answers from the cache (a hit) or by making it (a miss); a key-only test answers
 deterministic stand-in. Two plans of one story differ exactly where a key changed,
 which is how the invalidation table of contract section 4 is tested.
 
-Inputs are resolved before planning (never looked up here): the story with its boards
-embedded, each spoken board's current voice (take hashes and durations, and its
-track's hash), every asset version's content hash, each voice version's stock voice,
-the toolchain and the media format. Identifiers name artifacts in the plan; they are
+Inputs include the story with its boards embedded, each spoken board's current voice
+(take hashes and durations, and its track's hash), the frozen library and its content
+hashes, each voice version's stock voice, the toolchain and the media format.
+The selected set is checked for foreground roles before any artifact lookup.
+Identifiers name artifacts in the plan; they are
 never key inputs. Board timing is story 404's (:func:`~haynes_studio.canonical.derive.board_clock`).
 The local delivery conversion profile is pinned by digest on each segment key.
 
@@ -29,7 +30,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from haynes_studio.adapters.wan import NEGATIVE
 from haynes_studio.cache.errors import KEY_INPUT_INVALID, CacheError
@@ -55,6 +56,7 @@ from haynes_studio.canonical.facts import Facts, VoiceVersionFacts
 from haynes_studio.canonical.methods import status as method_status
 from haynes_studio.canonical.model import NARRATOR, Board, CameraCue, MoveCue, SoundCue, Story
 from haynes_studio.jsonio import thaw
+from haynes_studio.library import Library
 from haynes_studio.render.clock import (
     SET_SLOT,
     S2V_SOURCE_FPS,
@@ -67,6 +69,9 @@ from haynes_studio.render.clock import (
 from haynes_studio.render.delivery_profile import delivery_profile_sha256
 from haynes_studio.render.encode import EncoderSettings, encoder_build
 from haynes_studio.timebase import DELIVERY_FPS, MIX_RATE, mix_sample
+
+if TYPE_CHECKING:
+    from haynes_studio.layered.foreground import RoleMask
 
 Content = Callable[[CacheKey], str]
 """Answers an artifact's content hash for its key (a build: the cache; a test: a
@@ -197,7 +202,6 @@ class LayeredMotion:
     timed: Callable[[str, str, str, int], Any] | None = None
     decal_min_ecc: float = 0.8
     keyer_build: str | None = None
-    foreground_roles: tuple[Mapping[str, Any], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -331,9 +335,10 @@ def _picture_cues(board: Board, clock: BoardClock) -> list[dict[str, Any]]:
 class _Planner:
     def __init__(self, story: Story, *, voices: Mapping[str, BoardVoice], blobs: Mapping[str, str],
                  voice_ids: Mapping[str, str], toolchain: Toolchain, media: MediaFormat,
-                 content: Content, motion: LayeredMotion | None = None):
+                 content: Content, library: Library, motion: LayeredMotion | None = None):
         self.story, self.voices, self.blobs = story, voices, blobs
         self.voice_ids, self.tools, self.media, self.content = voice_ids, toolchain, media, content
+        self.library = library
         self.motion = motion
         self.artifacts: dict[str, Planned] = {}
 
@@ -494,8 +499,8 @@ class _Planner:
             raise _bad(f"the toolchain names no compositor for {board.method.layer} boards", board.id)
         return compositor[board.method.layer]
 
-    def board(self, board: Board, film_start: int) -> tuple[BoardPlan, dict[str, Any] | None,
-                                                              list[dict[str, Any]]]:
+    def board(self, board: Board, film_start: int,
+              roles: tuple[RoleMask, ...]) -> tuple[BoardPlan, dict[str, Any] | None, list[dict[str, Any]]]:
         story, tools, media = self.story, self.tools, self.media
         voice = self.voices.get(board.id) if board.spoken else None
         clock = _clock(board, voice)
@@ -545,12 +550,8 @@ class _Planner:
                     "phase": None if loop is None else loop_phase(board.id, SET_SLOT,
                                                                   loop_period(self.loop_frames()))}
             if story_set is not None:
-                from haynes_studio.layered.foreground import check_board_roles
-
-                roles = () if self.motion is None else self.motion.foreground_roles
-                check_board_roles(board, roles, set_loop=bool(set_layer and set_layer.get("loop")))
-                if board.layout.foreground and roles:
-                    foreground = {"roles": [dict(role) for role in roles]}
+                if roles:
+                    foreground = {"roles": [role.draw_pin() for role in roles]}
                 elif board.layout.foreground and story_set.foreground_edge_px is not None:
                     foreground = {"edge_px": [list(p) for p in story_set.foreground_edge_px],
                                   "feather_px": story_set.foreground_feather_px}
@@ -594,10 +595,29 @@ class _Planner:
         return plan, voice_track, sounds
 
     def film(self) -> StoryPlan:
+        from haynes_studio.layered.foreground import MASK_STALE, resolve_picture_roles
+        from haynes_studio.layered.errors import LayeredError
+
         story, tools = self.story, self.tools
+        set_id = None if story.set is None else story.set.asset_version_id
+        version = None if set_id is None else self.library.get(set_id)
+        if set_id is not None and version is None:
+            raise _bad("the selected set version is absent from the library", "/set/asset_version_id")
+        if version is not None and version.occlusion is not None and self.blobs.get(set_id) != version.content.sha256:
+            raise LayeredError(MASK_STALE, "The planned set hash differs from the declared set still",
+                               where="/set/occlusion")
+        picture_boards = story.ordered_boards()
+        roles_by_board = {}
+        for board in picture_boards:
+            motion = None if self.motion is None else self.motion.boards.get(board.id)
+            roles_by_board[board.id] = resolve_picture_roles(
+                version, board, self.library, production_id=story.production_id,
+                set_loop=(story.set is not None and story.set.motion_asset_version_id is not None
+                          or motion is not None and motion.set is not None),
+            )
         boards, tracks, sounds, start = [], [], [], 0
-        for board in story.ordered_boards():
-            plan, track, board_sounds = self.board(board, start)
+        for board in picture_boards:
+            plan, track, board_sounds = self.board(board, start, roles_by_board[board.id])
             boards.append(plan)
             tracks.extend([track] if track else [])
             sounds.extend(board_sounds)
@@ -632,7 +652,7 @@ class _Planner:
 
 def plan_story(story: Story, *, voices: Mapping[str, BoardVoice], blobs: Mapping[str, str],
                voice_ids: Mapping[str, str], toolchain: Toolchain, media: MediaFormat,
-               content: Content, motion: LayeredMotion | None = None) -> StoryPlan:
+               content: Content, library: Library, motion: LayeredMotion | None = None) -> StoryPlan:
     """The key plan of a story with embedded boards (see the module docstring).
     ``voices`` maps each spoken board's ID to its current voice; ``blobs`` maps asset
     version IDs to content hashes; ``voice_ids`` maps voice versions to stock voice
@@ -644,4 +664,4 @@ def plan_story(story: Story, *, voices: Mapping[str, BoardVoice], blobs: Mapping
     if story.boards is None:
         raise _bad("the story's boards must be embedded", story.id)
     return _Planner(story, voices=voices, blobs=blobs, voice_ids=voice_ids, toolchain=toolchain,
-                    media=media, content=content, motion=motion).film()
+                    media=media, content=content, library=library, motion=motion).film()

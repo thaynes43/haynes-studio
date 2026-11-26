@@ -26,7 +26,8 @@ from tests.layered import media
 def inputs(world, document, board_id=h.B1) -> PhotoInputs:
     story = load_story(copy.deepcopy(document), context="write", source="photo")
     board = next(b for b in story.boards if b.id == board_id)
-    return photo_inputs(story, board, blobs=world.blobs, width=360, height=640)
+    return photo_inputs(story, board, blobs=world.blobs, width=360, height=640,
+                        set_sha256=world.blobs[story.set.asset_version_id], roles=())
 
 
 def photo(world, made: PhotoInputs) -> np.ndarray:

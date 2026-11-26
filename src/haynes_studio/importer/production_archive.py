@@ -156,7 +156,9 @@ def _pins(snapshot: dict, value: object) -> list[dict]:
         raise ImportProblem("asset_versions", "asset-versions.json")
     try:
         library = Library.from_version_documents(value)
-    except ContractError:
+    except ContractError as error:
+        if error.violations[0].rule == "occlusion.noncanonical":
+            raise ImportProblem("occlusion.noncanonical", "asset-versions.json") from None
         raise ImportProblem("asset_versions", "asset-versions.json") from None
     try:
         require_frozen_roles(snapshot, library)
@@ -182,8 +184,7 @@ def _pins(snapshot: dict, value: object) -> list[dict]:
                 or asset.scope.board_id not in (None, *snapshot["story"]["board_order"])
                 or version.state == "candidate"):
             raise ImportProblem("asset_pin", "asset-versions.json")
-        original = by_id[version.id]
-        pinned.append(library.document(version.id) if "occlusion" in original else original)
+        pinned.append(by_id[version.id])
     return pinned
 
 

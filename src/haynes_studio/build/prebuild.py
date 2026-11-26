@@ -24,7 +24,7 @@ from __future__ import annotations
 import copy
 import hashlib
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Any
 
 from haynes_studio.build.validate import SNAPSHOT_SCHEMA, validate_run_snapshot
@@ -38,7 +38,7 @@ from haynes_studio.jsonio import thaw
 from haynes_studio.layered import check_board as layered_check
 from haynes_studio.layered.errors import LayeredError
 from haynes_studio.layered.foreground import (
-    MASK_MISSING, MASK_STALE, RoleMask, check_board_roles, check_role_images, resolve_roles,
+    MASK_MISSING, MASK_STALE, RoleMask, check_role_images, resolve_picture_roles,
 )
 from haynes_studio.layered.pin import pin_story
 from haynes_studio.library import Library
@@ -159,31 +159,35 @@ def _metadata_present(_locator, _sha):
 def _foreground_checks(story: Story, library: Library, motion: LayeredMotion,
                        store: Store | None) -> tuple[tuple[RoleMask, ...], list[Problem]]:
     version = None if story.set is None else library.get(story.set.asset_version_id)
-    try:
-        roles = resolve_roles(story, version, library)
-        if roles and store is not None:
-            check_role_images(version.content, roles, store)
-    except (LayeredError, StoreError) as error:
-        path = getattr(error, "where", "") or ""
-        if not path.startswith("/set/"):
-            path = "/set/occlusion"
-        return (), [Problem(error.code, getattr(error, "status", "invalid"), path, error.message, field=path)]
-    if not roles:
+    if version is None or version.occlusion is None:
         return (), []
 
+    roles = ()
     problems = []
-    for index, board in enumerate(story.boards or ()):
-        board_motion = motion.boards.get(board.id)
+    for index, board in enumerate(story.boards or (None,)):
+        board_motion = motion.boards.get(board.id) if board is not None else None
         set_loop = (story.set.motion_asset_version_id is not None
                     or (board_motion is not None and board_motion.set is not None))
         try:
-            check_board_roles(board, roles, set_loop=set_loop)
+            roles = resolve_picture_roles(version, board, library,
+                                          production_id=story.production_id, set_loop=set_loop)
         except LayeredError as error:
             field = error.where
+            if board is None or field.startswith("/set/occlusion/foreground/"):
+                return (), [Problem(error.code, error.status, field, error.message, field=field)]
             path = field if field.startswith("/set/") else f"/boards/{index}{field}"
             problems.append(Problem(error.code, error.status, path, error.message, field=field,
                                     board_id=board.id, board_number=board.number,
                                     legacy_shot=board.origin.legacy_shot if board.origin else None))
+    if roles and store is not None and not problems:
+        try:
+            check_role_images(version.content, roles, store)
+        except (LayeredError, StoreError) as error:
+            field = getattr(error, "where", "") or ""
+            if not field.startswith("/set/"):
+                field = "/set/occlusion"
+            problems.append(Problem(error.code, getattr(error, "status", "invalid"),
+                                    field, error.message, field=field))
     return roles, problems
 
 
@@ -192,8 +196,14 @@ def require_frozen_roles(snapshot: Mapping[str, Any], library: Library, *,
     """Check the selected set, its render path and each mask against the frozen pins."""
     document = snapshot["story"]
     selected = (document.get("set") or {}).get("asset_version_id")
-    version = library.get(selected) if selected is not None else None
-    if version is None or version.occlusion is None:
+    if selected is None:
+        return ()
+    version = library.get(selected)
+    if version is None:
+        raise ContractError("<run snapshot>", [Violation(
+            "ref.unknown", "/set/asset_version_id", "The selected set version is absent from the frozen library",
+        )])
+    if version.occlusion is None:
         return ()
     problems = blocking(validate_run_snapshot(snapshot, context=WRITE))
     if problems:
@@ -207,9 +217,6 @@ def require_frozen_roles(snapshot: Mapping[str, Any], library: Library, *,
         if pin["version_id"] not in pins:
             problems.append(Violation(MASK_MISSING, "/resolved_asset_versions",
                                       "The snapshot must pin each declared role mask"))
-        elif pins[pin["version_id"]].get("sha256") != pin["sha256"]:
-            problems.append(Violation(MASK_STALE, "/resolved_asset_versions",
-                                      "The snapshot mask hash differs from the declaration"))
     if problems:
         raise ContractError("<run snapshot>", problems)
 
@@ -272,8 +279,6 @@ def prepare(document: Mapping[str, Any], *, library: Library, store: Store | Non
                                       frame_size=frame_size)
     roles, foreground_problems = _foreground_checks(story, library, motion, mask_store or store)
     problems += foreground_problems
-    if roles:
-        motion = replace(motion, foreground_roles=tuple(role.draw_pin() for role in roles))
     seen, unique = set(), []
     for problem in problems:  # a refusal both checks report (method.unavailable) once
         key = (problem.rule, problem.board_id, problem.field)
@@ -281,7 +286,9 @@ def prepare(document: Mapping[str, Any], *, library: Library, store: Store | Non
             seen.add(key)
             unique.append(problem)
     order = {board_id: i for i, board_id in enumerate(story.board_order)}
-    unique.sort(key=lambda p: (-1 if p.board_id is None else order.get(p.board_id, len(order)),
+    # Mask admission can also make a selected photo stale. Report the set refusal first.
+    unique.sort(key=lambda p: (not p.rule.startswith("occlusion."),
+                               -1 if p.board_id is None else order.get(p.board_id, len(order)),
                                p.field, p.rule, p.message))
     return Prepared(document, library, story, facts, resolution, resolved, motion,
                     PreflightReport(tuple(unique)), format_version, roles)

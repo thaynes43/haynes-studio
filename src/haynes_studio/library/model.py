@@ -333,6 +333,11 @@ class AssetVersion:
 
     @classmethod
     def from_document(cls, doc: Mapping[str, Any]) -> AssetVersion:
+        if "occlusion" in doc:
+            from haynes_studio.library.validate import noncanonical_occlusion
+
+            if problem := noncanonical_occlusion(doc):
+                raise ContractError(doc["id"], [problem])
         doc = normalize(doc)
         return cls(id=doc["id"], asset_id=doc["asset_id"], number=doc["number"],
                    kind=doc["kind"], state=doc["state"],

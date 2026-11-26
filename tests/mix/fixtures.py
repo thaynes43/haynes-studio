@@ -154,4 +154,4 @@ class Build:
     def plan(self, content: Callable[[CacheKey], str] | None = None) -> StoryPlan:
         return plan_story(self.story, voices=self.voices, blobs=self.blobs,
                           voice_ids=fx.VOICE_IDS, toolchain=TOOLCHAIN, media=fx.MEDIA,
-                          content=content or self.picture)
+                          content=content or self.picture, library=fx.library())

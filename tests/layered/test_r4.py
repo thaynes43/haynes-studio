@@ -82,7 +82,7 @@ def r4_plan(asked: list):
     motion = pin_story(document, library, Verify(), production_id=story.production_id)
     return story, plan_story(story, voices=voices, blobs=blobs, voice_ids=voice_ids,
                              toolchain=replace(h.TOOLS, s2v_profile=fx.Toolchain().s2v_profile),
-                             media=MEDIA, content=content, motion=motion)
+                             media=MEDIA, content=content, library=library, motion=motion)
 
 
 def test_the_r4_boards_plan_with_the_right_clip_for_every_doll_on_every_board():

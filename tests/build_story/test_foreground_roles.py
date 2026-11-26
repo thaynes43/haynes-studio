@@ -98,8 +98,11 @@ def test_unusable_mask_is_refused_before_any_clip(tmp_path, change, code):
         replace_mask_bytes(world, mask["content"]["locator"])
     elif change == "wrong_scope":
         production = f.ident("prd", 2)
+        with world.store.open(mask["content"]["locator"]) as handle:
+            foreign = world.store.publish(handle, scope=production, media_type="image/png")
         mask["scope"]["production_id"] = production
-        mask["content"]["locator"] = blob_locator(production, pin["sha256"], "image/png")
+        mask["content"]["locator"] = foreign.locator
+        assert world.store.verify(foreign.locator, pin["sha256"]) == "present"
     elif change == "wrong_declared_size":
         # The only discrepancy is in the declaration, not the actual set/mask.
         for version in (plate, mask):
@@ -170,17 +173,80 @@ def test_declared_roles_refuse_a_set_loop(tmp_path, explicit):
     assert [item.rule for item in prepared.report.blocking] == [UNSUPPORTED]
 
 
+@pytest.mark.parametrize("path", ["layered_photo", "layered_cache", "whole_frame_cache"])
+def test_picture_plans_refuse_unrenderable_roles_before_any_lookup(tmp_path, path):
+    from haynes_studio.build.pipeline import media_format
+    from haynes_studio.cache import plan_story
+    from haynes_studio.canonical import Story
+    from haynes_studio.layered.errors import LayeredError
+    from haynes_studio.photo.plan import plan_photo
+
+    world, document, _ = role_world(tmp_path / "store")
+    board = document["boards"][0]
+    if path == "whole_frame_cache":
+        board["method"]["layer"] = "whole_frame"
+    else:
+        board["layout"]["foreground"] = False
+    story = Story.from_document(document)
+    library = world.library()
+    with pytest.raises(LayeredError) as refused:
+        if path == "layered_photo":
+            plan_photo(story, story.boards[0], library)
+        else:
+            plan_story(story, voices={}, voice_ids={}, blobs={v.id: v.content.sha256
+                       for v in library.versions.values() if v.content is not None},
+                       library=library, toolchain=f.toolchain(), media=media_format(story.media_kind),
+                       content=lambda _: pytest.fail("A rejected cache plan must not ask for content"))
+    assert refused.value.code == (UNSUPPORTED if path == "whole_frame_cache" else FOREGROUND_REQUIRED)
+
+
+def test_layered_local_cache_reuses_the_segment_with_the_mask_drawn(tmp_path):
+    import numpy as np
+
+    from haynes_studio.render.encode import decode_frames
+    from tests.support.synthetic import write_sine_wav
+
+    world, document, _ = role_world(tmp_path / "store", right=SOURCE[0])
+    sound = f.example("asset-version-cast.json")
+    sound_id = f.ident("asv", 76)
+    audio = write_sine_wav(tmp_path / "bed.wav", seconds=2.5, rate=48000).read_bytes()
+    blob = world.store.publish(audio, scope=f.PRODUCTION, media_type="audio/wav")
+    sound.update(id=sound_id, asset_id=f.ident("ast", 76), kind="sound",
+                 name="Synthetic bed", scope={"production_id": f.PRODUCTION},
+                 labels=[], attributes={}, capabilities=["sound_bed"], legacy=None,
+                 content={"sha256": blob.sha256, "bytes": blob.bytes, "locator": blob.locator,
+                          "media_type": "audio/wav"})
+    sound["provenance"].update(generator={"role": "sound", "engine": "Synthetic test sine"}, source_key=None)
+    world.docs.append(sound)
+    document["beds"] = [{"id": f.ident("cue", 1), "type": "bed", "asset_version_id": sound_id,
+                         "level_rms_dbfs": -24, "clock": "film"}]
+    document["boards"][0]["timing"]["hold_ms"] = 500
+
+    library = world.library()
+    previous = f.build(world, document, library, heard="")
+    reused = f.build(world, document, library, heard="")
+    assert previous.run["status"] == reused.run["status"] == "succeeded", reused.run["error"]
+    segment = previous.plan.boards[0].segment
+    assert segment == reused.plan.boards[0].segment
+    assert segment.key.value in previous.made and segment.key.value not in reused.made
+    with world.store.open(blob_locator(f.PRODUCTION, segment.content, "video/mp4")) as media:
+        assert np.count_nonzero(next(decode_frames(media))) == 0
+
+
 @pytest.mark.parametrize(("change", "code"), [
     ("foreground", FOREGROUND_REQUIRED),
     ("missing_pin", MASK_MISSING),
+    ("missing_set", "ref.unknown"),
     ("mask_bytes", MASK_STALE),
 ])
 def test_local_run_writer_rejects_invalid_frozen_masks(tmp_path, change, code):
     world, document, _ = role_world(tmp_path / "store")
     library = world.library()
     snapshot, _ = freeze(preflight(world, document), studio="git:fixture")
-    if change == "foreground":
+    if change in ("foreground", "missing_set"):
         snapshot["story"]["boards"][0]["layout"]["foreground"] = False
+        if change == "missing_set":
+            library = Library.from_version_documents(doc for doc in world.docs if doc["id"] != f.PLATE)
     elif change == "missing_pin":
         snapshot["resolved_asset_versions"] = [item for item in snapshot["resolved_asset_versions"]
                                                if item["id"] != MASK]

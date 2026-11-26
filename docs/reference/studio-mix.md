@@ -34,7 +34,7 @@ from haynes_studio.mix import SoundBuilder, film_sound, sound_toolchain
 cache = ArtifactCache(store, production_id=prd, run_id=run, earlier_runs=earlier)
 sound = SoundBuilder(cache, story=story, upstream=adapters)  # takes, clips, proxy, ...
 picture = PictureBuilder(cache, renderer, upstream=sound)
-plan = plan_story(story, voices=voices, blobs=blobs, voice_ids=voice_ids,
+plan = plan_story(story, voices=voices, blobs=blobs, voice_ids=voice_ids, library=library,
                   toolchain=sound_toolchain(toolchain), media=media, content=picture)
 result = film_sound(story, plan, sound)   # mix, master, placement, checks
 result.ensure_passed()                    # or record result.checks and decide

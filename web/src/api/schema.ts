@@ -1513,7 +1513,7 @@ export interface components {
             name: components["schemas"]["Asset_name"];
             number: components["schemas"]["StudioDefs_positive"];
             /** @description Foreground role masks for an opaque set still. Each mask pins a promoted library version, its content hash, and the original set still hash and dimensions. */
-            occlusion?: components["schemas"]["AssetVersion_occlusion"] | null | unknown[];
+            occlusion?: components["schemas"]["AssetVersion_occlusion"];
             provenance: components["schemas"]["AssetVersion_provenance"];
             /**
              * @description A production archive supplied this asset version's record only.
@@ -1607,7 +1607,7 @@ export interface components {
             width: components["schemas"]["StudioDefs_positive"];
         } & (unknown & unknown & unknown);
         AssetVersion_occlusion: {
-            foreground?: {
+            foreground: {
                 key: string;
                 layer_order: number;
                 mask: {
@@ -1619,7 +1619,7 @@ export interface components {
                     /** @description Original set still width in pixels, before cover fit or cropping. */
                     width: components["schemas"]["StudioDefs_positive"];
                 };
-            }[] | null;
+            }[];
         };
         AssetVersion_provenance: {
             created_at: components["schemas"]["StudioDefs_timestamp"];

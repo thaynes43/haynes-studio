@@ -14,12 +14,19 @@ from tests.contracts.test_foreground_documents import declared_set
 
 
 @pytest.mark.parametrize("optional", [[], None, {}, {"foreground": []}, {"foreground": None}])
-def test_generic_json_encoder_sees_the_canonical_transport_root(optional):
+@pytest.mark.parametrize("encode", [
+    lambda value: "".join(json.JSONEncoder().iterencode(value.root)),
+    lambda value: value.model_dump_json(),
+], ids=["root-encoder", "model-dump-json"])
+def test_transport_serializes_canonical_values_and_readers_refuse_tampered_empty_forms(optional, encode):
     original = example("asset-version-cast.json")
     value = models.AssetVersion(root={**original, "occlusion": optional})
-    encoded = "".join(json.JSONEncoder().iterencode(value.root))
-    assert json.loads(encoded) == original
-    assert Library.from_version_documents([json.loads(encoded)]).documents() == [original]
+    assert json.loads(encode(value)) == original
+    assert Library.from_version_documents([json.loads(encode(value))]).documents() == [original]
+    value.root["occlusion"] = optional
+    with pytest.raises(ContractError) as refused:
+        Library.from_version_documents([json.loads(encode(value))])
+    assert [issue.rule for issue in refused.value.violations] == ["occlusion.noncanonical"]
 
 
 def test_canonical_asset_version_has_no_raw_root_and_freezes_the_declaration():

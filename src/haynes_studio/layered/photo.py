@@ -30,7 +30,7 @@ from haynes_studio.canonical.model import Board, CameraCue, Story
 from haynes_studio.jsonio import freeze, thaw
 from haynes_studio.layered import compose
 from haynes_studio.layered.errors import CLIP_INVALID, LAYOUT_INVALID, UNSUPPORTED, LayeredError
-from haynes_studio.layered.foreground import RoleMask, check_board_roles, draw_layers
+from haynes_studio.layered.foreground import RoleMask, draw_layers
 from haynes_studio.layered.keyed import read_verified
 from haynes_studio.layered.matte_size import MatteSize
 from haynes_studio.matting.pixels import measure_shape
@@ -75,33 +75,32 @@ class PhotoInputs:
 
 
 def photo_inputs(story: Story, board: Board, *, blobs: Mapping[str, str], width: int,
-                 height: int, matte_sizes: Mapping[str, Any] | None = None,
-                 roles: Sequence[RoleMask] = ()) -> PhotoInputs:
-    """The photo inputs of a layered board: the story's set still, the board's cast
+                 height: int, set_sha256: str, roles: Sequence[RoleMask],
+                 matte_sizes: Mapping[str, Any] | None = None) -> PhotoInputs:
+    """Name the admitted set still and roles, the board's cast
     stills in draw order, its layout preset's values, its foreground edge (when the
     board shows the foreground) and the end framing of its camera cue (the last one)."""
     if board.method.layer != "layered":
         raise LayeredError(UNSUPPORTED, "only a layered board's photo is composed (D51); a "
                            "whole-frame board's photo is generated", where="/method")
-    if story.set is None or story.set.asset_version_id not in blobs:
+    if story.set is None:
         raise LayeredError(UNSUPPORTED, "the story has no set still to compose on", where="/set")
     if board.layout.preset not in story.layouts:
         raise LayeredError(UNSUPPORTED, f"layout preset {board.layout.preset!r} is not in the story")
-    check_board_roles(board, roles, set_loop=bool(story.set.motion_asset_version_id))
     cast = []
     for entry in board.cast:
         if entry.asset_version_id not in blobs:
             raise LayeredError(UNSUPPORTED, f"cast still {entry.asset_version_id} is not resolved")
         cast.append((entry.slot, blobs[entry.asset_version_id]))
     foreground = None
-    if board.layout.foreground and roles:
+    if roles:
         foreground = {"roles": [role.draw_pin() for role in roles]}
     elif board.layout.foreground and story.set.foreground_edge_px is not None:
         foreground = {"edge_px": [list(p) for p in story.set.foreground_edge_px],
                       "feather_px": story.set.foreground_feather_px}
     cue = next((c for c in reversed(board.cues) if isinstance(c, CameraCue)), None)
     camera = None if cue is None else {"zoom": cue.zoom_to, "center_px": list(cue.center_px)}
-    return PhotoInputs(width=width, height=height, set=blobs[story.set.asset_version_id],
+    return PhotoInputs(width=width, height=height, set=set_sha256,
                        cast=tuple(cast), layout=freeze(thaw(story.layouts[board.layout.preset])),
                        foreground=None if foreground is None else freeze(foreground),
                        camera=None if camera is None else freeze(camera),

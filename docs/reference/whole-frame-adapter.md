@@ -207,7 +207,7 @@ clips = WholeFrameClips(cache, source,  # FakeClipSource() in tests; the live Wa
                         read_photo=production_reader(store, "library", IMAGE_TYPES))
 builder = PictureBuilder(cache, WholeFrameRenderer(), open_input=production_reader(store, prd),
                          upstream=lambda key: clips(key) if key.kind == WHOLE_FRAME_CLIP else other(key))
-plan = plan_story(story, ..., toolchain=toolchain, content=builder)
+plan = plan_story(story, ..., toolchain=toolchain, content=builder, library=library)
 ```
 
 - The toolchain's `compositor` must be `wholeframe.COMPOSITOR` for these segments, its

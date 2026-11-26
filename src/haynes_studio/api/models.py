@@ -117,11 +117,12 @@ class Timing(Document):
 class AssetVersion(Document):
     @model_validator(mode="after")
     def canonicalize(self):
-        problems = blocking(validate_asset_version(self.root, context="write"))
+        document = CanonicalAssetVersion.canonical_document(self.root)
+        problems = blocking(validate_asset_version(document, context="write"))
         if problems:
             raise ContractError("<asset version response>", problems)
-        self.root = version_document(CanonicalAssetVersion.from_document(self.root),
-                                     Asset.from_version_document(self.root))
+        self.root = version_document(CanonicalAssetVersion.from_document(document),
+                                     Asset.from_version_document(document))
         return self
 
 

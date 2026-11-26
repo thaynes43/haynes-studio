@@ -17,6 +17,7 @@ from haynes_studio.build.run import advance, new_run, update
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.layered.foreground import MASK_MISSING
 from haynes_studio.library import Library
+from haynes_studio.library.model import AssetVersion
 from haynes_studio.store import blob_locator, canonical_json
 
 from .problems import NotFound, StaleRevision
@@ -68,14 +69,16 @@ def lookup_idempotency(conn, story_id, actor, key, story_revision):
 def enqueue(conn, *, snapshot, snapshot_sha256, library, actor, key, estimate, answers=None, store=None):
     story = snapshot["story"]
     selected = (story.get("set") or {}).get("asset_version_id")
-    declared = (conn.scalar(sa.select(asset_versions.c.document["occlusion"]).where(
+    stored_set = (conn.scalar(sa.select(asset_versions.c.document).where(
         asset_versions.c.id == selected,
     )) if selected is not None else None)
-    if declared or any("occlusion" in version for version in library):
+    declared = (AssetVersion.from_document(stored_set).occlusion
+                if stored_set is not None and "occlusion" in stored_set else None)
+    if declared is not None or any("occlusion" in version for version in library):
         frozen = Library.from_version_documents(library, context="write")
         library = [frozen.document(version["id"]) for version in library]
         set_version = frozen.get(selected)
-        if declared and (set_version is None or frozen.document(selected).get("occlusion") != declared):
+        if declared is not None and (set_version is None or set_version.occlusion != declared):
             raise QueueConflict("run.snapshot_changed", "Freeze the selected set version's foreground declaration")
         if set_version is not None and set_version.occlusion is not None:
             if store is None:

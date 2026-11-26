@@ -414,7 +414,7 @@ class _Build:
         prepared = self.prepared
         return plan_story(self.story, voices=_voices(self.story, prepared.document, prepared),
                           blobs=_blobs(prepared), voice_ids=_voice_ids(prepared),
-                          toolchain=self.toolchain, media=self.media, content=chain,
+                          toolchain=self.toolchain, media=self.media, content=chain, library=prepared.library,
                           motion=self._located(prepared.motion))
 
     def _located(self, motion: LayeredMotion | None) -> LayeredMotion | None:

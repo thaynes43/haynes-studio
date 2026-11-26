@@ -45,7 +45,7 @@ def r4_plan():
     voice_ids = {v.id: library.assets[v.asset_id].attributes["voice_id"]
                  for v in library.versions.values() if v.kind == "voice"}
     plan = plan_story(story, voices=voices, blobs=blobs, voice_ids=voice_ids,
-                      toolchain=TOOLCHAIN, media=fx.MEDIA, content=fx.stand_in)
+                      toolchain=TOOLCHAIN, media=fx.MEDIA, content=fx.stand_in, library=library)
     return story, plan
 
 

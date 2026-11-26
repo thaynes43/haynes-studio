@@ -161,6 +161,10 @@ def test_legacy_archive_keeps_original_asset_bytes(tmp_path):
     ("valid", None),
     ("missing_pin", "occlusion.mask_missing"),
     ("wrong_hash", "occlusion.mask_stale"),
+    ("wrong_snapshot_hash", "occlusion.mask_stale"),
+    ("pixel_limit", "occlusion.mask_invalid"),
+    ("byte_limit", "occlusion.mask_invalid"),
+    ("noncanonical", "occlusion.noncanonical"),
 ])
 def test_archive_requires_declared_mask_ids_and_hashes_in_the_snapshot(tmp_path, monkeypatch, capsys, change, code):
     fixture = make_archive(tmp_path / "job")
@@ -171,16 +175,21 @@ def test_archive_requires_declared_mask_ids_and_hashes_in_the_snapshot(tmp_path,
     world.voice(ident("asv", 75), 75, "af_heart")
     [voice] = world.docs
     mask.update(kind="prop", capabilities=["mask"], attributes={})
+    width, height = (4097, 4096) if change == "pixel_limit" else (64, 32)
     for item in (set_doc, mask, cast):
         item["scope"] = {"production_id": fixture.production_id}
-        item["content"].update(width=64, height=32, locator=blob_locator(
+        item["content"].update(width=width, height=height, locator=blob_locator(
             fixture.production_id, item["content"]["sha256"], "image/png",
         ))
+    if change == "byte_limit":
+        mask["content"]["bytes"] = 20 * 1024 * 1024 + 1
     set_doc["occlusion"] = {"foreground": [{
         "key": "table", "layer_order": 15,
         "mask": {"version_id": mask["id"], "sha256": "a" * 64 if change == "wrong_hash" else "b" * 64,
-                 "still_sha256": "c" * 64, "width": 64, "height": 32},
+                 "still_sha256": "c" * 64, "width": width, "height": height},
     }]}
+    if change == "noncanonical":
+        set_doc["occlusion"] = {"foreground": None}
     story = fixture.snapshot["story"]
     story["set"] = {"asset_version_id": set_doc["id"], "motion_asset_version_id": None,
                     "foreground_edge_px": None, "foreground_feather_px": None, "legacy_fire": None}
@@ -192,8 +201,9 @@ def test_archive_requires_declared_mask_ids_and_hashes_in_the_snapshot(tmp_path,
     for item in (set_doc, mask, cast):
         if item is mask and change == "missing_pin":
             continue
+        digest = "0" * 64 if item is mask and change == "wrong_snapshot_hash" else item["content"]["sha256"]
         fixture.snapshot["resolved_asset_versions"].append({
-            "id": item["id"], "kind": item["kind"], "sha256": item["content"]["sha256"],
+            "id": item["id"], "kind": item["kind"], "sha256": digest,
         })
     fixture.snapshot["resolved_asset_versions"].append({
         "id": voice["id"], "kind": "voice", "sha256": None,
