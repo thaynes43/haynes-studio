@@ -29,8 +29,8 @@ export function StoryFormatEditor({ openFromRun, ...props }: FormatEditorProps &
   const summary = useRef<HTMLElement>(null);
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState<SaveFailure>();
-  const [conflict, setConflict] = useState<string>();
   const { model, story } = props;
+  const conflict = model.formatConflict && (model.formatConflict.detail?.message || "The draft changed while you were working.");
   useLayoutEffect(() => {
     if (openFromRun) summary.current?.focus();
   }, [openFromRun]);
@@ -41,13 +41,14 @@ export function StoryFormatEditor({ openFromRun, ...props }: FormatEditorProps &
     const reply = await model.updateFormat(change);
     setSaving(false);
     if (!reply) return false;
-    if (reply.conflict) setConflict(reply.conflict.detail?.message || "The draft changed while you were working.");
     setFailure(reply.kind === "failure" ? reply : undefined);
     return reply.kind === "ready" && !reply.conflict;
   }
 
-  const status = saving || !failure ? formatStatus(story, saving)
-    : failure.reload ? "Check format save" : "Format save failed";
+  const status = saving ? formatStatus(story, true)
+    : conflict ? "Format change needs review"
+    : failure?.reload ? "Check format save"
+    : failure ? "Format save failed" : formatStatus(story, false);
 
   return <div className="story-format-section">
     <details id={storyFormatId} className="story-format" open={openFromRun || undefined} onToggle={(event) => {
@@ -55,7 +56,7 @@ export function StoryFormatEditor({ openFromRun, ...props }: FormatEditorProps &
     }}>
       <summary ref={summary}>Format <span className="muted" role="status">{status}</span></summary>
       {opened && <FormatForm {...props} saving={saving} needsReload={Boolean(failure?.reload)} conflict={conflict}
-        clearFailure={() => setFailure(undefined)} clearConflict={() => setConflict(undefined)} saveFormat={saveOrReload} />}
+        clearFailure={() => setFailure(undefined)} clearConflict={model.clearFormatConflict} saveFormat={saveOrReload} />}
     </details>
     {failure && <div className="story-format-fields">
       <Problem error={failure.error} message={formatFailure(failure.error)} />

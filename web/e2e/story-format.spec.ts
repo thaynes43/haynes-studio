@@ -3,7 +3,7 @@ import { expect, test as base, type Locator, type Page } from "@playwright/test"
 import { pollInterval } from "../src/run-polling";
 import { storyFormatId, treePath } from "../src/routes";
 import { mockStudio, production } from "./studio-api";
-import { castVoice, narratorVoice, oldShortFormat, shortFormat, wideFormat } from "./studio-format-fixtures";
+import { castVoice, formatVersions, narratorVoice, oldShortFormat, shortFormat, wideFormat } from "./studio-format-fixtures";
 import { generateReviewMedia, type ReviewMedia } from "./studio-review-media";
 
 type Api = Awaited<ReturnType<typeof mockStudio>>;
@@ -166,7 +166,8 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       });
       expect(api.queue!.snapshots.get(first.id)?.format_version).toBeUndefined();
       expect(api.queue!.snapshots.get(next.id)).toMatchObject({
-        story: { revision: 4, ...api.formatWrites[0].body }, format_version: { id: shortFormat },
+        story: { revision: 4, ...api.formatWrites[0].body, boards: [{ photo: { current_version_id: photo.id } }] },
+        format_version: { id: shortFormat, sha256: formatVersions.find(({ id }) => id === shortFormat)!.sha256 },
       });
       const target = page.getByRole("combobox", { name: "Target", exact: true });
       await expect(target.locator("option")).toHaveText(["Choose a target", "Private feedback", "Shorts release"]);
@@ -213,6 +214,77 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       await expect(formatSection(page).getByRole("alert")).toContainText("That format version does not exist");
       expect(api.formatWrites).toHaveLength(1);
       await expectNoOverflow(page);
+    });
+
+    test("shows a collapsed format conflict and blocks Build until the conflict is resolved", async ({ page, api }) => {
+      const id = await createStory(page);
+      await addBuildableBoard(page, api, id);
+      await setShortFormat(page);
+      await save(page).click();
+      await expect(format(page).getByText("Format settings saved.")).toBeVisible();
+      await version(page).selectOption(oldShortFormat);
+
+      const path = `/v1/stories/${id}`;
+      const patch = requestGate();
+      await page.route(`**${path}`, async (route) => {
+        if (route.request().method() === "PATCH") {
+          patch.started();
+          await patch.held;
+        }
+        await route.fallback();
+      });
+      const response = page.waitForResponse((reply) => new URL(reply.url()).pathname === path && reply.request().method() === "PATCH");
+      try {
+        await save(page).click();
+        await patch.reached;
+        api.editStory(id, { title: "Closing Time, Revised" });
+        await summary(page).click();
+        await expect(version(page)).toBeHidden();
+        await expect(summary(page)).toContainText("Saving format…");
+      } finally {
+        patch.release();
+      }
+      expect((await response).status()).toBe(409);
+      await expect(page.getByRole("heading", { name: "Closing Time, Revised" })).toBeVisible();
+      await expect(summary(page)).toHaveText("Format Format change needs review");
+      await expect(latestSaved(page)).toBeHidden();
+      await expect(build(page)).toBeDisabled();
+      const reason = "Review your unsaved format settings before building.";
+      await expect(page.getByText(reason)).toBeVisible();
+      await expect(build(page)).toHaveAccessibleDescription(reason);
+      await build(page).click({ force: true });
+      expect(api.queue!.presses).toHaveLength(0);
+      await expectNoOverflow(page);
+
+      const keyboard = viewport.width === 400;
+      if (keyboard) {
+        await summary(page).focus();
+        await page.keyboard.press("Enter");
+      } else {
+        await summary(page).click();
+      }
+      await expect(latestSaved(page).locator("..")).toContainText("Doll Short · v2");
+      await expect(format(page).getByRole("heading", { name: "Your unsaved version" }).locator(".."))
+        .toContainText("Doll Short · v1");
+      await expect(build(page)).toBeDisabled();
+      await expectNoOverflow(page);
+
+      if (keyboard) {
+        const keep = format(page).getByRole("button", { name: "Keep my edited fields" });
+        await tabTo(page, keep);
+        await page.keyboard.press("Enter");
+        await save(page).click();
+        await expect(format(page).getByText("Format settings saved.")).toBeVisible();
+      } else {
+        await format(page).getByRole("button", { name: "Use latest saved version" }).click();
+      }
+      await expect(page.getByText(reason)).toHaveCount(0);
+      await build(page).click();
+      await expect(page.getByRole("article", { name: "Run 1", exact: true })).toContainText("Queue position 1");
+      const [run] = api.queue!.runs;
+      const chosen = keyboard ? oldShortFormat : shortFormat;
+      expect(api.queue!.snapshots.get(run.id)).toMatchObject({ story: { format_version_id: chosen }, format_version: { id: chosen } });
+      expect(api.queue!.presses).toHaveLength(1);
     });
   });
 }
@@ -263,6 +335,34 @@ for (const { mode, message } of [
   });
 }
 
+test("recovers after a successful PATCH returns revision 6 with ETag 4", async ({ page, api }) => {
+  const id = await createStory(page);
+  await addBuildableBoard(page, api, id);
+  await setShortFormat(page);
+  const path = `/v1/stories/${id}`;
+  api.alterNextFormatReplyRevision();
+  const patch = page.waitForResponse((reply) => new URL(reply.url()).pathname === path && reply.request().method() === "PATCH");
+  await save(page).click();
+  const response = await patch;
+  expect(response.status()).toBe(200);
+  expect(response.headers().etag).toBe('"4"');
+  expect(await response.json()).toMatchObject({ revision: 6 });
+  expect(api.formatWrites[0].revision).toBe('"3"');
+  await expect(summary(page)).toHaveText("Format Check format save");
+  await expect(build(page)).toBeDisabled();
+  await expect(reloadDraft(page)).toBeVisible();
+
+  await reloadDraft(page).click();
+  await expect(summary(page)).toHaveText("Format Format pinned");
+  await expect(build(page)).toBeEnabled();
+  await expect(reloadDraft(page)).toHaveCount(0);
+  await build(page).click();
+  await expect(page.getByRole("article", { name: "Run 1", exact: true })).toContainText("Queue position 1");
+  const [run] = api.queue!.runs;
+  expect(api.queue!.snapshots.get(run.id)).toMatchObject({ story: { revision: 4 }, format_version: { id: shortFormat } });
+  expect(api.formatWrites).toHaveLength(1);
+});
+
 for (const write of ["conflict", "success"] as const) {
   test(`rejects a coherent old draft after a PATCH ${write} until reload reaches the known revision`, async ({ page, api }) => {
     const id = await createStory(page);
@@ -296,22 +396,25 @@ for (const write of ["conflict", "success"] as const) {
     stale = intermediate ?? stale;
     await reloadDraft(page).click();
     await expect.poll(() => replayedTiming).toBe(2);
-    await expect(summary(page)).toHaveText("Format Check format save");
+    await expect(summary(page)).toHaveText(write === "conflict" ? "Format Format change needs review" : "Format Check format save");
     await expect(reloadDraft(page)).toBeEnabled();
     await expect(build(page)).toBeDisabled();
     await expect(latestSaved(page)).toHaveCount(0);
 
     replay = false;
     await reloadDraft(page).click();
-    await expect(summary(page)).toHaveText("Format Format pinned");
-    await expect(build(page)).toBeEnabled();
     if (write === "conflict") {
+      await expect(summary(page)).toHaveText("Format Format change needs review");
       await expect(latestSaved(page).locator("..")).toContainText("Doll Short · v1");
       await expect(save(page)).toBeDisabled();
+      await expect(build(page)).toBeDisabled();
+      await format(page).getByRole("button", { name: "Use latest saved version" }).click();
     } else {
       await expect(version(page)).toHaveValue(shortFormat);
       await expect(save(page)).toBeDisabled();
     }
+    await expect(summary(page)).toHaveText("Format Format pinned");
+    await expect(build(page)).toBeEnabled();
     expect(api.formatWrites).toHaveLength(1);
   });
 }
@@ -393,7 +496,10 @@ test("answers format requests with API-shaped refusals and read-back", async ({ 
   });
   expect(await requestApi(page, `/v1/assets?kind=voice&production=${production.id}`)).toMatchObject({
     status: 200, json: { items: [castVoice, narratorVoice].map((voiceId) => ({
-      id: voiceId, licence: expect.any(Object), provenance: { generator: { voice_id: expect.any(String) } },
+      id: voiceId, licence: expect.any(Object), attributes: { stock: true, voice_id: expect.any(String) },
+      capabilities: ["tts_voice"], provenance: {
+        origin: "declared", external: null, source_key: null, generator: { role: "voice", model: expect.any(String) },
+      },
     })), next_cursor: null },
   });
   const saved = await requestApi(page, path, { format_version_id: shortFormat }, '"3"');
@@ -411,9 +517,14 @@ test("answers format requests with API-shaped refusals and read-back", async ({ 
     person_edit: "content", person_edit_revision: 2, photo: { current_version_id: photo.id },
   } });
   expect(await requestApi(page, `/v1/assets?production=${production.id}&board=${board.id}`)).toMatchObject({
-    status: 200, json: { items: [{ id: photo.id, licence: expect.any(Object), provenance: {
-      generator: { engine: "ComfyUI", model: expect.any(String), params: { input_signature: expect.stringMatching(/^sha256:/) } },
-    } }], next_cursor: null },
+    status: 200, json: { items: [{
+      id: photo.id, licence: expect.any(Object), capabilities: ["opaque_photo"],
+      content: { locator: expect.stringMatching(/^productions\/prd_[A-Z0-9]+\/sha256\/[0-9a-f]{2}\/[0-9a-f]{64}\.png$/) },
+      provenance: {
+        origin: "uploaded", external: { paid_api: false, server_computed_sha256: true },
+        generator: { role: "image", model: expect.any(String), params: { input_signature: expect.stringMatching(/^sha256:/) } },
+      },
+    }], next_cursor: null },
   });
 });
 

@@ -40,20 +40,24 @@ describe("story format settings", () => {
 
   const id = "sty_01M79V9FC00000000000000001";
   it.each([
-    { name: "another story", body: { id: "sty_01M79V9FC00000000000000002", revision: 3 } },
-    { name: "the sent revision", body: { id, revision: 2 } },
-    { name: "a missing revision", body: { id } },
-  ])("refuses a successful PATCH response with $name", async ({ body }) => {
+    { name: "another story", body: { id: "sty_01M79V9FC00000000000000002", revision: 4 }, etag: '"4"' },
+    { name: "the sent revision", body: { id, revision: 3 }, etag: '"3"' },
+    { name: "a missing revision", body: { id }, etag: '"4"' },
+    { name: "revision 6 in the body and 4 in the ETag", body: { id, revision: 6 }, etag: '"4"' },
+    { name: "the next revision only in the body", body: { id, revision: 4 }, etag: '"6"' },
+    { name: "a matching ETag that skips the next revision", body: { id, revision: 6 }, etag: '"6"' },
+    { name: "no ETag", body: { id, revision: 4 }, etag: undefined },
+  ])("refuses a successful PATCH response with $name", async ({ body, etag }) => {
     const { signal } = new AbortController();
     const api = createStudioApi("https://studio.example.invalid", signal, () => {}, async (input) => {
       const request = input as Request;
       if (new URL(request.url).pathname === "/v1/me") {
         return Response.json({ principal: { kind: "human", iss: "issuer", sub: "person" }, csrf_token: "csrf" });
       }
-      return Response.json(body);
+      return Response.json(body, { headers: etag ? { etag } : undefined });
     });
     await api.connect();
-    await expect(patchStoryFormat(api.client, id, 2, { format_version_id: pinned.format_version_id }, signal))
+    await expect(patchStoryFormat(api.client, id, 3, { format_version_id: pinned.format_version_id }, signal))
       .rejects.toMatchObject({ status: 502 });
   });
 });

@@ -130,7 +130,7 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
   const queue = runMedia && runFixtures(story, runMedia);
   const decisions = queue ?? review;
   let dropQueueReply: "connection" | "server" | undefined;
-  let dropFormatReply: "connection" | "server" | undefined;
+  let formatReplyFault: "connection" | "server" | "revision" | undefined;
   let preflight: Schemas["EstimateView"]["problems"] = [];
   const loginRequests: URLSearchParams[] = [];
   const approvalWrites: Array<{ run: string; body: Schemas["ApprovalWrite"] }> = [];
@@ -516,13 +516,15 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
         }
         Object.assign(draft, body, { revision: draft.revision + 1,
           updated_at: new Date(Date.parse(fixtureTime) + draft.revision * 1000).toISOString() });
-        const lostReply = dropFormatReply;
-        dropFormatReply = undefined;
-        if (lostReply === "connection") return route.abort("connectionreset");
-        if (lostReply === "server") {
+        const fault = formatReplyFault;
+        formatReplyFault = undefined;
+        if (fault === "connection") return route.abort("connectionreset");
+        if (fault === "server") {
           return reject(route, 500, "internal", "request.failed", { message: "The request could not be completed" });
         }
-        return route.fulfill({ headers: { etag: `"${draft.revision}"` }, json: viewStory(draft) });
+        const reply = viewStory(draft);
+        if (fault === "revision") reply.revision += 2;
+        return route.fulfill({ headers: { etag: `"${draft.revision}"` }, json: reply });
       }
       if (resource === "timing" && method === "GET") {
         return route.fulfill({ json: draftTiming(draft) });
@@ -923,7 +925,8 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
       return { board, photo };
     },
     dropNextQueueReply: (mode: "connection" | "server") => { dropQueueReply = mode; },
-    dropNextFormatReply: (mode: "connection" | "server" = "connection") => { dropFormatReply = mode; },
+    dropNextFormatReply: (mode: "connection" | "server" = "connection") => { formatReplyFault = mode; },
+    alterNextFormatReplyRevision: () => { formatReplyFault = "revision"; },
     preflightProblems: (problems: Schemas["EstimateView"]["problems"]) => { preflight = problems; },
     failNext: (value: Failure) => { failure = value; },
     enableMedia,

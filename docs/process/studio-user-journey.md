@@ -58,10 +58,14 @@ signed-in installed journey is **Expected**. [Deployment evidence, comment
    For spoken boards,
    choose a **Narrator voice** or **Add cast member** and enter a name and
    voice for each speaker. Press **Save format** and wait for **Format pinned**.
-   If the draft changed, compare the two versions before choosing which
-   edits to keep. If Studio loses the reply, use **Reload draft** to check
-   the saved settings before trying again. Build freezes the saved format
-   and its targets. **Proven against the mock only** from creation to the
+   If the save conflicts, **Format change needs review** stays visible with
+   Format closed. Open **Format** to compare **Your unsaved version** and
+   **Latest saved version**. **Build** stays disabled until you choose
+   **Keep my edited fields** or **Use latest saved version**. If you keep
+   your edits, press **Save format** to use them in the next build. If Studio
+   can’t confirm the save, use **Reload draft** to check the saved settings
+   before trying again. Build freezes the saved format and its targets.
+   **Proven against the mock only** from creation to the
    target and package controls on the next finished run. Installation is
    **Expected** with a deployment that includes OP977.
    [Format editor tests](../../web/e2e/story-format.spec.ts) ·

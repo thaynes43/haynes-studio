@@ -26,6 +26,7 @@ export function useStoryboard(api: StudioClient, scope: StoryboardScope, request
   const [problem, setProblem] = useState<{ error: unknown; reload?: boolean; message?: string }>();
   const [pending, setPending] = useState(false);
   const [formatNeedsReload, setFormatNeedsReload] = useState(false);
+  const [formatConflict, setFormatConflict] = useState<ApiError>();
   const [focus, setFocus] = useState<{ board?: string }>();
   const lifetime = useRef<AbortController>(null);
   const working = useRef(false);
@@ -139,6 +140,7 @@ export function useStoryboard(api: StudioClient, scope: StoryboardScope, request
           if (signal.aborted) return;
           if (error instanceof ApiError && error.status === 409 && error.code === "conflict.revision") {
             conflict = error;
+            setFormatConflict(error);
             revisionFloor.current = Math.max(revisionFloor.current, error.detail?.current_revision ?? change.revision + 1);
           } else {
             const reload = !(error instanceof ApiError) || error.status === 0 || error.status >= 500;
@@ -154,7 +156,7 @@ export function useStoryboard(api: StudioClient, scope: StoryboardScope, request
     } catch (error) {
       if (signal.aborted) return;
       setFormatNeedsReload(true);
-      return { kind: "failure", error, reload: true, conflict } as const;
+      return { kind: "failure", error, reload: true } as const;
     } finally {
       working.current = false;
       if (!signal.aborted) setPending(false);
@@ -163,7 +165,8 @@ export function useStoryboard(api: StudioClient, scope: StoryboardScope, request
 
   return {
     result, retry, draft, selected, selectedIndex, pending, notice, problem, focus, refreshFromInspector,
-    draftNeedsReload: Boolean(problem?.reload || formatNeedsReload), updateFormat,
+    draftNeedsReload: Boolean(problem?.reload || formatNeedsReload), updateFormat, formatConflict,
+    clearFormatConflict: () => setFormatConflict(undefined),
     clearNotice: () => setNotice(""),
     reload: () => void update(),
     add: () => draft && void update(async (signal) => ({ message: "Board added.", addedId: await addBoard(api, draft, signal) })),

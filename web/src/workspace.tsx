@@ -173,7 +173,7 @@ function StoryboardPage({ api, production, media, story, board, photoRoute, sele
 
   return <ShellPage title={draft?.story.title ?? "Story"} trail={trail} current={photoPath ?? current} before={before}
     action={draft && <RunBuild api={api} draft={draft} pending={model.pending || model.draftNeedsReload}
-      reload={model.reload} refresh={runs.refresh} />}>
+      formatConflict={Boolean(model.formatConflict)} reload={model.reload} refresh={runs.refresh} />}>
     {result.status === "loading" && <p role="status" className="muted">Loading…</p>}
     {result.status === "failure" && <Problem error={result.error} retry={retry} />}
     {draft && <>

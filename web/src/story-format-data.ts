@@ -87,9 +87,11 @@ export function formatFailure(error: unknown) {
 }
 
 export async function patchStoryFormat(api: StudioClient, id: string, revision: number, body: StoryFormatPatch, signal: AbortSignal) {
-  const { data } = await api.PATCH("/v1/stories/{id}", {
+  const { data, response } = await api.PATCH("/v1/stories/{id}", {
     signal, params: { path: { id }, header: { "If-Match": `"${revision}"` } }, body,
   });
-  if (!data || data.id !== id || !Number.isSafeInteger(data.revision) || data.revision <= revision) throw new ApiError(502);
-  return data.revision;
+  const expected = revision + 1;
+  if (!data || data.id !== id || !Number.isSafeInteger(expected) || data.revision !== expected ||
+      response.headers.get("etag") !== `"${expected}"`) throw new ApiError(502);
+  return expected;
 }
