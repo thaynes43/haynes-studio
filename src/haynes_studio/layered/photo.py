@@ -24,17 +24,18 @@ from typing import Any, BinaryIO
 import numpy as np
 import PIL
 import PIL.Image
-import PIL.ImageOps
 
 from haynes_studio.adapters.errors import AdapterError
 from haynes_studio.canonical.model import Board, CameraCue, Story
 from haynes_studio.jsonio import freeze, thaw
 from haynes_studio.layered import compose
 from haynes_studio.layered.errors import CLIP_INVALID, LAYOUT_INVALID, UNSUPPORTED, LayeredError
+from haynes_studio.layered.foreground import RoleMask, draw_layers
 from haynes_studio.layered.keyed import read_verified
 from haynes_studio.layered.matte_size import MatteSize
 from haynes_studio.matting.pixels import measure_shape
 from haynes_studio.matting.profile import MatteError
+from haynes_studio.render.delivery_profile import fit_set_plate
 from haynes_studio.store import canonical_json
 
 SCHEMA = "studio.layered-photo/v1"  # proposal: the photo's named inputs
@@ -51,7 +52,7 @@ class PhotoInputs:
     set: str  # the set still's SHA-256
     cast: tuple[tuple[str, str], ...]  # (slot, cast still SHA-256) in draw order
     layout: Mapping[str, Any] = field(repr=False)  # the preset's values
-    foreground: Mapping[str, Any] | None = None  # {edge_px, feather_px}
+    foreground: Mapping[str, Any] | None = None  # {edge_px, feather_px} or {roles}
     camera: Mapping[str, Any] | None = None  # the framing: {zoom, center_px}
     composer: str = COMPOSER
     matte_sizes: Mapping[str, Any] | None = None  # cast slot -> verified shape and target
@@ -74,7 +75,8 @@ class PhotoInputs:
 
 
 def photo_inputs(story: Story, board: Board, *, blobs: Mapping[str, str], width: int,
-                 height: int, matte_sizes: Mapping[str, Any] | None = None) -> PhotoInputs:
+                 height: int, matte_sizes: Mapping[str, Any] | None = None,
+                 roles: Sequence[RoleMask] = ()) -> PhotoInputs:
     """The photo inputs of a layered board: the story's set still, the board's cast
     stills in draw order, its layout preset's values, its foreground edge (when the
     board shows the foreground) and the end framing of its camera cue (the last one)."""
@@ -91,7 +93,9 @@ def photo_inputs(story: Story, board: Board, *, blobs: Mapping[str, str], width:
             raise LayeredError(UNSUPPORTED, f"cast still {entry.asset_version_id} is not resolved")
         cast.append((entry.slot, blobs[entry.asset_version_id]))
     foreground = None
-    if board.layout.foreground and story.set.foreground_edge_px is not None:
+    if board.layout.foreground and roles:
+        foreground = {"roles": [role.draw_pin() for role in roles]}
+    elif board.layout.foreground and story.set.foreground_edge_px is not None:
         foreground = {"edge_px": [list(p) for p in story.set.foreground_edge_px],
                       "feather_px": story.set.foreground_feather_px}
     cue = next((c for c in reversed(board.cues) if isinstance(c, CameraCue)), None)
@@ -112,7 +116,7 @@ def _image(data: bytes, what: str) -> PIL.Image.Image:
         raise LayeredError(CLIP_INVALID, f"{what} does not decode: {type(error).__name__}") from error
 
 
-def _place_still(cutout, slot, slot_name, frame_width, frame_height, matte):
+def _place_still(cutout, slot, slot_name, frame_width, frame_height, matte, *, geometry=None):
     if matte is None:
         art = compose.sprite(cutout, slot)
         return art, compose.place(art.size, slot, frame_width, slot_name)
@@ -123,13 +127,14 @@ def _place_still(cutout, slot, slot_name, frame_width, frame_height, matte):
         raise LayeredError("matting.target_exceeds_frame",
                            f"Slot {slot_name!r} target height {target} px exceeds frame height {frame_height} px")
     try:
-        measured = measure_shape(np.asarray(cutout.getchannel("A")), target)
+        measured = measure_shape(np.asarray((geometry if geometry is not None else cutout).getchannel("A")), target)
         if measured != thaw(matte["shape"]):
             raise LayeredError(CLIP_INVALID, "The cast matte differs from its pinned measurement")
         size = MatteSize.measured(measured, cutout.size, target)
     except (MatteError, AdapterError):
         raise LayeredError(CLIP_INVALID, "The cast matte has invalid silhouette geometry") from None
-    art, silhouette, inset = size.sprite(cutout)
+    source_support = None if geometry is None else geometry.getchannel("A").getbbox()
+    art, silhouette, inset = size.sprite(cutout, source_support=source_support)
     where = compose.place(art.size, slot, frame_width, slot_name, silhouette=silhouette, inset=inset)
     if where.y < 0:
         # The plate would cut the doll at the top of the frame without saying so.
@@ -139,42 +144,66 @@ def _place_still(cutout, slot, slot_name, frame_width, frame_height, matte):
     return art, where
 
 
+class PhotoScene:
+    """The decoded inputs and draw path of the production reference photo."""
+
+    def __init__(self, inputs: PhotoInputs, read: Callable[[str], BinaryIO]):
+        self.inputs = inputs
+        self.size = inputs.width, inputs.height
+        self.layout = thaw(inputs.layout)
+        still = _image(read_verified(read, inputs.set, "the set still"), "the set still")
+        self.source_size = still.size
+        self.background = fit_set_plate(still.convert("RGB"), self.size)
+        self.cast = {
+            slot: _image(read_verified(read, digest, f"slot {slot}'s still"),
+                         f"slot {slot}'s still").convert("RGBA")
+            for slot, digest in inputs.cast
+        }
+        self.roles = ()
+        self.legacy_alpha = None
+        foreground = inputs.foreground or {}
+        if "roles" in foreground:
+            self.roles = draw_layers(foreground["roles"], read, self.source_size, self.size)
+        elif foreground:
+            self.legacy_alpha = compose.foreground_alpha(foreground["edge_px"], foreground.get("feather_px"),
+                                                         *self.size)
+
+    def render(self, background: PIL.Image.Image, cast: Mapping[str, PIL.Image.Image], *,
+               isolated: bool = False) -> PIL.Image.Image:
+        def dolls():
+            for slot_name, cutout in cast.items():
+                matte = (self.inputs.matte_sizes or {}).get(slot_name)
+                if not isolated and matte is None and cutout.getextrema()[3][0] != 0:
+                    raise LayeredError(UNSUPPORTED, f"slot {slot_name}'s still has no transparent pixel; "
+                                       "a layered cast still is an RGBA cutout")
+                slot = compose.slot_of(self.layout, slot_name)
+                art, where = _place_still(cutout, slot, slot_name, *self.size, matte,
+                                          geometry=self.cast[slot_name] if isolated else None)
+                plate = compose.plate(art, where, *self.size)
+                yield plate, compose.shadow(plate), where.pivot, 0, 0, 0
+
+        out = compose.composite(background, dolls(), roles=() if isolated else self.roles,
+                                legacy_alpha=None if isolated else self.legacy_alpha)
+        camera = self.inputs.camera
+        if camera is not None:
+            out = compose.camera(out, {"start_ms": 0, "duration_ms": 0, "zoom_from": camera["zoom"],
+                                       "zoom_to": camera["zoom"], "center_px": camera["center_px"]}, 0.0)
+        return out
+
+
 def compose_photo(inputs: PhotoInputs, read: Callable[[str], BinaryIO]) -> bytes:
-    """The photo as PNG bytes (see the module docstring). ``read`` opens a still by
-    hash; every still is re-hashed. A cast still with no transparent pixel is not a
-    cutout (``layered.unsupported``)."""
-    width, height = inputs.width, inputs.height
-    background = PIL.ImageOps.fit(_image(read_verified(read, inputs.set, "the set still"), "the set still")
-                                  .convert("RGB"), (width, height), method=PIL.Image.Resampling.LANCZOS)
-    frame = background.convert("RGBA")
-    layout = thaw(inputs.layout)
-    for slot_name, still in inputs.cast:
-        cutout = _image(read_verified(read, still, f"slot {slot_name}'s still"),
-                        f"slot {slot_name}'s still").convert("RGBA")
-        matte = (inputs.matte_sizes or {}).get(slot_name)
-        if matte is None and cutout.getextrema()[3][0] != 0:
-            raise LayeredError(UNSUPPORTED, f"slot {slot_name}'s still has no transparent pixel; a "
-                               "layered cast still is an RGBA cutout")
-        slot = compose.slot_of(layout, slot_name)
-        art, where = _place_still(cutout, slot, slot_name, width, height, matte)
-        plate = compose.plate(art, where, width, height)
-        compose.draw(frame, plate, compose.shadow(plate), where.pivot, 0, 0, 0)
-    if inputs.foreground is not None:
-        frame.alpha_composite(compose.foreground(background, compose.foreground_alpha(
-            inputs.foreground["edge_px"], inputs.foreground.get("feather_px"), width, height)))
-    out = frame.convert("RGB")
-    if inputs.camera is not None:
-        out = compose.camera(out, {"start_ms": 0, "duration_ms": 0, "zoom_from": inputs.camera["zoom"],
-                                   "zoom_to": inputs.camera["zoom"],
-                                   "center_px": inputs.camera["center_px"]}, 0.0)
+    """The photo as PNG bytes. Every still and role mask is read by its pinned hash."""
+    scene = PhotoScene(inputs, read)
+    out = scene.render(scene.background, scene.cast)
     buffer = io.BytesIO()
     out.save(buffer, format="PNG")
     return buffer.getvalue()
 
 
 def stills(inputs: PhotoInputs) -> Sequence[str]:
-    """Every still the photo reads, by hash: the set, then the cast in draw order."""
-    return (inputs.set, *(still for _, still in inputs.cast))
+    """Every image the photo reads, by hash: the set, cast, then role masks."""
+    roles = (inputs.foreground or {}).get("roles", ())
+    return (inputs.set, *(still for _, still in inputs.cast), *(role["sha256"] for role in roles))
 
 
 __all__ = ["COMPOSER", "PNG", "PhotoInputs", "SCHEMA", "compose_photo", "photo_inputs", "stills"]

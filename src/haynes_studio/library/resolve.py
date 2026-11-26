@@ -67,6 +67,7 @@ class Resolved:
     definition_signature: str | None = None  # voice
     input_signature: str | None = None  # board_voice
     take_sha256: tuple[str, ...] | None = None  # board_voice
+    occlusion_signature: str | None = None
 
     def snapshot_entry(self) -> dict[str, Any]:
         """The run snapshot's ``resolved_asset_versions`` entry (section 8)."""
@@ -76,6 +77,8 @@ class Resolved:
         if self.input_signature is not None:
             entry["input_signature"] = self.input_signature
             entry["take_sha256"] = list(self.take_sha256 or ())
+        if self.occlusion_signature is not None:
+            entry["occlusion_signature"] = self.occlusion_signature
         return entry
 
 
@@ -206,14 +209,16 @@ def resolve(document: Mapping[str, Any], library: Library, exists: Exists) -> Re
             continue
         content, voice = version.content, version.voice
         asset = library.asset(version.asset_id)
+        pin = library.pin(version.id)
         resolved.append(Resolved(
             path=ref.path, version_id=version.id, asset_id=version.asset_id, kind=version.kind,
-            number=version.number, pin=library.pin(version.id),
+            number=version.number, pin=pin,
             sha256=None if content is None else content.sha256,
             locator=None if content is None else content.locator,
-            definition_signature=library.pin(version.id) if version.kind == "voice" else None,
+            definition_signature=pin if version.kind == "voice" else None,
             input_signature=None if voice is None else voice.input_signature,
-            take_sha256=None if voice is None else tuple(t.sha256 for t in voice.takes)))
+            take_sha256=None if voice is None else tuple(t.sha256 for t in voice.takes),
+            occlusion_signature=pin if version.occlusion is not None and content is not None else None))
         if ref.board_id is not None and asset.scope.board_id not in (None, ref.board_id):
             problems.append(Violation(SCOPE_MISMATCH, ref.path,
                                       f"{version.id} belongs to board {asset.scope.board_id}"))

@@ -99,6 +99,7 @@ from haynes_studio.build.errors import (
 )
 from haynes_studio.build.live import KEPT, PlannedClip, planned_clips
 from haynes_studio.build.prebuild import Prepared, make_snapshot, prepare, snapshot_bytes
+from haynes_studio.layered.visibility import run_checks as visibility_run_checks
 from haynes_studio.build.provenance import Register, Use, library_uses, provenance, toolchain_record
 from haynes_studio.build.run import (
     CANCELLED,
@@ -177,6 +178,7 @@ class BuildInputs:
     studio: str = "git:unknown"
     image_digest: str | None = None
     format_version: Mapping[str, Any] | None = None
+    visibility_overrides: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -815,7 +817,8 @@ def build_story(inputs: BuildInputs, *, store: Store, phase: str, sources: ClipS
     toolchain = build_toolchain(inputs.toolchain)
     prepared = prepare(inputs.story, library=library, store=store, toolchain=toolchain,
                        frame_size=(media.width, media.height),
-                       current_engine=Engine().signing_name, format_version=inputs.format_version)
+                       current_engine=Engine().signing_name, format_version=inputs.format_version,
+                       visibility_overrides=inputs.visibility_overrides if queued is not None else ())
     if phase == OFFLINE:  # the recognizer is a service: the offline phase reads the cache only
         transcriber = None
     return _build(inputs, prepared, store=store, phase=phase, sources=sources,
@@ -864,7 +867,10 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
 
     build: _Build | None = None
     plan: StoryPlan | None = None
-    checks: list[dict[str, Any]] | None = None
+    visibility_checks = visibility_run_checks(
+        prepared.visibility_evidence, inputs.visibility_overrides if queued is not None else (),
+    )
+    checks: list[dict[str, Any]] | None = visibility_checks or None
     stages: list[dict[str, Any]] = []
     checked_locally = False
     delivered: Delivery | None = None
@@ -884,7 +890,8 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
                                       else sources.check)
             mix_checks: list[dict[str, Any]] = []
             if phase != OFFLINE:  # a phase that may ask a clip source: the sound first
-                mix_checks = checks = _early_mix(build, local_plan)
+                mix_checks = _early_mix(build, local_plan)
+                checks = [*visibility_checks, *mix_checks]
                 failed = [c["check"] for c in mix_checks if c["result"] == "fail"]
                 if failed:
                     raise BuildError(CHECK_FAILED, "checks of the mix did not pass: "
@@ -905,7 +912,7 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
                 _keep_made(chain.records, local)
                 recorder = _Recorder(build, plan, chain.records, register)
                 stages = recorder.stages()
-                checks = [*mix_checks, *_service_checks(build, plan, chain.records)] or None
+                checks = [*visibility_checks, *mix_checks, *_service_checks(build, plan, chain.records)] or None
                 failed = [c["check"] for c in checks or () if c["result"] == "fail"]
                 if failed:  # a cached master's transcript did not pass: never "complete"
                     build.where = (None, "checks")
@@ -930,7 +937,7 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
             _keep_made(chain.records, local, first_pass)
             build.where = (None, "checks")
             sound = film_sound(story, plan, build.sound)
-            checks = _sound_checks(sound)
+            checks = [*visibility_checks, *_sound_checks(sound)]
             transcript_key = plan.artifacts.get(f"check/{TRANSCRIPT}")
             if transcript_key is not None:
                 result = build.transcript.result(transcript_key.content)
@@ -1174,6 +1181,7 @@ def _master_file(store: Store, production_id: str, sha256: str, scratch: str
 
 def _input_versions(prepared: Prepared, recorder: _Recorder) -> list[str]:
     ids = [item.version_id for item in prepared.resolution.resolved]
+    ids.extend(role.version_id for role in prepared.foreground_roles)
     return list(dict.fromkeys([*ids, *sorted(recorder.library_inputs)]))
 
 

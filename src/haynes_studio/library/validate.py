@@ -18,7 +18,9 @@ block, so ``derived`` is an unknown field everywhere); ``queue_run`` adds nothin
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import re
+import unicodedata
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from haynes_studio.canonical.validate import (
@@ -40,6 +42,8 @@ from haynes_studio.library.model import (
     LAYER_CAPABILITIES,
     MEDIA_EXTENSIONS,
     OPAQUE_CAPABILITIES,
+    AssetVersion,
+    Content,
     is_stock_voice,
     measured_ms,
     stock_voice_id,
@@ -72,7 +76,8 @@ def validate_asset(document: Any, *, context: str = READ) -> list[Violation]:
     return _sorted(found)
 
 
-def validate_asset_version(document: Any, *, context: str = READ) -> list[Violation]:
+def validate_asset_version(document: Any, *, context: str = READ,
+                           source_content: Callable[[str], Content | None] | None = None) -> list[Violation]:
     """Every rule a ``studio.asset-version/v1`` document breaks, sorted by path."""
     _check_context(context)
     document, stop = _prepare(document, ASSET_VERSION_SCHEMA)
@@ -80,7 +85,10 @@ def validate_asset_version(document: Any, *, context: str = READ) -> list[Violat
         return stop
     found = schema_violations(ASSET_VERSION_FILE, document, default_rule=SCHEMA_INVALID)
     if not _blocking(found):
+        document = AssetVersion.canonical_document(document)
         found += _asset_rules(document) + _version_rules(document)
+        if "occlusion" in document:
+            found += _occlusion(document, source_content)
     return _sorted(found)
 
 
@@ -118,6 +126,68 @@ def _version_rules(doc: Mapping[str, Any]) -> list[Violation]:
         found.append(_v(SCHEMA_INVALID, "/legacy/source_key",
                         "must be the provenance's source_key (proposal)"))
     return found
+
+
+def _occlusion(doc: Mapping[str, Any], source_content) -> list[Violation]:
+    if doc["kind"] != "set" or "opaque_plate" not in doc["capabilities"]:
+        return [_v(CAPABILITY_MISMATCH, "/occlusion", "occlusion declarations need an opaque set plate")]
+    block = doc["occlusion"]
+    found = []
+    keys, orders = [], []
+    plate = doc["content"] or {}
+    foreground = {role["key"]: role["layer_order"] for role in block.get("foreground", ())}
+    for group in ("foreground", "focal_props"):
+        for i, target in enumerate(block.get(group, ())):
+            at = pointer("occlusion", group, i)
+            key = target["key"]
+            keys.append((at + "/key", key))
+            if re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", key) is None:
+                found.append(_v(SCHEMA_INVALID, at + "/key", "use lowercase letters, digits, dashes or underscores"))
+            texts = [(at + "/label", target.get("label"))]
+            hint = target.get("hint")
+            if hint and hint["kind"] == "text":
+                texts.append((at + "/hint/text", hint["text"]))
+            for path, value in texts:
+                if value is not None and (value != value.strip() or not unicodedata.is_normalized("NFC", value)
+                                          or any(unicodedata.category(c).startswith("C") for c in value)):
+                    found.append(_v(SCHEMA_INVALID, path, "use trimmed NFC text without control characters"))
+            if hint and hint["kind"] != "text":
+                width, height = plate.get("width"), plate.get("height")
+                if target.get("depth") == "separate":
+                    source = target.get("source_asset_version_id")
+                    still = source_content(source) if source_content is not None and source else None
+                    width, height = (still.width, still.height) if still is not None else (None, None)
+                if hint["kind"] == "point":
+                    coordinate_field = "xy"
+                    x, y = hint[coordinate_field]
+                    valid = (width is None or x < width) and (height is None or y < height)
+                else:
+                    coordinate_field = "xyxy"
+                    x, y, right, bottom = hint[coordinate_field]
+                    valid = (x < right and y < bottom and (width is None or right <= width)
+                             and (height is None or bottom <= height))
+                if not valid:
+                    found.append(_v(SCHEMA_INVALID, f"{at}/hint/{coordinate_field}",
+                                    "use a point inside the still or a positive-area box within it"))
+            order = target.get("layer_order")
+            if group == "foreground":
+                orders.append((at + "/layer_order", order))
+                continue
+            role, source = target.get("foreground_role"), target.get("source_asset_version_id")
+            depth = target["depth"]
+            if depth == "background":
+                valid = order == 0 and role is None and source is None
+            elif depth == "foreground":
+                valid = role in foreground and order == foreground[role] and source is None
+            elif depth == "separate":
+                valid = order is not None and order > 0 and role is None and source is not None
+                if valid:
+                    orders.append((at + "/layer_order", order))
+            else:
+                valid = order is None and role is None and source is None
+            if not valid:
+                found.append(_v(SCHEMA_INVALID, at, "the depth needs its matching layer order and source or role"))
+    return found + _duplicates(keys, "occlusion target key") + _duplicates(orders, "declared layer order")
 
 
 def _stock_voice(doc: Mapping[str, Any]) -> list[Violation]:

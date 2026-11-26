@@ -10,7 +10,7 @@ from haynes_studio.delivery.model import MASTER_SIZES
 from haynes_studio.delivery.validate import validate_delivery
 from haynes_studio.errors import ContractError, Violation
 from haynes_studio.library.library import Library, promote
-from haynes_studio.library.model import BOARD, CANDIDATE, PROMOTED, Asset, AssetVersion, version_document
+from haynes_studio.library.model import BOARD, CANDIDATE, PROMOTED, Asset, AssetVersion, Content, version_document
 from haynes_studio.library.validate import validate_asset, validate_asset_version
 from haynes_studio.store.layout import blob_locator, is_sha256, parse_locator
 
@@ -63,7 +63,18 @@ def load_library(conn: sa.Connection, version_ids: Collection[str], production_i
         _catalog_scope({production_id}), asset_versions.c.id.in_(version_ids),
         _version_state() != CANDIDATE,
     ))
-    return Library.from_version_documents(_version(row) for row in rows)
+    documents = {doc["id"]: doc for doc in map(_version, rows)}
+    from haynes_studio.layered.foreground import role_version_ids
+
+    masks = set().union(*(role_version_ids(document) for document in documents.values()))
+    if missing := masks.difference(documents):
+        # Include candidates in this slice solely to report a non-ready mask pin.
+        mask_rows = conn.execute(_joined_versions().where(
+            _catalog_scope({production_id}), asset_versions.c.id.in_(missing),
+            assets.c.story_id.is_(None), assets.c.board_id.is_(None),
+        ))
+        documents.update({doc["id"]: doc for doc in map(_version, mask_rows)})
+    return Library.from_version_documents(documents.values())
 
 
 def find_assets(conn: sa.Connection, allowed: ProductionScope, *, kind: str | None,
@@ -130,7 +141,15 @@ def record_asset_version(conn: sa.Connection, document: dict, *, asset: Asset | 
     For D42 the server records the received-byte digest alongside the canonical
     digest of the stored, stripped content. Legacy uploads may have only the latter.
     """
-    require_valid(validate_asset_version(document))
+    def source_content(version_id):
+        content = conn.scalar(sa.select(asset_versions.c.document["content"]).join(
+            assets, asset_versions.c.asset_id == assets.c.id,
+        ).where(asset_versions.c.id == version_id, assets.c.kind == "prop",
+                _catalog_scope({document["scope"]["production_id"]})))
+        return Content.from_document(content)
+
+    require_valid(validate_asset_version(document, source_content=source_content))
+    document = AssetVersion.canonical_document(document)
     version = AssetVersion.from_document(document)
     if received_sha256 is not None and (
         version.kind != "photo" or version.origin != "uploaded" or not is_sha256(received_sha256)

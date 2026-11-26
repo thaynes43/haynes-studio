@@ -197,6 +197,7 @@ class LayeredMotion:
     timed: Callable[[str, str, str, int], Any] | None = None
     decal_min_ecc: float = 0.8
     keyer_build: str | None = None
+    foreground_roles: tuple[Mapping[str, Any], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -544,7 +545,10 @@ class _Planner:
                     "phase": None if loop is None else loop_phase(board.id, SET_SLOT,
                                                                   loop_period(self.loop_frames()))}
             if story_set is not None:
-                if board.layout.foreground and story_set.foreground_edge_px is not None:
+                roles = () if self.motion is None else self.motion.foreground_roles
+                if board.layout.foreground and roles:
+                    foreground = {"roles": [dict(role) for role in roles]}
+                elif board.layout.foreground and story_set.foreground_edge_px is not None:
                     foreground = {"edge_px": [list(p) for p in story_set.foreground_edge_px],
                                   "feather_px": story_set.foreground_feather_px}
             motion_style = None if story.motion_style is None else thaw(story.motion_style)

@@ -29,7 +29,7 @@ the motion style defaults (idle 0.3, hop 34, tilt 3.2, shuffle 7), 12 poses a se
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from fractions import Fraction
 from dataclasses import dataclass
 from typing import Any
@@ -45,6 +45,7 @@ POSE_HZ = 12  # edit.POSE_HZ: every movement is held for two 24 fps frames
 SHADOW_RGB = (28, 24, 18)
 SHADOW_BLUR, SHADOW_OPACITY, SHADOW_OFFSET = 22, 0.16, (12, 6)
 PIVOT_ABOVE = 80
+CAST_ORDER_STEP = 10  # cast entries are drawn at depths 10, 20, 30, ...
 STYLE_DEFAULTS = {"idle_scale": 0.3, "talk_hop": 34, "talk_tilt": 3.2, "talk_shuffle": 7}
 KNOTS = [(0, 0, 16, 0), (.25, -12, -12, -1.6), (.5, 2, 0, .5), (1.1, 8, -6, 1.2),
          (1.4, -7, 3, -.8), (2.0, 4, -8, .8), (2.35, -9, 1, -1.2), (2.8, 5, -5, .5),
@@ -186,6 +187,27 @@ def draw(frame: PIL.Image.Image, plate_image: PIL.Image.Image, shadow_image: PIL
                        (plate_image, (dx, dy))):
         moved = layer.rotate(angle, resample=PIL.Image.Resampling.BICUBIC, center=pivot, translate=off)
         frame.alpha_composite(moved.crop((PAD, 0, PAD + width, height)))
+
+
+def composite(background: PIL.Image.Image, cast: Iterable[tuple], *,
+              roles: Sequence[tuple[int, PIL.Image.Image]] = (),
+              legacy_alpha: PIL.Image.Image | None = None) -> PIL.Image.Image:
+    """Draw the ordered set and cast. At an equal depth the role is in front."""
+    frame = background.convert("RGBA")
+    pending = iter(roles)
+    role = next(pending, None)
+    for index, doll in enumerate(cast, start=1):
+        while role is not None and role[0] < index * CAST_ORDER_STEP:
+            frame.alpha_composite(foreground(background, role[1]))
+            role = next(pending, None)
+        draw(frame, *doll)
+    if role is not None:
+        frame.alpha_composite(foreground(background, role[1]))
+        for _, alpha in pending:
+            frame.alpha_composite(foreground(background, alpha))
+    if legacy_alpha is not None:
+        frame.alpha_composite(foreground(background, legacy_alpha))
+    return frame.convert("RGB")
 
 
 def foreground_alpha(edge_px: Sequence[Sequence[float]], feather_px: float | None,

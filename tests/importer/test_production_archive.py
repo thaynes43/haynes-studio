@@ -141,3 +141,51 @@ def test_resolver_skips_byte_check_for_recorded_pin(tmp_path):
                      lambda *_: pytest.fail("a recorded pin must not probe the store"))
     assert result.complete
     assert result.version_ids() == {fixture.asset["id"]}
+
+
+@pytest.mark.parametrize("empty", [[], None])
+def test_archive_normalizes_views_and_preserves_verified_source_pin(tmp_path, empty):
+    from hashlib import sha256
+
+    from haynes_studio.importer.production import _publish
+    from haynes_studio.store import LocalStore, blob_locator, canonical_json
+
+    fixture = make_archive(tmp_path / "job")
+    fixture.snapshot["story"]["boards"][0]["layout"]["check_poses"] = empty
+    original = canonical_json(fixture.snapshot)
+    digest = sha256(original).hexdigest()
+    fixture.run["snapshot"].update(
+        sha256=digest, locator=blob_locator(fixture.production_id, digest, "application/json"),
+    )
+    (fixture.root / "snapshot.json").write_bytes(original)
+    (fixture.root / "run.json").write_bytes(canonical_json(fixture.run))
+    (fixture.root / "asset-versions.json").write_bytes(canonical_json([
+        {**fixture.asset, "occlusion": {"foreground": [], "focal_props": None}},
+    ]))
+    fixture.receipt.write_bytes(canonical_json(fixture.files()))
+    store_root = tmp_path / "store"
+    store_root.mkdir()
+    store = LocalStore(store_root)
+    with verify_archive(fixture.root, fixture.receipt, name=fixture.name, kind=KIND,
+                        recovered=False) as archive:
+        assert "check_poses" not in archive.snapshot["story"]["boards"][0]["layout"]
+        assert "occlusion" not in archive.versions[0]
+        assert archive.marker["source_snapshot"] == fixture.run["snapshot"]
+        _publish(store, archive, replay=False)
+        with store.open(archive.snapshot_pin["locator"]) as handle:
+            assert handle.read() == canonical_json(archive.snapshot)
+        with store.open(archive.marker["source_snapshot"]["locator"]) as handle:
+            assert handle.read() == original
+        _publish(store, archive, replay=True)
+
+
+def test_archive_reports_the_index_of_a_malformed_version(tmp_path):
+    from haynes_studio.importer.production_archive import ImportProblem
+    from haynes_studio.store import canonical_json
+
+    fixture = make_archive(tmp_path / "job")
+    (fixture.root / "asset-versions.json").write_bytes(canonical_json([fixture.asset, []]))
+    fixture.receipt.write_bytes(canonical_json(fixture.files()))
+    with pytest.raises(ImportProblem, match=r"asset-versions\.json /1$"):
+        with verify_archive(fixture.root, fixture.receipt, name=fixture.name, kind=KIND, recovered=False):
+            pytest.fail("a malformed version was accepted")

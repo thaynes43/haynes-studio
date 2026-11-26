@@ -1439,6 +1439,21 @@
           "number": {
             "$ref": "#/components/schemas/StudioDefs_positive"
           },
+          "occlusion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssetVersion_occlusion"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "maxItems": 0,
+                "type": "array"
+              }
+            ],
+            "description": "Foreground roles for an opaque set still. Each mask pins a promoted library version and both content hashes."
+          },
           "provenance": {
             "$ref": "#/components/schemas/AssetVersion_provenance"
           },
@@ -2255,6 +2270,195 @@
           "keys"
         ],
         "type": "object"
+      },
+      "AssetVersion_occlusion": {
+        "additionalProperties": false,
+        "properties": {
+          "focal_props": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "depth": {
+                  "enum": [
+                    "background",
+                    "foreground",
+                    "separate",
+                    "unspecified"
+                  ]
+                },
+                "foreground_role": {
+                  "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                  "type": "string"
+                },
+                "hint": {
+                  "$ref": "#/components/schemas/AssetVersion_occlusion_hint"
+                },
+                "key": {
+                  "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                  "type": "string"
+                },
+                "label": {
+                  "maxLength": 80,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "layer_order": {
+                  "maximum": 1024,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "source_asset_version_id": {
+                  "$ref": "#/components/schemas/StudioDefs_asv_id"
+                }
+              },
+              "required": [
+                "key",
+                "label",
+                "depth"
+              ],
+              "type": "object"
+            },
+            "maxItems": 16,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "foreground": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "hint": {
+                  "$ref": "#/components/schemas/AssetVersion_occlusion_hint"
+                },
+                "key": {
+                  "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                  "type": "string"
+                },
+                "label": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "maxLength": 80,
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  ]
+                },
+                "layer_order": {
+                  "maximum": 1024,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "mask": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "sha256": {
+                      "$ref": "#/components/schemas/StudioDefs_sha256"
+                    },
+                    "still_sha256": {
+                      "$ref": "#/components/schemas/StudioDefs_sha256"
+                    },
+                    "version_id": {
+                      "$ref": "#/components/schemas/StudioDefs_asv_id"
+                    }
+                  },
+                  "required": [
+                    "version_id",
+                    "sha256",
+                    "still_sha256"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "key",
+                "layer_order",
+                "mask"
+              ],
+              "type": "object"
+            },
+            "maxItems": 16,
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "AssetVersion_occlusion_hint": {
+        "oneOf": [
+          {
+            "type": "null"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "point"
+              },
+              "xy": {
+                "items": {
+                  "maximum": 1920,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "type": "array"
+              }
+            },
+            "required": [
+              "kind",
+              "xy"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "box"
+              },
+              "xyxy": {
+                "items": {
+                  "maximum": 1920,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "maxItems": 4,
+                "minItems": 4,
+                "type": "array"
+              }
+            },
+            "required": [
+              "kind",
+              "xyxy"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "text"
+              },
+              "text": {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "text"
+            ],
+            "type": "object"
+          }
+        ]
       },
       "AssetVersion_provenance": {
         "additionalProperties": false,
@@ -3520,6 +3724,64 @@
           "layout": {
             "additionalProperties": false,
             "properties": {
+              "check_poses": {
+                "description": "Layered reference-photo visibility. Frame 0 selects the static cast and end-camera framing.",
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "frame": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "key": {
+                      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                      "type": "string"
+                    },
+                    "targets": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "box_xyxy": {
+                            "items": {
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 4,
+                            "type": [
+                              "array",
+                              "null"
+                            ]
+                          },
+                          "slot": {
+                            "pattern": "^[a-z]$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "slot"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 26,
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "frame"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 16,
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
               "foreground": {
                 "type": "boolean"
               },
@@ -3992,6 +4254,64 @@
           "layout": {
             "additionalProperties": false,
             "properties": {
+              "check_poses": {
+                "description": "Layered reference-photo visibility. Frame 0 selects the static cast and end-camera framing.",
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "frame": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "key": {
+                      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                      "type": "string"
+                    },
+                    "targets": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "box_xyxy": {
+                            "items": {
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 4,
+                            "type": [
+                              "array",
+                              "null"
+                            ]
+                          },
+                          "slot": {
+                            "pattern": "^[a-z]$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "slot"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 26,
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "frame"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 16,
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
               "foreground": {
                 "type": "boolean"
               },
@@ -4422,6 +4742,64 @@
           "layout": {
             "additionalProperties": false,
             "properties": {
+              "check_poses": {
+                "description": "Layered reference-photo visibility. Frame 0 selects the static cast and end-camera framing.",
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "frame": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "key": {
+                      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                      "type": "string"
+                    },
+                    "targets": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "box_xyxy": {
+                            "items": {
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 4,
+                            "type": [
+                              "array",
+                              "null"
+                            ]
+                          },
+                          "slot": {
+                            "pattern": "^[a-z]$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "slot"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 26,
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "frame"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 16,
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
               "foreground": {
                 "type": "boolean"
               },
@@ -5067,9 +5445,24 @@
             "type": "object"
           },
           "check": {
-            "const": "layered.decal_gate",
+            "enum": [
+              "layered.decal_gate",
+              "layered.visibility"
+            ],
             "title": "Check",
             "type": "string"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence"
           },
           "reason": {
             "maxLength": 500,
@@ -9121,6 +9514,23 @@
               "allOf": [
                 {
                   "if": {
+                    "required": [
+                      "occlusion_signature"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "kind": {
+                        "const": "set"
+                      },
+                      "sha256": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
                     "properties": {
                       "kind": {
                         "const": "voice"
@@ -9217,6 +9627,10 @@
                     "board_voice",
                     "character_card"
                   ]
+                },
+                "occlusion_signature": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
                 },
                 "sha256": {
                   "pattern": "^[0-9a-f]{64}$",
@@ -9568,6 +9982,14 @@
               "studio"
             ],
             "type": "object"
+          },
+          "visibility_overrides": {
+            "items": {
+              "$ref": "#/components/schemas/StudioDefs_sha256"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
           }
         },
         "required": [

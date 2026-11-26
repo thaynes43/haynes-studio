@@ -298,6 +298,34 @@ class AssetVersion:
     # and for a motion version recorded before the block existed.
     motion: Mapping[str, Any] | None = None
     recorded_without_media: bool = False
+    occlusion: Mapping[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        declaration = self.canonical_document({"occlusion": self.occlusion}).get("occlusion")
+        object.__setattr__(self, "occlusion", freeze(declaration))
+
+    @staticmethod
+    def canonical_document(document: Mapping[str, Any]) -> dict[str, Any]:
+        out = dict(document)
+        if "occlusion" not in out:
+            return out
+        block = normalize(out["occlusion"])
+        if isinstance(block, dict):
+            for group in ("foreground", "focal_props"):
+                targets = block.get(group)
+                if targets is None or targets == []:
+                    block.pop(group, None)
+                elif isinstance(targets, list):
+                    for target in targets:
+                        if isinstance(target, dict):
+                            for key in ("hint", "label") if group == "foreground" else ("hint",):
+                                if target.get(key) is None:
+                                    target.pop(key, None)
+        if block is None or block in ({}, []):
+            out.pop("occlusion")
+        else:
+            out["occlusion"] = block
+        return out
 
     @classmethod
     def from_document(cls, doc: Mapping[str, Any]) -> AssetVersion:
@@ -311,7 +339,8 @@ class AssetVersion:
                    legacy=None if doc.get("legacy") is None else freeze(doc["legacy"]),
                    voice=BoardVoice.from_document(doc.get("voice")),
                    motion=None if doc.get("motion") is None else freeze(doc["motion"]),
-                   recorded_without_media=doc.get("recorded_without_media", False))
+                   recorded_without_media=doc.get("recorded_without_media", False),
+                   occlusion=doc.get("occlusion"))
 
     @property
     def source_key(self) -> str | None:
@@ -346,6 +375,8 @@ def version_document(version: AssetVersion, asset: Asset) -> dict[str, Any]:
         out["motion"] = thaw(version.motion)
     if version.recorded_without_media:
         out["recorded_without_media"] = True
+    if version.occlusion is not None:
+        out["occlusion"] = thaw(version.occlusion)
     return out
 
 
@@ -399,11 +430,15 @@ def pin(version: AssetVersion, asset: Asset) -> str:
 
     A ``motion`` version with a motion block (story 457, proposal) pins its record's
     identity, which covers its bytes and how they are keyed and played: the same clip
-    keyed another way is the next version, never the same one."""
+    keyed another way is the next version, never the same one. A declared set pins
+    its plate hash and its role declaration, so another assignment can use the
+    same plate as a new version."""
     identity = recorded_identity(version)
     if identity is not None:
         return identity
     if version.content is not None:
+        if version.occlusion is not None:
+            return signature({"sha256": version.content.sha256, "occlusion": thaw(version.occlusion)})
         return version.content.sha256
     if version.voice is not None:
         return takes_signature(version.voice)
@@ -420,7 +455,8 @@ def content_fields(version: AssetVersion) -> dict[str, Any]:
     return {"kind": version.kind, "capabilities": sorted(version.capabilities),
             "content": to_document(version.content), "provenance": provenance,
             "legacy": thaw(version.legacy), "voice": to_document(version.voice),
-            "motion": thaw(version.motion), "recorded_without_media": version.recorded_without_media}
+            "motion": thaw(version.motion), "recorded_without_media": version.recorded_without_media,
+            "occlusion": thaw(version.occlusion)}
 
 
 def take_offsets(lead_ms: int, gaps_ms: tuple[int, ...] | list[int],

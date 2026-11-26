@@ -20,6 +20,21 @@
     "legacy"
   ],
   "properties": {
+    "occlusion": {
+      "description": "Foreground roles for an opaque set still. Each mask pins a promoted library version and both content hashes.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/occlusion"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "maxItems": 0
+        }
+      ]
+    },
     "schema": {
       "const": "studio.asset-version/v1",
       "x-studio": {
@@ -450,6 +465,195 @@
     }
   ],
   "$defs": {
+    "occlusion": {
+      "type": "object",
+      "properties": {
+        "foreground": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "required": [
+              "key",
+              "layer_order",
+              "mask"
+            ],
+            "properties": {
+              "key": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+              },
+              "label": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  }
+                ]
+              },
+              "layer_order": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1024
+              },
+              "hint": {
+                "$ref": "#/$defs/occlusion_hint"
+              },
+              "mask": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "version_id",
+                  "sha256",
+                  "still_sha256"
+                ],
+                "properties": {
+                  "version_id": {
+                    "$ref": "studio.defs.v1.schema.json#/$defs/asv_id"
+                  },
+                  "sha256": {
+                    "$ref": "studio.defs.v1.schema.json#/$defs/sha256"
+                  },
+                  "still_sha256": {
+                    "$ref": "studio.defs.v1.schema.json#/$defs/sha256"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "focal_props": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "required": [
+              "key",
+              "label",
+              "depth"
+            ],
+            "properties": {
+              "key": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "depth": {
+                "enum": [
+                  "background",
+                  "foreground",
+                  "separate",
+                  "unspecified"
+                ]
+              },
+              "layer_order": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1024
+              },
+              "foreground_role": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+              },
+              "source_asset_version_id": {
+                "$ref": "studio.defs.v1.schema.json#/$defs/asv_id"
+              },
+              "hint": {
+                "$ref": "#/$defs/occlusion_hint"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "occlusion_hint": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "xy"
+          ],
+          "properties": {
+            "kind": {
+              "const": "point"
+            },
+            "xy": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1920
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "xyxy"
+          ],
+          "properties": {
+            "kind": {
+              "const": "box"
+            },
+            "xyxy": {
+              "type": "array",
+              "minItems": 4,
+              "maxItems": 4,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1920
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "text"
+          ],
+          "properties": {
+            "kind": {
+              "const": "text"
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            }
+          }
+        }
+      ]
+    },
     "signature": {
       "type": "string",
       "pattern": "^sha256:[0-9a-f]{64}$",

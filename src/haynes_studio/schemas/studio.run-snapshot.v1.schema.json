@@ -39,6 +39,12 @@
       },
       "additionalProperties": false
     },
+    "visibility_overrides": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "studio.defs.v1.schema.json#/$defs/sha256"}
+    },
     "resolved_asset_versions": {
       "type": "array",
       "items": {
@@ -77,6 +83,10 @@
             "type": "string",
             "pattern": "^sha256:[0-9a-f]{64}$"
           },
+          "occlusion_signature": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
           "input_signature": {
             "type": "string",
             "pattern": "^sha256:[0-9a-f]{64}$"
@@ -91,6 +101,10 @@
         },
         "additionalProperties": false,
         "allOf": [
+          {
+            "if": {"required": ["occlusion_signature"]},
+            "then": {"properties": {"kind": {"const": "set"}, "sha256": {"type": "string"}}}
+          },
           {
             "if": {
               "properties": {

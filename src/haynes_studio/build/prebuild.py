@@ -24,7 +24,7 @@ from __future__ import annotations
 import copy
 import hashlib
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from haynes_studio.build.validate import SNAPSHOT_SCHEMA, validate_run_snapshot
@@ -32,13 +32,19 @@ from haynes_studio.cache.plan import LayeredMotion, Toolchain
 from haynes_studio.canonical import Facts, Story, load_story
 from haynes_studio.canonical.derive import board_clock
 from haynes_studio.canonical.validate import WRITE
-from haynes_studio.errors import WARNING, blocking
+from haynes_studio.errors import WARNING, ContractError, blocking
 from haynes_studio.formats.recipe import PIN_PATH, method_violation
 from haynes_studio.jsonio import thaw
 from haynes_studio.layered import check_board as layered_check
+from haynes_studio.layered import visibility
+from haynes_studio.layered.errors import LayeredError
+from haynes_studio.layered.foreground import RoleMask, UNSUPPORTED, check_size, read_mask, resolve_roles
+from haynes_studio.layered.keyed import read_verified
+from haynes_studio.layered.photo import PhotoScene, _image
 from haynes_studio.layered.pin import pin_story
 from haynes_studio.library import Library
-from haynes_studio.library.model import locator_for
+from haynes_studio.library.model import locator_for, version_document
+from haynes_studio.library.validate import validate_asset_version
 from haynes_studio.library.resolve import Resolution, resolve
 from haynes_studio.stages.preflight import (
     DEFINITION_ONLY,
@@ -49,8 +55,8 @@ from haynes_studio.stages.preflight import (
     ResolvedVersion,
     preflight,
 )
-from haynes_studio.store import PRESENT, Store, canonical_json
-from haynes_studio.photo.plan import photo_facts
+from haynes_studio.store import PRESENT, Store, StoreError, canonical_json
+from haynes_studio.photo.plan import photo_facts, plan_photo
 from haynes_studio.voice import voice_facts
 from haynes_studio.wholeframe import check_board as wholeframe_check
 
@@ -71,6 +77,8 @@ class Prepared:
     motion: LayeredMotion | None
     report: PreflightReport
     format_version: Mapping[str, Any] | None = None
+    foreground_roles: tuple[RoleMask, ...] = ()
+    visibility_evidence: tuple[dict[str, Any], ...] = ()
 
     @property
     def ok(self) -> bool:
@@ -87,7 +95,7 @@ def draft_document(story: Mapping[str, Any]) -> dict[str, Any]:
     out.pop("derived", None)
     out["boards"] = [{k: v for k, v in board.items() if k != "derived"}
                      for board in out.get("boards") or []]
-    return out
+    return Story.canonical_document(out)
 
 
 def resolved_versions(resolution: Resolution, library: Library,
@@ -151,10 +159,105 @@ def _metadata_present(_locator, _sha):
     return PRESENT
 
 
+def _check_role_images(version, roles, library, store):
+    content = version.content
+    still = _image(read_verified(lambda _: store.open(content.locator), content.sha256,
+                                 "the set still"), "the set still")
+    document = version_document(version, library.asset_of(version.id))
+    document["content"].update(width=still.width, height=still.height)
+    problems = blocking(validate_asset_version(document))
+    if problems:
+        raise ContractError(version.id, problems)
+    for role in roles:
+        path = f"/set/occlusion/foreground/{role.key}/mask"
+        check_size(role.content, still.size, where=path)
+        read_mask(lambda _, content=role.content: store.open(content.locator),
+                  role.content.sha256, still.size, where=path)
+
+
+def _visibility_checks(story, library, store, mask_store, motion, frame_size, approved):
+    """Apply the opt-in only to scenes the production photo and film both support."""
+    version = None if story.set is None else library.get(story.set.asset_version_id)
+    problems, evidence = [], []
+    try:
+        roles = resolve_roles(story, version, library)
+        if roles and mask_store is not None:
+            _check_role_images(version, roles, library, mask_store)
+    except LayeredError as error:
+        path = error.where or "/set/occlusion"
+        return (), (), [Problem(error.code, error.status, path, error.message, field=path)]
+    except ContractError as error:
+        return (), (), [Problem(v.rule, v.status, "/set" + v.path, v.message, field="/set" + v.path)
+                        for v in error.violations]
+    except StoreError as error:
+        return (), (), [Problem(error.code, "invalid", "/set/occlusion", error.message,
+                                field="/set/occlusion")]
+    for index, board in enumerate(story.boards or ()):
+        poses = board.layout.check_poses or ()
+        if not (roles or poses):
+            continue
+
+        def problem(code, field, message):
+            path = field if field.startswith("/set") else f"/boards/{index}{field}"
+            return Problem(code, "invalid", path, message, board_id=board.id,
+                           board_number=board.number, field=field,
+                           legacy_shot=board.origin.legacy_shot if board.origin else None)
+
+        board_motion = None if motion is None else motion.boards.get(board.id)
+        if board.method.layer != "layered" or any(pose["frame"] != 0 for pose in poses):
+            problems.append(problem(UNSUPPORTED, "/layout/check_poses",
+                                    "visibility checks use the layered reference photo (frame 0)"))
+            continue
+        if roles and board.layout.foreground and board_motion is not None and board_motion.set is not None:
+            problems.append(problem(UNSUPPORTED, "/set/occlusion",
+                                    "an enabled role mask needs a static set still"))
+            continue
+        cast = {entry.slot: library.get(entry.asset_version_id) for entry in board.cast}
+        bounds = []
+        for p, pose in enumerate(poses):
+            for t, target in enumerate(pose.get("targets", ())):
+                box = target.get("box_xyxy")
+                version = cast[target["slot"]]
+                content = None if version is None else version.content
+                if (box is not None and content is not None
+                        and ((content.width is not None and box[2] > content.width)
+                             or (content.height is not None and box[3] > content.height))):
+                    bounds.append(problem(visibility.BOUNDS, f"/layout/check_poses/{p}/targets/{t}/box_xyxy",
+                                          "the target box must fit the cast still"))
+        if bounds:
+            problems.extend(bounds)
+            continue
+        if store is None:
+            continue
+        try:
+            plan = plan_photo(story, board, library, frame_size=frame_size)
+            sources = {source.content.sha256: source.content.locator for source in plan.sources}
+            scene = PhotoScene(plan.layers, lambda digest: store.open(sources[digest]))
+            checks = visibility.measure(scene, board)
+        except (LayeredError, StoreError) as error:
+            field = getattr(error, "where", None) or "/layout/check_poses"
+            problems.append(problem(error.code, field if field.startswith("/") else "/layout/check_poses",
+                                    error.message))
+            continue
+        except ContractError as error:
+            problems.extend(problem(v.rule, v.path, v.message) for v in error.violations)
+            continue
+        evidence.extend(checks)
+        for check in checks:
+            if check["status"] == "hidden":
+                problems.append(problem(visibility.HIDDEN, "/layout/check_poses",
+                                        f"slot {check['target']['slot']} is hidden in the reference photo"))
+            elif check["status"] == "uncertain" and check["artifact"] not in approved:
+                problems.append(problem(visibility.REVIEW, "/layout/check_poses",
+                                        "a person must review the measured reference photo visibility"))
+    return roles, tuple(evidence), problems
+
+
 def prepare(document: Mapping[str, Any], *, library: Library, store: Store | None,
             toolchain: Toolchain, frame_size: tuple[int, int], current_engine: str,
             jobs: Iterable[Any] = (), check_photo_currency: bool = False,
-            format_version: Mapping[str, Any] | None = None) -> Prepared:
+            format_version: Mapping[str, Any] | None = None, mask_store: Store | None = None,
+            visibility_overrides: Iterable[str] = ()) -> Prepared:
     """Run the pre-build check of a draft story (boards embedded). Never raises for a
     story that cannot be built: every problem is in ``report``. With no store,
     resolve declared content identities and require the worker to verify the bytes."""
@@ -195,6 +298,13 @@ def prepare(document: Mapping[str, Any], *, library: Library, store: Store | Non
     if story.boards is not None:
         problems += _adapter_problems(story, facts=facts, motion=motion, toolchain=toolchain,
                                       frame_size=frame_size)
+    roles, evidence, occlusion_problems = _visibility_checks(
+        story, library, store, store if mask_store is None else mask_store, motion, frame_size,
+        frozenset(visibility_overrides),
+    )
+    problems += occlusion_problems
+    if roles and motion is not None:
+        motion = replace(motion, foreground_roles=tuple(role.draw_pin() for role in roles))
     seen, unique = set(), []
     for problem in problems:  # a refusal both checks report (method.unavailable) once
         key = (problem.rule, problem.board_id, problem.field)
@@ -205,7 +315,7 @@ def prepare(document: Mapping[str, Any], *, library: Library, store: Store | Non
     unique.sort(key=lambda p: (-1 if p.board_id is None else order.get(p.board_id, len(order)),
                                p.field, p.rule, p.message))
     return Prepared(document, library, story, facts, resolution, resolved, motion,
-                    PreflightReport(tuple(unique)), format_version)
+                    PreflightReport(tuple(unique)), format_version, roles, evidence)
 
 
 def blocking_problems(problems: Iterable[Problem]) -> list[Problem]:
@@ -236,6 +346,8 @@ def make_snapshot(prepared: Prepared, library: Library, *, studio: str) -> dict[
         entries.setdefault(item.version_id, item.snapshot_entry())
     for entry in motion_versions(prepared.motion, library):
         entries.setdefault(entry["id"], entry)
+    for role in prepared.foreground_roles:
+        entries.setdefault(role.version_id, role.snapshot_entry())
     snapshot = {"schema": SNAPSHOT_SCHEMA, "story": draft_document(prepared.document),
                 "resolved_asset_versions": list(entries.values()),
                 "toolchain_request": {"studio": studio}}
@@ -250,8 +362,17 @@ def make_snapshot(prepared: Prepared, library: Library, *, studio: str) -> dict[
 
 def snapshot_bytes(snapshot: Mapping[str, Any]) -> tuple[bytes, str]:
     """The snapshot's canonical JSON and its SHA-256: what the run pins."""
-    data = canonical_json(dict(snapshot))
+    data = canonical_json(canonical_snapshot(snapshot))
     return data, hashlib.sha256(data).hexdigest()
+
+
+def canonical_snapshot(snapshot: Mapping[str, Any]) -> dict[str, Any]:
+    out = dict(snapshot)
+    if isinstance(out.get("story"), Mapping):
+        out["story"] = Story.canonical_document(out["story"])
+    if out.get("visibility_overrides") in (None, []):
+        out.pop("visibility_overrides", None)
+    return out
 
 
 __all__ = ["Prepared", "blocking_problems", "draft_document", "make_snapshot",

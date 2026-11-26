@@ -1512,6 +1512,8 @@ export interface components {
             motion?: components["schemas"]["AssetVersion_motion"];
             name: components["schemas"]["Asset_name"];
             number: components["schemas"]["StudioDefs_positive"];
+            /** @description Foreground roles for an opaque set still. Each mask pins a promoted library version and both content hashes. */
+            occlusion?: components["schemas"]["AssetVersion_occlusion"] | null | unknown[];
             provenance: components["schemas"]["AssetVersion_provenance"];
             /**
              * @description A production archive supplied this asset version's record only.
@@ -1604,6 +1606,42 @@ export interface components {
             use: "loop" | "timed";
             width: components["schemas"]["StudioDefs_positive"];
         } & (unknown & unknown & unknown);
+        AssetVersion_occlusion: {
+            focal_props?: {
+                /** @enum {unknown} */
+                depth: "background" | "foreground" | "separate" | "unspecified";
+                foreground_role?: string;
+                hint?: components["schemas"]["AssetVersion_occlusion_hint"];
+                key: string;
+                label: string;
+                layer_order?: number;
+                source_asset_version_id?: components["schemas"]["StudioDefs_asv_id"];
+            }[] | null;
+            foreground?: {
+                hint?: components["schemas"]["AssetVersion_occlusion_hint"];
+                key: string;
+                label?: null | string;
+                layer_order: number;
+                mask: {
+                    sha256: components["schemas"]["StudioDefs_sha256"];
+                    still_sha256: components["schemas"]["StudioDefs_sha256"];
+                    version_id: components["schemas"]["StudioDefs_asv_id"];
+                };
+            }[] | null;
+        };
+        AssetVersion_occlusion_hint: null | {
+            /** @constant */
+            kind: "point";
+            xy: number[];
+        } | {
+            /** @constant */
+            kind: "box";
+            xyxy: number[];
+        } | {
+            /** @constant */
+            kind: "text";
+            text: string;
+        };
         AssetVersion_provenance: {
             created_at: components["schemas"]["StudioDefs_timestamp"];
             created_by: components["schemas"]["StudioDefs_principal"];
@@ -1755,6 +1793,15 @@ export interface components {
             duration_ms?: components["schemas"]["StudioDefs_duration_is_derived"];
             id: components["schemas"]["StudioDefs_brd_id"];
             layout: {
+                /** @description Layered reference-photo visibility. Frame 0 selects the static cast and end-camera framing. */
+                check_poses?: {
+                    frame: number;
+                    key: string;
+                    targets?: {
+                        box_xyxy?: number[] | null;
+                        slot: string;
+                    }[] | null;
+                }[] | null;
                 foreground: boolean;
                 preset: string;
             };
@@ -1832,6 +1879,15 @@ export interface components {
                 session: string;
             };
             layout?: {
+                /** @description Layered reference-photo visibility. Frame 0 selects the static cast and end-camera framing. */
+                check_poses?: {
+                    frame: number;
+                    key: string;
+                    targets?: {
+                        box_xyxy?: number[] | null;
+                        slot: string;
+                    }[] | null;
+                }[] | null;
                 foreground: boolean;
                 preset: string;
             };
@@ -1913,6 +1969,15 @@ export interface components {
                 story_revision: number;
             };
             layout?: {
+                /** @description Layered reference-photo visibility. Frame 0 selects the static cast and end-camera framing. */
+                check_poses?: {
+                    frame: number;
+                    key: string;
+                    targets?: {
+                        box_xyxy?: number[] | null;
+                        slot: string;
+                    }[] | null;
+                }[] | null;
                 foreground: boolean;
                 preset: string;
             };
@@ -2084,9 +2149,13 @@ export interface components {
             };
             /**
              * Check
-             * @constant
+             * @enum {string}
              */
-            check: "layered.decal_gate";
+            check: "layered.decal_gate" | "layered.visibility";
+            /** Evidence */
+            evidence?: {
+                [key: string]: unknown;
+            } | null;
             /** Reason */
             reason: string;
         };
@@ -3071,9 +3140,10 @@ export interface components {
                 input_signature?: string;
                 /** @enum {unknown} */
                 kind: "cast" | "costume" | "prop" | "set" | "photo" | "motion" | "sound" | "voice" | "board_voice" | "character_card";
+                occlusion_signature?: string;
                 sha256: string | null;
                 take_sha256?: components["schemas"]["StudioDefs_sha256"][];
-            } & (unknown & unknown & unknown))[];
+            } & (unknown & unknown & unknown & unknown))[];
             /** @constant */
             schema: "studio.run-snapshot/v1";
             /** studio.story/v1: one video, its boards in order (contract section 2) */
@@ -3145,6 +3215,7 @@ export interface components {
             toolchain_request: {
                 studio: string;
             };
+            visibility_overrides?: components["schemas"]["StudioDefs_sha256"][];
         };
         /**
          * studio.run/v1: one build of one story snapshot (contract sections 7 and 8, D30)

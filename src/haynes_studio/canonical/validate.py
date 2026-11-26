@@ -19,6 +19,7 @@ accepted, so a malformed document never raises. Rules that need the asset librar
 
 from __future__ import annotations
 
+import re
 import unicodedata
 from collections.abc import Collection, Iterable, Mapping
 from typing import Any
@@ -173,6 +174,23 @@ def board_rules(document: Mapping, prefix: str, *, context: str, facts: Facts,
     board = Board.from_document(document)
     at = lambda *parts: prefix + pointer(*parts)  # noqa: E731
     found: list[Violation] = []
+    poses = board.layout.check_poses or ()
+    found += _duplicates(((at("layout", "check_poses", i, "key"), pose["key"])
+                           for i, pose in enumerate(poses)), "check pose key")
+    for i, pose in enumerate(poses):
+        if re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", pose["key"]) is None:
+            found.append(Violation(SCHEMA_INVALID, at("layout", "check_poses", i, "key"),
+                                   "use lowercase letters, digits, dashes or underscores"))
+        targets = pose.get("targets", ())
+        found += _duplicates(((at("layout", "check_poses", i, "targets", j, "slot"), target["slot"])
+                               for j, target in enumerate(targets)), "check target slot")
+        for j, target in enumerate(targets):
+            path = at("layout", "check_poses", i, "targets", j)
+            if target["slot"] not in board.placed_slots:
+                found.append(Violation("ref.unknown", path + "/slot", "place the target slot on the board"))
+            box = target.get("box_xyxy")
+            if box is not None and not (box[0] < box[2] and box[1] < box[3]):
+                found.append(Violation(SCHEMA_INVALID, path + "/box_xyxy", "use a positive-area box"))
 
     # Speakers: VOICE-1.
     for i, line in enumerate(board.lines):

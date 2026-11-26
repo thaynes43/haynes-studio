@@ -3,10 +3,12 @@
 from functools import cache
 from typing import Annotated, Any, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, StringConstraints, model_serializer
 from pydantic.root_model import RootModel
 
+from haynes_studio.canonical.model import Board as CanonicalBoard, Story as CanonicalStory
 from haynes_studio.drafting.declaration import PersonEditAcknowledgment
+from haynes_studio.library.model import AssetVersion as CanonicalAssetVersion
 
 MediaKind = Literal["short", "video"]
 Identifier = Annotated[str, StringConstraints(min_length=30, max_length=30)]
@@ -100,11 +102,15 @@ class Production(Document):
 
 
 class Story(Document):
-    pass
+    @model_serializer
+    def serialize(self) -> dict[str, Any]:
+        return CanonicalStory.canonical_document(self.root)
 
 
 class Board(Document):
-    pass
+    @model_serializer
+    def serialize(self) -> dict[str, Any]:
+        return CanonicalBoard.canonical_document(self.root)
 
 
 class Timing(Document):
@@ -112,7 +118,9 @@ class Timing(Document):
 
 
 class AssetVersion(Document):
-    pass
+    @model_serializer
+    def serialize(self) -> dict[str, Any]:
+        return CanonicalAssetVersion.canonical_document(self.root)
 
 
 class Delivery(Document):

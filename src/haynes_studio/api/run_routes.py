@@ -87,9 +87,10 @@ class CheckOverride(Payload):
 
 
 class CheckOverrideView(CheckOverride):
-    check: Literal["layered.decal_gate"]
+    check: Literal["layered.decal_gate", "layered.visibility"]
     by: dict
     at: str
+    evidence: dict | None = None
 
 
 class QueueLaneUpdate(Body):
@@ -118,12 +119,12 @@ def transport_models():
     )
 
 
-def _prepare(conn, draft):
+def _prepare(conn, draft, *, mask_store=None):
     story = draft.exchange()
     refs = {item.version_id for item in story_references(story)}
     return inputs.prepare_queue(story, catalog.build_library(conn, story, refs),
                                 jobs=jobs.active_for_story(conn, story["id"]),
-                                format_version=draft.format_version(conn))
+                                format_version=draft.format_version(conn), mask_store=mask_store)
 
 
 def _read_view(conn, row, *, detail=True, worker_present=None):
@@ -231,9 +232,13 @@ def build_router(CurrentActor, authenticated_route):
                 current = draft.story["revision"]
                 if current != revision:
                     raise StaleRevision(current)
-                prepared = _prepare(conn, draft)
+                prepared = _prepare(conn, draft, mask_store=store)
                 prepared.ensure_buildable()
                 frozen, library = inputs.freeze(prepared, studio=request.app.state.build_revision)
+                if prepared.foreground_roles or any(board.layout.check_poses for board in prepared.story.boards):
+                    approved = runs.visibility_approvals(conn, id, frozen)
+                    if approved:
+                        frozen["visibility_overrides"] = approved
                 data, sha = snapshot_bytes(frozen)
                 if len(data) > MAX_SNAPSHOT_BYTES:
                     raise APIError(422, "run.snapshot_too_large",
@@ -289,16 +294,17 @@ def build_router(CurrentActor, authenticated_route):
             return _etag(response, _read_view(conn, row))
 
     @router.post("/runs/{id}/checks/{check}/overrides", status_code=201,
-                 response_model=CheckOverrideView, operation_id="record_check_override")
+                 response_model=CheckOverrideView, response_model_exclude_none=True,
+                 operation_id="record_check_override")
     def record_check_override(id: str, check: str, body: CheckOverride, request: Request,
                               actor: CurrentActor, if_match: IfMatch):
         actor.human()
-        if check != runs.CHECK_OVERRIDABLE:
-            raise forbidden("check.not_overridable", "Only the visual decal check supports an override")
+        if check not in runs.OVERRIDABLE_CHECKS:
+            raise forbidden("check.not_overridable", "This check does not support a human override")
         with request.app.state.engine.begin() as conn:
             row = _run_access(conn, actor, "runs:queue", id, lock=True)
             escalation_storage.lock(conn)
-            return runs.record_override(conn, row, _revision(if_match), artifact=body.artifact,
+            return runs.record_override(conn, row, _revision(if_match), check=check, artifact=body.artifact,
                                         reason=body.reason, actor=to_document(actor.principal))
 
     return router

@@ -21,7 +21,7 @@ import json
 import sys
 from pathlib import Path
 
-from haynes_studio.canonical.model import Principal
+from haynes_studio.canonical.model import Principal, Story
 from haynes_studio.library.library import Library, VersionRequest, import_version
 from haynes_studio.library.model import Content, Scope
 from haynes_studio.library.winter_menu import REGISTER_PATH, load_licence_register
@@ -97,7 +97,7 @@ def main(job_dir: str, out: str) -> int:
         if speakers != sorted(seeds) or board.get("seeds"):
             raise SystemExit(f"board {board['number']}: speakers {speakers}, seeds {board.get('seeds')}")
         board["seeds"] = {f"s2v:{slot}": seed for slot, seed in seeds.items()}
-    create(target / "story.json", story)
+    create(target / "story.json", Story.canonical_document(story))
     create(target / "library.json", library.documents())
     print(f"set loop: {loops[0].id}; seeds written on {sum(1 for b in story['boards'] if b['seeds'])} boards")
     print(f"wrote {target / 'story.json'} and {target / 'library.json'}")

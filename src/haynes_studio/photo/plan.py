@@ -11,6 +11,7 @@ from haynes_studio.errors import ContractError
 from haynes_studio.jsonio import thaw
 from haynes_studio.layered import compose
 from haynes_studio.layered.errors import LayeredError
+from haynes_studio.layered.foreground import resolve_roles
 from haynes_studio.layered.matte_size import ENGINE, SIZE_POLICY
 from haynes_studio.layered.photo import PhotoInputs, photo_inputs
 from haynes_studio.library import Library
@@ -77,7 +78,8 @@ def sources_for(library: Library, scope: Scope, ids: tuple[str, ...],
     return tuple(sources)
 
 
-def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: bool = False) -> PhotoPlan:
+def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: bool = False,
+               frame_size: tuple[int, int] | None = None) -> PhotoPlan:
     """Take canonical story and board values and the relevant library records.
 
     The plan owns all generation inputs. Its signature excludes the currently selected
@@ -86,13 +88,17 @@ def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: b
     if board.story_id != story.id or board.id not in story.board_order:
         raise error("ref.unknown", "/board_id", "the board is not in this story")
     scope = Scope(story.production_id, story.id, board.id)
-    size = MASTER_SIZES[story.media_kind]
+    size = frame_size or MASTER_SIZES[story.media_kind]
     selected = board.photo.current_version_id
     if board.method.layer == LAYERED:
         ids = tuple(entry.asset_version_id for entry in board.cast)
+        roles = ()
         if story.set is not None:
             ids = (story.set.asset_version_id, *ids)
+            roles = resolve_roles(story, library.get(story.set.asset_version_id), library)
         sources = sources_for(library, scope, ids, "/layers", metadata_only=metadata_only)
+        if board.layout.foreground:
+            sources += tuple(PhotoSource(role.version_id, role.content) for role in roles)
         blobs = {source.version_id: source.content.sha256 for source in sources}
         matte_sizes = {}
         for entry in board.cast:
@@ -113,7 +119,7 @@ def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: b
             matte_sizes[entry.slot] = {"target_height_px": height,
                                        "shape": thaw(params.get("receipt", {}).get("shape"))}
         layers = photo_inputs(story, board, blobs=blobs, width=size[0], height=size[1],
-                              matte_sizes=matte_sizes)
+                              matte_sizes=matte_sizes, roles=roles)
         for slot_name, matte in matte_sizes.items():
             try:
                 bottom = compose.slot_of(thaw(layers.layout), slot_name).bottom

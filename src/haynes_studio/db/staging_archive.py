@@ -5,6 +5,7 @@ import hashlib
 import sqlalchemy as sa
 
 from haynes_studio.canonical.ids import Minter
+from haynes_studio.drafting.document import Draft
 from haynes_studio.store import canonical_json
 
 from .problems import NotFound
@@ -101,6 +102,9 @@ def create_record(conn, production_id, kind, title):
 
 
 def append(conn, record_id, *, number, previous, payload, data, principal, key_hash, request_hash):
+    if conn.scalar(sa.select(records.c.kind).where(records.c.id == record_id)) == "storyboard":
+        data = Draft.canonical_bytes(data)
+    payload = {**payload, "text": data.decode("utf-8")}
     return conn.execute(versions.insert().values(
         id=Minter().mint("arv"), record_id=record_id, number=number, revises_version_id=previous,
         **payload, bytes=len(data), sha256=hashlib.sha256(data).hexdigest(), written_by=principal,

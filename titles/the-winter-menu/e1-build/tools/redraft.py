@@ -19,6 +19,8 @@ import argparse
 import json
 from pathlib import Path
 
+from haynes_studio.canonical.model import Story
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -50,7 +52,7 @@ def main() -> int:
         if board["id"] in edited:
             board["revision"] += 1
     with (target / "story.json").open("x", encoding="utf-8") as handle:
-        json.dump(story, handle, indent=2, sort_keys=True, ensure_ascii=False)
+        json.dump(Story.canonical_document(story), handle, indent=2, sort_keys=True, ensure_ascii=False)
         handle.write("\n")
     (target / "story.json").chmod(0o444)
     print(f"story revision {story['revision']}; wrote {target / 'story.json'}")
