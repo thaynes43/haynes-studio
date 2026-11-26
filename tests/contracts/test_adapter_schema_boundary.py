@@ -1,18 +1,36 @@
-"""The adapter leaves the stored board, asset-version and run-snapshot contracts intact."""
+"""OP968 extends the stored schemas while preserving every legacy field rule."""
 
+import json
 from hashlib import sha256
 from importlib.resources import files
 
 import pytest
 
+from haynes_studio.store import canonical_json
 
-@pytest.mark.parametrize(("name", "main_sha256"), [
-    ("studio.board.v1.schema.json", "439ac86fc89195bd550e6d94a92eaff7b830545b64ddef3880f13a397cfc3f3b"),
-    ("studio.asset-version.v1.schema.json", "541cb13225de1cd4cc3a2db0cf78042bcbefc28df2a6dbae441f0cb47349fc16"),
-    ("studio.run-snapshot.v1.schema.json", "5067adf160d5bb6852ec0f317cf2416a491c83643284bffbd9f0b90c51d12735"),
+
+@pytest.mark.parametrize(("name", "legacy_sha256"), [
+    ("board", "63a6024945e39e492d1a6f2a73de5206181733f663fa48206aef8bafdfd00b8e"),
+    ("asset-version", "fcc54d8d1eea5c74f8523780a4a4797de61994f565f867751bc627b9d0067b39"),
+    ("run-snapshot", "32de0d4e5332a4f35f85a5d03bd53611ceb637836e4adbf4380f746776274188"),
 ])
-def test_stored_schema_bytes_match_main(name, main_sha256):
-    # Raw bytes from origin/main at 470a90af73a2201e6542b5d867853dce6facad04.
-    # Pin the hashes so this also runs in a shallow CI checkout or from a wheel.
-    schema = files("haynes_studio.schemas").joinpath(name)
-    assert sha256(schema.read_bytes()).hexdigest() == main_sha256
+def test_legacy_schema_rules_match_pinned_main(name, legacy_sha256):
+    # Canonical JSON hashes from pinned main fd8e4a36 also work in a shallow checkout.
+    source = files("haynes_studio.schemas").joinpath(f"studio.{name}.v1.schema.json")
+    schema = json.loads(source.read_bytes())
+    props = schema["properties"]
+    if name == "board":
+        props["layout"]["properties"].pop("check_poses")
+    elif name == "asset-version":
+        props.pop("occlusion")
+        schema["$defs"].pop("occlusion")
+        schema["$defs"].pop("occlusion_hint")
+    else:
+        props.pop("visibility_overrides")
+        versions = props["resolved_asset_versions"]["items"]
+        versions["properties"].pop("occlusion_signature")
+        versions["allOf"].remove({
+            "if": {"required": ["occlusion_signature"]},
+            "then": {"properties": {"kind": {"const": "set"}, "sha256": {"type": "string"}}},
+        })
+    assert sha256(canonical_json(schema)).hexdigest() == legacy_sha256
