@@ -1135,6 +1135,7 @@ def test_pausing_run_lane_drains_current_claim_and_blocks_new_claims(queue):
     claim = worker.claim()
     assert claim.body["run"]["id"] == first
     paused = success(q.browser.put(path + "/run", headers=q.csrf, json={"paused": True}))
+    assert "live_claim" not in paused
     assert paused["changed_at"] == q.clock.now.isoformat().replace("+00:00", "Z")
     assert paused["changed_by"]["kind"] == "human" and paused["changed_by"]["sub"] == "one"
     second = success(queue_run(q, "after-pause"), 201)
@@ -1150,9 +1151,10 @@ def test_pausing_run_lane_drains_current_claim_and_blocks_new_claims(queue):
     _, auth = register_agent(q.owner, {q.production_id: ["assets:generate"]})
     assert success(operation(SimpleNamespace(agent=q.browser, auth=auth), q.board_id, "photo", "open-image"), 202)
     assert image_worker(q)[0].tick()
-    assert success(q.browser.get(path))["items"][0] == paused
+    assert success(q.browser.get(path))["items"][0] == {**paused, "live_claim": False}
     q.clock.advance(10)
     resumed = success(q.browser.put(path + "/run", headers=q.csrf, json={"paused": False}))
+    assert "live_claim" not in resumed
     assert resumed["paused"] is False and resumed["changed_at"] > paused["changed_at"]
     assert success(q.browser.put(path + "/run", headers=q.csrf, json={"paused": False})) == resumed
     assert worker.claim().body["run"]["id"] == second["id"]
@@ -1184,29 +1186,44 @@ def test_pausing_media_lane_leaves_requests_queued_until_resumed(studio, lane):
 
 
 @pytest.mark.parametrize(("lane", "kind"), [("image", "photo"), ("voice", "voice")], ids=["image", "voice"])
-def test_paused_media_lane_leaves_expired_dispatch_running_until_resumed(studio, lane, kind):
+@pytest.mark.parametrize("enabled", [False, True], ids=["disabled", "enabled"])
+def test_paused_media_lane_settles_expired_dispatch_only_when_enabled(studio, monkeypatch, lane, kind, enabled):
     s = studio
+    monkeypatch.setattr(s.app.state, "paused_reconcile", enabled)
     board = board_in(s, spoken=lane == "voice")
     identifier = success(operation(s, board, kind, "paused-dispatch"), 202)["id"]
     claim = worker_api(s, lane=lane).claim(lane)
     assert claim.identity["job_id"] == identifier
-    claim.publish()
-
     path = f"/v1/queue/lanes/{lane}"
     assert success(s.browser.put(path, headers=s.csrf, json={"paused": True}))["paused"]
+    # Pause preserves the current fence, including the first engine authorization.
+    claim.publish()
+    lane_state = next(item for item in success(s.browser.get("/v1/queue/lanes"))["items"] if item["lane"] == lane)
+    assert lane_state["live_claim"] is True
+    following = success(operation(s, board, kind, "following-dispatch"), 202)["id"]
+    poller = worker_api(s, lane=lane)
+    assert poller.claim(lane) is None
+    assert job(s, identifier)["status"] == "running"
     with s.owner.begin() as conn:
         expired = database_time(conn) - timedelta(seconds=1)
         conn.execute(media_jobs.update().where(media_jobs.c.id == identifier).values(claim_until=expired))
+    lane_state = next(item for item in success(s.browser.get("/v1/queue/lanes"))["items"] if item["lane"] == lane)
+    assert lane_state["paused"] is True and lane_state["live_claim"] is False
 
-    poller = worker_api(s, lane=lane)
     assert poller.claim(lane) is None
-    view = job(s, identifier)
-    assert view["status"] == "running" and view["error"] is None
+    assert poller.claim(lane) is None
+    assert job(s, following)["status"] == "queued"
+    if enabled:
+        assert job(s, identifier)["status"] == "failed"
+    else:
+        assert job(s, identifier)["status"] == "running"
 
     assert not success(s.browser.put(path, headers=s.csrf, json={"paused": False}))["paused"]
-    assert poller.claim(lane) is None
+    if not enabled:
+        assert poller.claim(lane) is None
     view = job(s, identifier)
     assert view["status"] == "failed" and view["error"]["code"] == "work.dispatch_unconfirmed"
+    assert poller.claim(lane).identity["job_id"] == following
 
 
 def test_photo_currency_blocks_build_and_preserves_frozen_run(queue):
