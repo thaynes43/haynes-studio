@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Link, useLocation } from "react-router";
 
 import type { StudioClient } from "./api/client";
@@ -6,13 +6,14 @@ import { AssetLibraryPage } from "./asset-library";
 import { EditorLanding, EditorPicker } from "./editor-entry";
 import { ProductionReview, ProductionStories } from "./production-review";
 import { boardLabel, loadRoute, type RouteData } from "./route-data";
-import { assetsDestination, assetsPath, mediaKinds, parseRoute, routePath, treePath, type Route } from "./routes";
+import { assetsDestination, assetsPath, mediaKinds, parseRoute, routePath, storyFormatId, treePath, type Route } from "./routes";
 import { RunBuild } from "./run-build";
 import { RunCompare } from "./run-compare";
 import { StoryRuns } from "./run-list";
 import type { SelectionStore } from "./selections";
 import { AccountMenu, Brand, Breadcrumbs, Empty, PageHeading, Problem, Rows, ThemeOptions, type Crumb } from "./shell-ui";
 import type { StoryboardScope } from "./storyboard-data";
+import { StoryFormatEditor } from "./story-format";
 import { boardPosition } from "./storyboard-timeline";
 import { StoryboardWorkspace } from "./storyboard-workspace";
 import type { ThemeSettings } from "./theme";
@@ -152,12 +153,15 @@ function StoryboardPage({ api, production, media, story, board, photoRoute, sele
   api: StudioClient; board?: string; photoRoute: boolean; selections: SelectionStore; before?: ReactNode;
 }) {
   const scope = useMemo(() => ({ production, media, story }), [production, media, story]);
-  const model = useStoryboard(api, scope, board);
+  const { hash } = useLocation();
+  const model = useStoryboard(api, scope, board, hash);
   const { result, draft, selected, selectedIndex, retry } = model;
+  const [openStoryFormat] = useState(() => hash === `#${storyFormatId}`);
   const runs = useRunList(api, draft?.story.id);
   const context = { ...scope, board };
   const current = treePath("board", context);
   const data = result.status === "success" ? { production: result.data.production, story: draft?.story } : {};
+  const profile = data.production?.media_types.find(({ kind }) => kind === media);
   const trail = trailFor({ area: "board", context }, data);
   if (board === selected && selectedIndex >= 0) trail.push({ label: boardPosition(selectedIndex), to: current });
   const photoPath = photoRoute && board === selected ? treePath("board", context, "photo") : undefined;
@@ -168,10 +172,13 @@ function StoryboardPage({ api, production, media, story, board, photoRoute, sele
   }, [board, current, draft, selected, selections]);
 
   return <ShellPage title={draft?.story.title ?? "Story"} trail={trail} current={photoPath ?? current} before={before}
-    action={draft && <RunBuild api={api} draft={draft} pending={model.pending} reload={model.reload} refresh={runs.refresh} />}>
+    action={draft && <RunBuild api={api} draft={draft} pending={model.pending || model.draftNeedsReload}
+      reload={model.reload} refresh={runs.refresh} />}>
     {result.status === "loading" && <p role="status" className="muted">Loading…</p>}
     {result.status === "failure" && <Problem error={result.error} retry={retry} />}
     {draft && <>
+      {profile && <StoryFormatEditor api={api} model={model} scope={scope} profile={profile} story={draft.story}
+        openFromRun={openStoryFormat} />}
       <StoryboardWorkspace api={api} model={model} scope={scope} photoRoute={Boolean(photoPath)} />
       <div className="actions">
         {selected && <Link className="pill" to={treePath("board", { ...scope, board: selected }, "photo")}>Reference photo</Link>}

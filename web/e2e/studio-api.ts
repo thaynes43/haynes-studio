@@ -10,6 +10,7 @@ import { formatFixture, inspectorBoards, voiceFixtures } from "./studio-inspecto
 import { boardVersions, formatId, storyTiming } from "./studio-storyboard-fixtures";
 import { photoFixtures } from "./studio-photo-fixtures";
 import { assetFixtures } from "./studio-asset-fixtures";
+import { formats, formatVersions, stockVoices } from "./studio-format-fixtures";
 
 type Schemas = components["schemas"];
 type BoardCreateBody = paths["/v1/stories/{id}/boards"]["post"]["requestBody"]["content"]["application/json"];
@@ -103,10 +104,10 @@ function nextId(first: string, number: number) {
 
 export async function mockStudio(context: BrowserContext, baseURL: string, {
   empty = false, reviewMedia, storyboardMedia, runMedia, inspector = false, photoMedia, releaseMaximum,
-  assetLibrary = false,
+  assetLibrary = false, formatPin = false,
 }: { empty?: boolean; reviewMedia?: ReviewMedia; storyboardMedia?: Pick<ReviewMedia, "photo" | "voice">;
   runMedia?: ReviewMedia; inspector?: boolean; photoMedia?: TestMedia[]; releaseMaximum?: number;
-  assetLibrary?: boolean } = {}) {
+  assetLibrary?: boolean; formatPin?: boolean } = {}) {
   let current: User | null = "lena";
   let next: User = "lena";
   let failure: Failure | undefined;
@@ -117,10 +118,12 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
   const queue = runMedia && runFixtures(story, runMedia);
   const decisions = queue ?? review;
   let dropQueueReply: "connection" | "server" | undefined;
+  let dropFormatReply = false;
   let preflight: Schemas["EstimateView"]["problems"] = [];
   const loginRequests: URLSearchParams[] = [];
   const approvalWrites: Array<{ run: string; body: Schemas["ApprovalWrite"] }> = [];
   const boardWrites: Array<{ method: string; path: string; revision: string | undefined; order?: string[] }> = [];
+  const formatWrites: Array<{ story: string; revision: string | undefined; body: Schemas["StoryPatch"] }> = [];
   const violations: string[] = [];
   const calls: string[] = [];
   const writes: Array<{ user: User; values: Selection["values"]; revision: number }> = [];
@@ -146,6 +149,7 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
   const boards = new Map([firstBoard, closing].map((board) => [board.id, { ...board }]));
   const draftMedia = runMedia ?? storyboardMedia ?? reviewMedia;
   const versions: Schemas["AssetVersion"][] = draftMedia ? boardVersions(production.id, firstBoard, draftMedia) : [];
+  if (formatPin) versions.push(...stockVoices);
   const voice = voiceFixtures(versions);
   const photos = photoMedia && photoFixtures(versions, photoMedia, stories[0], boards.get(firstBoard.id)!, boards.get(closing.id)!);
   const assets = assetLibrary && photoMedia
@@ -424,6 +428,24 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
       if (!resource && method === "GET") {
         return route.fulfill({ headers: { etag: `"${draft.revision}"` }, json: viewStory(draft) });
       }
+      if (!resource && method === "PATCH" && formatPin) {
+        const body = request.postDataJSON() as Schemas["StoryPatch"];
+        formatWrites.push({ story: storyId, revision: headers["if-match"], body });
+        const refused = requireRevision(route, draft.revision);
+        if (refused) return refused;
+        const selected = formatVersions.find(({ id }) => id === body.format_version_id);
+        const profile = productions.get(draft.production_id)?.media_types.find(({ kind }) => kind === draft.media_kind);
+        if (body.format_version_id && (!selected || selected.recipe.frame.width !== profile?.width ||
+          selected.recipe.frame.height !== profile.height)) {
+          return reject(route, 422, "invalid", "format.frame_mismatch", { message: "That format’s frame size does not match the story’s media kind" });
+        }
+        Object.assign(draft, body, { revision: draft.revision + 1 });
+        if (dropFormatReply) {
+          dropFormatReply = false;
+          return route.abort("connectionreset");
+        }
+        return route.fulfill({ headers: { etag: `"${draft.revision}"` }, json: viewStory(draft) });
+      }
       if (resource === "timing" && method === "GET") {
         return route.fulfill({ json: storyTiming(draft, boards, versions, voice.matches) });
       }
@@ -458,7 +480,8 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
           return reject(route, 422, status === "unavailable" ? "unavailable" : "invalid", String(rule),
             { message: String(message), path: String(path) });
         }
-        const run = queue.add(draft, draft.board_order.map((id) => boards.get(id)!), key);
+        const pin = formatPin ? formatVersions.find(({ id }) => id === draft.format_version_id) : undefined;
+        const run = queue.add(draft, draft.board_order.map((id) => boards.get(id)!), key, pin);
         const lostReply = dropQueueReply;
         dropQueueReply = undefined;
         if (lostReply === "connection") {
@@ -501,8 +524,14 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
         return route.fulfill({ headers: { etag: `"${draft.revision}"` }, json: viewStory(draft) });
       }
     }
-    if (path === `/v1/format-versions/${formatId}` && method === "GET") {
-      return route.fulfill({ json: formatFixture });
+    if (method === "GET") {
+      if (path === "/v1/formats" && formatPin) return route.fulfill({ json: pageOf(formats, cursor) });
+      const versionList = formatPin && /^\/v1\/formats\/([^/]+)\/versions$/.exec(path);
+      if (versionList) return route.fulfill({ json: pageOf(formatVersions.filter(({ format_id }) => format_id === versionList[1])
+        .map(({ recipe: _recipe, ...summary }) => summary), cursor) });
+      const pinned = formatPin && formatVersions.find(({ id }) => path === `/v1/format-versions/${id}`);
+      if (pinned) return route.fulfill({ json: pinned });
+      if (path === `/v1/format-versions/${formatId}`) return route.fulfill({ json: formatFixture });
     }
     if (path === "/v1/queue/lanes" && method === "GET") {
       const items = (["run", "image", "voice"] as const).map((lane) => ({
@@ -625,14 +654,15 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
     if (path === "/v1/assets" && method === "GET") {
       const boardId = url.searchParams.get("board");
       const productionId = url.searchParams.get("production");
+      const kind = url.searchParams.get("kind");
       if (photos && !boardId && productionId && visible[user].has(productionId)) {
         return route.fulfill({ json: pageOf(photos.catalog.filter(({ scope, state }) =>
           state === "promoted" && (scope.production_id === null || scope.production_id === productionId)), cursor) });
       }
       if (!boardId && (!productionId || visible[user].has(productionId))) {
-        return route.fulfill({ json: pageOf(versions.filter(({ state, scope }) => state !== "candidate" &&
-          (scope.production_id === null || (visible[user].has(scope.production_id) &&
-            (!productionId || productionId === scope.production_id)))), cursor) });
+        return route.fulfill({ json: pageOf(versions.filter((version) => (!kind || kind === version.kind) && version.state !== "candidate" &&
+          (version.scope.production_id === null || (visible[user].has(version.scope.production_id) &&
+            (!productionId || productionId === version.scope.production_id)))), cursor) });
       }
       const draft = stories.find(({ board_order }) => boardId && board_order.includes(boardId));
       if (!draft || !visible[user].has(draft.production_id) || (productionId && productionId !== draft.production_id)) {
@@ -720,7 +750,8 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
     if (path.startsWith("/v1/runs/") && decisions) {
       const [, , , id, resource] = path.split("/");
       const run = decisions.runs.find((item) => item.id === id);
-      if (!run || !visible[user].has(production.id)) return reject(route, 404, "not_found", "not_found");
+      const draft = run && stories.find(({ id }) => id === run.story_id);
+      if (!run || !draft || !visible[user].has(draft.production_id)) return reject(route, 404, "not_found", "not_found");
       if (!resource && method === "GET") return route.fulfill({ headers: { etag: `"${run.revision}"` }, json: viewRun(run) });
       if (resource === "delivery" && method === "GET") {
         const delivery = decisions.deliveries.get(id);
@@ -731,7 +762,7 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
       if (resource === "release-packages" || (resource === "publications" && method === "POST")) {
         const refusal = identityRefusal(user);
         return release.handle(route, run, decisions.deliveries.get(id), decisions.preview(run, refusal, runRefusal),
-          people[user].displayName, user, refusal);
+          people[user].displayName, user, refusal, formatPin ? queue?.snapshots.get(run.id) : undefined);
       }
       if (resource === "go-live-approvals") {
         const refusal = identityRefusal(user);
@@ -763,7 +794,7 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
   });
 
   return {
-    calls, violations, writes, selections, loginRequests, approvalWrites, boardWrites, queue, contentEdits, voice, feedback, photos, assets,
+    calls, violations, writes, selections, loginRequests, approvalWrites, boardWrites, formatWrites, queue, contentEdits, voice, feedback, photos, assets,
     completePhoto: (id: string, boardId: string) => photos!.complete(id, boards.get(boardId)!),
     completeVoice: (id: string, boardId: string, duration: number) => voice.complete(id, boards.get(boardId)!, stories[0], duration),
     expire: () => { current = null; },
@@ -773,6 +804,10 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
     refuseRun: (code: string) => { runRefusal = code; },
     recordManualPublication: () => { stories[0].published = true; },
     editDraft: () => { stories[0].revision += 1; firstBoard.lines[0].text = "New draft line."; },
+    editStory: (id: string, fields: Schemas["StoryPatch"]) => {
+      const draft = stories.find((item) => item.id === id)!;
+      Object.assign(draft, fields, { revision: draft.revision + 1 });
+    },
     setDraftOrder: (order: string[]) => setBoardOrder(stories[0], order),
     editDraftBoard: (id: string, fields: Partial<Schemas["Board"]>) => {
       const current = boards.get(id)!;
@@ -780,6 +815,7 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
       stories[0].revision += 1;
     },
     dropNextQueueReply: (mode: "connection" | "server") => { dropQueueReply = mode; },
+    dropNextFormatReply: () => { dropFormatReply = true; },
     preflightProblems: (problems: Schemas["EstimateView"]["problems"]) => { preflight = problems; },
     failNext: (value: Failure) => { failure = value; },
     enableMedia,

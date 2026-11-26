@@ -1,0 +1,36 @@
+.story-format {
+  min-width: 0;
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+.story-format > summary { padding: 12px; font-weight: 650; cursor: pointer; }
+.story-format > summary span { margin-inline-start: 8px; font-weight: 400; }
+.story-format-fields, .story-format-review, .story-format-inputs, .story-format-row {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+.story-format-fields { padding: 0 12px 12px; }
+.story-format-inputs { border: 0; margin: 0; padding: 0; min-inline-size: 0; }
+.story-format-fields .pill { justify-self: start; }
+.story-format-fields .pill:is(:disabled, [aria-disabled="true"]) { opacity: .55; cursor: default; }
+.story-format-fields :is(input, select) {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 7px;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  background: var(--page);
+  color: var(--ink);
+  font: inherit;
+  font-size: max(1rem, 16px);
+}
+.story-format-fields .problem { margin: 0; }
+
+@media (min-width: 620px) {
+  .story-format-row { grid-template-columns: repeat(2, minmax(0, 1fr)) auto; align-items: end; }
+}

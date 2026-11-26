@@ -32,6 +32,8 @@ export const mediaKinds = {
   video: { label: "Video", plural: "Videos", aspect: "16:9" },
 } satisfies Record<MediaKind, { label: string; plural: string; aspect: string }>;
 
+export const storyFormatId = "story-format";
+
 function isId(value: string | undefined | null, prefix: "prd" | "sty" | "brd" | "run" | "job") {
   return typeof value === "string" && value.length === 30 && value.startsWith(prefix + "_") &&
     /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/.test(value.slice(4));

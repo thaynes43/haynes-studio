@@ -8,8 +8,6 @@ type Package = Schemas["ReleasePackage"];
 type Publication = Schemas["PublicationSummary"];
 
 export function releaseFixtures(draft: Schemas["Story"], frozen: Schemas["RunSnapshot"]) {
-  const pin = frozen.format_version!;
-  const targets = pin.recipe.targets.filter((target) => target.platform === "youtube-shorts") as Schemas["ReleaseTarget"][];
   const packages = new Map<string, { package: Package; sha256: string; bytes: number }>();
   const publications = new Map<string, Publication>();
   const refuse = (route: Route, http_status: number, code: string, message: string) => route.fulfill({
@@ -36,7 +34,9 @@ export function releaseFixtures(draft: Schemas["Story"], frozen: Schemas["RunSna
 
   function handle(route: Route, run: Pick<Schemas["RunView"], "id" | "delivery_id" | "snapshot">,
                   delivery: Pick<Schemas["Delivery"], "master"> | undefined,
-                  review: ApprovalReview, name: string, subject: string, refusal?: string) {
+                  review: ApprovalReview, name: string, subject: string, refusal?: string, snapshot = frozen) {
+    const pin = snapshot.format_version;
+    const targets = (pin?.recipe.targets ?? []).filter((target) => target.platform === "youtube-shorts") as Schemas["ReleaseTarget"][];
     const request = route.request();
     if (request.method() === "GET") {
       const items = [...packages.values()].filter((item) => item.package.run_id === run.id)
@@ -71,7 +71,7 @@ export function releaseFixtures(draft: Schemas["Story"], frozen: Schemas["RunSna
     }
     const { target_id } = request.postDataJSON() as Schemas["ReleasePackageWrite"];
     const target = targets.find(({ id }) => id === target_id);
-    if (!target) return refuse(route, 422, "release.target_unknown", "Choose a frozen target");
+    if (!pin || !target) return refuse(route, 422, "release.target_unknown", "Choose a frozen target");
     if (target.rules.max_length_ms === null) {
       return refuse(route, 422, "release.maximum_unset", "The frozen target must declare a platform maximum");
     }
