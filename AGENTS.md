@@ -14,19 +14,30 @@ Scoped range reads of both imports passed. Human sign-in and phone playback
 remain open. [Story 957, comment 9914](https://work.haynesnetwork.com/work_packages/957/activity#comment-9914) · [Story 944, comment 9915](https://work.haynesnetwork.com/work_packages/944/activity#comment-9915).
 Each epic ends with a usable demo.
 
-The LAN app's fourth pin is Studio `470a90af73a2201e6542b5d867853dce6facad04`
-at haynes-ops `59dc8678`, with schema `0013_matte_jobs` and PyAV 18.1.1
+The LAN app's fifth pin is Studio `eeeb2a40105ae1e64325063b0aa93c890fdefa43`
+at haynes-ops `6597e708`, with schema `0013_matte_jobs` and PyAV 18.1.1
 read back at all six encoder locations.
-[Story 967, comments 10322](https://work.haynesnetwork.com/work_packages/967/activity#comment-10322), [10327](https://work.haynesnetwork.com/work_packages/967/activity#comment-10327) and [10329](https://work.haynesnetwork.com/work_packages/967/activity#comment-10329).
-The matte isolation policy is installed and selects zero pods. A cutout
-request is accepted and waits. Activation is held on Tom's decision and
-haynes-ops PR 5096 stays open and unmerged. Its independent review found a
-blocking defect in the launcher's isolation proof, so it is not mergeable as it stands
-([comment 10358](https://work.haynesnetwork.com/work_packages/970/activity#comment-10358)).
-[Story 970, comments 10332](https://work.haynesnetwork.com/work_packages/970/activity#comment-10332), [10333](https://work.haynesnetwork.com/work_packages/970/activity#comment-10333), [10335](https://work.haynesnetwork.com/work_packages/970/activity#comment-10335) and [10338](https://work.haynesnetwork.com/work_packages/970/activity#comment-10338).
-Segmentation is provisioned and smoked with serving inactive. The client
-adapter is on `main` with no caller.
-[Story 460, comment 10228](https://work.haynesnetwork.com/work_packages/460/activity#comment-10228) · [Story 452, comment 10313](https://work.haynesnetwork.com/work_packages/452/activity#comment-10313).
+[Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409).
+The editor's Format control (story 977) is installed.
+[Story 977, comment 10404](https://work.haynesnetwork.com/work_packages/977/activity#comment-10404) · [Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409).
+Paused-lane reconcile (story 976) is in the build with its switch off and
+activation pending.
+[Story 976](https://work.haynesnetwork.com/work_packages/976) · [Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409).
+The matte isolation policy is installed and selects zero pods.
+[Story 970, comments 10332](https://work.haynesnetwork.com/work_packages/970/activity#comment-10332) and [10333](https://work.haynesnetwork.com/work_packages/970/activity#comment-10333).
+A cutout request is accepted and waits.
+[Story 970, comment 10338](https://work.haynesnetwork.com/work_packages/970/activity#comment-10338).
+Matte activation is held on Tom's decision, and haynes-ops PR 5096 is open
+and unmerged because all three designs for the isolation proof inside the
+pod can give a false pass.
+[Story 970, comments 10335](https://work.haynesnetwork.com/work_packages/970/activity#comment-10335) and [10382](https://work.haynesnetwork.com/work_packages/970/activity#comment-10382).
+Haynes-studio PR 151 for foreground role masks (story 968) is parked, open
+and unmerged.
+[Story 968, comments 10383](https://work.haynesnetwork.com/work_packages/968/activity#comment-10383) and [10384](https://work.haynesnetwork.com/work_packages/968/activity#comment-10384).
+Segmentation is provisioned and smoked with serving inactive.
+[Story 460, comment 10228](https://work.haynesnetwork.com/work_packages/460/activity#comment-10228).
+The client adapter is in the fifth build with no caller.
+[Story 452, comment 10313](https://work.haynesnetwork.com/work_packages/452/activity#comment-10313) · [Story 978, comment 10408](https://work.haynesnetwork.com/work_packages/978/activity#comment-10408).
 Upscaling is comparison-only and delivery uses Lanczos.
 [Story 461, comment 10229](https://work.haynesnetwork.com/work_packages/461/activity#comment-10229).
 Wan local-model activation is held and haynes-ops PR 5064 stays open and
