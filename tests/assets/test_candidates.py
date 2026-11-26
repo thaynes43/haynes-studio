@@ -92,7 +92,7 @@ def test_generate_record_and_promote(tmp_path, kind, capability):
 
 
 def test_declined_candidate_retained_after_another_is_promoted_and_used_in_board_photo(tmp_path):
-    original = Story.from_document(example("valid/story-winter-menu-r4.json"))
+    original = replace(Story.from_document(example("valid/story-winter-menu-r4.json")), set=None)
     store = LocalStore(tmp_path)
     fake = FakeComfyUI()
     client = ImageClient(FakeRunner(fake))

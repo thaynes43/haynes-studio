@@ -132,7 +132,8 @@ def test_unsupported_segments_are_refused_never_ignored(world, first):
         for document in documents:
             assert refused(world, key, document).code == code, document
     # A plan without motion records (story 380's placeholders) cannot be drawn.
-    placeholder = fx.plan(h.story_document(), toolchain=h.TOOLS, pinned=False, blobs=world.blobs)
+    placeholder = fx.plan(h.story_document(), toolchain=h.TOOLS, pinned=False,
+                          blobs=world.blobs, lib=world.library())
     doc = thaw(placeholder.artifacts[f"{h.B2}/segment"].key.document)
     assert refused(world, key, doc).code == UNSUPPORTED
 
