@@ -4,7 +4,6 @@ from collections.abc import Iterator, Mapping
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 import hashlib
-import json
 import os
 from pathlib import Path
 import re
@@ -15,7 +14,7 @@ import av
 
 from haynes_studio.adapters.errors import AdapterError
 from haynes_studio.adapters.wan_ledger import record_from_document
-from haynes_studio.build.prebuild import canonical_snapshot, snapshot_bytes
+from haynes_studio.build.prebuild import require_frozen_roles
 from haynes_studio.build.validate import validate_run, validate_run_snapshot
 from haynes_studio.delivery.model import (
     AAC, DELIVERY_SCHEMA, FPS, H264, MASTER_SIZES, MP4, PROXY_SIZES, proxy_byte_limit,
@@ -23,9 +22,7 @@ from haynes_studio.delivery.model import (
 from haynes_studio.delivery.validate import validate_delivery
 from haynes_studio.errors import ContractError, blocking
 from haynes_studio.jsonio import parse_strict
-from haynes_studio.layered.foreground import role_version_ids
 from haynes_studio.library import Library
-from haynes_studio.library.model import AssetVersion
 from haynes_studio.store import StageRecord, StoreError, blob_locator, canonical_json, is_sha256, parse_locator
 
 MEDIA = {"master": "final.mp4", "proxy": "proxy.mp4"}
@@ -41,9 +38,8 @@ MAX_FILES = 64
 class ImportProblem(Exception):
     """An operator-facing code and, optionally, a checked archive member name."""
 
-    def __init__(self, code: str, member: str | None = None, *, field: str = ""):
-        detail = f" {json.dumps(field)[1:-1]}" if field else ""
-        super().__init__(f"import_production.{code}" + (f" {member}" if member else "") + detail)
+    def __init__(self, code: str, member: str | None = None):
+        super().__init__(f"import_production.{code}" + (f" {member}" if member else ""))
 
 
 @dataclass(frozen=True)
@@ -57,27 +53,14 @@ class Archive:
     story: dict
     snapshot: dict | None
     versions: list[dict]
-    snapshot_data: bytes | None = None
-
-    @property
-    def snapshot_pin(self) -> dict:
-        pin = self.run["snapshot"]
-        if self.snapshot_data is None:
-            return pin
-        digest = hashlib.sha256(self.snapshot_data).hexdigest()
-        return {**pin, "sha256": digest,
-                "locator": blob_locator(self.production_id, digest, "application/json")}
 
     @property
     def marker(self) -> dict:
-        marker = {
+        return {
             "source_directory": self.directory.name,
             "receipt_sha256": hashlib.sha256(canonical_json(self.receipt)).hexdigest(),
             "source_kind": "canonical" if self.snapshot is not None else "recovered",
         }
-        if self.snapshot_data is not None:
-            marker["source_snapshot"] = self.run["snapshot"]
-        return marker
 
     @property
     def publications(self) -> dict[str, tuple[str, str]]:
@@ -169,22 +152,17 @@ def _matches(facts: dict, document: object) -> bool:
 
 
 def _pins(snapshot: dict, value: object) -> list[dict]:
-    if not isinstance(value, list):
+    if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
         raise ImportProblem("asset_versions", "asset-versions.json")
     try:
         library = Library.from_version_documents(value)
+    except ContractError:
+        raise ImportProblem("asset_versions", "asset-versions.json") from None
+    try:
+        require_frozen_roles(snapshot, library)
     except ContractError as error:
-        match = re.fullmatch(r"<version ([0-9]+)>", error.source)
-        index = match[1] if match else next((str(i) for i, item in enumerate(value)
-                                             if isinstance(item, dict) and item.get("id") == error.source), "")
-        field = (f"/{index}" if index else "") + error.violations[0].path
-        raise ImportProblem("asset_versions", "asset-versions.json", field=field) from None
+        raise ImportProblem(error.violations[0].rule, "asset-versions.json") from None
     by_id = {item["id"]: item for item in value}
-    selected = (snapshot["story"].get("set") or {}).get("asset_version_id")
-    if selected in by_id and role_version_ids(AssetVersion.canonical_document(by_id[selected])).difference(
-        entry["id"] for entry in snapshot["resolved_asset_versions"]
-    ):
-        raise ImportProblem("asset_pin", "asset-versions.json", field="/occlusion/foreground")
     pinned = []
     for entry in snapshot["resolved_asset_versions"]:
         version = library.get(entry["id"])
@@ -199,14 +177,13 @@ def _pins(snapshot: dict, value: object) -> list[dict]:
             expected["take_sha256"] = [take.sha256 for take in version.voice.takes]
         elif version.content is not None:
             expected["sha256"] = version.content.sha256
-            if version.occlusion is not None:
-                expected["occlusion_signature"] = library.pin(version.id)
         if (entry != expected or asset.scope.production_id not in (None, snapshot["story"]["production_id"])
                 or asset.scope.story_id not in (None, snapshot["story"]["id"])
                 or asset.scope.board_id not in (None, *snapshot["story"]["board_order"])
                 or version.state == "candidate"):
             raise ImportProblem("asset_pin", "asset-versions.json")
-        pinned.append(AssetVersion.canonical_document(by_id[version.id]))
+        original = by_id[version.id]
+        pinned.append(library.document(version.id) if "occlusion" in original else original)
     return pinned
 
 
@@ -243,8 +220,7 @@ def _canonical(docs: dict, receipt: dict, run: dict, production_id: str, kind: s
     for name in docs.keys() - CANONICAL:
         if not isinstance(docs[name], dict):
             raise ImportProblem("archive_json", name)
-    normalized = canonical_snapshot(snapshot)
-    return normalized["story"], normalized, _pins(snapshot, docs["asset-versions.json"]), delivery
+    return story, snapshot, _pins(snapshot, docs["asset-versions.json"]), delivery
 
 
 def _check_recovered_media(handle: BinaryIO, size: tuple[int, int], frames: int, name: str) -> None:
@@ -386,10 +362,4 @@ def verify_archive(directory: Path, receipt_path: Path, *, name: str, kind: str,
                 raise ImportProblem("media_mismatch", member)
         if (delivery["master"]["width"], delivery["master"]["height"]) != MASTER_SIZES[kind]:
             raise ImportProblem("media_kind", "delivery.json")
-        snapshot_data = None
-        if snapshot is not None:
-            data, digest = snapshot_bytes(snapshot)
-            if digest != run["snapshot"]["sha256"]:
-                snapshot_data = data
-        yield Archive(directory, receipt, members, run, delivery, production_id, story, snapshot, versions,
-                      snapshot_data)
+        yield Archive(directory, receipt, members, run, delivery, production_id, story, snapshot, versions)

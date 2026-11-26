@@ -545,7 +545,10 @@ class _Planner:
                     "phase": None if loop is None else loop_phase(board.id, SET_SLOT,
                                                                   loop_period(self.loop_frames()))}
             if story_set is not None:
+                from haynes_studio.layered.foreground import check_board_roles
+
                 roles = () if self.motion is None else self.motion.foreground_roles
+                check_board_roles(board, roles, set_loop=bool(set_layer and set_layer.get("loop")))
                 if board.layout.foreground and roles:
                     foreground = {"roles": [dict(role) for role in roles]}
                 elif board.layout.foreground and story_set.foreground_edge_px is not None:

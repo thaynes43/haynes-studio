@@ -21,7 +21,7 @@
   ],
   "properties": {
     "occlusion": {
-      "description": "Foreground roles for an opaque set still. Each mask pins a promoted library version and both content hashes.",
+      "description": "Foreground role masks for an opaque set still. Each mask pins a promoted library version, its content hash, and the original set still hash and dimensions.",
       "anyOf": [
         {
           "$ref": "#/$defs/occlusion"
@@ -486,25 +486,10 @@
                 "type": "string",
                 "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
               },
-              "label": {
-                "anyOf": [
-                  {
-                    "type": "null"
-                  },
-                  {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 80
-                  }
-                ]
-              },
               "layer_order": {
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 1024
-              },
-              "hint": {
-                "$ref": "#/$defs/occlusion_hint"
               },
               "mask": {
                 "type": "object",
@@ -512,7 +497,9 @@
                 "required": [
                   "version_id",
                   "sha256",
-                  "still_sha256"
+                  "still_sha256",
+                  "width",
+                  "height"
                 ],
                 "properties": {
                   "version_id": {
@@ -523,58 +510,16 @@
                   },
                   "still_sha256": {
                     "$ref": "studio.defs.v1.schema.json#/$defs/sha256"
+                  },
+                  "width": {
+                    "$ref": "studio.defs.v1.schema.json#/$defs/positive",
+                    "description": "Original set still width in pixels, before cover fit or cropping."
+                  },
+                  "height": {
+                    "$ref": "studio.defs.v1.schema.json#/$defs/positive",
+                    "description": "Original set still height in pixels, before cover fit or cropping."
                   }
                 }
-              }
-            },
-            "additionalProperties": false
-          }
-        },
-        "focal_props": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "maxItems": 16,
-          "items": {
-            "type": "object",
-            "required": [
-              "key",
-              "label",
-              "depth"
-            ],
-            "properties": {
-              "key": {
-                "type": "string",
-                "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
-              },
-              "label": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 80
-              },
-              "depth": {
-                "enum": [
-                  "background",
-                  "foreground",
-                  "separate",
-                  "unspecified"
-                ]
-              },
-              "layer_order": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 1024
-              },
-              "foreground_role": {
-                "type": "string",
-                "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
-              },
-              "source_asset_version_id": {
-                "$ref": "studio.defs.v1.schema.json#/$defs/asv_id"
-              },
-              "hint": {
-                "$ref": "#/$defs/occlusion_hint"
               }
             },
             "additionalProperties": false
@@ -582,77 +527,6 @@
         }
       },
       "additionalProperties": false
-    },
-    "occlusion_hint": {
-      "oneOf": [
-        {
-          "type": "null"
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "kind",
-            "xy"
-          ],
-          "properties": {
-            "kind": {
-              "const": "point"
-            },
-            "xy": {
-              "type": "array",
-              "minItems": 2,
-              "maxItems": 2,
-              "items": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 1920
-              }
-            }
-          }
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "kind",
-            "xyxy"
-          ],
-          "properties": {
-            "kind": {
-              "const": "box"
-            },
-            "xyxy": {
-              "type": "array",
-              "minItems": 4,
-              "maxItems": 4,
-              "items": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 1920
-              }
-            }
-          }
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "kind",
-            "text"
-          ],
-          "properties": {
-            "kind": {
-              "const": "text"
-            },
-            "text": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 80
-            }
-          }
-        }
-      ]
     },
     "signature": {
       "type": "string",

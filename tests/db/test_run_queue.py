@@ -1176,10 +1176,12 @@ def test_terminal_admission_prefers_machine_code(queue, admission_code, legacy_m
     assert len(fake.puts()) == 1 and not fake.submissions
 
 
-def test_declared_role_review_is_human_only_and_pins_exact_evidence(queue, tmp_path, request):
+def test_queue_and_run_writer_require_foreground_and_pin_the_mask(queue, tmp_path, request):
     from copy import deepcopy
 
-    from haynes_studio.layered import visibility
+    from haynes_studio.build.prebuild import snapshot_bytes
+    from haynes_studio.errors import ContractError
+    from haynes_studio.layered.foreground import FOREGROUND_REQUIRED, MASK_STALE
     from haynes_studio.store import blob_locator
     from tests.build_story.test_foreground_roles import MASK, role_world
 
@@ -1226,11 +1228,38 @@ def test_declared_role_review_is_human_only_and_pins_exact_evidence(queue, tmp_p
         key: sample[key] for key in ("cast", "layout", "method", "timing", "photo")
     })
     assert board.status_code == 200, board.text
-    ordinary_layout = {"preset": "pair", "foreground": True}
-    kept = q.browser.patch(board_path, headers={**q.csrf, "If-Match": board.headers["etag"]},
-                           json={"layout": ordinary_layout})
-    assert kept.status_code == 200, kept.text
-    assert kept.json()["layout"]["check_poses"] == sample["layout"]["check_poses"]
+    if_match = board.headers["etag"]
+    disabled = q.browser.patch(board_path, headers={**q.csrf, "If-Match": if_match},
+                               json={"layout": {"preset": "pair", "foreground": False}})
+    assert disabled.status_code == 200, disabled.text
+    refused = queue_run(q, "disabled-role", rev=7)
+    assert refused.status_code == 422, refused.text
+    assert refused.json()["error"]["code"] == FOREGROUND_REQUIRED
+
+    enabled = q.browser.patch(board_path, headers={**q.csrf, "If-Match": disabled.headers["etag"]},
+                              json={"layout": {"preset": "pair", "foreground": True}})
+    assert enabled.status_code == 200, enabled.text
+    queued = queue_run(q, "enabled-role", rev=8)
+    assert queued.status_code == 201, queued.text
+    run_id = queued.json()["id"]
+    with q.engine.begin() as conn:
+        row = runs.get(conn, run_id)
+        [mask_pin] = [pin for pin in row["snapshot"]["resolved_asset_versions"] if pin["id"] == ids[MASK]]
+        [mask] = [doc for doc in row["frozen_library"] if doc["id"] == ids[MASK]]
+        assert mask_pin == {"id": ids[MASK], "kind": "prop", "sha256": mask["content"]["sha256"]}
+        for code in (FOREGROUND_REQUIRED, MASK_STALE):
+            snapshot = deepcopy(row["snapshot"])
+            if code == FOREGROUND_REQUIRED:
+                snapshot["story"]["boards"][0]["layout"]["foreground"] = False
+            else:
+                mask_pin = next(pin for pin in snapshot["resolved_asset_versions"] if pin["id"] == ids[MASK])
+                mask_pin["sha256"] = "0" * 64
+            with pytest.raises(ContractError) as rejected:
+                runs.enqueue(conn, snapshot=snapshot, snapshot_sha256=snapshot_bytes(snapshot)[1],
+                             library=row["frozen_library"], actor=row["document"]["queued_by"], key=code,
+                             store=q.store, estimate={"estimate": None, "methods": []})
+            assert [issue.rule for issue in rejected.value.violations] == [code]
+        assert [held["id"] for held in runs.list_story(conn, q.story_id, None, 10)] == [run_id]
 
     wan_client = FakeWan().client()
     request.addfinalizer(wan_client.close)
@@ -1238,53 +1267,6 @@ def test_declared_role_review_is_human_only_and_pins_exact_evidence(queue, tmp_p
                          register=register(), tracker_story=STORY,
                          transcriber=SimpleNamespace(name="Fixture ASR", transcribe=lambda _: ""),
                          clock=q.clock.monotonic, pause=q.clock.advance)
-    queued = queue_run(q, "role-review", rev=7)
-    assert queued.status_code == 201, queued.text
-    initial = queued.json()
-    frozen = q.browser.get(f'/v1/runs/{initial["id"]}/snapshot').json()
-    assert any(pin["id"] == ids[MASK] for pin in frozen["resolved_asset_versions"])
-    assert "visibility_overrides" not in frozen
     assert worker.tick()
-    failed, etag = read_run(q, initial["id"])
-    assert failed["error"]["code"] == visibility.REVIEW, failed["error"]
-    [check] = failed["checks"]
-    assert check["check"] == visibility.CHECK and check["result"] == "fail"
-    body = {"artifact": check["artifact"], "reason": "The remaining face suits this shot"}
-    path = f'/v1/runs/{initial["id"]}/checks/{visibility.CHECK}/overrides'
-    _, agent_headers = register_agent(q.owner, {q.production_id: ["runs:queue"]})
-    assert q.browser.post(path, headers={**agent_headers, "If-Match": etag}, json=body).status_code == 403
-    assert q.browser.post(path, headers={**q.csrf, "If-Match": etag},
-                          json={**body, "artifact": "0" * 64}).status_code == 409
-    review = q.browser.post(path, headers={**q.csrf, "If-Match": etag}, json=body)
-    assert review.status_code == 201, review.text
-    assert review.json()["evidence"] == check["measured"]
-
-    retried = queue_run(q, "reviewed-role", rev=7)
-    assert retried.status_code == 201, retried.text
-    new_id = retried.json()["id"]
-    assert q.browser.get(f"/v1/runs/{new_id}/snapshot").json()["visibility_overrides"] == [check["artifact"]]
-    assert worker.tick()
-    built, _ = read_run(q, new_id)
+    built, _ = read_run(q, run_id)
     assert built["status"] == "succeeded", built["error"]
-    [applied] = [item for item in built["checks"] if item["check"] == visibility.CHECK]
-    assert applied["result"] == "overridden" and applied["artifact"] == check["artifact"]
-    [role] = built["stages"][0]["report"]["set"]["foreground_roles"]
-    assert role["key"] == "table"
-    assert role["sha256"] == next(pin["sha256"] for pin in frozen["resolved_asset_versions"]
-                                  if pin["id"] == ids[MASK])
-
-    later = q.browser.patch(board_path, headers={**q.csrf, "If-Match": kept.headers["etag"]},
-                            json={"title": "New revision"})
-    assert later.status_code == 200, later.text
-    different = queue_run(q, "different-role-revision", rev=8)
-    assert different.status_code == 201, different.text
-    changed_id = different.json()["id"]
-    assert "visibility_overrides" not in q.browser.get(f"/v1/runs/{changed_id}/snapshot").json()
-    assert worker.tick()
-    changed_run, _ = read_run(q, changed_id)
-    assert changed_run["error"]["code"] == visibility.REVIEW
-
-    cleared = q.browser.patch(board_path, headers={**q.csrf, "If-Match": later.headers["etag"]},
-                              json={"layout": {**ordinary_layout, "check_poses": []}})
-    assert cleared.status_code == 200, cleared.text
-    assert cleared.json()["layout"] == ordinary_layout

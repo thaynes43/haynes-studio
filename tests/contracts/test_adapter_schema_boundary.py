@@ -19,18 +19,7 @@ def test_legacy_schema_rules_match_pinned_main(name, legacy_sha256):
     source = files("haynes_studio.schemas").joinpath(f"studio.{name}.v1.schema.json")
     schema = json.loads(source.read_bytes())
     props = schema["properties"]
-    if name == "board":
-        props["layout"]["properties"].pop("check_poses")
-    elif name == "asset-version":
+    if name == "asset-version":
         props.pop("occlusion")
         schema["$defs"].pop("occlusion")
-        schema["$defs"].pop("occlusion_hint")
-    else:
-        props.pop("visibility_overrides")
-        versions = props["resolved_asset_versions"]["items"]
-        versions["properties"].pop("occlusion_signature")
-        versions["allOf"].remove({
-            "if": {"required": ["occlusion_signature"]},
-            "then": {"properties": {"kind": {"const": "set"}, "sha256": {"type": "string"}}},
-        })
     assert sha256(canonical_json(schema)).hexdigest() == legacy_sha256

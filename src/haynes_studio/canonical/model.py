@@ -152,34 +152,6 @@ class CastEntry:
 class Layout:
     preset: str
     foreground: bool
-    check_poses: tuple[Mapping[str, Any], ...] | None = None
-
-    _omit_none = ("check_poses",)
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "check_poses",
-                           freeze(self.canonical_document({"check_poses": self.check_poses}).get("check_poses")))
-
-    @staticmethod
-    def canonical_document(layout: Mapping[str, Any]) -> dict[str, Any]:
-        """Normalize optional declarations while retaining unknown fields for validation."""
-        out = dict(layout)
-        if "check_poses" not in out:
-            return out
-        poses = normalize(out["check_poses"])
-        if poses is None or poses == []:
-            out.pop("check_poses")
-        elif isinstance(poses, list):
-            for pose in poses:
-                if isinstance(pose, dict):
-                    if pose.get("targets") in (None, []):
-                        pose.pop("targets", None)
-                    if isinstance(pose.get("targets"), list):
-                        for target in pose["targets"]:
-                            if isinstance(target, dict) and target.get("box_xyxy") is None:
-                                target.pop("box_xyxy", None)
-            out["check_poses"] = poses
-        return out
 
 
 @dataclass(frozen=True, slots=True)
@@ -331,13 +303,6 @@ class Board:
     def placed_slots(self) -> tuple[str, ...]:
         return tuple(entry.slot for entry in self.cast)
 
-    @staticmethod
-    def canonical_document(document: Mapping[str, Any]) -> dict[str, Any]:
-        out = dict(document)
-        if isinstance(out.get("layout"), Mapping):
-            out["layout"] = Layout.canonical_document(out["layout"])
-        return out
-
     @classmethod
     def from_document(cls, doc: Mapping[str, Any]) -> Board:
         """The model of a board document that has passed :func:`validate_board`."""
@@ -474,14 +439,6 @@ class Story:
         """The embedded boards in ``board_order``."""
         by_id = {board.id: board for board in self.boards or ()}
         return tuple(by_id[board_id] for board_id in self.board_order)
-
-    @staticmethod
-    def canonical_document(document: Mapping[str, Any]) -> dict[str, Any]:
-        out = dict(document)
-        if isinstance(out.get("boards"), list):
-            out["boards"] = [Board.canonical_document(board) if isinstance(board, Mapping) else board
-                             for board in out["boards"]]
-        return out
 
     @classmethod
     def from_document(cls, doc: Mapping[str, Any]) -> Story:

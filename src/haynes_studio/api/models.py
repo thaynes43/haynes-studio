@@ -3,12 +3,13 @@
 from functools import cache
 from typing import Annotated, Any, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, StringConstraints, model_serializer
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, StringConstraints, model_validator
 from pydantic.root_model import RootModel
 
-from haynes_studio.canonical.model import Board as CanonicalBoard, Story as CanonicalStory
 from haynes_studio.drafting.declaration import PersonEditAcknowledgment
-from haynes_studio.library.model import AssetVersion as CanonicalAssetVersion
+from haynes_studio.errors import ContractError, blocking
+from haynes_studio.library.model import Asset, AssetVersion as CanonicalAssetVersion, version_document
+from haynes_studio.library.validate import validate_asset_version
 
 MediaKind = Literal["short", "video"]
 Identifier = Annotated[str, StringConstraints(min_length=30, max_length=30)]
@@ -102,15 +103,11 @@ class Production(Document):
 
 
 class Story(Document):
-    @model_serializer
-    def serialize(self) -> dict[str, Any]:
-        return CanonicalStory.canonical_document(self.root)
+    pass
 
 
 class Board(Document):
-    @model_serializer
-    def serialize(self) -> dict[str, Any]:
-        return CanonicalBoard.canonical_document(self.root)
+    pass
 
 
 class Timing(Document):
@@ -118,9 +115,14 @@ class Timing(Document):
 
 
 class AssetVersion(Document):
-    @model_serializer
-    def serialize(self) -> dict[str, Any]:
-        return CanonicalAssetVersion.canonical_document(self.root)
+    @model_validator(mode="after")
+    def canonicalize(self):
+        problems = blocking(validate_asset_version(self.root, context="write"))
+        if problems:
+            raise ContractError("<asset version response>", problems)
+        self.root = version_document(CanonicalAssetVersion.from_document(self.root),
+                                     Asset.from_version_document(self.root))
+        return self
 
 
 class Delivery(Document):

@@ -19,13 +19,12 @@ from haynes_studio.canonical import (
 )
 from haynes_studio.canonical.ids import Minter, is_id
 from haynes_studio.canonical.jsonvalues import normalize
-from haynes_studio.canonical.model import Board, Layout
 from haynes_studio.drafting.declaration import DraftDeclaration, RedraftDeclaration
 from haynes_studio.errors import ContractError, Violation, pointer
 from haynes_studio.formats import records as format_records
 from haynes_studio.formats.recipe import PIN_PATH, allowed_methods, format_length, method_violation
 from haynes_studio.golive import records as go_live
-from haynes_studio.library.library import Library, require_media
+from haynes_studio.library.library import require_media
 from haynes_studio.library.resolve import resolve, story_references
 
 from haynes_studio.photo.plan import photo_facts
@@ -172,7 +171,7 @@ class Draft:
 
     def exchange(self) -> dict:
         ordered = [self.boards[id_] for id_ in self.story["board_order"]]
-        return Story.canonical_document({**self.story, "boards": ordered})
+        return {**self.story, "boards": ordered}
 
     def format_version(self, conn: sa.Connection) -> dict | None:
         return format_records.version(conn, self.story.get("format_version_id"))
@@ -333,12 +332,10 @@ def _insert_story(conn, doc):
 
 
 def _insert_board(conn, doc):
-    doc = Board.canonical_document(doc)
     conn.execute(boards.insert().values(
         id=doc["id"], story_id=doc["story_id"], number=doc["number"],
         source_key=(doc.get("origin") or {}).get("source_key"), document=doc,
     ))
-    return doc
 
 
 def create_story(conn: sa.Connection, production_id: str, kind: str, fields: dict, by: dict) -> Draft:
@@ -463,7 +460,7 @@ def _board_changed(held: dict, by: dict, reason: str, now: str,
         updated.update(protection)
     else:
         updated["draft_application"] = protection
-    return Board.canonical_document(updated)
+    return updated
 
 
 def edit_story(conn: sa.Connection, id_: str, revision: int, fields: dict) -> Draft:
@@ -533,7 +530,7 @@ def add_board(conn: sa.Connection, id_: str, revision: int, fields: dict, by: di
     updated.highest_board = number
     refs = updated.validate(conn, board=doc)
     _reserve_ids(conn, _child_ids(doc, BOARD_CHILDREN))
-    updated.boards[id_board] = _insert_board(conn, doc)
+    _insert_board(conn, doc)
     _save_story(conn, updated, refs)
     return updated, id_board
 
@@ -552,16 +549,6 @@ def edit_board(conn: sa.Connection, story_id: str, id_: str, revision: int,
         _check_board_write(held, by, acknowledgment)
     else:
         check_archive_board(held, by)
-    if isinstance(fields.get("layout"), dict):
-        layout = dict(fields["layout"])
-        previous_poses = held["layout"].get("check_poses")
-        if "check_poses" not in layout and previous_poses:
-            layout["check_poses"] = previous_poses
-        if (previous_poses and by["kind"] != "human"
-                and Layout.canonical_document(layout).get("check_poses") != previous_poses):
-            raise invalid("occlusion.person_required", "/layout/check_poses",
-                          "A person must change an existing visibility declaration")
-        fields = {**fields, "layout": layout}
     if declaration is not None:
         require_revision(draft.story["revision"], declaration.story_revision,
                          "/draft_application/story_revision")
@@ -616,7 +603,6 @@ def _replace_board(conn, draft, held, doc, now):
     updated = _advance(draft, {}, now)
     updated.boards = {**draft.boards, id_: doc}
     refs = updated.validate(conn, board=doc, previous=held)
-    doc = updated.boards[id_] = Board.canonical_document(doc)
     _reserve_ids(conn, _child_ids(doc, BOARD_CHILDREN) - _child_ids(held, BOARD_CHILDREN))
     conn.execute(boards.update().where(boards.c.id == id_).values(document=doc))
     _save_story(conn, updated, refs)
@@ -663,9 +649,6 @@ def remove_board(conn: sa.Connection, story_id: str, id_: str, revision: int, by
         raise NotFound
     require_revision(held["revision"], revision)
     _check_board_write(held, by, acknowledgment)
-    if held["layout"].get("check_poses") and by["kind"] != "human":
-        raise invalid("occlusion.person_required", "/layout/check_poses",
-                      "A person must remove a board with a visibility declaration")
     now = timestamp()
     order = [board_id for board_id in draft.story["board_order"] if board_id != id_]
     updated = _advance(draft, {"board_order": order}, now)
@@ -716,7 +699,6 @@ def import_draft(conn: sa.Connection, production_doc: dict, exchange: dict,
                                                            for p in production_doc["media_types"]]))
     if "boards" not in doc or doc["production_id"] != production_doc["id"]:
         raise invalid("ref.unknown", "/production_id", "The exchange must include its boards and production")
-    doc = Story.canonical_document(doc)
     if create_only:
         # Plain inserts also refuse conflicts committed after the identity check.
         _insert_production(conn, production_doc)
@@ -748,8 +730,6 @@ def import_draft(conn: sa.Connection, production_doc: dict, exchange: dict,
 
 
 def _insert_imported_draft(conn: sa.Connection, doc: dict, versions: list[dict]) -> Draft:
-    if any("occlusion" in version for version in versions):
-        Library.from_version_documents(versions, context="write")
     ids = _import_child_ids(doc)
     board_docs = doc.pop("boards")
     doc.pop("derived", None)

@@ -78,8 +78,7 @@ def sources_for(library: Library, scope: Scope, ids: tuple[str, ...],
     return tuple(sources)
 
 
-def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: bool = False,
-               frame_size: tuple[int, int] | None = None) -> PhotoPlan:
+def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: bool = False) -> PhotoPlan:
     """Take canonical story and board values and the relevant library records.
 
     The plan owns all generation inputs. Its signature excludes the currently selected
@@ -88,7 +87,7 @@ def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: b
     if board.story_id != story.id or board.id not in story.board_order:
         raise error("ref.unknown", "/board_id", "the board is not in this story")
     scope = Scope(story.production_id, story.id, board.id)
-    size = frame_size or MASTER_SIZES[story.media_kind]
+    size = MASTER_SIZES[story.media_kind]
     selected = board.photo.current_version_id
     if board.method.layer == LAYERED:
         ids = tuple(entry.asset_version_id for entry in board.cast)

@@ -1,82 +1,29 @@
-"""Serialization and source-coordinate bounds at library and run writer boundaries."""
+"""Canonical set declarations validate before library or transport serialization."""
 
+from copy import deepcopy
 from dataclasses import replace
 
 import pytest
 
-from haynes_studio.api import models
-from haynes_studio.build.prebuild import snapshot_bytes
-from haynes_studio.build.run import RunRecords, new_run
-from haynes_studio.canonical import load_story, to_document
-from haynes_studio.canonical.model import Board
 from haynes_studio.errors import ContractError
-from haynes_studio.jsonio import parse_strict
-from haynes_studio.library import Library, VersionRequest, import_all, import_version
+from haynes_studio.library import Library, VersionRequest, import_version
 from haynes_studio.library.model import Asset, AssetVersion, version_document
-from haynes_studio.store import LocalStore, blob_locator, canonical_json
-from tests.build_story.fixtures import NOW, OPERATOR, example, ident
+from haynes_studio.store import canonical_json
+from haynes_studio.canonical import load_story, to_document
+from tests.build_story.fixtures import NOW, example, ident
 from tests.library.fixtures import BY
 from tests.motion.fixtures import still_version
 
 
-@pytest.mark.parametrize("optional", [[], None])
-def test_board_and_snapshot_normalize_absent_pose_forms(optional):
-    snapshot = example("run-snapshot.json")
-    before, sha = snapshot_bytes(snapshot)
-    board = snapshot["story"]["boards"][0]
-    original = Board.canonical_document(board)
-    board["layout"]["check_poses"] = optional
-    assert load_story(snapshot["story"]).boards[0].layout.check_poses is None
-    assert to_document(Board.from_document(board)) == to_document(Board.from_document(original))
-    transported = models.Board(root=board)
-    assert parse_strict(transported.model_dump_json()) == original
-    assert snapshot_bytes(snapshot) == (before, sha)
-
-
-@pytest.mark.parametrize("optional", [[], None, {}, {"foreground": [], "focal_props": None}])
-def test_asset_version_normalizes_absent_declarations(optional):
-    doc = example("asset-version-cast.json")
-    with_empty = {**doc, "occlusion": optional}
-    library = Library.from_version_documents([with_empty], context="write")
-    assert library.documents() == [doc]
-    value = models.AssetVersion(root=with_empty)
-    assert parse_strict(value.model_dump_json()) == doc
-    typed = AssetVersion.from_document(with_empty)
-    assert version_document(typed, Asset.from_version_document(doc)) == doc
-
-
-def test_direct_run_writer_normalizes_snapshot_at_its_persistence_boundary(tmp_path):
-    snapshot = example("run-snapshot.json")
-    original, sha = snapshot_bytes(snapshot)
-    snapshot["story"]["boards"][0]["layout"]["check_poses"] = []
-    raw = canonical_json(snapshot)
-    assert raw != original
-    story = snapshot["story"]
-    production = story["production_id"]
-    locator = blob_locator(production, sha, "application/json")
-    run = new_run(run_id=ident("run", 968), story_id=story["id"], number=1,
-                  snapshot={"sha256": sha, "story_revision": story["revision"],
-                            "board_count": len(story["boards"]), "locator": locator},
-                  queued_by=OPERATOR, queued_at=NOW, phase="all")
-    store = LocalStore(tmp_path)
-    RunRecords(store, production).create(run, raw)
-    with store.open(locator) as handle:
-        assert handle.read() == original
-
-
-def pair(axis, value):
-    prop = still_version(72, "b" * 64)
-    prop.update(kind="prop", attributes={}, capabilities=["rgba_cutout"])
-    prop["content"].pop("width", None)
-    prop["content"].pop("height", None)
-    prop["content"][axis] = value
+def declared_set():
     plate = still_version(73, "c" * 64, kind="set")
-    xy = [value, 10] if axis == "width" else [10, value]
-    plate["occlusion"] = {"focal_props": [{
-        "key": "menu", "label": "menu", "depth": "separate", "layer_order": 11,
-        "source_asset_version_id": prop["id"], "hint": {"kind": "point", "xy": xy},
+    plate["content"].update(width=64, height=32)
+    plate["occlusion"] = {"foreground": [{
+        "key": "counter", "layer_order": 11,
+        "mask": {"version_id": ident("asv", 72), "sha256": "b" * 64,
+                 "still_sha256": "c" * 64, "width": 64, "height": 32},
     }]}
-    return prop, plate
+    return plate
 
 
 def request(document):
@@ -88,41 +35,74 @@ def request(document):
                           version_id=version.id, asset_id=asset.id)
 
 
-@pytest.mark.parametrize("axis", ["width", "height"])
-@pytest.mark.parametrize("set_first", [False, True])
-@pytest.mark.parametrize("empty", [[], None, {"foreground": [], "focal_props": None}])
-def test_version_documents_bound_each_known_source_axis_in_either_order(axis, set_first, empty):
-    prop, plate = pair(axis, 32)
-    prop["occlusion"] = empty
-    documents = [plate, prop] if set_first else [prop, plate]
+@pytest.mark.parametrize("optional", [[], None, {}, {"foreground": []}, {"foreground": None}])
+def test_asset_version_normalizes_absent_declarations(optional):
+    doc = example("asset-version-cast.json")
+    with_empty = {**doc, "occlusion": optional}
+    library = Library.from_version_documents([with_empty], context="write")
+    assert library.documents() == [doc]
+    typed = AssetVersion.from_document(with_empty)
+    assert version_document(typed, Asset.from_version_document(doc)) == doc
+
+
+@pytest.mark.parametrize("field", ["version_id", "sha256", "still_sha256", "width", "height"])
+def test_mask_pin_requires_its_complete_identity_at_model_construction(field):
+    doc = declared_set()
+    del doc["occlusion"]["foreground"][0]["mask"][field]
+    with pytest.raises(ContractError):
+        AssetVersion.from_document(doc)
+    with pytest.raises(ContractError):
+        Library.from_version_documents([doc], context="write")
+
+
+@pytest.mark.parametrize(("field", "value"), [
+    ("label", "counter"), ("hint", {"kind": "point", "xy": [0, 0]}),
+])
+def test_roles_reject_fields_outside_the_mask_declaration(field, value):
+    doc = declared_set()
+    doc["occlusion"]["foreground"][0][field] = value
+    with pytest.raises(ContractError):
+        AssetVersion.from_document(doc)
+
+
+def test_declarations_reject_focal_props():
+    doc = declared_set()
+    doc["occlusion"]["focal_props"] = []
+    with pytest.raises(ContractError):
+        AssetVersion.from_document(doc)
+
+
+@pytest.mark.parametrize(("field", "value", "code"), [
+    ("still_sha256", "d" * 64, "occlusion.mask_stale"),
+    ("width", 63, "occlusion.mask_size"),
+    ("height", 31, "occlusion.mask_size"),
+])
+def test_mask_declarations_pin_the_original_set_still(field, value, code):
+    doc = declared_set()
+    doc["occlusion"]["foreground"][0]["mask"][field] = value
     with pytest.raises(ContractError) as error:
-        Library.from_version_documents(documents, context="write")
-    assert error.value.violations[0].path == "/occlusion/focal_props/0/hint/xy"
+        AssetVersion.from_document(doc)
+    assert error.value.violations[0].rule == code
 
 
-@pytest.mark.parametrize("axis", ["width", "height"])
-@pytest.mark.parametrize("set_first", [False, True])
-@pytest.mark.parametrize("idempotent", [False, True])
-def test_import_bounds_follow_the_resolved_id_and_each_known_axis(axis, set_first, idempotent):
-    prop_doc, plate_doc = pair(axis, 32)
-    prop, plate = request(prop_doc), request(plate_doc)
-    library = Library()
-    if idempotent:
-        legacy = replace(prop, content=replace(prop.content, width=None, height=None))
-        library = import_version(library, legacy, by=BY, now=NOW).library
-        prop = replace(prop, version_id=None)
-    ordered = [plate, prop] if set_first else [prop, plate]
+@pytest.mark.parametrize("field", ["key", "layer_order"])
+def test_roles_have_unique_keys_and_orders(field):
+    doc = declared_set()
+    [first] = doc["occlusion"]["foreground"]
+    second = deepcopy(first)
+    second["key"], second["layer_order"] = "railing", 12
+    second[field] = first[field]
+    doc["occlusion"]["foreground"].append(second)
     with pytest.raises(ContractError) as error:
-        import_all(library, ordered, by=BY, now=NOW)
-    assert error.value.violations[0].path == "/occlusion/focal_props/0/hint/xy"
+        AssetVersion.from_document(doc)
+    assert error.value.violations[0].rule == "ref.duplicate"
 
 
-def test_declaration_rejects_a_reversed_box_before_importing():
-    prop, plate = pair("width", 32)
-    plate["occlusion"]["focal_props"][0]["hint"] = {"kind": "box", "xyxy": [20, 6, 10, 18]}
-    with pytest.raises(ContractError) as error:
-        import_all(Library(), [request(prop), request(plate)], by=BY, now=NOW)
-    assert error.value.violations[0].path == "/occlusion/focal_props/0/hint/xyxy"
+def test_model_canonicalizes_an_integral_layer_order_for_the_renderer():
+    doc = declared_set()
+    doc["occlusion"]["foreground"][0]["layer_order"] = 11.0
+    model = AssetVersion.from_document(doc)
+    assert type(model.occlusion["foreground"][0]["layer_order"]) is int
 
 
 def test_legacy_story_nine_boards_and_three_versions_match_pinned_main():
@@ -158,15 +138,12 @@ def test_legacy_story_nine_boards_and_three_versions_match_pinned_main():
         assert (digest(document), library.pin(document["id"])) == (version_hash, pin)
 
 
+
 def test_changed_declaration_makes_a_new_immutable_set_version_with_the_same_plate_bytes():
-    prop, plate = pair("width", 32)
-    hint = plate["occlusion"]["focal_props"][0]["hint"]
-    hint["xy"] = [10, 10]
+    plate = declared_set()
     base = import_version(Library(), request(plate), by=BY, now=NOW)
-    changed = request(plate)
-    hint["xy"] = [11, 10]
+    plate["occlusion"]["foreground"][0]["layer_order"] = 12
     revised = replace(request(plate), version_id=None)
-    assert changed.occlusion != revised.occlusion
     new = import_version(base.library, revised, by=BY, now=NOW)
     assert new.created and new.version.number == 2
     assert base.version.content == new.version.content

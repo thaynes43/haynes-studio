@@ -12,29 +12,22 @@ from uuid import uuid4
 
 import sqlalchemy as sa
 
+from haynes_studio.build.prebuild import require_frozen_roles, snapshot_bytes
 from haynes_studio.build.run import advance, new_run, update
-from haynes_studio.build.prebuild import canonical_snapshot, snapshot_bytes
-from haynes_studio.build.validate import validate_run_snapshot
 from haynes_studio.canonical.ids import Minter
-from haynes_studio.canonical.model import Story
-from haynes_studio.errors import ContractError, Violation, blocking
-from haynes_studio.layered import visibility
-from haynes_studio.layered.errors import LayeredError
-from haynes_studio.layered.foreground import resolve_roles
+from haynes_studio.layered.foreground import MASK_MISSING
 from haynes_studio.library import Library
-from haynes_studio.library.model import AssetVersion
 from haynes_studio.store import blob_locator, canonical_json
 
 from .problems import NotFound, StaleRevision
 from .queue_controls import is_paused
-from .schema import run_check_overrides, run_lane, run_wan_attempts, runs
+from .schema import asset_versions, run_check_overrides, run_lane, run_wan_attempts, runs
 
 ACTIVE = ("queued", "running", "held")
 PENDING = ("reserved", "sent")
 LEASE = timedelta(seconds=90)
 BACKOFF = timedelta(seconds=15)
 CHECK_OVERRIDABLE = "layered.decal_gate"
-OVERRIDABLE_CHECKS = (CHECK_OVERRIDABLE, visibility.CHECK)
 STATUS = runs.c.document["status"].astext
 ATTEMPTS = run_wan_attempts.c
 
@@ -72,23 +65,24 @@ def lookup_idempotency(conn, story_id, actor, key, story_revision):
     return row
 
 
-def enqueue(conn, *, snapshot, snapshot_sha256, library, actor, key, estimate, answers=None):
-    original = snapshot
-    snapshot = canonical_snapshot(snapshot)
-    library = [AssetVersion.canonical_document(version) for version in library]
+def enqueue(conn, *, snapshot, snapshot_sha256, library, actor, key, estimate, answers=None, store=None):
     story = snapshot["story"]
-    approvals = snapshot.get("visibility_overrides", ())
-    if (snapshot != original or approvals
-            or any(board["layout"].get("check_poses") for board in story["boards"])
-            or any(version.get("occlusion") for version in library)):
-        problems = blocking(validate_run_snapshot(snapshot))
-        if problems:
-            raise ContractError("<run snapshot>", problems)
-        _validate_frozen_roles(snapshot, Library.from_version_documents(library))
-        if snapshot_bytes(snapshot)[1] != snapshot_sha256:
-            raise QueueConflict("run.snapshot_changed", "The supplied pin must name the canonical snapshot")
-        if approvals and not set(approvals).issubset(visibility_approvals(conn, story["id"], snapshot)):
-            raise QueueConflict("check.not_overridable", "No human approval matches those frozen inputs")
+    selected = (story.get("set") or {}).get("asset_version_id")
+    declared = (conn.scalar(sa.select(asset_versions.c.document["occlusion"]).where(
+        asset_versions.c.id == selected,
+    )) if selected is not None else None)
+    if declared or any("occlusion" in version for version in library):
+        frozen = Library.from_version_documents(library, context="write")
+        library = [frozen.document(version["id"]) for version in library]
+        set_version = frozen.get(selected)
+        if declared and (set_version is None or frozen.document(selected).get("occlusion") != declared):
+            raise QueueConflict("run.snapshot_changed", "Freeze the selected set version's foreground declaration")
+        if set_version is not None and set_version.occlusion is not None:
+            if store is None:
+                raise QueueConflict(MASK_MISSING, "A store is required to verify the pinned role mask bytes")
+            require_frozen_roles(snapshot, frozen, store=store)
+            if snapshot_bytes(snapshot)[1] != snapshot_sha256:
+                raise QueueConflict("run.snapshot_changed", "The supplied hash must name the canonical snapshot")
     production_id = story["production_id"]
     position = conn.scalar(sa.select(run_lane.c.next_position).with_for_update())
     conn.execute(run_lane.update().values(next_position=position + 1))
@@ -110,26 +104,6 @@ def enqueue(conn, *, snapshot, snapshot_sha256, library, actor, key, estimate, a
         idempotency_key=key, snapshot=snapshot, frozen_library=library,
         estimate_methods=estimate["methods"], document=run,
     ).returning(runs)).mappings().one()
-
-
-def _validate_frozen_roles(snapshot, library):
-    pins = {pin["id"]: pin for pin in snapshot["resolved_asset_versions"]}
-    for version in library.versions.values():
-        if version.occlusion is not None and pins.get(version.id, {}).get(
-            "occlusion_signature"
-        ) != library.pin(version.id):
-            raise QueueConflict("run.snapshot_changed", "The snapshot must pin the frozen set declaration")
-    story = Story.from_document(snapshot["story"])
-    version = None if story.set is None else library.get(story.set.asset_version_id)
-    try:
-        roles = resolve_roles(story, version, library)
-    except LayeredError as error:
-        raise ContractError("<run snapshot>", [error.violation(error.where or "/story/set")]) from error
-    for role in roles:
-        if pins.get(role.version_id) != role.snapshot_entry():
-            raise ContractError("<run snapshot>", [Violation(
-                "occlusion.mask_stale", "/resolved_asset_versions", "The snapshot must pin the role mask content",
-            )])
 
 
 def get(conn, run_id, *, lock=False, snapshot_pin_only=False):
@@ -405,47 +379,24 @@ def finish(conn, row, now, actor, target, reason, fields, *, wait_reason=None,
     return _save(conn, row, document=doc, **defer, **_clear_claim())
 
 
-def visibility_approvals(conn, story_id, snapshot):
-    """An override belongs to the same frozen build inputs and measured artifact."""
-    def inputs(doc):
-        return snapshot_bytes({key: value for key, value in doc.items()
-                               if key != "visibility_overrides"})[0]
-
-    expected = inputs(snapshot)
-    candidates = conn.execute(sa.select(run_check_overrides.c.artifact, runs.c.snapshot).join(
-        runs, runs.c.id == run_check_overrides.c.run_id,
-    ).where(
-        runs.c.story_id == story_id,
-        run_check_overrides.c.document["check"].astext == visibility.CHECK,
-        run_check_overrides.c.document["by"]["kind"].astext == "human",
-    ))
-    return sorted({artifact for artifact, previous in candidates if inputs(previous) == expected})
-
-
-def record_override(conn, row, revision, *, artifact, reason, actor, check=CHECK_OVERRIDABLE):
+def record_override(conn, row, revision, *, artifact, reason, actor):
     if row["revision"] != revision:
         raise StaleRevision(row["revision"])
     doc = row["document"]
     checks = [*(doc["checks"] or []), *(check for stage in doc["stages"]
                                         for check in (stage.get("checks") or []))]
-    matched = next((entry for entry in checks if entry["check"] == check
-                    and entry.get("artifact") == artifact and entry["result"] == "fail"), None)
-    if doc["status"] not in ("failed", "succeeded") or matched is None or check not in OVERRIDABLE_CHECKS:
-        raise QueueConflict("check.not_overridable", "This artifact has no failed, overridable check of that kind")
-    evidence = None
-    if check == visibility.CHECK:
-        evidence = matched.get("measured")
-        if actor.get("kind") != "human" or not visibility.reviewable(evidence, artifact):
-            raise QueueConflict("check.not_overridable", "Only a person may approve a measured uncertain result")
+    if doc["status"] not in ("failed", "succeeded") or not any(
+        check["check"] == CHECK_OVERRIDABLE and check.get("artifact") == artifact and
+        check["result"] == "fail" for check in checks
+    ):
+        raise QueueConflict("check.not_overridable", "This artifact has no failed, overridable decal check")
     exists = conn.scalar(sa.select(sa.exists().where(
         run_check_overrides.c.run_id == row["id"], run_check_overrides.c.artifact == artifact,
     )))
     if exists:
         raise QueueConflict("check.override_exists", "This artifact already has an override")
-    override = {"check": check, "artifact": artifact, "reason": reason,
+    override = {"check": CHECK_OVERRIDABLE, "artifact": artifact, "reason": reason,
                 "by": actor, "at": timestamp(database_time(conn))}
-    if evidence is not None:
-        override["evidence"] = evidence
     conn.execute(run_check_overrides.insert().values(run_id=row["id"], artifact=artifact, document=override))
     _save(conn, row)
     return override

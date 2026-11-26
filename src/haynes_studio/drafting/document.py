@@ -8,11 +8,9 @@ from dataclasses import dataclass, replace
 from haynes_studio.canonical import validate_board
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.canonical.jsonvalues import normalize, too_deep
-from haynes_studio.canonical.model import Layout
 from haynes_studio.errors import ContractError, Violation, pointer
 from haynes_studio.jsonio import freeze, parse_strict
 from haynes_studio.schemas import schema_violations
-from haynes_studio.store import canonical_json
 
 SCHEMA = "studio.agent-draft/v1"
 MAX_DOCUMENT_BYTES = 4 * 1024 * 1024
@@ -63,19 +61,6 @@ class Draft:
         if any((story_set or {}).get(pin) != (self.set_pins or {}).get(pin) for pin in pins):
             raise _invalid("draft.set_changed", "/set", "The story's pinned set differs from the draft")
 
-    @staticmethod
-    def canonical_bytes(data: bytes) -> bytes:
-        """Canonicalize the board fields in validated storyboard archive text."""
-        document = parse_strict(data)
-        changed = False
-        for item in document["boards"]:
-            fields = item["fields"]
-            layout = Layout.canonical_document(fields["layout"])
-            if canonical_json(layout) != canonical_json(fields["layout"]):
-                fields["layout"] = layout
-                changed = True
-        return canonical_json(document) if changed else data
-
     @classmethod
     def parse(cls, data: bytes) -> "Draft":
         if len(data) > MAX_DOCUMENT_BYTES:
@@ -112,7 +97,6 @@ def _invalid(rule: str, path: str, message: str) -> ContractError:
 
 def _compile(item: dict, index: int, story_id: str, minter: Minter) -> Proposal:
     fields = item["fields"]
-    fields["layout"] = Layout.canonical_document(fields["layout"])
     fields.setdefault("seeds", {})
     fields.setdefault("photo", {"prompt": None, "input_asset_version_ids": []})
     fields["photo"]["current_version_id"] = None

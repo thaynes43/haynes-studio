@@ -129,9 +129,11 @@ def check_segment(inputs: Mapping[str, Any]) -> None:
         pins = fg["roles"]
         if (set(fg) != {"roles"} or set_layer.get("loop") or not isinstance(pins, (list, tuple))
                 or not 1 <= len(pins) <= 16 or any(
-                    not isinstance(pin, Mapping) or set(pin) != {"key", "layer_order", "sha256"}
+                    not isinstance(pin, Mapping) or set(pin) != {"key", "layer_order", "sha256", "width", "height"}
                     or not isinstance(pin["key"], str) or not is_sha256(pin["sha256"])
                     or not _int(pin["layer_order"]) or not 1 <= pin["layer_order"] <= 1024
+                    or not _int(pin["width"]) or not _int(pin["height"])
+                    or pin["width"] < 1 or pin["height"] < 1
                     for pin in pins
                 ) or len({pin["layer_order"] for pin in pins}) != len(pins)
                 or len({pin["key"] for pin in pins}) != len(pins)):
@@ -298,6 +300,7 @@ class LayeredRenderer(SegmentRenderer):
         used: list[set[int]] = [set() for _ in layers]
         for n in range(request.frames):
             bg = background.frame(n)
+
             def dolls():
                 for i, layer in enumerate(layers):
                     index = layer.index(n)
@@ -316,11 +319,8 @@ class LayeredRenderer(SegmentRenderer):
 
             frame = compose.composite(bg, dolls(), roles=roles, legacy_alpha=fg_alpha)
             yield np.asarray(compose.camera(frame, camera, n / DELIVERY_FPS))
-        set_report = background.report()
-        if roles:
-            set_report["foreground_roles"] = [dict(pin) for pin in request.inputs["foreground"]["roles"]]
         self.reports[request.key] = LayeredReport(
-            key=request.key, checks=tuple(checks), set=set_report,
+            key=request.key, checks=tuple(checks), set=background.report(),
             layers=tuple({"slot": layer.item["slot"], "role": layer.item["role"],
                           "play": layer.item["play"], "clip": layer.item["clip"],
                           "keyed": layer.item["keyed"], "phase": layer.item["phase"],

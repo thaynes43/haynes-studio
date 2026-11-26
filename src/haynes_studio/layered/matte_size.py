@@ -34,13 +34,12 @@ class MatteSize:
             return cls((x0, y0, x1, y1), scale)
         raise AdapterError(SHAPE_INVALID, "matting.size", reason)
 
-    def sprite(self, image: Image, *, source_support: tuple[int, int, int, int] | None = None
-               ) -> tuple[Image, tuple[int, int], tuple[int, int]]:
+    def sprite(self, image: Image) -> tuple[Image, tuple[int, int], tuple[int, int]]:
         """Return the resized sprite, its silhouette size and its inset from the sprite origin."""
         x0, y0, x1, y1 = self.box
         # Trimming transparent padding is lossless. Keep all nonzero alpha,
         # including fractional hair below the measurement threshold.
-        support = source_support if source_support is not None else image.getchannel("A").getbbox()
+        support = image.getchannel("A").getbbox()
         left, top, right, bottom = support
         width = max(1, round((x1 - x0) * self.scale))
         height = round((y1 - y0) * self.scale)

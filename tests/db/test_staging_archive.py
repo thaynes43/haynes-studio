@@ -755,16 +755,3 @@ def test_archive_migration_downgrades_and_upgrades_cleanly(owner_engine, runtime
         inspector = sa.inspect(conn)
         assert inspector.has_table("archive_records")
         assert inspector.has_table("archive_versions")
-
-
-@pytest.mark.parametrize("empty", [[], None])
-def test_storyboard_archive_normalizes_empty_visibility_declarations(studio, empty):
-    document = draft(studio, "Fixture", "one")
-    document["boards"][0]["fields"]["layout"]["check_poses"] = empty
-    stored = stage(studio, document)
-    version_id = stored["version"]["id"]
-    response = client(studio.api).get(f"/v1/archive-versions/{version_id}", headers=studio.headers)
-    assert response.status_code == 200, response.text
-    text = response.json()["text"]
-    assert "check_poses" not in json.loads(text)["boards"][0]["fields"]["layout"]
-    assert hashlib.sha256(text.encode()).hexdigest() == stored["version"]["sha256"]

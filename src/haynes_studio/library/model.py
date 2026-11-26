@@ -26,8 +26,9 @@ from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import Any
 
-from haynes_studio.canonical.jsonvalues import normalize
+from haynes_studio.canonical.jsonvalues import normalize, too_deep
 from haynes_studio.canonical.model import Principal, to_document
+from haynes_studio.errors import ContractError, Violation
 from haynes_studio.jsonio import freeze, thaw
 
 ASSET_SCHEMA = "studio.asset/v1"
@@ -301,7 +302,18 @@ class AssetVersion:
     occlusion: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
+        if too_deep(self.occlusion, limit=62):
+            raise ContractError(self.id, [Violation(
+                "schema.invalid", "/occlusion", "the declaration nests too deeply",
+            )])
         declaration = self.canonical_document({"occlusion": self.occlusion}).get("occlusion")
+        if declaration is not None:
+            # Import locally: validators also read this module's legacy constants.
+            from haynes_studio.library.validate import validate_occlusion
+
+            problems = validate_occlusion(self.kind, self.capabilities, self.content, declaration)
+            if problems:
+                raise ContractError(self.id, problems)
         object.__setattr__(self, "occlusion", freeze(declaration))
 
     @staticmethod
@@ -311,16 +323,8 @@ class AssetVersion:
             return out
         block = normalize(out["occlusion"])
         if isinstance(block, dict):
-            for group in ("foreground", "focal_props"):
-                targets = block.get(group)
-                if targets is None or targets == []:
-                    block.pop(group, None)
-                elif isinstance(targets, list):
-                    for target in targets:
-                        if isinstance(target, dict):
-                            for key in ("hint", "label") if group == "foreground" else ("hint",):
-                                if target.get(key) is None:
-                                    target.pop(key, None)
+            if block.get("foreground") is None or block.get("foreground") == []:
+                block.pop("foreground", None)
         if block is None or block in ({}, []):
             out.pop("occlusion")
         else:

@@ -24,7 +24,7 @@ from haynes_studio.canonical.facts import Facts
 from haynes_studio.canonical.ids import is_id
 from haynes_studio.canonical.jsonvalues import MAX_DEPTH, too_deep
 from haynes_studio.canonical.legacy_import import import_manifest
-from haynes_studio.canonical.model import Principal, Story, to_document
+from haynes_studio.canonical.model import Principal, to_document
 from haynes_studio.errors import ContractError, Violation
 from haynes_studio.jsonio import read_json
 from haynes_studio.legacy import manifest as legacy_manifest
@@ -656,8 +656,7 @@ def _voice(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
                                licences=load_licence_register(args.register))
     out_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
-    for name, document in ((STORY_OUT, Story.canonical_document(result.story)),
-                           (LIBRARY_OUT, result.library.documents())):
+    for name, document in ((STORY_OUT, result.story), (LIBRARY_OUT, result.library.documents())):
         try:
             _create(out_dir / name, document)
         except OSError as error:

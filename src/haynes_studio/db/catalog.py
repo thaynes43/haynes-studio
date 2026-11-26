@@ -10,7 +10,7 @@ from haynes_studio.delivery.model import MASTER_SIZES
 from haynes_studio.delivery.validate import validate_delivery
 from haynes_studio.errors import ContractError, Violation
 from haynes_studio.library.library import Library, promote
-from haynes_studio.library.model import BOARD, CANDIDATE, PROMOTED, Asset, AssetVersion, Content, version_document
+from haynes_studio.library.model import BOARD, CANDIDATE, PROMOTED, Asset, AssetVersion, version_document
 from haynes_studio.library.validate import validate_asset, validate_asset_version
 from haynes_studio.store.layout import blob_locator, is_sha256, parse_locator
 
@@ -141,15 +141,7 @@ def record_asset_version(conn: sa.Connection, document: dict, *, asset: Asset | 
     For D42 the server records the received-byte digest alongside the canonical
     digest of the stored, stripped content. Legacy uploads may have only the latter.
     """
-    def source_content(version_id):
-        content = conn.scalar(sa.select(asset_versions.c.document["content"]).join(
-            assets, asset_versions.c.asset_id == assets.c.id,
-        ).where(asset_versions.c.id == version_id, assets.c.kind == "prop",
-                _catalog_scope({document["scope"]["production_id"]})))
-        return Content.from_document(content)
-
-    require_valid(validate_asset_version(document, source_content=source_content))
-    document = AssetVersion.canonical_document(document)
+    require_valid(validate_asset_version(document))
     version = AssetVersion.from_document(document)
     if received_sha256 is not None and (
         version.kind != "photo" or version.origin != "uploaded" or not is_sha256(received_sha256)
@@ -159,8 +151,10 @@ def record_asset_version(conn: sa.Connection, document: dict, *, asset: Asset | 
         )])
     asset = asset or Asset.from_version_document(document)
     require_valid(validate_asset(asset.to_document()))
-    if version_document(version, asset) != document:
+    canonical = version_document(version, asset)
+    if canonical != AssetVersion.canonical_document(document):
         raise _scope_error("/asset_id", "The joined asset and version fields disagree")
+    document = canonical
     _check_asset_scope(conn, asset)
     scope = asset.scope
     conn.execute(insert(assets).values(

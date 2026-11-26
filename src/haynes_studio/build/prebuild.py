@@ -32,19 +32,17 @@ from haynes_studio.cache.plan import LayeredMotion, Toolchain
 from haynes_studio.canonical import Facts, Story, load_story
 from haynes_studio.canonical.derive import board_clock
 from haynes_studio.canonical.validate import WRITE
-from haynes_studio.errors import WARNING, ContractError, blocking
+from haynes_studio.errors import WARNING, ContractError, Violation, blocking
 from haynes_studio.formats.recipe import PIN_PATH, method_violation
 from haynes_studio.jsonio import thaw
 from haynes_studio.layered import check_board as layered_check
-from haynes_studio.layered import visibility
 from haynes_studio.layered.errors import LayeredError
-from haynes_studio.layered.foreground import RoleMask, UNSUPPORTED, check_size, read_mask, resolve_roles
-from haynes_studio.layered.keyed import read_verified
-from haynes_studio.layered.photo import PhotoScene, _image
+from haynes_studio.layered.foreground import (
+    MASK_MISSING, MASK_STALE, RoleMask, check_board_roles, check_role_images, resolve_roles,
+)
 from haynes_studio.layered.pin import pin_story
 from haynes_studio.library import Library
-from haynes_studio.library.model import locator_for, version_document
-from haynes_studio.library.validate import validate_asset_version
+from haynes_studio.library.model import locator_for
 from haynes_studio.library.resolve import Resolution, resolve
 from haynes_studio.stages.preflight import (
     DEFINITION_ONLY,
@@ -56,7 +54,7 @@ from haynes_studio.stages.preflight import (
     preflight,
 )
 from haynes_studio.store import PRESENT, Store, StoreError, canonical_json
-from haynes_studio.photo.plan import photo_facts, plan_photo
+from haynes_studio.photo.plan import photo_facts
 from haynes_studio.voice import voice_facts
 from haynes_studio.wholeframe import check_board as wholeframe_check
 
@@ -78,7 +76,6 @@ class Prepared:
     report: PreflightReport
     format_version: Mapping[str, Any] | None = None
     foreground_roles: tuple[RoleMask, ...] = ()
-    visibility_evidence: tuple[dict[str, Any], ...] = ()
 
     @property
     def ok(self) -> bool:
@@ -95,7 +92,7 @@ def draft_document(story: Mapping[str, Any]) -> dict[str, Any]:
     out.pop("derived", None)
     out["boards"] = [{k: v for k, v in board.items() if k != "derived"}
                      for board in out.get("boards") or []]
-    return Story.canonical_document(out)
+    return out
 
 
 def resolved_versions(resolution: Resolution, library: Library,
@@ -159,105 +156,80 @@ def _metadata_present(_locator, _sha):
     return PRESENT
 
 
-def _check_role_images(version, roles, library, store):
-    content = version.content
-    still = _image(read_verified(lambda _: store.open(content.locator), content.sha256,
-                                 "the set still"), "the set still")
-    document = version_document(version, library.asset_of(version.id))
-    document["content"].update(width=still.width, height=still.height)
-    problems = blocking(validate_asset_version(document))
-    if problems:
-        raise ContractError(version.id, problems)
-    for role in roles:
-        path = f"/set/occlusion/foreground/{role.key}/mask"
-        check_size(role.content, still.size, where=path)
-        read_mask(lambda _, content=role.content: store.open(content.locator),
-                  role.content.sha256, still.size, where=path)
-
-
-def _visibility_checks(story, library, store, mask_store, motion, frame_size, approved):
-    """Apply the opt-in only to scenes the production photo and film both support."""
+def _foreground_checks(story: Story, library: Library, motion: LayeredMotion,
+                       store: Store | None) -> tuple[tuple[RoleMask, ...], list[Problem]]:
     version = None if story.set is None else library.get(story.set.asset_version_id)
-    problems, evidence = [], []
     try:
         roles = resolve_roles(story, version, library)
-        if roles and mask_store is not None:
-            _check_role_images(version, roles, library, mask_store)
-    except LayeredError as error:
-        path = error.where or "/set/occlusion"
-        return (), (), [Problem(error.code, error.status, path, error.message, field=path)]
-    except ContractError as error:
-        return (), (), [Problem(v.rule, v.status, "/set" + v.path, v.message, field="/set" + v.path)
-                        for v in error.violations]
-    except StoreError as error:
-        return (), (), [Problem(error.code, "invalid", "/set/occlusion", error.message,
-                                field="/set/occlusion")]
+        if roles and store is not None:
+            check_role_images(version.content, roles, store)
+    except (LayeredError, StoreError) as error:
+        path = getattr(error, "where", "") or ""
+        if not path.startswith("/set/"):
+            path = "/set/occlusion"
+        return (), [Problem(error.code, getattr(error, "status", "invalid"), path, error.message, field=path)]
+    if not roles:
+        return (), []
+
+    problems = []
     for index, board in enumerate(story.boards or ()):
-        poses = board.layout.check_poses or ()
-        if not (roles or poses):
-            continue
-
-        def problem(code, field, message):
-            path = field if field.startswith("/set") else f"/boards/{index}{field}"
-            return Problem(code, "invalid", path, message, board_id=board.id,
-                           board_number=board.number, field=field,
-                           legacy_shot=board.origin.legacy_shot if board.origin else None)
-
-        board_motion = None if motion is None else motion.boards.get(board.id)
-        if board.method.layer != "layered" or any(pose["frame"] != 0 for pose in poses):
-            problems.append(problem(UNSUPPORTED, "/layout/check_poses",
-                                    "visibility checks use the layered reference photo (frame 0)"))
-            continue
-        if roles and board.layout.foreground and board_motion is not None and board_motion.set is not None:
-            problems.append(problem(UNSUPPORTED, "/set/occlusion",
-                                    "an enabled role mask needs a static set still"))
-            continue
-        cast = {entry.slot: library.get(entry.asset_version_id) for entry in board.cast}
-        bounds = []
-        for p, pose in enumerate(poses):
-            for t, target in enumerate(pose.get("targets", ())):
-                box = target.get("box_xyxy")
-                version = cast[target["slot"]]
-                content = None if version is None else version.content
-                if (box is not None and content is not None
-                        and ((content.width is not None and box[2] > content.width)
-                             or (content.height is not None and box[3] > content.height))):
-                    bounds.append(problem(visibility.BOUNDS, f"/layout/check_poses/{p}/targets/{t}/box_xyxy",
-                                          "the target box must fit the cast still"))
-        if bounds:
-            problems.extend(bounds)
-            continue
-        if store is None:
-            continue
+        board_motion = motion.boards.get(board.id)
+        set_loop = (story.set.motion_asset_version_id is not None
+                    or (board_motion is not None and board_motion.set is not None))
         try:
-            plan = plan_photo(story, board, library, frame_size=frame_size)
-            sources = {source.content.sha256: source.content.locator for source in plan.sources}
-            scene = PhotoScene(plan.layers, lambda digest: store.open(sources[digest]))
-            checks = visibility.measure(scene, board)
-        except (LayeredError, StoreError) as error:
-            field = getattr(error, "where", None) or "/layout/check_poses"
-            problems.append(problem(error.code, field if field.startswith("/") else "/layout/check_poses",
-                                    error.message))
-            continue
-        except ContractError as error:
-            problems.extend(problem(v.rule, v.path, v.message) for v in error.violations)
-            continue
-        evidence.extend(checks)
-        for check in checks:
-            if check["status"] == "hidden":
-                problems.append(problem(visibility.HIDDEN, "/layout/check_poses",
-                                        f"slot {check['target']['slot']} is hidden in the reference photo"))
-            elif check["status"] == "uncertain" and check["artifact"] not in approved:
-                problems.append(problem(visibility.REVIEW, "/layout/check_poses",
-                                        "a person must review the measured reference photo visibility"))
-    return roles, tuple(evidence), problems
+            check_board_roles(board, roles, set_loop=set_loop)
+        except LayeredError as error:
+            field = error.where
+            path = field if field.startswith("/set/") else f"/boards/{index}{field}"
+            problems.append(Problem(error.code, error.status, path, error.message, field=field,
+                                    board_id=board.id, board_number=board.number,
+                                    legacy_shot=board.origin.legacy_shot if board.origin else None))
+    return roles, problems
+
+
+def require_frozen_roles(snapshot: Mapping[str, Any], library: Library, *,
+                         store: Store | None = None) -> tuple[RoleMask, ...]:
+    """Check the selected set, its render path and each mask against the frozen pins."""
+    document = snapshot["story"]
+    selected = (document.get("set") or {}).get("asset_version_id")
+    version = library.get(selected) if selected is not None else None
+    if version is None or version.occlusion is None:
+        return ()
+    problems = blocking(validate_run_snapshot(snapshot, context=WRITE))
+    if problems:
+        raise ContractError("<run snapshot>", problems)
+    pins = {pin["id"]: pin for pin in snapshot["resolved_asset_versions"]}
+    if pins[version.id].get("sha256") != version.content.sha256:
+        problems.append(Violation(MASK_STALE, "/resolved_asset_versions",
+                                  "The snapshot set hash differs from the declared set still"))
+    for role in version.occlusion["foreground"]:
+        pin = role["mask"]
+        if pin["version_id"] not in pins:
+            problems.append(Violation(MASK_MISSING, "/resolved_asset_versions",
+                                      "The snapshot must pin each declared role mask"))
+        elif pins[pin["version_id"]].get("sha256") != pin["sha256"]:
+            problems.append(Violation(MASK_STALE, "/resolved_asset_versions",
+                                      "The snapshot mask hash differs from the declaration"))
+    if problems:
+        raise ContractError("<run snapshot>", problems)
+
+    story = Story.from_document(document)
+    motion = pin_story(document, library, _metadata_present)
+    roles, issues = _foreground_checks(story, library, motion, store)
+    for role in roles:
+        if pins[role.version_id] != role.snapshot_entry():
+            problems.append(Violation(MASK_STALE, "/resolved_asset_versions",
+                                      "The snapshot must pin the resolved role mask version"))
+    problems.extend(Violation(p.rule, p.path, p.message, p.status) for p in issues)
+    if problems:
+        raise ContractError("<run snapshot>", problems)
+    return roles
 
 
 def prepare(document: Mapping[str, Any], *, library: Library, store: Store | None,
             toolchain: Toolchain, frame_size: tuple[int, int], current_engine: str,
             jobs: Iterable[Any] = (), check_photo_currency: bool = False,
-            format_version: Mapping[str, Any] | None = None, mask_store: Store | None = None,
-            visibility_overrides: Iterable[str] = ()) -> Prepared:
+            format_version: Mapping[str, Any] | None = None, mask_store: Store | None = None) -> Prepared:
     """Run the pre-build check of a draft story (boards embedded). Never raises for a
     story that cannot be built: every problem is in ``report``. With no store,
     resolve declared content identities and require the worker to verify the bytes."""
@@ -298,12 +270,9 @@ def prepare(document: Mapping[str, Any], *, library: Library, store: Store | Non
     if story.boards is not None:
         problems += _adapter_problems(story, facts=facts, motion=motion, toolchain=toolchain,
                                       frame_size=frame_size)
-    roles, evidence, occlusion_problems = _visibility_checks(
-        story, library, store, store if mask_store is None else mask_store, motion, frame_size,
-        frozenset(visibility_overrides),
-    )
-    problems += occlusion_problems
-    if roles and motion is not None:
+    roles, foreground_problems = _foreground_checks(story, library, motion, mask_store or store)
+    problems += foreground_problems
+    if roles:
         motion = replace(motion, foreground_roles=tuple(role.draw_pin() for role in roles))
     seen, unique = set(), []
     for problem in problems:  # a refusal both checks report (method.unavailable) once
@@ -315,7 +284,7 @@ def prepare(document: Mapping[str, Any], *, library: Library, store: Store | Non
     unique.sort(key=lambda p: (-1 if p.board_id is None else order.get(p.board_id, len(order)),
                                p.field, p.rule, p.message))
     return Prepared(document, library, story, facts, resolution, resolved, motion,
-                    PreflightReport(tuple(unique)), format_version, roles, evidence)
+                    PreflightReport(tuple(unique)), format_version, roles)
 
 
 def blocking_problems(problems: Iterable[Problem]) -> list[Problem]:
@@ -362,18 +331,9 @@ def make_snapshot(prepared: Prepared, library: Library, *, studio: str) -> dict[
 
 def snapshot_bytes(snapshot: Mapping[str, Any]) -> tuple[bytes, str]:
     """The snapshot's canonical JSON and its SHA-256: what the run pins."""
-    data = canonical_json(canonical_snapshot(snapshot))
+    data = canonical_json(dict(snapshot))
     return data, hashlib.sha256(data).hexdigest()
 
 
-def canonical_snapshot(snapshot: Mapping[str, Any]) -> dict[str, Any]:
-    out = dict(snapshot)
-    if isinstance(out.get("story"), Mapping):
-        out["story"] = Story.canonical_document(out["story"])
-    if out.get("visibility_overrides") in (None, []):
-        out.pop("visibility_overrides", None)
-    return out
-
-
 __all__ = ["Prepared", "blocking_problems", "draft_document", "make_snapshot",
-           "motion_versions", "prepare", "resolved_versions", "snapshot_bytes"]
+           "motion_versions", "prepare", "require_frozen_roles", "resolved_versions", "snapshot_bytes"]

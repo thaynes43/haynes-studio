@@ -116,15 +116,11 @@ class BuildWorker:
         prepared = prepare_queue(story, library, format_version=format_version)
         prepared.ensure_buildable()
         verified, _ = freeze(prepared, studio=self.studio)
-        approvals = frozen.get("visibility_overrides", [])
-        if approvals:
-            verified["visibility_overrides"] = approvals
         if snapshot_bytes(verified)[1] != digest:
             raise BuildError("run.snapshot_changed", "The frozen assets no longer match the snapshot",
                              stage="prebuild")
         return BuildInputs(story, library, self.register, studio=self.studio,
-                           image_digest=self.image_digest, format_version=format_version,
-                           visibility_overrides=tuple(approvals))
+                           image_digest=self.image_digest, format_version=format_version)
 
     def _render(self, claim, active, clips, inputs):
         s2v, i2v = WanS2VSource(clips), WanChainSource(clips)

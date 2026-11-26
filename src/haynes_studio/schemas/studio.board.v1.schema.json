@@ -255,64 +255,6 @@
         },
         "foreground": {
           "type": "boolean"
-        },
-        "check_poses": {
-          "description": "Layered reference-photo visibility. Frame 0 selects the static cast and end-camera framing.",
-          "type": [
-            "array",
-            "null"
-          ],
-          "maxItems": 16,
-          "items": {
-            "type": "object",
-            "required": [
-              "key",
-              "frame"
-            ],
-            "properties": {
-              "key": {
-                "type": "string",
-                "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
-              },
-              "frame": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "targets": {
-                "type": [
-                  "array",
-                  "null"
-                ],
-                "maxItems": 26,
-                "items": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "slot"
-                  ],
-                  "properties": {
-                    "slot": {
-                      "type": "string",
-                      "pattern": "^[a-z]$"
-                    },
-                    "box_xyxy": {
-                      "type": [
-                        "array",
-                        "null"
-                      ],
-                      "minItems": 4,
-                      "maxItems": 4,
-                      "items": {
-                        "type": "integer",
-                        "minimum": 0
-                      }
-                    }
-                  }
-                }
-              }
-            },
-            "additionalProperties": false
-          }
         }
       },
       "additionalProperties": false

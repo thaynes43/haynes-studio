@@ -1,6 +1,7 @@
 """The admin entry point refuses invalid archives before opening a destination."""
 
 import json
+from hashlib import sha256
 
 import pytest
 
@@ -12,8 +13,10 @@ from haynes_studio.importer.production_archive import verify_archive
 from haynes_studio.library import Library
 from haynes_studio.library.resolve import resolve
 from haynes_studio.library.validate import validate_asset_version
-from tests.build_story.fixtures import example
+from haynes_studio.store import LocalStore, blob_locator, canonical_json
+from tests.build_story.fixtures import World, example, ident
 from tests.importer.production_fixture import FRAMES, KIND, make_archive
+from tests.motion.fixtures import still_version
 
 
 @pytest.mark.parametrize(("damage", "error"), [
@@ -143,49 +146,79 @@ def test_resolver_skips_byte_check_for_recorded_pin(tmp_path):
     assert result.version_ids() == {fixture.asset["id"]}
 
 
-@pytest.mark.parametrize("empty", [[], None])
-def test_archive_normalizes_views_and_preserves_verified_source_pin(tmp_path, empty):
-    from hashlib import sha256
-
-    from haynes_studio.importer.production import _publish
-    from haynes_studio.store import LocalStore, blob_locator, canonical_json
-
+def test_legacy_archive_keeps_original_asset_bytes(tmp_path):
     fixture = make_archive(tmp_path / "job")
-    fixture.snapshot["story"]["boards"][0]["layout"]["check_poses"] = empty
-    original = canonical_json(fixture.snapshot)
-    digest = sha256(original).hexdigest()
-    fixture.run["snapshot"].update(
-        sha256=digest, locator=blob_locator(fixture.production_id, digest, "application/json"),
-    )
-    (fixture.root / "snapshot.json").write_bytes(original)
-    (fixture.root / "run.json").write_bytes(canonical_json(fixture.run))
-    (fixture.root / "asset-versions.json").write_bytes(canonical_json([
-        {**fixture.asset, "occlusion": {"foreground": [], "focal_props": None}},
-    ]))
+    fixture.asset["provenance"]["generator"]["params"] = {"cfg": 1.0}
+    data = canonical_json([fixture.asset])
+    (fixture.root / "asset-versions.json").write_bytes(data)
     fixture.receipt.write_bytes(canonical_json(fixture.files()))
-    store_root = tmp_path / "store"
-    store_root.mkdir()
-    store = LocalStore(store_root)
     with verify_archive(fixture.root, fixture.receipt, name=fixture.name, kind=KIND,
                         recovered=False) as archive:
-        assert "check_poses" not in archive.snapshot["story"]["boards"][0]["layout"]
-        assert "occlusion" not in archive.versions[0]
-        assert archive.marker["source_snapshot"] == fixture.run["snapshot"]
-        _publish(store, archive, replay=False)
-        with store.open(archive.snapshot_pin["locator"]) as handle:
-            assert handle.read() == canonical_json(archive.snapshot)
-        with store.open(archive.marker["source_snapshot"]["locator"]) as handle:
-            assert handle.read() == original
-        _publish(store, archive, replay=True)
+        assert canonical_json(archive.versions) == data
 
 
-def test_archive_reports_the_index_of_a_malformed_version(tmp_path):
-    from haynes_studio.importer.production_archive import ImportProblem
-    from haynes_studio.store import canonical_json
-
+@pytest.mark.parametrize(("change", "code"), [
+    ("valid", None),
+    ("missing_pin", "occlusion.mask_missing"),
+    ("wrong_hash", "occlusion.mask_stale"),
+])
+def test_archive_requires_declared_mask_ids_and_hashes_in_the_snapshot(tmp_path, monkeypatch, capsys, change, code):
     fixture = make_archive(tmp_path / "job")
-    (fixture.root / "asset-versions.json").write_bytes(canonical_json([fixture.asset, []]))
+    set_doc = still_version(73, "c" * 64, kind="set")
+    mask = still_version(72, "b" * 64)
+    cast = still_version(74, "d" * 64)
+    world = World(tmp_path, LocalStore(tmp_path))
+    world.voice(ident("asv", 75), 75, "af_heart")
+    [voice] = world.docs
+    mask.update(kind="prop", capabilities=["mask"], attributes={})
+    for item in (set_doc, mask, cast):
+        item["scope"] = {"production_id": fixture.production_id}
+        item["content"].update(width=64, height=32, locator=blob_locator(
+            fixture.production_id, item["content"]["sha256"], "image/png",
+        ))
+    set_doc["occlusion"] = {"foreground": [{
+        "key": "table", "layer_order": 15,
+        "mask": {"version_id": mask["id"], "sha256": "a" * 64 if change == "wrong_hash" else "b" * 64,
+                 "still_sha256": "c" * 64, "width": 64, "height": 32},
+    }]}
+    story = fixture.snapshot["story"]
+    story["set"] = {"asset_version_id": set_doc["id"], "motion_asset_version_id": None,
+                    "foreground_edge_px": None, "foreground_feather_px": None, "legacy_fire": None}
+    story["cast"] = [{"slot": "a", "name": "Synthetic cast", "voice_version_id": voice["id"]}]
+    board = story["boards"][0]
+    board.update(method={"layer": "layered", "motion": "i2v"}, seeds={},
+                 cast=[{"slot": "a", "asset_version_id": cast["id"]}])
+    board["layout"]["foreground"] = True
+    for item in (set_doc, mask, cast):
+        if item is mask and change == "missing_pin":
+            continue
+        fixture.snapshot["resolved_asset_versions"].append({
+            "id": item["id"], "kind": item["kind"], "sha256": item["content"]["sha256"],
+        })
+    fixture.snapshot["resolved_asset_versions"].append({
+        "id": voice["id"], "kind": "voice", "sha256": None,
+        "definition_signature": world.library().pin(voice["id"]),
+    })
+    data = canonical_json(fixture.snapshot)
+    digest = sha256(data).hexdigest()
+    fixture.run["snapshot"].update(sha256=digest, locator=blob_locator(
+        fixture.production_id, digest, "application/json",
+    ))
+    (fixture.root / "snapshot.json").write_bytes(data)
+    (fixture.root / "run.json").write_bytes(canonical_json(fixture.run))
+    versions = [fixture.asset, set_doc, mask, cast, voice]
+    (fixture.root / "asset-versions.json").write_bytes(canonical_json(versions))
     fixture.receipt.write_bytes(canonical_json(fixture.files()))
-    with pytest.raises(ImportProblem, match=r"asset-versions\.json /1$"):
-        with verify_archive(fixture.root, fixture.receipt, name=fixture.name, kind=KIND, recovered=False):
-            pytest.fail("a malformed version was accepted")
+    if code is None:
+        with verify_archive(fixture.root, fixture.receipt, name=fixture.name, kind=KIND,
+                            recovered=False) as archive:
+            assert archive.versions == versions
+        return
+    dest = tmp_path / "empty-store"
+    dest.mkdir()
+    monkeypatch.setenv("STUDIO_MIGRATION_DATABASE_URL", "unused dsn")
+    monkeypatch.setenv("STUDIO_STORE_ROOT", str(dest))
+    assert run(fixture.args()) == 1
+    result = capsys.readouterr()
+    assert result.err.strip() == f"import_production.{code} asset-versions.json"
+    assert list(dest.iterdir()) == []
