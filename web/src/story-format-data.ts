@@ -91,7 +91,8 @@ export async function patchStoryFormat(api: StudioClient, id: string, revision: 
     signal, params: { path: { id }, header: { "If-Match": `"${revision}"` } }, body,
   });
   const expected = revision + 1;
+  const etag = response.headers.get("etag");
   if (!data || data.id !== id || !Number.isSafeInteger(expected) || data.revision !== expected ||
-      response.headers.get("etag") !== `"${expected}"`) throw new ApiError(502);
+      (etag !== null && etag.replace(/^W\//, "") !== `"${expected}"`)) throw new ApiError(502);
   return expected;
 }

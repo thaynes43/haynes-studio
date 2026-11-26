@@ -39,25 +39,35 @@ describe("story format settings", () => {
   });
 
   const id = "sty_01M79V9FC00000000000000001";
-  it.each([
-    { name: "another story", body: { id: "sty_01M79V9FC00000000000000002", revision: 4 }, etag: '"4"' },
-    { name: "the sent revision", body: { id, revision: 3 }, etag: '"3"' },
-    { name: "a missing revision", body: { id }, etag: '"4"' },
-    { name: "revision 6 in the body and 4 in the ETag", body: { id, revision: 6 }, etag: '"4"' },
-    { name: "the next revision only in the body", body: { id, revision: 4 }, etag: '"6"' },
-    { name: "a matching ETag that skips the next revision", body: { id, revision: 6 }, etag: '"6"' },
-    { name: "no ETag", body: { id, revision: 4 }, etag: undefined },
-  ])("refuses a successful PATCH response with $name", async ({ body, etag }) => {
+  async function saveWithReply(body: { id: string; revision?: number }, etag?: string) {
     const { signal } = new AbortController();
     const api = createStudioApi("https://studio.example.invalid", signal, () => {}, async (input) => {
       const request = input as Request;
       if (new URL(request.url).pathname === "/v1/me") {
         return Response.json({ principal: { kind: "human", iss: "issuer", sub: "person" }, csrf_token: "csrf" });
       }
-      return Response.json(body, { headers: etag ? { etag } : undefined });
+      return Response.json(body, { headers: etag === undefined ? undefined : { etag } });
     });
     await api.connect();
-    await expect(patchStoryFormat(api.client, id, 3, { format_version_id: pinned.format_version_id }, signal))
-      .rejects.toMatchObject({ status: 502 });
+    return patchStoryFormat(api.client, id, 3, { format_version_id: pinned.format_version_id }, signal);
+  }
+
+  it.each([
+    { name: "a matching strong ETag", etag: '"4"' },
+    { name: "a matching weak ETag", etag: 'W/"4"' },
+    { name: "no ETag", etag: undefined },
+  ])("accepts the next revision with $name", async ({ etag }) => {
+    await expect(saveWithReply({ id, revision: 4 }, etag)).resolves.toBe(4);
+  });
+
+  it.each([
+    { name: "another story", body: { id: "sty_01M79V9FC00000000000000002", revision: 4 }, etag: '"4"' },
+    { name: "the sent revision", body: { id, revision: 3 }, etag: '"3"' },
+    { name: "a missing revision", body: { id }, etag: '"4"' },
+    { name: "revision 6 in the body and 4 in the ETag", body: { id, revision: 6 }, etag: '"4"' },
+    { name: "a different revision in the ETag", body: { id, revision: 4 }, etag: '"6"' },
+    { name: "a matching ETag that skips the next revision", body: { id, revision: 6 }, etag: '"6"' },
+  ])("refuses a successful PATCH response with $name", async ({ body, etag }) => {
+    await expect(saveWithReply(body, etag)).rejects.toMatchObject({ status: 502 });
   });
 });
