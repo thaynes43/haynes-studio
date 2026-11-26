@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { ApiError } from "./api/client";
-import { formatEditsConflict, formatFailure, formatPatch, formatStatus, nextCastSlot, type StoryFormat } from "./story-format-data";
+import { ApiError, createStudioApi } from "./api/client";
+import { formatEditsConflict, formatFailure, formatPatch, formatStatus, nextCastSlot, patchStoryFormat, type StoryFormat } from "./story-format-data";
 
 const empty: StoryFormat = { format_version_id: null, cast: [], narrator_voice_version_id: null };
 const cast = [{ slot: "a", name: "Ada", voice_version_id: "asv_01M79V9FC00000000000000020" }];
@@ -36,5 +36,24 @@ describe("story format settings", () => {
     expect(formatEditsConflict(pinned, editing, { ...pinned, cast: [] })).toBe(true);
     expect(formatEditsConflict(pinned, editing, { ...pinned, format_version_id: null })).toBe(false);
     expect(formatEditsConflict(pinned, editing, editing)).toBe(false);
+  });
+
+  const id = "sty_01M79V9FC00000000000000001";
+  it.each([
+    { name: "another story", body: { id: "sty_01M79V9FC00000000000000002", revision: 3 } },
+    { name: "the sent revision", body: { id, revision: 2 } },
+    { name: "a missing revision", body: { id } },
+  ])("refuses a successful PATCH response with $name", async ({ body }) => {
+    const { signal } = new AbortController();
+    const api = createStudioApi("https://studio.example.invalid", signal, () => {}, async (input) => {
+      const request = input as Request;
+      if (new URL(request.url).pathname === "/v1/me") {
+        return Response.json({ principal: { kind: "human", iss: "issuer", sub: "person" }, csrf_token: "csrf" });
+      }
+      return Response.json(body);
+    });
+    await api.connect();
+    await expect(patchStoryFormat(api.client, id, 2, { format_version_id: pinned.format_version_id }, signal))
+      .rejects.toMatchObject({ status: 502 });
   });
 });

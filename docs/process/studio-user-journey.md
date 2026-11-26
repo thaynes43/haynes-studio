@@ -53,8 +53,9 @@ signed-in installed journey is **Expected**. [Deployment evidence, comment
 
    Before building for review, open **Format** above the storyboard and
    choose a **Format version**. Check **Run targets** for the targets you
-   need. To prepare a release package later, choose a version whose
-   YouTube Shorts target declares a platform maximum. For spoken boards,
+   need. For a release package, choose a version with a YouTube Shorts target
+   without the **No platform maximum. A package can’t be prepared.** warning.
+   For spoken boards,
    choose a **Narrator voice** or **Add cast member** and enter a name and
    voice for each speaker. Press **Save format** and wait for **Format pinned**.
    If the draft changed, compare the two versions before choosing which

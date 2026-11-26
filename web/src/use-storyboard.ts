@@ -11,7 +11,7 @@ import { useRequest } from "./use-request";
 
 const changedDraft = "The draft changed. Loaded the latest version.";
 type Change = (signal: AbortSignal) => Promise<{ message?: string; addedId?: string; movedId?: string }>;
-type FormatChange = { revision: number; patch: StoryFormatPatch };
+export type FormatChange = { revision: number; patch: StoryFormatPatch };
 
 export function useStoryboard(api: StudioClient, scope: StoryboardScope, requested?: string, hash = "") {
   const navigate = useNavigate();
@@ -31,6 +31,7 @@ export function useStoryboard(api: StudioClient, scope: StoryboardScope, request
   const working = useRef(false);
   const syncingInspector = useRef(false);
   const currentRoute = useRef(requested);
+  const revisionFloor = useRef(0);
 
   useLayoutEffect(() => {
     const controller = new AbortController();
@@ -43,13 +44,20 @@ export function useStoryboard(api: StudioClient, scope: StoryboardScope, request
   const selected = draft && selectBoard(draft.story.board_order, requested, refreshed?.previousOrder);
   const selectedIndex = draft?.boards.findIndex(({ record }) => record.id === selected) ?? -1;
   const boardOrder = useRef(draft?.story.board_order);
-  useLayoutEffect(() => { boardOrder.current = draft?.story.board_order; }, [draft]);
+  useLayoutEffect(() => {
+    boardOrder.current = draft?.story.board_order;
+    if (draft) revisionFloor.current = Math.max(revisionFloor.current, draft.story.revision);
+  }, [draft]);
 
-  const refreshDraft = useCallback(async (signal: AbortSignal, minimumRevision = 0) => {
+  const refreshDraft = useCallback(async (signal: AbortSignal) => {
     const latest = await loadStoryboardDraft(api, scope, signal);
-    if (latest.story.revision < minimumRevision) throw new ApiError(409, "conflict.revision");
-    if (!signal.aborted) setRefreshed((previous) => previous && previous.draft.story.revision > latest.story.revision
-      ? previous : { draft: latest, previousOrder: boardOrder.current ?? [] });
+    if (latest.story.revision < revisionFloor.current) {
+      throw new ApiError(409, "conflict.revision", undefined, { message: "Studio couldn’t load the latest draft." });
+    }
+    if (!signal.aborted) {
+      revisionFloor.current = latest.story.revision;
+      setRefreshed({ draft: latest, previousOrder: boardOrder.current ?? [] });
+    }
     return latest;
   }, [api, scope]);
 
@@ -121,22 +129,25 @@ export function useStoryboard(api: StudioClient, scope: StoryboardScope, request
     working.current = true;
     setPending(true);
     let conflict: ApiError | undefined;
-    let minimumRevision: number | undefined;
     try {
       if (change) {
         try {
-          minimumRevision = await patchStoryFormat(api, draft.story.id, change.revision, change.patch, signal);
+          const revision = await patchStoryFormat(api, draft.story.id, change.revision, change.patch, signal);
+          if (signal.aborted) return;
+          revisionFloor.current = Math.max(revisionFloor.current, revision);
         } catch (error) {
           if (signal.aborted) return;
-          if (error instanceof ApiError && error.code === "conflict.revision") conflict = error;
-          else {
+          if (error instanceof ApiError && error.status === 409 && error.code === "conflict.revision") {
+            conflict = error;
+            revisionFloor.current = Math.max(revisionFloor.current, error.detail?.current_revision ?? change.revision + 1);
+          } else {
             const reload = !(error instanceof ApiError) || error.status === 0 || error.status >= 500;
             setFormatNeedsReload(reload);
             return { kind: "failure", error, reload } as const;
           }
         }
       }
-      await refreshDraft(signal, minimumRevision);
+      await refreshDraft(signal);
       if (signal.aborted) return;
       setFormatNeedsReload(false);
       return { kind: "ready", conflict } as const;

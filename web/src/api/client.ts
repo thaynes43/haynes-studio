@@ -8,7 +8,8 @@ export class ApiError extends Error {
     public readonly status: number,
     public readonly code?: string,
     public readonly requestId?: string,
-    public readonly detail?: Partial<Pick<components["schemas"]["ErrorDetail"], "message" | "path" | "board_id" | "evidence">>,
+    public readonly detail?: Partial<Pick<components["schemas"]["ErrorDetail"],
+      "message" | "path" | "board_id" | "evidence" | "current_revision">>,
   ) {
     super(`Studio request failed (${status})`);
   }
@@ -27,6 +28,8 @@ export class ApiError extends Error {
         path: typeof detail.path === "string" ? detail.path : undefined,
         board_id: typeof detail.board_id === "string" ? detail.board_id : undefined,
         evidence: detail.evidence,
+        current_revision: typeof detail.current_revision === "number" && Number.isSafeInteger(detail.current_revision)
+          ? detail.current_revision : undefined,
       },
     );
   }

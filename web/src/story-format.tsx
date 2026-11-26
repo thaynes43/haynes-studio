@@ -9,7 +9,7 @@ import {
   type FormatProfile, type StoryFormat, type StoryFormatOptions, type VoiceVersion,
 } from "./story-format-data";
 import { useRequest } from "./use-request";
-import type { StoryboardModel } from "./use-storyboard";
+import type { FormatChange, StoryboardModel } from "./use-storyboard";
 import "./story-format.css";
 
 type FormatEditorProps = {
@@ -19,6 +19,7 @@ type FormatEditorProps = {
   story: StoryboardDraft["story"];
   model: StoryboardModel;
 };
+type SaveFailure = { error: unknown; reload: boolean };
 
 const formatLabel = ({ name, number }: { name: string; number: number }) => `${name} · v${number}`;
 const voiceLabel = ({ name, number }: VoiceVersion) => `${name} · v${number}`;
@@ -27,16 +28,42 @@ export function StoryFormatEditor({ openFromRun, ...props }: FormatEditorProps &
   const [opened, setOpened] = useState(openFromRun);
   const summary = useRef<HTMLElement>(null);
   const [saving, setSaving] = useState(false);
+  const [failure, setFailure] = useState<SaveFailure>();
+  const [conflict, setConflict] = useState<string>();
+  const { model, story } = props;
   useLayoutEffect(() => {
     if (openFromRun) summary.current?.focus();
   }, [openFromRun]);
 
-  return <details id={storyFormatId} className="story-format" open={openFromRun || undefined} onToggle={(event) => {
-    if (event.currentTarget.open) setOpened(true);
-  }}>
-    <summary ref={summary}>Format <span className="muted" role="status">{formatStatus(props.story, saving)}</span></summary>
-    {opened && <FormatForm {...props} saving={saving} setSaving={setSaving} />}
-  </details>;
+  async function saveOrReload(change?: FormatChange) {
+    summary.current?.focus();
+    setSaving(Boolean(change));
+    const reply = await model.updateFormat(change);
+    setSaving(false);
+    if (!reply) return false;
+    if (reply.conflict) setConflict(reply.conflict.detail?.message || "The draft changed while you were working.");
+    setFailure(reply.kind === "failure" ? reply : undefined);
+    return reply.kind === "ready" && !reply.conflict;
+  }
+
+  const status = saving || !failure ? formatStatus(story, saving)
+    : failure.reload ? "Check format save" : "Format save failed";
+
+  return <div className="story-format-section">
+    <details id={storyFormatId} className="story-format" open={openFromRun || undefined} onToggle={(event) => {
+      if (event.currentTarget.open) setOpened(true);
+    }}>
+      <summary ref={summary}>Format <span className="muted" role="status">{status}</span></summary>
+      {opened && <FormatForm {...props} saving={saving} needsReload={Boolean(failure?.reload)} conflict={conflict}
+        clearFailure={() => setFailure(undefined)} clearConflict={() => setConflict(undefined)} saveFormat={saveOrReload} />}
+    </details>
+    {failure && <div className="story-format-fields">
+      <Problem error={failure.error} message={formatFailure(failure.error)} />
+      {failure.reload && <button className="pill" type="button" disabled={model.pending} onClick={() => void saveOrReload()}>
+        Reload draft
+      </button>}
+    </div>}
+  </div>;
 }
 
 function VoiceSelect({ label, value, voices, required, onChange }: {
@@ -66,16 +93,16 @@ function FormatSummary({ title, values, options }: { title: string; values: Stor
   </section>;
 }
 
-function FormatForm({ api, scope, profile, story, model, saving, setSaving }: FormatEditorProps & {
-  saving: boolean; setSaving: (saving: boolean) => void;
+function FormatForm({ api, scope, profile, story, model, saving, needsReload, conflict, clearFailure, clearConflict, saveFormat }: FormatEditorProps & {
+  saving: boolean; needsReload: boolean; conflict?: string;
+  clearFailure: () => void; clearConflict: () => void;
+  saveFormat: (change: FormatChange) => Promise<boolean>;
 }) {
   const { width, height } = profile;
   const load = useCallback((signal: AbortSignal) => loadStoryFormatOptions(api, scope, { width, height }, signal),
     [api, scope, width, height]);
   const { result, retry } = useRequest(load);
   const [editing, setEditing] = useState<{ base: StoryFormat; values: StoryFormat }>();
-  const [failure, setFailure] = useState<{ error: unknown; reload: boolean }>();
-  const [conflict, setConflict] = useState<string>();
   const [notice, setNotice] = useState("");
   const saved = storyFormat(story);
   const edits = editing ? formatPatch(editing.base, editing.values) : {};
@@ -87,29 +114,19 @@ function FormatForm({ api, scope, profile, story, model, saving, setSaving }: Fo
 
   function edit(next: StoryFormat) {
     setEditing({ base: saved, values: next });
-    setFailure(undefined);
+    clearFailure();
     setNotice("");
   }
 
-  async function submit(event?: FormEvent<HTMLFormElement>) {
-    event?.preventDefault();
-    if (event ? !canSave : model.pending || !failure?.reload) return;
-    if (event && values.cast.some(({ name }) => !name.trim())) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canSave) return;
+    if (values.cast.some(({ name }) => !name.trim())) {
       setNotice("Enter a name for each cast member.");
       return;
     }
-    setSaving(Boolean(event));
     setNotice("");
-    const reply = await model.updateFormat(event ? { revision: story.revision, patch } : undefined);
-    setSaving(false);
-    if (!reply) return;
-    if (reply.conflict) setConflict(reply.conflict.detail?.message || "The draft changed while you were working.");
-    if (reply.kind === "failure") {
-      setFailure(reply);
-      return;
-    }
-    setFailure(undefined);
-    if (event && !reply.conflict) {
+    if (await saveFormat({ revision: story.revision, patch })) {
       setEditing(undefined);
       setNotice("Format settings saved.");
     }
@@ -126,17 +143,17 @@ function FormatForm({ api, scope, profile, story, model, saving, setSaving }: Fo
     edit({ ...values, cast: values.cast.map((member) => member.slot === key ? { ...member, ...change } : member) });
 
   return <form className="story-format-fields" onSubmit={(event) => void submit(event)}>
-    {review && !failure?.reload && <div className="story-format-review">
+    {review && !needsReload && <div className="story-format-review">
       <p role="alert">{conflict} Review your unsaved format settings and the latest saved version.</p>
       <div className="inspector-comparison">
         <FormatSummary title="Your unsaved version" values={values} options={result.data} />
         <FormatSummary title="Latest saved version" values={saved} options={result.data} />
       </div>
       <div className="inspector-actions">
-        <button className="pill" type="button" disabled={locked} onClick={() => { edit(values); setConflict(undefined); }}>
+        <button className="pill" type="button" disabled={locked} onClick={() => { edit(values); clearConflict(); }}>
           Keep my edited fields
         </button>
-        <button className="pill" type="button" disabled={locked} onClick={() => { edit(saved); setConflict(undefined); }}>
+        <button className="pill" type="button" disabled={locked} onClick={() => { edit(saved); clearConflict(); }}>
           Use latest saved version
         </button>
       </div>
@@ -156,7 +173,11 @@ function FormatForm({ api, scope, profile, story, model, saving, setSaving }: Fo
           onChange={(value) => edit({ ...values, narrator_voice_version_id: value || null })} />
       </div>
       {formats.length === 0 && <p className="muted">No formats are available for this media type.</p>}
-      {selected && <p className="muted">Run targets · {selected.recipe.targets.map(({ name }) => name).join(", ") || "None"}</p>}
+      {selected && <div className="story-format-targets muted">
+        <p>Run targets{selected.recipe.targets.length === 0 && " · None"}</p>
+        {selected.recipe.targets.length > 0 && <ul>{selected.recipe.targets.map(({ id, name, rules }) =>
+          <li key={id}>{name}{rules.max_length_ms == null && " · No platform maximum. A package can’t be prepared."}</li>)}</ul>}
+      </div>}
       {voices.length === 0 && <p className="muted">No voices are available for this story.</p>}
       <fieldset className="inspector-group">
         <legend>Cast</legend>
@@ -178,13 +199,7 @@ function FormatForm({ api, scope, profile, story, model, saving, setSaving }: Fo
         }}>Add cast member</button>
       </fieldset>
     </fieldset>
-    <button className="pill primary" type="submit" aria-disabled={!canSave}>Save format</button>
+    <button className="pill primary" type="submit" disabled={locked} aria-disabled={!canSave}>Save format</button>
     {notice && <p role="status">{notice}</p>}
-    {failure && <>
-      <Problem error={failure.error} message={formatFailure(failure.error)} />
-      {failure.reload && <button className="pill" type="button" disabled={model.pending} onClick={() => void submit()}>
-        Reload draft
-      </button>}
-    </>}
   </form>;
 }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { Navigate, useLocation } from "react-router";
 
 import { ApiError, createStudioApi } from "./api/client";
-import { safePath } from "./routes";
+import { safeReturnPath } from "./routes";
 import { createSelections, loadSelections } from "./selections";
 import { Brand, PageHeading, Problem } from "./shell-ui";
 import { useTheme, type ThemeSettings } from "./theme";
@@ -13,7 +13,7 @@ const returnKey = "haynes-studio-return-path";
 
 function readReturnPath() {
   try {
-    return safePath(sessionStorage.getItem(returnKey));
+    return safeReturnPath(sessionStorage.getItem(returnKey));
   } catch {
     return undefined;
   }
@@ -76,6 +76,9 @@ function Session({ theme, retry }: { theme: ThemeSettings; retry: () => void }) 
   const location = useLocation();
   const [state, setState] = useState<SessionState>({ status: "checking" });
   const [returnPath] = useState(() => location.pathname === "/" ? readReturnPath() : undefined);
+  const rememberReturnPath = () => saveReturnPath(location.pathname === "/"
+    ? returnPath
+    : safeReturnPath(location.pathname + location.search + location.hash) ?? safeReturnPath(location.pathname + location.search));
 
   useEffect(() => {
     const lifetime = new AbortController();
@@ -105,9 +108,7 @@ function Session({ theme, retry }: { theme: ThemeSettings; retry: () => void }) 
           <a
             className="pill primary"
             href="/auth/login"
-            onClick={() => saveReturnPath(location.pathname === "/"
-              ? returnPath
-              : safePath(location.pathname + location.search))}
+            onClick={rememberReturnPath}
           >Sign in</a>
         </Screen>
       );
@@ -116,7 +117,7 @@ function Session({ theme, retry }: { theme: ThemeSettings; retry: () => void }) 
         <Screen title="Haynes Studio">
           <Problem error={state.error} retry={retry} />
           {state.error instanceof ApiError && state.error.code === "auth.human_required" && (
-            <a className="pill primary" href="/auth/login" onClick={() => saveReturnPath(safePath(location.pathname + location.search))}>Sign in</a>
+            <a className="pill primary" href="/auth/login" onClick={rememberReturnPath}>Sign in</a>
           )}
         </Screen>
       );

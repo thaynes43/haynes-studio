@@ -206,3 +206,14 @@ export function safePath(value: unknown) {
       return routePath(route);
   }
 }
+
+/** Keep the Format destination in tab storage on an editor storyboard route. */
+export function safeReturnPath(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  const [path, fragment, extra] = value.split("#");
+  const safe = safePath(path);
+  if (fragment === undefined) return safe;
+  if (!safe || fragment !== storyFormatId || extra !== undefined) return undefined;
+  const route = parseRoute(safe);
+  return route.area === "board" && route.context.story && !route.page ? `${safe}#${storyFormatId}` : undefined;
+}

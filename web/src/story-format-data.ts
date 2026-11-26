@@ -90,6 +90,6 @@ export async function patchStoryFormat(api: StudioClient, id: string, revision: 
   const { data } = await api.PATCH("/v1/stories/{id}", {
     signal, params: { path: { id }, header: { "If-Match": `"${revision}"` } }, body,
   });
-  if (!data || data.id !== id || data.revision <= revision) throw new ApiError(502);
+  if (!data || data.id !== id || !Number.isSafeInteger(data.revision) || data.revision <= revision) throw new ApiError(502);
   return data.revision;
 }
