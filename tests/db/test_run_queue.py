@@ -475,6 +475,32 @@ def paused_reconcile(queue, monkeypatch):
     return queue
 
 
+@pytest.mark.parametrize(("enabled", "capability"), [(False, "1"), (True, "0")],
+                         ids=["switch-unset", "capability-zero"])
+def test_paused_sent_claim_requires_switch_and_explicit_capability(queue, monkeypatch, enabled, capability):
+    q = queue
+    if enabled:
+        monkeypatch.setenv("STUDIO_PAUSED_RECONCILE", "1")
+    else:
+        monkeypatch.delenv("STUDIO_PAUSED_RECONCILE", raising=False)
+    monkeypatch.setattr(runs, "database_time", database_time)
+    app = create_app(q.engine, q.store, q.app.state.oidc)
+    assert app.state.paused_reconcile is enabled
+    run_id = queue_run(q, "expired-sent-claim").json()["id"]
+    old = worker_api(q, app=app).claim()
+    attempt = old.reserve("i2v", product_request(request_for(q)))
+    old.attempt(attempt["job_id"], "sent")
+    _pause_run_lane(q, True)
+    _expire_run_claim(q, run_id)
+
+    replacement = LocalWorkerHTTP(app, worker_credentials(q.owner))
+    response = replacement.post("/internal/v1/work/claim", headers={"X-Studio-Paused-Reconcile": capability})
+    assert response.status_code == 204, response.text
+    assert response.content == b""
+    with q.engine.connect() as conn:
+        assert runs.get(conn, run_id)["fence"] == old.identity["fence"]
+
+
 @pytest.mark.parametrize("outcome", ["succeeded", "failed"])
 def test_pause_before_reclaim_drains_the_sent_job_and_preserves_fifo(paused_reconcile, monkeypatch, outcome):
     q = paused_reconcile
@@ -649,6 +675,43 @@ def test_pause_refuses_wan_reservation(paused_reconcile, existing):
         claim.reserve("i2v", request)
     assert refusal.value.status == 409
     assert read_run(q, run_id)[0]["wan_attempts"] == before
+
+
+def test_paused_live_run_can_reserve_wan_attempt_with_switch_unset(queue, monkeypatch):
+    q = queue
+    monkeypatch.delenv("STUDIO_PAUSED_RECONCILE", raising=False)
+    app = create_app(q.engine, q.store, q.app.state.oidc)
+    assert app.state.paused_reconcile is False
+    run_id = queue_run(q, "reserve-with-switch-unset").json()["id"]
+    worker = LocalWorkerHTTP(app, worker_credentials(q.owner))
+    claim = WorkerAPI(worker).claim()
+    _pause_run_lane(q, True)
+
+    proposal = {**product_request(request_for(q)), "kind": "i2v"}
+    response = worker.post("/internal/v1/work/attempts", json={**claim.identity, "proposal": proposal})
+    assert response.status_code == 200, response.text
+    attempt, = read_run(q, run_id)[0]["wan_attempts"]
+    assert attempt["job_id"] == response.json()["job_id"]
+    assert attempt["state"] == "reserved"
+
+
+def test_paused_final_wan_heartbeat_reports_cancellation_to_live_holder(paused_reconcile):
+    q = paused_reconcile
+    run_id = queue_run(q, "cancel-before-final-heartbeat").json()["id"]
+    worker = LocalWorkerHTTP(q.app, worker_credentials(q.owner))
+    claim = WorkerAPI(worker).claim()
+    attempt = claim.reserve("i2v", product_request(request_for(q)))
+    claim.attempt(attempt["job_id"], "sent")
+    _pause_run_lane(q, True)
+    _, etag = read_run(q, run_id)
+    cancelled = cancel(q, run_id, etag)
+    assert cancelled.status_code == 200 and cancelled.json()["cancel_requested"] is True
+
+    response = worker.post("/internal/v1/work/heartbeat", json={
+        **claim.identity, "progress": {"percent": 25, "stage": "wan_submitting"},
+    })
+    assert response.status_code == 200, response.text
+    assert response.json()["cancel_requested"] is True
 
 
 def test_wan_dispatch_check_waits_for_uncommitted_pause(paused_reconcile):

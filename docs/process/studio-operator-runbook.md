@@ -289,6 +289,34 @@ selector needed repair before the image worker reached the engine.
 [Schema constraints](https://work.haynesnetwork.com/work_packages/963) ·
 [Installed token probes](https://work.haynesnetwork.com/work_packages/964)
 
+## Activate paused reconciliation
+
+**Expected** for the installed rollout. Keep worker traffic away from every API
+endpoint with `STUDIO_PAUSED_RECONCILE` off during activation. A worker can claim
+a run while the lane is open, then find its recorded Wan job ID missing after
+the lane is paused. A disabled endpoint answers the worker's final
+`wan_submitting` heartbeat with 200, allowing it to replay the PUT for that ID.
+An enabled endpoint checks the pause and returns `409 work.lane_paused` for that
+authorization. [Delta review](https://github.com/thaynes43/haynes-studio/pull/152#issuecomment-7184676478)
+
+1. Deploy the new API and run worker as a plain pin with
+   `STUDIO_PAUSED_RECONCILE` unset.
+2. Verify the new build on every API replica reachable through either listener
+   and on the run worker. Wait for old API endpoints to drain.
+3. Stop the workers or drain their traffic, including in-flight API requests.
+   Keep them drained until all reachable endpoints enforce the check. Lane pause
+   alone preserves live claims and their requests.
+4. In a separate GitOps change, set `STUDIO_PAUSED_RECONCILE=1` on every API
+   replica. Verify the setting and readiness on each replica. Wait until every
+   disabled endpoint, including any terminating replica, is unreachable by
+   workers. For an endpoint cutover, direct workers only to the verified enabled
+   set before allowing traffic.
+5. Start the workers or restore their traffic to the enabled endpoints.
+6. Read back the API pin and switch on each replica, worker readiness and
+   progress, and the signed-in lane state. During the authorized recovery smoke,
+   read back the recorded Wan attempt and confirm that reconciliation preserves
+   its ID and makes no new submission while the lane stays paused.
+
 ## Capacity and private media
 
 - Household jobs come first on shared ComfyUI. Read `GET /queue` and confirm
@@ -372,7 +400,7 @@ archive credential scope before a restore ran.
 | --- | --- | --- |
 | LAN playback, new work and lane pause/resume | Installed reads cover signed-out ingress, scoped imports and worker readiness. Person-only controls and first real jobs await a session. | A person's session plays both phone proxies, pauses and resumes lanes without losing queued work, and completes a real private run, voice take and photo. [User journey](studio-user-journey.md) · [OP961](https://work.haynesnetwork.com/work_packages/961) |
 | First photo upload, feedback, release package and go-live | The installed app is awaiting a real photo upload, feedback note and private package. The go-live approver list is empty. | A scoped uploader adds a private photo, a signed-in person records feedback and prepares a package on an eligible run, and Tom records his decision for the exact master using his approved identity. [User journey](studio-user-journey.md#remaining-gaps) · [OP964](https://work.haynesnetwork.com/work_packages/964) |
-| Recover a sent run while its lane stays paused | OP976 has source tests on disposable PostgreSQL with an in-memory Wan service. The fourth pin requires resume for a replacement claim. | After every API replica and the run worker are on the new pin, enable the switch in a separate deployment change. Show recovery of the recorded Wan attempt while pause holds queued claims. [OP976](https://work.haynesnetwork.com/work_packages/976) |
+| Recover a sent run while its lane stays paused | OP976 has source tests on disposable PostgreSQL with an in-memory Wan service. The fourth pin requires resume for a replacement claim. | Follow the [activation cutover](#activate-paused-reconciliation) and show recovery of the recorded Wan attempt while the lane stays paused. [OP976](https://work.haynesnetwork.com/work_packages/976) |
 | Worker restart and API replacement with saved work | The API pod drill had no saved selections or queued snapshots. Claimed-job worker recovery has source evidence. | Observe a bounded, authorized recovery with real saved work, including preserved IDs and no duplicate dispatch. [OP437](https://work.haynesnetwork.com/work_packages/437) |
 | Isolated database restore | OP436 awaits Tom's archive credential decision. | Run the authorized isolated drill and compare catalog and media references before teardown. [OP436, comment 10072](https://work.haynesnetwork.com/work_packages/436) |
 | Local model on Wan | The first activation was reverted. The dormant model awaits Tom's approval of the restart-only step. | Record startup and Studio-client health after the approved restart. A separately authorized leased smoke would prove model inference and handover. [OP442, comment 10134](https://work.haynesnetwork.com/work_packages/442) |

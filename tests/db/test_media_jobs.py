@@ -1135,6 +1135,7 @@ def test_pausing_run_lane_drains_current_claim_and_blocks_new_claims(queue):
     claim = worker.claim()
     assert claim.body["run"]["id"] == first
     paused = success(q.browser.put(path + "/run", headers=q.csrf, json={"paused": True}))
+    assert "live_claim" not in paused
     assert paused["changed_at"] == q.clock.now.isoformat().replace("+00:00", "Z")
     assert paused["changed_by"]["kind"] == "human" and paused["changed_by"]["sub"] == "one"
     second = success(queue_run(q, "after-pause"), 201)
@@ -1153,6 +1154,7 @@ def test_pausing_run_lane_drains_current_claim_and_blocks_new_claims(queue):
     assert success(q.browser.get(path))["items"][0] == {**paused, "live_claim": False}
     q.clock.advance(10)
     resumed = success(q.browser.put(path + "/run", headers=q.csrf, json={"paused": False}))
+    assert "live_claim" not in resumed
     assert resumed["paused"] is False and resumed["changed_at"] > paused["changed_at"]
     assert success(q.browser.put(path + "/run", headers=q.csrf, json={"paused": False})) == resumed
     assert worker.claim().body["run"]["id"] == second["id"]

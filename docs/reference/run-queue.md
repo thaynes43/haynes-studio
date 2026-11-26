@@ -137,9 +137,11 @@ or a fence causes subsequent mutating operations to return 409.
 Pause stops claiming queued work and preserves FIFO order and live claim
 fences. A worker can finish its claim, including calling ASR after a clip.
 An engine request already authorized under the claim may start after the pause
-response. A lane is quiet at the time of a `GET /v1/queue/lanes` read when
-`paused` is true and `live_claim` is false. The database-clock lease lasts
-90 seconds from its grant or last renewal.
+response. `GET /v1/queue/lanes` adds `live_claim` in both switch states. A lane is
+quiet at the time of the read when `paused` is true and `live_claim` is false.
+This read-only field is the default-off compatibility exception. Pause and
+resume write responses keep their existing shape. The database-clock lease
+lasts 90 seconds from its grant or last renewal.
 
 With `STUDIO_PAUSED_RECONCILE=1`, a worker sends `X-Studio-Paused-Reconcile: 1`
 on `/claim` to opt into paused reconciliation. A paused claim poll otherwise
@@ -156,7 +158,8 @@ When the switch is on, a Wan reservation checks pause. The first send marker
 and the final fenced heartbeat before a Wan job PUT check pause under the lane
 lock. If pause wins, the authorization returns `409 work.lane_paused`. A PUT
 that passes the final check may start after the pause response. No database
-transaction spans a Wan call.
+transaction spans a Wan call. Follow the [worker traffic cutover](../process/studio-operator-runbook.md#activate-paused-reconciliation)
+when enabling the switch.
 
 ```mermaid
 flowchart TD

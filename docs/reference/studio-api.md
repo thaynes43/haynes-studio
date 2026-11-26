@@ -42,7 +42,7 @@ or recover metadata to an isolated database for inspection.
 | `STUDIO_DATABASE_SCHEMA` | Precreated schema, default `studio`. Both commands must agree. |
 | `STUDIO_RUNTIME_ROLE` | Existing runtime login, typically `studio_app`. Set on the migration Job. A lower-case PostgreSQL identifier. An unset variable skips grants. |
 | `STUDIO_BUILD_REVISION` | Build revision pinned in new snapshots. Use the same `git:<commit>` on the API and render workers. The local default is `git:unknown`. |
-| `STUDIO_PAUSED_RECONCILE` | API switch for paused reconciliation and its dispatch checks. Default off. Set to `1` in a separate deployment after all API replicas and the run worker are upgraded. Every serving API replica must use the same setting. |
+| `STUDIO_PAUSED_RECONCILE` | API switch for paused reconciliation and its dispatch checks. Default off. Follow the [worker traffic cutover](../process/studio-operator-runbook.md#activate-paused-reconciliation) when enabling it. |
 | `STUDIO_BUILD_STAGE_ROOT` | Shared private build staging directory used by the API completion route and workers. Use a separate directory from the authoritative store. See the [worker configuration](run-queue.md#worker-configuration). |
 | `STUDIO_STORE_ROOT` | Root of the shared D39 store. Mount the same directory at every replica. |
 | `STUDIO_STORE_FRESHNESS_SECONDS` | Maximum age of a successful store readiness check, 5–300 seconds. Default 30. |
@@ -497,9 +497,13 @@ and live claim fences stay in place. A worker can finish its claim, including a
 media job's first publish or a run's transcript step. An authorized engine
 request may start after the pause response.
 
-Read `GET /v1/queue/lanes` to see whether each lane has a `live_claim`. A lane
-is quiet at the time of the read when `paused` is true and `live_claim` is false.
-A lease lasts 90 seconds from its grant or last renewal, using the database clock.
+`GET /v1/queue/lanes` adds a `live_claim` boolean for each lane with
+`STUDIO_PAUSED_RECONCILE` either off or on. The pause and resume write responses
+keep their existing shape. This read-only field is the default-off API
+compatibility exception. The installed web build at `470a90af` selects lanes
+by name and reads `paused`, so it ignores `live_claim`. A lane is quiet at the
+time of the read when `paused` is true and `live_claim` is false. A lease lasts
+90 seconds from its grant or last renewal, using the database clock.
 
 With `STUDIO_PAUSED_RECONCILE=1`, a compatible run worker can reclaim a FIFO head
 with a recorded, unsettled sent Wan attempt after the old claim expires or is
