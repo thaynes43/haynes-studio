@@ -28,7 +28,7 @@ POST paths share the prefix `/internal/v1/work` and require a worker token.
 
 | Path | Media worker payload and effect |
 |---|---|
-| `/claim` | `{"lane":"image"}`, `{"lane":"voice"}` or `{"lane":"matte"}`. Returns the lane's FIFO head, frozen inputs, fence and claim deadline, or 204. An empty body selects `run`. A matte poll can settle an expired dispatch at the head even on a paused lane. `{"lane":"matte","settle_only":true}` always returns 204 without taking a claim. |
+| `/claim` | `{"lane":"image"}`, `{"lane":"voice"}` or `{"lane":"matte"}`. Returns the lane's FIFO head, frozen inputs, fence and claim deadline, or 204. An empty body selects `run`. A paused media lane returns 204. A poll can settle an expired dispatch in the paused matte lane, and the same applies to voice and image when `STUDIO_PAUSED_RECONCILE=1`. `{"lane":"matte","settle_only":true}` always returns 204 without taking a claim. |
 | `/heartbeat` | `job_id` and `fence`. Extends the claim by 90 seconds on the database clock. |
 | `/publish` | `job_id` and `fence`. Records entry to engine dispatch and renews the claim before submission. |
 | `/complete` | `job_id`, `fence` and result evidence. The API verifies stored content and commits the version, terminal status and eligible draft selection together. |
@@ -53,6 +53,8 @@ and claim deadline must still match. The dedicated `/resume` (run) and
 
 Workers heartbeat every 15 seconds during blocking work. Expiry before
 dispatch allows another worker to take the same job with a new fence.
+Pause holds queued jobs until resume. A live claim retains its fence and can
+finish, including making its first `/publish` and starting the engine request.
 Expiry after dispatch fails it with `work.dispatch_unconfirmed`. A replacement
 can claim subsequent image jobs and waits until ComfyUI reports an empty
 running and pending queue. Each submission checks the queue immediately

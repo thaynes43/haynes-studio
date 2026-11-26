@@ -183,6 +183,7 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
         app.state.archive_source_key = hmac.digest(
             oidc.settings.client_secret.encode(), b"haynes-studio archive source locator v1", "sha256")
     app.state.build_revision = run_routes.build_revision_from_environment()
+    app.state.paused_reconcile = os.getenv("STUDIO_PAUSED_RECONCILE") == "1"
     app.state.build_stage_root = build_stage_root
     app.state.upload_body_limits = upload_body_limits
     app.state.escalation = escalation

@@ -8641,6 +8641,61 @@
         "title": "PublicationWrite",
         "type": "object"
       },
+      "QueueLaneRead": {
+        "properties": {
+          "changed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changed At"
+          },
+          "changed_by": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changed By"
+          },
+          "lane": {
+            "enum": [
+              "run",
+              "image",
+              "voice",
+              "matte"
+            ],
+            "title": "Lane",
+            "type": "string"
+          },
+          "live_claim": {
+            "title": "Live Claim",
+            "type": "boolean"
+          },
+          "paused": {
+            "title": "Paused",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "lane",
+          "paused",
+          "changed_by",
+          "changed_at",
+          "live_claim"
+        ],
+        "title": "QueueLaneRead",
+        "type": "object"
+      },
       "QueueLaneStatus": {
         "properties": {
           "changed_at": {
@@ -8709,7 +8764,7 @@
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/QueueLaneStatus"
+              "$ref": "#/components/schemas/QueueLaneRead"
             },
             "title": "Items",
             "type": "array"

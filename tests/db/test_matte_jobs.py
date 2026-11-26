@@ -818,12 +818,12 @@ def test_matte_waiting_worker_settles_only_expired_dispatched_claims(matte_studi
     expire(s, first)
     assert not worker.tick() and row_of(s, first)["fence"] == abandoned.identity["fence"]
     current = api.claim("matte")
-    current.publish()
-    assert not worker.tick() and job(s, first)["status"] == "running"
     # Even a paused lane must settle the abandoned dispatch while the socket
     # is absent. The next job must remain untouched.
     lane = "/v1/queue/lanes/matte"
     success(s.browser.put(lane, headers=s.csrf, json={"paused": True}))
+    current.publish()
+    assert not worker.tick() and job(s, first)["status"] == "running"
     expire(s, first)
     assert not worker.tick()
     assert_failed(s, first, "work.dispatch_unconfirmed")

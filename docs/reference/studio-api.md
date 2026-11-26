@@ -42,6 +42,7 @@ or recover metadata to an isolated database for inspection.
 | `STUDIO_DATABASE_SCHEMA` | Precreated schema, default `studio`. Both commands must agree. |
 | `STUDIO_RUNTIME_ROLE` | Existing runtime login, typically `studio_app`. Set on the migration Job. A lower-case PostgreSQL identifier. An unset variable skips grants. |
 | `STUDIO_BUILD_REVISION` | Build revision pinned in new snapshots. Use the same `git:<commit>` on the API and render workers. The local default is `git:unknown`. |
+| `STUDIO_PAUSED_RECONCILE` | API switch for paused reconciliation and its dispatch checks. Default off. Follow the [worker traffic cutover](../process/studio-operator-runbook.md#activate-paused-reconciliation) when enabling it. |
 | `STUDIO_BUILD_STAGE_ROOT` | Shared private build staging directory used by the API completion route and workers. Use a separate directory from the authoritative store. See the [worker configuration](run-queue.md#worker-configuration). |
 | `STUDIO_STORE_ROOT` | Root of the shared D39 store. Mount the same directory at every replica. |
 | `STUDIO_STORE_FRESHNESS_SECONDS` | Maximum age of a successful store readiness check, 5–300 seconds. Default 30. |
@@ -491,8 +492,27 @@ for `run`, `voice`, `image` or `matte`. The write requires `X-Studio-CSRF`.
 The response and lane list show `paused`, `changed_by` and `changed_at`.
 An untouched lane starts open with null change fields. Repeating its current
 setting returns the previous decision. Each transition appends a decision.
-Paused lanes still accept new work and in-flight claims can finish.
-Workers receive 204 for new claims until the lane resumes.
+Paused lanes accept submissions and stop claiming queued work. The FIFO order
+and live claim fences stay in place. A worker can finish its claim, including a
+media job's first publish or a run's transcript step. An authorized engine
+request may start after the pause response.
+
+`GET /v1/queue/lanes` adds a `live_claim` boolean for each lane with
+`STUDIO_PAUSED_RECONCILE` either off or on. The pause and resume write responses
+keep their existing shape. This read-only field is the default-off API
+compatibility exception. The installed web build at `470a90af` selects lanes
+by name and reads `paused`, so it ignores `live_claim`. A lane is quiet at the
+time of the read when `paused` is true and `live_claim` is false. A lease lasts
+90 seconds from its grant or last renewal, using the database clock.
+
+With `STUDIO_PAUSED_RECONCILE=1`, a compatible run worker can reclaim a FIFO head
+with a recorded, unsettled sent Wan attempt after the old claim expires or is
+released and any retry delay passes. It can check and settle the recorded job
+without a Wan submission or replay. A matte poll can fail an expired dispatch
+with `work.dispatch_unconfirmed` while paused and returns 204. The switch
+extends that expiry handling to voice and image. Resume restores regular FIFO
+claiming. [Run claims](run-queue.md#claims-and-reconciliation) ·
+[Media claims](media-jobs.md#claims-and-results)
 
 ## Private playback
 
