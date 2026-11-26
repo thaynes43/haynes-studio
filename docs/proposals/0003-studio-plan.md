@@ -6,7 +6,9 @@ Tom started the remaining saga in [saga 362](https://work.haynesnetwork.com/work
 comment 9653. The coordinator grooms, orders and starts ready stories, and records
 provisional choices for Tom's review. Tom owns acceptance and exact-run go-live.
 The decisions below and the [Studio contract](../contracts/studio-contracts-v1.md)
-record the product choices and the seventh amendment snapshot.
+record the product choices. The eighth amendment indexes the coordinator's
+[provisional rulings CR-36 to CR-66](../contracts/studio-contracts-v1.md#ruling-36)
+for Tom's review.
 
 ## Decisions so far
 
