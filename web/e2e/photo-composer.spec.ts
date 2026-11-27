@@ -1,7 +1,9 @@
 import { expect, test as base, type Page } from "@playwright/test";
 
 import { photoAssetReturn } from "../src/photo-composer-model";
+import type { Board } from "../src/route-data";
 import { assetsPath, treePath } from "../src/routes";
+import { pollInterval } from "../src/run-polling";
 import { boardContext, mockStudio, story, storyContext } from "./studio-api";
 import {
   castPin, generatePhotoMedia, photoVersionId, propPin, setPin, unavailablePin, uploadDigest, workflowDigest,
@@ -23,6 +25,19 @@ const prompt = (page: Page) => composer(page).getByRole("textbox", { name: "Phot
 const button = (page: Page, name: string) => composer(page).getByRole("button", { name, exact: true });
 const picker = (page: Page) => composer(page).getByRole("region", { name: "Photo versions" });
 const resumePolling = (page: Page) => page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+
+async function writePhotoInput(page: Page, path: string, method: "PATCH" | "POST", body: object) {
+  return page.evaluate(async ({ path, method, body }) => {
+    const headers = new Headers({ "Content-Type": "application/json", "X-Studio-CSRF": "test-csrf-lena" });
+    if (method === "PATCH") {
+      const saved = await fetch(path);
+      headers.set("If-Match", saved.headers.get("etag")!);
+    } else {
+      headers.set("Idempotency-Key", crypto.randomUUID());
+    }
+    return (await fetch(path, { method, headers, body: JSON.stringify(body) })).status;
+  }, { path, method, body });
+}
 
 async function returnFromAssets(page: Page, versionId: string) {
   const { to, state } = photoAssetReturn(boardContext, versionId);
@@ -108,63 +123,126 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
     });
 
-    test("marks the retained filmstrip photo stale after a set change and clears the mark on recomposite", async ({ page, mock }) => {
-      const { api } = mock;
-      const jobs = api.photos!;
-      const layered = story.board_order[0];
-      const strip = page.getByRole("list", { name: "Boards" });
-      const tile = strip.getByRole("link", { name: /Board 01/ });
-      const label = "Reference photo stale";
-      const mark = tile.getByText(label, { exact: true });
-      const size = () => tile.evaluate((element) => {
-        const { width, height } = element.getBoundingClientRect();
-        return { width, height };
+    for (const fontSize of [16, 32]) {
+      test.describe(`${fontSize} px default text`, () => {
+        test("polls the retained filmstrip photo stale and back to current with the composer closed", async ({ page, mock }) => {
+          const { api } = mock;
+          const jobs = api.photos!;
+          const layered = story.board_order[0];
+          const route = treePath("board", { ...storyContext, board: layered });
+          const boardApi = `/v1/boards/${layered}`;
+          const strip = page.getByRole("list", { name: "Boards" });
+          const tile = strip.getByRole("link", { name: /Board 01/ });
+          const thumbnail = tile.locator("img");
+          const label = "Reference photo stale";
+          const stageMark = stage(page).getByText(label, { exact: true });
+          const mark = tile.getByText(label, { exact: true });
+          const stripTop = () => strip.evaluate((element) => element.getBoundingClientRect().top + window.scrollY);
+          const tileSize = () => tile.evaluate((element) => {
+            const { width, height } = element.getBoundingClientRect();
+            return { width, height };
+          });
+
+          async function setStorySet(asset_version_id: string) {
+            expect(await writePhotoInput(page, `/v1/stories/${story.id}`, "PATCH", { set: {
+              asset_version_id, motion_asset_version_id: null, foreground_edge_px: null,
+              foreground_feather_px: null, legacy_fire: null,
+            } })).toBe(200);
+          }
+
+          async function recomposite() {
+            expect(await writePhotoInput(page, `${boardApi}/photo-jobs`, "POST", { seed: 0 })).toBe(202);
+            const { id } = jobs.latest()!;
+            jobs.start(id);
+            const result = api.completePhoto(id, layered);
+            expect(result.current).toBe(true);
+            return `/v1/media/${result.file.hash}`;
+          }
+
+          async function pollBoard(): Promise<Board> {
+            const read = page.waitForResponse((response) => new URL(response.url()).pathname === boardApi &&
+              response.request().method() === "GET" && response.ok());
+            await page.clock.runFor(pollInterval);
+            return (await read).json();
+          }
+
+          async function expectSelectedPhoto(src: string) {
+            await expect(stage(page).getByRole("img")).toHaveAttribute("src", src);
+            await expect(thumbnail).toHaveAttribute("src", src);
+            await thumbnail.evaluate((image: HTMLImageElement) => image.decode());
+          }
+
+          async function expectCurrent() {
+            await expect(stageMark).toBeHidden();
+            await expect(mark).toBeHidden();
+          }
+
+          const cdp = await page.context().newCDPSession(page);
+          await cdp.send("Page.setFontSizes", { fontSizes: { standard: fontSize } });
+          await page.clock.install();
+          await page.goto(route);
+          await expect(composer(page)).not.toHaveAttribute("open");
+          await expect(page.locator("html")).toHaveCSS("font-size", `${fontSize}px`);
+          let navigations = 0;
+          page.on("framenavigated", (frame) => { if (frame === page.mainFrame()) navigations++; });
+          const original = await recomposite();
+          const freshBoard = await pollBoard();
+          expect(freshBoard.derived?.photo_state).toBe("current");
+          await expectSelectedPhoto(original);
+          await expectCurrent();
+          const freshTop = await stripTop();
+          const freshSize = await tileSize();
+          const freshWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+          const samePhoto = { revision: freshBoard.revision, photo: freshBoard.photo };
+
+          await setStorySet(photoVersionId(216));
+          expect(await pollBoard()).toMatchObject({ ...samePhoto, derived: { photo_state: "stale" } });
+          await expect(stageMark).toBeVisible();
+          await expect(mark).toBeVisible();
+          await expect(tile).toHaveAccessibleName(/^Board 01 Reference photo stale/);
+          await expectSelectedPhoto(original);
+          expect(await stripTop()).toBeCloseTo(freshTop, 1);
+          expect(await tileSize()).toEqual(freshSize);
+          expect(await mark.evaluate((element) => {
+            const link = element.closest("a")!;
+            const photo = link.querySelector("img")!.getBoundingClientRect();
+            const badge = element.getBoundingClientRect();
+            const tile = link.getBoundingClientRect();
+            const strip = link.closest("ol")!.getBoundingClientRect();
+            const range = document.createRange();
+            range.selectNodeContents(element);
+            const text = Array.from(range.getClientRects());
+            const contains = (outer: DOMRect, inner: DOMRect) => outer.left <= inner.left &&
+              outer.right >= inner.right && outer.top <= inner.top && outer.bottom >= inner.bottom;
+            return {
+              thumbnailVisible: photo.height === 56 && photo.bottom <= badge.top && contains(strip, photo),
+              badgeVisible: contains(tile, badge) && contains(strip, badge),
+              textFits: text.length > 0 && text.every((line) => contains(badge, line)),
+            };
+          })).toEqual({ thumbnailVisible: true, badgeVisible: true, textFits: true });
+          expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(freshWidth);
+
+          await setStorySet(setPin);
+          expect(await pollBoard()).toMatchObject({ ...samePhoto, derived: { photo_state: "current" } });
+          await expectCurrent();
+          expect(await stripTop()).toBeCloseTo(freshTop, 1);
+
+          await setStorySet(photoVersionId(216));
+          expect(await pollBoard()).toMatchObject({ ...samePhoto, derived: { photo_state: "stale" } });
+          await expect(stageMark).toBeVisible();
+          await expect(mark).toBeVisible();
+          const regenerated = await recomposite();
+          expect(regenerated).not.toBe(original);
+          expect((await pollBoard()).derived?.photo_state).toBe("current");
+          await expectSelectedPhoto(regenerated);
+          await expectCurrent();
+          expect(await stripTop()).toBeCloseTo(freshTop, 1);
+          await expect(composer(page)).not.toHaveAttribute("open");
+          expect(api.calls).not.toContain(`GET ${boardApi}/photo-versions`);
+          expect(navigations).toBe(0);
+        });
       });
-
-      async function recomposite() {
-        await button(page, "Recomposite").click();
-        await expect(composer(page).getByText("Waiting in the shared household image queue")).toBeVisible();
-        const { id } = jobs.latest()!;
-        jobs.start(id);
-        const result = api.completePhoto(id, layered);
-        expect(result.current).toBe(true);
-        await resumePolling(page);
-        const src = `/v1/media/${result.file.hash}`;
-        await expect(stage(page).getByRole("img")).toHaveAttribute("src", src);
-        await expect(tile.locator("img")).toHaveAttribute("src", src);
-        return src;
-      }
-
-      await page.clock.install();
-      await page.goto(treePath("board", { ...storyContext, board: layered }, "photo"));
-      const original = await recomposite();
-      await expect(strip.getByText(label, { exact: true })).toHaveCount(0);
-      const freshSize = await size();
-
-      api.editStory(story.id, { set: {
-        asset_version_id: photoVersionId(216), motion_asset_version_id: null, foreground_edge_px: null,
-        foreground_feather_px: null, legacy_fire: null,
-      } });
-      await page.reload();
-      await expect(stage(page).getByText(label, { exact: true })).toBeVisible();
-      await expect(tile.locator("img")).toHaveAttribute("src", original);
-      await expect(mark).toBeVisible();
-      await expect(tile).toHaveAccessibleName(/^Board 01 Reference photo stale/);
-      await expect(strip.getByText(label, { exact: true })).toHaveCount(1);
-      expect(await size()).toEqual(freshSize);
-      await expect.poll(() => mark.evaluate((element) => {
-        const badge = element.getBoundingClientRect();
-        const thumb = element.closest(".storyboard-thumb")!.getBoundingClientRect();
-        return badge.left >= thumb.left && badge.right <= thumb.right &&
-          badge.top >= thumb.top && badge.bottom <= thumb.bottom && element.scrollWidth <= element.clientWidth;
-      })).toBe(true);
-      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
-
-      expect(await recomposite()).not.toBe(original);
-      await expect(strip.getByText(label, { exact: true })).toHaveCount(0);
-      await expect(stage(page).getByText(label, { exact: true })).toHaveCount(0);
-      expect(await size()).toEqual(freshSize);
-    });
+    }
 
     test("retries a paused request with the same key and reports an API job failure", async ({ page, mock }) => {
       const jobs = mock.api.photos!;

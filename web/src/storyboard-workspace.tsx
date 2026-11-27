@@ -18,9 +18,11 @@ function BoardPicture({ url, alt, placeholder }: { url?: string; alt: string; pl
   return url && !failed ? <img src={url} alt={alt} onError={() => setFailed(true)} /> : placeholder;
 }
 
-function StalePhotoMark({ board }: { board: StoryboardPanel["record"] }) {
-  const label = stalePhotoLabel(board.derived?.photo_state);
-  return label ? <span className="storyboard-photo-stale">{label}</span> : null;
+function PhotoStatus({ label }: { label?: string }) {
+  // Let the stale text size the slot even while it is hidden.
+  return <span className="storyboard-photo-status" aria-hidden={label ? undefined : true}>
+    {label ?? stalePhotoLabel("stale")}
+  </span>;
 }
 
 function VoiceStrip({ panel }: { panel: StoryboardPanel }) {
@@ -46,12 +48,12 @@ function Stage({ panel, index, range, aspect, voiceCurrent, photoUnsaved }: {
   const number = boardPosition(index);
   const layer = record.method.layer === "layered" ? "Layered" : "Whole-frame";
   const motion = record.method.motion === "s2v" ? "Speech-to-video" : "Image-to-video";
+  const photoStatus = photoUnsaved ? "Photo inputs unsaved" : stalePhotoLabel(record.derived?.photo_state);
   return <section className="storyboard-stage" aria-label="Selected board stage">
     <div className="storyboard-stage-meta">
       <code aria-label="Board ID">{record.id}</code>
       <span aria-label="Time range">{range}</span>
-      {photoUnsaved ? <span>Photo inputs unsaved</span>
-        : <StalePhotoMark board={record} />}
+      <PhotoStatus label={photoStatus} />
     </div>
     <div className="storyboard-preview">
       <div className={`storyboard-picture storyboard-picture-${aspect}`}>
@@ -108,11 +110,11 @@ export function StoryboardWorkspace({ api, model, scope, photoRoute }: {
           return <li key={record.id}>
             <Link id={panelElementId(record.id)} to={treePath("board", { ...scope, board: record.id })}
               aria-current={record.id === selected ? "page" : undefined} onClick={model.clearNotice}>
-              <strong>{number}</strong>
               <div className="storyboard-thumb">
                 <BoardPicture key={photo} url={photo} alt="" placeholder={<span className="storyboard-thumb-placeholder" />} />
-                <StalePhotoMark board={record} />
               </div>
+              <strong>{number}</strong>
+              <PhotoStatus label={stalePhotoLabel(record.derived?.photo_state)} />
               <span>{labels.boards.get(record.id)?.length}</span>
             </Link>
           </li>;

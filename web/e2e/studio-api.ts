@@ -481,7 +481,7 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
       if (!resource && method === "GET") {
         return route.fulfill({ headers: { etag: `"${draft.revision}"` }, json: viewStory(draft) });
       }
-      if (!resource && method === "PATCH" && formatPin) {
+      if (!resource && method === "PATCH" && (formatPin || photos)) {
         const body = request.postDataJSON() as Schemas["StoryPatch"];
         formatWrites.push({ story: storyId, revision: headers["if-match"], body });
         const refused = requireStoryRevision(route, headers["if-match"], draft.revision);
