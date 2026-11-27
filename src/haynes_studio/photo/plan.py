@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import unicodedata
+from collections.abc import Collection
 from dataclasses import dataclass
 
 from haynes_studio.canonical.facts import Facts, PhotoVersionFacts
@@ -11,12 +12,14 @@ from haynes_studio.errors import ContractError
 from haynes_studio.jsonio import thaw
 from haynes_studio.layered import compose
 from haynes_studio.layered.errors import LayeredError
+from haynes_studio.layered.foreground import RoleMask, admit_masks, check_loop, check_picture, pinned_roles
 from haynes_studio.layered.matte_size import ENGINE, SIZE_POLICY
 from haynes_studio.layered.photo import PhotoInputs, photo_inputs
 from haynes_studio.library import Library
 from haynes_studio.library.library import require_media
 from haynes_studio.library.model import BOARD, PROMOTED, AssetVersion, Content, Scope, signature
 from haynes_studio.library.resolve import BYTES_MISSING, KIND_MISMATCH, SCOPE_MISMATCH
+from haynes_studio.store import Store
 
 from .validation import IMAGE_TYPES, error, text_is_encodable
 
@@ -77,7 +80,27 @@ def sources_for(library: Library, scope: Scope, ids: tuple[str, ...],
     return tuple(sources)
 
 
-def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: bool = False) -> PhotoPlan:
+def admit_photo(story: Story, board: Board, library: Library, *, store: Store,
+                declaring_sources: Collection[str]) -> PhotoPlan:
+    """Check the new request before its library and signature are frozen."""
+    version = library.get(story.set.asset_version_id) if story.set is not None else None
+    loop_id = story.set.motion_asset_version_id if story.set is not None else None
+    check_picture(version, board, uses_loop=loop_id is not None)
+    if board.method.layer == LAYERED:
+        check_loop(library.get(loop_id), declaring_sources)
+    elif board.method.layer == WHOLE_FRAME:
+        for index, version_id in enumerate(board.photo.input_asset_version_ids):
+            try:
+                check_picture(library.get(version_id), None, uses_loop=False)
+            except LayeredError as error:
+                raise LayeredError(error.code, error.message,
+                                   where=f"/photo/input_asset_version_ids/{index}") from error
+    roles = admit_masks(version, library, story.production_id, store)
+    return plan_photo(story, board, library, roles=roles)
+
+
+def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: bool = False,
+               roles: tuple[RoleMask, ...] | None = None) -> PhotoPlan:
     """Take canonical story and board values and the relevant library records.
 
     The plan owns all generation inputs. Its signature excludes the currently selected
@@ -94,6 +117,10 @@ def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: b
             ids = (story.set.asset_version_id, *ids)
         sources = sources_for(library, scope, ids, "/layers", metadata_only=metadata_only)
         blobs = {source.version_id: source.content.sha256 for source in sources}
+        if roles is None:
+            roles = (pinned_roles(library.get(story.set.asset_version_id), library)
+                     if story.set is not None and board.layout.foreground else ())
+        sources += tuple(PhotoSource(role.version_id, role.content) for role in roles)
         matte_sizes = {}
         for entry in board.cast:
             version = library.version(entry.asset_version_id)
@@ -113,7 +140,7 @@ def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: b
             matte_sizes[entry.slot] = {"target_height_px": height,
                                        "shape": thaw(params.get("receipt", {}).get("shape"))}
         layers = photo_inputs(story, board, blobs=blobs, width=size[0], height=size[1],
-                              matte_sizes=matte_sizes)
+                              matte_sizes=matte_sizes, roles=roles)
         for slot_name, matte in matte_sizes.items():
             try:
                 bottom = compose.slot_of(thaw(layers.layout), slot_name).bottom

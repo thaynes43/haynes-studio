@@ -29,7 +29,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from haynes_studio.adapters.wan import NEGATIVE
 from haynes_studio.cache.errors import KEY_INPUT_INVALID, CacheError
@@ -67,6 +67,9 @@ from haynes_studio.render.clock import (
 from haynes_studio.render.delivery_profile import delivery_profile_sha256
 from haynes_studio.render.encode import EncoderSettings, encoder_build
 from haynes_studio.timebase import DELIVERY_FPS, MIX_RATE, mix_sample
+
+if TYPE_CHECKING:
+    from haynes_studio.layered.foreground import RoleMask
 
 Content = Callable[[CacheKey], str]
 """Answers an artifact's content hash for its key (a build: the cache; a test: a
@@ -330,10 +333,12 @@ def _picture_cues(board: Board, clock: BoardClock) -> list[dict[str, Any]]:
 class _Planner:
     def __init__(self, story: Story, *, voices: Mapping[str, BoardVoice], blobs: Mapping[str, str],
                  voice_ids: Mapping[str, str], toolchain: Toolchain, media: MediaFormat,
-                 content: Content, motion: LayeredMotion | None = None):
+                 content: Content, motion: LayeredMotion | None = None,
+                 foreground_roles: tuple[RoleMask, ...] = ()):
         self.story, self.voices, self.blobs = story, voices, blobs
         self.voice_ids, self.tools, self.media, self.content = voice_ids, toolchain, media, content
         self.motion = motion
+        self.foreground_roles = foreground_roles
         self.artifacts: dict[str, Planned] = {}
 
     def add(self, name: str, key: CacheKey, board_id: str | None = None,
@@ -544,7 +549,9 @@ class _Planner:
                     "phase": None if loop is None else loop_phase(board.id, SET_SLOT,
                                                                   loop_period(self.loop_frames()))}
             if story_set is not None:
-                if board.layout.foreground and story_set.foreground_edge_px is not None:
+                if board.layout.foreground and self.foreground_roles and not set_layer.get("loop"):
+                    foreground = {"roles": [role.draw_pin() for role in self.foreground_roles]}
+                elif board.layout.foreground and story_set.foreground_edge_px is not None:
                     foreground = {"edge_px": [list(p) for p in story_set.foreground_edge_px],
                                   "feather_px": story_set.foreground_feather_px}
             motion_style = None if story.motion_style is None else thaw(story.motion_style)
@@ -625,7 +632,8 @@ class _Planner:
 
 def plan_story(story: Story, *, voices: Mapping[str, BoardVoice], blobs: Mapping[str, str],
                voice_ids: Mapping[str, str], toolchain: Toolchain, media: MediaFormat,
-               content: Content, motion: LayeredMotion | None = None) -> StoryPlan:
+               content: Content, motion: LayeredMotion | None = None,
+               foreground_roles: tuple[RoleMask, ...] = ()) -> StoryPlan:
     """The key plan of a story with embedded boards (see the module docstring).
     ``voices`` maps each spoken board's ID to its current voice; ``blobs`` maps asset
     version IDs to content hashes; ``voice_ids`` maps voice versions to stock voice
@@ -637,4 +645,4 @@ def plan_story(story: Story, *, voices: Mapping[str, BoardVoice], blobs: Mapping
     if story.boards is None:
         raise _bad("the story's boards must be embedded", story.id)
     return _Planner(story, voices=voices, blobs=blobs, voice_ids=voice_ids, toolchain=toolchain,
-                    media=media, content=content, motion=motion).film()
+                    media=media, content=content, motion=motion, foreground_roles=foreground_roles).film()

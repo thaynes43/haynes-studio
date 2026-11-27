@@ -31,7 +31,7 @@ from haynes_studio.photo.plan import photo_facts
 from haynes_studio.voice import Engine, voice_facts
 
 from .jobs import active_for_story
-from .catalog import ProductionScope, load_library, record_asset_version
+from .catalog import ProductionScope, load_library, record_asset_version, with_foreground_masks
 from .problems import DraftProtected, NotFound, require_revision, require_valid
 from .schema import boards, draft_ids, media_types, productions, stories, story_asset_refs
 
@@ -182,9 +182,12 @@ class Draft:
         return refs, library
 
     def facts(self, conn, document, library):
+        setting = document.get("set") or {}
+        photo_library = with_foreground_masks(conn, library, setting.get("asset_version_id"),
+                                              self.story["production_id"])
         return voice_facts(library, document, active_for_story(conn, self.story["id"]),
                            current_engine=Engine().signing_name).merged(
-            photo_facts(Story.from_document(document), library),
+            photo_facts(Story.from_document(document), photo_library),
         )
 
     def summary(self, conn: sa.Connection, status=None) -> dict:

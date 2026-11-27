@@ -98,7 +98,7 @@ from haynes_studio.build.errors import (
     failure_of,
 )
 from haynes_studio.build.live import KEPT, PlannedClip, planned_clips
-from haynes_studio.build.prebuild import Prepared, make_snapshot, prepare, snapshot_bytes
+from haynes_studio.build.prebuild import Prepared, admit_build, make_snapshot, prepare, snapshot_bytes
 from haynes_studio.build.provenance import Register, Use, library_uses, provenance, toolchain_record
 from haynes_studio.build.run import (
     CANCELLED,
@@ -135,6 +135,7 @@ from haynes_studio.delivery.publish import RECORD as DELIVERY_DOCUMENT, STAGE as
 from haynes_studio.jsonio import thaw
 from haynes_studio.layered import COMPOSITOR as LAYERED_COMPOSITOR
 from haynes_studio.layered import LayeredError, LayeredRenderer, LayeredStages, reader
+from haynes_studio.layered.foreground import RoleMask, declarations
 from haynes_studio.layered.keyed import keyer_build, read_record, read_verified
 from haynes_studio.layered.renderer import _Layer, decal_check
 from haynes_studio.layered.s2v import read_provenance, record_stage
@@ -177,6 +178,7 @@ class BuildInputs:
     studio: str = "git:unknown"
     image_digest: str | None = None
     format_version: Mapping[str, Any] | None = None
+    foreground_roles: tuple[RoleMask, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -415,7 +417,7 @@ class _Build:
         return plan_story(self.story, voices=_voices(self.story, prepared.document, prepared),
                           blobs=_blobs(prepared), voice_ids=_voice_ids(prepared),
                           toolchain=self.toolchain, media=self.media, content=chain,
-                          motion=self._located(prepared.motion))
+                          motion=self._located(prepared.motion), foreground_roles=prepared.foreground_roles)
 
     def _located(self, motion: LayeredMotion | None) -> LayeredMotion | None:
         """``motion`` whose library timed-clip lookup marks where the build is: a timed
@@ -816,6 +818,11 @@ def build_story(inputs: BuildInputs, *, store: Store, phase: str, sources: ClipS
     prepared = prepare(inputs.story, library=library, store=store, toolchain=toolchain,
                        frame_size=(media.width, media.height),
                        current_engine=Engine().signing_name, format_version=inputs.format_version)
+    if queued is None:
+        declaring = {version.id for version in library.versions.values() if declarations(version)}
+        prepared = admit_build(prepared, store, declaring_sources=declaring)
+    else:
+        prepared = replace(prepared, foreground_roles=inputs.foreground_roles)
     if phase == OFFLINE:  # the recognizer is a service: the offline phase reads the cache only
         transcriber = None
     return _build(inputs, prepared, store=store, phase=phase, sources=sources,
@@ -1174,6 +1181,7 @@ def _master_file(store: Store, production_id: str, sha256: str, scratch: str
 
 def _input_versions(prepared: Prepared, recorder: _Recorder) -> list[str]:
     ids = [item.version_id for item in prepared.resolution.resolved]
+    ids.extend(role.version_id for role in prepared.foreground_roles)
     return list(dict.fromkeys([*ids, *sorted(recorder.library_inputs)]))
 
 

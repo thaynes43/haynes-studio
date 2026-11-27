@@ -26,8 +26,9 @@ from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import Any
 
-from haynes_studio.canonical.jsonvalues import normalize
+from haynes_studio.canonical.jsonvalues import normalize, too_deep
 from haynes_studio.canonical.model import Principal, to_document
+from haynes_studio.errors import ContractError, Violation
 from haynes_studio.jsonio import freeze, thaw
 
 ASSET_SCHEMA = "studio.asset/v1"
@@ -298,9 +299,47 @@ class AssetVersion:
     # and for a motion version recorded before the block existed.
     motion: Mapping[str, Any] | None = None
     recorded_without_media: bool = False
+    occlusion: Mapping[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        if self.occlusion is None:
+            return
+        if too_deep(self.occlusion, limit=62):
+            raise ContractError(self.id, [Violation(
+                "schema.invalid", "/occlusion", "the declaration nests too deeply",
+            )])
+        declaration = self.canonical_document({"occlusion": self.occlusion}).get("occlusion")
+        if declaration is not None:
+            # Import locally: validators also read this module's legacy constants.
+            from haynes_studio.library.validate import validate_occlusion
+
+            problems = validate_occlusion(self.kind, self.capabilities, self.content, declaration)
+            if problems:
+                raise ContractError(self.id, problems)
+        object.__setattr__(self, "occlusion", freeze(declaration))
+
+    @staticmethod
+    def canonical_document(document: Mapping[str, Any]) -> dict[str, Any]:
+        out = dict(document)
+        if "occlusion" not in out:
+            return out
+        block = normalize(out["occlusion"])
+        if isinstance(block, dict):
+            if block.get("foreground") is None or block.get("foreground") == []:
+                block.pop("foreground", None)
+        if block is None or block in ({}, []):
+            out.pop("occlusion")
+        else:
+            out["occlusion"] = block
+        return out
 
     @classmethod
     def from_document(cls, doc: Mapping[str, Any]) -> AssetVersion:
+        if "occlusion" in doc:
+            from haynes_studio.library.validate import noncanonical_occlusion
+
+            if problem := noncanonical_occlusion(doc):
+                raise ContractError(doc["id"], [problem])
         doc = normalize(doc)
         return cls(id=doc["id"], asset_id=doc["asset_id"], number=doc["number"],
                    kind=doc["kind"], state=doc["state"],
@@ -311,7 +350,8 @@ class AssetVersion:
                    legacy=None if doc.get("legacy") is None else freeze(doc["legacy"]),
                    voice=BoardVoice.from_document(doc.get("voice")),
                    motion=None if doc.get("motion") is None else freeze(doc["motion"]),
-                   recorded_without_media=doc.get("recorded_without_media", False))
+                   recorded_without_media=doc.get("recorded_without_media", False),
+                   occlusion=doc.get("occlusion"))
 
     @property
     def source_key(self) -> str | None:
@@ -346,6 +386,8 @@ def version_document(version: AssetVersion, asset: Asset) -> dict[str, Any]:
         out["motion"] = thaw(version.motion)
     if version.recorded_without_media:
         out["recorded_without_media"] = True
+    if version.occlusion is not None:
+        out["occlusion"] = thaw(version.occlusion)
     return out
 
 
@@ -399,11 +441,15 @@ def pin(version: AssetVersion, asset: Asset) -> str:
 
     A ``motion`` version with a motion block (story 457, proposal) pins its record's
     identity, which covers its bytes and how they are keyed and played: the same clip
-    keyed another way is the next version, never the same one."""
+    keyed another way is the next version, never the same one. A declared set pins
+    its plate hash and its role declaration, so another assignment can use the
+    same plate as a new version."""
     identity = recorded_identity(version)
     if identity is not None:
         return identity
     if version.content is not None:
+        if version.occlusion is not None:
+            return signature({"sha256": version.content.sha256, "occlusion": thaw(version.occlusion)})
         return version.content.sha256
     if version.voice is not None:
         return takes_signature(version.voice)
@@ -417,10 +463,13 @@ def content_fields(version: AssetVersion) -> dict[str, Any]:
     principal and time, which a re-import cannot reproduce."""
     provenance = {key: value for key, value in thaw(version.provenance).items()
                   if key not in ("created_at", "created_by")}
-    return {"kind": version.kind, "capabilities": sorted(version.capabilities),
+    out = {"kind": version.kind, "capabilities": sorted(version.capabilities),
             "content": to_document(version.content), "provenance": provenance,
             "legacy": thaw(version.legacy), "voice": to_document(version.voice),
             "motion": thaw(version.motion), "recorded_without_media": version.recorded_without_media}
+    if version.occlusion is not None:
+        out["occlusion"] = thaw(version.occlusion)
+    return out
 
 
 def take_offsets(lead_ms: int, gaps_ms: tuple[int, ...] | list[int],

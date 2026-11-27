@@ -23,8 +23,8 @@ from __future__ import annotations
 
 import copy
 import hashlib
-from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from collections.abc import Collection, Iterable, Mapping
+from dataclasses import dataclass, replace
 from typing import Any
 
 from haynes_studio.build.validate import SNAPSHOT_SCHEMA, validate_run_snapshot
@@ -36,6 +36,8 @@ from haynes_studio.errors import WARNING, blocking
 from haynes_studio.formats.recipe import PIN_PATH, method_violation
 from haynes_studio.jsonio import thaw
 from haynes_studio.layered import check_board as layered_check
+from haynes_studio.layered.errors import LayeredError
+from haynes_studio.layered.foreground import RoleMask, admit_masks, check_loop, check_picture, declarations
 from haynes_studio.layered.pin import pin_story
 from haynes_studio.library import Library
 from haynes_studio.library.model import locator_for
@@ -71,6 +73,7 @@ class Prepared:
     motion: LayeredMotion | None
     report: PreflightReport
     format_version: Mapping[str, Any] | None = None
+    foreground_roles: tuple[RoleMask, ...] = ()
 
     @property
     def ok(self) -> bool:
@@ -212,6 +215,44 @@ def blocking_problems(problems: Iterable[Problem]) -> list[Problem]:
     return [problem for problem in problems if problem.status != WARNING]
 
 
+def set_loop_ids(prepared: Prepared) -> set[str]:
+    """The chosen set loops for layered boards and any explicit set-loop pin."""
+    if prepared.story is None or prepared.motion is None or not prepared.motion.boards:
+        return set()
+    ids = {board.set.version_id for board in prepared.motion.boards.values() if board.set is not None}
+    setting = prepared.story.set
+    if setting is not None and setting.motion_asset_version_id is not None:
+        ids.add(setting.motion_asset_version_id)
+    return ids
+
+
+def admit_build(prepared: Prepared, store: Store, *, declaring_sources: Collection[str]) -> Prepared:
+    """Resolve role masks for a new Build, before writing its snapshot or run."""
+    story = prepared.story
+    if story is None or story.set is None:
+        return prepared
+    library = prepared.library
+    version = library.get(story.set.asset_version_id)
+    loops = sorted(set_loop_ids(prepared))
+    if not loops and not declarations(version):
+        return prepared
+    path = ""
+    try:
+        for loop_id in loops:
+            check_loop(library.get(loop_id), declaring_sources)
+        for index, board in enumerate(story.boards or ()):
+            path = f"/boards/{index}"
+            check_picture(version, board, uses_loop=bool(loops))
+        roles = admit_masks(version, library, story.production_id, store)
+    except LayeredError as error:
+        field = error.where
+        at = field if field.startswith("/set/") else f"{path}{field}"
+        raise PreflightError("<story>", PreflightReport((
+            Problem(error.code, error.status, at, error.message, field=field),
+        ))) from error
+    return replace(prepared, foreground_roles=roles)
+
+
 def motion_versions(motion: LayeredMotion | None, library: Library) -> list[dict[str, Any]]:
     """The motion versions the layered boards' resolver pinned (cast loops and set
     loops), as snapshot entries: a loop found by search is a build input too."""
@@ -236,6 +277,8 @@ def make_snapshot(prepared: Prepared, library: Library, *, studio: str) -> dict[
         entries.setdefault(item.version_id, item.snapshot_entry())
     for entry in motion_versions(prepared.motion, library):
         entries.setdefault(entry["id"], entry)
+    for role in prepared.foreground_roles:
+        entries.setdefault(role.version_id, role.snapshot_entry())
     snapshot = {"schema": SNAPSHOT_SCHEMA, "story": draft_document(prepared.document),
                 "resolved_asset_versions": list(entries.values()),
                 "toolchain_request": {"studio": studio}}
@@ -254,5 +297,5 @@ def snapshot_bytes(snapshot: Mapping[str, Any]) -> tuple[bytes, str]:
     return data, hashlib.sha256(data).hexdigest()
 
 
-__all__ = ["Prepared", "blocking_problems", "draft_document", "make_snapshot",
-           "motion_versions", "prepare", "resolved_versions", "snapshot_bytes"]
+__all__ = ["Prepared", "admit_build", "blocking_problems", "draft_document", "make_snapshot",
+           "motion_versions", "prepare", "resolved_versions", "set_loop_ids", "snapshot_bytes"]
