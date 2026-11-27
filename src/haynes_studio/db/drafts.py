@@ -185,7 +185,7 @@ class Draft:
         story = Story.from_document(document)
         mask_ids = {pin["version_id"] for board in story.boards or ()
                     if (photo := library.get(board.photo.current_version_id)) is not None
-                    for pin in photo_role_pins(photo)}
+                    for pin in photo_role_pins(photo, board.id)}
         photo_library = with_mask_versions(conn, library, mask_ids, self.story["production_id"])
         return voice_facts(library, document, active_for_story(conn, self.story["id"]),
                            current_engine=Engine().signing_name).merged(

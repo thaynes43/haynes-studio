@@ -14,6 +14,7 @@ from haynes_studio.layered import compose
 from haynes_studio.layered.errors import LayeredError
 from haynes_studio.layered.foreground import RoleMask, admit_masks, check_loop, check_picture, roles_from_pins
 from haynes_studio.layered.matte_size import ENGINE, SIZE_POLICY
+from haynes_studio.layered.photo import SCHEMA as COMPOSITE_SCHEMA
 from haynes_studio.layered.photo import PhotoInputs, photo_inputs
 from haynes_studio.library import Library
 from haynes_studio.library.library import require_media
@@ -26,6 +27,15 @@ from .validation import IMAGE_TYPES, error, text_is_encodable
 SIGNATURE_SCHEME = "studio.board-photo-inputs/v1"
 WHOLE_FRAME = "whole_frame"
 LAYERED = "layered"
+
+
+def _photo_signature(*, board_id: str | None, layer: str, size: list[int], prompt: str | None,
+                     sources: list[dict[str, str]], composite_signature: str | None) -> str:
+    return signature({
+        "schema": SIGNATURE_SCHEME, "board_id": board_id,
+        "layer": layer, "size": size, "prompt": prompt,
+        "sources": sources, "composite_signature": composite_signature,
+    })
 
 
 @dataclass(frozen=True)
@@ -50,12 +60,11 @@ class PhotoPlan:
 
     @property
     def input_signature(self) -> str:
-        return signature({
-            "schema": SIGNATURE_SCHEME, "board_id": self.scope.board_id,
-            "layer": self.layer, "size": list(self.size), "prompt": self.prompt,
-            "sources": [source.pin() for source in self.sources],
-            "composite_signature": None if self.layers is None else self.layers.signature,
-        })
+        return _photo_signature(
+            board_id=self.scope.board_id, layer=self.layer, size=list(self.size), prompt=self.prompt,
+            sources=[source.pin() for source in self.sources],
+            composite_signature=None if self.layers is None else self.layers.signature,
+        )
 
 
 def sources_for(library: Library, scope: Scope, ids: tuple[str, ...],
@@ -194,14 +203,33 @@ def can_select_photo(version: AssetVersion, plan: PhotoPlan, story: Story | None
             and _matches(version, current))
 
 
-def photo_role_pins(version: AssetVersion) -> tuple[Mapping, ...]:
-    """Role pins in a recorded photo's own composite provenance."""
-    value = version.provenance.get("generator")
-    for key in ("params", "composite", "foreground", "roles"):
-        value = value.get(key) if isinstance(value, Mapping) else None
-    if not isinstance(value, tuple):
+def photo_role_pins(version: AssetVersion, board_id: str) -> tuple[Mapping, ...]:
+    """Read pins only from the typed composite covered by the board photo's signature."""
+    if version.kind != "photo" or version.provenance.get("origin") != "derived":
         return ()
-    return tuple(pin for pin in value if isinstance(pin, Mapping) and isinstance(pin.get("version_id"), str))
+    generator = version.provenance.get("generator")
+    if not isinstance(generator, Mapping) or generator.get("role") != "composite":
+        return ()
+    params = generator.get("params")
+    if not isinstance(params, Mapping):
+        return ()
+    composite = params.get("composite")
+    if not isinstance(composite, Mapping) or composite.get("schema") != COMPOSITE_SCHEMA:
+        return ()
+    foreground = composite.get("foreground")
+    pins = foreground.get("roles") if isinstance(foreground, Mapping) else None
+    if not isinstance(pins, tuple) or not pins:
+        return ()
+    try:
+        expected = _photo_signature(
+            board_id=board_id, layer=LAYERED, size=[composite["width"], composite["height"]],
+            prompt=None, sources=thaw(params["source_assets"]), composite_signature=signature(thaw(composite)),
+        )
+    except (KeyError, TypeError, ValueError):
+        return ()
+    if params.get("input_signature") != expected:
+        return ()
+    return tuple(pin for pin in pins if isinstance(pin, Mapping) and isinstance(pin.get("version_id"), str))
 
 
 def photo_facts(story: Story, library: Library) -> Facts:
@@ -215,7 +243,7 @@ def photo_facts(story: Story, library: Library) -> Facts:
         if version is None or version.kind != "photo":
             continue
         try:
-            roles = roles_from_pins(photo_role_pins(version), library)
+            roles = roles_from_pins(photo_role_pins(version, board.id), library)
         except (KeyError, TypeError, ValueError):
             roles = None
         current = None if roles is None else _latest(story, board, library, roles)
