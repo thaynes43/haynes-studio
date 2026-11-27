@@ -1,6 +1,7 @@
 """Compare renderer measurements with independently counted film pixels."""
 
 from hashlib import sha256
+from io import BytesIO
 import json
 from types import SimpleNamespace
 
@@ -8,17 +9,23 @@ import numpy as np
 from PIL import Image
 import pytest
 
+from haynes_studio.build.errors import BuildError
 from haynes_studio.build.visibility import visibility_check
 from haynes_studio.cache import ArtifactCache, make_key
 from haynes_studio.cache.build import PictureBuilder
 from haynes_studio.cache.errors import CacheError
-from haynes_studio.cache.keys import SEGMENT
+from haynes_studio.cache.keys import SEGMENT, film_picture_key
+from haynes_studio.delivery import deliver
+from haynes_studio.delivery.model import MASTER_SIZES
 from haynes_studio.layered.keyed import SCHEMA, _frame_png, write_apng
 from haynes_studio.layered.renderer import COMPOSITOR, LayeredRenderer
+from haynes_studio.mix.audio import write_wav24
+from haynes_studio.mix.master import mux
 from haynes_studio.render.base import SegmentRequest
-from haynes_studio.render.encode import EncoderSettings
-from haynes_studio.render.visibility import VISIBILITY_VERSION, verdict
-from haynes_studio.store import LocalStore
+from haynes_studio.render.encode import EncoderSettings, decode_frames
+from haynes_studio.render.visibility import VISIBILITY_OUTPUT, VISIBILITY_VERSION, verdict
+from haynes_studio.store import LocalStore, canonical_json
+from haynes_studio.timebase import SAMPLES_PER_FRAME
 from tests.build_story import fixtures as f
 from tests.layered.test_foreground_roles import Images, RED_BOX, SIZE, png
 
@@ -122,7 +129,7 @@ def test_verdict_bounds(support, lower, upper, expected):
     assert verdict(support, lower, upper) == expected
 
 
-def test_cached_segment_carries_its_visibility_evidence(tmp_path):
+def test_cached_segment_carries_its_visibility_evidence(tmp_path, monkeypatch):
     store = LocalStore(tmp_path)
     original = segment(cover=(0, 0, 17, 48))
     key = make_key(SEGMENT, {
@@ -141,3 +148,75 @@ def test_cached_segment_carries_its_visibility_evidence(tmp_path):
     check = visibility_check(other, board, {})
     assert check["result"] == "fail" and check["measured"]["verdict"] == "uncertain"
     assert check["measured"]["poses"][0]["lower_visible_pixels"] == 340
+
+    # Simulate a different, parseable read after lookup verified the evidence blob.
+    evidence = made.record.blobs[VISIBILITY_OUTPUT]
+    with store.open(evidence.locator) as handle:
+        rows = json.load(handle)
+    rows[0]["frame_sha256"] = "f" * 64
+    after_verification = canonical_json(rows)
+    assert len(after_verification) == evidence.bytes
+    open_blob = store.open
+    monkeypatch.setattr(store, "open", lambda locator: BytesIO(after_verification)
+                        if locator == evidence.locator else open_blob(locator))
+    with pytest.raises(BuildError) as refused:
+        visibility_check(other, board, {})
+    assert refused.value.code == "visibility.evidence_invalid"
+
+
+def test_composed_occlusion_pass_can_lose_luma_matched_stripes_in_420_delivery(tmp_path):
+    width, height = MASTER_SIZES["short"]
+    poses, frames = [0, 5, 11], 12
+    images = Images()
+    gray = images.add(png(Image.new("RGB", (width, height), (128,) * 3)))
+    # Both colors have essentially the gray plate's luma and opposite chroma.
+    # Each 2x2 chroma sample covers both stripes when the sprite is drawn 1:1.
+    stripes = np.empty((64, 64, 4), dtype=np.uint8)
+    stripes[:, ::2] = (240, 92, 20, 255)
+    stripes[:, 1::2] = (16, 164, 236, 255)
+    still = images.add(png(Image.fromarray(stripes)))
+    header, pixels = _frame_png(stripes)
+    record = {"schema": SCHEMA, "box": [0, 0, 64, 64], "frames": 1}
+    keyed = images.add(write_apng([pixels], header, record, 24))
+    layer = {"slot": "a", "still": still, "clip": keyed, "keyed": keyed,
+             "decal_min_ecc": None, "role": "doll", "phase": 0, "play": "loop",
+             "trim_start": 0, "trim_frames": 1, "source_fps": 24, "clip_frames": 1}
+    key = make_key(SEGMENT, {
+        "method": {"layer": "layered", "motion": "i2v"}, "fps": 24, "frames": frames,
+        "width": width, "height": height, "layers": [layer], "set_layer": {"plate": gray},
+        "layout": {"height": 64, "bottom": 1024, "slots": {"a": {"x": .5}}},
+        "motion_style": {"idle_scale": 0}, "foreground": None, "cues": [],
+        "compositor": COMPOSITOR, "encoder": EncoderSettings().key_inputs(),
+        "visibility": {"slot": "a", "frames": poses, "version": VISIBILITY_VERSION},
+    })
+
+    class CaptureComposedFrames(LayeredRenderer):
+        def render(self, request):
+            for index, frame in enumerate(super().render(request)):
+                if index in poses:
+                    assert np.count_nonzero(np.ptp(frame, axis=2) > 100) == 4096
+                yield frame
+
+    store = LocalStore(tmp_path)
+    cache = ArtifactCache(store, production_id=f.PRODUCTION, run_id=f.ident("run", 96))
+    builder = PictureBuilder(cache, CaptureComposedFrames(), open_input=images.open)
+    made = builder.segment(key)
+    board = SimpleNamespace(board_id=f.ident("brd", 95), segment=SimpleNamespace(key=key, content=made.sha256))
+    check = visibility_check(cache, board, {})
+    assert check["result"] == "pass" and check["measured"]["measurement_stage"] == "composed_pre_encode"
+    assert [(pose["frame"], pose["lower_visible_pixels"]) for pose in check["measured"]["poses"]] == [
+        (frame, 4096) for frame in poses
+    ]
+
+    picture = builder.film_picture(film_picture_key(segments=[(made.sha256, frames)], splicer="test"))
+    audio = write_wav24(np.zeros((frames * SAMPLES_PER_FRAME, 2)))
+    master = tmp_path / "master.mp4"
+    with store.open(picture.blob.locator) as handle:
+        master.write_bytes(mux(handle.read(), audio).data)
+    delivery = deliver(master, store=store, production_id=f.PRODUCTION, run_id=cache.run_id,
+                       expected_frames=frames, workdir=tmp_path)
+    for media in (delivery.master, delivery.proxy):
+        with store.open(media.locator) as handle:
+            counts = [np.count_nonzero(np.ptp(frame, axis=2) > 100)
+                      for index, frame in enumerate(decode_frames(handle)) if index in poses]
+        assert counts == [0, 0, 0]

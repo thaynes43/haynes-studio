@@ -25,6 +25,5 @@ def test_legacy_schema_rules_match_pinned_main(name, legacy_sha256):
         props.pop("occlusion")
         schema["$defs"].pop("occlusion")
     elif name == "run-snapshot":
-        props.pop("visibility_overrides")
-        props["toolchain_request"]["properties"].pop("cast_visibility")
+        props.pop("visibility_admission")
     assert sha256(canonical_json(schema)).hexdigest() == legacy_sha256

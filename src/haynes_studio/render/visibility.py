@@ -3,6 +3,7 @@
 VISIBILITY_CHECK = "layered.visibility"
 VISIBILITY_OUTPUT = "visibility"
 VISIBILITY_VERSION = "1"
+MEASUREMENT_STAGE = "composed_pre_encode"
 
 ALPHA_FLOOR = 128  # Count pixels where the subject supplies at least half the opacity.
 HIDDEN_MAX_PERCENT = 50  # Losing half or more of the unoccluded subject blocks delivery.

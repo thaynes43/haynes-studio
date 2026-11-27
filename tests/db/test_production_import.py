@@ -434,6 +434,36 @@ def test_archive_import_preserves_recorded_run_while_new_build_checks_masks(
         assert [row["id"] for row in runs.list_story(conn, fixture.run["story_id"], None, 10)] == [run_id]
 
 
+def test_legacy_archive_preserves_free_form_visibility_metadata(operator, service, tmp_path, capsys):
+    app, store, issuer = service
+    fixture = make_archive(tmp_path / "job")
+    assert "visibility" not in fixture.snapshot["story"]["boards"][0]
+    fixture.snapshot["toolchain_request"]["cast_visibility"] = "Historical toolchain note"
+    snapshot = canonical_json(fixture.snapshot)
+    digest = hashlib.sha256(snapshot).hexdigest()
+    fixture.run["snapshot"].update(sha256=digest, locator=blob_locator(
+        fixture.production_id, digest, "application/json"))
+    fixture.run["checks"].append({"check": "layered.visibility", "result": "pass",
+                                  "measured": "Historical check note"})
+    (fixture.root / "snapshot.json").write_bytes(snapshot)
+    (fixture.root / "run.json").write_bytes(canonical_json(fixture.run))
+    fixture.receipt.write_bytes(canonical_json(fixture.files()))
+
+    assert admin(fixture.args()) == 0
+    capsys.readouterr()
+    with client(app) as browser:
+        sign_in(browser, issuer)
+        path = f"/v1/runs/{fixture.run['id']}"
+        assert browser.get(f"{path}/snapshot").content == snapshot
+        run = success(browser.get(path))
+        assert canonical_json(run["checks"]) == canonical_json(fixture.run["checks"])
+        assert run["outputs"] == fixture.run["outputs"]
+    for role, filename in (("master", "final.mp4"), ("proxy", "proxy.mp4")):
+        locator = blob_locator(fixture.production_id, run["outputs"][f"{role}_sha256"], "video/mp4")
+        with store.open(locator) as handle:
+            assert handle.read() == (fixture.root / filename).read_bytes()
+
+
 def test_legacy_archive_is_as_recorded_and_a_new_build_from_its_draft_checks_visibility(
     operator, service, owner_engine, tmp_path, capsys,
 ):

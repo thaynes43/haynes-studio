@@ -3183,18 +3183,23 @@ export interface components {
                 updated_at?: components["schemas"]["StudioDefs_timestamp"];
             };
             toolchain_request: {
-                /** @description Visibility declarations admitted for this Build, indexed by board ID. */
-                cast_visibility?: {
-                    [key: string]: components["schemas"]["StudioDefs_cast_visibility"];
-                };
                 studio: string;
             };
-            /** @description Person overrides from an earlier Build of the same frozen inputs, indexed by visibility evidence SHA-256. */
-            visibility_overrides?: {
-                [key: string]: {
-                    by: components["schemas"]["StudioDefs_human"];
-                    reason: string;
+            /** @description The frozen visibility decision for a newly admitted Build. */
+            visibility_admission?: {
+                /** @description Admitted declarations indexed by board ID. */
+                boards: {
+                    [key: string]: components["schemas"]["StudioDefs_cast_visibility"];
                 };
+                /** @description Person overrides from the same frozen inputs, indexed by evidence SHA-256. */
+                overrides?: {
+                    [key: string]: {
+                        by: components["schemas"]["StudioDefs_human"];
+                        reason: string;
+                    };
+                };
+                /** @constant */
+                schema: "studio.visibility-admission/v1";
             };
         };
         /**

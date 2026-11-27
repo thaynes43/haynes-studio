@@ -124,11 +124,12 @@ class BuildWorker:
         except (KeyError, TypeError, ValueError) as error:
             raise BuildError("run.snapshot_changed", "The frozen foreground pins no longer match the snapshot",
                              stage="prebuild") from error
+        admission = frozen.get("visibility_admission", {})
         visibility = {
             board_id: CastVisibility.from_document(pin)
-            for board_id, pin in toolchain.get("cast_visibility", {}).items()
+            for board_id, pin in admission.get("boards", {}).items()
         }
-        overrides = frozen.get("visibility_overrides", {})
+        overrides = admission.get("overrides", {})
         prepared = replace(prepared, foreground_roles=roles, visibility=visibility,
                            visibility_overrides=overrides)
         verified, _ = freeze(prepared, studio=self.studio)

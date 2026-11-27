@@ -1,21 +1,29 @@
 """New Build visibility through PostgreSQL, the API and a local CPU worker."""
 
 import asyncio
+from copy import deepcopy
+import json
 from typing import get_args
 
 import httpx
 import pytest
 
 from haynes_studio.build.prebuild import snapshot_bytes
+from haynes_studio.build.validate import validate_run_snapshot
 from haynes_studio.db import catalog, drafts, jobs, runs
 from haynes_studio.db.runs import database_time
+from haynes_studio.layered.renderer import LayeredRenderer
 from haynes_studio.library.resolve import story_references
 from haynes_studio.mcp.arguments import BOARD_EDIT_FIELDS
 from haynes_studio.mcp.server import create_app
 from haynes_studio.queue.inputs import estimate, freeze, prepare_queue
+from haynes_studio.queue.worker_api import WorkerAPIError
 from haynes_studio.render.visibility import VISIBILITY_CHECK
+from haynes_studio.store import canonical_json
 from tests.build_story import fixtures as f
-from tests.db.test_foreground_admission import assert_refused, build, install_sets, photo, run_worker, select_set
+from tests.db.test_foreground_admission import (
+    assert_refused, build, install_sets, photo, run_worker, select_set, update_story,
+)
 from tests.db.test_media_jobs import current_board, image_worker, patch, success
 from tests.db.test_run_queue import engine, owner_engine, queue, queue_run, read_run, runtime_db, runtime_role, service
 from tests.db.test_studio_api import register_agent
@@ -23,7 +31,7 @@ from tests.mcp.client import API_URL, call, connect, fail
 from tests.queue.fake_wan import FakeWan
 
 pytestmark = pytest.mark.db
-DECLARATION = {"slot": "a", "frames": [0, 11]}
+DECLARATION = {"slot": "a", "frames": [0, 5, 11]}
 
 
 def snapshot(q, run_id):
@@ -34,6 +42,19 @@ def snapshot(q, run_id):
 
 def visibility_of(run):
     return [check for check in run["checks"] if check["check"] == VISIBILITY_CHECK]
+
+
+def completion_evidence(result):
+    return {key: result[key] for key in ("stages", "outputs", "checks", "provenance", "delivery_id")}
+
+
+def assert_completion_refused(q, claim, evidence, code):
+    with pytest.raises(WorkerAPIError) as refused:
+        claim.complete(evidence)
+    assert (refused.value.status, refused.value.code) == (422, code)
+    run_id = claim.identity["run_id"]
+    assert read_run(q, run_id)[0]["delivery_id"] is None
+    assert q.store.stage_record(q.production_id, run_id, "delivery") is None
 
 
 def test_visibility_write_scope_and_old_patch(queue):
@@ -103,8 +124,72 @@ def test_visibility_refusals_are_before_run_creation(queue, tmp_path):
     assert_refused(build(q, "absent"), "visibility.slot_absent")
     patch(q, q.board_id, {"visibility": {"slot": "a", "frames": [12]}})
     assert_refused(build(q, "too-late"), "visibility.frame_out_of_range")
+    patch(q, q.board_id, {
+        "lines": [{"speaker": "a", "text": "The voice is still pending", "gap_before_ms": None}],
+        "timing": {"lead_ms": 0, "tail_ms": 750, "hold_ms": None},
+        "voice": {"style": "cast", "current_version_id": None},
+        "method": {"layer": "layered", "motion": "s2v"},
+        "seeds": {"s2v:a": 11},
+        "visibility": DECLARATION,
+    })
+    assert_refused(build(q, "unresolved"), "visibility.timing_unavailable")
     with q.owner.connect() as conn:
         assert runs.list_story(conn, q.story_id, None, 10) == []
+
+
+def test_snapshot_visibility_admission_must_match_the_frozen_board(queue, tmp_path):
+    q = queue
+    install_sets(q, tmp_path)
+    patch(q, q.board_id, {"visibility": DECLARATION})
+    run = success(build(q, "declared"), 201)
+    frozen = snapshot(q, run["id"]).json()
+    assert validate_run_snapshot(frozen) == []
+    frozen["visibility_admission"]["boards"][q.board_id]["frames"] = [3]
+    assert [(error.rule, error.path) for error in validate_run_snapshot(frozen)] == [
+        ("visibility.pin_mismatch", f"/visibility_admission/boards/{q.board_id}"),
+    ]
+
+
+def test_completion_requires_admitted_poses_from_the_staged_segment(queue, tmp_path, monkeypatch):
+    q = queue
+    monkeypatch.setattr(runs, "database_time", database_time)
+    install_sets(q, tmp_path, mask_left=108)
+    patch(q, q.board_id, {"visibility": DECLARATION})
+    other = success(build(q, "other-segment"), 201)
+    with FakeWan().client() as wan:
+        worker = run_worker(q, wan)
+        assert worker.tick()
+        other_result = read_run(q, other["id"])[0]
+        assert other_result["status"] == "succeeded", other_result["error"]
+        [other_check] = visibility_of(other_result)
+
+        # Move the slot to make another visible segment of the same board and poses.
+        update_story(q, {"layouts": {"default": {"height": 480, "bottom": 1360, "x": .55}}})
+        current = success(build(q, "delivered-segment"), 201)
+
+        def verify(claim, result):
+            evidence = completion_evidence(result)
+            [check] = visibility_of(evidence)
+            assert check["result"] == other_check["result"] == "pass"
+            assert check["measured"]["segment_sha256"] != other_check["measured"]["segment_sha256"]
+
+            missing = {**evidence, "checks": [item for item in evidence["checks"] if item is not check]}
+            assert_completion_refused(q, claim, missing, "visibility.check_missing")
+
+            substituted = deepcopy(evidence)
+            [forged] = visibility_of(substituted)
+            forged["measured"]["poses"] = [{**forged["measured"]["poses"][0], "frame": 3}]
+            assert_completion_refused(q, claim, substituted, "visibility.check_failed")
+
+            wrong_segment = {**evidence, "stages": other_result["stages"],
+                             "checks": [other_check if item is check else item for item in evidence["checks"]]}
+            assert_completion_refused(q, claim, wrong_segment, "visibility.check_failed")
+            assert claim.complete(evidence)["status"] == "succeeded"
+
+        monkeypatch.setattr(worker, "_complete", verify)
+        assert worker.tick()
+    delivered = read_run(q, current["id"])[0]
+    assert delivered["status"] == "succeeded" and delivered["delivery_id"]
 
 
 @pytest.mark.parametrize(("mask_left", "verdict", "error"), [
@@ -121,8 +206,9 @@ def test_frozen_build_replay_delivery_and_person_override(queue, tmp_path, monke
     patch(q, q.board_id, {"visibility": DECLARATION})
     new = success(build(q, "declared"), 201)
     frozen = snapshot(q, new["id"]).json()
-    assert frozen["toolchain_request"]["cast_visibility"] == {q.board_id: DECLARATION}
-    assert "visibility_overrides" not in frozen
+    assert frozen["visibility_admission"] == {
+        "schema": "studio.visibility-admission/v1", "boards": {q.board_id: DECLARATION},
+    }
     with FakeWan().client() as wan:
         worker = run_worker(q, wan)
         assert worker.tick() and worker.tick()
@@ -134,6 +220,7 @@ def test_frozen_build_replay_delivery_and_person_override(queue, tmp_path, monke
     assert checked["error"]["code"] == error
     [measurement] = visibility_of(checked)
     assert measurement["result"] == "fail" and measurement["measured"]["verdict"] == verdict
+    assert measurement["measured"]["measurement_stage"] == "composed_pre_encode"
     assert measurement["measured"]["segment_sha256"] == legacy["stages"][0]["segment_sha256"]
     assert [pose["frame"] for pose in measurement["measured"]["poses"]] == DECLARATION["frames"]
     assert all(pose["unoccluded_pixels"] > 0 for pose in measurement["measured"]["poses"])
@@ -153,21 +240,56 @@ def test_frozen_build_replay_delivery_and_person_override(queue, tmp_path, monke
     assert override["by"]["kind"] == "human"
     assert read_run(q, new["id"])[0]["checks"] == checked["checks"]
     repeat = success(build(q, "after-review"), 201)
-    assert snapshot(q, repeat["id"]).json()["visibility_overrides"] == {
+    carried = {
         body["artifact"]: {"by": override["by"], "reason": body["reason"]},
     }
-    assert "visibility_overrides" not in snapshot(q, waiting["id"]).json()
+    assert snapshot(q, repeat["id"]).json()["visibility_admission"]["overrides"] == carried
+    assert "overrides" not in snapshot(q, waiting["id"]).json()["visibility_admission"]
+    changed_evidence = success(build(q, "changed-evidence"), 201)
+    assert snapshot(q, changed_evidence["id"]).json()["visibility_admission"]["overrides"] == carried
     patch(q, q.board_id, {"visibility": {"slot": "a", "frames": [1]}})
     changed = success(build(q, "different-pose"), 201)
-    assert "visibility_overrides" not in snapshot(q, changed["id"]).json()
+    assert "overrides" not in snapshot(q, changed["id"]).json()["visibility_admission"]
+
+    actual_evidence = LayeredRenderer.visibility_evidence
+
+    def different_frame_hash(renderer, key):
+        rows = json.loads(actual_evidence(renderer, key))
+        rows[0]["frame_sha256"] = "f" * 64
+        return canonical_json(rows)
+
+    def verify_override(claim, result):
+        evidence = completion_evidence(result)
+        substituted = deepcopy(evidence)
+        [check] = visibility_of(substituted)
+        assert check["result"] == "overridden"
+        check["measured"]["segment_sha256"] = "e" * 64
+        assert_completion_refused(q, claim, substituted, "visibility.check_failed")
+        check["measured"]["segment_sha256"] = measurement["measured"]["segment_sha256"]
+        check["measured"]["poses"] = [{**check["measured"]["poses"][0], "frame": 3}]
+        assert_completion_refused(q, claim, substituted, "visibility.check_failed")
+        assert claim.complete(evidence)["status"] == "succeeded"
+
     with FakeWan().client() as wan:
         worker = run_worker(q, wan)
-        assert worker.tick() and worker.tick() and worker.tick()
+        assert worker.tick()
+        with monkeypatch.context() as valid_override:
+            valid_override.setattr(worker, "_complete", verify_override)
+            assert worker.tick()
+        with monkeypatch.context() as mismatched_evidence:
+            mismatched_evidence.setattr(LayeredRenderer, "visibility_evidence", different_frame_hash)
+            assert worker.tick()
+        assert worker.tick()
     assert read_run(q, waiting["id"])[0]["status"] == "failed"
     approved, _ = read_run(q, repeat["id"])
     assert approved["status"] == "succeeded" and approved["delivery_id"]
     [check] = visibility_of(approved)
     assert check["result"] == "overridden" and check["measured"] == measurement["measured"]
+    altered = read_run(q, changed_evidence["id"])[0]
+    assert altered["status"] == "failed" and altered["delivery_id"] is None
+    [altered_check] = visibility_of(altered)
+    assert altered_check["result"] == "fail" and altered_check["measured"]["verdict"] == verdict
+    assert altered_check["artifact"] != measurement["artifact"]
     assert read_run(q, changed["id"])[0]["status"] == "failed"
 
 
@@ -195,7 +317,7 @@ def test_generic_frozen_build_and_photo_do_not_activate_draft_visibility(queue, 
         prepared = prepare_queue(story, catalog.build_library(conn, story, refs))
         frozen, library = freeze(prepared, studio=q.app.state.build_revision)
         assert frozen["story"]["boards"][0]["visibility"] == DECLARATION
-        assert "cast_visibility" not in frozen["toolchain_request"]
+        assert "visibility_admission" not in frozen
         data, digest = snapshot_bytes(frozen)
         q.store.publish(data, scope=q.production_id, media_type="application/json")
         old = runs.enqueue(conn, snapshot=frozen, snapshot_sha256=digest, library=library,

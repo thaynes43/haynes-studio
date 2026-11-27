@@ -27,7 +27,7 @@ from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from typing import Any
 
-from haynes_studio.build.validate import SNAPSHOT_SCHEMA, validate_run_snapshot
+from haynes_studio.build.validate import SNAPSHOT_SCHEMA, VISIBILITY_ADMISSION_SCHEMA, validate_run_snapshot
 from haynes_studio.cache.plan import LayeredMotion, Toolchain
 from haynes_studio.canonical import Facts, Story, load_story
 from haynes_studio.canonical.derive import board_clock
@@ -324,11 +324,12 @@ def make_snapshot(prepared: Prepared, library: Library, *, studio: str) -> dict[
     if prepared.foreground_roles:
         snapshot["toolchain_request"]["foreground_roles"] = [role.pin() for role in prepared.foreground_roles]
     if prepared.visibility:
-        snapshot["toolchain_request"]["cast_visibility"] = {
-            board_id: to_document(value) for board_id, value in prepared.visibility.items()
+        snapshot["visibility_admission"] = {
+            "schema": VISIBILITY_ADMISSION_SCHEMA,
+            "boards": {board_id: to_document(value) for board_id, value in prepared.visibility.items()},
         }
-    if prepared.visibility_overrides:
-        snapshot["visibility_overrides"] = dict(prepared.visibility_overrides)
+        if prepared.visibility_overrides:
+            snapshot["visibility_admission"]["overrides"] = dict(prepared.visibility_overrides)
     if prepared.format_version is not None:
         snapshot["format_version"] = {key: copy.deepcopy(prepared.format_version[key])
                                       for key in ("id", "sha256", "recipe")}

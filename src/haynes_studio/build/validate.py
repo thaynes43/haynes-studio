@@ -41,6 +41,7 @@ RUN_SCHEMA = "studio.run/v1"
 RUN_FILE = "studio.run.v1.schema.json"
 SNAPSHOT_SCHEMA = "studio.run-snapshot/v1"
 SNAPSHOT_FILE = "studio.run-snapshot.v1.schema.json"
+VISIBILITY_ADMISSION_SCHEMA = "studio.visibility-admission/v1"
 CREDIT_OUTSIDE = "credit.outside_video_sound"
 CREDIT_ROLES = ("video", "voice", "sound")
 
@@ -110,19 +111,17 @@ def _format_pin(document: Mapping[str, Any], context: str) -> list[Violation]:
 
 
 def _visibility_pins(document: Mapping[str, Any]) -> list[Violation]:
-    pins = document["toolchain_request"].get("cast_visibility", {})
-    if not pins and "visibility_overrides" not in document:
+    admission = document.get("visibility_admission")
+    if admission is None:
         return []
-    boards = {board["id"]: board.get("visibility") for board in document["story"]["boards"]}
-    found = [
-        Violation("visibility.pin_mismatch", pointer("toolchain_request", "cast_visibility", board_id),
+    pins = admission["boards"]
+    boards = {board["id"]: board["visibility"] for board in document["story"].get("boards") or ()
+              if "visibility" in board}
+    return [
+        Violation("visibility.pin_mismatch", pointer("visibility_admission", "boards", board_id),
                   "An admitted declaration must match its frozen board")
-        for board_id, value in pins.items() if boards.get(board_id) != value
+        for board_id in pins.keys() | boards.keys() if pins.get(board_id) != boards.get(board_id)
     ]
-    if not pins:
-        found.append(Violation("visibility.pin_mismatch", "/visibility_overrides",
-                               "Visibility overrides require admitted declarations"))
-    return found
 
 
 def _resolved(document: Mapping[str, Any]) -> list[Violation]:

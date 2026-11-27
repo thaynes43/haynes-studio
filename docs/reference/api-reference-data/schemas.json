@@ -9710,17 +9710,6 @@
           },
           "toolchain_request": {
             "properties": {
-              "cast_visibility": {
-                "additionalProperties": {
-                  "$ref": "#/components/schemas/StudioDefs_cast_visibility"
-                },
-                "description": "Visibility declarations admitted for this Build, indexed by board ID.",
-                "minProperties": 1,
-                "propertyNames": {
-                  "$ref": "#/components/schemas/StudioDefs_brd_id"
-                },
-                "type": "object"
-              },
               "studio": {
                 "minLength": 1,
                 "not": {
@@ -9739,29 +9728,54 @@
             ],
             "type": "object"
           },
-          "visibility_overrides": {
-            "additionalProperties": {
-              "additionalProperties": false,
-              "properties": {
-                "by": {
-                  "$ref": "#/components/schemas/StudioDefs_human"
+          "visibility_admission": {
+            "additionalProperties": false,
+            "description": "The frozen visibility decision for a newly admitted Build.",
+            "properties": {
+              "boards": {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/StudioDefs_cast_visibility"
                 },
-                "reason": {
-                  "minLength": 1,
-                  "type": "string"
-                }
+                "description": "Admitted declarations indexed by board ID.",
+                "minProperties": 1,
+                "propertyNames": {
+                  "$ref": "#/components/schemas/StudioDefs_brd_id"
+                },
+                "type": "object"
               },
-              "required": [
-                "by",
-                "reason"
-              ],
-              "type": "object"
+              "overrides": {
+                "additionalProperties": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "by": {
+                      "$ref": "#/components/schemas/StudioDefs_human"
+                    },
+                    "reason": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "by",
+                    "reason"
+                  ],
+                  "type": "object"
+                },
+                "description": "Person overrides from the same frozen inputs, indexed by evidence SHA-256.",
+                "minProperties": 1,
+                "propertyNames": {
+                  "$ref": "#/components/schemas/StudioDefs_sha256"
+                },
+                "type": "object"
+              },
+              "schema": {
+                "const": "studio.visibility-admission/v1"
+              }
             },
-            "description": "Person overrides from an earlier Build of the same frozen inputs, indexed by visibility evidence SHA-256.",
-            "minProperties": 1,
-            "propertyNames": {
-              "$ref": "#/components/schemas/StudioDefs_sha256"
-            },
+            "required": [
+              "schema",
+              "boards"
+            ],
             "type": "object"
           }
         },

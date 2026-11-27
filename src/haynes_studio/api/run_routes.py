@@ -9,8 +9,10 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Header, Request, Response
 
+from haynes_studio.build.errors import BuildError
 from haynes_studio.build.prebuild import admit_build, set_loop_ids, snapshot_bytes
 from haynes_studio.build.validate import validate_run
+from haynes_studio.build.visibility import staged_visibility_checks
 from haynes_studio.canonical.model import to_document
 from haynes_studio.db import catalog, drafts, jobs, queue_controls, runs
 from haynes_studio.feedback import records as feedback
@@ -31,7 +33,7 @@ from haynes_studio.queue.protocol import (
 )
 from haynes_studio.queue.staging import BuildStageStore, publish_staged_delivery
 from haynes_studio.render.visibility import VISIBILITY_CHECK
-from haynes_studio.store import BLOB_MISSING, StoreError
+from haynes_studio.store import BLOB_MISSING, StoreError, canonical_json
 from haynes_studio.store.layout import blob_locator
 
 from . import media_work
@@ -191,27 +193,25 @@ def _stored_snapshot(store, row, if_none_match):
     raise APIError(503, "run.snapshot_changed", "The stored run snapshot does not match its pin")
 
 
-def _require_visibility_checks(frozen, checks):
-    pins = (frozen or {}).get("toolchain_request", {}).get("cast_visibility")
-    if not pins:
+def _require_visibility_checks(staging, row, body, master_sha256):
+    frozen = row["snapshot"] or {}
+    admission = frozen.get("visibility_admission")
+    if admission is None:
         return
-    measured = [check for check in checks if check["check"] == VISIBILITY_CHECK]
-    overrides = frozen.get("visibility_overrides", {})
-    expected = {(board_id, pin["slot"]) for board_id, pin in pins.items()}
-    if len(measured) != len(expected) or {
-        (check.get("board_id"), check.get("slot")) for check in measured
-    } != expected:
+    reported = [check for check in body.checks if check["check"] == VISIBILITY_CHECK]
+    if (len(reported) != len(admission["boards"])
+            or {check.get("board_id") for check in reported} != admission["boards"].keys()):
         raise APIError(422, "visibility.check_missing", "Delivery requires a visibility check for each declared board")
-    for check in measured:
-        outcome = check.get("measured")
-        outcome = outcome.get("verdict") if isinstance(outcome, dict) else None
-        if check["result"] == "pass" and outcome == "visible":
-            continue
-        if (check["result"] == "overridden" and outcome in ("hidden", "uncertain")
-                and check.get("override") is not None
-                and check["override"] == overrides.get(check.get("artifact"))):
-            continue
-        raise APIError(422, "visibility.check_failed", "Delivery requires visible or person-overridden measurements")
+    try:
+        verified = staged_visibility_checks(staging, row["production_id"], row["id"], frozen,
+                                            body.stages, body.outputs, master_sha256)
+    except BuildError as error:
+        raise APIError(422, "visibility.check_failed", "Visibility evidence must match the staged delivery") from error
+    for check in reported:
+        expected = verified[check["board_id"]]
+        if expected["result"] == "fail" or canonical_json(check) != canonical_json(expected):
+            raise APIError(422, "visibility.check_failed",
+                           "Delivery requires exact visible or person-overridden evidence for the admitted poses")
 
 
 def build_router(CurrentActor, authenticated_route):
@@ -279,7 +279,7 @@ def build_router(CurrentActor, authenticated_route):
                 if prepared.visibility:
                     overrides = runs.visibility_overrides(conn, frozen)
                     if overrides:
-                        frozen["visibility_overrides"] = overrides
+                        frozen["visibility_admission"]["overrides"] = overrides
                 data, sha = snapshot_bytes(frozen)
                 if len(data) > MAX_SNAPSHOT_BYTES:
                     raise APIError(422, "run.snapshot_too_large",
@@ -371,6 +371,7 @@ def _delivery(conn, request, row, body):
                 delivery.proxy.sha256 != body.outputs.get("proxy_sha256") or
                 delivery.verification.decoded_frames != body.outputs.get("frames")):
             raise failure
+        _require_visibility_checks(staging, row, body, delivery.master.sha256)
         publish_staged_delivery(staging, state.store, row["production_id"], row["id"])
     except (OSError, StoreError, DeliveryError) as error:
         raise failure from error
@@ -487,7 +488,6 @@ def worker_router():
                 "progress": {"percent": 100, "stage": "delivered"},
             })
             require_valid(validate_run(row["document"]))
-            _require_visibility_checks(row["snapshot"], body.checks)
             _delivery(conn, request, row, body)
             return runs.view(conn, row, detail=False)
 

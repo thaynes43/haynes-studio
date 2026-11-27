@@ -387,7 +387,7 @@ def finish(conn, row, now, actor, target, reason, fields, *, wait_reason=None,
 def visibility_overrides(conn, snapshot):
     """Earlier person decisions for exactly these frozen Build inputs."""
     overrides = run_check_overrides.c
-    base = runs.c.snapshot.op("-")(sa.literal("visibility_overrides", type_=sa.Text))
+    base = runs.c.snapshot.delete_path(["visibility_admission", "overrides"])
     rows = conn.execute(sa.select(overrides.artifact, overrides.document)
         .join_from(run_check_overrides, runs, overrides.run_id == runs.c.id)
         .where(runs.c.story_id == snapshot["story"]["id"], base == snapshot,
@@ -402,7 +402,7 @@ def record_override(conn, row, revision, *, check, artifact, reason, actor):
         raise StaleRevision(row["revision"])
     doc = row["document"]
     if check == VISIBILITY_CHECK:
-        pins = (row["snapshot"] or {}).get("toolchain_request", {}).get("cast_visibility", {})
+        pins = (row["snapshot"] or {}).get("visibility_admission", {}).get("boards", {})
         # Imported runs have an archive marker in place of the live actor hash.
         if (actor["kind"] != "human" or not is_sha256(row["idempotency_actor"])
                 or doc["status"] != "failed" or not any(
