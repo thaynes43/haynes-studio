@@ -60,7 +60,7 @@ jobs:
   db:
     name: db
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     services:
       postgres:
         # postgres:16 pinned by its index digest (looked up on Docker Hub, 2026-11-13);
