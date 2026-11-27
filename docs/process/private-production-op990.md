@@ -8,6 +8,9 @@ and a silent reaction. Source used Studio commit
 
 ## Proven
 
+The production checks and archive readback are recorded in the
+[technical evidence](https://work.haynesnetwork.com/work_packages/990/activity#comment-10682).
+
 - The private brief matched its recorded SHA-256. Nineteen reusable inputs
   matched their recorded sizes and hashes and decoded through their expected
   formats. The two source archives matched all 15 files in their receipts.
@@ -22,9 +25,12 @@ and a silent reaction. Source used Studio commit
 - An independent read of the create-only archive verified 15 files, their
   identities and hashes, and a full decode of both H.264/AAC videos. The
   1080×1920 master and 720×1280 phone proxy each held 373 frames at 24 fps.
+- The coordinator independently rehashed the archived phone proxy, verified
+  the upload size and owner-only permissions, and sent the playback link to
+  Tom's phone thread.
+  [Phone-copy handoff evidence](https://work.haynesnetwork.com/work_packages/990/activity#comment-10685)
 
 ## Expected
 
-The coordinator's handoff record contains the verified proxy locator and hash.
-Authenticated off-VPN access, playback on Tom's phone and creative acceptance
-remain open.
+Signed-in, off-VPN playback on Tom's phone, his listening check and his
+creative verdict remain unverified.
