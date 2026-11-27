@@ -221,7 +221,7 @@ main process output can be logged by Kubernetes even with a TTY. See
 
 Run the worker token command after migrating to head. Use the migration identity
 in `STUDIO_MIGRATION_DATABASE_URL` to register a new worker ID with one lane
-(`run`, `voice`, `image` or `matte`). A dedicated non-owner token administrator with
+(`run`, `voice`, `image`, `matte` or `occlusion`). A dedicated non-owner token administrator with
 the grants below can register or rotate tokens for a bound ID, list, and revoke.
 The lane grant read permission is needed for registration and listing.
 The runtime role can read lane grants. The worker process itself uses the
@@ -392,7 +392,8 @@ transport available to each caller. Paths here start at `/v1`.
 | `POST /boards/{id}/photo-jobs` | `assets:generate` | `{"seed": 0}`, with an optional seed from 0 to 2⁵³−1. Freezes the saved photo plan and its current selection. |
 | `POST /asset-jobs` | Signed-in person | `kind` (`cast`, `costume`, `set` or `prop`), `name`, `prompt`, optional `production_id`, `labels` and `seed`. Omit the production or use null to generate a global candidate. |
 | `POST /asset-jobs/matte` | Signed-in person | `{source_version_id, format_version_id, slot}`. Queues a cutout from an opaque library version for an enabled cast slot. |
-| `GET /jobs/{id}` | `read` on the job's production or signed-in person | Canonical `studio.job/v1` with frozen input provenance. Image candidate and shared-library matte status requires a person. |
+| `POST /asset-jobs/occlusion` | Signed-in person | Queues a single target on a stored still. [Occlusion requests](segmentation-adapter.md#occlusion-jobs). |
+| `GET /jobs/{id}` | `read` on the job's production or signed-in person | Canonical `studio.job/v1` with frozen input provenance. Image candidate and shared-library matte or occlusion status requires a person. |
 | `GET /boards/{id}/jobs` | `read` | Cursor page of compact job statuses. |
 | `GET /boards/{id}/voice-versions`, `GET /boards/{id}/photo-versions` | `read` | Cursor page of this board's immutable versions. |
 | `GET /jobs/{id}/result` | Signed-in person | Result version with content or track hashes. Returns 404 until a result exists. |
@@ -482,13 +483,13 @@ Photo inputs, new photo and voice selections, promotions and uploads that
 reference an archive's recorded-only media return 422
 `asset.recorded_without_media`.
 
-The internal image, voice and matte workers use the [same claim protocol as builds](media-jobs.md).
+The internal image, voice, matte and occlusion workers use the [same claim protocol as builds](media-jobs.md).
 
 ## Queue controls
 
 Signed-in people can see all four lanes at `GET /v1/queue/lanes`. Set
 `{"paused":true}` or `{"paused":false}` with `PUT /v1/queue/lanes/{lane}`
-for `run`, `voice`, `image` or `matte`. The write requires `X-Studio-CSRF`.
+for `run`, `voice`, `image`, `matte` or `occlusion`. The write requires `X-Studio-CSRF`.
 The response and lane list show `paused`, `changed_by` and `changed_at`.
 An untouched lane starts open with null change fields. Repeating its current
 setting returns the previous decision. Each transition appends a decision.

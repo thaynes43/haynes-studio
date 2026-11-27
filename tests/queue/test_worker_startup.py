@@ -130,3 +130,46 @@ def test_matte_worker_cli_requires_its_own_profile_and_claims_only_matte(tmp_pat
     monkeypatch.setattr("haynes_studio.adapters.matting.MattingClient.ready_for_claim", lambda self: None)
     main()
     assert requests == [("/internal/v1/work/claim", "Bearer worker_" + secret, {"lane": "matte"})]
+
+
+@pytest.mark.parametrize("configured", ["valid", "missing", "mismatch"])
+def test_occlusion_worker_cli_uses_only_its_pinned_manifest(tmp_path, monkeypatch, configured):
+    from haynes_studio.segmentation.profile import Profile as SegmentationProfile
+
+    for name in ("STUDIO_WAN_URL", "STUDIO_TTS_HOST", "STUDIO_COMFYUI_URL", "STUDIO_SEGMENTATION_MANIFEST",
+                 "STUDIO_SEGMENTATION_PROFILE_SHA256"):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in {
+        "STUDIO_API_URL": "http://studio.example.invalid",
+        "STUDIO_STORE_ROOT": str(tmp_path),
+        "STUDIO_WORKER_TOKEN": secrets.token_hex(24),
+    }.items():
+        monkeypatch.setenv(name, value)
+    profile = SegmentationProfile("sha256:" + "a" * 64, "b" * 40, "c" * 64, (("synthetic", "1"),))
+    manifest = profile.manifest()
+    pin = sha256(manifest).hexdigest()
+    if configured != "missing":
+        path = tmp_path / "profile.json"
+        path.write_bytes(manifest)
+        monkeypatch.setenv("STUDIO_SEGMENTATION_MANIFEST", str(path))
+        monkeypatch.setenv("STUDIO_SEGMENTATION_PROFILE_SHA256", pin if configured == "valid" else "0" * 64)
+    monkeypatch.setattr(sys, "argv", ["studio-worker", "--lane", "occlusion", "--once"])
+    requests = []
+
+    def record(request):
+        requests.append((request.url.path, json.loads(request.content)))
+        return httpx.Response(204)
+
+    real_client = httpx.Client
+    monkeypatch.setattr(httpx, "Client", lambda **options: real_client(transport=httpx.MockTransport(record), **options))
+    readiness = []
+    monkeypatch.setattr("haynes_studio.adapters.segmentation.SegmentationClient.ready_for_claim",
+                        lambda client: readiness.append((client.profile_sha256, client.socket.name)))
+    if configured == "valid":
+        main()
+        assert readiness == [(pin, "segment.sock")]
+        assert requests == [("/internal/v1/work/claim", {"lane": "occlusion"})]
+    else:
+        with pytest.raises(SystemExit) as error:
+            main()
+        assert error.value.code == 2 and not requests and not readiness

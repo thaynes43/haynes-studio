@@ -27,6 +27,7 @@ _CANONICAL = {
     "studio.run-snapshot.v1.schema.json": "RunSnapshot",
     "studio.format-recipe.v1.schema.json": "FormatRecipe",
     "studio.job.v1.schema.json": "JobView",
+    "studio.segmentation-request.v1.schema.json": "SegmentationRequest",
     "studio.escalation.v1.schema.json": "EscalationPackage",
 }
 
@@ -113,7 +114,7 @@ def _write_schemas(schemas):
 
 
 _HUMAN_OPERATIONS = {"get_selections", "put_selections", "create_production", "enable_media_type",
-                     "logout", "get_queue_lanes", "set_queue_lane", "request_matte",
+                     "logout", "get_queue_lanes", "set_queue_lane", "request_matte", "request_occlusion",
                      "authorize_escalation", "decline_escalation", "cancel_escalation",
                      "add_candidate_feedback", "start_feedback_iteration", "clear_feedback_iteration"}
 _PREVIEW = {"get_job_result", "get_version_media", "head_version_media", "get_job_media", "head_job_media"}

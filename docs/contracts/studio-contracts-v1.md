@@ -126,6 +126,15 @@ the saga coordinator's provisional rulings for Tom's review.
 [Section 13](#installed-and-published-state) records the fifth pin, current
 holds and the permanent park of Studio PR 151.
 
+**Story 971 contract amendment, source.** The occlusion queue adds a person-only
+admission, an independently authorized FIFO worker lane and a verified mask
+version that an OP968 foreground role can pin. CR-67 target hints are optional
+set inputs and use source-pixel bounds. The frozen request and profile govern
+reclaims, diagnostics and publication. The [occlusion job and activation
+contract](../reference/segmentation-adapter.md#occlusion-jobs) records the
+source scope and deployment dependencies. Serving activation and Tom's
+acceptance are tracked separately. [Story 971](https://work.haynesnetwork.com/work_packages/971)
+
 Every rule carries its source:
 
 | Label | Meaning |
@@ -1025,22 +1034,16 @@ target that exceeds the frame fails. The timed motion loop requirement and
 clip chroma keying, APNG, decal checks and clocks still apply.
 Temporal refinement needs a new keyed cache input and paired clip evidence.
 
-**Segmentation and visibility (stories 460, 452, 968 and 975).** Grounding DINO
-Tiny and SAM 2.1 Hiera Tiny produce source-sized masks for an explicit target.
-The client adapter is merged. Stored set, board and run-snapshot schemas
-keep their existing shapes under [CR-64](#ruling-64), which superseded
-the splits in CR-60 and CR-61. Legacy foreground edge and feather still
-apply.
-
-[CR-67](#ruling-67) limits the parked story 968 proposal to the mask
-declaration and renderer. It moves the visibility check to
-[story 975](https://work.haynesnetwork.com/work_packages/975) as a
-post-render check on the film's own keyed frames in the existing run-check
-framework. CR-54's person review and hard refusal, CR-57's bounds and
-CR-58's renderer oracle carry over to that proposed check. Target hints
-move to [story 971](https://work.haynesnetwork.com/work_packages/971), the
-job that would use them. Both follow-up stories depend on story 968 and
-remain unstarted. [Story 968, comments 10368](https://work.haynesnetwork.com/work_packages/968/activity#comment-10368) and [10582](https://work.haynesnetwork.com/work_packages/968/activity#comment-10582).
+**Segmentation and visibility (stories 460, 452, 968, 975 and 971).** Grounding
+DINO Tiny and SAM 2.1 Hiera Tiny observe one explicit target. Under
+[CR-67](#ruling-67), the merged [foreground role contract](../reference/foreground-roles.md)
+freezes role masks at new admissions and retains foreground edge and feather
+for legacy composition. The merged [film visibility check](../reference/film-visibility.md)
+uses rendered film frames and the existing run-check framework. CR-54's person
+review and hard refusal, CR-57's bounds and CR-58's rendering oracle govern
+that check. The [occlusion job](../reference/segmentation-adapter.md#occlusion-jobs)
+consumes CR-67 target hints and publishes a verified mask version. Segmentation
+serving activation is separate. [Story 971, comment 10369](https://work.haynesnetwork.com/work_packages/971/activity#comment-10369)
 
 **Upscaling comparison (story 461).** Pillow Lanczos remains the delivery
 profile. FSRCNN ×2 followed by Lanczos runs as a one-shot comparison under
@@ -3025,7 +3028,7 @@ lane. A matte worker can settle expiry without claiming using
 the same FIFO row with the next durable fence. A committed enqueue with
 a lost reply replays with the same key and draft revision.
 
-**Local segmentation (stories 460 and 452).** `POST /v1/segment` on
+**Local segmentation (stories 460, 452 and 971).** `POST /v1/segment` on
 `/segmentation/segment.sock` takes a closed `{attempt_id, request}`
 body up to 4 KiB. An attempt uses a fresh 32-character lowercase hex
 scratch directory with one `input`. A ready response writes `mask.png`
@@ -3038,7 +3041,10 @@ bounded waits, stages one still under a held scratch descriptor, verifies
 the response, mask and receipt (including the grounded depth prior), and
 publishes immutable artifacts before fenced completion. Durable cache
 hits verify the exact private identity, score floor and artifacts again.
-No product operation calls this source adapter. [Segmentation adapter](../reference/segmentation-adapter.md).
+Story 971 wires the adapter into one person-approved target per occlusion job.
+The API checks the stored still, receipt and mask under the active claim and
+commits the mask version together with job completion. Verified refusals
+record diagnostic receipts. See the [source queue and activation contract](../reference/segmentation-adapter.md#occlusion-jobs).
 
 **Responder boundary (story 445).** Reserve a key ID in the package, with
 `read`, `draft:write` and `runs:queue` on its limited production resources.

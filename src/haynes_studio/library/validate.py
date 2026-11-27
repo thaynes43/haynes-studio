@@ -12,7 +12,7 @@ code here runs only on a document the schema accepted and checks what one field
 cannot: a stock voice ID, a locator that names the content's own hash and production,
 capabilities that fit the kind and the media type, and a board voice's take offsets.
 
-Write validation accepts foreground declarations after canonicalization. Read
+Write validation accepts occlusion declarations after canonicalization. Read
 and queue validation require their stored form. A ``derived`` block is unknown
 in all contexts.
 """
@@ -20,6 +20,7 @@ in all contexts.
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -95,6 +96,9 @@ def validate_asset_version(document: Any, *, context: str = READ) -> list[Violat
         found += _asset_rules(document) + _version_rules(document)
         if "occlusion" in document:
             found += _occlusion(document)
+        if "segmentation" in document:
+            found += _segmentation_mask(document["capabilities"], Content.from_document(document["content"]),
+                                        document["provenance"]["origin"])
     return _sorted(found)
 
 
@@ -102,10 +106,16 @@ def noncanonical_occlusion(document: Mapping[str, Any]) -> Violation | None:
     """Read boundaries accept a declaration only in its stored form."""
     if "occlusion" not in document:
         return None
-    if "occlusion" not in AssetVersion.canonical_document(document):
-        return _v("occlusion.noncanonical", "/occlusion", "omit an empty foreground declaration")
+    canonical = AssetVersion.canonical_document(document).get("occlusion")
+    if canonical is None:
+        return _v("occlusion.noncanonical", "/occlusion", "omit an empty occlusion declaration")
     block = document["occlusion"]
-    roles = block.get("foreground") if isinstance(block, Mapping) else None
+    if not isinstance(block, Mapping):
+        return None
+    for group in ("foreground", "focal_props"):
+        if group in block and group not in canonical:
+            return _v("occlusion.noncanonical", pointer("occlusion", group), "omit an empty declaration")
+    roles = block.get("foreground")
     for index, role in enumerate(roles if isinstance(roles, (list, tuple)) else ()):
         if not isinstance(role, Mapping):
             continue
@@ -117,6 +127,18 @@ def noncanonical_occlusion(document: Mapping[str, Any]) -> Violation | None:
         for path, value in integers:
             if isinstance(value, float) and value.is_integer():
                 return _v("occlusion.noncanonical", path, "use an integer in the stored declaration")
+    targets = block.get("focal_props")
+    for index, target in enumerate(targets if isinstance(targets, (list, tuple)) else ()):
+        if not isinstance(target, Mapping):
+            continue
+        at = pointer("occlusion", "focal_props", index)
+        hint = target.get("hint")
+        if "hint" in target and hint is None:
+            return _v("occlusion.noncanonical", at + "/hint", "omit an empty hint")
+        if (isinstance(target.get("layer_order"), float) or isinstance(hint, Mapping) and any(
+                isinstance(value, float) for field in ("xy", "xyxy")
+                if isinstance(hint.get(field), (list, tuple)) for value in hint[field])):
+            return _v("occlusion.noncanonical", at, "use integers in the stored declaration")
     return None
 
 
@@ -156,21 +178,16 @@ def _version_rules(doc: Mapping[str, Any]) -> list[Violation]:
     return found
 
 
-def validate_occlusion(kind: str, capabilities: Sequence[str], content: Content | None,
+def validate_occlusion(version_id: str, kind: str, capabilities: Sequence[str], content: Content | None,
                        declaration: Any) -> list[Violation]:
     """Validate the canonical declaration when constructing an immutable version.
 
     Use the shipped declaration schema itself, before a joined asset document exists.
     Other version fields keep their established validation at the document boundary.
     """
-    base = validator_for(ASSET_VERSION_FILE)
-    validator = base.evolve(schema={
-        "properties": {"occlusion": {"$ref": base.schema["$id"] + "#/$defs/occlusion"}},
-    })
-    found = [violation for error in validator.iter_errors({"occlusion": declaration})
-             for violation in _from_error(error, SCHEMA_INVALID)]
+    found = _feature_shape("occlusion", declaration)
     if not found:
-        found += _occlusion({"kind": kind, "capabilities": capabilities,
+        found += _occlusion({"id": version_id, "kind": kind, "capabilities": capabilities,
                              "content": None if content is None else {
                                  "sha256": content.sha256, "media_type": content.media_type,
                                  "width": content.width, "height": content.height,
@@ -178,11 +195,31 @@ def validate_occlusion(kind: str, capabilities: Sequence[str], content: Content 
     return _sorted(found)
 
 
+def _feature_shape(field, declaration):
+    base = validator_for(ASSET_VERSION_FILE)
+    validator = base.evolve(schema={
+        "properties": {field: {"$ref": base.schema["$id"] + "#/$defs/" + field}},
+    })
+    return [violation for error in validator.iter_errors({field: declaration})
+            for violation in _from_error(error, SCHEMA_INVALID)]
+
+
+def validate_segmentation_binding(capabilities, content, origin, declaration):
+    return _sorted(_feature_shape("segmentation", declaration) + _segmentation_mask(capabilities, content, origin))
+
+
+def _segmentation_mask(capabilities, content, origin):
+    if (tuple(capabilities) != ("mask",) or origin != "derived" or content is None
+            or content.media_type != "image/png" or content.width is None or content.height is None):
+        return [_v(CAPABILITY_MISMATCH, "/segmentation", "a verified segmentation binds a derived PNG mask")]
+    return []
+
+
 def _occlusion(doc: Mapping[str, Any]) -> list[Violation]:
     plate = doc["content"]
     if (doc["kind"] != "set" or "opaque_plate" not in doc["capabilities"] or plate is None
             or plate["media_type"] not in {"image/png", "image/jpeg", "image/webp"}):
-        return [_v(CAPABILITY_MISMATCH, "/occlusion", "foreground roles need an opaque set still")]
+        return [_v(CAPABILITY_MISMATCH, "/occlusion", "occlusion declarations need an opaque set still")]
     found = []
     keys, orders = [], []
     for i, role in enumerate(doc["occlusion"].get("foreground", ())):
@@ -203,7 +240,84 @@ def _occlusion(doc: Mapping[str, Any]) -> list[Violation]:
             if plate.get(axis) is not None and mask[axis] != plate[axis]:
                 found.append(_v("occlusion.mask_size", at + "/mask/" + axis,
                                 "the mask dimensions must match the original set still"))
-    return found + _duplicates(keys, "foreground role key") + _duplicates(orders, "foreground layer order")
+    foreground = {role["key"]: role["layer_order"] for role in doc["occlusion"].get("foreground", ())}
+    for i, target in enumerate(doc["occlusion"].get("focal_props", ())):
+        at = pointer("occlusion", "focal_props", i)
+        key, depth = target["key"], target["depth"]
+        keys.append((at + "/key", key))
+        if re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", key) is None:
+            found.append(_v(SCHEMA_INVALID, at + "/key", "use a lowercase ASCII target key"))
+        hint = target.get("hint")
+        texts = [(at + "/label", target["label"])]
+        if hint and hint["kind"] == "text":
+            texts.append((at + "/hint/text", hint["text"]))
+        for path, value in texts:
+            if (not value or value != value.strip() or not unicodedata.is_normalized("NFC", value)
+                    or any(unicodedata.category(char).startswith("C") for char in value)):
+                found.append(_v(SCHEMA_INVALID, path, "use trimmed NFC text without control characters"))
+        order = target.get("layer_order")
+        role = target.get("foreground_role")
+        source = target.get("source_asset_version_id")
+        if depth == "foreground":
+            valid = role in foreground and order == foreground[role] and source is None
+        elif depth == "separate":
+            valid = role is None and is_id(source, "asv") and order is not None and order > 0
+            if valid:
+                orders.append((at + "/layer_order", order))
+        else:
+            valid = role is None and source is None and order == (0 if depth == "background" else None)
+        if not valid:
+            found.append(_v(SCHEMA_INVALID, at, "the depth needs its matching layer order and source or role"))
+        self_reference = depth == "separate" and source == doc["id"]
+        if self_reference:
+            found.append(_v(CAPABILITY_MISMATCH, at + "/source_asset_version_id",
+                            "a separate focal prop cannot use its own set as the source"))
+        uses_plate = depth != "separate" or self_reference
+        dimensions = (plate.get("width"), plate.get("height")) if uses_plate else (None, None)
+        found += _hint_bounds(hint, *dimensions, at + "/hint")
+    return found + _duplicates(keys, "occlusion target key") + _duplicates(orders, "occlusion layer order")
+
+
+def _hint_bounds(hint, width, height, path):
+    if hint is None or hint["kind"] == "text":
+        return []
+    if hint["kind"] == "point":
+        x, y = hint["xy"]
+        valid = (width is None or x < width) and (height is None or y < height)
+        field = "xy"
+    else:
+        x, y, right, bottom = hint["xyxy"]
+        valid = (x < right and y < bottom and (width is None or right <= width)
+                 and (height is None or bottom <= height))
+        field = "xyxy"
+    return [] if valid else [_v("occlusion.hint_bounds", path + "/" + field,
+                               "use a point inside the still or a positive-area box within it")]
+
+
+def focal_prop_source_ids(declaration: Mapping | None) -> set[str]:
+    return {target["source_asset_version_id"] for target in (declaration or {}).get("focal_props", ())
+            if target["depth"] == "separate"}
+
+
+def is_prop_cutout(kind: str, capabilities: Sequence[str], content: Content | None) -> bool:
+    return (kind == "prop" and "rgba_cutout" in capabilities and content is not None
+            and content.media_type in CAPABILITY_MEDIA["rgba_cutout"])
+
+
+def focal_prop_source_problems(declaration: Mapping | None, source_id: str, kind: str,
+                               capabilities: Sequence[str], content: Content | None) -> list[Violation]:
+    """Check a separate focal declaration against the metadata of a known source."""
+    found = []
+    for index, target in enumerate((declaration or {}).get("focal_props", ())):
+        if target.get("source_asset_version_id") != source_id:
+            continue
+        at = pointer("occlusion", "focal_props", index)
+        if not is_prop_cutout(kind, capabilities, content):
+            found.append(_v(CAPABILITY_MISMATCH, at + "/source_asset_version_id",
+                            "a separate focal prop must name a prop cutout"))
+        if content is not None:
+            found += _hint_bounds(target.get("hint"), content.width, content.height, at + "/hint")
+    return found
 
 
 def _stock_voice(doc: Mapping[str, Any]) -> list[Violation]:

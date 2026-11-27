@@ -188,6 +188,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/asset-jobs/occlusion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Request Occlusion */
+        post: operations["request_occlusion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/asset-versions/{id}/media/{sha256}": {
         parameters: {
             query?: never;
@@ -1523,6 +1540,8 @@ export interface components {
             /** @constant */
             schema: "studio.asset-version/v1";
             scope: components["schemas"]["Asset_scope"];
+            /** @description Verified segmentation binding on an occlusion job mask. */
+            segmentation?: components["schemas"]["AssetVersion_segmentation"];
             /** @enum {unknown} */
             state: "candidate" | "promoted" | "board";
             voice?: {
@@ -1607,7 +1626,17 @@ export interface components {
             width: components["schemas"]["StudioDefs_positive"];
         } & (unknown & unknown & unknown);
         AssetVersion_occlusion: {
-            foreground: {
+            focal_props?: {
+                /** @enum {unknown} */
+                depth: "background" | "foreground" | "separate" | "unspecified";
+                foreground_role?: string;
+                hint?: components["schemas"]["AssetVersion_occlusion_hint"];
+                key: string;
+                label: string;
+                layer_order?: number;
+                source_asset_version_id?: components["schemas"]["StudioDefs_asv_id"];
+            }[];
+            foreground?: {
                 key: string;
                 layer_order: number;
                 mask: {
@@ -1620,6 +1649,19 @@ export interface components {
                     width: components["schemas"]["StudioDefs_positive"];
                 };
             }[];
+        };
+        AssetVersion_occlusion_hint: {
+            /** @constant */
+            kind: "point";
+            xy: number[];
+        } | {
+            /** @constant */
+            kind: "box";
+            xyxy: number[];
+        } | {
+            /** @constant */
+            kind: "text";
+            text: string;
         };
         AssetVersion_provenance: {
             created_at: components["schemas"]["StudioDefs_timestamp"];
@@ -1664,6 +1706,13 @@ export interface components {
             /** @enum {unknown} */
             origin: "generated" | "uploaded" | "imported" | "declared" | "derived";
             source_key?: null | components["schemas"]["StudioDefs_source_key"];
+        };
+        AssetVersion_segmentation: {
+            profile_sha256: components["schemas"]["StudioDefs_sha256"];
+            receipt_sha256: components["schemas"]["StudioDefs_sha256"];
+            request_sha256: components["schemas"]["StudioDefs_sha256"];
+            source_version_id: components["schemas"]["StudioDefs_asv_id"];
+            still_sha256: components["schemas"]["StudioDefs_sha256"];
         };
         AssetVersion_signature: string;
         AssetVersion_take: {
@@ -1985,6 +2034,16 @@ export interface components {
             board_revision: components["schemas"]["StudioDefs_positive"];
             key_id: string;
         }[];
+        /** BoxHint */
+        BoxHint: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "box";
+            /** Xyxy */
+            xyxy: number[];
+        };
         /** Callback */
         Callback: {
             /** Changed Board Ids */
@@ -2569,7 +2628,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "voice" | "photo" | "asset_candidate" | "matte";
+            kind: "voice" | "photo" | "asset_candidate" | "matte" | "occlusion";
             /** Result Is Current */
             result_is_current: boolean | null;
             /** Result Version Id */
@@ -2590,7 +2649,7 @@ export interface components {
             updated_at: string;
         };
         /**
-         * studio.job/v1: one asynchronous job (voice, photo, image candidate or matte), contract section 2 and VOICE-4
+         * studio.job/v1: one asynchronous job (voice, photo, image candidate, matte or occlusion), contract section 2 and VOICE-4
          * @description The contract's fields are id, kind, target_id, input_signature, status, result_version_id, result_is_current and error. created_by, created_at, updated_at, the error object's shape and the voice block are proposals of story 405.
          */
         JobView: {
@@ -2611,7 +2670,7 @@ export interface components {
             id: components["schemas"]["JobView_job_id"];
             input_signature: components["schemas"]["AssetVersion_signature"];
             /** @enum {unknown} */
-            kind: "voice" | "photo" | "asset_candidate" | "matte";
+            kind: "voice" | "photo" | "asset_candidate" | "matte" | "occlusion";
             matte?: {
                 format_sha256: components["schemas"]["StudioDefs_sha256"];
                 format_version_id: components["schemas"]["StudioDefs_fmv_id"];
@@ -2622,6 +2681,13 @@ export interface components {
                 source_sha256: components["schemas"]["StudioDefs_sha256"];
                 source_version_id: components["schemas"]["StudioDefs_asv_id"];
                 target_height_px: number;
+            };
+            occlusion?: {
+                production_id: components["schemas"]["StudioDefs_prd_id"] | null;
+                profile_sha256: components["schemas"]["StudioDefs_sha256"];
+                request: components["schemas"]["SegmentationRequest"];
+                set_version_id: components["schemas"]["StudioDefs_asv_id_or_null"];
+                source_version_id: components["schemas"]["StudioDefs_asv_id"];
             };
             photo?: {
                 /** @enum {unknown} */
@@ -2647,9 +2713,14 @@ export interface components {
             target_id: components["schemas"]["StudioDefs_id"];
             updated_at: components["schemas"]["StudioDefs_timestamp"];
             voice?: Record<string, never> | null;
-        } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown);
+        } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
         JobView_error: {
             code: string;
+            diagnostic?: {
+                receipt_sha256: components["schemas"]["StudioDefs_sha256"];
+                /** @enum {unknown} */
+                status: "needs_hint" | "failed";
+            };
             message: string;
         };
         JobView_job_id: string;
@@ -2727,6 +2798,22 @@ export interface components {
             /** @description Omit for a new item. Preserve an existing item's ID. */
             id?: components["schemas"]["StudioDefs_nte_id"];
             text: string;
+        };
+        /** OcclusionRequest */
+        OcclusionRequest: {
+            /** Hint */
+            hint?: (components["schemas"]["PointHint"] | components["schemas"]["BoxHint"] | components["schemas"]["TextHint"]) | null;
+            /** Key */
+            key: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "foreground" | "prop" | "face";
+            /** Label */
+            label?: string | null;
+            /** Source Version Id */
+            source_version_id: string;
         };
         /** Original */
         Original: {
@@ -2821,6 +2908,16 @@ export interface components {
             /** Selected */
             selected: boolean;
             version: components["schemas"]["AssetVersion"];
+        };
+        /** PointHint */
+        PointHint: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "point";
+            /** Xy */
+            xy: number[];
         };
         /** studio.production/v1: a themed collection (contract section 1, D28) */
         Production: {
@@ -2934,7 +3031,7 @@ export interface components {
              * Lane
              * @enum {string}
              */
-            lane: "run" | "image" | "voice" | "matte";
+            lane: "run" | "image" | "voice" | "matte" | "occlusion";
             /** Live Claim */
             live_claim: boolean;
             /** Paused */
@@ -2952,7 +3049,7 @@ export interface components {
              * Lane
              * @enum {string}
              */
-            lane: "run" | "image" | "voice" | "matte";
+            lane: "run" | "image" | "voice" | "matte" | "occlusion";
             /** Paused */
             paused: boolean;
         };
@@ -3402,6 +3499,39 @@ export interface components {
             /** @enum {unknown} */
             to: "queued" | "running" | "succeeded" | "failed" | "cancelled" | "held";
         };
+        /** Studio segmentation request */
+        SegmentationRequest: {
+            hint: null | {
+                /** @constant */
+                kind: "point";
+                xy: number[];
+            } | {
+                /** @constant */
+                kind: "box";
+                xyxy: number[];
+            } | {
+                /** @constant */
+                kind: "text";
+                text: string;
+            };
+            input: components["schemas"]["SegmentationRequest_source"];
+            /** @enum {unknown} */
+            profile: "grounding-dino-tiny-sam2.1-tiny-cpu-v1" | "owlv2-base-sam2.1-tiny-cpu-v1";
+            /** @constant */
+            schema: "studio.segmentation-request/v1";
+            target: components["schemas"]["SegmentationRequest_target"];
+        };
+        SegmentationRequest_source: {
+            height: number;
+            sha256: string;
+            width: number;
+        };
+        SegmentationRequest_target: {
+            key: string;
+            /** @enum {unknown} */
+            kind: "foreground" | "prop" | "face";
+            label: null | string;
+        };
         /** SelectionWrite */
         SelectionWrite: {
             /** Values */
@@ -3732,6 +3862,16 @@ export interface components {
             aspect: string | null;
             /** Max Length Ms */
             max_length_ms: number | null;
+        };
+        /** TextHint */
+        TextHint: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "text";
+            /** Text */
+            text: string;
         };
         /** studio.story-timing/v1: a story's timing summary (contract section 3, D45) */
         Timing: {
@@ -4822,6 +4962,139 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["MatteRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description Job status path */
+                    Location?: string;
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobStatus"];
+                };
+            };
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    /** @description Job status path */
+                    Location?: string;
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobStatus"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Credential, production or CSRF check failed */
+            403: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Resource unavailable */
+            404: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The revision differs or the board is protected */
+            409: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request exceeds its size limit */
+            413: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request is invalid or the method is not buildable */
+            422: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected internal failure */
+            500: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A service dependency is unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated request ID, also used in errors and access logs */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    request_occlusion: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                /** @description Required on unsafe methods when authenticating with the session cookie */
+                "X-Studio-CSRF"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OcclusionRequest"];
             };
         };
         responses: {
@@ -10457,7 +10730,7 @@ export interface operations {
                 "X-Studio-CSRF"?: string | null;
             };
             path: {
-                lane: "run" | "image" | "voice" | "matte";
+                lane: "run" | "image" | "voice" | "matte" | "occlusion";
             };
             cookie?: never;
         };

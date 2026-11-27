@@ -543,7 +543,7 @@ def test_run_node_unavailable_leaves_drafts_existing_media_and_other_lanes_avail
     as_person(browser, q)
     context = SimpleNamespace(app=app, store=q.store, owner=q.owner, agent=browser, auth=q.csrf)
     lanes = success(browser.get("/v1/queue/lanes"))["items"]
-    assert {item["lane"] for item in lanes} == {"run", "voice", "image", "matte"}
+    assert {item["lane"] for item in lanes} == {"run", "voice", "image", "matte", "occlusion"}
     run = success(browser.get(f"/v1/runs/{queued['id']}"))
     assert (run["status"], run["wait_reason"], run["queue_wait"]["wall_s"]) == ("queued", "gpu_unavailable", None)
     listed = success(browser.get(f"/v1/stories/{q.story_id}/runs"))["items"]

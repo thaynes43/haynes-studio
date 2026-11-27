@@ -1462,6 +1462,10 @@
           "scope": {
             "$ref": "#/components/schemas/Asset_scope"
           },
+          "segmentation": {
+            "$ref": "#/components/schemas/AssetVersion_segmentation",
+            "description": "Verified segmentation binding on an occlusion job mask."
+          },
           "state": {
             "enum": [
               "candidate",
@@ -2262,7 +2266,56 @@
       },
       "AssetVersion_occlusion": {
         "additionalProperties": false,
+        "minProperties": 1,
         "properties": {
+          "focal_props": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "depth": {
+                  "enum": [
+                    "background",
+                    "foreground",
+                    "separate",
+                    "unspecified"
+                  ]
+                },
+                "foreground_role": {
+                  "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                  "type": "string"
+                },
+                "hint": {
+                  "$ref": "#/components/schemas/AssetVersion_occlusion_hint"
+                },
+                "key": {
+                  "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                  "type": "string"
+                },
+                "label": {
+                  "maxLength": 80,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "layer_order": {
+                  "maximum": 1024,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "source_asset_version_id": {
+                  "$ref": "#/components/schemas/StudioDefs_asv_id"
+                }
+              },
+              "required": [
+                "key",
+                "label",
+                "depth"
+              ],
+              "type": "object"
+            },
+            "maxItems": 16,
+            "minItems": 1,
+            "type": "array"
+          },
           "foreground": {
             "items": {
               "additionalProperties": false,
@@ -2319,10 +2372,75 @@
             "type": "array"
           }
         },
-        "required": [
-          "foreground"
-        ],
         "type": "object"
+      },
+      "AssetVersion_occlusion_hint": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "point"
+              },
+              "xy": {
+                "items": {
+                  "maximum": 1920,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "type": "array"
+              }
+            },
+            "required": [
+              "kind",
+              "xy"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "box"
+              },
+              "xyxy": {
+                "items": {
+                  "maximum": 1920,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "maxItems": 4,
+                "minItems": 4,
+                "type": "array"
+              }
+            },
+            "required": [
+              "kind",
+              "xyxy"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "text"
+              },
+              "text": {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "text"
+            ],
+            "type": "object"
+          }
+        ]
       },
       "AssetVersion_provenance": {
         "additionalProperties": false,
@@ -2738,6 +2856,34 @@
             }
           }
         },
+        "type": "object"
+      },
+      "AssetVersion_segmentation": {
+        "additionalProperties": false,
+        "properties": {
+          "profile_sha256": {
+            "$ref": "#/components/schemas/StudioDefs_sha256"
+          },
+          "receipt_sha256": {
+            "$ref": "#/components/schemas/StudioDefs_sha256"
+          },
+          "request_sha256": {
+            "$ref": "#/components/schemas/StudioDefs_sha256"
+          },
+          "source_version_id": {
+            "$ref": "#/components/schemas/StudioDefs_asv_id"
+          },
+          "still_sha256": {
+            "$ref": "#/components/schemas/StudioDefs_sha256"
+          }
+        },
+        "required": [
+          "source_version_id",
+          "still_sha256",
+          "request_sha256",
+          "profile_sha256",
+          "receipt_sha256"
+        ],
         "type": "object"
       },
       "AssetVersion_signature": {
@@ -4806,6 +4952,33 @@
           "type": "object"
         },
         "type": "array"
+      },
+      "BoxHint": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "box",
+            "title": "Kind",
+            "type": "string"
+          },
+          "xyxy": {
+            "items": {
+              "maximum": 1920.0,
+              "minimum": 0.0,
+              "type": "integer"
+            },
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Xyxy",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "xyxy"
+        ],
+        "title": "BoxHint",
+        "type": "object"
       },
       "Callback": {
         "additionalProperties": false,
@@ -7105,7 +7278,8 @@
               "voice",
               "photo",
               "asset_candidate",
-              "matte"
+              "matte",
+              "occlusion"
             ],
             "title": "Kind",
             "type": "string"
@@ -7174,6 +7348,46 @@
       "JobView": {
         "additionalProperties": false,
         "allOf": [
+          {
+            "else": {
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "occlusion"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "error": {
+                        "required": [
+                          "diagnostic"
+                        ],
+                        "type": "object"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "occlusion"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "target_id": {
+                  "$ref": "#/components/schemas/StudioDefs_asv_id"
+                }
+              }
+            }
+          },
           {
             "if": {
               "properties": {
@@ -7481,7 +7695,8 @@
               "voice",
               "photo",
               "asset_candidate",
-              "matte"
+              "matte",
+              "occlusion"
             ]
           },
           "matte": {
@@ -7534,6 +7749,41 @@
               "format_sha256",
               "slot",
               "target_height_px"
+            ],
+            "type": "object"
+          },
+          "occlusion": {
+            "additionalProperties": false,
+            "properties": {
+              "production_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/StudioDefs_prd_id"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "profile_sha256": {
+                "$ref": "#/components/schemas/StudioDefs_sha256"
+              },
+              "request": {
+                "$ref": "#/components/schemas/SegmentationRequest"
+              },
+              "set_version_id": {
+                "$ref": "#/components/schemas/StudioDefs_asv_id_or_null"
+              },
+              "source_version_id": {
+                "$ref": "#/components/schemas/StudioDefs_asv_id"
+              }
+            },
+            "required": [
+              "source_version_id",
+              "set_version_id",
+              "production_id",
+              "request",
+              "profile_sha256"
             ],
             "type": "object"
           },
@@ -7671,7 +7921,7 @@
           "created_at",
           "updated_at"
         ],
-        "title": "studio.job/v1: one asynchronous job (voice, photo, image candidate or matte), contract section 2 and VOICE-4",
+        "title": "studio.job/v1: one asynchronous job (voice, photo, image candidate, matte or occlusion), contract section 2 and VOICE-4",
         "type": "object"
       },
       "JobView_error": {
@@ -7681,6 +7931,25 @@
             "maxLength": 80,
             "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
             "type": "string"
+          },
+          "diagnostic": {
+            "additionalProperties": false,
+            "properties": {
+              "receipt_sha256": {
+                "$ref": "#/components/schemas/StudioDefs_sha256"
+              },
+              "status": {
+                "enum": [
+                  "needs_hint",
+                  "failed"
+                ]
+              }
+            },
+            "required": [
+              "status",
+              "receipt_sha256"
+            ],
+            "type": "object"
           },
           "message": {
             "maxLength": 500,
@@ -8045,6 +8314,78 @@
         ],
         "type": "object"
       },
+      "OcclusionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "hint": {
+            "anyOf": [
+              {
+                "discriminator": {
+                  "mapping": {
+                    "box": "#/components/schemas/BoxHint",
+                    "point": "#/components/schemas/PointHint",
+                    "text": "#/components/schemas/TextHint"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/PointHint"
+                  },
+                  {
+                    "$ref": "#/components/schemas/BoxHint"
+                  },
+                  {
+                    "$ref": "#/components/schemas/TextHint"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint"
+          },
+          "key": {
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "foreground",
+              "prop",
+              "face"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "source_version_id": {
+            "title": "Source Version Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_version_id",
+          "kind",
+          "key"
+        ],
+        "title": "OcclusionRequest",
+        "type": "object"
+      },
       "Original": {
         "additionalProperties": false,
         "properties": {
@@ -8375,6 +8716,33 @@
           "board_revision"
         ],
         "title": "PhotoUploadView",
+        "type": "object"
+      },
+      "PointHint": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "point",
+            "title": "Kind",
+            "type": "string"
+          },
+          "xy": {
+            "items": {
+              "maximum": 1920.0,
+              "minimum": 0.0,
+              "type": "integer"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Xy",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "xy"
+        ],
+        "title": "PointHint",
         "type": "object"
       },
       "Production": {
@@ -8776,7 +9144,8 @@
               "run",
               "image",
               "voice",
-              "matte"
+              "matte",
+              "occlusion"
             ],
             "title": "Lane",
             "type": "string"
@@ -8831,7 +9200,8 @@
               "run",
               "image",
               "voice",
-              "matte"
+              "matte",
+              "occlusion"
             ],
             "title": "Lane",
             "type": "string"
@@ -11220,6 +11590,165 @@
         ],
         "type": "object"
       },
+      "SegmentationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "hint": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "point"
+                  },
+                  "xy": {
+                    "items": {
+                      "maximum": 1920,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 2,
+                    "minItems": 2,
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "xy"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "box"
+                  },
+                  "xyxy": {
+                    "items": {
+                      "maximum": 1920,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 4,
+                    "minItems": 4,
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "xyxy"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "text"
+                  },
+                  "text": {
+                    "maxLength": 80,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "text"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "input": {
+            "$ref": "#/components/schemas/SegmentationRequest_source"
+          },
+          "profile": {
+            "enum": [
+              "grounding-dino-tiny-sam2.1-tiny-cpu-v1",
+              "owlv2-base-sam2.1-tiny-cpu-v1"
+            ]
+          },
+          "schema": {
+            "const": "studio.segmentation-request/v1"
+          },
+          "target": {
+            "$ref": "#/components/schemas/SegmentationRequest_target"
+          }
+        },
+        "required": [
+          "schema",
+          "profile",
+          "input",
+          "target",
+          "hint"
+        ],
+        "title": "Studio segmentation request",
+        "type": "object"
+      },
+      "SegmentationRequest_source": {
+        "additionalProperties": false,
+        "properties": {
+          "height": {
+            "maximum": 1920,
+            "minimum": 32,
+            "type": "integer"
+          },
+          "sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          },
+          "width": {
+            "maximum": 1920,
+            "minimum": 32,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sha256",
+          "width",
+          "height"
+        ],
+        "type": "object"
+      },
+      "SegmentationRequest_target": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "foreground",
+              "prop",
+              "face"
+            ]
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "key",
+          "label"
+        ],
+        "type": "object"
+      },
       "SelectionWrite": {
         "additionalProperties": false,
         "properties": {
@@ -13085,6 +13614,28 @@
         "title": "TargetRules",
         "type": "object"
       },
+      "TextHint": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "text",
+            "title": "Kind",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "text"
+        ],
+        "title": "TextHint",
+        "type": "object"
+      },
       "Timing": {
         "additionalProperties": false,
         "properties": {
@@ -14487,7 +15038,7 @@
         "openWorldHint": false,
         "readOnlyHint": true
       },
-      "description": "Read compact status and the result version ID for a scoped voice, photo or matte job.",
+      "description": "Read compact status and the result version ID for a scoped voice, photo, matte or occlusion job.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {

@@ -11,8 +11,10 @@ from haynes_studio.delivery.validate import validate_delivery
 from haynes_studio.errors import ContractError, Violation
 from haynes_studio.layered.foreground import declarations, recorded_source_ids
 from haynes_studio.library.library import Library, promote
-from haynes_studio.library.model import BOARD, CANDIDATE, PROMOTED, Asset, AssetVersion, version_document
-from haynes_studio.library.validate import validate_asset, validate_asset_version
+from haynes_studio.library.model import BOARD, CANDIDATE, PROMOTED, Asset, AssetVersion, Content, version_document
+from haynes_studio.library.validate import (
+    focal_prop_source_ids, focal_prop_source_problems, validate_asset, validate_asset_version,
+)
 from haynes_studio.store.layout import blob_locator, is_sha256, parse_locator
 
 from .problems import NotFound, require_valid
@@ -95,7 +97,7 @@ def declaring_loop_sources(conn, library: Library, loop_ids: Collection[str]) ->
         assets, assets.c.id == asset_versions.c.asset_id,
     ).where(
         assets.c.kind == "set", asset_versions.c.id.in_(ids),
-        asset_versions.c.document.has_key("occlusion"),
+        asset_versions.c.document["occlusion"].has_key("foreground"),
     )))
 
 
@@ -152,6 +154,30 @@ def _check_asset_scope(conn: sa.Connection, asset: Asset) -> None:
         story = conn.scalar(sa.select(boards.c.story_id).where(boards.c.id == scope.board_id))
         if story is None or story != scope.story_id:
             raise _scope_error("/scope/board_id", "The board belongs to another story")
+
+
+def _check_focal_prop_sources(conn, version):
+    sources = focal_prop_source_ids(version.occlusion)
+    # Either side can be registered first. Both writers serialize on the source
+    # version ID before reading the other side under Read Committed.
+    for source in sorted(sources | {version.id}):
+        conn.execute(sa.select(sa.func.pg_advisory_xact_lock(sa.func.hashtextextended(source, 412))))
+    if sources:
+        documents = conn.scalars(sa.select(asset_versions.c.document).where(
+            asset_versions.c.id.in_(sources),
+        ))
+        for document in documents:
+            require_valid(focal_prop_source_problems(
+                version.occlusion, document["id"], document["kind"], document["capabilities"],
+                Content.from_document(document["content"]),
+            ))
+    declarations = conn.scalars(sa.select(asset_versions.c.document["occlusion"]).where(
+        asset_versions.c.document.contains({"occlusion": {"focal_props": [{"source_asset_version_id": version.id}]}}),
+    ))
+    for declaration in declarations:
+        require_valid(focal_prop_source_problems(
+            declaration, version.id, version.kind, version.capabilities, version.content,
+        ))
 
 
 def record_asset_version(conn: sa.Connection, document: dict, *, asset: Asset | None = None,
@@ -217,6 +243,7 @@ def record_asset_version(conn: sa.Connection, document: dict, *, asset: Asset | 
                 "ref.duplicate", "/id", "The immutable version identity is already in use",
             )])
         return
+    _check_focal_prop_sources(conn, version)
     conn.execute(asset_versions.insert().values(id=version.id, asset_id=asset.id,
                                                number=version.number, state=version.state,
                                                received_sha256=received_sha256, document=document))
@@ -376,7 +403,7 @@ def preview_media(conn, version_id: str, sha256: str, allowed: ProductionScope, 
             _catalog_scope(allowed))
     if job is not None:
         stmt = stmt.where(assets.c.production_id.is_not_distinct_from(job["production_id"]))
-    if job is None or job["kind"] not in ("asset_candidate", "matte"):
+    if job is None or job["kind"] not in ("asset_candidate", "matte", "occlusion"):
         stmt = stmt.where(sa.or_(_version_state() == CANDIDATE,
                                 assets.c.kind.in_(("photo", "board_voice"))))
     return conn.execute(stmt).all()

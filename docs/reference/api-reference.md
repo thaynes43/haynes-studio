@@ -1,7 +1,7 @@
 # Studio API and MCP reference
 
 API **1.0.0**, OpenAPI **3.1.0**, studio-mcp **1.0.0**.
-Source contract build SHA-256 `395ea1f573d9d7efed4384c154c857bc23b27c94cb2ec42a5e61a675944070b3`.
+Source contract build SHA-256 `3e3daa3f30697c24ac1d04b06bca6f96e814c9c596a4dd1c5e30891d9bb2088a`.
 The build digest identifies the offline OpenAPI export, MCP tool descriptors and excluded worker route index.
 
 Regenerate this page and its schema data when a PR changes an operation, tool or schema.
@@ -115,7 +115,7 @@ check the board revision before resending. [Photo upload](studio-api.md#d42-phot
 
 Generation returns `202` with a job ID and `Location`, or `200` on replay. Poll
 `GET /v1/jobs/{id}` or `studio_get_job` for board jobs and production-scoped
-matte jobs. Check the terminal
+matte and occlusion jobs. Check the terminal
 status and `result_is_current` before using a version. A job can succeed and
 retain its result without changing the board. A person can inspect a private
 candidate result and promote it separately. Queueing a run freezes the story
@@ -141,7 +141,7 @@ recipes are limited to 64 KiB of canonical JSON and saved run snapshot reads to
 16 MiB. See [Studio MCP limits](studio-mcp.md#tools-and-revisions) and
 [archive limits](staging-archive.md#operations).
 
-## HTTP operations (81)
+## HTTP operations (82)
 
 [Schema data](api-reference-data/schemas.json) holds the named HTTP types under `components.schemas`.
 Run `uv run --locked studio-api openapi` for the full document, including parameter constraints and response headers.
@@ -256,6 +256,7 @@ Error status shows the statuses declared by OpenAPI, including shared responses.
 | --- | --- | --- | --- | --- | --- | --- |
 | `POST /v1/asset-jobs` | `generate_asset_candidate` | Person | Header `Idempotency-Key`*, `X-Studio-CSRF` | `CandidateRequest` | 200 `JobStatus`<br>202 `JobStatus` | 401, 403, 404, 409, 413, 422, 500, 503 |
 | `POST /v1/asset-jobs/matte` | `request_matte` | Person | Header `Idempotency-Key`*, `X-Studio-CSRF` | `MatteRequest` | 200 `JobStatus`<br>202 `JobStatus` | 401, 403, 404, 409, 413, 422, 500, 503 |
+| `POST /v1/asset-jobs/occlusion` | `request_occlusion` | Person | Header `Idempotency-Key`*, `X-Studio-CSRF` | `OcclusionRequest` | 200 `JobStatus`<br>202 `JobStatus` | 401, 403, 404, 409, 413, 422, 500, 503 |
 | `POST /v1/asset-versions/{id}/promote` | `promote_asset_version` | Person | Path `id`*<br>Header `X-Studio-CSRF` | — | 200 `AssetVersion` | 401, 403, 404, 409, 413, 422, 500, 503 |
 | `GET /v1/boards/{id}/jobs` | `list_board_jobs` | Person or Agent with `read` | Path `id`*<br>Query `cursor`, `limit` | — | 200 `Page_JobStatus_` | 401, 403, 404, 409, 413, 422, 500, 503 |
 | `POST /v1/boards/{id}/photo-jobs` | `generate_board_photo` | Person or Agent with `assets:generate` | Path `id`*<br>Header `Idempotency-Key`*, `X-Studio-CSRF` | `PhotoRequest` | 200 `JobStatus`<br>202 `JobStatus` | 401, 403, 404, 409, 413, 422, 500, 503 |
@@ -263,7 +264,7 @@ Error status shows the statuses declared by OpenAPI, including shared responses.
 | `POST /v1/boards/{id}/photo-versions` | `upload_board_photo` | Agent with `assets:upload` | Path `id`*<br>Header `If-Match`*, `X-Studio-Photo-Provenance`* (`ExternalPhotoDeclaration`) | bytes (`image/jpeg`, `image/png`, `image/webp`) | 201 `PhotoUploadView` | 401, 403, 404, 408, 409, 413, 422, 500, 503 |
 | `POST /v1/boards/{id}/voice-jobs` | `generate_board_voice` | Person or Agent with `assets:generate` | Path `id`*<br>Header `Idempotency-Key`*, `X-Studio-CSRF` | `VoiceRequest` | 200 `JobStatus`<br>202 `JobStatus` | 401, 403, 404, 409, 413, 422, 500, 503 |
 | `GET /v1/boards/{id}/voice-versions` | `list_board_voice_versions` | Person or Agent with `read` | Path `id`*<br>Query `cursor`, `limit` | — | 200 `Page_AssetVersion_` | 401, 403, 404, 409, 413, 422, 500, 503 |
-| `GET /v1/jobs/{id}` | `get_job` | Person or Agent with `read` (board and production-scoped matte jobs) | Path `id`* | — | 200 `JobView` | 401, 403, 404, 409, 413, 422, 500, 503 |
+| `GET /v1/jobs/{id}` | `get_job` | Person or Agent with `read` (board and production-scoped matte or occlusion jobs) | Path `id`* | — | 200 `JobView` | 401, 403, 404, 409, 413, 422, 500, 503 |
 | `GET /v1/jobs/{id}/result` | `get_job_result` | Person | Path `id`* | — | 200 `AssetVersion` | 401, 403, 404, 409, 413, 422, 500, 503 |
 
 ### Probes
@@ -326,6 +327,8 @@ HEAD responses carry status and headers without an error body.
 | --- | --- | --- |
 | `login` | 422 | `auth.return_to_invalid` |
 | `request_matte` | 422 | `adapter.request_invalid`, `idempotency.mismatch` |
+| `request_occlusion` | 422 | `idempotency.mismatch`, `occlusion.declared_target`, `occlusion.invalid_input` |
+| `request_occlusion` | 503 | `occlusion.store_unavailable`, `occlusion.unavailable` |
 | `create_production` | 409 | `production.name_duplicate` |
 | `create_story`, `update_story` | 409 | `story.title_duplicate` |
 | `get_production`, `list_stories`, `create_story`, `get_story`, `update_story`, `get_story_timing`, `get_board`, `create_board`, `update_board`, `reorder_boards`, `remove_board` | 422 | `id.malformed`, `id.type_mismatch` |
@@ -459,6 +462,7 @@ They describe individual request or response parts. Use the HTTP or MCP table fo
 | `GET /readyz` | `readyz` | Service probes. [API boundaries](../contracts/studio-contracts-v1.md#12-api-ui-and-mcp-boundaries). |
 | `POST /v1/asset-jobs` | `generate_asset_candidate` | Signed-in person required. [Asset candidates](asset-candidates.md#api-and-ui-integration). |
 | `POST /v1/asset-jobs/matte` | `request_matte` | Signed-in person required. Production-scoped status is available via studio_get_job. [Matte requests](studio-api.md#matte-requests-and-reads). |
+| `POST /v1/asset-jobs/occlusion` | `request_occlusion` | Signed-in person required. Production-scoped job reads are available via studio_get_job. [Occlusion jobs](segmentation-adapter.md#occlusion-jobs). |
 | `GET /v1/asset-versions/{id}/media/{sha256}` | `get_version_media` | MCP returns compact metadata and excludes byte reads. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41). |
 | `HEAD /v1/asset-versions/{id}/media/{sha256}` | `head_version_media` | MCP returns compact metadata and excludes byte reads. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41). |
 | `POST /v1/asset-versions/{id}/promote` | `promote_asset_version` | Signed-in person required. [Asset candidates](asset-candidates.md#api-and-ui-integration). |

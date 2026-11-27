@@ -51,7 +51,7 @@ class RoleMask:
 
 
 def declarations(version: AssetVersion | None) -> tuple[Mapping, ...]:
-    return () if version is None or version.occlusion is None else version.occlusion["foreground"]
+    return () if version is None or version.occlusion is None else version.occlusion.get("foreground", ())
 
 
 def recorded_source_ids(provenance: Mapping) -> tuple[str, ...]:
@@ -114,8 +114,9 @@ def admit_masks(version: AssetVersion | None, library: Library, production_id: s
                 or asset_version.occlusion is not None
                 or not asset_version.has("mask") or content is None or content.media_type != "image/png"):
             raise LayeredError(MASK_NOT_READY, "the role needs a promoted PNG mask with content", where=path)
-        if pin["sha256"] != content.sha256:
-            raise LayeredError(MASK_STALE, "the mask content hash differs from the declaration", where=path)
+        if (pin["sha256"] != content.sha256 or asset_version.segmentation is not None
+                and asset_version.segmentation["still_sha256"] != pin["still_sha256"]):
+            raise LayeredError(MASK_STALE, "the mask or source still hash differs from the declaration", where=path)
         size = pin["width"], pin["height"]
         check_size(size, (version.content.width, version.content.height), where=path)
         check_size(size, (content.width, content.height), where=path)

@@ -209,7 +209,7 @@ class Operation:
 def job_detail(reply, _):
     return pick(reply.document, "schema", "id", "kind", "target_id", "status", "input_signature",
                 "result_version_id", "result_is_current", "error", "created_by", "created_at", "updated_at",
-                "matte")
+                "matte", "occlusion")
 
 
 def raw_detail(reply, _):
@@ -353,7 +353,7 @@ OPERATIONS = {
         "Upload base64 encoded still bytes and D42 provenance at the current board revision.",
         args.UploadPhoto, "POST", "/v1/boards/{board_id}/photo-versions", upload_detail, expect=201),
     "studio_get_job": Operation(
-        "Read compact status and the result version ID for a scoped voice, photo or matte job.",
+        "Read compact status and the result version ID for a scoped voice, photo, matte or occlusion job.",
         args.GetJob, "GET", "/v1/jobs/{job_id}", job_detail),
     "studio_estimate_run": Operation(
         "Read build estimates and preflight problems for a story.",

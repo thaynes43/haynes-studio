@@ -103,7 +103,7 @@ class WorkFailure(ClaimFence):
     admission_busy: bool = False
 
 
-WorkLane = Literal["run", "image", "voice", "matte"]
+WorkLane = Literal["run", "image", "voice", "matte", "occlusion"]
 WORK_LANES = get_args(WorkLane)
 MEDIA_LANES = tuple(lane for lane in WORK_LANES if lane != "run")
 
@@ -140,8 +140,18 @@ class MatteEvidence(Payload):
     matte_version: dict
 
 
+class SegmentationBlob(Payload):
+    sha256: SHA256
+    bytes: Annotated[int, Field(gt=0, le=8 * 1024**2)]
+
+
+class OcclusionEvidence(Payload):
+    receipt: SegmentationBlob
+    mask: SegmentationBlob | None
+
+
 class MediaCompletion(MediaFence):
-    result: VoiceEvidence | ImageEvidence | MatteEvidence | None
+    result: VoiceEvidence | ImageEvidence | MatteEvidence | OcclusionEvidence | None
 
 
 class MediaFailure(MediaFence):

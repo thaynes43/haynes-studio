@@ -96,11 +96,11 @@ def succeed(job: Job, result_version_id: str, *, is_current: bool, now: str) -> 
                  result_is_current=bool(is_current))
 
 
-def fail(job: Job, code: str, message: str, *, now: str) -> Job:
+def fail(job: Job, code: str, message: str, *, now: str, diagnostic=None) -> Job:
     """``running`` to ``failed``, with the code and a short message."""
     printable = "".join(ch if ch.isprintable() else " " for ch in str(message))
     text = " ".join(printable.split())[:ERROR_MESSAGE_LIMIT] or code
-    return _move(job, FAILED, now, error=JobError(code=code, message=text))
+    return _move(job, FAILED, now, error=JobError(code=code, message=text, diagnostic=diagnostic))
 
 
 def cancel(job: Job, *, now: str) -> Job:

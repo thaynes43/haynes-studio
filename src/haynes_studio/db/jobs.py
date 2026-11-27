@@ -17,7 +17,9 @@ from .schema import media_job_lanes, media_jobs
 
 STATUS = media_jobs.c.document["status"].astext
 ACTIVE = ("queued", "running")
-KIND_LANE = {"voice": "voice", "photo": "image", "asset_candidate": "image", "matte": "matte"}
+KIND_LANE = {
+    "voice": "voice", "photo": "image", "asset_candidate": "image", "matte": "matte", "occlusion": "occlusion",
+}
 MATTE_RELEASE_LIMIT = 3
 
 
@@ -115,9 +117,10 @@ def claim(conn, worker_id, lane, *, settle_only=False, settle_while_paused=False
     if lock_lane(conn, lane, skip_locked=True) is None:
         return None
     paused = not settle_only and is_paused(conn, lane)
-    if paused and lane != "matte" and not settle_while_paused:
-        return None
+    # Occlusion can reclaim a dispatched observation when the lane resumes.
     settle_dispatch = settle_only or paused
+    if (settle_dispatch and lane == "occlusion") or (paused and lane != "matte" and not settle_while_paused):
+        return None
     head = sa.select(sa.func.min(media_jobs.c.position)).where(
         media_jobs.c.lane == lane, STATUS.in_(ACTIVE),
     ).scalar_subquery()
@@ -131,7 +134,7 @@ def claim(conn, worker_id, lane, *, settle_only=False, settle_while_paused=False
     if row["claim_until"] is not None and row["claim_until"] > now:
         return None
     job = Job.from_document(job_document(row))
-    if row["dispatched"]:
+    if row["dispatched"] and lane != "occlusion":
         # Engine submission is not idempotent. Expiry can only retire the job,
         # and the image adapter still waits for the shared engine queue to drain.
         finish(conn, row, transitions.fail(
@@ -142,7 +145,7 @@ def claim(conn, worker_id, lane, *, settle_only=False, settle_while_paused=False
     if job.status == "queued":
         job = transitions.start(job, now=timestamp(now))
     return save(conn, row, document=job.to_document(), fence=media_jobs.c.fence + 1,
-                worker_id=worker_id, claim_until=now + LEASE)
+                worker_id=worker_id, claim_until=now + LEASE, dispatched=False)
 
 
 def lock_claim(conn, job_id, worker_id, fence, *, lane):
