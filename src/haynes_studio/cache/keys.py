@@ -454,7 +454,7 @@ INVENTORY: tuple[ArtifactSpec, ...] = (
     ArtifactSpec(SEGMENT, "Board picture segment", BOARD, segment_key,
                  ("method", "frames", "width", "height", "fps", "layout", "layers", "set_layer",
                   "whole_frame_clip", "motion_style", "voice_envelope", "talk", "cues", "foreground",
-                  "procedural_stream", "compositor", "encoder", "delivery_profile_sha256"),
+                  "procedural_stream", "compositor", "encoder", "delivery_profile_sha256", "visibility"),
                  rendered_here=True),
     ArtifactSpec(FILM_PICTURE, "Film picture", FILM, film_picture_key, ("segments", "splicer"),
                  rendered_here=True),

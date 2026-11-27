@@ -66,7 +66,7 @@ SAMPLES = {
          "motion_style": {"talk_hop": 34}, "voice_envelope": h(5),
          "talk": [{"speaker": "a", "start_ms": 500, "end_ms": 900}], "cues": [],
          "foreground": None, "procedural_stream": 1, "compositor": "c/1", "encoder": {"crf": 18},
-         "delivery_profile_sha256": h(8)},
+         "delivery_profile_sha256": h(8), "visibility": None},
         {"method": {"layer": "layered", "motion": "i2v"}, "frames": 79, "width": 720,
          "height": 1280, "fps": 25, "layout": {"x": 0.6},
          "layers": [{"slot": "a", "still": h(1), "clip": h(2), "keyed": h(3), "phase": 7}],
@@ -75,7 +75,7 @@ SAMPLES = {
          "talk": [{"speaker": "c", "start_ms": 500, "end_ms": 900}],
          "cues": [{"type": "camera", "start_ms": 0}], "foreground": {"edge_px": [[0, 1]]},
          "procedural_stream": 2, "compositor": "c/2", "encoder": {"crf": 20},
-         "delivery_profile_sha256": h(9)}),
+         "delivery_profile_sha256": h(9), "visibility": {"slot": "a", "frames": [0], "version": "1"}}),
     keys.FILM_PICTURE: (
         {"segments": [(h(1), 78), (h(2), 42)], "splicer": "studio.splice/1"},
         {"segments": [(h(2), 42), (h(1), 78)], "splicer": "studio.splice/2"}),
