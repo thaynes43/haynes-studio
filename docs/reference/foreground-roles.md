@@ -45,16 +45,22 @@ On a whole-frame board, photo generation, external photo upload and Build
 refuse a role-declared set with `occlusion.unsupported`. The same code applies
 to a standalone reference to a role-declared set in photo generation or upload.
 
-A layered film that plays a set loop resolves the loop's own source set version
-even when the draft's set still is cleared. If the selected still or the loop's
-source declares roles, Build refuses it with `occlusion.unsupported`. The
-loop's `motion.still_sha256` must match its source set version. When generator
-provenance names source version IDs, one of those IDs must name the matching
-set. An older loop with just a still hash needs exactly one matching set version
-in scope. Build refuses a missing, conflicting or ambiguous source with
-`occlusion.set_loop_source_unknown`. The snapshot pins the resolved source.
+CR-71 is provisional for Tom's review. A foreground declaration belongs to the
+set version that carries it. A set loop is a separate asset version. A board that
+plays a loop gets `occlusion.unsupported` if its selected still declares roles or
+if any of the loop's recorded `provenance.generator.source_asset_version_ids`
+names a set version with roles. The provenance check also applies when the still
+selection is empty or points to an unmasked sibling.
 
-Photo jobs render the asset versions frozen at admission. If an undispatched
+Build uses the source version IDs as recorded. Legacy loops keep their existing
+admission, planning and snapshot bytes when neither the selected still nor a
+recorded source declares roles. This includes loops without provenance pins and
+loops with absent, unmatched or shared still hashes. Copying a loop and registering
+it with different provenance creates a separate asset. Build uses the copy's own
+record and cannot tell whether its video bytes came from a loop pinned to a masked
+set. Catalogue rules for copies and conflicting provenance are outside story 968.
+
+Under CR-70.2, photo jobs render the asset versions frozen at admission. If an undispatched
 claim expires and the draft switches to a masked set before the worker reclaims
 it, a job admitted with the earlier unmasked version still renders that version.
 It saves a non-current result and leaves the draft's selected photo in place.
@@ -73,4 +79,3 @@ Archive import checks the pins and the metadata limits.
 | `occlusion.mask_size` | The mask dimensions match the source still and PNG. |
 | `occlusion.mask_invalid` | The PNG fits both limits, has one grayscale frame and uses only 0 and 255, with some 255 pixels. |
 | `occlusion.noncanonical` | Omit an empty declaration and use integers for the role depth and dimensions. |
-| `occlusion.set_loop_source_unknown` | Select a loop whose recorded still hash and source pins identify one available set version. |

@@ -89,17 +89,13 @@ def enqueue(conn, *, snapshot, snapshot_sha256, library, actor, key, estimate, a
         if has_roles and store is None:
             raise QueueConflict(MASK_MISSING, "A store is required to verify the pinned role mask bytes")
         if has_roles or has_set_loop:
-            foreground = require_frozen_roles(snapshot, frozen, store=store)
+            motion = require_frozen_roles(snapshot, frozen, store=store)
             if snapshot_bytes(snapshot)[1] != snapshot_sha256:
                 raise QueueConflict("run.snapshot_changed", "The supplied hash must name the canonical snapshot")
-            if foreground.loop_source is not None:
-                # Use the catalog too so a partial frozen library cannot hide a
-                # competing version of the same still or strip its declaration.
+            if has_set_loop:
+                # Check the frozen loop's recorded provenance even if the catalog has other loop candidates.
                 ids = {pin["id"] for pin in snapshot["resolved_asset_versions"]}
-                stored = catalog.build_library(conn, story, ids)
-                source = require_frozen_roles(snapshot, stored).loop_source
-                if source is None or source.id != foreground.loop_source.id:
-                    raise QueueConflict("run.snapshot_changed", "Freeze the set loop's source version from the catalog")
+                require_frozen_roles(snapshot, catalog.build_library(conn, story, ids), motion=motion)
     production_id = story["production_id"]
     position = conn.scalar(sa.select(run_lane.c.next_position).with_for_update())
     conn.execute(run_lane.update().values(next_position=position + 1))

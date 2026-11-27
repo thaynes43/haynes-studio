@@ -287,7 +287,9 @@ def media_for_hash(conn: sa.Connection, sha256: str, allowed: ProductionScope):
 
 
 def build_library(conn: sa.Connection, story: dict, version_ids: Collection[str]) -> Library:
-    """The explicit pins, relevant motion alternatives and source sets for a snapshot."""
+    """The explicit pins, promoted motion alternatives and role declarations for admission."""
+    from haynes_studio.layered.foreground import recorded_source_ids
+
     production_id = story["production_id"]
     library = load_library(conn, version_ids, production_id)
     if not any(board["method"]["layer"] == "layered" for board in story["boards"]):
@@ -305,13 +307,13 @@ def build_library(conn: sa.Connection, story: dict, version_ids: Collection[str]
             asset_versions.c.id.not_in(version_ids),
         ))
         documents.extend(map(_version, rows))
-    source_hashes = {doc["motion"]["still_sha256"] for doc in documents
-                     if "set_loop" in doc["capabilities"] and (doc.get("motion") or {}).get("still_sha256")}
-    if source_hashes:
+    source_ids = {id_ for doc in documents if "set_loop" in doc["capabilities"]
+                  for id_ in recorded_source_ids(doc["provenance"])}
+    if missing := source_ids.difference(doc["id"] for doc in documents):
+        # These declarations are read for admission. Provenance alone does not pin the still.
         rows = conn.execute(_joined_versions().where(
-            _catalog_scope({production_id}), assets.c.kind == "set",
-            asset_versions.c.document["content"]["sha256"].astext.in_(source_hashes),
-            asset_versions.c.id.not_in({doc["id"] for doc in documents}),
+            assets.c.kind == "set", asset_versions.c.id.in_(missing),
+            asset_versions.c.document.has_key("occlusion"),
         ))
         documents.extend(map(_version, rows))
     return Library.from_version_documents(documents)

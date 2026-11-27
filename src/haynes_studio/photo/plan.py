@@ -99,7 +99,7 @@ def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: b
     roles = resolve_picture_roles(
         set_version, board, library, production_id=story.production_id,
         set_loop=story.set is not None and story.set.motion_asset_version_id is not None,
-    ).roles
+    )
     if board.method.layer == LAYERED:
         if set_version is None:
             raise LayeredError(UNSUPPORTED, "the story has no set still to compose on", where="/set")

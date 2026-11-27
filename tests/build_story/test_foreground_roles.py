@@ -10,8 +10,7 @@ from haynes_studio.build.prebuild import make_snapshot, prepare, snapshot_bytes
 from haynes_studio.build.run import RunRecords, local_run_ids, new_run
 from haynes_studio.errors import ContractError
 from haynes_studio.layered.foreground import (
-    FOREGROUND_REQUIRED, MASK_INVALID, MASK_MISSING, MASK_NOT_READY, MASK_SIZE, MASK_STALE,
-    SET_LOOP_SOURCE_UNKNOWN, UNSUPPORTED,
+    FOREGROUND_REQUIRED, MASK_INVALID, MASK_MISSING, MASK_NOT_READY, MASK_SIZE, MASK_STALE, UNSUPPORTED,
 )
 from haynes_studio.library import Library
 from haynes_studio.queue.inputs import freeze
@@ -191,28 +190,6 @@ def test_discovered_set_loop_refuses_its_masked_source_even_with_an_unmasked_sti
     prepared = preflight(world, document)
     [issue] = prepared.report.blocking
     assert (issue.rule, issue.path) == (UNSUPPORTED, "/set/motion_asset_version_id")
-
-
-@pytest.mark.parametrize("identity", ["missing-set", "wrong-provenance", "ambiguous-still"])
-def test_set_loop_with_unresolved_source_is_refused(tmp_path, identity):
-    world, document, plate = role_world(tmp_path / "store")
-    world.loop(f.SET_LOOP, 41, still_sha=plate["content"]["sha256"], clip=media.set_clip(f.SET_N),
-               start=media.set_plate(), subject="set", frames=f.SET_N)
-    loop = world.docs[-1]
-    document["set"].update(asset_version_id=None, motion_asset_version_id=f.SET_LOOP)
-    if identity == "missing-set":
-        world.docs.remove(plate)
-    elif identity == "wrong-provenance":
-        loop["provenance"]["generator"]["source_asset_version_ids"] = [f.STILL["a"]]
-    else:
-        duplicate = deepcopy(plate)
-        duplicate.update(id=f.ident("asv", 74), number=2)
-        duplicate.pop("occlusion")
-        world.docs.append(duplicate)
-
-    prepared = preflight(world, document)
-    [issue] = prepared.report.blocking
-    assert (issue.rule, issue.path) == (SET_LOOP_SOURCE_UNKNOWN, "/set/motion_asset_version_id")
 
 
 @pytest.mark.parametrize("path", ["layered_photo", "layered_cache", "whole_frame_cache", "set_loop_cache"])

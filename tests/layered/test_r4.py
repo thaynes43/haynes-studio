@@ -6,22 +6,27 @@ still's loop), against ``clipmap-s2v.json`` as story 457 imported it."""
 from __future__ import annotations
 
 import copy
+import json
 from dataclasses import replace
 from functools import cache
+
+import pytest
 
 from haynes_studio.cache import BoardVoice, TakeFacts, plan_story
 from haynes_studio.cache.keys import S2V_CLIP, S2V_DRIVE_TRACK
 from haynes_studio.cache.plan import MediaFormat
 from haynes_studio.canonical import load_story
 from haynes_studio.layered.pin import pin_story
+from haynes_studio.library import Library
 from haynes_studio.motion.record import DOLL, LOOP, MotionRecord
 from haynes_studio.motion.resolve import candidates
 from haynes_studio.motion.winter_menu import build_e0_motion, load_e0_sources
+from haynes_studio.queue.inputs import prepare_queue
 from haynes_studio.render.clock import loop_phase
 from tests.cache import fixtures as fx
 from tests.canonical.fixtures import NOW
 from tests.layered import helpers as h
-from tests.library.fixtures import BY, imported, register, winter_menu
+from tests.library.fixtures import BY, imported, register, winter_menu, with_tracks
 from tests.motion.fixtures import Verify
 from tests.support.policy import REPO_ROOT
 
@@ -53,9 +58,9 @@ def r4_document():
     return document
 
 
-def r4_plan(asked: list):
-    library = e0().library
-    document = r4_document()
+def r4_plan(asked: list, *, document=None, library=None):
+    library = e0().library if library is None else library
+    document = r4_document() if document is None else document
     story = load_story(copy.deepcopy(document), context="read", source="r4")
     voices = {}
     for board in story.ordered_boards():
@@ -123,6 +128,34 @@ def test_the_r4_segments_carry_each_records_play_rule():
                 assert layer["trim_frames"] == (board.frames - 1) * 16 // 24 + 1
         set_layer = plan.artifacts[f"{board.board_id}/segment"].key.document["set_layer"]
         assert set_layer["loop"] is None and set_layer["plate"]  # r4 pins no set loop: a plate
+
+
+@pytest.mark.parametrize("record", [None, "j-reroll-1", "j-reroll-2", "k-delivered", "k-transcript", "m-edited"])
+def test_public_set_loop_admits_and_plans_all_nine_segments(record):
+    result = e0()
+    loop = result.library.document(result.row("layer-set-loop").version_id)
+    assert "still_sha256" not in loop["motion"]
+    library = result.library
+    if record is not None:
+        path = REPO_ROOT / "titles/the-winter-menu/e1-build/runs" / f"{record}.run.json"
+        clips = [clip for stage in json.loads(path.read_text())["stages"]
+                 for clip in (stage.get("clips") or ()) if clip["role"] == "set_loop"]
+        assert len(clips) == 9
+        (id_, digest, frames, fps), = {
+            (clip["library_version_id"], clip["sha256"], clip["frames"], clip["fps"]) for clip in clips
+        }
+        assert (digest, frames, fps) == (loop["content"]["sha256"], loop["motion"]["frames"], loop["motion"]["fps"])
+        library = Library.from_version_documents(
+            {**doc, "id": id_} if doc["id"] == loop["id"] else doc for doc in library.documents()
+        )
+        loop["id"] = id_
+    document = r4_document()
+    document["set"]["motion_asset_version_id"] = loop["id"]
+    prepared = prepare_queue(document, with_tracks(library))
+    assert prepared.ok, prepared.report.problems
+    _, plan = r4_plan([], document=document, library=library)
+    assert [b.frames for b in plan.boards] == [153, 94, 146, 84, 83, 122, 46, 251, 108]
+    assert {b.segment.key.document["set_layer"]["loop"] for b in plan.boards} == {loop["content"]["sha256"]}
 
 
 def test_e0s_speech_to_video_clips_started_on_their_cast_stills_loop_image():

@@ -617,7 +617,7 @@ class _Planner:
             roles_by_board[board.id] = resolve_picture_roles(
                 version, board, self.library, production_id=story.production_id,
                 loop_version_id=loop_id,
-            ).roles
+            )
         boards, tracks, sounds, start = [], [], [], 0
         for board in picture_boards:
             plan, track, board_sounds = self.board(board, start, roles_by_board[board.id])
