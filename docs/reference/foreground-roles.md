@@ -22,11 +22,12 @@ when the selected set is a static still on a layered board with
 `layout.foreground` enabled. The masks take the place of the legacy edge and
 feather for that composite. HTTP and MCP use the same admission checks.
 Build checks both an explicit set loop and a set loop found by the planner.
-Layered photo admission checks the explicitly selected set loop.
+Layered photo admission checks the explicitly selected set loop. External
+photo uploads check the selected still before storing a photo version.
 
 | Refusal | When it applies |
 | --- | --- |
-| `occlusion.unsupported` | A whole-frame board selects the declaring set, a whole-frame photo uses it as a direct reference, or a layered board uses a set loop alongside the declaring still. |
+| `occlusion.unsupported` | A whole-frame Build, photo generation request or external photo upload selects the declaring set, whole-frame photo generation uses it as a direct reference, or a layered board uses a set loop alongside the declaring still. |
 | `occlusion.unsupported` | A set loop used by the request records a source version that declares roles. CR-71 uses only `provenance.generator.source_asset_version_ids` on that loop. Other loops keep their existing behavior, including loops with missing provenance, absent still hashes, or same-byte siblings. |
 | `occlusion.foreground_required` | The board has `layout.foreground` disabled. |
 | `occlusion.mask_missing` | The mask version or bytes are missing, or the mask is outside the permitted scope. |
@@ -35,8 +36,14 @@ Layered photo admission checks the explicitly selected set loop.
 | `occlusion.mask_size` | The mask dimensions differ from the declaration or the source still. |
 | `occlusion.mask_invalid` | The mask exceeds a limit or fails the grayscale, binary or single-frame requirement. |
 
-An idempotent replay keeps its original run or job ID and frozen inputs. Workers
-use those inputs for queued runs and reclaimed photo jobs. A reclaimed job can
-save a result that is no longer current with the draft. Historical archives
-import their runs and media as recorded. A fresh request from an imported draft
-is checked at admission. [Tom's ruling on story 968](https://work.haynesnetwork.com/work_packages/968/activity#comment-10598)
+Build records the role list in the signed snapshot at
+`toolchain_request.foreground_roles`. Photo jobs freeze the list in their job
+inputs, and the photo signature covers the list through the composite inputs.
+Each list records mask version IDs, hashes, role keys, depths and dimensions.
+Workers draw the recorded roles. A request recorded without that list keeps
+its original composition, even if its frozen set declares roles.
+
+An idempotent replay keeps its original run or job ID and frozen inputs.
+A reclaimed job can save a photo that is no longer current with the draft.
+Historical archives import their runs and media as recorded. A fresh request
+from an imported draft is checked at admission. [Tom's ruling on story 968](https://work.haynesnetwork.com/work_packages/968/activity#comment-10598)

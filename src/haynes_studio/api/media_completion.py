@@ -61,8 +61,6 @@ def record_board_photo(conn, store, draft, prepared, by, now):
     if board is not None:
         story, library = drafts.board_snapshot(conn, draft, board_id)
         model = Story.from_document(story)
-        if model.set is not None:
-            library = catalog.with_foreground_masks(conn, library, model.set.asset_version_id, model.production_id)
     library = catalog.board_library(conn, library, board_id, "photo")
     outcome = record_photo(prepared, library, publish=publisher(store, plan.scope.production_id),
                            by=by, now=now)

@@ -21,6 +21,7 @@ from haynes_studio.db.runs import database_time, timestamp
 from haynes_studio.formats import records
 from haynes_studio.jsonio import parse_strict
 from haynes_studio.layered.errors import LayeredError
+from haynes_studio.layered.foreground import check_picture
 from haynes_studio.library.model import signature, version_document
 from haynes_studio.photo.build import METHOD_INVALID, ExternalProvenance, import_photo
 from haynes_studio.photo.plan import LAYERED, WHOLE_FRAME, admit_photo
@@ -148,6 +149,8 @@ def _board_job(request, response, actor, board_id, key, kind, body):
                 raise APIError(503, "occlusion.store_unavailable", "The foreground inputs could not be read") from error
             job = new_job(kind, board_id, photo_request(plan, body.seed), by=by, now=now)
             frozen = {"story": story, "seed": body.seed, "library": documents(library)}
+            if plan.roles:
+                frozen["foreground_roles"] = [role.pin() for role in plan.roles]
         row = jobs.enqueue(conn, job, position=position, production=story["production_id"],
                            story=story_id, board=board_id, inputs=frozen, key=key, signature=fingerprint)
     return _queued(response, row, created=True)
@@ -182,6 +185,11 @@ def _upload_inputs(state, actor, board_id, revision, declared):
         if board["method"]["layer"] != WHOLE_FRAME:
             raise APIError(422, METHOD_INVALID, "Layered board photos come from the compositor",
                            path="/method/layer")
+        try:
+            setting = story.get("set") or {}
+            check_picture(library.get(setting.get("asset_version_id")), None, uses_loop=False)
+        except LayeredError as error:
+            raise APIError(422, error.code, str(error), path=error.where) from error
         # The current ID fences selection. Bytes are required only for media
         # that is actually used as a source for the replacement.
         return story_id, photo_plan(story, board_id, library), library

@@ -282,6 +282,8 @@ def make_snapshot(prepared: Prepared, library: Library, *, studio: str) -> dict[
     snapshot = {"schema": SNAPSHOT_SCHEMA, "story": draft_document(prepared.document),
                 "resolved_asset_versions": list(entries.values()),
                 "toolchain_request": {"studio": studio}}
+    if prepared.foreground_roles:
+        snapshot["toolchain_request"]["foreground_roles"] = [role.pin() for role in prepared.foreground_roles]
     if prepared.format_version is not None:
         snapshot["format_version"] = {key: copy.deepcopy(prepared.format_version[key])
                                       for key in ("id", "sha256", "recipe")}

@@ -8,10 +8,16 @@ import numpy as np
 import pytest
 from PIL import Image
 
+from haynes_studio.layered import foreground
+from haynes_studio.layered.errors import LayeredError
 from haynes_studio.layered.keyed import SCHEMA, _frame_png, write_apng
 from haynes_studio.layered.photo import PhotoInputs, compose_photo
 from haynes_studio.layered.renderer import LayeredRenderer
+from haynes_studio.library import Library
+from haynes_studio.library.model import Scope
 from haynes_studio.render.base import SegmentRequest
+from haynes_studio.store import blob_locator
+from tests.build_story import fixtures as f
 
 SIZE = (64, 48)
 RED_BOX = (10, 10, 34, 30)
@@ -125,3 +131,93 @@ def test_photo_and_film_match_with_two_roles_at_different_depths():
     photo, _ = photo_and_film(images, inputs)
     assert int(np.count_nonzero(photo[..., 0] >= 128)) == 20
     assert int(np.count_nonzero(photo[..., 1] >= 128)) == 200
+
+
+@pytest.mark.parametrize("defect", ["foreign_production", "board_scope", "recorded_only"])
+def test_admission_checks_scope_and_availability_of_masks_already_in_the_library(tmp_path, defect):
+    world = f.World(tmp_path, f.LocalStore(tmp_path))
+    still_sha = world.still(f.PLATE, 40, png(Image.new("RGB", SIZE)), kind="set")
+    mask_id = f.ident("asv", 72)
+    mask = png(Image.new("L", SIZE, 255))
+    mask_sha = world.still(mask_id, 72, mask, kind="prop")
+    plate, version = world.docs
+    version["capabilities"] = ["mask"]
+    plate["occlusion"] = {"foreground": [{
+        "key": "table", "layer_order": 30,
+        "mask": {"version_id": mask_id, "sha256": mask_sha, "still_sha256": still_sha,
+                 "width": SIZE[0], "height": SIZE[1]},
+    }]}
+    expected = foreground.MASK_MISSING
+    if defect == "foreign_production":
+        foreign = f.ident("prd", 2)
+        version["scope"] = {"production_id": foreign}
+        version["content"]["locator"] = blob_locator(foreign, mask_sha, "image/png")
+        world.store.publish(mask, scope=foreign, media_type="image/png")
+    elif defect == "recorded_only":
+        version["recorded_without_media"] = True
+        expected = foreground.MASK_NOT_READY
+    library = world.library()
+    if defect == "board_scope":
+        # Type-level admission also accepts an assembled library without a catalogue read.
+        asset = library.asset_of(mask_id)
+        scoped = replace(asset, scope=Scope(f.PRODUCTION, f.STORY, f.B1))
+        assets = {**library.assets, asset.id: scoped}
+        library = Library.build(assets.values(), library.versions.values())
+    with pytest.raises(LayeredError) as error:
+        foreground.admit_masks(library.version(f.PLATE), library, f.PRODUCTION, world.store)
+    assert error.value.code == expected
+
+
+def test_render_rejects_role_pin_dimensions_even_when_mask_bytes_match_the_still():
+    images, inputs = scene(right=34)
+    [pin] = inputs.foreground["roles"]
+    pin["width"] += 1
+    with pytest.raises(LayeredError) as error:
+        photo_and_film(images, inputs)
+    assert error.value.code == foreground.MASK_SIZE
+
+
+def test_mask_reader_verifies_bytes_even_when_the_png_is_valid():
+    expected = hashlib.sha256(png(Image.new("L", SIZE, 255))).hexdigest()
+    mask = Image.new("L", SIZE, 255)
+    mask.putpixel((0, 0), 0)
+    with pytest.raises(LayeredError) as error:
+        foreground.read_mask(lambda _: io.BytesIO(png(mask)), expected, SIZE, where="/mask")
+    assert error.value.code == foreground.MASK_STALE
+
+
+@pytest.mark.parametrize("limit", ["MAX_MASK_PIXELS", "MAX_MASK_BYTES"])
+def test_mask_reader_enforces_independent_pixel_and_byte_limits(monkeypatch, limit):
+    mask = png(Image.new("L", SIZE, 255))
+    maximum = SIZE[0] * SIZE[1] if limit == "MAX_MASK_PIXELS" else len(mask)
+    digest = hashlib.sha256(mask).hexdigest()
+    monkeypatch.setattr(foreground, limit, maximum)
+    assert foreground.read_mask(lambda _: io.BytesIO(mask), digest, SIZE, where="/mask").size == SIZE
+    monkeypatch.setattr(foreground, limit, maximum - 1)
+    with pytest.raises(LayeredError) as error:
+        foreground.read_mask(lambda _: io.BytesIO(mask), digest, SIZE, where="/mask")
+    assert error.value.code == foreground.MASK_INVALID
+
+
+@pytest.mark.parametrize("defect", ["empty", "rgb", "animated", "transparent", "oriented"])
+def test_mask_reader_requires_nonempty_single_grayscale_frame_without_metadata(defect):
+    image = Image.new("L", SIZE, 0 if defect == "empty" else 255)
+    options = {}
+    if defect == "rgb":
+        image = image.convert("RGB")
+    elif defect == "animated":
+        second = Image.new("L", SIZE)
+        options.update(save_all=True, append_images=[second], duration=100)
+    elif defect == "transparent":
+        options["transparency"] = 0
+    elif defect == "oriented":
+        exif = Image.Exif()
+        exif[274] = 3
+        options["exif"] = exif
+    output = io.BytesIO()
+    image.save(output, "PNG", **options)
+    digest = hashlib.sha256(output.getvalue()).hexdigest()
+    output.seek(0)
+    with pytest.raises(LayeredError) as error:
+        foreground.read_mask(lambda _: output, digest, SIZE, where="/mask")
+    assert error.value.code == foreground.MASK_INVALID

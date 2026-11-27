@@ -43,6 +43,9 @@ class RoleMask:
         return {"key": self.key, "layer_order": self.layer_order, "sha256": self.content.sha256,
                 "width": self.size[0], "height": self.size[1]}
 
+    def pin(self) -> dict:
+        return {"version_id": self.version_id, **self.draw_pin()}
+
     def snapshot_entry(self) -> dict[str, str]:
         return {"id": self.version_id, "kind": self.kind, "sha256": self.content.sha256}
 
@@ -82,14 +85,15 @@ def _role_mask(role: Mapping, version: AssetVersion, content: Content) -> RoleMa
                     content, (pin["width"], pin["height"]))
 
 
-def pinned_roles(version: AssetVersion | None, library: Library) -> tuple[RoleMask, ...]:
-    """Project masks present by exact ID and hash in the provided input library."""
+def roles_from_pins(pins: Collection[Mapping], library: Library) -> tuple[RoleMask, ...]:
+    """Read an already recorded role decision from its exact content pins."""
     roles = []
-    for role in declarations(version):
-        pin = role["mask"]
-        asset = library.get(pin["version_id"])
-        if asset is not None and asset.content is not None and asset.content.sha256 == pin["sha256"]:
-            roles.append(_role_mask(role, asset, asset.content))
+    for pin in pins:
+        version = library.get(pin["version_id"])
+        if version is None or version.content is None or version.content.sha256 != pin["sha256"]:
+            raise ValueError("The recorded foreground mask no longer matches its content pin")
+        roles.append(RoleMask(pin["key"], pin["layer_order"], version.id, version.kind,
+                              version.content, (pin["width"], pin["height"])))
     return tuple(roles)
 
 

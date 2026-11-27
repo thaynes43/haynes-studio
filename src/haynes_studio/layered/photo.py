@@ -94,7 +94,7 @@ def photo_inputs(story: Story, board: Board, *, blobs: Mapping[str, str], width:
         cast.append((entry.slot, blobs[entry.asset_version_id]))
     foreground = None
     if roles:
-        foreground = {"roles": [role.draw_pin() for role in roles]}
+        foreground = {"roles": [role.pin() for role in roles]}
     elif board.layout.foreground and story.set.foreground_edge_px is not None:
         foreground = {"edge_px": [list(p) for p in story.set.foreground_edge_px],
                       "feather_px": story.set.foreground_feather_px}

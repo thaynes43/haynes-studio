@@ -70,6 +70,10 @@ def load_library(conn: sa.Connection, version_ids: Collection[str], production_i
 def with_foreground_masks(conn, library: Library, set_id: str | None, production_id: str) -> Library:
     """Load only the mask versions named by the selected still."""
     ids = {role["mask"]["version_id"] for role in declarations(library.get(set_id))}
+    return with_mask_versions(conn, library, ids, production_id)
+
+
+def with_mask_versions(conn, library: Library, ids: set[str], production_id: str) -> Library:
     if not (missing := ids.difference(library.versions)):
         return library
     rows = conn.execute(_joined_versions().where(
