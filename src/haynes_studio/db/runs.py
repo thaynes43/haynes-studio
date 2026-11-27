@@ -385,13 +385,19 @@ def finish(conn, row, now, actor, target, reason, fields, *, wait_reason=None,
 
 
 def visibility_overrides(conn, snapshot):
-    """Earlier person decisions for exactly these frozen Build inputs."""
+    """Earlier person reviews of uncertain evidence for these frozen Build inputs."""
     overrides = run_check_overrides.c
     base = runs.c.snapshot.delete_path(["visibility_admission", "overrides"])
+    reviewed_check = sa.func.jsonb_build_object(
+        "check", VISIBILITY_CHECK, "artifact", overrides.artifact, "result", "fail",
+        "measured", sa.func.jsonb_build_object("verdict", "uncertain"),
+    )
     rows = conn.execute(sa.select(overrides.artifact, overrides.document)
         .join_from(run_check_overrides, runs, overrides.run_id == runs.c.id)
-        .where(runs.c.story_id == snapshot["story"]["id"], base == snapshot,
-               overrides.document["check"].astext == VISIBILITY_CHECK)
+        .where(runs.c.story_id == snapshot["story"]["id"], base == snapshot, STATUS == "failed",
+               overrides.document["check"].astext == VISIBILITY_CHECK,
+               overrides.document["by"]["kind"].astext == "human",
+               runs.c.document["checks"].contains(sa.func.jsonb_build_array(reviewed_check)))
         .distinct(overrides.artifact)
         .order_by(overrides.artifact, runs.c.position.desc()))
     return {artifact: {"by": doc["by"], "reason": doc["reason"]} for artifact, doc in rows}
@@ -408,9 +414,11 @@ def record_override(conn, row, revision, *, check, artifact, reason, actor):
                 or doc["status"] != "failed" or not any(
                     item["check"] == check and item.get("board_id") in pins
                     and item["result"] == "fail" and item.get("artifact") == artifact
+                    and isinstance(item.get("measured"), dict)
+                    and item["measured"].get("verdict") == "uncertain"
                     for item in doc["checks"] or ()
                 )):
-            raise QueueConflict("check.not_overridable", "This run has no matching failed visibility check")
+            raise QueueConflict("check.not_overridable", "This artifact has no matching uncertain visibility check")
     else:
         checks = [*(doc["checks"] or []), *(item for stage in doc["stages"]
                                             for item in (stage.get("checks") or []))]

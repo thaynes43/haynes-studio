@@ -60,15 +60,17 @@ bound of 85% or more is `visible`. Intermediate results and frames with
 zero unoccluded pixels are `uncertain`. The board is hidden if any declared
 frame is hidden. A board is visible if every declared frame is visible.
 
-Both `hidden` and `uncertain` block delivery. An uncertain result requests
-person review. Read `layered.visibility` in the run's checks for the board,
-slot, artifact digest, per-frame evidence and verdict. A signed-in person
-can post that digest and a reason through
+Under CR-54 and CR-67, a `hidden` result always blocks delivery. An `uncertain`
+result blocks delivery pending person review. Read `layered.visibility` in
+the run's checks for the board, slot, artifact digest, per-frame evidence and
+verdict. For an uncertain result, a signed-in person can post that digest
+and a reason through
 `POST /v1/runs/{id}/checks/layered.visibility/overrides` with the current
-run revision in `If-Match`. A fresh Build with identical frozen inputs can
-carry the decision in `visibility_admission.overrides`. Completion follows
-the staged master and splice records to the segment for the board. A pass and
-a carried override both require exact evidence from that segment for all
-frozen poses. A matching override records `overridden` with the original
-measured verdict and the person's reason. Earlier runs keep their recorded
-verdicts and delivery status.
+run revision in `If-Match`. A request for hidden evidence returns
+`409 check.not_overridable`. A fresh Build with identical frozen inputs can
+carry a recorded review of uncertain evidence in `visibility_admission.overrides`.
+Completion follows the staged master and splice records to the segment for
+the board. A pass and a carried review both require exact evidence from that
+segment for all frozen poses. A matching review records `overridden` with
+the original measured verdict and the person's reason. Earlier runs keep
+their recorded verdicts and delivery status.

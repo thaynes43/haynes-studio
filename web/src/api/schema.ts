@@ -3191,7 +3191,7 @@ export interface components {
                 boards: {
                     [key: string]: components["schemas"]["StudioDefs_cast_visibility"];
                 };
-                /** @description Person overrides from the same frozen inputs, indexed by evidence SHA-256. */
+                /** @description Person reviews of uncertain visibility from the same frozen inputs, indexed by evidence SHA-256. */
                 overrides?: {
                     [key: string]: {
                         by: components["schemas"]["StudioDefs_human"];

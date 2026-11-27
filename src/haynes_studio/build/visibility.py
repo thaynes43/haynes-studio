@@ -61,7 +61,7 @@ def _segment_check(store, board_id, key, record, document, overrides):
         "board_id": board_id, "measurement": measured, "version": VISIBILITY_VERSION,
         "thresholds": THRESHOLDS,
     })).hexdigest()
-    override = overrides.get(identity) if outcome != "visible" else None
+    override = overrides.get(identity) if outcome == "uncertain" else None
     result = "overridden" if override else "pass" if outcome == "visible" else "fail"
     return {
         "check": VISIBILITY_CHECK, "board_id": board_id, "slot": declaration["slot"],

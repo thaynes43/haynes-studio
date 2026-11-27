@@ -12,6 +12,7 @@ from haynes_studio.build.prebuild import snapshot_bytes
 from haynes_studio.build.validate import validate_run_snapshot
 from haynes_studio.db import catalog, drafts, jobs, runs
 from haynes_studio.db.runs import database_time
+from haynes_studio.db.schema import run_check_overrides
 from haynes_studio.layered.renderer import LayeredRenderer
 from haynes_studio.library.resolve import story_references
 from haynes_studio.mcp.arguments import BOARD_EDIT_FIELDS
@@ -235,6 +236,38 @@ def test_frozen_build_replay_delivery_and_person_override(queue, tmp_path, monke
     assert q.browser.post(path, json=body, headers={**agent, "If-Match": etag}).status_code == 403
     bad = q.browser.post(path, json={**body, "artifact": "0" * 64}, headers={**q.csrf, "If-Match": etag})
     assert bad.status_code == 409
+    if verdict == "hidden":
+        refused = q.browser.post(path, json=body, headers={**q.csrf, "If-Match": etag})
+        assert refused.status_code == 409 and refused.json()["error"]["code"] == "check.not_overridable"
+        assert read_run(q, new["id"]) == (checked, etag)
+
+        # An earlier version could record and freeze a review of hidden evidence.
+        decision = {"by": checked["queued_by"], "reason": body["reason"]}
+        prior = {**decision, "check": VISIBILITY_CHECK, "artifact": body["artifact"],
+                 "at": checked["finished_at"]}
+        with q.owner.begin() as conn:
+            conn.execute(run_check_overrides.insert().values(
+                run_id=new["id"], artifact=body["artifact"], document=prior,
+            ))
+        fresh = success(build(q, "hidden-fresh"), 201)
+        assert snapshot(q, fresh["id"]).json()["visibility_admission"] == frozen["visibility_admission"]
+        assert read_run(q, new["id"])[0]["check_overrides"] == [prior]
+        with monkeypatch.context() as previous_admission:
+            previous_admission.setattr(runs, "visibility_overrides", lambda *_: {body["artifact"]: decision})
+            previously_queued = success(build(q, "hidden-previously-queued"), 201)
+        previous_snapshot = snapshot(q, previously_queued["id"]).content
+        with FakeWan().client() as wan:
+            worker = run_worker(q, wan)
+            assert worker.tick() and worker.tick()
+        for run in (fresh, previously_queued):
+            result, _ = read_run(q, run["id"])
+            assert result["status"] == "failed" and result["delivery_id"] is None
+            assert result["error"]["code"] == "build.check_failed"
+            assert visibility_of(result) == [measurement]
+            assert q.store.stage_record(q.production_id, run["id"], "delivery") is None
+        assert snapshot(q, previously_queued["id"]).content == previous_snapshot
+        return
+
     waiting = success(build(q, "queued-before-review"), 201)
     override = success(q.browser.post(path, json=body, headers={**q.csrf, "If-Match": etag}), 201)
     assert override["by"]["kind"] == "human"

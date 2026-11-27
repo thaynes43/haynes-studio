@@ -180,7 +180,7 @@
           "additionalProperties": {"$ref": "studio.defs.v1.schema.json#/$defs/cast_visibility"}
         },
         "overrides": {
-          "description": "Person overrides from the same frozen inputs, indexed by evidence SHA-256.",
+          "description": "Person reviews of uncertain visibility from the same frozen inputs, indexed by evidence SHA-256.",
           "type": "object",
           "minProperties": 1,
           "propertyNames": {"$ref": "studio.defs.v1.schema.json#/$defs/sha256"},
