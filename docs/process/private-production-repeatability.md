@@ -10,10 +10,13 @@ transcript passed with one documented hesitation tolerance. The affected take
 matched exactly in isolation. See the authenticated
 [archive verification and run measurements](https://work.haynesnetwork.com/work_packages/991/activity#comment-10695).
 
-The run took 32m 37s from pickup to independent archive verification, compared
-with 49m 07s for the [first production](https://work.haynesnetwork.com/work_packages/990/activity#comment-10682).
-The second cut was shorter and took 30m 42s from the first versioned brief to
-verification. The first production's brief start time was unrecorded.
+From worker dispatch to independent archive readback, the second production
+took 35m 45s (session creation at 21:51:33 to readback at 22:27:18 UTC) and the
+[first production](https://work.haynesnetwork.com/work_packages/990/activity#comment-10682)
+took 49m 07s (worker start at 21:00:58 to readback at 21:50:05 UTC). The second
+cut was shorter. Its worker kickoff to readback took 32m 37s, and its first
+versioned brief to readback took 30m 42s. The first production's brief start
+time was unrecorded.
 Four serial Wan submissions, including one lettering quality retry, took
 13.214 engine minutes and 97 seconds at the cooldown gates. The replacement
 passed the original lettering floor at the length that had worked in the first
