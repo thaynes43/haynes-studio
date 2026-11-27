@@ -5,6 +5,7 @@ import logging
 import os
 import re
 from contextlib import ExitStack
+from dataclasses import replace
 from pathlib import Path
 from threading import Event, Thread
 from time import monotonic, sleep
@@ -16,6 +17,7 @@ from haynes_studio.build.live import WanChainSource, WanS2VSource, check_request
 from haynes_studio.build.pipeline import ALL, BuildInputs, QueuedBuild, build_story
 from haynes_studio.build.prebuild import snapshot_bytes
 from haynes_studio.build.sources import ClipSources
+from haynes_studio.layered.foreground import roles_from_pins
 from haynes_studio.library import Library
 from haynes_studio.model_register import load_model_register
 from haynes_studio.store import LocalStore, PRESENT
@@ -106,7 +108,8 @@ class BuildWorker:
         if (digest != run["snapshot"]["sha256"] or self.store.verify(run["snapshot"]["locator"], digest) != PRESENT):
             raise BuildError("run.snapshot_changed", "The stored run snapshot does not match its pin",
                              stage="prebuild")
-        if frozen["toolchain_request"]["studio"] != self.studio:
+        toolchain = frozen["toolchain_request"]
+        if toolchain["studio"] != self.studio:
             raise BuildError("work.revision_mismatch",
                              "The Studio toolchain changed. Queue a new run to capture the current revision.",
                              stage="prebuild")
@@ -115,12 +118,18 @@ class BuildWorker:
         format_version = frozen.get("format_version")
         prepared = prepare_queue(story, library, format_version=format_version)
         prepared.ensure_buildable()
+        try:
+            roles = roles_from_pins(toolchain.get("foreground_roles", ()), library)
+        except (KeyError, TypeError, ValueError) as error:
+            raise BuildError("run.snapshot_changed", "The frozen foreground pins no longer match the snapshot",
+                             stage="prebuild") from error
+        prepared = replace(prepared, foreground_roles=roles)
         verified, _ = freeze(prepared, studio=self.studio)
         if snapshot_bytes(verified)[1] != digest:
             raise BuildError("run.snapshot_changed", "The frozen assets no longer match the snapshot",
                              stage="prebuild")
         return BuildInputs(story, library, self.register, studio=self.studio,
-                           image_digest=self.image_digest, format_version=format_version)
+                           image_digest=self.image_digest, format_version=format_version, foreground_roles=roles)
 
     def _render(self, claim, active, clips, inputs):
         s2v, i2v = WanS2VSource(clips), WanChainSource(clips)

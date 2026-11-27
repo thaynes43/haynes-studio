@@ -2,13 +2,14 @@
 
 import os
 import re
+from dataclasses import replace
 from datetime import datetime
 from hashlib import sha256
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Header, Request, Response
 
-from haynes_studio.build.prebuild import snapshot_bytes
+from haynes_studio.build.prebuild import admit_build, set_loop_ids, snapshot_bytes
 from haynes_studio.build.validate import validate_run
 from haynes_studio.canonical.model import to_document
 from haynes_studio.db import catalog, drafts, jobs, queue_controls, runs
@@ -237,6 +238,16 @@ def build_router(CurrentActor, authenticated_route):
                 if current != revision:
                     raise StaleRevision(current)
                 prepared = _prepare(conn, draft)
+                if prepared.story is not None and (setting := prepared.story.set) is not None:
+                    production = draft.story["production_id"]
+                    library = catalog.with_foreground_masks(conn, prepared.library, setting.asset_version_id,
+                                                            production)
+                    sources = catalog.declaring_loop_sources(conn, library, set_loop_ids(prepared))
+                    try:
+                        prepared = admit_build(replace(prepared, library=library), store, declaring_sources=sources)
+                    except (OSError, StoreError) as error:
+                        raise APIError(503, "occlusion.store_unavailable",
+                                       "The foreground inputs could not be read") from error
                 prepared.ensure_buildable()
                 frozen, library = inputs.freeze(prepared, studio=request.app.state.build_revision)
                 data, sha = snapshot_bytes(frozen)

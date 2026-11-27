@@ -24,13 +24,14 @@ from haynes_studio.db.schema import asset_media, asset_versions, deliveries, pro
 from haynes_studio.db.schema import runs as run_rows
 from haynes_studio.drafting.declaration import READ_TOKEN_HEADER
 from haynes_studio.importer import production as production_import
-from haynes_studio.store import LocalStore, StagingLeftoverWarning
+from haynes_studio.store import LocalStore, StagingLeftoverWarning, blob_locator, canonical_json
 from tests.build_story.fixtures import OPERATOR, example
 from tests.db.test_studio_api import (
     client, engine, new_production, register_agent, runtime_role, service, sign_in,
 )
 from tests.db.test_media_jobs import PROVENANCE, image_file
 from tests.importer.production_fixture import FRAMES, make_archive
+from tests.motion.fixtures import still_version
 from tests.queue.fake_wan import Clock
 from tests.support.database import new_schema_name
 
@@ -361,6 +362,72 @@ def test_imported_pins_are_private_and_block_rebuild(operator, service, owner_en
         queued = browser.post(f"{url}/runs", headers={**right, "Idempotency-Key": "blocked-rebuild",
                                                       "If-Match": str(fixture.snapshot["story"]["revision"])})
         assert queued.status_code == 422
+
+
+@pytest.mark.parametrize("declaring_set", [False, True], ids=["role-free", "historical-unmasked-run"])
+def test_archive_import_preserves_recorded_run_while_new_build_checks_masks(
+    operator, service, owner_engine, tmp_path, capsys, declaring_set,
+):
+    app, store, _ = service
+    fixture = make_archive(tmp_path / "job")
+    versions = [fixture.asset]
+    if declaring_set:
+        plate = still_version(73, "c" * 64, kind="set")
+        plate.update(id=Minter().mint("asv"), asset_id=Minter().mint("ast"),
+                     scope={"production_id": fixture.production_id}, legacy=None)
+        plate["provenance"]["source_key"] = None
+        plate["content"].update(width=64, height=32, locator=blob_locator(
+            fixture.production_id, "c" * 64, "image/png",
+        ))
+        plate["occlusion"] = {"foreground": [{
+            "key": "table", "layer_order": 20,
+            "mask": {"version_id": Minter().mint("asv"), "sha256": "b" * 64,
+                     "still_sha256": "c" * 64, "width": 64, "height": 32},
+        }]}
+        # The whole-frame historical run carries the set declaration and no mask pin.
+        fixture.snapshot["story"]["set"] = {"asset_version_id": plate["id"], "motion_asset_version_id": None,
+                                             "foreground_edge_px": None, "foreground_feather_px": None,
+                                             "legacy_fire": None}
+        fixture.snapshot["resolved_asset_versions"].append({"id": plate["id"], "kind": "set", "sha256": "c" * 64})
+        versions.append(plate)
+        snapshot_data = canonical_json(fixture.snapshot)
+        digest = hashlib.sha256(snapshot_data).hexdigest()
+        fixture.run["snapshot"].update(sha256=digest, locator=blob_locator(
+            fixture.production_id, digest, "application/json",
+        ))
+        (fixture.root / "snapshot.json").write_bytes(snapshot_data)
+        (fixture.root / "run.json").write_bytes(canonical_json(fixture.run))
+        (fixture.root / "asset-versions.json").write_bytes(canonical_json(versions))
+        fixture.receipt.write_bytes(canonical_json(fixture.files()))
+
+    assert admin(fixture.args()) == 0
+    imported = json.loads(capsys.readouterr().out)
+    assert imported["asset_versions"] == len(versions)
+    assert imported["boards"] == 1
+    run_id = fixture.run["id"]
+    with owner_engine.connect() as conn:
+        row = runs.get(conn, run_id)
+        assert row["document"]["status"] == "succeeded"
+        assert row["snapshot"] == fixture.snapshot
+        assert row["frozen_library"] == versions
+        assert row["document"]["outputs"] == fixture.run["outputs"]
+        assert drafts.get_draft(conn, fixture.run["story_id"]).story.get("set") == fixture.snapshot["story"]["set"]
+    with store.open(fixture.run["snapshot"]["locator"]) as handle:
+        assert handle.read() == (fixture.root / "snapshot.json").read_bytes()
+    for role, name in (("master", "final.mp4"), ("proxy", "proxy.mp4")):
+        locator = blob_locator(fixture.production_id, fixture.run["outputs"][f"{role}_sha256"], "video/mp4")
+        with store.open(locator) as handle:
+            assert handle.read() == (fixture.root / name).read_bytes()
+    _, auth = register_agent(owner_engine, {fixture.production_id: ["read", "runs:queue"]})
+    with client(app) as browser:
+        queued = browser.post(f'/v1/stories/{fixture.run["story_id"]}/runs', headers={
+            **auth, "If-Match": str(fixture.snapshot["story"]["revision"]), "Idempotency-Key": "new-from-archive",
+        })
+    assert queued.status_code == 422, queued.text
+    expected = "occlusion.unsupported" if declaring_set else "asset.recorded_without_media"
+    assert queued.json()["error"]["code"] == expected
+    with owner_engine.connect() as conn:
+        assert [row["id"] for row in runs.list_story(conn, fixture.run["story_id"], None, 10)] == [run_id]
 
 
 def test_delivery_identity_collision_rolls_back_new_rows_and_store(operator, service, owner_engine,

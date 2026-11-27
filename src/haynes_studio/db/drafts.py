@@ -27,11 +27,11 @@ from haynes_studio.golive import records as go_live
 from haynes_studio.library.library import require_media
 from haynes_studio.library.resolve import resolve, story_references
 
-from haynes_studio.photo.plan import photo_facts
+from haynes_studio.photo.plan import photo_facts, photo_role_pins
 from haynes_studio.voice import Engine, voice_facts
 
 from .jobs import active_for_story
-from .catalog import ProductionScope, load_library, record_asset_version
+from .catalog import ProductionScope, load_library, record_asset_version, with_mask_versions
 from .problems import DraftProtected, NotFound, require_revision, require_valid
 from .schema import boards, draft_ids, media_types, productions, stories, story_asset_refs
 
@@ -182,9 +182,14 @@ class Draft:
         return refs, library
 
     def facts(self, conn, document, library):
+        story = Story.from_document(document)
+        mask_ids = {pin["version_id"] for board in story.boards or ()
+                    if (photo := library.get(board.photo.current_version_id)) is not None
+                    for pin in photo_role_pins(photo, board.id)}
+        photo_library = with_mask_versions(conn, library, mask_ids, self.story["production_id"])
         return voice_facts(library, document, active_for_story(conn, self.story["id"]),
                            current_engine=Engine().signing_name).merged(
-            photo_facts(Story.from_document(document), library),
+            photo_facts(story, photo_library),
         )
 
     def summary(self, conn: sa.Connection, status=None) -> dict:

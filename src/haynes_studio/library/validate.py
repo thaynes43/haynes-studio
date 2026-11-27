@@ -12,17 +12,21 @@ code here runs only on a document the schema accepted and checks what one field
 cannot: a stock voice ID, a locator that names the content's own hash and production,
 capabilities that fit the kind and the media type, and a board voice's take offsets.
 
-Contexts: ``read`` and ``write`` check the same rules (neither type has a ``derived``
-block, so ``derived`` is an unknown field everywhere); ``queue_run`` adds nothing.
+Write validation accepts foreground declarations after canonicalization. Read
+and queue validation require their stored form. A ``derived`` block is unknown
+in all contexts.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import re
+from collections.abc import Mapping, Sequence
 from typing import Any
 
+from haynes_studio.canonical.ids import is_id
 from haynes_studio.canonical.validate import (
     READ,
+    WRITE,
     REF_DUPLICATE,
     SCHEMA_INVALID,
     _blocking,
@@ -40,13 +44,16 @@ from haynes_studio.library.model import (
     LAYER_CAPABILITIES,
     MEDIA_EXTENSIONS,
     OPAQUE_CAPABILITIES,
+    AssetVersion,
+    Content,
     is_stock_voice,
     measured_ms,
     stock_voice_id,
     take_offsets,
 )
 from haynes_studio.motion.check import block_problems as motion_block_problems
-from haynes_studio.schemas import schema_violations
+from haynes_studio.schemas import _from_error, schema_violations, validator_for
+from haynes_studio.store.layout import is_sha256
 
 ASSET_FILE = "studio.asset.v1.schema.json"
 ASSET_VERSION_FILE = "studio.asset-version.v1.schema.json"
@@ -75,13 +82,42 @@ def validate_asset(document: Any, *, context: str = READ) -> list[Violation]:
 def validate_asset_version(document: Any, *, context: str = READ) -> list[Violation]:
     """Every rule a ``studio.asset-version/v1`` document breaks, sorted by path."""
     _check_context(context)
+    raw = document
     document, stop = _prepare(document, ASSET_VERSION_SCHEMA)
     if stop is not None:
         return stop
+    if context == WRITE:
+        document = AssetVersion.canonical_document(document)
+    elif problem := noncanonical_occlusion(raw):
+        return [problem]
     found = schema_violations(ASSET_VERSION_FILE, document, default_rule=SCHEMA_INVALID)
     if not _blocking(found):
         found += _asset_rules(document) + _version_rules(document)
+        if "occlusion" in document:
+            found += _occlusion(document)
     return _sorted(found)
+
+
+def noncanonical_occlusion(document: Mapping[str, Any]) -> Violation | None:
+    """Read boundaries accept a declaration only in its stored form."""
+    if "occlusion" not in document:
+        return None
+    if "occlusion" not in AssetVersion.canonical_document(document):
+        return _v("occlusion.noncanonical", "/occlusion", "omit an empty foreground declaration")
+    block = document["occlusion"]
+    roles = block.get("foreground") if isinstance(block, Mapping) else None
+    for index, role in enumerate(roles if isinstance(roles, (list, tuple)) else ()):
+        if not isinstance(role, Mapping):
+            continue
+        mask = role.get("mask")
+        at = pointer("occlusion", "foreground", index)
+        integers = [(at + "/layer_order", role.get("layer_order"))]
+        if isinstance(mask, Mapping):
+            integers += [(at + "/mask/" + axis, mask.get(axis)) for axis in ("width", "height")]
+        for path, value in integers:
+            if isinstance(value, float) and value.is_integer():
+                return _v("occlusion.noncanonical", path, "use an integer in the stored declaration")
+    return None
 
 
 # Asset fields (shared by both documents) ---------------------------------------------------
@@ -118,6 +154,56 @@ def _version_rules(doc: Mapping[str, Any]) -> list[Violation]:
         found.append(_v(SCHEMA_INVALID, "/legacy/source_key",
                         "must be the provenance's source_key (proposal)"))
     return found
+
+
+def validate_occlusion(kind: str, capabilities: Sequence[str], content: Content | None,
+                       declaration: Any) -> list[Violation]:
+    """Validate the canonical declaration when constructing an immutable version.
+
+    Use the shipped declaration schema itself, before a joined asset document exists.
+    Other version fields keep their established validation at the document boundary.
+    """
+    base = validator_for(ASSET_VERSION_FILE)
+    validator = base.evolve(schema={
+        "properties": {"occlusion": {"$ref": base.schema["$id"] + "#/$defs/occlusion"}},
+    })
+    found = [violation for error in validator.iter_errors({"occlusion": declaration})
+             for violation in _from_error(error, SCHEMA_INVALID)]
+    if not found:
+        found += _occlusion({"kind": kind, "capabilities": capabilities,
+                             "content": None if content is None else {
+                                 "sha256": content.sha256, "media_type": content.media_type,
+                                 "width": content.width, "height": content.height,
+                             }, "occlusion": declaration})
+    return _sorted(found)
+
+
+def _occlusion(doc: Mapping[str, Any]) -> list[Violation]:
+    plate = doc["content"]
+    if (doc["kind"] != "set" or "opaque_plate" not in doc["capabilities"] or plate is None
+            or plate["media_type"] not in {"image/png", "image/jpeg", "image/webp"}):
+        return [_v(CAPABILITY_MISMATCH, "/occlusion", "foreground roles need an opaque set still")]
+    found = []
+    keys, orders = [], []
+    for i, role in enumerate(doc["occlusion"].get("foreground", ())):
+        at = pointer("occlusion", "foreground", i)
+        if re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", role["key"]) is None:
+            found.append(_v(SCHEMA_INVALID, at + "/key", "use a lowercase ASCII role key"))
+        keys.append((at + "/key", role["key"]))
+        orders.append((at + "/layer_order", role["layer_order"]))
+        mask = role["mask"]
+        if not is_id(mask["version_id"], "asv"):
+            found.append(_v(SCHEMA_INVALID, at + "/mask/version_id", "use an asset version ID"))
+        if not is_sha256(mask["sha256"]):
+            found.append(_v(SCHEMA_INVALID, at + "/mask/sha256", "use a SHA-256 content hash"))
+        if mask["still_sha256"] != plate["sha256"]:
+            found.append(_v("occlusion.mask_stale", at + "/mask/still_sha256",
+                            "the mask was declared for a different set still"))
+        for axis in ("width", "height"):
+            if plate.get(axis) is not None and mask[axis] != plate[axis]:
+                found.append(_v("occlusion.mask_size", at + "/mask/" + axis,
+                                "the mask dimensions must match the original set still"))
+    return found + _duplicates(keys, "foreground role key") + _duplicates(orders, "foreground layer order")
 
 
 def _stock_voice(doc: Mapping[str, Any]) -> list[Violation]:

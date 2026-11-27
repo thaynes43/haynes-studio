@@ -168,6 +168,14 @@ def test_d51_uses_the_layered_adapter_and_ignores_photo_prompt(world):
     assert doc["provenance"]["generator"]["params"]["composite"] == plan.layers.document()
     assert (doc["content"]["width"], doc["content"]["height"]) == (1080, 1920)
 
+    # Even a typed, derived composite must have signed the role list to pin masks.
+    doc["provenance"]["generator"]["params"]["composite"]["foreground"] = {
+        "roles": [{"version_id": ids[2], "name": "reference"}],
+    }
+    selected = replace(board, photo=replace(board.photo, current_version_id=outcome.version.id))
+    recorded = Library.from_version_documents([*library.documents(), doc])
+    assert photo_state(selected, photo_facts(replace(story, boards=(selected,)), recorded)) == "current"
+
     edited = replace(board, photo=replace(board.photo, prompt="Does not affect D51"))
     assert can_select_photo(outcome.version, plan, story, edited, outcome.library)
     changed = replace(story, set=replace(story.set, asset_version_id=ids[2]))

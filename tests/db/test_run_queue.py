@@ -20,11 +20,12 @@ from haynes_studio.api.app import create_app
 from haynes_studio.api.auth import SESSION_COOKIE
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.canonical.model import Board, Story
-from haynes_studio.db import drafts, identity, queue_controls, runs
+from haynes_studio.db import catalog, drafts, identity, queue_controls, runs
 from haynes_studio.db.catalog import record_asset_version
 from haynes_studio.db.runs import database_time
 from haynes_studio.db.schema import run_wan_attempts, worker_lane_grants, worker_tokens
 from haynes_studio.library import Library
+from haynes_studio.library.model import version_document
 from haynes_studio.photo.plan import plan_photo
 from haynes_studio.queue.wan import GPU_REFUSALS, LanePaused, ProductClips, ProductWan, product_request
 from haynes_studio.queue.worker import BuildWorker
@@ -1137,7 +1138,7 @@ def test_only_a_person_can_append_an_override_without_mutating_the_run(queue):
     assert result.json()["by"]["kind"] == "human"
 
 
-def add_sound_bed(q, tmp_path):
+def add_sound_bed(q, tmp_path, *, revision=3):
     from tests.support.synthetic import write_sine_wav
 
     audio = write_sine_wav(tmp_path / "bed.wav", seconds=2.5, rate=48000).read_bytes()
@@ -1151,10 +1152,57 @@ def add_sound_bed(q, tmp_path):
     version["provenance"].update(generator={"role": "sound", "engine": "Synthetic test sine"}, source_key=None)
     with q.engine.begin() as conn:
         record_asset_version(conn, version)
-    update = q.browser.patch(f"/v1/stories/{q.story_id}", headers={**q.csrf, "If-Match": "3"},
+    update = q.browser.patch(f"/v1/stories/{q.story_id}", headers={**q.csrf, "If-Match": str(revision)},
                              json={"beds": [{"type": "bed", "asset_version_id": version["id"],
                                              "level_rms_dbfs": -24, "clock": "film"}]})
     assert update.status_code == 200, update.text
+
+
+@pytest.fixture
+def legacy_photo_with_custom_params(queue):
+    q = queue
+    with q.engine.begin() as conn:
+        library = catalog.version_library(conn, version_id=q.version_id)
+        photo = version_document(library.version(q.version_id), library.asset_of(q.version_id))
+        photo.update(id=Minter().mint("asv"), number=photo["number"] + 1)
+        photo["provenance"]["generator"]["params"]["composite"] = {
+            "foreground": {"roles": [{"version_id": Minter().mint("asv"), "name": "reference"}]},
+        }
+        record_asset_version(conn, photo)
+    path = f"/v1/boards/{q.board_id}"
+    board = q.browser.get(path)
+    response = q.browser.patch(path, headers={**q.csrf, "If-Match": board.headers["etag"]},
+                               json={"photo": {**board.json()["photo"], "current_version_id": photo["id"]}})
+    assert response.status_code == 200, response.text
+    return q
+
+
+def test_legacy_photo_custom_generator_params_keep_photo_current_and_buildable(legacy_photo_with_custom_params):
+    q = legacy_photo_with_custom_params
+    board = q.browser.get(f"/v1/boards/{q.board_id}")
+    assert board.status_code == 200
+    assert board.json()["derived"]["photo_state"] == "current"
+    response = queue_run(q, "legacy-custom-params", rev=4)
+    assert response.status_code == 201, response.text
+
+
+def test_worker_renders_whole_frame_with_legacy_photo_custom_generator_params(legacy_photo_with_custom_params, tmp_path):
+    from tests.delivery.media import write_master
+
+    q = legacy_photo_with_custom_params
+    add_sound_bed(q, tmp_path, revision=4)
+    response = queue_run(q, "legacy-custom-params-render", rev=5)
+    assert response.status_code == 201, response.text
+    clip = write_master(tmp_path / "wan-fixture.mp4", frames=121, width=576, height=1024,
+                        audio_codec=None).read_bytes()
+    with FakeWan(clip).client() as wan_http:
+        worker = BuildWorker(worker_api(q), ProductWan(wan_http), store=q.store, stage_root=q.stage_root,
+                             register=register(), tracker_story=STORY, clock=q.clock.monotonic,
+                             pause=q.clock.advance, transcriber=SimpleNamespace(name="Fixture ASR", transcribe=lambda _: ""))
+        assert worker.tick()
+    result, _ = read_run(q, response.json()["id"])
+    assert result["status"] == "succeeded", result["error"]
+    assert result["snapshot"] == response.json()["snapshot"]
 
 
 @pytest.mark.parametrize("refused", [False, True], ids=["lost-reply", "definite-refusal"])

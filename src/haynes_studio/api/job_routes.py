@@ -13,6 +13,7 @@ from haynes_studio.adapters.errors import AdapterError
 from haynes_studio.assets.candidate import plan_candidate
 from haynes_studio.assets.matte import MatteTarget
 from haynes_studio.canonical.ids import Minter, is_id
+from haynes_studio.canonical.model import Story
 from haynes_studio.db import catalog, drafts, jobs
 from haynes_studio.db.engine import snapshot
 from haynes_studio.db.problems import NotFound, require_revision
@@ -20,12 +21,14 @@ from haynes_studio.db.runs import database_time, timestamp
 from haynes_studio.formats import records
 from haynes_studio.jsonio import parse_strict
 from haynes_studio.layered.errors import LayeredError
+from haynes_studio.layered.foreground import check_picture
 from haynes_studio.library.model import signature, version_document
 from haynes_studio.photo.build import METHOD_INVALID, ExternalProvenance, import_photo
-from haynes_studio.photo.plan import WHOLE_FRAME
+from haynes_studio.photo.plan import LAYERED, WHOLE_FRAME, admit_photo
 from haynes_studio.photo_limits import TIMEOUT_CODE, TIMEOUT_MESSAGE, UploadBodyTimeout
 from haynes_studio.photo.validation import MAX_UPLOAD_BYTES
 from haynes_studio.queue.media_inputs import documents, matte_signature, photo_plan, photo_request, provenance
+from haynes_studio.store import StoreError
 from haynes_studio.voice.jobs import new_job
 from haynes_studio.voice.plan import plan_board_voice
 
@@ -131,9 +134,23 @@ def _board_job(request, response, actor, board_id, key, kind, body):
             job = new_job(kind, board_id, voice.input_signature, by=by, now=now, voice=voice)
             frozen = {"selected_version_id": story["boards"][0]["voice"]["current_version_id"]}
         else:
-            plan = photo_plan(story, board_id, library)
+            model = Story.from_document(story)
+            board = model.boards[0]
+            setting = model.set
+            loop_id = setting.motion_asset_version_id if setting is not None else None
+            loop_ids = (loop_id,) if loop_id is not None and board.method.layer == LAYERED else ()
+            if setting is not None:
+                library = catalog.with_foreground_masks(conn, library, setting.asset_version_id, model.production_id)
+            sources = catalog.declaring_loop_sources(conn, library, loop_ids)
+            try:
+                plan = admit_photo(model, board, library, store=request.app.state.store,
+                                   declaring_sources=sources)
+            except (OSError, StoreError) as error:
+                raise APIError(503, "occlusion.store_unavailable", "The foreground inputs could not be read") from error
             job = new_job(kind, board_id, photo_request(plan, body.seed), by=by, now=now)
             frozen = {"story": story, "seed": body.seed, "library": documents(library)}
+            if plan.roles:
+                frozen["foreground_roles"] = [role.pin() for role in plan.roles]
         row = jobs.enqueue(conn, job, position=position, production=story["production_id"],
                            story=story_id, board=board_id, inputs=frozen, key=key, signature=fingerprint)
     return _queued(response, row, created=True)
@@ -168,6 +185,11 @@ def _upload_inputs(state, actor, board_id, revision, declared):
         if board["method"]["layer"] != WHOLE_FRAME:
             raise APIError(422, METHOD_INVALID, "Layered board photos come from the compositor",
                            path="/method/layer")
+        try:
+            setting = story.get("set") or {}
+            check_picture(library.get(setting.get("asset_version_id")), None, uses_loop=False)
+        except LayeredError as error:
+            raise APIError(422, error.code, str(error), path=error.where) from error
         # The current ID fences selection. Bytes are required only for media
         # that is actually used as a source for the replacement.
         return story_id, photo_plan(story, board_id, library), library
@@ -197,7 +219,10 @@ def build_router(CurrentActor, authenticated_route):
                        actor: CurrentActor, idempotency_key: IdempotencyKey):
         try:
             return _board_job(request, response, actor, id, idempotency_key, "photo", body)
-        except (AdapterError, LayeredError) as error:
+        except LayeredError as error:
+            path = error.where if error.code.startswith("occlusion.") else "/photo"
+            raise APIError(422, error.code, str(error), path=path) from error
+        except AdapterError as error:
             raise APIError(422, error.code, str(error), path="/photo") from error
 
     @router.post("/asset-jobs", operation_id="generate_asset_candidate", status_code=202,

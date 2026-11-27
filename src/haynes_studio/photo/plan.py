@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import unicodedata
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 
 from haynes_studio.canonical.facts import Facts, PhotoVersionFacts
@@ -11,18 +12,30 @@ from haynes_studio.errors import ContractError
 from haynes_studio.jsonio import thaw
 from haynes_studio.layered import compose
 from haynes_studio.layered.errors import LayeredError
+from haynes_studio.layered.foreground import RoleMask, admit_masks, check_loop, check_picture, roles_from_pins
 from haynes_studio.layered.matte_size import ENGINE, SIZE_POLICY
+from haynes_studio.layered.photo import SCHEMA as COMPOSITE_SCHEMA
 from haynes_studio.layered.photo import PhotoInputs, photo_inputs
 from haynes_studio.library import Library
 from haynes_studio.library.library import require_media
 from haynes_studio.library.model import BOARD, PROMOTED, AssetVersion, Content, Scope, signature
 from haynes_studio.library.resolve import BYTES_MISSING, KIND_MISMATCH, SCOPE_MISMATCH
+from haynes_studio.store import Store
 
 from .validation import IMAGE_TYPES, error, text_is_encodable
 
 SIGNATURE_SCHEME = "studio.board-photo-inputs/v1"
 WHOLE_FRAME = "whole_frame"
 LAYERED = "layered"
+
+
+def _photo_signature(*, board_id: str | None, layer: str, size: list[int], prompt: str | None,
+                     sources: list[dict[str, str]], composite_signature: str | None) -> str:
+    return signature({
+        "schema": SIGNATURE_SCHEME, "board_id": board_id,
+        "layer": layer, "size": size, "prompt": prompt,
+        "sources": sources, "composite_signature": composite_signature,
+    })
 
 
 @dataclass(frozen=True)
@@ -43,15 +56,15 @@ class PhotoPlan:
     sources: tuple[PhotoSource, ...]
     selected_version_id: str | None
     layers: PhotoInputs | None = None
+    roles: tuple[RoleMask, ...] = ()
 
     @property
     def input_signature(self) -> str:
-        return signature({
-            "schema": SIGNATURE_SCHEME, "board_id": self.scope.board_id,
-            "layer": self.layer, "size": list(self.size), "prompt": self.prompt,
-            "sources": [source.pin() for source in self.sources],
-            "composite_signature": None if self.layers is None else self.layers.signature,
-        })
+        return _photo_signature(
+            board_id=self.scope.board_id, layer=self.layer, size=list(self.size), prompt=self.prompt,
+            sources=[source.pin() for source in self.sources],
+            composite_signature=None if self.layers is None else self.layers.signature,
+        )
 
 
 def sources_for(library: Library, scope: Scope, ids: tuple[str, ...],
@@ -77,7 +90,27 @@ def sources_for(library: Library, scope: Scope, ids: tuple[str, ...],
     return tuple(sources)
 
 
-def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: bool = False) -> PhotoPlan:
+def admit_photo(story: Story, board: Board, library: Library, *, store: Store,
+                declaring_sources: Collection[str]) -> PhotoPlan:
+    """Check the new request before its library and signature are frozen."""
+    version = library.get(story.set.asset_version_id) if story.set is not None else None
+    loop_id = story.set.motion_asset_version_id if story.set is not None else None
+    check_picture(version, board, uses_loop=loop_id is not None)
+    if board.method.layer == LAYERED:
+        check_loop(library.get(loop_id), declaring_sources)
+    elif board.method.layer == WHOLE_FRAME:
+        for index, version_id in enumerate(board.photo.input_asset_version_ids):
+            try:
+                check_picture(library.get(version_id), None, uses_loop=False)
+            except LayeredError as error:
+                raise LayeredError(error.code, error.message,
+                                   where=f"/photo/input_asset_version_ids/{index}") from error
+    roles = admit_masks(version, library, story.production_id, store)
+    return plan_photo(story, board, library, roles=roles)
+
+
+def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: bool = False,
+               roles: tuple[RoleMask, ...] = ()) -> PhotoPlan:
     """Take canonical story and board values and the relevant library records.
 
     The plan owns all generation inputs. Its signature excludes the currently selected
@@ -94,6 +127,7 @@ def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: b
             ids = (story.set.asset_version_id, *ids)
         sources = sources_for(library, scope, ids, "/layers", metadata_only=metadata_only)
         blobs = {source.version_id: source.content.sha256 for source in sources}
+        sources += tuple(PhotoSource(role.version_id, role.content) for role in roles)
         matte_sizes = {}
         for entry in board.cast:
             version = library.version(entry.asset_version_id)
@@ -113,7 +147,7 @@ def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: b
             matte_sizes[entry.slot] = {"target_height_px": height,
                                        "shape": thaw(params.get("receipt", {}).get("shape"))}
         layers = photo_inputs(story, board, blobs=blobs, width=size[0], height=size[1],
-                              matte_sizes=matte_sizes)
+                              matte_sizes=matte_sizes, roles=roles)
         for slot_name, matte in matte_sizes.items():
             try:
                 bottom = compose.slot_of(thaw(layers.layout), slot_name).bottom
@@ -124,7 +158,7 @@ def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: b
                 # with the sprite's fringe included.
                 raise error("matting.target_exceeds_frame", "/layers",
                             "The cast matte is taller than the space above its slot's bottom line")
-        return PhotoPlan(scope, LAYERED, size, None, sources, selected, layers)
+        return PhotoPlan(scope, LAYERED, size, None, sources, selected, layers, roles)
 
     prompt = board.photo.prompt
     if prompt is not None:
@@ -139,12 +173,14 @@ def plan_photo(story: Story, board: Board, library: Library, *, metadata_only: b
     )
 
 
-def _latest(story: Story | None, board: Board | None, library: Library) -> PhotoPlan | None:
+def _latest(story: Story | None, board: Board | None, library: Library,
+            roles: tuple[RoleMask, ...]) -> PhotoPlan | None:
     if story is None or board is None:
         return None
     try:
         # Archive pins retain enough metadata to describe historical photo currency.
-        return plan_photo(story, board, library, metadata_only=True)
+        return plan_photo(story, board, library, metadata_only=True,
+                          roles=roles if board.layout.foreground else ())
     except (ContractError, LayeredError):
         return None
 
@@ -157,7 +193,7 @@ def _matches(version: AssetVersion, current: PhotoPlan) -> bool:
 def can_select_photo(version: AssetVersion, plan: PhotoPlan, story: Story | None,
                      board: Board | None, library: Library) -> bool:
     """Compare against the latest draft and selection inside the caller's write fence."""
-    current = _latest(story, board, library)
+    current = _latest(story, board, library, plan.roles)
     if current is None or version.kind != "photo" or version.state != BOARD:
         return False
     return (library.get(version.id) == version
@@ -165,6 +201,35 @@ def can_select_photo(version: AssetVersion, plan: PhotoPlan, story: Story | None
             and current.input_signature == plan.input_signature
             and current.selected_version_id == plan.selected_version_id
             and _matches(version, current))
+
+
+def photo_role_pins(version: AssetVersion, board_id: str) -> tuple[Mapping, ...]:
+    """Read pins only from the typed composite covered by the board photo's signature."""
+    if version.kind != "photo" or version.provenance.get("origin") != "derived":
+        return ()
+    generator = version.provenance.get("generator")
+    if not isinstance(generator, Mapping) or generator.get("role") != "composite":
+        return ()
+    params = generator.get("params")
+    if not isinstance(params, Mapping):
+        return ()
+    composite = params.get("composite")
+    if not isinstance(composite, Mapping) or composite.get("schema") != COMPOSITE_SCHEMA:
+        return ()
+    foreground = composite.get("foreground")
+    pins = foreground.get("roles") if isinstance(foreground, Mapping) else None
+    if not isinstance(pins, tuple) or not pins:
+        return ()
+    try:
+        expected = _photo_signature(
+            board_id=board_id, layer=LAYERED, size=[composite["width"], composite["height"]],
+            prompt=None, sources=thaw(params["source_assets"]), composite_signature=signature(thaw(composite)),
+        )
+    except (KeyError, TypeError, ValueError):
+        return ()
+    if params.get("input_signature") != expected:
+        return ()
+    return tuple(pin for pin in pins if isinstance(pin, Mapping) and isinstance(pin.get("version_id"), str))
 
 
 def photo_facts(story: Story, library: Library) -> Facts:
@@ -177,7 +242,11 @@ def photo_facts(story: Story, library: Library) -> Facts:
         version = library.get(board.photo.current_version_id) if board.photo.current_version_id else None
         if version is None or version.kind != "photo":
             continue
-        current = _latest(story, board, library)
+        try:
+            roles = roles_from_pins(photo_role_pins(version, board.id), library)
+        except (KeyError, TypeError, ValueError):
+            roles = None
+        current = None if roles is None else _latest(story, board, library, roles)
         matches = (current is not None
                    and current.scope == library.asset(version.asset_id).scope
                    and _matches(version, current))

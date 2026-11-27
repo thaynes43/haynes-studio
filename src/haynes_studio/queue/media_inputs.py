@@ -5,6 +5,7 @@ from haynes_studio.assets.candidate import plan_candidate
 from haynes_studio.assets.matte import MatteTarget, matte_kind
 from haynes_studio.canonical.model import Story
 from haynes_studio.errors import ContractError, Violation
+from haynes_studio.layered.foreground import roles_from_pins
 from haynes_studio.library import Library
 from haynes_studio.library.model import signature, version_document
 from haynes_studio.photo.build import MODEL
@@ -16,10 +17,10 @@ def documents(library):
             for version in library.versions.values()]
 
 
-def photo_plan(story, board_id, library):
+def photo_plan(story, board_id, library, *, roles=()):
     model = Story.from_document(story)
     board = next(board for board in model.boards if board.id == board_id)
-    return plan_photo(model, board, library)
+    return plan_photo(model, board, library, roles=roles)
 
 
 def photo_request(plan, seed):
@@ -36,9 +37,15 @@ def photo_request(plan, seed):
 
 
 def checked_photo(job, frozen):
-    plan = photo_plan(frozen["story"], job.target_id, Library.from_version_documents(frozen["library"]))
-    if photo_request(plan, frozen["seed"]) != job.input_signature:
-        raise ContractError(job.id, [Violation("job.input_changed", "", "The frozen photo inputs changed")])
+    library = Library.from_version_documents(frozen["library"])
+    changed = ContractError(job.id, [Violation("job.input_changed", "", "The frozen photo inputs changed")])
+    try:
+        roles = roles_from_pins(frozen.get("foreground_roles", ()), library)
+    except (KeyError, TypeError, ValueError) as error:
+        raise changed from error
+    plan = photo_plan(frozen["story"], job.target_id, library, roles=roles)
+    if (roles and plan.layers is None) or photo_request(plan, frozen["seed"]) != job.input_signature:
+        raise changed
     return plan
 
 

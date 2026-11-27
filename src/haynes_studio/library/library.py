@@ -344,6 +344,7 @@ class VersionRequest:
     version_id: str | None = None
     asset_id: str | None = None
     recorded_without_media: bool = False
+    occlusion: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -395,7 +396,7 @@ def import_version(library: Library, request: VersionRequest, *, by: Principal, 
         legacy=None if request.legacy is None else freeze(normalize(request.legacy)),
         voice=request.voice,
         motion=None if request.motion is None else freeze(normalize(dict(request.motion))),
-        recorded_without_media=request.recorded_without_media)
+        recorded_without_media=request.recorded_without_media, occlusion=request.occlusion)
     wanted = pin(candidate, asset)
     for existing in library.versions_of(asset.id):
         if pin(existing, asset) != wanted:
