@@ -2,9 +2,9 @@
 
 import sqlalchemy as sa
 
-from .schema import media_job_lanes, queue_lane_events, run_lane
+from .schema import media_job_lanes, media_jobs, queue_lane_events, run_lane, runs
 
-LANES = ("run", "voice", "image")
+LANES = ("run", "voice", "image", "matte")
 
 
 def _latest(conn, lane):
@@ -25,7 +25,11 @@ def _status(lane, decision):
 
 
 def status(conn):
-    return [_status(lane, _latest(conn, lane)) for lane in LANES]
+    now = conn.scalar(sa.select(sa.func.clock_timestamp()))
+    live = set(conn.scalars(sa.select(media_jobs.c.lane).where(media_jobs.c.claim_until > now).distinct()))
+    if conn.scalar(sa.select(sa.exists().where(runs.c.claim_until > now))):
+        live.add("run")
+    return [{**_status(lane, _latest(conn, lane)), "live_claim": lane in live} for lane in LANES]
 
 
 def set_paused(conn, lane, paused, by, clock):

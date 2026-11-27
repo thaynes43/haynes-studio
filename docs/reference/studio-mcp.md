@@ -35,6 +35,7 @@ as `studio-mcp` version `1.0.0`.
 | `studio_list_stories` | `read` | Story summaries for the named production and media kind. Accepts the API's publication and approval filters. |
 | `studio_get_story_summary` | `read` | Story ID and revision, board count, timing totals and a page of ordered board IDs. Optional `fields` selects editable story fields. |
 | `studio_get_story_timing` | `read` | Story revision, frame totals, warnings, build blocker count and a page of board timings. |
+| `studio_list_candidates` | `read` | Candidates and feedback text scoped to a story. Supply `candidate_id` and up to ten `note_ids` to resolve a run's `answers`. |
 | `studio_create_story`, `studio_patch_story` | `draft:write` | Story summary and revision. Create takes `fields` with a title, and patch takes `patch` and the current story revision. |
 | `studio_get_board` | `read` | Board ID, story ID, revision, `read_token`, timing metadata and editable fields. Optional `fields` narrows the selection. |
 | `studio_add_board` | `draft:write` | Board summary and resulting story revision. Takes the current story revision and a `fields` object. Use `{}` for defaults. |
@@ -44,12 +45,21 @@ as `studio-mcp` version `1.0.0`.
 | `studio_search_assets`, `studio_get_asset` | `read` | Visible asset version summaries with their immutable version numbers. Asset detail includes the asset revision. |
 | `studio_generate_voice`, `studio_generate_photo` | `assets:generate` | Compact job status for a saved board. Photo accepts an optional seed. |
 | `studio_upload_photo` at `/mcp/upload` | `assets:upload` | Upload result with the version ID, selection flag and resulting board revision. Takes `board_id`, `revision`, `media_type`, `data_base64` and `provenance`. |
-| `studio_get_job` | `read` | Compact voice or photo job status, input signature and result version ID. |
+| `studio_get_job` | `read` | Compact voice, photo or matte job status, input signature and result version ID. Matte adds its source and format pins and cast slot. |
 | `studio_estimate_run`, `studio_list_runs`, `studio_get_run` | `read` | Story estimate and blockers, a page of runs, or run status with progress, stages and checks. |
 | `studio_queue_run`, `studio_cancel_run` | `runs:queue` | Run status and revision. Queue takes the current story revision. Cancel takes the current run revision. |
 | `studio_get_delivery` | `read` | Immutable delivery metadata including hashes, sizes and frame counts. |
 | `studio_list_formats` | `read` | Shared format names and slugs. |
 | `studio_list_format_versions`, `studio_get_format_version` | `read` | Version IDs and hashes, or the pinned recipe by ID. |
+| `studio_create_archive_record`, `studio_add_archive_version` | `archive:write` | Archive metadata and the ID and hash of the stored version. |
+| `studio_list_archive_records`, `studio_get_archive_record`, `studio_get_archive_version` | `archive:read` | Record summaries, version metadata or exact text by immutable version ID. |
+| `studio_apply_archive_storyboard` | `archive:read` and `draft:write` | The new story revision and a per-board receipt. |
+
+See [staging archive](staging-archive.md) for request fields and version conflicts.
+
+Matte status requires `read` on the source production. Shared-library matte
+status, requests, previews and promotion use the human session routes.
+[Matte HTTP operations](studio-api.md#matte-requests-and-reads)
 
 Patch replaces each supplied field. For `lines`, `cues` or `notes`, keep
 unchanged entries and their IDs in a replacement array. Omit an ID when adding
@@ -105,8 +115,13 @@ Ordered board and timing cursors include the story revision and the last board
 ID. When a story changes between pages, restart the read from the first page
 after the revision conflict. Responses carry one compact JSON object in
 `structuredContent` and in a text block for older clients. The tools cap
-metadata arguments at 64 KiB and the encoded result object at 128 KiB.
-The ordinary `/mcp` endpoint caps requests at 256 KiB. Connect a second
+metadata arguments at 64 KiB and the encoded result object at 128 KiB by default.
+The `/mcp` endpoint caps requests at 256 KiB. The
+`studio_create_archive_record` and `studio_add_archive_version` calls allow
+2 MiB per request to carry 256 KiB of decoded UTF-8 text with JSON escaping
+and metadata. An exact archive version read allows a larger result to carry
+the same text limit, and storyboard apply allows a larger result to report
+board outcomes. Connect a second
 Streamable HTTP session at `/mcp/upload` to discover and call
 `studio_upload_photo`. Its request cap is the base64 length of a 20 MiB
 image plus 256 KiB for the JSON-RPC envelope and metadata. Only one upload
@@ -153,8 +168,9 @@ uv run --no-sync studio-api-admin revoke "$KEY_ID"
 
 Repeat flags to grant the specified scopes to each production ID. The
 agent scopes are `read`, `draft:write`, `assets:generate`, `assets:upload`,
-`runs:queue` and `formats:write`. Format authoring uses the API with an explicit
-`formats:write` grant. Go-live approval is reserved for people. Expiry is optional
+`runs:queue`, `formats:write`, `archive:read` and `archive:write`. Format
+authoring uses the API with an explicit `formats:write` grant. Go-live approval
+is reserved for people. Expiry is optional
 and must include a timezone when supplied. Registering the same key with
 the same productions, scopes and expiry returns its existing key ID.
 Changed grants or expiry require `--replace-grants`, which replaces the full

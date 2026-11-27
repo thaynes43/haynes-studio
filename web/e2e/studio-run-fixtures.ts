@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 import type { components } from "../src/api/schema";
-import { reviewFixtures } from "./studio-review-fixtures";
+import { approvalFixtures, latestRun, oldRun, reviewFixtures } from "./studio-review-fixtures";
 import type { ReviewMedia } from "./studio-review-media";
 
 type Schemas = components["schemas"];
@@ -31,7 +31,7 @@ export function runFixtures(story: Schemas["Story"], media: ReviewMedia) {
   const overrideWrites: { id: string; revision: string; body: Schemas["CheckOverride"] }[] = [];
   let now = 0;
 
-  function add(draft: Schemas["Story"], boards: Schemas["Board"][], key: string) {
+  function add(draft: Schemas["Story"], boards: Schemas["Board"][], key: string, format?: Schemas["VersionView"]) {
     const number = runs.length + 1;
     const id = `run_01M79V9FC000000000000000${String(number).padStart(2, "0")}`;
     const { approved: _approved, published: _published, latest_finished_run: _latest, derived: _derived,
@@ -41,6 +41,7 @@ export function runFixtures(story: Schemas["Story"], media: ReviewMedia) {
       story: structuredClone({
         ...canonicalStory, boards: boards.map(({ derived: _boardDerived, ...board }) => board),
       }),
+      ...(format && { format_version: structuredClone({ id: format.id, recipe: format.recipe, sha256: format.sha256 }) }),
       resolved_asset_versions: [],
       toolchain_request: { studio: "git:fixture" },
     };
@@ -87,7 +88,7 @@ export function runFixtures(story: Schemas["Story"], media: ReviewMedia) {
     if (status === "running") run.started_at ??= at;
     if (!active(run)) run.finished_at = at;
     if (status === "succeeded") {
-      const source = fixtures.deliveries.values().next().value!;
+      const source = fixtures.deliveries.get(run.number === 1 ? oldRun : latestRun)!;
       const id = `dlv_01M79V9FC000000000000000${String(run.number).padStart(2, "0")}`;
       const proxy = source.proxy!;
       const delivery = {
@@ -110,5 +111,6 @@ export function runFixtures(story: Schemas["Story"], media: ReviewMedia) {
     return run;
   }
 
-  return { runs, deliveries, snapshots, presses, cancelWrites, overrideWrites, estimate, add, advance, view };
+  return { runs, deliveries, snapshots, presses, cancelWrites, overrideWrites, estimate, add, advance, view,
+    ...approvalFixtures(deliveries) };
 }

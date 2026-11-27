@@ -23,8 +23,9 @@ from haynes_studio.escalation import storage as escalation_storage
 from haynes_studio.library.resolve import story_references
 from haynes_studio.queue import inputs
 from haynes_studio.queue.protocol import (
-    SHA256, ClaimFence, Heartbeat, JobId, Payload, Progress, Reason, Reservation, WanResult,
-    MediaCompletion, MediaFailure, MediaFence, MediaHeartbeat, WorkAttempt, WorkClaim,
+    MEDIA_LANES, PAUSED_RECONCILE_HEADER, SHA256, WORK_LANES,
+    ClaimFence, Heartbeat, JobId, Payload, Progress, Reason, Reservation, WanResult,
+    MatteRelease, MediaCompletion, MediaFailure, MediaFence, MediaHeartbeat, WorkAttempt, WorkClaim,
     WorkCompletion, WorkFailure, WorkLane, WorkReserve,
 )
 from haynes_studio.queue.staging import BuildStageStore, publish_staged_delivery
@@ -32,7 +33,7 @@ from haynes_studio.store import BLOB_MISSING, StoreError
 from haynes_studio.store.layout import blob_locator
 
 from . import media_work
-from .auth import WorkerRoute
+from .auth import WorkerRoute, require_worker_lane
 from .errors import APIError, ERROR_RESPONSES, forbidden
 from .models import Body, Document, Page, TransportModel
 from .routes import Cursor, ETAG, IfMatch, Limit, _cursor, _etag, _id, _page, _revision, _story_access
@@ -103,8 +104,12 @@ class QueueLaneStatus(TransportModel):
     changed_at: datetime | None
 
 
+class QueueLaneRead(QueueLaneStatus):
+    live_claim: bool
+
+
 class QueueStatus(TransportModel):
-    items: list[QueueLaneStatus]
+    items: list[QueueLaneRead]
 
 
 def transport_models():
@@ -113,8 +118,8 @@ def transport_models():
         RunView, Page[RunView], QueueWait, EstimateRange, MethodEstimate, EstimateView,
         CheckOverride, CheckOverrideView, ClaimFence, Progress, Heartbeat, Reservation,
         WanResult, WorkReserve, WorkAttempt, WorkCompletion, WorkFailure, WorkClaim,
-        MediaFence, MediaHeartbeat, MediaCompletion, MediaFailure,
-        QueueLaneUpdate, QueueLaneStatus, QueueStatus,
+        MediaFence, MediaHeartbeat, MediaCompletion, MediaFailure, MatteRelease,
+        QueueLaneUpdate, QueueLaneStatus, QueueLaneRead, QueueStatus,
     )
 
 
@@ -236,7 +241,9 @@ def build_router(CurrentActor, authenticated_route):
                 frozen, library = inputs.freeze(prepared, studio=request.app.state.build_revision)
                 data, sha = snapshot_bytes(frozen)
                 if len(data) > MAX_SNAPSHOT_BYTES:
-                    raise APIError(413, "run.snapshot_too_large", "The snapshot exceeds the store read limit")
+                    raise APIError(422, "run.snapshot_too_large",
+                                   "The frozen draft exceeds the snapshot limit. Reduce the draft before queuing.",
+                                   evidence={"bytes": len(data), "max_bytes": MAX_SNAPSHOT_BYTES})
                 try:
                     store.publish(data, scope=draft.story["production_id"], media_type="application/json",
                                   expected_sha256=sha)
@@ -302,10 +309,12 @@ def build_router(CurrentActor, authenticated_route):
     return router
 
 
-def _lock(conn, request, body):
+def _lock(conn, request, body, *, wan_dispatch=False):
+    require_worker_lane(request, "run")
     if not body.valid_run():
         _id(body.run_id, "run", "/run_id")
-    return runs.lock_claim(conn, body.run_id, request.state.principal.worker_id, body.fence)
+    return runs.lock_claim(conn, body.run_id, request.state.principal.worker_id, body.fence,
+                           wan_dispatch=wan_dispatch and request.app.state.paused_reconcile)
 
 
 def _delivery(conn, request, row, body):
@@ -327,16 +336,52 @@ def _delivery(conn, request, row, body):
     catalog.record_delivery(conn, row["story_id"], to_document(delivery))
 
 
+class WorkRoute(WorkerRoute):
+    async def before_validation(self, request):
+        if self.operation_id in {"resume_work", "reserve_wan_attempt", "update_wan_attempt"}:
+            require_worker_lane(request, "run")
+        elif self.operation_id == "release_matte_work":
+            require_worker_lane(request, "matte")
+        elif self.operation_id == "claim_work":
+            raw = await request.body()
+            body = await request.json() if raw else None
+            if isinstance(body, dict) and (lane := body.get("lane", "run")) in WORK_LANES:
+                require_worker_lane(request, lane)
+        elif self.operation_id in {"heartbeat_work", "publish_work", "complete_work", "fail_work"}:
+            # A job_id without a run_id selects media work. A malformed request
+            # without that discriminator follows the run-lane default.
+            raw = await request.body()
+            try:
+                body = await request.json() if raw else None
+            except APIError:
+                require_worker_lane(request, "run")
+                raise
+            if isinstance(body, dict) and "job_id" in body and "run_id" not in body:
+                require_worker_lane(request, *MEDIA_LANES)
+            else:
+                require_worker_lane(request, "run")
+
+
 def worker_router():
-    router = APIRouter(prefix="/internal/v1/work", responses=ERROR_RESPONSES, route_class=WorkerRoute,
+    router = APIRouter(prefix="/internal/v1/work", responses=ERROR_RESPONSES, route_class=WorkRoute,
                        include_in_schema=False)
 
     @router.post("/claim", operation_id="claim_work")
     def claim_work(request: Request, body: WorkClaim | None = None):
         lane = "run" if body is None else body.lane
+        require_worker_lane(request, lane)
         worker_id = request.state.principal.worker_id
+        paused_reconcile = request.app.state.paused_reconcile
         with request.app.state.engine.begin() as conn:
-            claim = runs.claim(conn, worker_id) if lane == "run" else media_work.claim(conn, worker_id, lane)
+            if body is not None and body.settle_only:
+                require_worker_lane(request, "matte")
+                jobs.claim(conn, worker_id, lane, settle_only=True)
+                claim = None
+            elif lane == "run":
+                supported = request.headers.get(PAUSED_RECONCILE_HEADER) == "1"
+                claim = runs.claim(conn, worker_id, reconcile_paused=paused_reconcile and supported)
+            else:
+                claim = media_work.claim(conn, worker_id, lane, settle_while_paused=paused_reconcile)
         return claim if claim is not None else Response(status_code=204)
 
     @router.post("/heartbeat", operation_id="heartbeat_work")
@@ -345,7 +390,9 @@ def worker_router():
             if isinstance(body, MediaHeartbeat):
                 row, now = media_work.lock(conn, request, body)
                 return jobs.heartbeat(conn, row, now)
-            row, now = _lock(conn, request, body)
+            # The worker uses this fenced heartbeat immediately before every Wan job PUT.
+            dispatch = body.progress is not None and body.progress.stage == "wan_submitting"
+            row, now = _lock(conn, request, body, wan_dispatch=dispatch)
             return runs.heartbeat(conn, row, now, body.progress.model_dump() if body.progress else None)
 
     @router.post("/resume", operation_id="resume_work")
@@ -361,14 +408,15 @@ def worker_router():
             raise APIError(422, "wan.profile", "The request does not match a supported Wan profile")
         with request.app.state.engine.begin() as conn:
             row, now = _lock(conn, request, body)
-            return dict(runs.reserve_attempt(conn, row, now, body.proposal.kind, body.proposal.product_request()))
+            return dict(runs.reserve_attempt(conn, row, now, body.proposal.kind, body.proposal.product_request(),
+                                             check_pause=request.app.state.paused_reconcile))
 
     @router.post("/attempts/{job_id}", operation_id="update_wan_attempt")
     def update_wan_attempt(job_id: JobId, body: WorkAttempt, request: Request):
         if (body.state == "succeeded") != (body.result is not None):
             raise APIError(422, "wan.result", "A verified result is required only for a successful attempt")
         with request.app.state.engine.begin() as conn:
-            row, now = _lock(conn, request, body)
+            row, now = _lock(conn, request, body, wan_dispatch=body.state == "sent")
             return dict(runs.attempt_action(conn, row, now, job_id, body.state,
                                           body.result.model_dump() if body.result else None))
 
@@ -400,6 +448,14 @@ def worker_router():
             require_valid(validate_run(row["document"]))
             _delivery(conn, request, row, body)
             return runs.view(conn, row, detail=False)
+
+    @router.post("/release-matte", status_code=204, operation_id="release_matte_work")
+    def release_matte_work(body: MatteRelease, request: Request):
+        require_worker_lane(request, "matte")
+        with request.app.state.engine.begin() as conn:
+            row, now = media_work.lock(conn, request, body)
+            jobs.release_matte(conn, row, now, reason=body.reason)
+        return Response(status_code=204)
 
     @router.post("/fail", operation_id="fail_work")
     def fail_work(body: WorkFailure | MediaFailure, request: Request):

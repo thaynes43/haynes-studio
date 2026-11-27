@@ -4,14 +4,22 @@ import { treePath, type MediaKind } from "../src/routes";
 import { latestRun, photoVersion, reviewFixtures, voiceVersion } from "./studio-review-fixtures";
 import { mediaResponse, type ReviewMedia, type TestMedia } from "./studio-review-media";
 import { feedbackFixtures } from "./studio-feedback-fixtures";
+import { releaseFixtures } from "./studio-release-fixtures";
 import { runFixtures } from "./studio-run-fixtures";
 import { formatFixture, inspectorBoards, voiceFixtures } from "./studio-inspector-fixtures";
 import { boardVersions, formatId, storyTiming } from "./studio-storyboard-fixtures";
 import { photoFixtures } from "./studio-photo-fixtures";
 import { assetFixtures } from "./studio-asset-fixtures";
+import { buildableBoardPhoto, formats, formatVersions, stockVoices } from "./studio-format-fixtures";
 
 type Schemas = components["schemas"];
 type BoardCreateBody = paths["/v1/stories/{id}/boards"]["post"]["requestBody"]["content"]["application/json"];
+const fixtureTime = "2026-11-04T12:00:00Z";
+const fixtureActor = { kind: "human", iss: "https://identity.example.invalid", sub: "lena" } as const;
+const storyFields = {
+  title: true, format_version_id: true, cast: true, narrator_voice_version_id: true, set: true,
+  layouts: true, motion_style: true, mix: true, checks: true, beds: true,
+} satisfies Record<keyof Schemas["StoryPatch"], true>;
 
 export const production = {
   schema: "studio.production/v1",
@@ -42,6 +50,9 @@ export const story = {
   media_kind: "short",
   title: "The Winter Menu",
   revision: 1,
+  created_at: fixtureTime,
+  created_by: fixtureActor,
+  updated_at: fixtureTime,
   format_version_id: null,
   cast: [],
   narrator_voice_version_id: null,
@@ -78,7 +89,10 @@ const selectedBoard = {
   seeds: {},
   cues: [],
   notes: [],
-  drafted_by: { kind: "human", ...{ iss: "https://identity.example.invalid", sub: "lena" } },
+  created_at: fixtureTime,
+  created_by: fixtureActor,
+  updated_at: fixtureTime,
+  drafted_by: fixtureActor,
   origin: null,
 } satisfies Schemas["Board"];
 
@@ -91,9 +105,9 @@ type User = keyof typeof people;
 type Selection = Schemas["Selections"];
 type Failure = { path: string; method?: string; status: number; detail: Schemas["ErrorDetail"] };
 
-function pageOf<T extends { id: string }>(items: T[], cursor: string | null) {
+function pageOf<T extends { id: string }>(items: T[], cursor: string | null, limit = 1) {
   const remaining = cursor ? items.filter(({ id }) => id > cursor) : items;
-  return { items: remaining.slice(0, 1), next_cursor: remaining.length > 1 ? remaining[0].id : null };
+  return { items: remaining.slice(0, limit), next_cursor: remaining.length > limit ? remaining[limit - 1].id : null };
 }
 
 function nextId(first: string, number: number) {
@@ -101,9 +115,11 @@ function nextId(first: string, number: number) {
 }
 
 export async function mockStudio(context: BrowserContext, baseURL: string, {
-  empty = false, reviewMedia, storyboardMedia, runMedia, inspector = false, photoMedia, assetLibrary = false,
+  empty = false, reviewMedia, storyboardMedia, runMedia, inspector = false, photoMedia, releaseMaximum,
+  assetLibrary = false, formatPin = false,
 }: { empty?: boolean; reviewMedia?: ReviewMedia; storyboardMedia?: Pick<ReviewMedia, "photo" | "voice">;
-  runMedia?: ReviewMedia; inspector?: boolean; photoMedia?: TestMedia[]; assetLibrary?: boolean } = {}) {
+  runMedia?: ReviewMedia; inspector?: boolean; photoMedia?: TestMedia[]; releaseMaximum?: number;
+  assetLibrary?: boolean; formatPin?: boolean } = {}) {
   let current: User | null = "lena";
   let next: User = "lena";
   let failure: Failure | undefined;
@@ -112,11 +128,14 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
   let runRefusal: string | undefined;
   const review = reviewMedia && reviewFixtures(story, reviewMedia);
   const queue = runMedia && runFixtures(story, runMedia);
+  const decisions = queue ?? review;
   let dropQueueReply: "connection" | "server" | undefined;
+  let formatReplyFault: "connection" | "server" | "revision" | undefined;
   let preflight: Schemas["EstimateView"]["problems"] = [];
   const loginRequests: URLSearchParams[] = [];
   const approvalWrites: Array<{ run: string; body: Schemas["ApprovalWrite"] }> = [];
   const boardWrites: Array<{ method: string; path: string; revision: string | undefined; order?: string[] }> = [];
+  const formatWrites: Array<{ story: string; revision: string | undefined; body: Schemas["StoryPatch"] }> = [];
   const violations: string[] = [];
   const calls: string[] = [];
   const writes: Array<{ user: User; values: Selection["values"]; revision: number }> = [];
@@ -142,6 +161,7 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
   const boards = new Map([firstBoard, closing].map((board) => [board.id, { ...board }]));
   const draftMedia = runMedia ?? storyboardMedia ?? reviewMedia;
   const versions: Schemas["AssetVersion"][] = draftMedia ? boardVersions(production.id, firstBoard, draftMedia) : [];
+  if (formatPin) versions.push(...stockVoices);
   const voice = voiceFixtures(versions);
   const photos = photoMedia && photoFixtures(versions, photoMedia, stories[0], boards.get(firstBoard.id)!, boards.get(closing.id)!);
   const assets = assetLibrary && photoMedia
@@ -181,7 +201,8 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
     );
   }
   const feedback = feedbackFixtures(stories[0], [...boards.values()].filter(({ id }) =>
-    story.board_order.includes(id)), review?.runs ?? []);
+    story.board_order.includes(id)), review?.runs ?? [], releaseMaximum);
+  const release = releaseFixtures(stories[0], feedback.frozen);
   const selections: Record<User, Selection> = {
     lena: { revision: 0, values: {} },
     arden: { revision: 0, values: {
@@ -207,7 +228,7 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
 
   function reject(
     route: Route, status: number, category: Schemas["ErrorDetail"]["status"], code: string,
-    detail?: Partial<Schemas["ErrorDetail"]>,
+    detail?: Partial<Schemas["ErrorDetail"]>, headers?: Record<string, string>,
   ) {
     const error: Schemas["ErrorEnvelope"] = {
       error: {
@@ -215,23 +236,53 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
         message: code, code, request_id: `mock-request-${status}`, ...detail,
       },
     };
-    return route.fulfill({ status, json: error });
+    return route.fulfill({ status, headers, json: error });
+  }
+
+  function draftTiming(draft: Schemas["Story"]) {
+    const pin = formatPin ? formatVersions.find(({ id }) => id === draft.format_version_id) : undefined;
+    const timing = storyTiming(draft, boards, versions, voice.matches, pin);
+    if (formatPin) {
+      for (const [index, id] of draft.board_order.entries()) {
+        const board = boards.get(id)!;
+        if (board.method.layer === "whole_frame" && board.method.motion === "i2v" &&
+            !versions.some((version) => version.id === board.photo.current_version_id && version.scope.board_id === id)) {
+          timing.build_blockers.push({ code: "photo.absent", board_id: id, path: `/boards/${index}/photo/current_version_id` });
+        }
+      }
+      timing.build_allowed = timing.build_blockers.length === 0;
+    }
+    return timing;
   }
 
   function approvedState(id: string) {
-    return review?.history(id).find((record) => record.derived.state === "active")?.id ?? null;
+    return decisions?.history(id).find((record) => record.derived.state === "active")?.id ?? null;
   }
 
-  function viewRun(run: Schemas["RunView"]) {
+  function viewRun<T extends { id: string }>(run: T) {
     return { ...run, active_approval_id: approvedState(run.id) };
   }
 
-  function viewStory(draft: Schemas["Story"]) {
-    if (!review || draft.id !== story.id || !draft.latest_finished_run) return draft;
+  function viewStory(draft: Schemas["Story"]): Schemas["Story"] {
+    if (formatPin) {
+      const timing = draftTiming(draft);
+      const untimed = timing.boards.filter(({ state }) => state === "untimed").length;
+      const highest = Math.max(0, ...[...boards.values()].filter(({ story_id }) => story_id === draft.id).map(({ number }) => number));
+      draft = { ...draft, derived: {
+        board_count: timing.boards.length, next_board_number: highest + 1, timed_boards: timing.boards.length - untimed,
+        untimed_boards: untimed, frames: timing.frames_known, fps: 24,
+        duration_ms: Math.floor(timing.frames_known * 1000 / timing.fps), warnings: timing.warnings,
+      } };
+    }
+    if (!decisions || draft.id !== story.id) return draft;
+    const latest = decisions.runs.findLast(({ status }) => status === "succeeded");
+    if (!latest?.finished_at) return draft;
     return {
       ...draft,
-      approved: review.runs.some(({ id }) => approvedState(id)),
-      latest_finished_run: { ...draft.latest_finished_run, active_approval_id: approvedState(latestRun) },
+      approved: decisions.runs.some(({ id }) => approvedState(id)),
+      latest_finished_run: {
+        id: latest.id, status: "succeeded", finished_at: latest.finished_at, active_approval_id: approvedState(latest.id),
+      },
     };
   }
 
@@ -252,6 +303,19 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
       return reject(route, 422, "invalid", "schema.invalid", { path: "/revision" });
     }
     if (match !== `"${revision}"`) return reject(route, 409, "conflict", "conflict.revision", { current_revision: revision });
+  }
+
+  function requireStoryRevision(route: Route, match: string | undefined, revision: number) {
+    if (match === undefined) {
+      return reject(route, 422, "invalid", "schema.invalid", { path: "/header/If-Match", message: "Field required" });
+    }
+    if (!/^(?:"[1-9][0-9]{0,18}"|[1-9][0-9]{0,18})$/.test(match) || BigInt(match.replaceAll('"', "")) >= 2n ** 63n - 1n) {
+      return reject(route, 422, "invalid", "schema.invalid", { path: "/revision", message: "If-Match must contain one integer revision" });
+    }
+    if (Number(match.replaceAll('"', "")) !== revision) {
+      return reject(route, 409, "conflict", "conflict.revision",
+        { path: "/revision", message: "The record has changed", current_revision: revision }, { etag: `"${revision}"` });
+    }
   }
 
   function setBoardOrder(draft: Schemas["Story"], order: string[]) {
@@ -334,6 +398,7 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
     }
 
     const cursor = url.searchParams.get("cursor");
+    const catalogLimit = Number(url.searchParams.get("limit") ?? 50);
     if (path === "/v1/productions") {
       if (method === "GET") {
         const available = [...productions.values()].filter(({ id }) => visible[user].has(id));
@@ -393,16 +458,17 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
             if (typeof title !== "string" || !title || Array.from(title).length > 80) {
               return reject(route, 422, "invalid", "schema.invalid", { path: "/title" });
             }
+            const created_by = { ...fixtureActor, sub: user };
             const draft = {
               ...story,
               id: nextId(story.id, stories.length + 1),
-              production_id: id, media_kind: kind, title, board_order: [],
+              production_id: id, media_kind: kind, title, board_order: [], created_by,
               layouts: { default: {} },
               mix: { line_rms_dbfs: -22, master_lufs: -20, true_peak_dbtp: -3.5 },
             } satisfies Schemas["Story"];
             stories.push(draft);
             return route.fulfill({
-              status: 201, headers: { etag: '"1"', location: `/v1/stories/${draft.id}` }, json: draft,
+              status: 201, headers: { etag: '"1"', location: `/v1/stories/${draft.id}` }, json: viewStory(draft),
             });
           }
         }
@@ -415,13 +481,59 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
       if (!resource && method === "GET") {
         return route.fulfill({ headers: { etag: `"${draft.revision}"` }, json: viewStory(draft) });
       }
+      if (!resource && method === "PATCH" && (formatPin || photos)) {
+        const body = request.postDataJSON() as Schemas["StoryPatch"];
+        formatWrites.push({ story: storyId, revision: headers["if-match"], body });
+        const refused = requireStoryRevision(route, headers["if-match"], draft.revision);
+        if (refused) return refused;
+        const unwritable = Object.keys(body).sort().find((field) => !Object.hasOwn(storyFields, field));
+        if (unwritable !== undefined) {
+          return reject(route, 422, "invalid", "schema.unknown_field", {
+            path: "/" + unwritable.replaceAll("~", "~0").replaceAll("/", "~1"), message: "The field is not writable",
+          });
+        }
+        const voiceRefs = (body.cast ?? []).map(({ voice_version_id }, index) => ({
+          id: voice_version_id, path: `/cast/${index}/voice_version_id`,
+        }));
+        if (body.narrator_voice_version_id) {
+          voiceRefs.push({ id: body.narrator_voice_version_id, path: "/narrator_voice_version_id" });
+        }
+        const unknownVoice = voiceRefs.find(({ id }) => !versions.some((item) => item.id === id));
+        if (unknownVoice) {
+          return reject(route, 422, "invalid", "ref.unknown",
+            { path: unknownVoice.path, message: `the library has no asset version ${unknownVoice.id}` });
+        }
+        if (body.format_version_id) {
+          const selected = formatVersions.find(({ id }) => id === body.format_version_id);
+          if (!selected) return reject(route, 422, "invalid", "ref.unknown",
+            { path: "/format_version_id", message: "That format version does not exist" });
+          const profile = productions.get(draft.production_id)?.media_types.find(({ kind }) => kind === draft.media_kind);
+          if (selected.recipe.frame.width !== profile?.width || selected.recipe.frame.height !== profile.height) {
+            return reject(route, 422, "invalid", "format.frame_mismatch", {
+              path: "/format_version_id", message: "That format's frame size does not match the story's media kind",
+            });
+          }
+        }
+        Object.assign(draft, body, { revision: draft.revision + 1,
+          updated_at: new Date(Date.parse(fixtureTime) + draft.revision * 1000).toISOString() });
+        const fault = formatReplyFault;
+        formatReplyFault = undefined;
+        if (fault === "connection") return route.abort("connectionreset");
+        if (fault === "server") {
+          return reject(route, 500, "internal", "request.failed", { message: "The request could not be completed" });
+        }
+        const reply = viewStory(draft);
+        if (fault === "revision") reply.revision += 2;
+        return route.fulfill({ headers: { etag: `"${draft.revision}"` }, json: reply });
+      }
       if (resource === "timing" && method === "GET") {
-        return route.fulfill({ json: storyTiming(draft, boards, versions, voice.matches) });
+        return route.fulfill({ json: draftTiming(draft) });
       }
       if (resource === "candidates" && method === "GET") return feedback.list(route, draft);
+      if (resource === "feedback-iteration" && method === "DELETE") return feedback.clear(route);
       if (resource === "runs" && method === "GET") {
         if (queue) {
-          const items = queue.runs.filter((run) => run.story_id === draft.id).map((run) => queue.view(run));
+          const items = queue.runs.filter((run) => run.story_id === draft.id).map((run) => viewRun(queue.view(run)));
           return route.fulfill({ json: pageOf(items, cursor) });
         }
         const items = review?.runs.filter((run) => run.story_id === draft.id).map(viewRun) ?? [];
@@ -448,7 +560,14 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
           return reject(route, 422, status === "unavailable" ? "unavailable" : "invalid", String(rule),
             { message: String(message), path: String(path) });
         }
-        const run = queue.add(draft, draft.board_order.map((id) => boards.get(id)!), key);
+        if (formatPin) {
+          const absent = draftTiming(draft).build_blockers.find(({ code }) => code === "photo.absent");
+          if (absent) return reject(route, 422, "invalid", absent.code, {
+            path: absent.path ?? "", message: "whole-frame I2V starts from the board's photo (section 5)",
+          });
+        }
+        const pin = formatPin ? formatVersions.find(({ id }) => id === draft.format_version_id) : undefined;
+        const run = queue.add(draft, draft.board_order.map((id) => boards.get(id)!), key, pin);
         const lostReply = dropQueueReply;
         dropQueueReply = undefined;
         if (lostReply === "connection") {
@@ -471,9 +590,11 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
         if (refused) return refused;
         const number = Math.max(0, ...[...boards.values()].filter((board) => board.story_id === storyId).map((board) => board.number)) + 1;
         const requestBody = request.postDataJSON() as BoardCreateBody;
+        const created_by = { ...fixtureActor, sub: user };
         const board = {
           ...selectedBoard, title: requestBody.title ?? `Board ${number}`, story_id: storyId, number,
           id: nextId(selectedBoard.id, ++lastBoardId), layout: { preset: "default", foreground: true },
+          created_by, drafted_by: created_by,
         } satisfies Schemas["Board"];
         boards.set(board.id, board);
         setBoardOrder(draft, [...draft.board_order, board.id]);
@@ -491,13 +612,28 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
         return route.fulfill({ headers: { etag: `"${draft.revision}"` }, json: viewStory(draft) });
       }
     }
-    if (path === `/v1/format-versions/${formatId}` && method === "GET") {
-      return route.fulfill({ json: formatFixture });
+    if (method === "GET") {
+      if (path === "/v1/formats" && formatPin) return route.fulfill({ json: pageOf(formats, cursor, catalogLimit) });
+      const versionList = formatPin && /^\/v1\/formats\/([^/]+)\/versions$/.exec(path);
+      if (versionList) {
+        const id = versionList[1];
+        if (!formats.some((format) => format.id === id)) {
+          return reject(route, 404, "not_found", "not_found", { message: "The requested resource is unavailable" });
+        }
+        const items = formatVersions.filter(({ format_id }) => format_id === id).map(({ recipe: _recipe, ...summary }) => summary);
+        return route.fulfill({ json: pageOf(items, cursor, catalogLimit) });
+      }
+      if (path === `/v1/format-versions/${formatId}`) return route.fulfill({ json: formatFixture });
+      if (formatPin && path.startsWith("/v1/format-versions/")) {
+        const pin = formatVersions.find(({ id }) => path === `/v1/format-versions/${id}`);
+        return pin ? route.fulfill({ json: pin })
+          : reject(route, 404, "not_found", "not_found", { message: "The requested resource is unavailable" });
+      }
     }
     if (path === "/v1/queue/lanes" && method === "GET") {
       const items = (["run", "image", "voice"] as const).map((lane) => ({
         lane, paused: lane === "voice" && voice.paused() || lane === "image" && Boolean(photos?.paused() || assets?.paused()),
-        changed_at: null, changed_by: null,
+        changed_at: null, changed_by: null, live_claim: false,
       }));
       return route.fulfill({ json: { items } satisfies Schemas["QueueStatus"] });
     }
@@ -543,7 +679,7 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
         return route.fulfill({ status: created ? 202 : 200, headers: { location: `/v1/jobs/${job.id}` }, json: job });
       }
       const view = () => {
-        const timing = storyTiming(draft, boards, versions, voice.matches).boards.find(({ board_id }) => board_id === board.id)!;
+        const timing = draftTiming(draft).boards.find(({ board_id }) => board_id === board.id)!;
         const version = versions.find(({ id }) => id === board.voice.current_version_id)?.voice;
         const generating = voice.forBoard(id).some(({ status }) => status === "queued" || status === "running");
         const voice_state = !board.lines.length ? "not_needed" : generating ? "generating"
@@ -615,20 +751,22 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
     if (path === "/v1/assets" && method === "GET") {
       const boardId = url.searchParams.get("board");
       const productionId = url.searchParams.get("production");
+      const kind = url.searchParams.get("kind");
       if (photos && !boardId && productionId && visible[user].has(productionId)) {
         return route.fulfill({ json: pageOf(photos.catalog.filter(({ scope, state }) =>
           state === "promoted" && (scope.production_id === null || scope.production_id === productionId)), cursor) });
       }
       if (!boardId && (!productionId || visible[user].has(productionId))) {
-        return route.fulfill({ json: pageOf(versions.filter(({ state, scope }) => state !== "candidate" &&
-          (scope.production_id === null || (visible[user].has(scope.production_id) &&
-            (!productionId || productionId === scope.production_id)))), cursor) });
+        return route.fulfill({ json: pageOf(versions.filter((version) => (!kind || kind === version.kind) && version.state !== "candidate" &&
+          (version.scope.production_id === null || (visible[user].has(version.scope.production_id) &&
+            (!productionId || productionId === version.scope.production_id)))), cursor, formatPin ? catalogLimit : 1) });
       }
       const draft = stories.find(({ board_order }) => boardId && board_order.includes(boardId));
       if (!draft || !visible[user].has(draft.production_id) || (productionId && productionId !== draft.production_id)) {
         return reject(route, 404, "not_found", "not_found");
       }
-      return route.fulfill({ json: pageOf(versions.filter((version) => version.scope.board_id === boardId), cursor) });
+      return route.fulfill({ json: pageOf(versions.filter((version) => version.scope.board_id === boardId), cursor,
+        formatPin ? catalogLimit : 1) });
     }
     if (path.startsWith("/v1/media/") && photos && (method === "GET" || method === "HEAD")) {
       const hash = path.slice("/v1/media/".length);
@@ -653,7 +791,7 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
       const draft = run && stories.find((item) => item.id === run.story_id);
       if (!run || !draft || !visible[user].has(draft.production_id)) return reject(route, 404, "not_found", "not_found");
       const etag = () => `"${run.revision}"`;
-      if (!resource && method === "GET") return route.fulfill({ headers: { etag: etag() }, json: queue.view(run, true) });
+      if (!resource && method === "GET") return route.fulfill({ headers: { etag: etag() }, json: viewRun(queue.view(run, true)) });
       if (resource === "snapshot" && method === "GET") {
         const snapshot = queue.snapshots.get(id);
         if (!snapshot) return reject(route, 404, "not_found", "run.snapshot_missing");
@@ -707,20 +845,26 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
       const [, , , id, resource] = path.split("/");
       return feedback.write(route, id, resource, people[user].displayName);
     }
-    if (path.startsWith("/v1/runs/") && review) {
+    if (path.startsWith("/v1/runs/") && decisions) {
       const [, , , id, resource] = path.split("/");
-      const run = review.runs.find((item) => item.id === id);
-      if (!run || !visible[user].has(production.id)) return reject(route, 404, "not_found", "not_found");
+      const run = decisions.runs.find((item) => item.id === id);
+      const draft = run && stories.find(({ id }) => id === run.story_id);
+      if (!run || !draft || !visible[user].has(draft.production_id)) return reject(route, 404, "not_found", "not_found");
       if (!resource && method === "GET") return route.fulfill({ headers: { etag: `"${run.revision}"` }, json: viewRun(run) });
       if (resource === "delivery" && method === "GET") {
-        const delivery = review.deliveries.get(id);
+        const delivery = decisions.deliveries.get(id);
         return delivery ? route.fulfill({ json: delivery }) : reject(route, 404, "not_found", "not_found");
       }
       if (resource === "snapshot" && method === "GET") return feedback.snapshot(route, run);
       if (resource === "candidates" && method === "POST") return feedback.present(route, run, people[user].displayName);
+      if (resource === "release-packages" || (resource === "publications" && method === "POST")) {
+        const refusal = identityRefusal(user);
+        return release.handle(route, run, decisions.deliveries.get(id), decisions.preview(run, refusal, runRefusal),
+          people[user].displayName, user, refusal, formatPin ? queue?.snapshots.get(run.id) : undefined);
+      }
       if (resource === "go-live-approvals") {
         const refusal = identityRefusal(user);
-        const preview = review.preview(run, refusal, runRefusal);
+        const preview = decisions.preview(run, refusal, runRefusal);
         if (method === "GET") return route.fulfill({
           json: preview, headers: { "cache-control": "private, no-store" },
         });
@@ -731,24 +875,24 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
           if (!preview.approve.allowed) return reject(route, 422, "invalid", preview.approve.code);
           if (body.master_sha256 !== preview.master_sha256) return reject(route, 422, "invalid", "approval.not_exact_run");
           if (!body.platform_setting) return reject(route, 422, "invalid", "approval.ai_label_missing");
-          return route.fulfill({ status: 201, json: review.approve(run, preview) });
+          return route.fulfill({ status: 201, json: decisions.approve(run, preview) });
         }
       }
     }
-    if (path.startsWith("/v1/go-live-approvals/") && path.endsWith("/withdraw") && review && method === "POST") {
+    if (path.startsWith("/v1/go-live-approvals/") && path.endsWith("/withdraw") && decisions && method === "POST") {
       const refusal = identityRefusal(user);
       if (refusal) return reject(route, 403, "forbidden", refusal);
-      const approval = review.approvals.find(({ id }) => path === `/v1/go-live-approvals/${id}/withdraw`);
+      const approval = decisions.approvals.find(({ id }) => path === `/v1/go-live-approvals/${id}/withdraw`);
       if (!approval) return reject(route, 404, "not_found", "not_found");
       if (approval.derived.state === "withdrawn") return reject(route, 409, "conflict", "approval.already_withdrawn");
-      return route.fulfill({ status: 201, json: review.withdraw(approval) });
+      return route.fulfill({ status: 201, json: decisions.withdraw(approval) });
     }
     violations.push(`Unexpected API operation ${method} ${path}`);
     return reject(route, 404, "not_found", "not_found");
   });
 
   return {
-    calls, violations, writes, selections, loginRequests, approvalWrites, boardWrites, queue, contentEdits, voice, feedback, photos, assets,
+    calls, violations, writes, selections, loginRequests, approvalWrites, boardWrites, formatWrites, queue, contentEdits, voice, feedback, photos, assets,
     completePhoto: (id: string, boardId: string) => photos!.complete(id, boards.get(boardId)!),
     completeVoice: (id: string, boardId: string, duration: number) => voice.complete(id, boards.get(boardId)!, stories[0], duration),
     expire: () => { current = null; },
@@ -758,13 +902,31 @@ export async function mockStudio(context: BrowserContext, baseURL: string, {
     refuseRun: (code: string) => { runRefusal = code; },
     recordManualPublication: () => { stories[0].published = true; },
     editDraft: () => { stories[0].revision += 1; firstBoard.lines[0].text = "New draft line."; },
+    editStory: (id: string, fields: Schemas["StoryPatch"]) => {
+      const draft = stories.find((item) => item.id === id)!;
+      Object.assign(draft, fields, { revision: draft.revision + 1 });
+    },
     setDraftOrder: (order: string[]) => setBoardOrder(stories[0], order),
     editDraftBoard: (id: string, fields: Partial<Schemas["Board"]>) => {
       const current = boards.get(id)!;
       boards.set(id, { ...current, ...fields, revision: current.revision + 1 });
       stories[0].revision += 1;
     },
+    attachFormatBoardPhoto: (storyId: string) => {
+      const draft = stories.find(({ id }) => id === storyId)!;
+      const board = boards.get(draft.board_order[0])!;
+      const updated_at = new Date(Date.parse(fixtureTime) + draft.revision * 1000).toISOString();
+      const photo = buildableBoardPhoto(draft, { ...board, updated_at }, draftMedia!.photo);
+      versions.push(photo);
+      Object.assign(board, { photo: { ...board.photo, current_version_id: photo.id },
+        timing: { ...board.timing, hold_ms: 4000 }, updated_at, revision: board.revision + 1,
+        person_edit: "content", person_edit_revision: board.revision + 1 });
+      Object.assign(draft, { updated_at, revision: draft.revision + 1 });
+      return { board, photo };
+    },
     dropNextQueueReply: (mode: "connection" | "server") => { dropQueueReply = mode; },
+    dropNextFormatReply: (mode: "connection" | "server" = "connection") => { formatReplyFault = mode; },
+    alterNextFormatReplyRevision: () => { formatReplyFault = "revision"; },
     preflightProblems: (problems: Schemas["EstimateView"]["problems"]) => { preflight = problems; },
     failNext: (value: Failure) => { failure = value; },
     enableMedia,

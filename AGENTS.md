@@ -7,17 +7,45 @@ Instructions for any agent (Claude Code, Codex or others) working in
 
 Haynes Studio makes short-form comedy videos (currently the **doll short** format)
 on in-cluster GPU, TTS and ASR services. The manual proof of concept is complete.
-E1 built and archived two shorts privately. Its acceptance is open. The saga has
-been in execution since 2026-11-24. E2 asset work and E3 API, web and MCP source
-have landed. The LAN app and queue worker are installed, and scoped range reads
-of both imported films passed. Human sign-in and phone playback
-([944](https://work.haynesnetwork.com/work_packages/944)) remain open.
+The saga has been in execution since 2026-11-24. [Saga 362, comment 9653](https://work.haynesnetwork.com/work_packages/362/activity#comment-9653).
+E1 archived two shorts privately and Tom's acceptance remains open.
+[Epic 372, comment 9654](https://work.haynesnetwork.com/work_packages/372/activity#comment-9654).
+Scoped range reads of both imports passed. Human sign-in and phone playback
+remain open. [Story 957, comment 9914](https://work.haynesnetwork.com/work_packages/957/activity#comment-9914) · [Story 944, comment 9915](https://work.haynesnetwork.com/work_packages/944/activity#comment-9915).
 Each epic ends with a usable demo.
-The 24-vCPU and 22-worker figures in the Heavy CPU work rule predate the
-queue-worker rollout. The installed talosw01 split is 20 vCPUs for offline
-render and 4 for the queue worker.
-[Current render limits](docs/reference/services.md#studio-render-cpu-work).
-[Installed evidence](docs/contracts/studio-contracts-v1.md#installed-and-published-state).
+
+The LAN app's fifth pin is Studio `eeeb2a40105ae1e64325063b0aa93c890fdefa43`
+at haynes-ops `6597e708`, with schema `0013_matte_jobs` and PyAV 18.1.1
+read back at all six encoder locations.
+[Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409).
+The editor's Format control (story 977) is installed.
+[Story 977, comment 10404](https://work.haynesnetwork.com/work_packages/977/activity#comment-10404) · [Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409).
+Paused-lane reconcile (story 976) is in the build with its switch off and
+activation pending.
+[Story 976](https://work.haynesnetwork.com/work_packages/976) · [Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409).
+The matte isolation policy is installed and selects zero pods.
+[Story 970, comments 10332](https://work.haynesnetwork.com/work_packages/970/activity#comment-10332) and [10333](https://work.haynesnetwork.com/work_packages/970/activity#comment-10333).
+A cutout request is accepted and waits.
+[Story 970, comment 10338](https://work.haynesnetwork.com/work_packages/970/activity#comment-10338).
+Matte activation (story 970) is marked **Needs approval** pending Tom's decision, and
+haynes-ops PR 5096 is open and unmerged because all three designs for the
+isolation proof inside the pod can give a false pass.
+[Story 970, comments 10382](https://work.haynesnetwork.com/work_packages/970/activity#comment-10382) and [10574](https://work.haynesnetwork.com/work_packages/970/activity#comment-10574).
+Haynes-studio PR 151 for foreground role masks (story 968) is parked for good,
+open and unmerged.
+[Story 968, comment 10582](https://work.haynesnetwork.com/work_packages/968/activity#comment-10582).
+Segmentation is provisioned and smoked with serving inactive.
+[Story 460, comment 10228](https://work.haynesnetwork.com/work_packages/460/activity#comment-10228).
+The client adapter is in the fifth build with no caller.
+[Story 452, comment 10313](https://work.haynesnetwork.com/work_packages/452/activity#comment-10313) · [Story 978, comment 10408](https://work.haynesnetwork.com/work_packages/978/activity#comment-10408).
+Upscaling is comparison-only and delivery uses Lanczos.
+[Story 461, comment 10229](https://work.haynesnetwork.com/work_packages/461/activity#comment-10229).
+The isolated restore drill (story 436) is marked **Needs answer** pending Tom's choice of
+archive credential. [Story 436, comment 10572](https://work.haynesnetwork.com/work_packages/436/activity#comment-10572).
+Wan local-model activation (story 442) is marked **Needs approval** after the
+restart-only ask lapsed unanswered, and haynes-ops PR 5064 stays open and
+unmerged. [Story 442, comments 10413](https://work.haynesnetwork.com/work_packages/442/activity#comment-10413) and [10573](https://work.haynesnetwork.com/work_packages/442/activity#comment-10573).
+See the [installed evidence](docs/contracts/studio-contracts-v1.md#installed-and-published-state).
 
 Start with:
 
@@ -74,13 +102,20 @@ These block a merge if broken.
   - Wan (video) and the Foley sidecar share one compute lease. Never bypass the API
     lease or its unknown-work checks.
   - Never benchmark, load-test or change GPU power or clock settings.
-  - **Heavy CPU work** (decals, keying, compositing, encoding) runs on the
-    `ai/studio-render` worker on talosw01: up to 24 vCPUs at low priority, media on
-    gasha01 NFS at `/studio` (Tom, 2026-11-04; decision D18). Copy inputs in with
-    `kubectl cp`, run under `nice -n 10` with `--workers` up to 22, copy results out.
-    Each worker also drives a small ffmpeg encoder; the pod's 24-vCPU limit caps the
-    total, so extra workers are throttled, never taken from the host. In a session pod itself, keep CPU work to 2 threads
-    (`STUDIO_THREADS=2`, ffmpeg `-threads 2`, `--workers 1`).
+  - **Heavy CPU work** (decals, keying, compositing, encoding) runs at low
+    priority on the `ai/studio-render` worker on talosw01, with media on
+    gasha01 NFS at `/studio`. Tom's 2026-11-04 decision D18 set the original
+    24-vCPU cap. The original offline procedure allowed up to 22 workers
+    under that cap. The installed split is 20 vCPUs for offline render and 4
+    for the serial queue worker. Copy inputs in with `kubectl cp`, run under
+    `nice -n 10` with `--workers` up to 18 to reserve two vCPUs for render
+    coordination, and copy results out. Each worker also drives a small
+    ffmpeg encoder. The pod's CPU limit caps their combined use. Demand
+    beyond its allocation is throttled. In a session pod, keep CPU work to
+    2 threads (`STUDIO_THREADS=2`, ffmpeg `-threads 2`, `--workers 1`).
+    [Current render limits](docs/reference/services.md#studio-render-cpu-work) ·
+    [Story 956, comment 9872](https://work.haynesnetwork.com/work_packages/956/activity#comment-9872) ·
+    [Story 967, comment 10322](https://work.haynesnetwork.com/work_packages/967/activity#comment-10322).
 - **Original content.** Parody may borrow a situation from popular media, but use
   invented names, team names, logos and dialogue. Do not reenact a subtitle file
   verbatim, and never use a real person's likeness or voice.

@@ -18,6 +18,7 @@ export type AssetFilters = {
   kind?: string;
   search?: string;
   job?: string;
+  jobKind?: "matte";
 };
 export type AssetsRoute = { area: "assets"; context: Context; generate: boolean; filters: AssetFilters };
 
@@ -30,6 +31,8 @@ export const mediaKinds = {
   short: { label: "Short", plural: "Shorts", aspect: "9:16" },
   video: { label: "Video", plural: "Videos", aspect: "16:9" },
 } satisfies Record<MediaKind, { label: string; plural: string; aspect: string }>;
+
+export const storyFormatId = "story-format";
 
 function isId(value: string | undefined | null, prefix: "prd" | "sty" | "brd" | "run" | "job") {
   return typeof value === "string" && value.length === 30 && value.startsWith(prefix + "_") &&
@@ -51,7 +54,7 @@ export function treePath(area: TreeArea, context: Context = {}, page?: BoardPage
 
 export const assetSearchLimit = 180;
 
-function assetSearch(value?: string) {
+export function assetSearch(value?: string) {
   // Match the API's login return-path rules for decoded query values.
   return value?.replace(/[\\\x00-\x1f\x7f]/g, "").slice(0, assetSearchLimit) || undefined;
 }
@@ -84,7 +87,10 @@ export function assetsPath(context: Context = {}, generate = false, filters: Ass
   if (filters.kind && isAssetKind(filters.kind)) query.set("kind", filters.kind);
   const search = assetSearch(filters.search);
   if (search) query.set("q", search);
-  if (filters.job && isId(filters.job, "job")) query.set("job", filters.job);
+  if (filters.job && isId(filters.job, "job")) {
+    query.set("job", filters.job);
+    if (filters.jobKind === "matte") query.set("job_kind", "matte");
+  }
   return (generate ? "/editor/assets/generate" : "/editor/assets") + (query.size ? "?" + query : "");
 }
 
@@ -136,6 +142,7 @@ export function parseRoute(pathname: string, search = ""): Route {
         kind: isAssetKind(kind) ? kind : undefined,
         search: assetSearch(query.get("q") ?? undefined),
         job: isId(job, "job") ? job : undefined,
+        jobKind: isId(job, "job") && query.get("job_kind") === "matte" ? "matte" : undefined,
       },
     };
   }
@@ -198,4 +205,15 @@ export function safePath(value: unknown) {
     default:
       return routePath(route);
   }
+}
+
+/** Keep the Format destination in tab storage on an editor storyboard route. */
+export function safeReturnPath(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  const [path, fragment, extra] = value.split("#");
+  const safe = safePath(path);
+  if (fragment === undefined) return safe;
+  if (!safe || fragment !== storyFormatId || extra !== undefined) return undefined;
+  const route = parseRoute(safe);
+  return route.area === "board" && route.context.story && !route.page ? `${safe}#${storyFormatId}` : undefined;
 }

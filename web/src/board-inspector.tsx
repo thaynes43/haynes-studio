@@ -116,7 +116,8 @@ function InspectorForm({
   }, [board.id, board.revision, id, onVoiceState]);
 
   const boardAhead = board.revision > panel.revision || (board.revision === panel.revision &&
-    (board.derived?.voice_state !== panel.derived?.voice_state || board.derived?.frames !== panel.derived?.frames));
+    (board.derived?.voice_state !== panel.derived?.voice_state ||
+      board.derived?.frames !== panel.derived?.frames || board.derived?.photo_state !== panel.derived?.photo_state));
   useLayoutEffect(() => {
     if (boardAhead) onRefresh();
   }, [board, boardAhead, onRefresh]);

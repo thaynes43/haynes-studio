@@ -1,0 +1,268 @@
+"""Studio-side client for the released Unix-socket matting service."""
+
+import hashlib
+import http.client
+import os
+import re
+import stat
+from collections.abc import Callable
+from contextlib import closing
+from fcntl import LOCK_EX, LOCK_NB, flock
+from pathlib import Path
+from time import monotonic, sleep, time
+from uuid import uuid4
+
+from haynes_studio.adapters.errors import (
+    BUSY, COMMAND_FAILED, NOT_FOUND, PIN_MISMATCH, RESPONSE_INVALID, TIMEOUT, AdapterError,
+)
+from haynes_studio.jsonio import parse_strict
+from haynes_studio.matting.backend import DIRECTORY, MAX_PNG_BYTES, _read_file, envelope, verify_result
+from haynes_studio.matting.profile import (
+    PROFILE_ID, PROVIDER, REQUEST_SECONDS, STARTUP_SECONDS, MatteError, Profile,
+)
+from haynes_studio.matting.service import MAX_REPLY, STATUS, _UnixConnection
+from haynes_studio.store import canonical_json
+
+BUSY_RETRIES = 7
+BUSY_INTERVAL = 5
+# The HTTP handler allows three seconds for receiving the request. Readiness
+# alone is insufficient: the backend can be ready while a request is active.
+POST_QUIESCENCE_SECONDS = REQUEST_SECONDS + 3
+PROBE_SECONDS = 1
+ATTEMPT_MARKER = re.compile(r"\.studio-matting-([0-9a-f]{32})")
+_PRE_INFERENCE_RELEASES = {BUSY: "busy", NOT_FOUND: "readiness"}
+
+
+def failure(code: str, message: str = "The matting service could not complete the request") -> AdapterError:
+    return AdapterError(code, "matting", message)
+
+
+class _UnconfirmedReply(AdapterError):
+    """The transport did not establish that the server finished the request."""
+
+
+class MattingUnavailable(AdapterError):
+    """The sidecar did not start inference for this attempt."""
+
+    def __init__(self, code: str, label: str, message: str, *, release_reason: str | None = None):
+        super().__init__(code, label, message)
+        self.release_reason = release_reason
+
+
+def local_call(path: Path, method: str, route: str, payload: dict | None, *,
+               timeout: float) -> tuple[int, dict]:
+    """Separate a failed connection from a request whose outcome is uncertain."""
+    body = canonical_json(payload) if payload is not None else None
+    with closing(_UnixConnection(path, timeout)) as connection:
+        try:
+            connection.connect()
+        except OSError as error:
+            code = TIMEOUT if isinstance(error, TimeoutError) else NOT_FOUND
+            raise MattingUnavailable(code, "matting", "The matting socket could not be opened",
+                                     release_reason="connect") from None
+        connection.request(method, route, body=body, headers={"Content-Type": "application/json"})
+        response = connection.getresponse()
+        reply = response.read(MAX_REPLY + 1)
+        if len(reply) > MAX_REPLY:
+            raise MatteError(RESPONSE_INVALID)
+        return response.status, parse_strict(reply.decode("utf-8"))
+
+
+class MattingClient:
+    """A worker-configured socket, scratch root and immutable backend pin."""
+
+    def __init__(self, profile: Profile, profile_sha256: str, *,
+                 scratch: Path = Path("/matting"), socket: Path | None = None,
+                 pause: Callable[[float], None] = sleep,
+                 timeout: float = 35):
+        if hashlib.sha256(profile.manifest()).hexdigest() != profile_sha256:
+            raise failure(PIN_MISMATCH, "The admitted profile differs from the expected manifest hash")
+        self.profile = profile
+        self.profile_sha256 = profile_sha256
+        self.scratch = scratch
+        self.socket = socket if socket is not None else scratch / "matte.sock"
+        self.pause = pause
+        self.timeout = timeout
+
+    def _call(self, method: str, route: str, payload: dict | None = None, *,
+              timeout: float | None = None) -> dict:
+        message = "The matting service did not return a confirmed reply"
+        try:
+            status, body = local_call(self.socket, method, route, payload,
+                                      timeout=self.timeout if timeout is None else timeout)
+        except TimeoutError:
+            raise _UnconfirmedReply(TIMEOUT, "matting", message) from None
+        except (MatteError, http.client.HTTPException, ValueError, RecursionError):
+            raise _UnconfirmedReply(RESPONSE_INVALID, "matting", message) from None
+        except OSError:
+            raise _UnconfirmedReply(NOT_FOUND, "matting", message) from None
+        if not isinstance(body, dict):
+            raise _UnconfirmedReply(RESPONSE_INVALID, "matting", message)
+        if status != 200:
+            code = body.get("code")
+            if (isinstance(code, str) and set(body) == {"code"}
+                    and STATUS.get(code) == status):
+                raise failure(code)
+            raise _UnconfirmedReply(RESPONSE_INVALID, "matting", message)
+        return body
+
+    def ready(self, *, timeout: float | None = None) -> None:
+        expected = {"profile_id": PROFILE_ID, "profile_sha256": self.profile_sha256,
+                    "provider": PROVIDER}
+        answer = self._call("GET", "/v1/ready", timeout=timeout)
+        if answer != expected:
+            raise failure(PIN_MISMATCH if set(answer) == set(expected) else RESPONSE_INVALID)
+
+    def ready_for_claim(self) -> None:
+        self.ready(timeout=PROBE_SECONDS)
+        # The released readiness endpoint stays green during inference. The
+        # worker is the socket's caller and tracks its requests in shared scratch.
+        if self._sweep():
+            raise failure(BUSY, "The matting sidecar still owns an earlier attempt")
+
+    def run(self, request: dict, data: bytes, *, check_fence: Callable[[], None],
+            before_dispatch: Callable[[], None] | None = None) -> tuple[dict, dict]:
+        try:
+            self.ready(timeout=PROBE_SECONDS if before_dispatch is not None else None)
+        except AdapterError as error:
+            raise MattingUnavailable(error.code, error.label, error.message) from None
+        for retry in range(BUSY_RETRIES + 1):
+            try:
+                self._sweep()
+                return self._attempt(request, data, check_fence, before_dispatch)
+            except AdapterError as error:
+                if isinstance(error, MattingUnavailable) or error.code != BUSY or retry == BUSY_RETRIES:
+                    raise
+            self.pause(BUSY_INTERVAL)
+        raise AssertionError("unreachable")
+
+    def _remove_attempt(self, directory: Path, marker: Path) -> None:
+        try:
+            try:
+                fd = os.open(directory, DIRECTORY)
+            except FileNotFoundError:
+                pass
+            else:
+                try:
+                    for name in ("input", "cutout.png", "mask.png"):
+                        try:
+                            os.unlink(name, dir_fd=fd)
+                        except FileNotFoundError:
+                            pass
+                finally:
+                    os.close(fd)
+                directory.rmdir()
+            marker.unlink(missing_ok=True)
+        except OSError:
+            # Keep the marker so the next dispatch can retry cleanup.
+            pass
+
+    def _sweep(self) -> bool:
+        busy = False
+        for marker in self.scratch.glob(".studio-matting-*"):
+            match = ATTEMPT_MARKER.fullmatch(marker.name)
+            if match is None:
+                continue
+            try:
+                fd = os.open(marker, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            except OSError:
+                # Gone already, or not a marker this adapter wrote (a symlink, an
+                # unreadable file). Leave it: a stray name must not stop matting.
+                continue
+            try:
+                if not stat.S_ISREG(os.fstat(fd).st_mode):
+                    continue
+                try:
+                    flock(fd, LOCK_EX | LOCK_NB)
+                except BlockingIOError:
+                    busy = True
+                    continue
+                if time() - os.fstat(fd).st_mtime >= POST_QUIESCENCE_SECONDS:
+                    self._remove_attempt(self.scratch / match[1], marker)
+                else:
+                    busy = True
+            finally:
+                os.close(fd)
+        return busy
+
+    def _ready_after_timeout(self, *, unconfirmed: bool) -> bool:
+        if unconfirmed:
+            # A client-side timeout may precede both the inference deadline
+            # and any readiness change it triggers.
+            self.pause(POST_QUIESCENCE_SECONDS)
+        deadline = monotonic() + STARTUP_SECONDS + PROBE_SECONDS
+        while (remaining := deadline - monotonic()) > 0:
+            try:
+                self.ready(timeout=min(PROBE_SECONDS, remaining))
+                return True
+            except AdapterError:
+                self.pause(min(PROBE_SECONDS, max(0, deadline - monotonic())))
+        return False
+
+    def _attempt(self, request: dict, data: bytes, check_fence: Callable[[], None],
+                 before_dispatch: Callable[[], None] | None) -> tuple[dict, dict]:
+        attempt = uuid4().hex
+        payload = {"attempt_id": attempt, "request": request}
+        try:
+            envelope(payload)
+            directory_path = self.scratch / attempt
+            marker = self.scratch / f".studio-matting-{attempt}"
+            marker_fd = os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            staged = False
+            clean = True
+            try:
+                flock(marker_fd, LOCK_EX)
+                directory_path.mkdir(mode=0o770)
+                staged = True
+                directory_path.chmod(0o2770)
+                source = directory_path / "input"
+                with source.open("xb") as output:
+                    output.write(data)
+                source.chmod(0o640)
+                check_fence()
+                # The sidecar's first-byte deadline starts at connect. Wait
+                # for the durable fence before opening the socket.
+                if before_dispatch is not None:
+                    before_dispatch()
+                os.utime(marker_fd)
+                try:
+                    receipt = self._call("POST", "/v1/matte", payload)
+                except MattingUnavailable:
+                    # The socket never opened. There can be no late writes.
+                    raise
+                except AdapterError as error:
+                    # _call verifies the status and body of confirmed replies.
+                    # These two refusals precede the handoff to inference.
+                    unconfirmed = isinstance(error, _UnconfirmedReply)
+                    reason = _PRE_INFERENCE_RELEASES.get(error.code)
+                    if before_dispatch is not None and not unconfirmed and reason is not None:
+                        raise MattingUnavailable(error.code, error.label, error.message,
+                                                 release_reason=reason) from None
+                    if unconfirmed or error.code == TIMEOUT:
+                        clean = False
+                        os.utime(marker_fd)
+                        clean = self._ready_after_timeout(unconfirmed=unconfirmed)
+                    raise
+                directory = os.open(directory_path, DIRECTORY)
+                try:
+                    artifacts = {name: _read_file(directory, name + ".png",
+                                                  MAX_PNG_BYTES, RESPONSE_INVALID)
+                                 for name in ("cutout", "mask")}
+                except OSError:
+                    raise failure(RESPONSE_INVALID) from None
+                finally:
+                    os.close(directory)
+                verify_result(request, receipt, artifacts, self.profile)
+                return receipt, artifacts
+            finally:
+                try:
+                    if not staged:
+                        marker.unlink(missing_ok=True)
+                    elif clean:
+                        self._remove_attempt(directory_path, marker)
+                finally:
+                    os.close(marker_fd)
+        except MatteError as error:
+            raise failure(error.code) from None
+        except OSError:
+            raise failure(COMMAND_FAILED, "Matting scratch could not be staged or read") from None

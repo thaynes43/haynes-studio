@@ -1,0 +1,619 @@
+{
+  "http_gaps": {
+    "add_candidate_feedback": "Signed-in person required. See the HTTP access column.",
+    "add_format_version": "MCP exposes recipe reads. Authoring is over HTTP. [Format scopes](formats.md#api-and-scopes).",
+    "approve_go_live": "Go-live and publication are reserved for people. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41) and [release packages](release-package.md#api).",
+    "authorize_escalation": "Signed-in operator decision. [Escalation operations](escalation.md#operator-and-responder-operations).",
+    "callback": "Browser OIDC session flow. [Browser authentication](studio-api.md#browser-agent-and-worker-requests).",
+    "cancel_escalation": "Signed-in operator decision. [Escalation operations](escalation.md#operator-and-responder-operations).",
+    "clear_feedback_iteration": "Signed-in person required. See the HTTP access column.",
+    "create_format": "MCP exposes recipe reads. Authoring is over HTTP. [Format scopes](formats.md#api-and-scopes).",
+    "create_production": "Signed-in person required. See the HTTP access column.",
+    "decline_escalation": "Signed-in operator decision. [Escalation operations](escalation.md#operator-and-responder-operations).",
+    "enable_media_type": "Signed-in person required. See the HTTP access column.",
+    "generate_asset_candidate": "Signed-in person required. [Asset candidates](asset-candidates.md#api-and-ui-integration).",
+    "get_go_live_approvals": "Go-live and publication are reserved for people. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41) and [release packages](release-package.md#api).",
+    "get_job_media": "MCP returns compact metadata and excludes byte reads. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41).",
+    "get_job_result": "Signed-in person required. [Asset candidates](asset-candidates.md#api-and-ui-integration).",
+    "get_me": "MCP uses this as its bearer identity check. [MCP transport](studio-mcp.md).",
+    "get_media": "MCP returns compact metadata and excludes byte reads. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41).",
+    "get_queue_lanes": "Signed-in person required. Each lane reports whether it has a live claim. [Queue controls](studio-api.md#queue-controls).",
+    "get_selections": "Signed-in person required. See the HTTP access column.",
+    "get_version_media": "MCP returns compact metadata and excludes byte reads. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41).",
+    "head_job_media": "MCP returns compact metadata and excludes byte reads. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41).",
+    "head_media": "MCP returns compact metadata and excludes byte reads. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41).",
+    "head_version_media": "MCP returns compact metadata and excludes byte reads. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41).",
+    "healthz": "Service probes. [API boundaries](../contracts/studio-contracts-v1.md#12-api-ui-and-mcp-boundaries).",
+    "login": "Browser OIDC session flow. [Browser authentication](studio-api.md#browser-agent-and-worker-requests).",
+    "logout": "Browser OIDC session flow. [Browser authentication](studio-api.md#browser-agent-and-worker-requests).",
+    "promote_asset_version": "Signed-in person required. [Asset candidates](asset-candidates.md#api-and-ui-integration).",
+    "put_selections": "Signed-in person required. See the HTTP access column.",
+    "readyz": "Service probes. [API boundaries](../contracts/studio-contracts-v1.md#12-api-ui-and-mcp-boundaries).",
+    "record_check_override": "Visual check overrides require a person. [Operation parity](studio-operation-parity.md).",
+    "record_publication": "Go-live and publication are reserved for people. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41) and [release packages](release-package.md#api).",
+    "report_escalation": "HTTP callback for the exact package responder. [Escalation operations](escalation.md#operator-and-responder-operations).",
+    "request_matte": "Signed-in person required. Production-scoped status is available via studio_get_job. [Matte requests](studio-api.md#matte-requests-and-reads).",
+    "set_queue_lane": "Signed-in person required. Pause holds queued work while workers can settle previously dispatched jobs. [Queue controls](studio-api.md#queue-controls).",
+    "start_feedback_iteration": "Signed-in person required. See the HTTP access column.",
+    "withdraw_go_live": "Go-live and publication are reserved for people. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41) and [release packages](release-package.md#api)."
+  },
+  "mcp_gaps": {},
+  "errors": [
+    {
+      "status": "422",
+      "operations": [
+        "login"
+      ],
+      "codes": [
+        "auth.return_to_invalid"
+      ]
+    },
+    {
+      "status": "422",
+      "operations": [
+        "request_matte"
+      ],
+      "codes": [
+        "adapter.request_invalid",
+        "idempotency.mismatch"
+      ]
+    },
+    {
+      "status": "409",
+      "operations": [
+        "create_production"
+      ],
+      "codes": [
+        "production.name_duplicate"
+      ]
+    },
+    {
+      "status": "409",
+      "operations": [
+        "create_story",
+        "update_story"
+      ],
+      "codes": [
+        "story.title_duplicate"
+      ]
+    },
+    {
+      "status": "422",
+      "operations": [
+        "get_production",
+        "list_stories",
+        "create_story",
+        "get_story",
+        "update_story",
+        "get_story_timing",
+        "get_board",
+        "create_board",
+        "update_board",
+        "reorder_boards",
+        "remove_board"
+      ],
+      "codes": [
+        "id.malformed",
+        "id.type_mismatch"
+      ]
+    },
+    {
+      "status": "409",
+      "operations": [
+        "put_selections",
+        "enable_media_type",
+        "update_story",
+        "create_board",
+        "update_board",
+        "reorder_boards",
+        "remove_board",
+        "queue_run",
+        "cancel_run",
+        "record_check_override",
+        "upload_board_photo",
+        "apply_archive_storyboard",
+        "start_feedback_iteration",
+        "clear_feedback_iteration"
+      ],
+      "codes": [
+        "conflict.revision"
+      ]
+    },
+    {
+      "status": "409",
+      "operations": [
+        "update_board",
+        "reorder_boards",
+        "remove_board"
+      ],
+      "codes": [
+        "draft.protected"
+      ]
+    },
+    {
+      "status": "422",
+      "operations": [
+        "update_board",
+        "reorder_boards",
+        "remove_board"
+      ],
+      "codes": [
+        "draft.invalid_read_token"
+      ]
+    },
+    {
+      "status": "422",
+      "operations": [
+        "generate_board_voice",
+        "generate_board_photo",
+        "generate_asset_candidate",
+        "queue_run",
+        "create_archive_record",
+        "add_archive_version",
+        "record_publication"
+      ],
+      "codes": [
+        "idempotency.mismatch"
+      ]
+    },
+    {
+      "status": "422",
+      "operations": [
+        "upload_board_photo"
+      ],
+      "codes": [
+        "prov.external_incomplete",
+        "photo.image_invalid",
+        "photo.hash_mismatch",
+        "photo.method_invalid",
+        "asset.recorded_without_media"
+      ]
+    },
+    {
+      "status": "413",
+      "operations": [
+        "upload_board_photo"
+      ],
+      "codes": [
+        "photo.too_large"
+      ]
+    },
+    {
+      "status": "408",
+      "operations": [
+        "upload_board_photo"
+      ],
+      "codes": [
+        "photo.upload_timeout"
+      ]
+    },
+    {
+      "status": "503",
+      "operations": [
+        "upload_board_photo"
+      ],
+      "codes": [
+        "photo.upload_busy"
+      ]
+    },
+    {
+      "status": "422",
+      "operations": [
+        "promote_asset_version"
+      ],
+      "codes": [
+        "asset.recorded_without_media"
+      ]
+    },
+    {
+      "status": "416",
+      "operations": [
+        "get_media",
+        "get_job_media",
+        "get_version_media"
+      ],
+      "codes": [
+        "media.range_unsatisfied"
+      ]
+    },
+    {
+      "status": "503",
+      "operations": [
+        "get_media",
+        "get_job_media",
+        "get_version_media"
+      ],
+      "codes": [
+        "store.failed"
+      ]
+    },
+    {
+      "status": "422",
+      "operations": [
+        "queue_run"
+      ],
+      "codes": [
+        "method.unavailable",
+        "voice.absent",
+        "voice.stale",
+        "photo.absent",
+        "asset.generating",
+        "run.snapshot_too_large"
+      ]
+    },
+    {
+      "status": "409",
+      "operations": [
+        "cancel_run"
+      ],
+      "codes": [
+        "run.transition"
+      ]
+    },
+    {
+      "status": "403",
+      "operations": [
+        "record_check_override"
+      ],
+      "codes": [
+        "check.not_overridable"
+      ]
+    },
+    {
+      "status": "409",
+      "operations": [
+        "record_check_override"
+      ],
+      "codes": [
+        "check.not_overridable",
+        "check.override_exists"
+      ]
+    },
+    {
+      "status": "404",
+      "operations": [
+        "get_run_snapshot"
+      ],
+      "codes": [
+        "run.snapshot_missing"
+      ]
+    },
+    {
+      "status": "503",
+      "operations": [
+        "get_run_snapshot"
+      ],
+      "codes": [
+        "run.snapshot_lost",
+        "run.snapshot_changed",
+        "run.snapshot_too_large",
+        "run.snapshot_store_unavailable"
+      ]
+    },
+    {
+      "status": "409",
+      "operations": [
+        "create_format"
+      ],
+      "codes": [
+        "format.id_duplicate"
+      ]
+    },
+    {
+      "status": "422",
+      "operations": [
+        "create_format",
+        "add_format_version"
+      ],
+      "codes": [
+        "format.frame_mismatch",
+        "format.target_invalid",
+        "format.length_invalid",
+        "format.credential",
+        "format.recipe_too_large"
+      ]
+    },
+    {
+      "status": "422",
+      "operations": [
+        "create_archive_record",
+        "add_archive_version"
+      ],
+      "codes": [
+        "archive.invalid_text",
+        "archive.credentials",
+        "ref.unknown",
+        "archive.production_mismatch"
+      ]
+    },
+    {
+      "status": "413",
+      "operations": [
+        "create_archive_record",
+        "add_archive_version"
+      ],
+      "codes": [
+        "archive.too_large"
+      ]
+    },
+    {
+      "status": "409",
+      "operations": [
+        "add_archive_version"
+      ],
+      "codes": [
+        "archive.stale_version"
+      ]
+    },
+    {
+      "status": "500",
+      "operations": [
+        "get_archive_version"
+      ],
+      "codes": [
+        "archive.text_hash_mismatch"
+      ]
+    },
+    {
+      "status": "422",
+      "operations": [
+        "apply_archive_storyboard"
+      ],
+      "codes": [
+        "archive.not_storyboard",
+        "archive.story_mismatch"
+      ]
+    },
+    {
+      "status": "409",
+      "operations": [
+        "authorize_escalation",
+        "decline_escalation",
+        "cancel_escalation",
+        "report_escalation"
+      ],
+      "codes": [
+        "escalation.state"
+      ]
+    },
+    {
+      "status": "403",
+      "operations": [
+        "authorize_escalation",
+        "decline_escalation",
+        "cancel_escalation"
+      ],
+      "codes": [
+        "escalation.person_required"
+      ]
+    },
+    {
+      "status": "409",
+      "operations": [
+        "authorize_escalation"
+      ],
+      "codes": [
+        "escalation.expired",
+        "escalation.override"
+      ]
+    },
+    {
+      "status": "422",
+      "operations": [
+        "authorize_escalation"
+      ],
+      "codes": [
+        "escalation.board"
+      ]
+    },
+    {
+      "status": "409",
+      "operations": [
+        "report_escalation"
+      ],
+      "codes": [
+        "escalation.expired",
+        "escalation.callback_conflict"
+      ]
+    },
+    {
+      "status": "403",
+      "operations": [
+        "report_escalation"
+      ],
+      "codes": [
+        "escalation.responder_scope"
+      ]
+    },
+    {
+      "status": "422",
+      "operations": [
+        "report_escalation"
+      ],
+      "codes": [
+        "escalation.changed_ids"
+      ]
+    },
+    {
+      "status": "422",
+      "operations": [
+        "present_candidate"
+      ],
+      "codes": [
+        "candidate.legacy_run",
+        "candidate.run_unfinished",
+        "candidate.target_required",
+        "candidate.format_missing",
+        "candidate.target_unknown"
+      ]
+    },
+    {
+      "status": "403",
+      "operations": [
+        "add_candidate_feedback",
+        "start_feedback_iteration",
+        "clear_feedback_iteration"
+      ],
+      "codes": [
+        "feedback.person_required"
+      ]
+    },
+    {
+      "status": "422",
+      "operations": [
+        "list_candidates"
+      ],
+      "codes": [
+        "feedback.duplicate_reference"
+      ]
+    },
+    {
+      "status": "422",
+      "operations": [
+        "add_candidate_feedback"
+      ],
+      "codes": [
+        "feedback.text_required",
+        "feedback.board_unknown",
+        "feedback.note_unknown",
+        "feedback.duplicate_reference"
+      ]
+    },
+    {
+      "status": "422",
+      "operations": [
+        "start_feedback_iteration"
+      ],
+      "codes": [
+        "feedback.note_unknown",
+        "feedback.duplicate_reference"
+      ]
+    },
+    {
+      "status": "409",
+      "operations": [
+        "add_candidate_feedback"
+      ],
+      "codes": [
+        "feedback.already_corrected"
+      ]
+    },
+    {
+      "status": "403",
+      "operations": [
+        "approve_go_live",
+        "withdraw_go_live",
+        "record_publication"
+      ],
+      "codes": [
+        "approval.approver_not_configured",
+        "approval.subject_not_permitted",
+        "approval.group_not_permitted",
+        "approval.approver_not_permitted",
+        "approval.worker_not_permitted",
+        "approval.sign_in_again"
+      ]
+    },
+    {
+      "status": "409",
+      "operations": [
+        "approve_go_live"
+      ],
+      "codes": [
+        "approval.already_active"
+      ]
+    },
+    {
+      "status": "403",
+      "operations": [
+        "get_go_live_approvals"
+      ],
+      "codes": [
+        "approval.approver_not_permitted",
+        "approval.worker_not_permitted"
+      ]
+    },
+    {
+      "status": "409",
+      "operations": [
+        "withdraw_go_live"
+      ],
+      "codes": [
+        "approval.already_withdrawn"
+      ]
+    },
+    {
+      "status": "422",
+      "operations": [
+        "approve_go_live"
+      ],
+      "codes": [
+        "approval.legacy_run",
+        "approval.run_unfinished",
+        "approval.delivery_unverified",
+        "approval.delivery_mismatch",
+        "approval.not_exact_run",
+        "approval.provenance_missing",
+        "approval.licence_missing",
+        "approval.ai_label_missing"
+      ]
+    },
+    {
+      "status": "503",
+      "operations": [
+        "approve_go_live",
+        "prepare_release_package",
+        "record_publication"
+      ],
+      "codes": [
+        "approval.licence_register_unavailable",
+        "release.package_record_changed"
+      ]
+    },
+    {
+      "status": "422",
+      "operations": [
+        "prepare_release_package"
+      ],
+      "codes": [
+        "release.format_missing",
+        "release.target_unknown",
+        "release.maximum_unset",
+        "release.over_length",
+        "release.aspect_mismatch"
+      ]
+    },
+    {
+      "status": "503",
+      "operations": [
+        "download_release_package",
+        "prepare_release_package"
+      ],
+      "codes": [
+        "release.store_unavailable",
+        "release.package_changed"
+      ]
+    },
+    {
+      "status": "409",
+      "operations": [
+        "record_publication"
+      ],
+      "codes": [
+        "release.approval_required",
+        "release.already_published"
+      ]
+    },
+    {
+      "status": "422",
+      "operations": [
+        "record_publication"
+      ],
+      "codes": [
+        "release.location_invalid",
+        "release.publication_before_approval",
+        "release.publication_in_future"
+      ]
+    }
+  ]
+}

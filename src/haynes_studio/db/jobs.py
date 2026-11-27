@@ -1,4 +1,6 @@
-"""Durable media jobs on two lanes beside the run queue."""
+"""Durable media jobs beside the run queue."""
+
+from dataclasses import replace
 
 import sqlalchemy as sa
 
@@ -15,6 +17,8 @@ from .schema import media_job_lanes, media_jobs
 
 STATUS = media_jobs.c.document["status"].astext
 ACTIVE = ("queued", "running")
+KIND_LANE = {"voice": "voice", "photo": "image", "asset_candidate": "image", "matte": "matte"}
+MATTE_RELEASE_LIMIT = 3
 
 
 def lock_lane(conn, lane, *, skip_locked=False):
@@ -35,7 +39,7 @@ def lookup(conn, kind, target, by, key, signature):
 
 
 def enqueue(conn, job, *, position, production, story=None, board=None, inputs, key, signature):
-    lane = "voice" if job.kind == "voice" else "image"
+    lane = KIND_LANE[job.kind]
     requester = to_document(job.created_by)
     conn.execute(media_job_lanes.update().where(media_job_lanes.c.lane == lane)
                  .values(next_position=position + 1))
@@ -45,6 +49,14 @@ def enqueue(conn, job, *, position, production, story=None, board=None, inputs, 
         idempotency_actor=actor_key(requester), idempotency_key=key,
         request_signature=signature, requester=requester, inputs=inputs, document=job.to_document(),
     ).returning(media_jobs)).mappings().one()
+
+
+def prior_matte_versions(conn, input_signature):
+    version_id = media_jobs.c.document["result_version_id"].astext
+    return list(conn.scalars(sa.select(version_id).where(
+        media_jobs.c.lane == "matte", STATUS == "succeeded",
+        media_jobs.c.document["input_signature"].astext == input_signature,
+    ).distinct()))
 
 
 def job_document(row):
@@ -62,8 +74,10 @@ def job_document(row):
     )])
 
 
-def get(conn, job_id, *, lock=False):
+def get(conn, job_id, *, lock=False, lane=None):
     stmt = sa.select(media_jobs).where(media_jobs.c.id == job_id)
+    if lane is not None:
+        stmt = stmt.where(media_jobs.c.lane == lane)
     if lock:
         stmt = stmt.with_for_update()
     row = conn.execute(stmt).mappings().one_or_none()
@@ -91,23 +105,27 @@ def save(conn, row, **values):
                         .values(**values).returning(media_jobs)).mappings().one()
 
 
-def finish(conn, row, job):
-    save(conn, row, document=job.to_document(), worker_id=None, claim_until=None)
-    return job.to_document()
+def finish(conn, row, job, **values):
+    document = job.to_document()
+    save(conn, row, document=document, worker_id=None, claim_until=None, **values)
+    return document
 
 
-def claim(conn, worker_id, lane):
+def claim(conn, worker_id, lane, *, settle_only=False, settle_while_paused=False):
     if lock_lane(conn, lane, skip_locked=True) is None:
         return None
-    if is_paused(conn, lane):
+    paused = not settle_only and is_paused(conn, lane)
+    if paused and lane != "matte" and not settle_while_paused:
         return None
+    settle_dispatch = settle_only or paused
     head = sa.select(sa.func.min(media_jobs.c.position)).where(
         media_jobs.c.lane == lane, STATUS.in_(ACTIVE),
     ).scalar_subquery()
     row = conn.execute(sa.select(media_jobs).where(
         media_jobs.c.lane == lane, media_jobs.c.position == head, STATUS.in_(ACTIVE),
     ).with_for_update(skip_locked=True)).mappings().one_or_none()
-    if row is None:
+    # A paused lane can retire an expired dispatch without starting work.
+    if row is None or (settle_dispatch and not row["dispatched"]):
         return None
     now = database_time(conn)
     if row["claim_until"] is not None and row["claim_until"] > now:
@@ -127,8 +145,8 @@ def claim(conn, worker_id, lane):
                 worker_id=worker_id, claim_until=now + LEASE)
 
 
-def lock_claim(conn, job_id, worker_id, fence):
-    row = get(conn, job_id, lock=True)
+def lock_claim(conn, job_id, worker_id, fence, *, lane):
+    row = get(conn, job_id, lock=True, lane=lane)
     now = database_time(conn)
     if (row["worker_id"] != worker_id or row["fence"] != fence or
             row["claim_until"] is None or row["claim_until"] <= now):
@@ -146,3 +164,19 @@ def dispatch(conn, row, now):
     if row["dispatched"]:
         raise QueueConflict("work.dispatched", "This job has already entered engine dispatch")
     save(conn, row, dispatched=True, claim_until=now + LEASE)
+
+
+def release_matte(conn, row, now, *, reason=None):
+    if row["dispatched"] and reason is None:
+        raise QueueConflict("work.dispatched", "A dispatched matte job cannot be released")
+    job = Job.from_document(job_document(row))
+    updated_at = timestamp(now)
+    if reason != "busy" and row["matte_releases"] >= MATTE_RELEASE_LIMIT:
+        finish(conn, row, transitions.fail(job, "matting.sidecar_unavailable",
+                                           "The matting sidecar repeatedly could not start the cutout",
+                                           now=updated_at), dispatched=False)
+        return
+    # Keep the job's FIFO position and revoke the current fence's lease.
+    queued = replace(job, status="queued", updated_at=updated_at)
+    save(conn, row, document=queued.to_document(), worker_id=None, claim_until=None, dispatched=False,
+         matte_releases=min(row["matte_releases"] + 1, MATTE_RELEASE_LIMIT))

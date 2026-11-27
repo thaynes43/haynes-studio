@@ -1,12 +1,13 @@
 """JSON payloads shared by Studio's API and the queue worker."""
 
-from typing import Annotated, Literal
+from typing import Annotated, Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from haynes_studio.canonical.ids import is_id
 
 API_VERSION = "1.0.0"
+PAUSED_RECONCILE_HEADER = "X-Studio-Paused-Reconcile"
 PROFILES = {"i2v": "wan2.2-ti2v-5b", "s2v": "wan2.2-s2v-14b-lightning"}
 STORY_PATTERN = r"^https://work\.haynesnetwork\.com/work_packages/[1-9][0-9]*$"
 SHA256 = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
@@ -102,16 +103,23 @@ class WorkFailure(ClaimFence):
     admission_busy: bool = False
 
 
-WorkLane = Literal["run", "image", "voice"]
+WorkLane = Literal["run", "image", "voice", "matte"]
+WORK_LANES = get_args(WorkLane)
+MEDIA_LANES = tuple(lane for lane in WORK_LANES if lane != "run")
 
 
 class WorkClaim(Payload):
     lane: WorkLane = "run"
+    settle_only: bool = False
 
 
 class MediaFence(Payload):
     job_id: str
     fence: Annotated[int, Field(ge=1, lt=2**63)]
+
+
+class MatteRelease(MediaFence):
+    reason: Literal["connect", "busy", "readiness"] | None = None
 
 
 class MediaHeartbeat(MediaFence):
@@ -128,8 +136,12 @@ class VoiceEvidence(Payload):
     version: dict
 
 
+class MatteEvidence(Payload):
+    matte_version: dict
+
+
 class MediaCompletion(MediaFence):
-    result: VoiceEvidence | ImageEvidence | None
+    result: VoiceEvidence | ImageEvidence | MatteEvidence | None
 
 
 class MediaFailure(MediaFence):

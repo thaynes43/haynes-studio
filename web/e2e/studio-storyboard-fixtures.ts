@@ -48,6 +48,7 @@ export function boardVersions(production: string, board: Board, media: Pick<Revi
 export function storyTiming(
   draft: Schemas["Story"], boards: Map<string, Board>, versions: AssetVersion[],
   matches: (board: Board, voice: NonNullable<AssetVersion["voice"]>) => boolean = () => true,
+  pin?: Schemas["VersionView"],
 ): Schemas["Timing"] {
   let known = 0;
   let start: number | null = 0;
@@ -70,7 +71,8 @@ export function storyTiming(
     if (start !== null) start += frames;
     return { board_id: id, frames, film_start_frame, state: "timed" };
   });
-  const range = draft.format_version_id === formatId ? formatLength : null;
+  const range = pin ? { format_version_id: pin.id, ...pin.recipe.length }
+    : draft.format_version_id === formatId ? formatLength : null;
   const warnings: Schemas["Timing"]["warnings"] = [];
   if (range && known * 1000 > range.max_ms * fps) warnings.push({
     code: "format.length_exceeded", severity: "warning", build_allowed: true, decision: "D45",

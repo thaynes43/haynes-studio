@@ -8,6 +8,7 @@ from typing import get_args
 
 from mcp.types import Tool as MCPTool, ToolAnnotations
 
+from haynes_studio.api.archive_routes import MAX_TEXT_BYTES
 from haynes_studio.photo_limits import MAX_UPLOAD_BYTES
 
 from . import arguments as args
@@ -168,13 +169,17 @@ class Operation:
     body: str | tuple[str, ...] | None = None
     expect: int | tuple[int, ...] = 200
     job_input: tuple[str, ...] | None = None
+    argument_limit: int | None = None
+    result_limit: int | None = None
+    idempotent: bool = False
 
     def schema(self, name: str) -> MCPTool:
         return MCPTool(
             name=name, description=self.description, inputSchema=self.arguments.model_json_schema(),
             annotations=ToolAnnotations(
                 readOnlyHint=self.method == "GET", destructiveHint=self.method in {"PATCH", "PUT", "DELETE"},
-                idempotentHint=True if self.job_input is not None or self.arguments is args.QueueRun else None,
+                idempotentHint=True if (self.idempotent or self.job_input is not None
+                                        or self.arguments is args.QueueRun) else None,
                 openWorldHint=False,
             ),
         )
@@ -203,7 +208,8 @@ class Operation:
 
 def job_detail(reply, _):
     return pick(reply.document, "schema", "id", "kind", "target_id", "status", "input_signature",
-                "result_version_id", "result_is_current", "error", "created_by", "created_at", "updated_at")
+                "result_version_id", "result_is_current", "error", "created_by", "created_at", "updated_at",
+                "matte")
 
 
 def raw_detail(reply, _):
@@ -217,7 +223,19 @@ def run_detail(reply, _):
 def run_status(doc):
     return pick(doc, "schema", "id", "story_id", "revision", "number", "status", "snapshot",
                 "progress", "wait_reason", "queue_wait", "stages", "checks", "error",
-                "delivery_id", "cancel_requested")
+                "delivery_id", "cancel_requested", "answers")
+
+
+def candidate_page(reply, _):
+    record = reply.document
+    return {
+        **pick(record, "next_cursor", "revision", "iteration"),
+        "items": [{
+            **pick(item, "id", "run_id", "target_id", "presented_by", "presented_at", "answering_runs"),
+            "notes": [pick(note, "id", "text", "board_ids", "replaces_id", "written_by", "written_at")
+                      for note in item["notes"]],
+        } for item in record["items"]],
+    }
 
 
 def upload_detail(reply, _):
@@ -225,6 +243,9 @@ def upload_detail(reply, _):
 
 
 _PAGE = ("cursor", "limit")
+_ARCHIVE_TEXT_BODY = ("text", "format_version_id", "provenance")
+# JSON may escape text bytes. Reserve space for the worst escape expansion and metadata.
+ARCHIVE_TOOL_BYTES = 6 * MAX_TEXT_BYTES + 64 * 1024
 OPERATIONS = {
     "studio_list_productions": Operation(
         "List productions visible to this key, with a cursor for the next page.",
@@ -249,6 +270,11 @@ OPERATIONS = {
     "studio_get_story_timing": Operation(
         "Read timing and page through board frame counts and starts for one story revision.",
         args.StoryPage, "GET", "/v1/stories/{story_id}/timing", timing_detail),
+    "studio_list_candidates": Operation(
+        "Read a story's candidates and feedback notes. Use answers.candidate_id and batches of up to "
+        "ten answers.note_ids to read selected notes. Page candidates with next_cursor.",
+        args.Candidates, "GET", "/v1/stories/{story_id}/candidates", candidate_page,
+        (*_PAGE, "run_id", "candidate_id", "note_ids")),
     "studio_add_board": Operation(
         "Append a draft board at the given story revision. Supply an empty fields object for defaults.",
         args.AddBoard, "POST", "/v1/stories/{story_id}/boards", added_board, body="fields", expect=201),
@@ -291,6 +317,30 @@ OPERATIONS = {
         "Read a recipe by version ID. To pin it, use studio_patch_story with format_version_id.",
         args.FormatVersion, "GET", "/v1/format-versions/{version_id}",
         lambda reply, _: pick(reply.document, "id", "format_id", "number", "sha256", "recipe")),
+    "studio_create_archive_record": Operation(
+        "Stage the first immutable text version in a production. Reuse the idempotency key on a retry.",
+        args.CreateArchiveRecord, "POST", "/v1/productions/{production_id}/archive-records", raw_detail,
+        body=("kind", "title", *_ARCHIVE_TEXT_BODY), expect=(200, 201),
+        argument_limit=ARCHIVE_TOOL_BYTES, idempotent=True),
+    "studio_add_archive_version": Operation(
+        "Append immutable text to a record at its current version ID. Reuse the idempotency key on a retry.",
+        args.AddArchiveVersion, "POST", "/v1/archive-records/{record_id}/versions", raw_detail,
+        body=("revises_version_id", *_ARCHIVE_TEXT_BODY), expect=(200, 201),
+        argument_limit=ARCHIVE_TOOL_BYTES, idempotent=True),
+    "studio_list_archive_records": Operation(
+        "List archive records and their newest version IDs for one production.",
+        args.ListArchiveRecords, "GET", "/v1/productions/{production_id}/archive-records", raw_detail, _PAGE),
+    "studio_get_archive_record": Operation(
+        "Read an archive record and a page of version metadata, newest first.",
+        args.ArchiveRecord, "GET", "/v1/archive-records/{record_id}", raw_detail, _PAGE),
+    "studio_get_archive_version": Operation(
+        "Read the exact immutable text and provenance of an archive version by ID.",
+        args.ArchiveVersion, "GET", "/v1/archive-versions/{version_id}", raw_detail,
+        result_limit=ARCHIVE_TOOL_BYTES),
+    "studio_apply_archive_storyboard": Operation(
+        "Apply a pinned storyboard at the current story revision and report protected boards.",
+        args.ApplyArchiveStoryboard, "POST", "/v1/archive-versions/{version_id}/apply", raw_detail,
+        body=("story_id",), result_limit=ARCHIVE_TOOL_BYTES),
     "studio_generate_voice": Operation(
         "Queue voice for the saved board and return job status. Reuse the idempotency key on a retry.",
         args.GenerateVoice, "POST", "/v1/boards/{board_id}/voice-jobs", job_detail,
@@ -303,7 +353,7 @@ OPERATIONS = {
         "Upload base64 encoded still bytes and D42 provenance at the current board revision.",
         args.UploadPhoto, "POST", "/v1/boards/{board_id}/photo-versions", upload_detail, expect=201),
     "studio_get_job": Operation(
-        "Read compact status and the result version ID for a scoped voice or photo job.",
+        "Read compact status and the result version ID for a scoped voice, photo or matte job.",
         args.GetJob, "GET", "/v1/jobs/{job_id}", job_detail),
     "studio_estimate_run": Operation(
         "Read build estimates and preflight problems for a story.",

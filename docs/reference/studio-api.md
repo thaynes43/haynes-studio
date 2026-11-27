@@ -42,6 +42,7 @@ or recover metadata to an isolated database for inspection.
 | `STUDIO_DATABASE_SCHEMA` | Precreated schema, default `studio`. Both commands must agree. |
 | `STUDIO_RUNTIME_ROLE` | Existing runtime login, typically `studio_app`. Set on the migration Job. A lower-case PostgreSQL identifier. An unset variable skips grants. |
 | `STUDIO_BUILD_REVISION` | Build revision pinned in new snapshots. Use the same `git:<commit>` on the API and render workers. The local default is `git:unknown`. |
+| `STUDIO_PAUSED_RECONCILE` | API switch for paused reconciliation and its dispatch checks. Default off. Follow the [worker traffic cutover](../process/studio-operator-runbook.md#activate-paused-reconciliation) when enabling it. |
 | `STUDIO_BUILD_STAGE_ROOT` | Shared private build staging directory used by the API completion route and workers. Use a separate directory from the authoritative store. See the [worker configuration](run-queue.md#worker-configuration). |
 | `STUDIO_STORE_ROOT` | Root of the shared D39 store. Mount the same directory at every replica. |
 | `STUDIO_STORE_FRESHNESS_SECONDS` | Maximum age of a successful store readiness check, 5–300 seconds. Default 30. |
@@ -168,6 +169,18 @@ GRANT SELECT, INSERT ON studio.escalation_check_failures, studio.escalation_pack
 GRANT SELECT, INSERT ON studio.run_candidates, studio.candidate_feedback,
     studio.feedback_iterations TO studio_app;
 GRANT UPDATE (feedback_iteration_id) ON studio.stories TO studio_app;
+-- Applied by revision 0009_release_packages.
+GRANT SELECT, INSERT ON studio.release_packages, studio.publications,
+    studio.feedback_iteration_clears TO studio_app;
+
+-- Applied by revision 0010_staging_archive.
+GRANT SELECT, INSERT ON studio.archive_records, studio.archive_versions TO studio_app;
+
+-- Applied by revision 0011_worker_lane_grants.
+GRANT SELECT ON studio.worker_lane_grants TO studio_app;
+
+-- Applied by revision 0013_matte_jobs.
+GRANT UPDATE (matte_releases) ON studio.media_jobs TO studio_app;
 ```
 
 Revision `0004_go_live_approvals` uses the PostgreSQL UTF-8 `und-x-icu`
@@ -207,13 +220,17 @@ main process output can be logged by Kubernetes even with a TTY. See
 ### Worker token administration
 
 Run the worker token command after migrating to head. Use the migration identity
-or a dedicated non-owner role in `STUDIO_MIGRATION_DATABASE_URL`. The command
-requires these grants and refuses the API runtime role. The worker process itself
-uses the internal HTTP API and needs no database account.
+in `STUDIO_MIGRATION_DATABASE_URL` to register a new worker ID with one lane
+(`run`, `voice`, `image` or `matte`). A dedicated non-owner token administrator with
+the grants below can register or rotate tokens for a bound ID, list, and revoke.
+The lane grant read permission is needed for registration and listing.
+The runtime role can read lane grants. The worker process itself uses the
+internal HTTP API and needs no database account.
 
 ```sql
 GRANT CONNECT ON DATABASE studio TO studio_worker_token_admin;
 GRANT USAGE ON SCHEMA studio TO studio_worker_token_admin;
+GRANT SELECT (worker_id, lane) ON studio.worker_lane_grants TO studio_worker_token_admin;
 GRANT SELECT (digest, worker_id, expires_at, revoked_at), INSERT (digest, worker_id),
     UPDATE (revoked_at) ON studio.worker_tokens TO studio_worker_token_admin;
 ```
@@ -230,17 +247,27 @@ externally generated agent keys of 48–128 ASCII alphanumeric characters.
 
 ```sh
 uv run --no-sync studio-api-admin worker-token register \
-  --worker-id "$WORKER_ID" --token-file "$MOUNTED_TOKEN_FILE"
+  --worker-id "$WORKER_ID" --lane "$WORKER_LANE" --token-file "$MOUNTED_TOKEN_FILE"
 uv run --no-sync studio-api-admin worker-token list
 uv run --no-sync studio-api-admin worker-token revoke "$WORKER_ID"
 ```
 
+Migration `0011_worker_lane_grants` binds `studio-worker` to `run`,
+`studio-voice-worker` to `voice` and `studio-image-worker` to `image`.
+Existing tokens for those IDs work after migration, and the installed
+registration commands can still omit `--lane`. Other existing IDs have no
+grant and receive HTTP 403 `work.lane_forbidden` on worker routes. The migration
+identity can explicitly bind an unbound ID by registering with `--lane`.
+
 Use 1–63 ASCII letters, digits, dots, underscores or hyphens for the worker ID,
-starting with a letter or digit. Registering the same token for the same worker
-ID is idempotent. A new token for an existing ID requires `--replace`, which
-revokes the old token in the same transaction. A token already associated with a
-different worker ID or revoked cannot be reused. List reports worker IDs, expiry
-and revocation dates, including prior rows after replacement. Revoke is idempotent
+starting with a letter or digit. Registering the same active token for the
+same worker ID is idempotent. A new token for an existing ID requires
+`--replace`, which revokes the old token in the same transaction and keeps
+the lane. Omit `--lane` to reuse the binding. A different lane for a bound
+ID returns `key_admin.worker_lane_conflict`. Use a new worker ID for a new
+lane. A token already associated with a different worker ID or revoked cannot
+be reused. List reports worker IDs, lanes (null for unbound IDs), expiry and
+revocation dates, including prior rows after replacement. Revoke is idempotent
 and disables all tokens for the ID. Command output and audit events contain no
 token or digest.
 
@@ -277,6 +304,9 @@ token or digest.
   their `draft:write` grants. Keys with `runs:queue` may enqueue and cancel runs.
   An explicit `formats:write` grant allows catalog authoring. See
   [format recipes](formats.md#api-and-scopes) for catalog access.
+  `archive:read` and `archive:write` grant access to the production's
+  [staging archive](staging-archive.md). Storyboard apply needs both
+  `archive:read` and `draft:write` in that production.
 - The P-14 `WorkerRoute` authenticates a worker bearer token before reading
   the query or body of any `/internal/v1/work/*` route. A worker token provides
   a worker principal here. Public Studio routes accept agent keys or sessions.
@@ -329,10 +359,13 @@ such as a recovered import, returns 404 `run.snapshot_missing`. A missing
 pinned blob returns 503 `run.snapshot_lost`. The route checks the recorded
 hash and a 16 MiB read limit before serving bytes or returning 304 for a matching
 `If-None-Match`. The browser verifies the bytes against the recorded hash
-before comparing board IDs.
+before comparing board IDs. A newly built snapshot over the same limit is
+refused before queuing with 422 `run.snapshot_too_large` and its size evidence.
 
 Use [Candidate feedback](feedback.md) to present a finished run for a frozen
 target, record people's notes and start a new draft revision.
+Use [Release packages](release-package.md) to prepare a manual release for a
+frozen target and record a drop after go-live.
 
 The catalog serves visible canonical versions through `GET /v1/assets`.
 Filter by kind, one or more labels, production or board. The board filter
@@ -358,7 +391,8 @@ transport available to each caller. Paths here start at `/v1`.
 | `POST /boards/{id}/voice-jobs` | `assets:generate` | `{}`. Freezes the saved board's voice input. |
 | `POST /boards/{id}/photo-jobs` | `assets:generate` | `{"seed": 0}`, with an optional seed from 0 to 2⁵³−1. Freezes the saved photo plan and its current selection. |
 | `POST /asset-jobs` | Signed-in person | `kind` (`cast`, `costume`, `set` or `prop`), `name`, `prompt`, optional `production_id`, `labels` and `seed`. Omit the production or use null to generate a global candidate. |
-| `GET /jobs/{id}` | `read`; candidates are people-only | Canonical `studio.job/v1` with frozen input provenance. |
+| `POST /asset-jobs/matte` | Signed-in person | `{source_version_id, format_version_id, slot}`. Queues a cutout from an opaque library version for an enabled cast slot. |
+| `GET /jobs/{id}` | `read` on the job's production or signed-in person | Canonical `studio.job/v1` with frozen input provenance. Image candidate and shared-library matte status requires a person. |
 | `GET /boards/{id}/jobs` | `read` | Cursor page of compact job statuses. |
 | `GET /boards/{id}/voice-versions`, `GET /boards/{id}/photo-versions` | `read` | Cursor page of this board's immutable versions. |
 | `GET /jobs/{id}/result` | Signed-in person | Result version with content or track hashes. Returns 404 until a result exists. |
@@ -380,6 +414,23 @@ terminal job record intact. Build preflight
 reports `asset.generating` while a board job is active and `photo.stale` if a
 whole-frame I2V board has a signed photo for different inputs or an unsigned
 legacy selection.
+
+### Matte requests and reads
+
+Send `Idempotency-Key` and the session CSRF header for `POST /asset-jobs/matte`.
+The source must be a library asset version with `opaque_photo` and a stored
+PNG or JPEG locator. The slot is one lowercase letter present in
+`cast.matte_slots` on the named format version. The source's scope determines
+the job and output scope. The request carries only canonical IDs and slot.
+
+The job has `kind: matte`, the source's `asv_` ID as `target_id`, and an input
+signature over the source and recipe pins. GET adds the `matte` block with
+`source_version_id`, `source_sha256`, `production_id`, output `kind`,
+`format_version_id`, `format_sha256`, `slot` and `target_height_px`.
+A production-scoped agent key with `read` can read that status through
+HTTP or `studio_get_job`. A signed-in person can also read, preview and
+promote the candidate, and can read shared-library job status.
+[Candidate flow](asset-candidates.md#cut-out-an-existing-still)
 
 ### D42 photo upload
 
@@ -431,18 +482,37 @@ Photo inputs, new photo and voice selections, promotions and uploads that
 reference an archive's recorded-only media return 422
 `asset.recorded_without_media`.
 
-The internal image and voice workers use the [same claim protocol as builds](media-jobs.md).
+The internal image, voice and matte workers use the [same claim protocol as builds](media-jobs.md).
 
 ## Queue controls
 
-Signed-in people can see all three lanes at `GET /v1/queue/lanes`. Set
+Signed-in people can see all four lanes at `GET /v1/queue/lanes`. Set
 `{"paused":true}` or `{"paused":false}` with `PUT /v1/queue/lanes/{lane}`
-for `run`, `voice` or `image`. The write requires `X-Studio-CSRF`.
+for `run`, `voice`, `image` or `matte`. The write requires `X-Studio-CSRF`.
 The response and lane list show `paused`, `changed_by` and `changed_at`.
 An untouched lane starts open with null change fields. Repeating its current
 setting returns the previous decision. Each transition appends a decision.
-Paused lanes still accept new work and in-flight claims can finish.
-Workers receive 204 for new claims until the lane resumes.
+Paused lanes accept submissions and stop claiming queued work. The FIFO order
+and live claim fences stay in place. A worker can finish its claim, including a
+media job's first publish or a run's transcript step. An authorized engine
+request may start after the pause response.
+
+`GET /v1/queue/lanes` adds a `live_claim` boolean for each lane with
+`STUDIO_PAUSED_RECONCILE` either off or on. The pause and resume write responses
+keep their existing shape. This read-only field is the default-off API
+compatibility exception. The installed web build at `470a90af` selects lanes
+by name and reads `paused`, so it ignores `live_claim`. A lane is quiet at the
+time of the read when `paused` is true and `live_claim` is false. A lease lasts
+90 seconds from its grant or last renewal, using the database clock.
+
+With `STUDIO_PAUSED_RECONCILE=1`, a compatible run worker can reclaim a FIFO head
+with a recorded, unsettled sent Wan attempt after the old claim expires or is
+released and any retry delay passes. It can check and settle the recorded job
+without a Wan submission or replay. A matte poll can fail an expired dispatch
+with `work.dispatch_unconfirmed` while paused and returns 204. The switch
+extends that expiry handling to voice and image. Resume restores regular FIFO
+claiming. [Run claims](run-queue.md#claims-and-reconciliation) ·
+[Media claims](media-jobs.md#claims-and-results)
 
 ## Private playback
 
@@ -480,7 +550,7 @@ STUDIO_THREADS=2 OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 uv run --no-sync pytes
 
 The DB suite reads `STUDIO_TEST_DATABASE_URL` for a disposable PostgreSQL 16
 database. The fixture identity creates a schema and temporary roles. It
-checks the upgrade path through `0008_candidate_feedback` and exercises
+checks the upgrade path through `0009_release_packages` and exercises
 downgrade to base and upgrade from an empty schema. API and store operations run with the executable
 Alembic grants. The suite checks key administration with the dedicated role,
 runtime-role refusal, and protection for ownership, snapshot and Wan attempt

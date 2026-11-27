@@ -27,6 +27,8 @@ comes from what the manual run teaches us, not from guesses made in advance.
 | Path | What it holds |
 |---|---|
 | [`AGENTS.md`](AGENTS.md) | Rules and working agreement for any agent in this repo. Read it first. |
+| [Studio user journey](docs/process/studio-user-journey.md) | Sign in, work on a storyboard, compare runs and watch privately on a phone. |
+| [Studio operator runbook](docs/process/studio-operator-runbook.md) | Check health, manage the queues and find the deployment and recovery procedures. |
 | [`docs/process/manual-short-poc.md`](docs/process/manual-short-poc.md) | The manual runbook: brief to delivered video, stage by stage. |
 | [`docs/reference/`](docs/reference/) | The in-cluster services, the doll format, and the baseline recipe. |
 | [`docs/decisions/`](docs/decisions/) | Short decision records (ADRs). |

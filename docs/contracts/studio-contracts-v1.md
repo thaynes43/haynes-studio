@@ -103,6 +103,29 @@ activation PR 5050 were open at pickup.
 installation. Human phone playback, the isolated restore drill and Tom's
 acceptance remain open.
 
+**Eighth amendment, 2026-11-26**, story
+[972](https://work.haynesnetwork.com/work_packages/972), at base `fd8e4a3`.
+It folds in staging and subtitle source, the asset library, private release
+packages, lane grants, the CPU media backends and their adapters, the drafting
+benchmark, and the API, browser and operator references. It covers Studio
+PRs 119–139, 141–146, 148 and 149, plus PRs 115 and 118, which landed
+after the seventh amendment's pickup and before its merge. Studio PRs
+140 and 147 remain open as references for story 968.
+[Section 19](#19-coordinator-rulings-provisional) records CR-36 to CR-66 as the
+saga coordinator's provisional rulings for Tom's review.
+[Section 13](#installed-and-published-state) records the fourth pin, the matte
+policy and activation hold, and the separate backend evidence.
+
+**Ninth amendment, 2026-11-27**, story
+[985](https://work.haynesnetwork.com/work_packages/985), at base `0239c602`.
+It folds in the merged pause, lane read and Editor Format amendments from
+[Studio PR 152](https://github.com/thaynes43/haynes-studio/pull/152) and
+[PR 153](https://github.com/thaynes43/haynes-studio/pull/153).
+[Section 19](#19-coordinator-rulings-provisional) records CR-67 to CR-71 as
+the saga coordinator's provisional rulings for Tom's review.
+[Section 13](#installed-and-published-state) records the fifth pin, current
+holds and the permanent park of Studio PR 151.
+
 Every rule carries its source:
 
 | Label | Meaning |
@@ -113,6 +136,7 @@ Every rule carries its source:
 | **Proposal P-*nn*** | This contract's choice, with the alternative it rejects. Not Tom's decision. The coordinator ratified each at review as the working choice; Tom may overrule any. |
 | **Q-*nn*** | An owner choice only Tom can make. The question, its options, Tom's answer and the D-number that records it are in [section 16](#16-held-owner-questions). |
 | **Coordinator's reading** | How the contract owner applies a ruling of Tom's where his words leave the detail open. Not Tom's words; he may correct it. |
+| **CR-*nn*** | A provisional ruling by the saga coordinator for Tom's review. [Section 19](#19-coordinator-rulings-provisional) records the source and standing. |
 
 E0's three deferrals (NFS write contention, AI upscaler quality, Foley listening verdict)
 are unmeasured. Nothing below depends on a value for them.
@@ -134,7 +158,7 @@ are unmeasured. Nothing below depends on a value for them.
 | Run | An immutable snapshot of a story queued for building, and its outputs. | D30 |
 | Delivery | A run's verified master and phone proxy in the store. | review H5 |
 | Go-live approval | Tom's sign-off on one finished run's exact master. The only formal approval. | D29 |
-| Publication (drop) | A recorded manual release after go-live. E9 work; reserved here. | D43 |
+| Publication (drop) | A recorded manual release after go-live. | D43 |
 | Candidate | A successful Studio run presented for one target in its frozen format recipe. Each run and target pair has at most one candidate. | story 448 |
 | Feedback | A person's append-only note on a candidate. It can name stable board IDs and the prior note it corrects. | story 448 |
 | `revision` | An entity's optimistic-concurrency counter. Not a script revision. | P-02 |
@@ -253,7 +277,8 @@ wrapper `invalid-case`. Error responses use the envelope in
 
 The list above is the example harness baseline. Merged features add
 `studio.agent-draft/v1` (411), `studio.format-recipe/v1` (447) and
-`studio.escalation/v1` (445). Their own references and feature suites
+`studio.escalation/v1` (445), `studio.release-package/v1` and
+`studio.publication/v1` (449). Their own references and feature suites
 cover them. The drafting receipt and proposed worker backend request and
 result documents are described in sections 7 and 8.
 
@@ -263,20 +288,21 @@ result documents are described in sections 7 and 8.
 Crockford base32 (first character `0` to `7`; no `I`, `L`, `O` or `U`).
 
 ```
-^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd)_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+^(prd|sty|brd|lin|cue|nte|ast|asv|job|run|dlv|apr|key|fmv|pub|fbk|cnd|arc|arv)_[0-7][0-9A-HJKMNP-TV-Z]{25}$
 ```
 
 | Prefix | Entity | Prefix | Entity |
 |---|---|---|---|
-| `prd` | production | `job` | asynchronous job (voice, photo, asset) |
+| `prd` | production | `job` | asynchronous job (voice, photo, asset candidate, matte) |
 | `sty` | story | `run` | run |
 | `brd` | board | `dlv` | delivery |
 | `lin` | line | `apr` | go-live approval |
 | `cue` | cue | `key` | agent key |
 | `nte` | note | `fmv` | immutable format version |
-| `ast` | asset | `pub` | publication (E9, reserved) |
+| `ast` | asset | `pub` | publication (E9) |
 | `asv` | asset version | `fbk` | feedback note |
 | `cnd` | candidate | | |
+| `arc` | staging archive record | `arv` | staging archive version |
 
 - IDs are made by the server or the CLI, never typed by people, and never reused.
   Errors: `id.malformed`, `id.type_mismatch`.
@@ -375,8 +401,13 @@ unstamped board. Each acknowledged agent write appends `key_id`, `acknowledged_a
 and the replaced `board_revision` to `person_edit_acknowledgments`. Later edits and
 re-drafts preserve edit and acknowledgment history. See [agent drafting](../reference/agent-drafting.md).
 
+Archive apply can set the server-owned `draft_application.archive_version_id`.
+The stamp includes the exact version, board key and draft hash, with the
+person-edit marker for a person's apply or model and session for an agent.
+Direct board requests cannot set the archive version. [Story 443](https://work.haynesnetwork.com/work_packages/443).
+
 A job (`studio.job/v1`, story [405](https://work.haynesnetwork.com/work_packages/405)) is
-`{id, kind (voice, photo, asset_candidate), target_id, input_signature, status (queued,
+`{id, kind (voice, photo, asset_candidate, matte), target_id, input_signature, status (queued,
 running, succeeded, failed, cancelled), result_version_id, result_is_current, error,
 created_by, created_at, updated_at}`, plus a `voice` block on a voice job: the input it
 must make (`production_id`, `story_id`, `name`, `engine` (the signing name), `model`,
@@ -400,6 +431,12 @@ and request size. Its `input_signature` signs those inputs and the model in
 `studio.asset-candidate-inputs/v1`. Success points to the recorded `asv_` ID. The
 worker verifies the frozen signature and checks for an existing result before
 submitting. The operation and fencing boundary are in section 12.
+
+The `matte` job targets the source `asv_` ID. The job read adds
+`matte: {source_version_id, source_sha256, production_id, kind, format_version_id, format_sha256, slot, target_height_px}`.
+Here `kind` is the derived asset kind and `production_id` is null for shared
+library input. The signature covers the immutable source descriptor and exact
+recipe normalization. [Story 965](https://work.haynesnetwork.com/work_packages/965).
 
 ### Mockup fields
 
@@ -761,6 +798,14 @@ has fails `render.frame_count`; a frame that is not 8-bit RGB of the board's siz
   `studio.keyed-frames/v1` record (P-39). The mix's placement record is cache kind
   `mix_placement` under the mix key's inputs (section 8).
 
+**Encoder rebuilds (story 966, [CR-52](#ruling-52)).** PyAV 18.1.1 replaces
+the withdrawn 18.1.0. On the paired synthetic fixture the mix was
+byte-identical and the pictures decoded to identical frames, while
+embedded encoder strings changed the picture and master hashes.
+Use the original lock (for the third pin, `80975a9`) or its image digest
+for exact 18.1.0 rebuilds. The new build recomputes older encoded
+segments. [Recovery and regeneration](../reference/studio-recovery.md#share-contents-and-regeneration).
+
 ### Invalidation set per edit
 
 "Reused" means the key is unchanged, so the cached artifact is used. The table is the
@@ -968,15 +1013,42 @@ without an explicit method uses the first pinned recipe method for that shot typ
 when available. Existing boards retain their method. A globally buildable method
 outside the recipe can save as a draft and gives `method.unavailable` at preflight.
 
-**CPU media backend proposals (stories 459–461).** BiRefNet Lite is the still
-matting pilot. Clips keep existing chroma keying, APNG, decal gating and clocks.
-Any temporal refinement needs a new keyed cache input and paired clip evidence.
-Grounding DINO Tiny and SAM 2.1 Hiera Tiny supply source-sized targets for the
-proposed visibility checker. It projects source geometry into the pose, subtracts
-slot and frame clipping and layers above the target, rejects hidden targets at
-preflight and sends uncertain targets to a person. It preserves legacy foreground
-edge and feather inputs. Pillow Lanczos remains the delivery default. FSRCNN ×2
-is for comparison only, as recorded in [ruling 35](#ruling-35). A selectable
+**Matte stills (stories 451 and 965).** BiRefNet Lite produces an aligned
+`rgba_cutout` and `mask` candidate. A person promotes it for layer use.
+Optional recipe `cast.matte_slots` maps slots `a`–`z` to an integer
+`target_height_px` from 1 through 2048. A layered reference photo verifies
+the exact format and slot, measures the alpha-128 half-open bounding box and
+area, and positions the normalized silhouette at the target height using the
+layout slot's horizontal center and bottom. The receipt records the threshold
+and target-to-box-height ratio. A conflicting crop, changed measurement or
+target that exceeds the frame fails. The timed motion loop requirement and
+clip chroma keying, APNG, decal checks and clocks still apply.
+Temporal refinement needs a new keyed cache input and paired clip evidence.
+
+**Segmentation and visibility (stories 460, 452, 968 and 975).** Grounding DINO
+Tiny and SAM 2.1 Hiera Tiny produce source-sized masks for an explicit target.
+The client adapter is merged. Stored set, board and run-snapshot schemas
+keep their existing shapes under [CR-64](#ruling-64), which superseded
+the splits in CR-60 and CR-61. Legacy foreground edge and feather still
+apply.
+
+[CR-67](#ruling-67) limits the parked story 968 proposal to the mask
+declaration and renderer. It moves the visibility check to
+[story 975](https://work.haynesnetwork.com/work_packages/975) as a
+post-render check on the film's own keyed frames in the existing run-check
+framework. CR-54's person review and hard refusal, CR-57's bounds and
+CR-58's renderer oracle carry over to that proposed check. Target hints
+move to [story 971](https://work.haynesnetwork.com/work_packages/971), the
+job that would use them. Both follow-up stories depend on story 968 and
+remain unstarted. [Story 968, comments 10368](https://work.haynesnetwork.com/work_packages/968/activity#comment-10368) and [10582](https://work.haynesnetwork.com/work_packages/968/activity#comment-10582).
+
+**Upscaling comparison (story 461).** Pillow Lanczos remains the delivery
+profile. FSRCNN ×2 followed by Lanczos runs as a one-shot comparison under
+[CR-35](#ruling-35) and [CR-55](#ruling-55). One stored proxy frame and its
+paired master frame can be verified against their delivery and opened
+read-only under [CR-49](#ruling-49). The scores measure reconstruction of
+that encode.
+Tom owns the visual verdict. A future selectable
 learned profile would pin its backend manifest in `studio.delivery-conversion/v1`
 and apply FSRCNN ×2 then Lanczos to opaque exact-aspect clips and centered plate
 crops that need up to 2×. Plate crops use the largest exact-aspect integer box
@@ -1110,6 +1182,33 @@ which are reserved ([RIGHTS.md](../../RIGHTS.md)).
 - **`checked_by`** is a principal. An agent that checked terms in its own session names
   itself as an agent-session principal (P-24, section 2).
 
+### Staging archive provenance
+
+Under [CR-39](#ruling-39), an archive record belongs to one production, has a
+kind (`brief`, `script`, `storyboard`) and a title of 1–80 characters. Each
+immutable version stores its sequence number, parent, exact UTF-8 bytes (up
+to 256 KiB), length, SHA-256, writing principal and time, an optional
+`fmv_` pin and provenance. Storyboard text validates as a
+`studio.agent-draft/v1` for that production.
+
+Original provenance uses `{origin: original}`. Adapted writes send
+`{origin: adapted, source_locator: {label, sha256}}` with an opaque source ID
+and scene number matching `^[A-Za-z][A-Za-z0-9]*-[0-9]+$`, at most 40 ASCII
+characters. The archive stores and returns `{label, hmac_sha256}` in place of
+the raw digest. It HMACs the decoded digest under a production-specific
+key derived from the existing OIDC client secret with a dedicated archive
+context. Rotation affects new records. Prior versions keep their digests.
+Logs carry IDs, kind, bytes and digest and omit archive text and MCP payloads.
+[Staging archive](../reference/staging-archive.md).
+
+**Adapted scene receipts (story 444).** The subtitle reader keeps cues in
+memory. An optional private receipt carries source ID, opaque title and
+episode IDs, range and unit, passage SHA-256, principal and UTC read time.
+Selector IDs use a per-source HMAC over the canonical JSON inputs. The
+passage hash covers the canonical UTF-8 JSON array of
+`[start_ms,end_ms,text]` triples in returned order. The adapter creates no
+persistent receipt or log. Archive staging uses the guarded locator above.
+
 ### Runs
 
 `provenance` on every run ([example](examples/valid/run-succeeded.json)):
@@ -1162,6 +1261,13 @@ which are reserved ([RIGHTS.md](../../RIGHTS.md)).
   facts (story 860, P-47): the speech-to-video graph also loads the umT5 text encoder,
   which the register listed only under image-to-video, so story 428's records read the
   `wan-s2v` engine as `unknown`, as they were written; the next run reads it `allowed`.
+
+**Drafting benchmark (story 455, D46).** The [benchmark](../reference/drafting-benchmark.md)
+freezes five original briefs, starting stories, a recipe, asset metadata and
+assertions under one content-derived SHA-256. The scorer consumes a
+`studio.agent-draft/v1` file and separate write evidence keyed to the draft
+hash. It checks the scoped writes and canonical UTF-8 bytes of protected
+boards. Missing evidence fails a check. Tom's labels apply to exact draft hashes.
 
 **Delivery profile (story 453).** `toolchain.delivery_profile` records the conversion
 version, timing, scaling, upscaler name, version and tool (the Pillow version),
@@ -1272,7 +1378,7 @@ can override a named artifact check through `record_check_override`. Story 450
 supplies the check library. The product API can record decal overrides. The automatic re-roll loop belongs
 to story 454.
 
-**Durable queue (stories 410, 956 and 430).** Enqueue reserves the
+**Durable queue (stories 410, 956, 430 and 976).** Enqueue reserves the
 `Idempotency-Key` by story and authenticated actor. The same accepted revision
 replays the same run ID (200), even after edits. Another revision with the same
 key gives `422 idempotency.mismatch`. The API freezes the draft, resolved
@@ -1296,6 +1402,38 @@ The installed queue predates machine-code handling and waits on the foreign
 ComfyUI queue and Rack GPU busy or warm texts. The separate command-line
 clip client classifies only the lease text as busy. Other refusals end as
 `adapter.job_failed`.
+
+Under [CR-68](#ruling-68), pause stops claiming queued work, preserves FIFO
+order and leaves live claim fences in force. A live claim may finish,
+including a media job's first publish or a run's transcript request after a
+clip. An engine request authorized before pause may start after the pause
+response. Leases last 90 seconds from grant or the last renewal on the
+database clock.
+
+Under [CR-69](#ruling-69), the signed-in `GET /v1/queue/lanes` reports an
+additive, read-only `live_claim` for each of `run`, `voice`, `image` and
+`matte` in both switch states. A lane is quiet at the time of the read
+when `paused` is true and `live_claim` is false. The session and
+CSRF-protected `PUT /v1/queue/lanes/{lane}` keeps its existing response
+shape with `lane`, `paused`, `changed_at` and `changed_by`.
+
+`STUDIO_PAUSED_RECONCILE` defaults off. With it set to `1`, a paused run
+poll can return a reconciliation-only claim to a worker that sends
+`X-Studio-Paused-Reconcile: 1`. The FIFO head must be running or held,
+have an unresolved `sent` Wan attempt, and have an expired or released
+lease with no retry delay remaining. The replacement receives a fresh
+fence and `reconcile_only: true`. It reads the recorded Wan ID and settles
+known outcomes without a Wan submission or replay. An absent ID stays held
+for another read. A verified result or restart failure is recorded and the
+head is released for normal claiming after resume. Definite job failure or
+cancellation can finish the run while paused. Other paused run polls return
+204.
+
+With the switch on, new Wan reservations check pause. The sent marker and
+the final fenced pre-PUT `wan_submitting` heartbeat take the lane row lock
+before the run lock. When pause wins dispatch authorization, the API returns
+`409 work.lane_paused`. A PUT that passes its final check may start after
+the pause response. Resume restores regular FIFO claims.
 
 A definite client rejection or verified Wan result mismatch fails the attempt
 and run, with evidence. A different frozen build revision fails with
@@ -1330,8 +1468,9 @@ verification. Unknown or out-of-scope runs return `404 not_found`. A run with
 no stored snapshot by design returns `404 run.snapshot_missing`. A lost
 pinned blob, locator or hash mismatch, and oversized blob return 503 with
 `run.snapshot_lost`, `run.snapshot_changed` and `run.snapshot_too_large`
-respectively. The limit is 16 MiB. Enqueue returns 413 with the size code
-for a new oversized snapshot. Snapshots have their own run route and no
+respectively. The limit is 16 MiB. Enqueue returns 422 with
+`run.snapshot_too_large`, `bytes` and `max_bytes` for a new oversized
+snapshot. Snapshots have their own run route and no
 generic media index entry. [Ruling 31](#ruling-31).
 
 **Archive import (story 957).** The schema owner on revision
@@ -1712,6 +1851,14 @@ the master's.
   documents; it reads no file, and a legacy delivery's codecs come from the PoC's
   encoder settings (`poc/edit.py`), not a decode.
 
+**Private release packages (stories 449 and 963).** A
+`studio.release-package/v1` pins the run and snapshot hash, frozen recipe, target, delivery,
+master hash and size. The insert-only database row retains the exact
+canonical document bytes, length and SHA-256. Reads verify those fields
+and run and target binding. A create-only copy at that digest supports
+private download and repair. Keep prior package versions.
+[Release packages](../reference/release-package.md).
+
 ### Store layout (D39)
 
 Root: the gasha01 share `hdd-nfs-repl/data/studio`, mounted at `/studio` on
@@ -1740,33 +1887,36 @@ the separate schema-owner path, with archive mounts read-only. The NAS
 and its archives remain outside D47 coverage and replica protection.
 [Deployment](https://github.com/thaynes43/haynes-ops/blob/main/docs/reference/studio-deployment.md).
 
-**Proposed private backend artifacts (stories 459–461).** The profile references
-define the fields, validation and publish fences. A matting request
-(`studio.matte-request/v1`) resolves one authorized opaque still by scope
-and digest and signs the canonical frozen request as `sha256:<hex>`.
-`studio.matte-result/v1` publishes aligned RGBA and L8 PNGs and a canonical
-receipt before the fenced derived candidate write. An invalid result produces
-no render-ready version. The source remains immutable and promotion explicit.
+**Private backend artifacts (stories 451, 452, 459–461 and 965).** The profile
+references define validation and publish fences. A `studio.matte-request/v1`
+freezes the job ID, authorized opaque PNG or JPEG source, profile ID,
+profile hash and parameters. The canonical request signature is
+`sha256:<hex>`. The Unix HTTP envelope carries a separate fresh 32-hex
+`attempt_id`. The `studio.matte-result/v1` receipt repeats the pinned
+request identity and records the signature, artifacts, shape and provenance.
+Publish the source-size RGBA8 cutout, L8 mask and canonical receipt before
+the fenced derived candidate write. A verified result remains a candidate
+until a person promotes it.
 
 `studio.segmentation-request/v1` pins a source still, target and profile with
 an optional point, box or text hint. `studio.segmentation-result/v1` reports
 source-pixel boxes, raw scores, provenance and `ready`, `needs_hint` or `failed`.
 A ready result requires the validated mask and result JSON to be published by
-hash under the current job fence. The mask is a source-sized, single-channel
-8-bit PNG with values 0 and 255. A foreground 255 pixel draws the set over
-lower layers. An opaque plate alone carries no foreground mask.
+hash under the caller's fence. The mask is a source-sized, single-channel
+8-bit PNG with values 0 and 255. A non-ready observation stays diagnostic.
+CR-64 ships the explicit-target adapter. Story 968 owns the proposed
+foreground semantics and story 971 owns the job that would call it.
 
 `studio.upscale-frame-request/v1` signs one frozen RGB8 PNG source record,
 target dimensions, profile ID and manifest hash. It permits at most 4 MiB,
 921,600 pixels and a 1280 px long side, with an exact target aspect and a
 1080 × 1920 or 1920 × 1080 target. A local Unix socket uses verified private
-scratch files. `studio.upscale-frame-result/v1` binds the request digest,
-source and target to an RGB8 target PNG (at most 8 MiB) and pinned provenance.
-Publish verified input and output PNGs and an ordered receipt as scoped
-create-only blobs before making a group visible. Limits are one frame in
-flight, 100 per group, 300 distinct frames per clip, 5 seconds per frame and
-300 seconds per clip. Incomplete groups, mismatched pins and invalid output
-fail the segment. [Matting fields](../reference/matting-backend-profile.md#artifact-contract-for-story-451) ·
+scratch files. A local attempt owns a fresh 32-hex directory with
+`input.png` and create-only `result/output.png`. A deadline kills and reaps
+the child before retry. `studio.upscale-frame-result/v1` binds the request
+digest, source and target to an RGB8 target PNG (at most 8 MiB) and the
+admitted manifest and its digest. Consumer groups and delivery publication
+remain proposed. [Matting fields](../reference/matting-backend-profile.md#artifact-contract-for-story-451) ·
 [Segmentation fields](../reference/segmentation-backend-profile.md#artifact-contract-for-story-452) ·
 [Upscaling profile](../reference/upscaling-backend-profile.md).
 
@@ -2037,6 +2187,28 @@ job or upload inputs with `asset.recorded_without_media`. Story 958 permits
 a replacement upload when the selected photo is recorded-only. Its sources
 still need media. [Media jobs](../reference/media-jobs.md).
 
+**Matte candidates (stories 451 and 965).** The candidate keeps the source's
+library scope. Cast, costume and prop keep their kinds. An eligible opaque
+library photo yields cast. The RGBA8 cutout is the content and the aligned
+L8 mask matches its alpha. Derived provenance records generator role
+`composite`, engine `studio-matting`, profile ID, image and graph pins,
+source version, input signature, canonical receipt and blob descriptors,
+and `studio.cast-matte-size/v1` normalization with the exact recipe and slot.
+The worker publishes three verified blobs create-only before fenced
+completion. Identical source, profile and normalization reuse one
+version. A replay repairs missing blobs from the original receipt request
+and refuses changed bytes. Success leaves `result_is_current: false`.
+Promotion preserves the candidate version and provenance.
+[Matting and cast size matching](../reference/matting-adapter.md).
+
+**Assets filters (story 456).** Board scope lists exact pins via
+`GET /v1/assets?production=&board=&cursor=`. Story scope unions board
+results and resolves direct story pins against the production catalog.
+Production and library scope use the catalog. Group by asset ID and sort
+version numbers newest first. Ordinary results and pickers exclude
+candidate versions. **Not now** hides a candidate in that tab and writes
+nothing. **Review again** restores the preview (CR-14 and CR-44).
+
 ## 10. Pre-build voice policy (D33)
 
 - **VOICE-1** Voices are stock TTS voices only, Kokoro-82M v1.0 stock IDs today (P-22;
@@ -2180,9 +2352,8 @@ select a local override.
 One approval can be active per run. `POST /v1/go-live-approvals/{id}/withdraw`
 appends the verified withdrawal and returns 201. Derived state and withdrawal
 come from the appended record. Any eligible approver may withdraw, and an
-eligible run may be approved again ([ruling 24](#ruling-24)). Approval does
-not set `published`. Story 449 owns additional rights checks and recording a
-manual drop.
+eligible run may be approved again ([ruling 24](#ruling-24)). Approval and
+manual publication are separate writes.
 
 `GET /v1/runs/{id}/go-live-approvals` (stories 958 and 448) reads one database
 snapshot with the run's production scope and a signed-in person's session.
@@ -2194,7 +2365,32 @@ verified master and the synthetic-content setting enabled. It can be partial
 or null. Reads create no records and leave sign-in freshness alone. Writes
 recheck current eligibility. All signed-in in-scope readers see display names
 and decision times. Only allowlisted approvers get issuer, subject and sign-in
-times ([ruling 32](#ruling-32)).
+times ([ruling 32](#ruling-32)). Non-approver fields use an explicit allowlist.
+
+**Package eligibility and manual publication (stories 449 and 963).**
+Preparation and approval share current delivery, provenance, description
+and disclosure checks. The description starts with `This video was AI-generated.`
+and credits the recorded video, voice and sound generators and any hardware
+recorded as public.
+Match stated engine and file rows, including registered SHA-256 pins, and
+record terms with their source (D49). Check the frozen target's maximum
+against delivery frames and fps and enforce its aspect. An unset maximum
+refuses preparation. D52 excludes legacy runs.
+
+Each approval rechecks eligibility and the stored package record. Refused
+current evidence leaves the package `held` with `evidence_status: stale`.
+When current evidence passes but differs, approval records it and returns
+`package_evidence_older: true`. A releasable package needs an active
+approval for the exact run, snapshot, delivery and master.
+
+`studio.publication/v1` records a manual drop's package digest, approval,
+actor, server time and literal location. A supplied `published_at` must
+be at or after approval and within five minutes ahead of the database clock.
+Approve, withdraw, prepare and record serialize on the run row. PostgreSQL
+binds each drop to its package's run and target and permits one drop per
+run and target across package versions. Story publication status is derived
+from recorded drops. Withdrawal preserves those drops.
+[Release packages](../reference/release-package.md).
 
 [Go-live reference](../reference/go-live.md) ·
 [Original boundary example](examples/valid/go-live-approval.json).
@@ -2230,6 +2426,14 @@ times ([ruling 32](#ruling-32)).
   with a worker bearer authenticated before query or body parsing (P-14).
   Work writes carry the run or job ID and current fence. The worker has no direct
   database access. Story 430 requires the `worker_` prefix on the bearer.
+  Story 962 binds each worker ID to one lane. Work needs a live token and a
+  lane grant. Empty claims default to `run`. Missing grants, wrong-lane
+  claims and wrong-lane continuations give 403 `work.lane_forbidden` before
+  payload model validation or queue access. In shared heartbeat, publish,
+  complete and fail routes a JSON object with `job_id` and without `run_id`
+  selects media work. A lookup confined to the granted media lane returns
+  404 for an ID outside it. In-lane payload errors give 422. A continuation
+  still needs the stored worker ID, fence and unexpired deadline.
 - Protected operations authenticate every request, including media and writes before
   reading metadata bodies. Agents supply a hashed bearer key with production-specific
   grants. Workers use service tokens. Browser auth uses the session below.
@@ -2380,9 +2584,16 @@ and excludes candidates. The image worker checks the household queue before
 marking dispatch. An expired dispatched job fails with `work.dispatch_unconfirmed`.
 Media claims use `lane: voice` or `lane: image`. An empty body keeps the run
 lane. Heartbeat, publish, complete and fail use the job ID and claim fence.
-A paused lane accepts submissions, lets active claims finish and returns
-204 to new claims. The session and CSRF-protected pause change appends a
-person and database timestamp.
+A paused lane accepts submissions and stops claiming queued work. A live
+media claim can complete, including its first `/publish` and engine
+request. A paused media poll returns 204. Matte can settle an expired
+dispatched FIFO head as `work.dispatch_unconfirmed` while paused. Voice and
+image do the same when `STUDIO_PAUSED_RECONCILE=1`. An expired dispatch
+is retired because the worker cannot confirm whether the non-idempotent
+engine received it. The matte-only `settle_only` path can still settle
+expiry without taking a claim. Read `paused` and `live_claim` using the
+lane read in [section 8](#8-runs-deliveries-and-the-store). The session and
+CSRF-protected pause change appends a person and database timestamp.
 
 Selection uses the immutable `media_jobs.requester` principal, outside its
 runtime UPDATE grant. A missing or malformed requester fails closed. A person's
@@ -2432,8 +2643,8 @@ descendants. Selection state keys publication and approval filters by the canoni
 media-list path, with the selection ETag and one rebase. Filters combine before
 pagination. Story results include `latest_finished_run`, `approved` and
 `published`. Run reads include `active_approval_id`. Native video uses the
-authenticated media route for proxy or master. The review panel shows unavailable
-on the installed build until the review read rolls out. If sign-in is stale,
+authenticated media route for proxy or master. The review panel uses the
+go-live read installed by the second pin. If sign-in is stale,
 return through fresh login to the same run and submit only on a new user action.
 Productions shows candidate targets, frozen board labels, feedback corrections,
 iteration conflicts and links between answering and answered runs.
@@ -2462,6 +2673,29 @@ Status uses board jobs and lane reads. A current result agrees with the job,
 selected version, server-derived board facts and local voice inputs. Native
 track and line players use the person-only version preview with ranges.
 
+**Story format (story 977).** The storyboard has an expandable **Format**
+section for the current draft. A signed-in person reads the format catalog,
+immutable version details and scoped stock voice versions. The picker matches
+the recipe's frame dimensions to the enabled media type and flags targets
+that lack a platform maximum before Save. Save sends only the changed
+`format_version_id`, `cast` and `narrator_voice_version_id` fields to
+`PATCH /v1/stories/{id}` with the current story revision in `If-Match`.
+A `409 conflict.revision` or a verified successful PATCH establishes a
+minimum revision for the story and timing read-back. On conflict the editor
+uses the reported current revision, falling back to the sent revision plus
+one. A successful PATCH must name the same story and report the sent
+revision plus one in its body. If the response has an ETag, it must match
+that revision, with either a strong or weak tag.
+
+An uncertain write or stale read-back holds Build and Save and offers
+**Reload draft** even while Format is collapsed. An unresolved conflict
+stays visible when Format is closed and holds Build until the person keeps
+their edited fields or chooses the latest saved version. Kept edits need
+another Save before Build uses them. When a finished run's loaded snapshot
+has no targets, its message links to the originating draft's Format section
+and preserves that destination through sign-in. A subsequent enqueue
+freezes the saved recipe and targets.
+
 **Runs page (stories 419 and 958).** Build sends the displayed draft revision
 and a key for that press. Ambiguous retries keep the key and original revision.
 A revision conflict offers a reload. Length warnings remain advisory. List
@@ -2474,6 +2708,47 @@ board IDs. It shows additions, removals, relative moves and script, method,
 photo and voice changes. An unavailable snapshot leaves either proxy playable.
 Productions keeps go-live with the finished run.
 
+**Reference photo composer (story 418).** A board's `/photo` route opens
+the inspector composer alongside the desktop stage or below the phone
+filmstrip. Save ordered still pins and prompt with the board's
+`If-Match` revision. Whole-frame generation uses a per-press seed and
+`Idempotency-Key`. Ambiguous retries retain both. A layered board shows
+its D51 composite inputs and uses seed 0 for recomposition. Read the
+board jobs and image lane for progress. Job currency and
+`derived.photo_state` apply to saved inputs, with an unsaved edit shown
+separately. Preview the selection on the scoped media hash route and
+newest-first history on the version route. Recorded-only inputs show
+provenance and cannot be selected. A reference selected in Assets
+returns via Router state `{photoAssetVersionId}`. Validate its current
+scope, promoted state, still kind and available media before adding
+the immutable version once and consuming the return state.
+[Photo composer](../reference/photo-composer.md).
+
+**Assets (stories 456, 438 and 965).** `/editor/assets` and its `/generate`
+child accept origin `production`, `media`, `story` and `board` parameters.
+`scope=story|production|library` widens the filter. `target` overrides the
+origin board within that story. `q` and `kind` filter text and kind.
+`job` reopens a known candidate job. Shell selections keep scope, target
+and kind. Search and job stay in the URL. The search input updates locally
+on each keystroke and replaces the URL query. History and reload restore
+it. Generate polls the shared image lane while visible, including when
+the job is missing. A confirmed missing job stops its own polling and the
+next filter change drops its ID. **Use on board** returns the selected
+version through `photoAssetReturn`. **Cut out** uses the exact format and
+slot and follows the API job state. Ambiguous cutout replies keep the same
+body and key for that source, format and slot while the page is open. Reload
+can lose the key before a job URL is known.
+
+Use the [Studio user journey](../process/studio-user-journey.md) for the
+newcomer flow and the [operator runbook](../process/studio-operator-runbook.md)
+for health, lane holds and private recovery. The fifth pin's served web
+bundle contains the Format control, so a person can pin a new story in the
+Editor to reach feedback and private package preparation. The browser
+contract mock covers that journey. A signed-in walkthrough on the installed
+app and Tom's verdict on wording and placement remain open.
+[Story 977, comment 10404](https://work.haynesnetwork.com/work_packages/977/activity#comment-10404) ·
+[Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409).
+
 ### Scopes (P-17)
 
 | Scope | Allows |
@@ -2484,6 +2759,8 @@ Productions keeps go-live with the finished run.
 | `assets:upload` | D42 board photo uploads |
 | `runs:queue` | queue and cancel runs; for a signed-in person, also record check overrides. An agent key may hold it to queue and cancel (D50, Q-02 answered 2026-11-13; coordinator's reading: the per-key scope is the mechanism and is no longer people-only). Tom's ruling is about using the GPUs, so it does not reach check overrides: a judgement by eye stays with people, and no agent key may record one until Tom says otherwise. A key holds the scope only when issued with it, for its productions. A build takes the Wan compute lease, one job at a time, with its unknown-work checks, through the Wan clip client and its journal (section 8, story 842); a lease or queue across agents is dev-env work in haynes-engineering |
 | `formats:write` | explicit agent grant on any production for studio-wide recipe writes over HTTP. Excluded from default grant sets |
+| `archive:read` | list one production's staging records and history and read pinned versions |
+| `archive:write` | create and append staging records in the granted production |
 | `go_live:approve` | humans on the allowlist only; never on a key |
 
 A key lists its productions; anything else is `forbidden` (story
@@ -2504,13 +2781,20 @@ interactive terminal before connecting. Use an interactive exec for that mode,
 since pod output can be logged even with a TTY. Only digests go into the DB. List
 and revoke use key IDs. Actions emit secret-free audit events.
 
-Register worker tokens with `studio-api-admin worker-token register --worker-id ID --token-file PATH`
-as the schema owner or a dedicated admin, never the API runtime role. The file has
+Register an unbound worker ID with
+`studio-api-admin worker-token register --worker-id ID --lane LANE --token-file PATH`
+using the migration identity. Revision `0011_worker_lane_grants` seeds
+`studio-worker` → `run`, `studio-voice-worker` → `voice` and
+`studio-image-worker` → `image`. Existing tokens for those IDs work
+with the seeded bindings. For a bound ID, omit `--lane` to keep its
+binding. Another lane gives `key_admin.worker_lane_conflict`. The file has
 48–121 ASCII alphanumeric characters and may end in a newline. The worker
-prepends `worker_`. Postgres stores its bearer SHA-256 and worker ID. Identical
-registration returns the ID. `--replace` revokes older tokens for that worker
-and inserts the replacement in one transaction. List and revoke show only
-metadata. [Worker token administration](../reference/studio-api.md#worker-token-administration).
+prepends `worker_`. PostgreSQL stores its bearer SHA-256 and worker ID.
+Identical registration returns the ID. `--replace` revokes and inserts
+atomically while preserving the binding. A dedicated token admin can
+register or rotate bound IDs and list with lane-grant SELECT. Revocation
+keeps the existing token-admin grants. The runtime role cannot register
+tokens. [Worker token administration](../reference/studio-api.md#worker-token-administration).
 
 **Formats (story 447).** A lowercase catalog slug has a stable name. Each
 append creates a consecutive immutable `fmv_` version with the SHA-256 of
@@ -2532,6 +2816,10 @@ a manual schema-owner removal. The app exposes no version update or deletion.
 
 Paths are under `/v1`. MCP tool names replace the old `patch_shot` and
 `get_title_summary` (review H6).
+
+The [generated Studio API and MCP reference](../reference/api-reference.md)
+pins the offline OpenAPI export and MCP registry by digest and lists exact
+inputs, scopes, schemas, parity gaps and worker-only exclusions.
 
 | Operation | HTTP | MCP tool | Scope | Story |
 |---|---|---|---|---|
@@ -2563,6 +2851,7 @@ Paths are under `/v1`. MCP tool names replace the old `patch_shot` and
 | `search_assets` | `GET /assets?kind=&label=&production=&board=` | `studio_search_assets` | read | [382](https://work.haynesnetwork.com/work_packages/382), 409 |
 | `get_asset` | `GET /assets/{id}` | `studio_get_asset` | read | 382, 409 |
 | `generate_asset_candidate` | `POST /asset-jobs` | | person | [408](https://work.haynesnetwork.com/work_packages/408), 430 |
+| `request_matte` | `POST /asset-jobs/matte` | | person | 965 |
 | `promote_asset_version` | `POST /asset-versions/{id}/promote` | | human | 408 |
 | `get_media` | `GET /media/{sha256}` | | read | 409 |
 | `estimate_run` | `GET /stories/{id}/estimate` | `studio_estimate_run` | read | 410, 430 |
@@ -2582,13 +2871,22 @@ Paths are under `/v1`. MCP tool names replace the old `patch_shot` and
 | `list_format_versions` | `GET /formats/{id}/versions` | `studio_list_format_versions` | person or read | 447 |
 | `get_format_version` | `GET /format-versions/{id}` | `studio_get_format_version` | person or read | 447 |
 | `present_candidate` | `POST /runs/{id}/candidates` | | runs:queue | 448 |
-| `list_candidates` | `GET /stories/{id}/candidates` | | read | 448 |
+| `list_candidates` | `GET /stories/{id}/candidates` | `studio_list_candidates` | read | 448, 449 |
 | `add_candidate_feedback`, `start_feedback_iteration` | `POST /candidates/{id}/feedback`, `POST /candidates/{id}/iterations` | | person | 448 |
+| `clear_feedback_iteration` | `DELETE /stories/{id}/feedback-iteration` | | person and draft:write | 449 |
+| `create_archive_record` | `POST /productions/{id}/archive-records` | `studio_create_archive_record` | archive:write | 443 |
+| `add_archive_version` | `POST /archive-records/{id}/versions` | `studio_add_archive_version` | archive:write | 443 |
+| `list_archive_records` | `GET /productions/{id}/archive-records` | `studio_list_archive_records` | archive:read | 443 |
+| `get_archive_record` | `GET /archive-records/{id}` | `studio_get_archive_record` | archive:read | 443 |
+| `get_archive_version` | `GET /archive-versions/{id}` | `studio_get_archive_version` | archive:read | 443 |
+| `apply_archive_storyboard` | `POST /archive-versions/{id}/apply` | `studio_apply_archive_storyboard` | archive:read and draft:write | 443 |
 | `list_escalation_packages`, `get_escalation_package` | `GET /productions/{id}/escalations[/{package_id}]` | | production read | 445 |
 | `get_escalation_check` | `GET /runs/{run_id}/escalation-checks/{record_sha256}` | | production read | 445 |
 | `authorize_escalation`, `decline_escalation`, `cancel_escalation` | `POST /productions/{id}/escalations/{package_id}/{authorize,decline,cancel}` | | person and CSRF | 445 |
 | `report_escalation` | `POST /productions/{id}/escalations/{package_id}/callback` | | exact named responder key and Idempotency-Key | 445 |
-| `record_publication` | `POST /runs/{id}/publications` | | human | [449](https://work.haynesnetwork.com/work_packages/449) |
+| `list_release_packages`, `download_release_package` | `GET /runs/{id}/release-packages`, `GET /runs/{id}/release-packages/{digest}/download` | | read | 449 |
+| `prepare_release_package` | `POST /runs/{id}/release-packages` | | runs:queue | 449 |
+| `record_publication` | `POST /runs/{id}/publications` | | go_live:approve (signed-in, configured approver with fresh authentication) | [449](https://work.haynesnetwork.com/work_packages/449) |
 | `claim_work`, `heartbeat_work`, `complete_work`, `fail_work` | `POST /internal/v1/work/...` | | worker | 410 |
 | `login`, `callback`, `logout` | `/auth/...` | | none | 409, [432](https://work.haynesnetwork.com/work_packages/432) |
 | `healthz`, `readyz` | `GET /healthz`, `/readyz` | | none | [434](https://work.haynesnetwork.com/work_packages/434) |
@@ -2611,8 +2909,136 @@ revision ETag. A feedback write appends `{text, board_ids?, replaces_id?}`
 with 201. Board IDs name frozen boards and a correction points to a note on
 the same candidate. Starting an iteration with `{note_ids}` and a current
 story `If-Match` returns 201, the new iteration, revision and ETag. A stale
-write gives `409 conflict.revision`. These operations exclude worker tokens.
+write gives `409 conflict.revision`. Under [CR-36](#ruling-36), a person can
+clear the current iteration with the story ETag and production `draft:write`.
+An out-of-scope story returns 404. The write advances the revision and
+appends attribution. The database prevents references across stories and
+frozen runs keep their `answers`. `studio_list_candidates` can filter by
+candidate ID and up to ten note IDs. These operations exclude worker tokens.
 [Feedback reference](../reference/feedback.md).
+
+**Staging archive (stories 443 and 963).** A create writes the record and
+version 1 together. Append names the newest `revises_version_id`. A stale
+append stores nothing and returns 409 `archive.stale_version` with
+`error.existing_entity_id` (CR-40). Create and append require
+`Idempotency-Key` (`idempotency_key` in MCP), give 201 for creation and
+200 for an exact replay, and refuse reuse with different input with 422
+`idempotency.mismatch`. PostgreSQL requires exactly one parentless root
+at commit and a same-record parent with the immediately prior number.
+Lists carry metadata. Exact version reads and apply verify the stored
+UTF-8 SHA-256 and refuse a mismatch with 500 `archive.text_hash_mismatch`.
+Unknown and out-of-scope records and versions give 404 on reads.
+The MCP envelope cap is 256 KiB with a 2 MiB write exception for create
+and append. People can call the six HTTP operations with CSRF on writes.
+Agent scopes follow CR-42. Worker tokens are refused.
+
+Apply uses the same-production story named in the pinned draft, a story
+revision (`If-Match` or MCP `revision`) and existing set pins. One
+transaction applies eligible boards through normal drafting mutations
+and returns per-board outcomes. Archive replacement preserves
+person-edited boards for every caller. It also preserves unstamped boards
+protected by the drafting rules. An eligible board without an archive
+stamp uses the story revision as the caller's acknowledgment of the
+current story (CR-47). An already applied exact version can be skipped.
+An archive-stamped board accepts only a descendant from the same record.
+Otherwise the per-board receipt carries `archive.version_not_descendant`
+and `stamped_version_id` (CR-41 and CR-45).
+[Staging archive](../reference/staging-archive.md).
+
+**Subtitle source (story 444).** The read-only Python `SubtitleSource`
+lists titles, lists episodes and reads one scene. The Linux adapter
+takes one explicit root, with title directories and SubRip or WebVTT
+episodes directly beneath them. Cue positions are one-based and
+half-open. Millisecond ranges return wholly contained cues. Output is
+chronological with file-order ties. Bounds are 512 entries per directory,
+1 MiB and 10,000 cues per episode, 4,096 input characters per cue, and
+120 seconds, 80 cues and 8,192 parsed characters per scene.
+Descriptor-relative opens reject escapes, symlinks, nested mounts,
+non-regular and multiply linked episode files. Denial gives
+`subtitle.access_denied` without a path. The runner needs a read-only
+or `noatime` mount or ownership of the entries opened for read so access
+times are preserved.
+
+The staging helper accepts a summary of the conflict and timed,
+paraphrased beats. It compares the summary, archive text and title
+with the in-memory passage, including normalized strings and storyboard
+keys and cue joins in time or file order. More than four consecutive
+source words by default gives `subtitle.verbatim`. The setting allows
+one through eight. The helper verifies the SHA-256 of the serialized
+HTTP body or MCP arguments before transport. D14 and D29 still govern
+creative review and go-live.
+
+**Release operations (story 449).** Package list and download share the
+run's production read scope. The response includes frozen targets and
+one preferred item per prepared target. Prefer current evidence and fall
+back to the newest package version. Agent views omit `approval_id` and
+`recorded_by_display_name`. Prepare takes
+`{target_id}` and gives 201 for new bytes or 200 for the same package.
+Add `package_sha256` to repair a known copy, returning 200. A scope miss,
+including a delivery-only import, gives 404. Publication takes
+`{package_sha256, location, published_at?}`, CSRF and an
+`Idempotency-Key`. Creation returns 201 and requires the active exact
+approval. An exact actor, run, key and body replay returns 200.
+Changed input for the same key gives 422 `idempotency.mismatch`.
+[Release packages](../reference/release-package.md).
+
+**Candidate media and matte lane (stories 456 and 965).** Use
+`GET /jobs/{id}` and `GET /queue/lanes` for progress and
+`GET /jobs/{id}/result` and job media for a successful candidate.
+Photo and board voice use authenticated version media. Other
+promoted catalog media uses the hash route. A global generated version
+can preview through its source job. Recorded-only versions lack previews.
+Promotion is a bodyless person-only write without a revision header.
+It returns the same candidate version with effective promoted state.
+Promoting a board photo creates an idempotent production-level copy.
+Candidate enumeration and decline have no API operations.
+
+`POST /asset-jobs/matte` takes
+`{source_version_id, format_version_id, slot}` with CSRF and
+`Idempotency-Key`. Return 202 for admission, 200 for exact replay
+and 422 `idempotency.mismatch` for changed input. Under
+[CR-50](#ruling-50), people request work and read shared-library status,
+preview results, or promote. Production matte status is also available
+through `get_job` or `studio_get_job` with production read. Image
+candidate status is people-only. Ineligible input or slot gives
+422 `adapter.request_invalid`. Dispatched failures retain their
+adapter or matting code. A result that fails API verification records
+`work.result_rejected`.
+
+The matte lane runs one claim at a time. The worker verifies exact sidecar
+readiness and waits for outstanding scratch attempts before claiming.
+A pause allows submissions and lets an existing claim finish.
+`POST /internal/v1/work/release-matte`
+requires the matte grant and current `{job_id, fence}`. After dispatch
+reservation it also needs `reason` of `connect` for failed connection,
+`busy` for confirmed lock refusal or `readiness` for confirmed
+pre-inference loading. Valid releases return 204. The counter stops
+at three. Further busy replies requeue and a further connection or
+readiness outage records `matting.sidecar_unavailable`. Expiry after
+dispatch records `work.dispatch_unconfirmed`, including on a paused
+lane. A matte worker can settle expiry without claiming using
+`POST /internal/v1/work/claim` with `{"lane":"matte","settle_only":true}`.
+[Matte job reference](../reference/studio-api.md#matte-requests-and-reads).
+
+**Database recovery (story 437).** Transient disconnect gives 503
+`database.failed`. After a rolled-back claim, the next claim can acquire
+the same FIFO row with the next durable fence. A committed enqueue with
+a lost reply replays with the same key and draft revision.
+
+**Local segmentation (stories 460 and 452).** `POST /v1/segment` on
+`/segmentation/segment.sock` takes a closed `{attempt_id, request}`
+body up to 4 KiB. An attempt uses a fresh 32-character lowercase hex
+scratch directory with one `input`. A ready response writes `mask.png`
+and canonical `result.json` create-only and returns `{result, result_sha256}`.
+`needs_hint` has null usable geometry. Startup and request execution each
+have a 60 s budget. The service reaps a timed-out worker before replacement.
+Readiness returns the v1 pairing selector, serving manifest hash and CPU
+device (CR-53). The explicit-target client uses pinned readiness and
+bounded waits, stages one still under a held scratch descriptor, verifies
+the response, mask and receipt (including the grounded depth prior), and
+publishes immutable artifacts before fenced completion. Durable cache
+hits verify the exact private identity, score floor and artifacts again.
+No product operation calls this source adapter. [Segmentation adapter](../reference/segmentation-adapter.md).
 
 **Responder boundary (story 445).** Reserve a key ID in the package, with
 `read`, `draft:write` and `runs:queue` on its limited production resources.
@@ -2678,6 +3104,7 @@ pin installed nothing; story 862 has since installed the worker at the lock (sec
 | Package | distribution `haynes-studio`, import package **`haynes_studio`** under `src/`, CLI command `studio` | `poc/studio.py` is a module named `studio` that the PoC scripts import from their own folder; a package of the same name would shadow or be shadowed | package named `studio` |
 | Build and lock | `pyproject.toml` with the **hatchling** backend; **uv** with a committed `uv.lock`, `uv sync --locked` | uv is in every session pod (0.13); one cross-platform lock; hatchling builds with plain pip in image builds too | Poetry (not installed, separate lock); pip-tools (per-platform files) |
 | Runtime libraries | numpy, Pillow, PyAV, scipy (keying, BSD-3-Clause), opencv-python-headless (decal, Apache-2.0), **imageio-ffmpeg** for the ffmpeg binary, all in the lock (scipy 1.16 and OpenCV 4.14 since 2026-11-13, PR 56, used by story 426's keying and decal). A story that ports PoC code adds what that code already uses (wyoming for the TTS and ASR adapters) to the lock | what `poc/` uses; session pods have no system ffmpeg | system ffmpeg |
+| Encoder | PyAV **18.1.1** in the Studio image lock and the offline render requirements export ([CR-52](#ruling-52)) | Replaces withdrawn 18.1.0. The earlier pin remains relevant to exact old bytes. | serving on the withdrawn wheel |
 | Tests | **pytest**, serial; markers in [section 14](#14-test-contract) | standard; serial keeps the 2-thread rule | pytest-xdist by default |
 | JSON Schema | draft 2020-12 files; the `jsonschema` library checks them against the examples | language-neutral, shared with the web app and MCP | Python models as the only schema |
 | API | **FastAPI** + Pydantic v2 + Uvicorn | OpenAPI with auth and errors (story 409's acceptance); typed request models; streaming responses for media | Django (stateful sessions, ORM-first); Flask (no OpenAPI or validation) |
@@ -2726,17 +3153,77 @@ uses the migration identity. Neither Job nor worker mounts a service account
 token. The worker reaches only the required internal services and routes.
 CR-22 splits D18's low-priority talosw01 allocation into 20 vCPUs for
 `studio-render` and 4 for the serial `studio-worker`.
+[CR-37](#ruling-37) governs media worker placement. Place the 1-vCPU voice
+and image workers off talosw01 unless they need a dependency available
+only there. Name that dependency, reduce offline render by the same
+amount, and account for the render pod rolling.
+The media-worker listener on TCP 8002 exposes exact authenticated
+worker routes and keeps the queue and browser boundaries separate.
 [Deployment reference](https://github.com/thaynes43/haynes-ops/blob/main/docs/reference/studio-deployment.md).
 
 Merged source uses revisions `0001_studio_metadata`, `0002_active_agent_grants`,
 `0003_studio_run_queue`, `0004_go_live_approvals`,
-`0005_job_operations`, `0006_format_recipes`, `0007_escalation_packages`
-and `0008_candidate_feedback` in order. API readiness checks the schema.
+`0005_job_operations`, `0006_format_recipes`, `0007_escalation_packages`,
+`0008_candidate_feedback`, `0009_release_packages`,
+`0010_staging_archive`, `0011_worker_lane_grants`,
+`0012_release_constraints` and `0013_matte_jobs` in order.
+API readiness checks the schema and grant reads.
 Runtime grants use select and insert for approvals, withdrawals, promotions,
 format versions, escalation records, candidates, notes and iterations, with
 specific draft columns writable for current pins and the active iteration.
+Archive, package and publication records also use SELECT and INSERT.
+`0011` seeds lane bindings and gives the runtime SELECT on worker lane grants.
+`0012` checks `octet_length(document_bytes) = bytes`, backfills
+`publications.target_id` from its package, refuses duplicate run/target
+history transactionally and matches the drop's run and target to the package.
+`0013` creates the matte FIFO and its release counter and permits matte
+worker grants and lane pauses. It prelocks in predecessor readiness and
+claim order, with 500 ms per lock acquisition and `NOWAIT` on later
+prelocks. Include the grant wait, DDL and commit in queued-read latency.
+The Job can retry the same atomic upgrade within its retry budget.
+An operator starts a later retry through a reviewed PR.
 The executable grants and dedicated credential administration grants are
 listed in the [API reference](../reference/studio-api.md#database-privileges).
+
+**Fourth-pin rollout (stories 967 and 970).** Under [CR-63](#ruling-63),
+fresh preflight gates a reviewed GitOps merge. Flux reconciles the new
+revision. The runbook waits and audits. Migration retry and workload
+rollback each use a separate reviewed PR. This supersedes the
+receipt-timing design in CR-62. Read the installed network policies
+before merge and after reconciliation. Those reads are the authoritative
+isolation check. [CR-65](#ruling-65) keeps the pin to the app, existing
+lane workers, `0013_matte_jobs` and the encoder update.
+
+The separate matte worker and sidecar share one network namespace.
+Under [CR-59](#ruling-59), restrict that pod's egress to DNS and
+the API worker listener, authenticate every listener route, mount
+the worker token only in the worker and give the sidecar no
+service-account token. [CR-66](#ruling-66) governs the isolation stage.
+Before any matte worker pod exists, install and read back the policy-only
+Flux stage. Protect the policy from Flux pruning and from garbage
+collection if the stage is deleted, and verify that the policy selects
+no existing pod. Then require an inside-pod denied-connection check
+before the launcher requests its grant and repeat the check while running.
+The separate activation also owns the credential, registration,
+listener and ingress change, and any render split.
+
+**Paused reconciliation cutover (stories 976 and 978).** The fifth pin
+ships the code with `STUDIO_PAUSED_RECONCILE` unset on both API replicas.
+[Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409).
+Before enabling it, verify the new build on every API replica reachable
+through either listener and on the run worker. Stop the workers or drain
+their traffic, including in-flight requests. In a separate GitOps change,
+set the switch to `1` on every API replica. Verify that workers can reach
+only enabled endpoints, including during replica termination, before
+starting workers or restoring their traffic. Read back the build and
+switch on each replica, worker readiness and progress, and the signed-in
+lane state. A disabled endpoint can return 200 to the final
+`wan_submitting` heartbeat and allow replay of a missing Wan ID while
+the lane is paused. Before rolling back to a build without the dispatch
+check, disable the switch on every serving API replica and drain the
+enabled endpoints. The rollout and rollback use the
+[operator runbook](../process/studio-operator-runbook.md#activate-paused-reconciliation).
+[Story 976, comments 10397](https://work.haynesnetwork.com/work_packages/976/activity#comment-10397) and [10400](https://work.haynesnetwork.com/work_packages/976/activity#comment-10400).
 
 **Local runtime (story 442).** Provisioning and activation are separate.
 The temporary Job-scoped download policy precedes a one-shot CPU weights
@@ -2750,65 +3237,113 @@ weights. Measured release drift and sidecar readiness gate future leased
 smoke. See the [local profile](../reference/local-model-profile.md) and
 [hosting runbook](https://github.com/thaynes43/haynes-ops/blob/main/docs/reference/local-model-hosting.md).
 
-**Proposed media CPU pins.** Matting uses BiRefNet Lite FP32 on ONNX Runtime
-1.32.0. Segmentation uses Grounding DINO Tiny and SAM 2.1 Hiera Tiny, pinned
-together with the tokenizer and CPU runtime. The FSRCNN comparison specifies
-CPython 3.12 Linux amd64, OpenCV DNN CPU with contrib headless 4.14.0.94
-and Pillow 13.0.0. Each profile pins model/runtime digests, effective
-parameters and its resource limits in its reference. A runtime or parameter
-change needs a new profile identity. See [rulings 33–35](#ruling-33).
+**Media CPU pins.** The `haynes-studio-matting` image uses the pinned
+CPython 3.12 base with UID/GID 10001, a read-only root and weights, and
+`/matting` scratch. BiRefNet Lite FP32 uses ONNX Runtime 1.32.0 CPU with
+two intra-op threads, one inter-op thread, sequential execution and one
+request in flight. Startup has 120 s and dispatch has 30 s. The service
+reaps a stuck subprocess before replacement.
+CR-38 sets memory from measured runtime settings. CR-43 disables the CPU
+arena and sets 8 GiB requested and 10 GiB limit for the serving sidecar and
+smoke. The offline render limit stays 32 GiB. The socket service drains
+at most 64 KiB under its 3 s socket timeout on a header-level refusal before
+returning `400 adapter.request_invalid`.
+Segmentation pins Grounding DINO Tiny and SAM 2.1 Hiera Tiny together with
+the tokenizer and CPU runtime. Its Linux amd64 CPython 3.12 image uses
+CPU Torch 2.14.1+cpu, TorchVision 0.29.1+cpu, Transformers 5.24.1,
+safetensors 0.8.0 and Pillow 13.0.0. The OCI resource label binds the
+measurement and serving resource contracts to the image. The measuring
+stage uses a 16 GiB minimum. CR-51 selects memory-mapped weights with
+4 GiB requested and a 5 GiB serving limit. CR-53 keeps the v1 pairing
+selector and binds the v2 serving contract through its manifest hash.
+The staged pod allows 150 s for shutdown, including request completion or
+reaping and clean exit.
+The FSRCNN comparison image is separate from Studio's core OpenCV
+wheel. It pins CPython 3.12 Linux amd64, OpenCV DNN contrib headless
+4.14.0.94, Pillow 13.0.0 and NumPy 2.4.6. Its manifest binds the image,
+build, graph and wheel digests, CPU features, native and adapter hashes,
+and resources. CR-55 keeps the staged backend comparison-only.
+Each profile records exact pins and effective parameters in its reference.
+A runtime or parameter change needs a new profile identity.
 
 ### Installed and published state
 
-Tracker read-backs through 2026-11-25, at pickup. Installed, published,
+Tracker evidence through 2026-11-27. Installed, published,
 usable and accepted have separate evidence.
 
 | Component | Recorded evidence | Open proof |
 |---|---|---|
-| Wan product job API v1 | Flux installed haynes-ops `1a5d2e08`. Seven deployed files matched. In-pod `/v1/ready` and `/v1/profiles` returned 200 for `i2v`, `s2v` and `foley`; legacy ranged playback passed and the ingress excluded `/v1`. [Story 458](https://work.haynesnetwork.com/work_packages/458), comment 9749. | Live product job and post-S2V admission through the queue. |
-| CNPG and Authentik | DB/roles at haynes-ops `f6c17236`; three instances reloaded without restart and Portal rules stayed intact. Authentik application and group binding at `e7e604d3`; projection Ready and public health 200. [Story 431](https://work.haynesnetwork.com/work_packages/431), comment 9742; [story 432](https://work.haynesnetwork.com/work_packages/432), comment 9794. | LAN user's sign-in, non-member denial and logout. |
-| Studio images and LAN deployment | First images built, scanned, smoked and published from `fb69580` with anonymous registry reads ([story 433](https://work.haynesnetwork.com/work_packages/433), comment 9788). Initial installed app at haynes-ops `18935d3b`, Studio `fa52968`, Alembic `0002_active_agent_grants`. Six pods Ready, separate TLS DB roles and HBA refusals, shared store read-back, anonymous API 401, verified sign-in redirect and internal paths absent from ingress. [Story 434](https://work.haynesnetwork.com/work_packages/434), comment 9819. | A person completes sign-in and uses the installed pages. |
-| Queue worker | Haynes-ops `23c6d69c` installed Studio `c75086b`, Alembic `0003_studio_run_queue` and one worker Ready on talosw01. Token minted and registered in cluster. Worker route refused anonymous calls and accepted the worker identity before validation. Idle claims returned 204. Stage read-back worked across worker and both API pods. The offline worker rolled to 20 vCPUs. [Story 956](https://work.haynesnetwork.com/work_packages/956), comment 9872. | A new queued run claims, pauses on Wan refusal and completes. Failure/recovery proof belongs to [story 437](https://work.haynesnetwork.com/work_packages/437). |
-| Current app and imported archives | Haynes-ops `c20a53a4` installed Studio `f30445f` (Python digest `1aa9b473…`, web `88305cda…`), Alembic `0004_go_live_approvals`, seven Ready pods. Both archive imports reported `imported`: One More Meeting with its canonical snapshot and recorded-only asset pins; The Winter Menu in the recovered layout. The source archives stayed unchanged. [Story 957](https://work.haynesnetwork.com/work_packages/957), comment 9914. | A person signs in, plays both films and seeks on a phone. Imported input bytes and rebuild are separate. |
-| Automated private playback | Each production's proof key read its own run and delivery and verified the exact master and proxy. Proxy HEAD returned 200, and whole, first, past-midpoint and suffix ranges returned 206 with exact ranges. One More Meeting proxy: 1,789,344 bytes, SHA-256 `63dbb1e26287360ed6c4a0422dbdbfa250ad981c74e9719133d4dfe72d809d1b`. Other production's key 404, anonymous 401, scoped key writes 403. Both proof keys were revoked within two minutes. [Story 957](https://work.haynesnetwork.com/work_packages/957), comment 9914; [story 944](https://work.haynesnetwork.com/work_packages/944), comment 9915. | Human playback and creative verdict. |
-| Database backup and health | Daily physical base backup and continuous WAL cover metadata with a 30-day window. First completed base containing Studio and both imports: `postgres-20261125000000`, Kubernetes creation time 2026-11-25 05:00Z, Barman ID `20261125T000000`. CNPG had three Ready instances and continuous archiving. Gatus passed with expected anonymous 401. [Story 435](https://work.haynesnetwork.com/work_packages/435), comments 9887 and 9948. | Isolated restore. NAS media has no backup (D47). |
-| Dormant local-model runtime | Flux applied haynes-ops `79fa01b5`. Wan pod recreated once, four changed files matched, Wan/Foley readiness stayed 200; local discovery gave `503 local_model_not_installed`. Published `ghcr.io/thaynes43/studio-local-model@sha256:e2e9b5e9b71aee89d0b8077ae47be113587b61054957b10f694cb4ab92b93f03`. [Story 442](https://work.haynesnetwork.com/work_packages/442), comment 9924. | Sidecar/profile activation, calibration and leased inference/handover proof. |
-| Local weights | Download policy installed at haynes-ops `942f1785`. The first Job (`e7d237a6`) was OOMKilled, exit 137, under 256 MiB and published nothing. The retry `wan-local-model-provision-r2` (`e1c703b7`) finished 05:57:55Z and published both pinned files (7,499,546,400 bytes). The coordinator read back both sizes and hashes, then removed the quarantined partial. Wan's pod UID stayed unchanged, ready and dormant. [Story 442](https://work.haynesnetwork.com/work_packages/442), comment 9959. | Activation PR 5050 outside the pickup snapshot. |
+| Wan product job API v1 | Flux installed haynes-ops `1a5d2e08`. Seven deployed files matched. In-pod `/v1/ready` and `/v1/profiles` returned 200 for `i2v`, `s2v` and `foley`; legacy ranged playback passed and the ingress excluded `/v1`. [Story 458, comment 9749](https://work.haynesnetwork.com/work_packages/458/activity#comment-9749). | Live product job and post-S2V admission through the queue. |
+| CNPG and Authentik | DB/roles at haynes-ops `f6c17236`; three instances reloaded without restart and Portal rules stayed intact. Authentik application and group binding at `e7e604d3`; projection Ready and public health 200. [Story 431, comment 9742](https://work.haynesnetwork.com/work_packages/431/activity#comment-9742); [story 432, comment 9794](https://work.haynesnetwork.com/work_packages/432/activity#comment-9794). | LAN user's sign-in, non-member denial and logout. |
+| Studio images and LAN deployment | First images built, scanned, smoked and published from `fb69580` with anonymous registry reads ([story 433, comment 9788](https://work.haynesnetwork.com/work_packages/433/activity#comment-9788)). Initial installed app at haynes-ops `18935d3b`, Studio `fa52968`, Alembic `0002_active_agent_grants`. Six pods Ready, separate TLS DB roles and HBA refusals, shared store read-back, anonymous API 401, verified sign-in redirect and internal paths absent from ingress. [Story 434, comment 9819](https://work.haynesnetwork.com/work_packages/434/activity#comment-9819). | A person completes sign-in and uses the installed pages. |
+| Queue worker | Haynes-ops `23c6d69c` installed Studio `c75086b`, Alembic `0003_studio_run_queue` and one worker Ready on talosw01. Token minted and registered in cluster. Worker route refused anonymous calls and accepted the worker identity before validation. Idle claims returned 204. Stage read-back worked across worker and both API pods. The offline worker rolled to 20 vCPUs. [Story 956, comment 9872](https://work.haynesnetwork.com/work_packages/956/activity#comment-9872). | A new queued run claims, pauses on Wan refusal and completes. Failure/recovery proof belongs to [story 437](https://work.haynesnetwork.com/work_packages/437). |
+| First archive import pin | Haynes-ops `c20a53a4` installed Studio `f30445f` (Python digest `1aa9b473…`, web `88305cda…`), Alembic `0004_go_live_approvals`, seven Ready pods. One More Meeting imported with its canonical snapshot and recorded-only asset pins. The Winter Menu imported in the recovered layout. The source archives stayed intact. [Story 957, comment 9914](https://work.haynesnetwork.com/work_packages/957/activity#comment-9914). | Signed-in phone playback and seek. |
+| Automated private playback | Each production's proof key read its own run and delivery and verified the exact master and proxy. Proxy HEAD returned 200, and whole, first, past-midpoint and suffix ranges returned 206 with exact ranges. One More Meeting proxy: 1,789,344 bytes, SHA-256 `63dbb1e26287360ed6c4a0422dbdbfa250ad981c74e9719133d4dfe72d809d1b`. Other production's key 404, anonymous 401, scoped key writes 403. Both proof keys were revoked within two minutes. [Story 957, comment 9914](https://work.haynesnetwork.com/work_packages/957/activity#comment-9914); [story 944, comment 9915](https://work.haynesnetwork.com/work_packages/944/activity#comment-9915). | Human playback and creative verdict. |
+| Database backup and health | Daily physical base backup and continuous WAL cover metadata with a 30-day window. First completed base containing Studio and both imports: `postgres-20261125000000`, Kubernetes creation time 2026-11-25 05:00Z, Barman ID `20261125T000000`. CNPG had three Ready instances and continuous archiving. Gatus passed with expected anonymous 401. [Story 435, comments 9887](https://work.haynesnetwork.com/work_packages/435/activity#comment-9887) and [9948](https://work.haynesnetwork.com/work_packages/435/activity#comment-9948). | Isolated restore. NAS media has no backup (D47). |
+| Dormant local-model runtime | Flux applied haynes-ops `79fa01b5`. Wan pod recreated once, four changed files matched, Wan/Foley readiness stayed 200; local discovery gave `503 local_model_not_installed`. Published `ghcr.io/thaynes43/studio-local-model@sha256:e2e9b5e9b71aee89d0b8077ae47be113587b61054957b10f694cb4ab92b93f03`. [Story 442, comment 9924](https://work.haynesnetwork.com/work_packages/442/activity#comment-9924). | Sidecar/profile activation, calibration and leased inference/handover proof. |
+| Wan local weights and activation | Download policy installed at haynes-ops `942f1785`. The first Job (`e7d237a6`) was OOMKilled, exit 137, under 256 MiB and published nothing. Retry `wan-local-model-provision-r2` (`e1c703b7`) published both verified files (7,499,546,400 bytes). The first activation was reverted after Wan was off its Service for about 32 minutes. The fixed dormant build rolled out and the diagnostic identified the device-variable rewrite. [Story 442, comments 9959](https://work.haynesnetwork.com/work_packages/442/activity#comment-9959), [9973](https://work.haynesnetwork.com/work_packages/442/activity#comment-9973), [10006](https://work.haynesnetwork.com/work_packages/442/activity#comment-10006) and [10007](https://work.haynesnetwork.com/work_packages/442/activity#comment-10007). | Story 442 is marked **Needs approval** after the restart-only ask lapsed unanswered. [Story 442, comments 10413](https://work.haynesnetwork.com/work_packages/442/activity#comment-10413) and [10573](https://work.haynesnetwork.com/work_packages/442/activity#comment-10573). [Haynes-ops PR 5064](https://github.com/thaynes43/haynes-ops/pull/5064) remains open and unmerged. [Story 442, comment 10413](https://work.haynesnetwork.com/work_packages/442/activity#comment-10413). |
+| Second app pin | Haynes-ops `04bb6c82` installed Studio `393fe1d` and schema `0007_escalation_packages`. It brought default protection for unstamped drafts, media and job operations, recipes, Runs comparison, person-mode escalation, go-live and snapshot reads, and board inspector. [Story 959, comment 9977](https://work.haynesnetwork.com/work_packages/959/activity#comment-9977). | First signed-in use and real jobs. [Story 959, comment 9977](https://work.haynesnetwork.com/work_packages/959/activity#comment-9977). |
+| Voice and image lanes | The two consumers were installed off talosw01 at 1 vCPU each. The image policy initially selected a label Cilium ignored. The corrected policy was installed and engine reachability passed. [Story 961, comments 9993](https://work.haynesnetwork.com/work_packages/961/activity#comment-9993), [9997](https://work.haynesnetwork.com/work_packages/961/activity#comment-9997) and [10002](https://work.haynesnetwork.com/work_packages/961/activity#comment-10002). | A real take and photo need a signed-in person. [Saga 362, comment 10012](https://work.haynesnetwork.com/work_packages/362/activity#comment-10012). |
+| Third app pin | Haynes-ops `ccf83a52` installed Studio `80975a9` with `0012_release_constraints`. It added feedback and iteration, the photo composer, private release packages, Assets, staging archive, lane grants and shutdown drain. The installed worker identities passed cross-lane denials. Both archived films read back intact. [Story 964, comment 10061](https://work.haynesnetwork.com/work_packages/964/activity#comment-10061) · [Saga 362, comment 10064](https://work.haynesnetwork.com/work_packages/362/activity#comment-10064). | Real feedback and release package. [Saga 362, comment 10064](https://work.haynesnetwork.com/work_packages/362/activity#comment-10064). |
+| Fourth app pin | Haynes-ops `59dc8678` installed Studio `470a90af73a2201e6542b5d867853dce6facad04` and Alembic `0013_matte_jobs` on 2026-11-25. Two API, two web and two MCP pods, the run, voice and image workers, and the offline render pod rolled with zero restarts. Offline render stayed at 20 vCPUs and the run worker kept its 4-vCPU share. PyAV 18.1.1 was read back in six encoder locations: both API pods, run, voice and image workers, and offline render. Postflight and the independent verify each logged 75 PASS and 0 FAIL, with 35 expected HTTP listener refusals. The pre/post comparison found identical archived runs, deliveries, indexes and store evidence. Gatus had no failure in 21 results across the rollout. [Story 967, comments 10322](https://work.haynesnetwork.com/work_packages/967/activity#comment-10322), [10327](https://work.haynesnetwork.com/work_packages/967/activity#comment-10327) and [10329](https://work.haynesnetwork.com/work_packages/967/activity#comment-10329) · [Story 956, comment 9872](https://work.haynesnetwork.com/work_packages/956/activity#comment-9872). | Migration retry, workload rollback and Tom's acceptance. [Story 967, comment 10329](https://work.haynesnetwork.com/work_packages/967/activity#comment-10329). |
+| Fifth app pin | Haynes-ops `6597e708` installed Studio `eeeb2a40105ae1e64325063b0aa93c890fdefa43` on the six app and worker Deployments on 2026-11-26. [Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409). Alembic stayed at `0013_matte_jobs`, PyAV 18.1.1 was read back at all six encoder locations, and the offline render pod stayed in place. [Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409). Postflight logged 79 PASS and 0 FAIL and matched both archived runs, their deliveries and indexes, and the store to the baseline. [Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409). | Migration retry, workload rollback and Tom's acceptance. [Story 978](https://work.haynesnetwork.com/work_packages/978). |
+| Editor Format control | The editor can pin a format version, narrator voice and cast on a draft (story 977). [Story 977, comment 10404](https://work.haynesnetwork.com/work_packages/977/activity#comment-10404). The served web bundle contains the control. [Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409). | Signed-in Editor walkthrough and Tom's verdict on wording and placement. [Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409) · [Story 977, comment 10404](https://work.haynesnetwork.com/work_packages/977/activity#comment-10404). |
+| Paused-lane reconcile | The story 976 code is in the fifth build with `STUDIO_PAUSED_RECONCILE` unset on both API replicas. [Story 976](https://work.haynesnetwork.com/work_packages/976) · [Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409). | Activation remains pending and requires its own worker cutover. [Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409). |
+| Matting backend and matte lane | The pinned matting allocation passed the real-weight one-shot smoke with all 13 verdicts. The app accepts a cutout with 202 and the job waits for a consumer. [Story 459, comment 10004](https://work.haynesnetwork.com/work_packages/459/activity#comment-10004) · [Story 967, comment 10322](https://work.haynesnetwork.com/work_packages/967/activity#comment-10322). | The sidecar and matte worker await activation. The private cast trial needs a content-addressed photo from an authorized upload or reviewed import, then Tom's visual verdict. [Story 451, comment 10049](https://work.haynesnetwork.com/work_packages/451/activity#comment-10049) · [Story 970, comment 10338](https://work.haynesnetwork.com/work_packages/970/activity#comment-10338). |
+| Matte worker isolation | The protected policy-only stage is installed at haynes-ops `ed212ad0`. Read-back verified both protections and zero matching pods, including terminating pods. All stages recovered Ready after reconciliation and no pod rolled. [Story 970, comments 10332](https://work.haynesnetwork.com/work_packages/970/activity#comment-10332) and [10333](https://work.haynesnetwork.com/work_packages/970/activity#comment-10333). | Story 970 is marked **Needs approval** pending Tom's decision on the credential, lane grant and API ingress peer, with the isolation proof still uncleared. [Story 970, comment 10574](https://work.haynesnetwork.com/work_packages/970/activity#comment-10574). [Haynes-ops PR 5096](https://github.com/thaynes43/haynes-ops/pull/5096) remains held, open and unmerged because all three designs for the isolation proof inside the pod can give a false pass. [Story 970, comment 10382](https://work.haynesnetwork.com/work_packages/970/activity#comment-10382). |
+| Segmentation | The pinned image and real weights are installed as verified allocation `-06`. The one-shot serving smoke passed at 2.74 GiB peak under 5 GiB. Serving remains inactive. [Story 460, comment 10228](https://work.haynesnetwork.com/work_packages/460/activity#comment-10228). | Continuous serving and the private quality trial. [Story 460, comment 10228](https://work.haynesnetwork.com/work_packages/460/activity#comment-10228). |
+| Upscaling comparison | The provisioned FSRCNN graph passed its measuring smoke and produced one private proxy-frame comparison. Lanczos was closer to the master on all three reference metrics for that frame. Delivery uses Lanczos. The learned scaler has no serving stage. [Story 461, comment 10229](https://work.haynesnetwork.com/work_packages/461/activity#comment-10229) · [Saga 362, comment 10231](https://work.haynesnetwork.com/work_packages/362/activity#comment-10231). | Tom's visual verdict on the pair. [Story 461, comment 10229](https://work.haynesnetwork.com/work_packages/461/activity#comment-10229). |
 
-**Merged source beyond the installed pin.** Media and job operations (including
-lane pause and worker liveness), format recipes, the Runs page, escalation
-contract, go-live review and snapshot reads, board inspector and candidate
-feedback await deployment. The installed commit includes the initial agent
-drafting code, Productions review and storyboard stage. Agent drafting with
-default protection for unstamped boards remains source-only, and agent-key
-issuance stays held pending the safer deployment. The proof keys were temporary
-and revoked. [Story 959](https://work.haynesnetwork.com/work_packages/959) owns
-the next app pin. The current proof covers `f30445f`.
-[Saga 362](https://work.haynesnetwork.com/work_packages/362), comment 9928;
-[story 958](https://work.haynesnetwork.com/work_packages/958), comment 9937.
+**Included in the fifth pin.** The segmentation client adapter from `fd8e4a36`
+is in the build with no calling job, route or worker.
+[Story 452, comment 10313](https://work.haynesnetwork.com/work_packages/452/activity#comment-10313) · [Story 978, comment 10408](https://work.haynesnetwork.com/work_packages/978/activity#comment-10408).
+The fifth pin's source also includes PR 149's escalation fixture clock fix.
+[Story 978](https://work.haynesnetwork.com/work_packages/978).
+
+**Foreground role masks.** Haynes-studio PR 151 (story 968) is parked for
+good, open and unmerged at `5b87773`. [Story 968, comment 10582](https://work.haynesnetwork.com/work_packages/968/activity#comment-10582).
+PRs 140 and 147 stay open as earlier references. [Story 968, comment 10582](https://work.haynesnetwork.com/work_packages/968/activity#comment-10582).
+
+**Recovery evidence.** During the third-pin one-API-pod replacement,
+300 of 300 internal ingress samples returned the expected 401. Both
+imported proxies read back unchanged. The baseline had no saved selection
+or queued snapshot.
+[Story 437, comments 10077](https://work.haynesnetwork.com/work_packages/437/activity#comment-10077) and [10078](https://work.haynesnetwork.com/work_packages/437/activity#comment-10078).
+The isolated restore drill (story 436) is **Needs answer** on Tom's choice
+of archive credential. [Story 436, comment 10572](https://work.haynesnetwork.com/work_packages/436/activity#comment-10572).
+The available archive credential would expose a production role password
+to the recovery pod. [Story 436, comment 10072](https://work.haynesnetwork.com/work_packages/436/activity#comment-10072).
+The separate single-instance cluster, Studio-only query, no archive
+writes and verified same-drill cleanup remain the CR-48 boundary.
+[Saga 362, comment 10064](https://work.haynesnetwork.com/work_packages/362/activity#comment-10064).
 
 **Held.** Story [446](https://work.haynesnetwork.com/work_packages/446) awaits the
 dev-env coordinator's sanctioned responder interface and the stored-evidence
-fixes. The installed go-live approver list is empty. Tom owns configuring his
-subject, go-live, creative verdicts and acceptance. D52 permanently excludes
-both imported films from go-live.
+fixes. [Story 446, comment 9927](https://work.haynesnetwork.com/work_packages/446/activity#comment-9927).
+The installed go-live approver list is empty. D52 excludes both imported films.
+[Story 964, comment 10061](https://work.haynesnetwork.com/work_packages/964/activity#comment-10061).
+Human sign-in, phone playback and acceptance are open.
+[Saga 362, comment 10325](https://work.haynesnetwork.com/work_packages/362/activity#comment-10325).
 
 **Open risks.** D47 leaves hand-made and uploaded originals and the two exact
 archives dependent on surviving NAS copies. Some bytes cannot be regenerated.
 The escalation trigger trusts worker-supplied evidence until checked against
 stored records. The recipe credential check only guards against pasting.
-Matting, segmentation and upscaling have no published evidence for Studio doll
-faces, toy-scale props or printed lettering. NFS does not report free inodes.
+Matting and segmentation private still quality remain open. Upscaling has
+one proxy-frame comparison with visual review pending. NFS does not report free inodes.
 The coordinator accepted a budget of 32 new entries for matting without an inode
 reading and accepted the small segmentation file-count budget on the same basis.
-[Story 435](https://work.haynesnetwork.com/work_packages/435), comment 9887;
-[story 445](https://work.haynesnetwork.com/work_packages/445), comment 9926;
-[story 447](https://work.haynesnetwork.com/work_packages/447), comment 9919;
-[story 459](https://work.haynesnetwork.com/work_packages/459), comment 9934;
-[story 460](https://work.haynesnetwork.com/work_packages/460), comments 9946–9947;
-[story 461](https://work.haynesnetwork.com/work_packages/461), comment 9952.
+[Story 435, comment 9887](https://work.haynesnetwork.com/work_packages/435/activity#comment-9887);
+[story 445, comment 9926](https://work.haynesnetwork.com/work_packages/445/activity#comment-9926);
+[story 447, comment 9919](https://work.haynesnetwork.com/work_packages/447/activity#comment-9919);
+[story 459, comment 9934](https://work.haynesnetwork.com/work_packages/459/activity#comment-9934);
+[story 460, comments 9946](https://work.haynesnetwork.com/work_packages/460/activity#comment-9946) and [9947](https://work.haynesnetwork.com/work_packages/460/activity#comment-9947);
+[story 451, comment 10049](https://work.haynesnetwork.com/work_packages/451/activity#comment-10049) ·
+[story 460, comment 10228](https://work.haynesnetwork.com/work_packages/460/activity#comment-10228) ·
+[story 461, comment 10229](https://work.haynesnetwork.com/work_packages/461/activity#comment-10229).
 
-First published [registry digests](../reference/studio-images.md#first-publication):
+First published [registry digests](../reference/studio-images.md#first-publication)
+from [story 433, comment 9788](https://work.haynesnetwork.com/work_packages/433/activity#comment-9788):
 
 - `ghcr.io/thaynes43/haynes-studio@sha256:284d97311e46f13a14da50bca20dbd786d522aa4c6e3e2d73f0fe2e687805f4a`
 - `ghcr.io/thaynes43/haynes-studio-web@sha256:8ea1576f1efa6502cb4633a018cdd6dd631869d05fa5895dae7df58ef36aebfc`
@@ -2852,14 +3387,33 @@ What story 424 implements. Proposal P-19 for the names and commands.
   required checks; the Claude review stays advisory. Since PR 78 (2026-11-18), each
   `source` job has a 20-minute limit to catch a hang; `db` stays at 10 minutes and
   `browser` at 15. This changes no thread limit and does not make the suite faster.
+  Both source jobs run `uv run --locked python scripts/checks/api_reference.py --check`.
+  This checks offline HTTP and MCP inventories and synthetic schema examples
+  against the committed reference and bundle. Run the command without
+  `--check` to regenerate them when operations, tools or schemas change.
 - **Browser (stories 413 and 415):** `pnpm typecheck`, `pnpm test` (at most two
   Vitest workers) and `pnpm test:e2e` (one Playwright worker). Playwright builds
   the SPA and checks the API and completed login against a contract mock at
   400 × 860 and 1280 × 900. Merged cases cover create, reload, revision conflicts,
   storyboard selection and timing, inspector edits, disposable ranged playback,
   exact-run review/refusals, Build and frozen-snapshot comparison (including
-  404 and both proxies), and candidate feedback and iteration. The standalone
-  v6 mockup has its own smoke. Human sign-in and phone review remain open.
+  404 and both proxies), candidate feedback and iteration, Assets filter
+  and target restore, candidate refusal, retry, preview and promotion, and
+  matte states. The photo composer cases exercise durable job transitions
+  and revision conflicts with synthetic images. Story 977's mock flow
+  creates a draft with a buildable board, follows the Format link from an
+  unpinned run, saves format, cast and narrator settings, and sees frozen
+  targets with **Present run** and **Prepare package** on the next finished
+  run. Cases cover keyboard operation, pending controls, visible focus,
+  API refusals and no overflow at both viewports. They also cover stale
+  read-back, a collapsed conflict holding Build, recovery from a successful
+  reply with a mismatched revision, and return through sign-in. The
+  [behaviour matrix](../reference/web-behaviour-matrix.md)
+  records story 438's mock cases. The opt-in installed playback spec needs
+  a person-supplied HTTPS origin and Playwright storage state, skips in CI,
+  and tests cookie-authenticated ranges and playback for the exact imports.
+  Interactive sign-in and physical phone playback require human evidence.
+  The standalone v6 mockup has its own smoke.
 - **DB (stories 409 and 429):** disposable PostgreSQL 16 covers the documented
   least-privilege API role and separate provisioner. The SDK test exercises
   Streamable HTTP against the real API, all 15 tools, expiry and revocation,
@@ -2875,6 +3429,54 @@ What story 424 implements. Proposal P-19 for the names and commands.
   use synthetic fakes. A source test compares documented runtime grants with
   executable grants. Archive tests cover read-only imports, queued work during
   copy, fail-closed collisions, recovery evidence and idempotent replay.
+- **API and queue recovery (story 437):** real API replicas and workers
+  share a disposable PostgreSQL 16 and store with fake external services.
+  Tests cover FIFO exclusion and disjoint lanes, expiry and reclaim with
+  the same or different worker ID, pool recovery after rollback, one
+  durable engine submission, one-use OIDC state, nonce, provider code
+  reuse, session expiry and approval freshness, scope and ranged media.
+  The talosw01 simulation leaves the run queued with `gpu_unavailable`
+  while edits, delivery reads and voice and image work stay available.
+  Wrong-lane operations leave queue bytes and counts intact. The
+  escalation fixture samples PostgreSQL time for responder-key expiry
+  boundaries and advances its fake lifecycle clock for expiry and budget tests.
+- **Paused reconciliation (story 976):** disposable PostgreSQL and fake
+  engines cover pause before reclaim, pause racing reclaim, dispatch
+  authorization ordered with pause, live media dispatch and live ASR, and
+  an authorized Wan PUT starting after pause returns. The tests load the
+  pinned serving worker and API handlers from Git and pair each with the
+  new counterpart in both switch states. Coverage includes missing and
+  verified Wan IDs, ineligible FIFO heads, live fencing, media expiry
+  settlement, FIFO on resume and matte `settle_only`. Guard regressions
+  cover the default-off claim and reservation paths, rejection of
+  `X-Studio-Paused-Reconcile: 0` for paused claims, and cancellation
+  priority at the final submitting heartbeat.
+- **Archive and release DB tests (stories 443, 449 and 963):** check
+  API/MCP parity, read-only pinned archive reads, exact UTF-8 bytes,
+  provenance, stale append and replay, per-board protection, apply
+  rollback, ancestry, size and envelope limits, and metadata-only logs.
+  Runtime writes that skip parent sequence numbers or commit a record
+  without a root fail. Populated legacy drop backfill, duplicate history
+  refusal, exact package length and linkage constraints, and locks in
+  both publication/withdrawal orders run against disposable PostgreSQL.
+- **Subtitle source (story 444):** runtime-generated fixtures cover
+  bounded parsing and discovery, path and file refusals, safe fallback,
+  changes while reading, unchanged metadata, cue-free receipts and
+  logs, archive compatibility, immutable request bodies and copied
+  dialogue in both summary and outgoing archive text. A real read is
+  Expected and needs Tom's designated source, scope and runner.
+- **Matte job and migration (stories 965 and 967):** disposable PostgreSQL 16
+  and a real Unix service with a fake graph check readiness, bounded releases,
+  fencing, bidirectional lane grants, pause and expiry settlement, scoped
+  HTTP and MCP reads, create-only repair and promotion. Migration tests
+  exercise predecessor lock order, contention and atomic rollback.
+- **Drafting benchmark (story 455):** generated evidence and hand-authored
+  passing fixtures cover each case, with independent failures for schema,
+  recipe methods, timing, references, brief assertions, write scope and
+  preservation. Scoring and summaries run offline and refuse a tampered
+  corpus. Summary requires all five results from one corpus and reports
+  safety and structure independently of Tom's five exact-hash labels.
+  Frontier stays default until Tom's D46 switch verdict.
 - **GitOps release checks (stories 434, 956 and 957):** validate digest and
   revision parity across the app and its Jobs and Flux health gates. On rollout,
   record registry, readiness, role TLS/HBA, internal-route denial and NFS
@@ -2887,16 +3489,29 @@ What story 424 implements. Proposal P-19 for the names and commands.
   transfer, queue refusal, durable recovery, child deadlines, memory checks and
   typed results with fake engines. The weights read-back checks both pins.
   Live hosting and handover require a bounded leased smoke.
-- **Media backend proposals (stories 459–461):** synthetic install smokes
-  check the pinned runtimes, digests and resource limits. Matting verifies
-  green-eye preservation and aligned outputs. Segmentation checks visible and
-  hidden targets, source-sized masks and invalid dimensions. Upscaling checks
-  edge spread, ringing, flat texture, glyphs, face geometry, flicker,
-  resource bounds and exact repeatability. Private quality evidence remains
-  with [451](https://work.haynesnetwork.com/work_packages/451),
-  [452](https://work.haynesnetwork.com/work_packages/452) and
-  [453](https://work.haynesnetwork.com/work_packages/453), after each backend's
-  separate installation proof.
+- **Media backend smokes (stories 459–461):** image CI uses synthetic graphs
+  to exercise the runtimes, including the segmentation socket and offline
+  loader with the pinned model classes and processors. Real-weight one-shot
+  jobs check pins and bounds. Matting measures phase and post-request RSS,
+  preservation of green eyes and deterministic aligned outputs. Segmentation
+  first compares mapped and buffered byte parity. Its serving smoke records
+  three passes of six calls after cold load, each phase and pass-end sample,
+  readiness and create-only replay. Pass 1 warms the weights. The maxima
+  for worker RSS and cgroup residency in pass 3 may each grow at most 64 MiB
+  over pass 2. Pass-end memory is diagnostic. The run budget is 840 s
+  within the 900 s Job deadline.
+  Upscaling measures allocator parity and deterministic replay, timing,
+  phased memory, deadline recovery, edge spread, ringing, texture, glyphs,
+  faces and flicker. CR-56 uses Lanczos-relative overshoot and motion
+  verdicts and retains the absolute figures for both. The private
+  comparison reports the two output hashes and objective diagnostics.
+  Private still trials in stories 451 and 452 and Tom's verdict on the
+  story 461 comparison stay separate from smoke outcomes.
+- **Segmentation adapter (story 452):** the real Unix handler with a fake
+  graph and synthetic stills covers readiness, grounded mask verification,
+  scratch path safety, missing or mismatched staged receipts, cache pins and
+  publication. Board, asset-version and snapshot schemas are pinned
+  byte-for-byte against the unchanged source baseline.
 - **Images (story 433):** PR and main jobs scan and smoke both images, with
   Python package and OpenAPI checks, a disposable PostgreSQL 16 migration and
   nginx SPA fallback, cache headers and reserved-path 404s. The main-only
@@ -2999,9 +3614,11 @@ What story 424 implements. Proposal P-19 for the names and commands.
 | `photo.stale`, `asset.recorded_without_media` | invalid (422) | 4, 8, 9, 12 | |
 | `photo.upload_busy`, `photo.upload_timeout` | unavailable (503), body timeout (408) respectively | 12 | |
 | `work.dispatch_unconfirmed` | failed job | 12 | |
+| `work.lane_paused` | conflict (409, internal Wan dispatch authorization) | 8, 12 | |
 | `work.revision_mismatch` | failed run | 8 | |
 | `wan.cancel_waiting_for_absence`, `wan.pre_admission_failed`, `wan.admission_unknown` | held run | 8 | |
-| `run.snapshot_lost`, `run.snapshot_changed`, `run.snapshot_too_large` (snapshot read) | service unavailable (503). Oversized enqueue is 413 | 8 | |
+| `run.snapshot_lost`, `run.snapshot_changed`, `run.snapshot_too_large` (snapshot read) | service unavailable (503) | 8 | |
+| `run.snapshot_too_large` (new enqueue) | invalid (422) with size evidence | 8 | |
 | `approval.approver_not_configured`, `approval.subject_not_permitted`, `approval.group_not_permitted`, `approval.worker_not_permitted`, `approval.sign_in_again` | forbidden (403) | 11 | |
 | `approval.legacy_run`, `approval.run_unfinished`, `approval.delivery_unverified`, `approval.delivery_mismatch`, `approval.provenance_missing`, `approval.licence_missing`, `approval.ai_label_missing` | invalid (422) | 11 | |
 | `approval.already_active`, `approval.already_withdrawn` | conflict (409) | 11 | |
@@ -3013,6 +3630,24 @@ What story 424 implements. Proposal P-19 for the names and commands.
 | `feedback.text_required`, `feedback.board_unknown`, `feedback.note_unknown`, `feedback.duplicate_reference` | invalid (422) | 12 | |
 | `feedback.already_corrected` | conflict (409) | 12 | |
 | `feedback.person_required` | forbidden (403) | 12 | |
+| `work.lane_forbidden` | forbidden (403) | 12 | |
+| `database.failed` | service unavailable (503) on transient disconnect | 12 | |
+| `key_admin.worker_lane_conflict` | worker token administration refusal | 12 | |
+| `archive.invalid_text`, `archive.credentials`, `archive.production_mismatch`, `archive.not_storyboard`, `archive.story_mismatch` | invalid (422) | 7, 12 | |
+| `archive.too_large` | too large (413) | 7, 12 | |
+| `archive.stale_version` | conflict (409) | 12 | |
+| `archive.text_hash_mismatch` | internal (500) | 12 | |
+| `archive.version_not_descendant` | per-board apply refusal | 12 | |
+| `subtitle.access_denied`, `subtitle.verbatim` | local source and staging refusals | 12 | |
+| `release.format_missing`, `release.target_unknown`, `release.maximum_unset`, `release.over_length`, `release.aspect_mismatch`, `release.location_invalid`, `release.publication_before_approval`, `release.publication_in_future` | invalid (422) | 11, 12 | |
+| `release.approval_required`, `release.already_published` | conflict (409) | 11, 12 | |
+| `release.store_unavailable`, `release.package_changed`, `release.package_record_changed` | service unavailable (503) | 8, 11, 12 | |
+| `adapter.request_invalid` (matte admission) | invalid (422) | 12 | |
+| `adapter.request_invalid` (matting socket) | bad request (400) | 13 | |
+| `adapter.pin_mismatch`, `adapter.busy` (matting socket) | conflict (409) | 13 | |
+| `adapter.command_failed`, `adapter.response_invalid`, `adapter.not_found`, `adapter.timeout` (matting socket) | 500, 502, 503 and 504 respectively | 13 | |
+| `matting.shape_invalid`, `matting.slot_mismatch`, `matting.target_exceeds_frame`, `ref.unpromoted` | candidate or placement refusal | 5, 8, 9 | |
+| `matting.sidecar_unavailable`, `work.result_rejected` (matte) | failed job | 12 | |
 
 ## 16. Held owner questions
 
@@ -3315,3 +3950,39 @@ comment 9653). Tom has not seen or confirmed any of them.
 | <a name="ruling-33"></a>CR-33 | 2026-11-25 | Which CPU matting profile? | `birefnet-lite-ort-cpu-v1`, BiRefNet Lite FP32 on ONNX Runtime 1.32.0, two CPU threads, one in flight. BRIA RMBG 1.4 only on a new ruling after a failed smoke. Clips keep existing chroma keying. | Stills can run in seconds on the low-priority render allocation without occupying Wan. The smoke targets green-eye holes. | [Story 459](https://work.haynesnetwork.com/work_packages/459), comment 9934; [profile](../reference/matting-backend-profile.md) | Selects the still pilot and leaves clip refinement to separate paired evidence. | Provisional, profile only |
 | <a name="ruling-34"></a>CR-34 | 2026-11-25 | Which segmentation and detection profile? | `grounding-dino-tiny-sam2.1-tiny-cpu-v1`, FP32 CPU, two threads and one request in flight. Grounding DINO Tiny plus SAM 2.1 Hiera Tiny only. Faces use the same grounding and hint path as props. A person-supplied point or box goes straight to SAM. OWLv2 fallback only on a new ruling if grounding fails. Failed masks go to person-drawn geometry. | Keeps Wan available, with measured source-pixel geometry and a path for uncertain targets. | [Story 460](https://work.haynesnetwork.com/work_packages/460), comment 9946 as corrected by 9947; [profile](../reference/segmentation-backend-profile.md) | Selects a combined detector and segmenter with no separate face detector. Story 452 owns private quality proof. | Provisional, profile only |
 | <a name="ruling-35"></a>CR-35 | 2026-11-25 | Which delivery scaler should be used? | Keep Pillow Lanczos. Compare only with `fsrcnn-x2-opencv-cpu-v1`, FSRCNN ×2 on two CPU threads followed by Lanczos. Make it selectable only after install smoke and one private comparison show useful gain. | Published scores are mixed and doll faces, hair and lettering are unmeasured. CPU comparison leaves the Wan lease free. | [Story 461](https://work.haynesnetwork.com/work_packages/461), comment 9952; [profile](../reference/upscaling-backend-profile.md) | Preserves default scaling and assigns separate install and private comparison evidence. | Provisional, comparison only |
+| <a name="ruling-36"></a>CR-36 | 2026-11-25 | Can a person clear a draft's feedback iteration? | A person can clear the current iteration with the story's revision. Record the draft write and preserve the lineage of frozen runs. | A person can start again without changing what an older run answered. | [Story 449, comment 9987](https://work.haynesnetwork.com/work_packages/449/activity#comment-9987), with the coordinator's text in its work order | Section 12 and Studio PR 120. | Provisional, in force |
+| <a name="ruling-37"></a>CR-37 | 2026-11-25 | Where do voice and image workers run? | Place the 1-vCPU voice and image workers off talosw01 unless they need a dependency available only there. Name that dependency, reduce offline render by the same amount, and account for the render pod rolling. Keep talosw01 at 24 Studio vCPUs. | Both are clients of remote engines. The image lane's local composite is one still. | [Story 961, comments 9968](https://work.haynesnetwork.com/work_packages/961/activity#comment-9968) and [9993](https://work.haynesnetwork.com/work_packages/961/activity#comment-9993), with the full placement rule in its work order | Sections 12–13 and haynes-ops PR 5057. | Provisional, in force |
+| <a name="ruling-38"></a>CR-38 | 2026-11-25 | What follows the matting smoke's memory failure? | Keep BiRefNet Lite. Measure runtime arena and memory-pattern settings, then set the profile, smoke threshold and sidecar limit from the measured peak with headroom. Return for a ruling if the peak stays at or above 16 GiB. | The first smoke to report passed the chosen image cases, including green eyes. Memory was the failing bound. | [Story 459, comment 9969](https://work.haynesnetwork.com/work_packages/459/activity#comment-9969) | Sections 13–14 and Studio PR 119. | Provisional, measurement rule in force. Interim 14/16 GiB figures superseded the same day by [CR-43](#ruling-43). |
+| <a name="ruling-39"></a>CR-39 | 2026-11-25 | What is a staging archive record? | One production, a kind (brief, script or storyboard) and a title. Keep immutable UTF-8 versions up to 256 KiB with hash, revised version, writing principal, optional format pin and original or adapted provenance. Adapted provenance holds a private source locator. | Preserve exact creative inputs and keep source passages out of provenance. | [Story 443, comment 9980](https://work.haynesnetwork.com/work_packages/443/activity#comment-9980) | Sections 2 and 7 and Studio PR 123. | Provisional, in force |
+| <a name="ruling-40"></a>CR-40 | 2026-11-25 | What happens when a version has already been revised? | An append names the newest version as its parent. Refuse a stale append and store nothing. | Keep one revision chain. | [Story 443, comment 9980](https://work.haynesnetwork.com/work_packages/443/activity#comment-9980) | Section 12 and Studio PRs 123 and 131. | Provisional, in force |
+| <a name="ruling-41"></a>CR-41 | 2026-11-25 | How does an archived storyboard reach a story? | Apply a pinned version through the existing drafting path. Leave person-edited and unstamped protected boards alone and report them. Keep Build's existing approval boundary. | Preserve draft protections and D12/D29. | [Story 443, comment 9980](https://work.haynesnetwork.com/work_packages/443/activity#comment-9980) | Sections 2 and 12 and Studio PR 123, with the ancestry and revision refinements in CR-45 and CR-47. | Provisional, in force |
+| <a name="ruling-42"></a>CR-42 | 2026-11-25 | Who can use the staging archive? | Separate production-scoped `archive:read` and `archive:write`. Apply needs `archive:read` and `draft:write` on that production. The shepherd reads by exact version ID with a read-only key. | Confine staging and drafting writes and let the shepherd reuse pinned inputs. | [Story 443, comment 9980](https://work.haynesnetwork.com/work_packages/443/activity#comment-9980) | Section 12 and Studio PR 123. | Provisional, in force |
+| <a name="ruling-43"></a>CR-43 | 2026-11-25 | What is the measured matting memory contract? | Disable the CPU arena. Request 8 GiB and limit to 10 GiB for the sidecar and smoke. Keep the offline render memory limit at 32 GiB. | The measured peak fell 42% with byte-identical output. | [Story 459, comment 9985](https://work.haynesnetwork.com/work_packages/459/activity#comment-9985) | Sections 13–14 and Studio PR 124. | Provisional, in force |
+| <a name="ruling-44"></a>CR-44 | 2026-11-25 | What does dismissing a candidate do? | Label the action **Not now** and say it hides the candidate in this tab and records nothing. Keep the candidate under CR-14. | The API has no decline operation. | [Story 456, comment 10017](https://work.haynesnetwork.com/work_packages/456/activity#comment-10017) | Sections 9 and 12 and Studio PR 121. | Provisional, in force |
+| <a name="ruling-45"></a>CR-45 | 2026-11-25 | Which version can replace an archive-stamped board? | Only a descendant in the same record can replace it. An eligible same-version apply is skipped. An older or unrelated version reports the stamped version on that board. | A stale storyboard must leave a newer applied board intact. | [Story 443, comment 10037](https://work.haynesnetwork.com/work_packages/443/activity#comment-10037) · [Coordinator relay](https://github.com/thaynes43/haynes-studio/pull/123#issuecomment-7157208825) | Section 12 and Studio PRs 123 and 131. | Provisional, in force |
+| <a name="ruling-46"></a>CR-46 | 2026-11-25 | What supplies the private matting trial? | Read one existing cast photo of an imported production where it lies. Keep output in the private jobs area and leave the quality verdict pending until Tom looks. | A bounded trial lets Tom judge a real still. | [Story 451, comment 10015](https://work.haynesnetwork.com/work_packages/451/activity#comment-10015), corrected by [10049](https://work.haynesnetwork.com/work_packages/451/activity#comment-10049) · [Saga 362, comment 10064](https://work.haynesnetwork.com/work_packages/362/activity#comment-10064) | Section 13 records the content-addressed input gate and open trial. | Provisional, input assumption superseded the same day by the content-addressed gate in story 451. Tom's verdict remains pending. |
+| <a name="ruling-47"></a>CR-47 | 2026-11-25 | What authorizes apply over a board with no archive stamp? | Where the ordinary drafting rules allow the write, the story revision precondition is the caller's statement that it saw the current story. | An eligible board without an archive stamp has no archive ancestry to compare. | [Story 443, comment 10037](https://work.haynesnetwork.com/work_packages/443/activity#comment-10037) · [Saga 362, comment 10064](https://work.haynesnetwork.com/work_packages/362/activity#comment-10064) | Section 12 and Studio PR 123. | Provisional, in force |
+| <a name="ruling-48"></a>CR-48 | 2026-11-25 | What is the restore drill's isolation boundary? | Use a separate single-instance recovery cluster and PVC, restore to a recorded point and connect only to the Studio database. Restrict access to the drill Job. Share only what is needed to read the backup. Write no backups or WAL archive. Cap the target at 2 CPUs and 4 GiB. Start it deliberately through GitOps. Stop if recovery exceeds 30 minutes and verify deletion of the cluster and PVC within the same 60-minute drill. | A physical backup contains every tenant and production backup history must be protected. | [Saga 362, comment 10064](https://work.haynesnetwork.com/work_packages/362/activity#comment-10064) · [Story 436, comment 10072](https://work.haynesnetwork.com/work_packages/436/activity#comment-10072) · story 436 work order | Section 13 records the credential hold. | Provisional, in force. Execution held on Tom's archive credential decision. |
+| <a name="ruling-49"></a>CR-49 | 2026-11-25 | Can the scaler comparison use an archived film? | Read one frame of a stored proxy by content hash and frame selector, with its paired master's frame as reference when supplied. Read from the store and write the comparison privately. Report that this measures reversal of a particular downscale and encode. Tom judges the pair by eye. | The store had videos and no stills. | [Saga 362, comment 10064](https://work.haynesnetwork.com/work_packages/362/activity#comment-10064) · [Story 461, comments 10067](https://work.haynesnetwork.com/work_packages/461/activity#comment-10067) and [10229](https://work.haynesnetwork.com/work_packages/461/activity#comment-10229) · story 461 part 3 work order | Sections 5 and 14 and Studio PR 136. | Provisional, in force |
+| <a name="ruling-50"></a>CR-50 | 2026-11-25 | Who requests mattes and where do they run? | People request candidates on their own `matte` lane. Agents can only read production-scoped job state. | Keep cutout selection and promotion with people and fence the CPU consumer separately. | [Saga 362, comment 10089](https://work.haynesnetwork.com/work_packages/362/activity#comment-10089) · [Story 965, comment 10106](https://work.haynesnetwork.com/work_packages/965/activity#comment-10106) | Sections 9 and 12 and Studio PR 139. | Provisional, in force |
+| <a name="ruling-51"></a>CR-51 | 2026-11-25 | What is the measured segmentation serving limit? | Use memory-mapped weights, request 4 GiB and limit to 5 GiB. Keep the offline render memory limit at 32 GiB. | Mapped and buffered loads yielded identical bytes in measurement. | [Saga 362, comment 10089](https://work.haynesnetwork.com/work_packages/362/activity#comment-10089) · [Story 460, comment 10090](https://work.haynesnetwork.com/work_packages/460/activity#comment-10090) | Sections 13–14 and Studio PR 138. | Provisional, in force. Serving activation remains open. |
+| <a name="ruling-52"></a>CR-52 | 2026-11-25 | What follows withdrawal of PyAV 18.1.0? | Install PyAV 18.1.1 at the fourth pin, in the locked images and offline render requirements. Exact rebuilds of 18.1.0 outputs require the original lock or image digest. | On the measured fixture the mix bytes and decoded picture were identical. Embedded encoder strings changed the picture and master hashes. | [Story 966, comment 10095](https://work.haynesnetwork.com/work_packages/966/activity#comment-10095) · [Saga 362, comment 10089](https://work.haynesnetwork.com/work_packages/362/activity#comment-10089) | Sections 4 and 13 and Studio PR 137. | Provisional, in force |
+| <a name="ruling-53"></a>CR-53 | 2026-11-25 | How is the segmentation serving version identified? | Keep the v1 model-pair selector in requests and readiness while models and thresholds stay unchanged. Version the serving contract in the manifest, report its exact hash in readiness, and pin that hash in result provenance. | The client verifies the full readiness tuple and still uses the v1 selector. | [Story 460, comment 10112](https://work.haynesnetwork.com/work_packages/460/activity#comment-10112) | Sections 12–13 and Studio PR 138. | Provisional, in force |
+| <a name="ruling-54"></a>CR-54 | 2026-11-25 | What does the proposed visibility gate refuse or send to review? | Send `uncertain` with the measurement to person review for a possible override. Block `hidden` without override. Refuse sets declaring foreground roles until the renderer draws those masks. Keep legacy boards intact. | Measurement must reflect the scene that will be drawn. | [Story 452, comment 10116](https://work.haynesnetwork.com/work_packages/452/activity#comment-10116) | Section 5 records the deferred visibility gate. | Provisional. [CR-64](#ruling-64) parked story 452's evaluator. [CR-67](#ruling-67) carries the verdicts to the proposed post-render check in story 975. |
+| <a name="ruling-55"></a>CR-55 | 2026-11-25 | Should an upscaling service be staged? | Keep FSRCNN comparison-only and stage no serving overlay until Tom chooses it from the comparison. Delivery stays Lanczos. | The trial needs only its bounded Jobs and no change to the render allocation. | [Story 461, comment 10159](https://work.haynesnetwork.com/work_packages/461/activity#comment-10159) | Sections 5 and 13 and haynes-ops PR 5083. | Provisional, in force |
+| <a name="ruling-56"></a>CR-56 | 2026-11-25 | How do the synthetic overshoot and motion checks pass? | Judge against the Lanczos baseline using the existing relative margins. Keep both absolute measurements as diagnostics and drop the two absolute caps as pass conditions. This gates the private comparison only. | The delivery baseline itself failed both absolute caps. | [Story 461, comment 10180](https://work.haynesnetwork.com/work_packages/461/activity#comment-10180) | Section 14 and Studio PR 144. | Provisional, in force |
+| <a name="ruling-57"></a>CR-57 | 2026-11-25 | How should unknown occluders affect a verdict? | Compute bounds. Use `hidden` when the upper bound is at or below the floor, `visible` when the lower bound is at or above it, and `uncertain` otherwise. Exclude layers at or below the subject. Bind every supplied input in the evidence digest before validation. | Occluders can only hide, and a review must name the inputs actually measured. | [Story 452, comment 10182](https://work.haynesnetwork.com/work_packages/452/activity#comment-10182) | Section 5 records the deferred evaluator. | Provisional. [CR-64](#ruling-64) parked story 452's evaluator. [CR-67](#ruling-67) carries the bounds to story 975. |
+| <a name="ruling-58"></a>CR-58 | 2026-11-25 | What scene and test oracle should the visibility check use? | Measure the scene `compose_photo` draws. An omitted component makes its affected target `unsupported`, with no override. Generated cases compare the evaluator's count against the rendered frame and require its bounds to contain the rendered count for every completion of unknowns. | A check for a richer scene can certify a frame the renderer never produces. | [Story 452, comment 10227](https://work.haynesnetwork.com/work_packages/452/activity#comment-10227) | Section 5 records the proposed post-render check. | Provisional. [CR-64](#ruling-64) parked story 452's evaluator. [CR-67](#ruling-67) carries the renderer-oracle requirement to story 975, using the rendered film frames. |
+| <a name="ruling-59"></a>CR-59 | 2026-11-25 | What isolation is required for the shared matte pod? | The worker and sidecar share a network namespace. Restrict pod egress to DNS and the worker API listener, mount the worker token only in the worker, give the sidecar no service-account token, and require worker authentication on every listener route. | Network policy applies to the pod. | [Story 967, comment 10254](https://work.haynesnetwork.com/work_packages/967/activity#comment-10254) | Section 13. CR-65 moved activation to story 970 and CR-66 stages the isolation first. | Provisional, in force for activation under story 970 |
+| <a name="ruling-60"></a>CR-60 | 2026-11-25 | What was the first proposed split for story 452? | Ship the adapter with verified observations and the optional mask and layout fields. Refuse builds using the new fields without override. Move the evaluator and its approval machinery to the renderer story and preserve legacy bytes. | Review showed the separate evaluator drifting from the actual renderer. | [Story 452, comment 10259](https://work.haynesnetwork.com/work_packages/452/activity#comment-10259) | Section 5 records why PRs 140 and 147 remain reference material. | Provisional, narrowed the same day by [CR-61](#ruling-61) and superseded by [CR-64](#ruling-64). |
+| <a name="ruling-61"></a>CR-61 | 2026-11-25 | Could a writer store the proposed opt-in before the evaluator exists? | Keep the optional schema fields but refuse every write setting board `layout.check_poses` or set `occlusion` with `occlusion.check_unavailable`. Keep the pre-build refusal and remove preservation and ownership machinery for the opt-in. | A stored declaration would have no functioning consumer. | [Story 452, comment 10271](https://work.haynesnetwork.com/work_packages/452/activity#comment-10271) | Section 5 records the parked write-refusal design. | Provisional, superseded the same day by [CR-64](#ruling-64). |
+| <a name="ruling-62"></a>CR-62 | 2026-11-25 | When was a rollout admission receipt meant to expire? | Gate the merge by time. After merge require the receipt for that revision and the expected live sequence. Keep read-only audit available. | An elapsed clock window could strand a rollout that Flux was still applying. | [Story 967, comment 10281](https://work.haynesnetwork.com/work_packages/967/activity#comment-10281) | Section 13 records the final rollout rule. | Provisional, superseded the same day by [CR-63](#ruling-63). |
+| <a name="ruling-63"></a>CR-63 | 2026-11-25 | What may mutate the cluster during this rollout? | Merge the reviewed GitOps PR. After merge the runbook waits and audits while Flux reconciles. Rollback and migration retry each require a new reviewed PR. Read the installed network policies before merge and after reconciliation. Those reads are the authoritative isolation check. | Flux reconciles the stages without manual mutations after merge. | [Story 967, comment 10285](https://work.haynesnetwork.com/work_packages/967/activity#comment-10285) · [Saga 362, comment 10325](https://work.haynesnetwork.com/work_packages/362/activity#comment-10325) | Section 13 and haynes-ops PR 5093. | Provisional, in force |
+| <a name="ruling-64"></a>CR-64 | 2026-11-25 | What does story 452 actually deliver? | Merge the explicit-target client and verified create-only mask publication. Keep the proposed fields out of stored schemas until story 968 lands them with the renderer change and visibility check. Park PRs 140 and 147 as references. | Schema exclusion preserves the existing declaration boundary across every writer. | [Story 452, comments 10288](https://work.haynesnetwork.com/work_packages/452/activity#comment-10288) and [10313](https://work.haynesnetwork.com/work_packages/452/activity#comment-10313) | Sections 5, 8 and 12–14 and Studio PR 148. Story 971 owns the separately tracked job. | Provisional, in force for story 452's delivered scope. [CR-67](#ruling-67) moves the proposed visibility check out of story 968. |
+| <a name="ruling-65"></a>CR-65 | 2026-11-25 | What belongs in the fourth pin? | Pin Studio `470a90af`, including the app, existing workers, schema `0013_matte_jobs` and PyAV 18.1.1 in both runtime paths. Move the matte worker, sidecar, credential, grant, registration, isolation and 17-CPU render split to story 970. | A plain pin separates the migration and encoder change from worker activation. | [Story 967, comment 10309](https://work.haynesnetwork.com/work_packages/967/activity#comment-10309) · [Saga 362, comment 10325](https://work.haynesnetwork.com/work_packages/362/activity#comment-10325) | Section 13 and haynes-ops PR 5093. | Provisional, in force |
+| <a name="ruling-66"></a>CR-66 | 2026-11-25 | In what order may matte isolation and activation land? | Before any matte worker pod exists, install and read back the policy-only Flux stage. Protect the policy from Flux pruning and from garbage collection if the stage is deleted, and verify that the policy selects no existing pod. During activation, prove a blocked connection from inside the new pod before requesting the grant and recheck while running. | A single stage could start the pod before its isolating policy exists. | [Story 970, comment 10324](https://work.haynesnetwork.com/work_packages/970/activity#comment-10324) · [Saga 362, comment 10325](https://work.haynesnetwork.com/work_packages/362/activity#comment-10325) | Section 13 and story 970 part A. Part B is held under haynes-ops PR 5096, which is open and unmerged. Independent review left the inside-pod proof uncleared. [Story 970, comments 10382](https://work.haynesnetwork.com/work_packages/970/activity#comment-10382) and [10574](https://work.haynesnetwork.com/work_packages/970/activity#comment-10574). | Provisional, in force. Activation awaits Tom. |
+| <a name="ruling-67"></a>CR-67 | 2026-11-26 | What remains in story 968 after the visibility review? | Limit story 968 to the proposed declaration and renderer. A set version may declare foreground role masks as pinned library asset versions. Both renderers must draw them in front of the cast or refuse the build, including when `layout.foreground` is false. Share validation with the run writers and archive import and enforce the declaration at the model. Move visibility to story 975 as a post-render check on the film's own frames in the existing run-check framework, carrying forward CR-54, CR-57 and CR-58. Move segmentation target hints to story 971, the job that uses them. | Keyed frames only exist after keying, so a pre-build check on reference stills cannot gate visibility in the film. | [Story 968, comment 10368](https://work.haynesnetwork.com/work_packages/968/activity#comment-10368) | Section 5 records the scope split. The proposed renderer and declaration stayed on [Studio PR 151](https://github.com/thaynes43/haynes-studio/pull/151). | Provisional. PR 151 is parked for good, open and unmerged. The mask proposal never landed on `main`. [Story 968, comment 10582](https://work.haynesnetwork.com/work_packages/968/activity#comment-10582). |
+| <a name="ruling-68"></a>CR-68 | 2026-11-26 | What does pausing a lane stop? | Pause blocks claims on queued work. A live claim retains its fence and may finish, including a media job's first publish or a run's transcript request. An already authorized engine request may start after the pause response. A lane is quiet at the time of the read when paused with no live claim. Give a paused reconciliation claim only to a worker that declares support, behind a default-off switch. | Pause preserves work already held by a worker. The capability and switch protect mixed-version deployments. | [Story 976, comment 10393](https://work.haynesnetwork.com/work_packages/976/activity#comment-10393) | Sections 8 and 12–15, and merged [Studio PR 152](https://github.com/thaynes43/haynes-studio/pull/152). | Provisional, in force. PR 152 is installed in the fifth pin with `STUDIO_PAUSED_RECONCILE` off. [Story 976, comment 10400](https://work.haynesnetwork.com/work_packages/976/activity#comment-10400) · [Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409). |
+| <a name="ruling-69"></a>CR-69 | 2026-11-26 | Does the lane read expose a live claim with the switch off? | Report additive, read-only `live_claim` for every lane on the signed-in lane read in both switch states. This is the only intended change to the prior response behavior with the switch off. Pause and resume write responses keep their shape. Activate separately after verifying the new build everywhere and draining workers. Enable every API replica, start workers on enabled endpoints and read back. | Operators can observe a quiet lane before activation. A disabled endpoint can permit a missing Wan ID to be replayed. | [Story 976, comment 10397](https://work.haynesnetwork.com/work_packages/976/activity#comment-10397) | Sections 8 and 12–14, and merged [Studio PR 152](https://github.com/thaynes43/haynes-studio/pull/152). | Provisional, in force. The read field ships in the fifth pin with `STUDIO_PAUSED_RECONCILE` off. [Story 976, comment 10400](https://work.haynesnetwork.com/work_packages/976/activity#comment-10400) · [Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409). |
+| <a name="ruling-70"></a>CR-70 | 2026-11-27 | What should story 968 do with set loops and replayed jobs? | (1) The proposed admission rule resolved a loop's source set from its pinned still. If that set declared masks, the build was to be refused with a specific code even if the board did not select the still. The work order also required refusal when the source could not be resolved. (2) A job renders the versions it froze at admission. An expired photo claim replayed after the draft moves from an unmasked to a masked set would still render the frozen unmasked version and save a non-current result. | Part 1 sought to prevent masks being lost when using a loop. Part 2 preserves frozen-input behavior when a draft moves on. | [Saga 362, comment 10575](https://work.haynesnetwork.com/work_packages/362/activity#comment-10575) and story 968 work order `wo-968-fix3`. | Recorded here as the proposed loop rule and the frozen-input clarification for [Studio PR 151](https://github.com/thaynes43/haynes-studio/pull/151). | Provisional. Part 1 is superseded by [CR-71](#ruling-71). Part 2 stands. PR 151 is parked for good, open and unmerged. No story 968 change landed on `main`. [Story 968, comment 10582](https://work.haynesnetwork.com/work_packages/968/activity#comment-10582). |
+| <a name="ruling-71"></a>CR-71 | 2026-11-27 | What binds a proposed role-mask declaration to a set or motion loop? | Bind the declaration to the set version that carries it. A board or job selecting a declaring set version must draw its masks or be refused. A motion loop is its own asset version and carries no declaration. Refuse a board using a loop only if it also selects a declaring set version or the loop's own recorded provenance names one. Infer nothing from bytes. Every other loop keeps its `main` behavior and snapshot bytes. A copy registered with different provenance is a different asset with the author's recorded provenance. The build would not detect that its bytes once came from a declaring set. Copy and conflicting catalog lineage rules are out of scope. | Identical still bytes can belong to several sets. Inferring ownership refused legacy loops and still allowed relabelled copies. | [Story 968, comment 10578](https://work.haynesnetwork.com/work_packages/968/activity#comment-10578) | Replaces the loop half of [CR-70](#ruling-70) in the design recorded on [Studio PR 151](https://github.com/thaynes43/haynes-studio/pull/151). | Provisional. PR 151 is parked for good, open and unmerged. The mask proposal never landed on `main`. [Story 968, comment 10582](https://work.haynesnetwork.com/work_packages/968/activity#comment-10582). |

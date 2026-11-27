@@ -6,6 +6,8 @@ import httpx
 
 from haynes_studio.build.errors import BuildInterrupted
 
+from .protocol import PAUSED_RECONCILE_HEADER
+
 
 class WorkerAPIError(BuildInterrupted):
     def __init__(self, code, status=None):
@@ -26,9 +28,9 @@ class WorkerAPI:
     def __init__(self, client):
         self.client = client
 
-    def _post(self, path, data=None):
+    def _post(self, path, data=None, *, headers=None):
         try:
-            response = self.client.post(f"/internal/v1/work/{path}", json=data)
+            response = self.client.post(f"/internal/v1/work/{path}", json=data, headers=headers)
         except httpx.RequestError as error:
             raise WorkerAPIError("work.transport") from error
         if response.status_code == 204:
@@ -46,8 +48,14 @@ class WorkerAPI:
         return body
 
     def claim(self, lane="run"):
-        body = self._post("claim", None if lane == "run" else {"lane": lane})
+        if lane == "run":
+            body = self._post("claim", headers={PAUSED_RECONCILE_HEADER: "1"})
+        else:
+            body = self._post("claim", {"lane": lane})
         return None if body is None else (ClaimAPI if lane == "run" else MediaClaimAPI)(self, body)
+
+    def settle_expired_matte(self):
+        self._post("claim", {"lane": "matte", "settle_only": True})
 
 
 class ClaimAPI:
@@ -88,6 +96,9 @@ class MediaClaimAPI(ClaimAPI):
 
     def heartbeat(self, progress=None):
         return self._post("heartbeat")
+
+    def release(self, *, reason=None):
+        self._post("release-matte", **({"reason": reason} if reason is not None else {}))
 
     def fail(self, *, code, message):
         return self._post("fail", code=code, message=message)

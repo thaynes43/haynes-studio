@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Query, Request, Response
 from pydantic import Field, StringConstraints
 import sqlalchemy as sa
 
@@ -82,6 +82,11 @@ class IterationStarted(TransportModel):
     iteration: Iteration
 
 
+class IterationCleared(TransportModel):
+    revision: int
+    cleared: bool
+
+
 class CandidatePage(TransportModel):
     items: list[CandidateDetails]
     next_cursor: str | None
@@ -91,7 +96,7 @@ class CandidatePage(TransportModel):
 
 def transport_models():
     return (CandidateWrite, FeedbackWrite, IterationWrite, Attribution, FeedbackNote,
-            Candidate, AnsweringRun, CandidateDetails, Iteration, IterationStarted, CandidatePage)
+            Candidate, AnsweringRun, CandidateDetails, Iteration, IterationStarted, IterationCleared, CandidatePage)
 
 
 def _by(actor):
@@ -153,7 +158,9 @@ def build_router(CurrentActor, authenticated_route):
     @router.get("/stories/{id}/candidates", response_model=CandidatePage,
                 responses={200: {"headers": ETAG}}, operation_id="list_candidates")
     def list_candidates(id: str, request: Request, response: Response, actor: CurrentActor,
-                        run_id: str | None = None, cursor: Cursor = None, limit: Limit = 50):
+                        run_id: str | None = None, cursor: Cursor = None, limit: Limit = 50,
+                        candidate_id: str | None = None,
+                        note_ids: Annotated[list[str] | None, Query(min_length=1, max_length=records.MAX_NOTES)] = None):
         with snapshot(request.app.state.engine) as conn:
             story = conn.execute(sa.select(stories.c.production_id, stories.c.document["revision"].label("revision"))
                                  .where(stories.c.id == _id(id, "sty"))).one_or_none()
@@ -162,7 +169,11 @@ def build_router(CurrentActor, authenticated_route):
                 raise NotFound
             if run_id is not None and _run_access(conn, actor, "read", run_id)["story_id"] != id:
                 raise NotFound
-            rows = records.list_candidates(conn, id, run_id, _cursor(cursor, "cnd"), limit + 1)
+            rows = records.list_candidates(
+                conn, id, run_id, _cursor(cursor, "cnd"), limit + 1,
+                candidate_id=_id(candidate_id, "cnd", "/candidate_id") if candidate_id is not None else None,
+                note_ids=_unique_ids(note_ids, "fbk", "note_ids") if note_ids is not None else None,
+            )
             return _etag(response, {**_page(rows, limit), "revision": story.revision,
                                     "iteration": records.draft_iteration(conn, id)})
 
@@ -207,5 +218,17 @@ def build_router(CurrentActor, authenticated_route):
                 raise APIError(422, "feedback.note_unknown", "Select notes on this candidate", path="/note_ids")
             iteration = records.start_iteration(conn, candidate, _revision(if_match), note_ids, _by(actor))
             return _etag(response, {"revision": iteration["started_revision"], "iteration": iteration})
+
+    @router.delete("/stories/{id}/feedback-iteration", response_model=IterationCleared,
+                   responses={200: {"headers": ETAG}}, operation_id="clear_feedback_iteration")
+    def clear_feedback_iteration(id: str, request: Request, response: Response,
+                                 actor: CurrentActor, if_match: IfMatch):
+        _person(actor)
+        with request.app.state.engine.begin() as conn:
+            result = records.clear_iteration(
+                conn, _id(id, "sty"), _revision(if_match), _by(actor),
+                production_ids=actor.productions("draft:write"),
+            )
+            return _etag(response, result)
 
     return router

@@ -1,0 +1,129 @@
+{
+  "schema": "studio.segmentation-result/v1",
+  "request_sha256": "e55914720f55fd5a86eb37a99f244963097513e4a82bc016f8bf5cb4ce351ddf",
+  "input": {
+    "sha256": "e5f1bf943b9a7e20c38d0bc201020b67421c466e7c8a80022df37699e08e6562",
+    "width": 64,
+    "height": 48
+  },
+  "target": {
+    "kind": "prop",
+    "key": "orange-ball",
+    "label": "orange ball"
+  },
+  "status": "ready",
+  "reason": null,
+  "box_xyxy": [
+    10,
+    10,
+    35,
+    35
+  ],
+  "detector_box_xyxy": null,
+  "scores": {
+    "detector": null,
+    "mask_iou": 0.95
+  },
+  "mask": {
+    "sha256": "2275bc4c91a81e7b1f373c7263e63d062808c164ebb3fc9766cffd2d8c7cff88",
+    "bytes": 105,
+    "width": 64,
+    "height": 48,
+    "media_type": "image/png"
+  },
+  "provenance": {
+    "profile": {
+      "id": "grounding-dino-tiny-sam2.1-tiny-cpu-v1",
+      "sha256": "9a7aff1a84b9543d3fd687d74b27f2659aa67fd3f7dd279edcd647272c43a824"
+    },
+    "image_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "runtime": {
+      "lock_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "libraries": {
+        "torch": "2.14.1+cpu",
+        "torchvision": "0.29.1+cpu",
+        "transformers": "5.24.1",
+        "safetensors": "0.8.0",
+        "pillow": "13.0.0",
+        "numpy": "2.4.6",
+        "tokenizers": "0.23.3"
+      }
+    },
+    "device": "cpu",
+    "models": [
+      {
+        "repository": "facebook/sam2.1-hiera-tiny",
+        "revision": "de431c4043854a71d8101e17995dfe596bf101a5",
+        "file": "model.safetensors",
+        "weight_sha256": "48c14467e5cf9e51870511feb72c89688e82dd74523142c0538b663e193ac2a7",
+        "config_manifest_sha256": "655c01d1c1705ed4f8e49d39747a3a99eeb973841a36c429c1ae0348c2d4f73c"
+      }
+    ],
+    "parameters": {
+      "dtype": "float32",
+      "execution": "eager",
+      "batch": 1,
+      "threads": {
+        "intra_op": 2,
+        "inter_op": 1,
+        "OMP_NUM_THREADS": "2",
+        "MKL_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "TOKENIZERS_PARALLELISM": "false",
+        "HF_HUB_OFFLINE": "1",
+        "TRANSFORMERS_OFFLINE": "1",
+        "HF_HUB_DISABLE_XET": "1",
+        "HF_HUB_DISABLE_TELEMETRY": "1",
+        "HF_HUB_DISABLE_IMPLICIT_TOKEN": "1",
+        "CUDA_VISIBLE_DEVICES": ""
+      },
+      "in_flight": 1,
+      "weight_load": "mmap",
+      "startup_seconds": 60,
+      "request_seconds": 60,
+      "detector": {
+        "short_edge": 800,
+        "long_edge": 1333,
+        "padding": "batch_max_bottom_right",
+        "custom_kernels": false,
+        "max_tokens": 256,
+        "score_floor": 0.35,
+        "text_floor": 0.25,
+        "nms_iou": 0.5,
+        "score_lead": 0.1,
+        "min_model_pixels": 16,
+        "foreground_query": "table. lectern. chair back."
+      },
+      "segmenter": {
+        "size": [
+          1024,
+          1024
+        ],
+        "padding": "none",
+        "resize_logits": "bilinear",
+        "logit_threshold": 0,
+        "score_floor": 0.8,
+        "score_gap": 0.05,
+        "mask_agreement_iou": 0.85,
+        "bottom_coverage": 0.1
+      },
+      "cutout": {
+        "gray_srgb": 128,
+        "restrict_to_nonzero_alpha": true
+      },
+      "png": {
+        "mode": "L",
+        "metadata": false,
+        "compression": 6
+      },
+      "sam_hint": {
+        "kind": "point",
+        "xy": [
+          24,
+          24
+        ]
+      }
+    }
+  }
+}

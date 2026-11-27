@@ -6,7 +6,7 @@ import type { components } from "./api/schema";
 import { ReviewTime } from "./production-approval";
 import type { Run } from "./production-review-data";
 import { boardLabel } from "./route-data";
-import { treePath, type Context } from "./routes";
+import { storyFormatId, treePath, type Context } from "./routes";
 import { Problem } from "./shell-ui";
 import { useRequest } from "./use-request";
 import "./production-feedback.css";
@@ -230,6 +230,17 @@ export function CandidateReview({ api, run, context, reloadDraft }: {
     });
   }
 
+  function clearIteration() {
+    if (!current) return;
+    void submit(id, async (signal) => {
+      const { data } = await api.DELETE("/v1/stories/{id}/feedback-iteration", {
+        signal, params: { path: { id: story_id }, header: { "If-Match": current.etag } },
+      });
+      if (!data) throw new ApiError(502);
+      if (!signal.aborted) setIteration(undefined);
+    }, true);
+  }
+
   return <section className="feedback-review" aria-label="Candidates and feedback">
     <h3>Candidates</h3>
     {initial.result.status === "loading" && <p role="status" className="muted">Loading candidates…</p>}
@@ -244,12 +255,17 @@ export function CandidateReview({ api, run, context, reloadDraft }: {
       </label>
       <button className="pill" type="submit" disabled={busy}>Present run</button>
     </form>}
-    {snapshot && targets.length === 0 && <p className="muted">This run has no pinned targets.</p>}
+    {snapshot && targets.length === 0 && <p className="muted">This run has no pinned targets.{" "}
+      <Link to={`${treePath("board", context)}#${storyFormatId}`}>Pin a format in the story editor</Link>
+      {" "}before building again.
+    </p>}
     {failure?.owner === id && <Refusal error={failure.error} />}
     {refreshFailure != null && <Refusal error={refreshFailure} retry={() => void submit(id, undefined, true)} />}
     {iteration && <p role="status">Draft revision {iteration.started_revision} opened.{" "}
       <Link to={treePath("board", context)}>Open draft</Link>
     </p>}
+    {current?.data.iteration && <button className="pill" type="button"
+      disabled={busy || refreshFailure != null} onClick={clearIteration}>Clear draft iteration</button>}
     {current?.data.items.map((candidate) => <CandidateCard key={candidate.id}
       api={api} candidate={candidate} context={context} busy={busy}
       boards={snapshot?.story.boards ?? []} canStart={refreshFailure == null} etag={current.etag}

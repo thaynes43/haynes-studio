@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { assetSearchLimit, assetsPath, liveAssetFilters, parseRoute, safePath, treePath } from "./routes";
+import { assetSearchLimit, assetsPath, liveAssetFilters, parseRoute, safePath, safeReturnPath, treePath } from "./routes";
 import { readDestinations } from "./selections";
 
 const production = "prd_01M79V9FC00000000000000001";
@@ -35,6 +35,19 @@ describe("shell routes", () => {
   test("dropping a scope removes all of its descendants", () => {
     expect(assetsPath({ production })).toBe(`/editor/assets?production=${production}`);
     expect(treePath("board", { production })).toBe(`/editor/board/${production}`);
+  });
+
+  test("preserves the Format fragment for a storyboard in the sign-in return path", () => {
+    const storyPath = treePath("board", { production, media, story });
+    const boardPath = treePath("board", context);
+    expect(safeReturnPath(storyPath + "#story-format")).toBe(storyPath + "#story-format");
+    expect(safeReturnPath(boardPath + "#story-format")).toBe(boardPath + "#story-format");
+    expect(safeReturnPath(treePath("board", context, "photo") + "#story-format")).toBeUndefined();
+    expect(safeReturnPath("/editor/board#story-format")).toBeUndefined();
+    expect(safeReturnPath("/productions#story-format")).toBeUndefined();
+    expect(safeReturnPath("//example.invalid" + storyPath + "#story-format")).toBeUndefined();
+    expect(safeReturnPath(storyPath + "#story-format#other")).toBeUndefined();
+    expect(safeReturnPath(storyPath + "#other")).toBeUndefined();
   });
 
   test("caps a crafted Assets search query at the input limit", () => {

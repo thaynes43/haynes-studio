@@ -21,20 +21,21 @@ from haynes_studio.adapters.kokoro import KokoroClient
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.db.catalog import record_asset_version
 from haynes_studio.db.runs import database_time
-from haynes_studio.db.schema import asset_promotions, asset_versions, boards, media_jobs, queue_lane_events
+from haynes_studio.db.schema import asset_promotions, asset_versions, boards, media_jobs, queue_lane_events, runs
 from haynes_studio.drafting.declaration import READ_TOKEN_HEADER
 from haynes_studio.library.model import version_document
 from haynes_studio.mcp.server import MAX_UPLOAD_REQUEST_BYTES, create_app
 from haynes_studio.photo_limits import DEFAULT_BODY_SECONDS, IDLE_SECONDS
 from haynes_studio.photo.validation import MAX_UPLOAD_BYTES
 from haynes_studio.queue.media_worker import Dispatch, MediaWorker
+from haynes_studio.queue.wan import product_request
 from haynes_studio.queue.worker import ActiveClaim
 from haynes_studio.queue.worker_api import WorkerAPIError
 from haynes_studio.store import blob_locator
 from haynes_studio.voice.model import Job
 
 from tests.db.test_run_queue import (
-    queue, queue_run, worker_api, worker_credentials,
+    queue, queue_run, request_for, worker_api, worker_credentials,
 )
 from tests.db.test_studio_api import (
     client, engine, new_production, new_story, owner_engine, register_agent,
@@ -130,14 +131,14 @@ def patch(s, board, payload, *, by_human=True):
 def image_worker(s, fake=None, *, pause=None):
     runner = FakeRunner(fake or FakeComfyUI())
     options = {} if pause is None else {"pause": pause}
-    worker = MediaWorker(worker_api(s), lane="image", store=s.store, client=ImageClient(runner),
+    worker = MediaWorker(worker_api(s, lane="image"), lane="image", store=s.store, client=ImageClient(runner),
                          licences=register(), **options)
     return worker, runner
 
 
 def speech_worker(s, fake):
     runner = FakeRunner(fake)
-    return MediaWorker(worker_api(s), lane="voice", store=s.store, client=KokoroClient(runner),
+    return MediaWorker(worker_api(s, lane="voice"), lane="voice", store=s.store, client=KokoroClient(runner),
                        licences=register())
 
 
@@ -268,7 +269,7 @@ def test_draft_edit_retains_photo_and_voice_and_failed_engine(studio):
             super().synthesize(request)
             raise AdapterError("adapter.command_failed", "kokoro", "fixture failure")
 
-    bad = MediaWorker(worker_api(s), lane="voice", store=s.store,
+    bad = MediaWorker(worker_api(s, lane="voice"), lane="voice", store=s.store,
                       client=FailedSpeech(FakeRunner(failing)))
     failed_id = success(operation(s, board, "voice", "voice-fail"), 202)["id"]
     assert bad.tick()
@@ -604,16 +605,120 @@ def test_run_and_image_lanes_and_mcp_run_tools(queue):
     asyncio.run(scenario())
 
 
+def test_worker_lane_refusals_leave_queue_rows_unchanged(queue, studio):
+    q, s = queue, studio
+    board = board_in(s, spoken=True)
+    run_id = success(queue_run(q, "lane-run"), 201)["id"]
+    job_ids = {
+        lane: success(operation(s, board, kind, f"lane-{lane}"), 202)["id"]
+        for lane, kind in (("image", "photo"), ("voice", "voice"))
+    }
+    api = client(q.app)
+    path = "/internal/v1/work"
+    headers = {lane: worker_credentials(q.owner, lane=lane) for lane in ("run", "voice", "image", None)}
+
+    def queue_state():
+        tables = ("run_lane", "runs", "run_wan_attempts", "run_check_overrides",
+                  "media_job_lanes", "media_jobs", "queue_lane_events",
+                  "escalation_check_failures", "escalation_packages", "escalation_events")
+        with q.owner.connect() as conn:
+            state = {}
+            for table in tables:
+                rows = conn.exec_driver_sql(
+                    f"SELECT row_to_json(entry)::text AS bytes FROM {table} AS entry ORDER BY bytes",
+                ).scalars().all()
+                state[table] = (len(rows), tuple(row.encode("utf-8") for row in rows))
+            return state
+
+    def refuse(action, lane, status=403, code="work.lane_forbidden", **payload):
+        before = queue_state()
+        response = api.post(f"{path}/{action}", headers=headers[lane], **payload)
+        assert (response.status_code, response.json()["error"]["code"]) == (status, code), response.text
+        assert queue_state() == before
+
+    for lane in headers:
+        for target in ("run", "voice", "image"):
+            if lane != target:
+                refuse("claim", lane, json={"lane": target})
+                refuse("claim", lane, json={"lane": target, "extra": True})
+    for lane in ("voice", "image", None):
+        refuse("claim", lane)
+    refuse("claim", None, content=b"{")  # An unbound ID is refused before body parsing.
+
+    attempt = f"attempts/{'a' * 32}"
+    for action in ("heartbeat", "publish", "complete", "fail", "resume", "attempts", attempt):
+        for payload in ({"json": {"run_id": run_id, "fence": "invalid"}}, {"content": b"{"}):
+            refuse(action, "voice", **payload)
+            refuse(action, "image", **payload)
+            refuse(action, "run", 422, "schema.invalid", **payload)
+        if action in {"heartbeat", "publish", "complete", "fail"}:
+            payload = {"job_id": job_ids["image"], "fence": "invalid"}
+            refuse(action, "run", json=payload)
+            refuse(action, "image", 422, "schema.invalid", json=payload)
+
+    run_claim = success(api.post(f"{path}/claim", headers=headers["run"]))
+    assert run_claim["run"]["id"] == run_id
+    media_claims = {
+        lane: success(api.post(f"{path}/claim", headers=headers[lane], json={"lane": lane}))
+        for lane in job_ids
+    }
+    assert {lane: claim["job"]["id"] for lane, claim in media_claims.items()} == job_ids
+    run_fence = {"run_id": run_id, "fence": run_claim["fence"]}
+    success(api.post(f"{path}/heartbeat", headers=headers["run"], json=run_fence))
+
+    wan = request_for(q)
+    for action, (code, payload) in {
+        "complete": ("work.check_failed", {"stages": [], "outputs": {}, "checks": [{"result": "fail"}],
+                                           "provenance": {}, "delivery_id": "fixture"}),
+        "fail": ("work.wait_reason", {"status": "queued", "reason": "Fixture failure"}),
+        "attempts": ("wan.profile", {"proposal": {"kind": wan.kind, **product_request(wan), "profile": "fixture"}}),
+        attempt: ("wan.result", {"state": "succeeded"}),
+    }.items():
+        refuse(action, "voice", json={**run_fence, **payload})
+        refuse(action, "run", 422, code, json={**run_fence, **payload})
+
+    # Model a pre-migration claim owned by the wrong lane, with a valid fence.
+    with q.owner.begin() as conn:
+        voice_worker = conn.scalar(sa.select(media_jobs.c.worker_id).where(media_jobs.c.id == job_ids["voice"]))
+        conn.execute(runs.update().where(runs.c.id == run_id).values(worker_id=voice_worker))
+        conn.execute(media_jobs.update().where(media_jobs.c.id == job_ids["image"]).values(worker_id=voice_worker))
+
+    for action, payload in {
+        "heartbeat": {},
+        "resume": {},
+        "attempts": {"proposal": {"kind": wan.kind, **product_request(wan)}},
+        attempt: {"state": "sent"},
+        "publish": {},
+        "complete": {"stages": [], "outputs": {}, "checks": [], "provenance": {}, "delivery_id": "fixture"},
+        "fail": {"status": "failed", "reason": "Fixture failure"},
+        "escalation-check-failure": {"attempt": 1, "error_code": "layered.decal_weak",
+                                     "board_id": q.board_id, "result": {}},
+    }.items():
+        refuse(action, "voice", json={**run_fence, **payload})
+
+    image_fence = {"job_id": job_ids["image"], "fence": media_claims["image"]["fence"]}
+    for action, payload in {
+        "heartbeat": {}, "publish": {}, "complete": {"result": None},
+        "fail": {"code": "work.fixture", "message": "Fixture failure"},
+    }.items():
+        refuse(action, "voice", 404, "not_found", json={**image_fence, **payload})
+        refuse(action, "run", json={**image_fence, **payload})
+
+    voice_fence = {"job_id": job_ids["voice"], "fence": media_claims["voice"]["fence"]}
+    refuse("heartbeat", "voice", 409, "work.fence_lost", json={**voice_fence, "fence": voice_fence["fence"] + 1})
+    success(api.post(f"{path}/heartbeat", headers=headers["voice"], json=voice_fence))
+
+
 def test_media_claim_expiry_fences_old_worker_and_never_replays_dispatch(studio):
     s = studio
     board = board_in(s)
     id_ = success(operation(s, board, "photo", "expired"), 202)["id"]
-    old = worker_api(s).claim("image")
+    old = worker_api(s, lane="image").claim("image")
     old.publish()
     with s.owner.begin() as conn:
         expired = database_time(conn) - timedelta(seconds=1)
         conn.execute(media_jobs.update().where(media_jobs.c.id == id_).values(claim_until=expired))
-    assert worker_api(s).claim("image") is None
+    assert worker_api(s, lane="image").claim("image") is None
     with pytest.raises(WorkerAPIError) as caught:
         old.heartbeat()
     assert caught.value.code == "work.fence_lost"
@@ -805,8 +910,8 @@ def test_mutable_job_document_cannot_override_requester(studio, engine, kind):
     board = board_in(s, spoken=kind == "voice", by_human=True)
     queued = success(operation(s, board, kind, "forged-requester"), 202)
     target = media_jobs.c.id == queued["id"]
-    api = worker_api(s)
-    claim = api.claim("image" if kind == "photo" else "voice")
+    lane = "image" if kind == "photo" else "voice"
+    claim = worker_api(s, lane=lane).claim(lane)
     worker = speech_worker(s, FakeKokoro()) if kind == "voice" else image_worker(s)[0]
     evidence = stage_result(worker, claim)
     original = claim.body["job"]["created_by"]
@@ -825,7 +930,7 @@ def test_invalid_job_requester_refuses_completion(studio, requester):
     board = board_in(s)
     queued = success(operation(s, board, "photo", "invalid-requester"), 202)
     target = media_jobs.c.id == queued["id"]
-    claim = worker_api(s).claim("image")
+    claim = worker_api(s, lane="image").claim("image")
     evidence = stage_result(image_worker(s)[0], claim)
     with s.owner.begin() as conn:
         conn.execute(media_jobs.update().where(target).values(requester=requester))
@@ -870,7 +975,7 @@ def recorded_voice(studio):
     s = studio
     board = board_in(s, spoken=True)
     queued = success(operation(s, board, "voice", "recorded-voice"), 202)
-    claim = worker_api(s).claim("voice")
+    claim = worker_api(s, lane="voice").claim("voice")
     worker = speech_worker(s, FakeKokoro())
     result = stage_result(worker, claim)
     result["version"]["recorded_without_media"] = True
@@ -952,7 +1057,7 @@ def test_worker_cannot_complete_voice_for_another_scope(studio, scope):
                                     "story_id": new_story(s.browser, s.csrf, production)})
     other_board = board_in(foreign, by_human=True)
     queued = success(operation(s, board, "voice", "scoped-voice"), 202)
-    claim = worker_api(s).claim("voice")
+    claim = worker_api(s, lane="voice").claim("voice")
     result = speech_worker(s, FakeKokoro())._result(Job.from_document(claim.body["job"]), claim, claim.publish)
     false_result = deepcopy(result)
     version = false_result["version"]
@@ -1030,6 +1135,7 @@ def test_pausing_run_lane_drains_current_claim_and_blocks_new_claims(queue):
     claim = worker.claim()
     assert claim.body["run"]["id"] == first
     paused = success(q.browser.put(path + "/run", headers=q.csrf, json={"paused": True}))
+    assert "live_claim" not in paused
     assert paused["changed_at"] == q.clock.now.isoformat().replace("+00:00", "Z")
     assert paused["changed_by"]["kind"] == "human" and paused["changed_by"]["sub"] == "one"
     second = success(queue_run(q, "after-pause"), 201)
@@ -1045,9 +1151,10 @@ def test_pausing_run_lane_drains_current_claim_and_blocks_new_claims(queue):
     _, auth = register_agent(q.owner, {q.production_id: ["assets:generate"]})
     assert success(operation(SimpleNamespace(agent=q.browser, auth=auth), q.board_id, "photo", "open-image"), 202)
     assert image_worker(q)[0].tick()
-    assert success(q.browser.get(path))["items"][0] == paused
+    assert success(q.browser.get(path))["items"][0] == {**paused, "live_claim": False}
     q.clock.advance(10)
     resumed = success(q.browser.put(path + "/run", headers=q.csrf, json={"paused": False}))
+    assert "live_claim" not in resumed
     assert resumed["paused"] is False and resumed["changed_at"] > paused["changed_at"]
     assert success(q.browser.put(path + "/run", headers=q.csrf, json={"paused": False})) == resumed
     assert worker.claim().body["run"]["id"] == second["id"]
@@ -1064,7 +1171,7 @@ def test_pausing_media_lane_leaves_requests_queued_until_resumed(studio, lane):
     board = board_in(s, spoken=True)
     kind = "photo" if lane == "image" else "voice"
     first = success(operation(s, board, kind, "before-media-pause"), 202)["id"]
-    worker = worker_api(s)
+    worker = worker_api(s, lane=lane)
     claim = worker.claim(lane)
     assert claim.body["job"]["id"] == first
     path = f"/v1/queue/lanes/{lane}"
@@ -1076,6 +1183,47 @@ def test_pausing_media_lane_leaves_requests_queued_until_resumed(studio, lane):
     assert job(s, second)["status"] == "queued"
     assert not success(s.browser.put(path, headers=s.csrf, json={"paused": False}))["paused"]
     assert worker.claim(lane).body["job"]["id"] == second
+
+
+@pytest.mark.parametrize(("lane", "kind"), [("image", "photo"), ("voice", "voice")], ids=["image", "voice"])
+@pytest.mark.parametrize("enabled", [False, True], ids=["disabled", "enabled"])
+def test_paused_media_lane_settles_expired_dispatch_only_when_enabled(studio, monkeypatch, lane, kind, enabled):
+    s = studio
+    monkeypatch.setattr(s.app.state, "paused_reconcile", enabled)
+    board = board_in(s, spoken=lane == "voice")
+    identifier = success(operation(s, board, kind, "paused-dispatch"), 202)["id"]
+    claim = worker_api(s, lane=lane).claim(lane)
+    assert claim.identity["job_id"] == identifier
+    path = f"/v1/queue/lanes/{lane}"
+    assert success(s.browser.put(path, headers=s.csrf, json={"paused": True}))["paused"]
+    # Pause preserves the current fence, including the first engine authorization.
+    claim.publish()
+    lane_state = next(item for item in success(s.browser.get("/v1/queue/lanes"))["items"] if item["lane"] == lane)
+    assert lane_state["live_claim"] is True
+    following = success(operation(s, board, kind, "following-dispatch"), 202)["id"]
+    poller = worker_api(s, lane=lane)
+    assert poller.claim(lane) is None
+    assert job(s, identifier)["status"] == "running"
+    with s.owner.begin() as conn:
+        expired = database_time(conn) - timedelta(seconds=1)
+        conn.execute(media_jobs.update().where(media_jobs.c.id == identifier).values(claim_until=expired))
+    lane_state = next(item for item in success(s.browser.get("/v1/queue/lanes"))["items"] if item["lane"] == lane)
+    assert lane_state["paused"] is True and lane_state["live_claim"] is False
+
+    assert poller.claim(lane) is None
+    assert poller.claim(lane) is None
+    assert job(s, following)["status"] == "queued"
+    if enabled:
+        assert job(s, identifier)["status"] == "failed"
+    else:
+        assert job(s, identifier)["status"] == "running"
+
+    assert not success(s.browser.put(path, headers=s.csrf, json={"paused": False}))["paused"]
+    if not enabled:
+        assert poller.claim(lane) is None
+    view = job(s, identifier)
+    assert view["status"] == "failed" and view["error"]["code"] == "work.dispatch_unconfirmed"
+    assert poller.claim(lane).identity["job_id"] == following
 
 
 def test_photo_currency_blocks_build_and_preserves_frozen_run(queue):

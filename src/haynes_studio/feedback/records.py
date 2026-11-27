@@ -9,6 +9,7 @@ from haynes_studio.canonical.ids import Minter
 from haynes_studio.db.problems import NotFound, require_revision
 from haynes_studio.db.runs import database_time, timestamp
 from haynes_studio.db.schema import candidate_feedback as notes
+from haynes_studio.db.schema import feedback_iteration_clears as clears
 from haynes_studio.db.schema import feedback_iterations as iterations
 from haynes_studio.db.schema import run_candidates as candidates
 from haynes_studio.db.schema import runs, stories
@@ -93,10 +94,35 @@ def start_iteration(conn, candidate, revision, note_ids, actor):
     return _iteration_view({**record, "run_id": candidate["run_id"]})
 
 
-def list_candidates(conn, story_id, run_id, after, limit):
+def clear_iteration(conn, story_id, revision, actor, *, production_ids):
+    stmt = sa.select(stories.c.document, stories.c.feedback_iteration_id).where(stories.c.id == story_id)
+    if production_ids is not None:
+        stmt = stmt.where(stories.c.production_id.in_(production_ids))
+    row = conn.execute(stmt.with_for_update()).one_or_none()
+    if row is None:
+        raise NotFound
+    story, iteration_id = row
+    require_revision(story["revision"], revision)
+    if iteration_id is None:
+        return {"revision": revision, "cleared": False}
+    now = timestamp(database_time(conn))
+    updated = {**story, "revision": revision + 1, "updated_at": now}
+    conn.execute(stories.update().where(stories.c.id == story_id).values(
+        document=updated, feedback_iteration_id=None,
+    ))
+    conn.execute(clears.insert().values(
+        story_id=story_id, revision=updated["revision"], iteration_id=iteration_id,
+        document={"cleared_at": now, "cleared_by": actor},
+    ))
+    return {"revision": updated["revision"], "cleared": True}
+
+
+def list_candidates(conn, story_id, run_id, after, limit, *, candidate_id=None, note_ids=None):
     stmt = sa.select(candidates).join_from(candidates, runs).where(runs.c.story_id == story_id)
     if run_id is not None:
         stmt = stmt.where(candidates.c.run_id == run_id)
+    if candidate_id is not None:
+        stmt = stmt.where(candidates.c.id == candidate_id)
     if after is not None:
         stmt = stmt.where(candidates.c.id > after)
     items = [dict(row, notes=[], answering_runs=[]) for row in conn.execute(
@@ -105,8 +131,10 @@ def list_candidates(conn, story_id, run_id, after, limit):
     by_id = {item["id"]: item for item in items}
     if not items:
         return items
-    for note in conn.execute(sa.select(notes).where(notes.c.candidate_id.in_(by_id))
-                             .order_by(notes.c.written_at, notes.c.id)).mappings():
+    note_query = sa.select(notes).where(notes.c.candidate_id.in_(by_id)).order_by(notes.c.written_at, notes.c.id)
+    if note_ids is not None:
+        note_query = note_query.where(notes.c.id.in_(note_ids))
+    for note in conn.execute(note_query).mappings():
         by_id[note["candidate_id"]]["notes"].append(dict(note))
     key = sa.literal_column("'answers'")
     answer = runs.c.document.op("->")(key)

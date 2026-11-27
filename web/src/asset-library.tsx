@@ -3,13 +3,14 @@ import { Link, useNavigate } from "react-router";
 
 import type { StudioClient } from "./api/client";
 import { AssetProblem, CandidateReview } from "./asset-candidate-review";
-import { AssetGeneration, useCandidateJob } from "./asset-generation";
-import { boardPhotoHistory, listAssetScope, loadAssetContext } from "./asset-library-data";
+import { AssetGeneration, MatteForm, useCandidateJob, type CandidatePress } from "./asset-generation";
+import { boardPhotoHistory, listAssetScope, loadAssetContext, loadMatteFormat, type MatteRequest } from "./asset-library-data";
 import { assetKinds, assetOrigins, assetTarget, groupAssets, kindLabel, visibleAssetScope, widenAssetScope } from "./asset-library-model";
-import { LibraryVersion, type AssetTarget } from "./asset-version-card";
+import { LibraryVersion, type AssetTarget, type SelectCutout } from "./asset-version-card";
+import type { AssetVersion } from "./photo-composer-model";
 import { loadBoard } from "./route-data";
 import {
-  assetSearchLimit, assetsDestination, assetsPath, liveAssetFilters, routePath, treePath,
+  assetSearch, assetSearchLimit, assetsDestination, assetsPath, liveAssetFilters, routePath, treePath,
   type AssetFilters, type AssetScope, type AssetsRoute,
 } from "./routes";
 import type { SelectionStore } from "./selections";
@@ -49,11 +50,17 @@ function ScopeFilters({ scope, data, board, change }: {
   </div>;
 }
 
-function AssetResults({ api, route, scope, story, change, target, revision }: {
+function AssetResults({ api, route, scope, story, change, target, revision, onCutout }: {
   api: StudioClient; route: AssetsRoute; scope: AssetScope; story: AssetContext["story"];
-  change: ChangeFilters; target?: AssetTarget; revision: number;
+  change: ChangeFilters; target?: AssetTarget; revision: number; onCutout?: SelectCutout;
 }) {
   const { context, filters } = route;
+  const [search, setSearch] = useState(filters.search ?? "");
+  useLayoutEffect(() => {
+    // Skip intermediate router renders while rapid typing has already moved the address on.
+    const current = liveAssetFilters(filters, window.location.pathname, window.location.search);
+    if (current.search === filters.search) setSearch(filters.search ?? "");
+  }, [filters]);
   const { production, board } = context;
   const load = useCallback((signal: AbortSignal) => listAssetScope(api, scope, { production, board }, story, signal),
     [api, scope, production, board, story]);
@@ -66,7 +73,7 @@ function AssetResults({ api, route, scope, story, change, target, revision }: {
     }
   }, [retry, revision]);
   const versions = result.status === "success" ? result.data : [];
-  const groups = groupAssets(versions, filters);
+  const groups = groupAssets(versions, { ...filters, search });
   const kinds = assetKinds(versions);
   const unavailableKind = filters.kind && !kinds.some((kind) => kind === filters.kind);
 
@@ -74,7 +81,11 @@ function AssetResults({ api, route, scope, story, change, target, revision }: {
     <div className="asset-controls">
       <label htmlFor="asset-search">Search
         <input id="asset-search" type="search" maxLength={assetSearchLimit} placeholder="Name or label"
-          value={filters.search ?? ""} onChange={(event) => change({ search: event.currentTarget.value }, true)} />
+          value={search} onChange={(event) => {
+            const value = assetSearch(event.currentTarget.value);
+            setSearch(value ?? "");
+            change({ search: value }, true);
+          }} />
       </label>
       <label>Kind <select value={filters.kind ?? ""} onChange={(event) => change({ kind: event.currentTarget.value || undefined })}>
         <option value="">All kinds</option>
@@ -92,8 +103,9 @@ function AssetResults({ api, route, scope, story, change, target, revision }: {
             <p className="muted">{[kindLabel(asset.kind), ...asset.labels].join(" · ")}</p>
           </div>
           <ol className="asset-versions" aria-label={`${asset.name} versions`}>
-            <LibraryVersion key={asset.id} version={asset} latest target={target} />
-            {older.map((version) => <LibraryVersion key={version.id} version={version} latest={false} target={target} />)}
+            <LibraryVersion key={asset.id} version={asset} latest target={target} onCutout={onCutout} />
+            {older.map((version) => <LibraryVersion key={version.id} version={version} latest={false}
+              target={target} onCutout={onCutout} />)}
           </ol>
         </article>
       </li>)}
@@ -154,7 +166,21 @@ export function AssetLibraryPage({ api, route, selections, before }: {
     ? { scope: targetScope, board: record } : undefined;
   const targetReady = target !== undefined;
   const jobStatus = useCandidateJob(api, filters.job);
-  const linkFilters = { ...filters, job: jobStatus.value?.id };
+  const matteJob = jobStatus.value ? jobStatus.value.kind === "matte" : filters.jobKind === "matte";
+  const [focusCutout, setFocusCutout] = useState<string>();
+  const mattePresses = useRef(new Map<string, CandidatePress<MatteRequest>>());
+  const formatId = data?.story?.id === story ? data?.story?.format_version_id : undefined;
+  const loadFormat = useCallback((signal: AbortSignal) => formatId
+    ? loadMatteFormat(api, formatId, signal) : Promise.resolve(undefined), [api, formatId]);
+  const matteRecipe = useRequest(loadFormat);
+  const format = matteRecipe.result.status === "success" && matteRecipe.result.data?.id === formatId
+    ? matteRecipe.result.data : undefined;
+  const matteSlots = Object.keys(format?.recipe.cast.matte_slots ?? {}).sort();
+  const [cutout, setCutout] = useState<{ source: AssetVersion; story?: string; formatId: string }>();
+  const cuttingOut = cutout !== undefined && cutout.story === story && cutout.formatId === format?.id;
+  const onCutout: SelectCutout | undefined = production && format && matteSlots.length && !jobStatus.active && !cuttingOut
+    ? { production, select: (source) => setCutout({ source, story, formatId: format.id }) } : undefined;
+  const linkFilters = { ...filters, job: jobStatus.value?.id, jobKind: matteJob ? "matte" as const : undefined };
   const path = routePath(route);
   const libraryPath = assetsPath(context, false, linkFilters);
   const destination = assetsDestination(context, filters);
@@ -166,7 +192,8 @@ export function AssetLibraryPage({ api, route, selections, before }: {
 
   function change(next: Partial<AssetFilters>, replace = false) {
     const current = liveAssetFilters(filters, window.location.pathname, window.location.search);
-    void navigate(assetsPath(context, generate, { ...current, ...next }), { replace, preventScrollReset: true });
+    const job = jobStatus.missing && current.job === filters.job ? undefined : current.job;
+    void navigate(assetsPath(context, generate, { ...current, job, ...next }), { replace, preventScrollReset: true });
   }
 
   const atScope = (scope: AssetScope) => assetsPath(context, false, { ...linkFilters, scope });
@@ -191,6 +218,8 @@ export function AssetLibraryPage({ api, route, selections, before }: {
         </div>
         {before}
         {tree.result.status === "failure" && <Problem error={tree.result.error} retry={tree.retry} />}
+        {formatId && matteRecipe.result.status === "failure" &&
+          <AssetProblem error={matteRecipe.result.error} retry={matteRecipe.retry} />}
         {!generate && <ScopeFilters scope={scope} data={data ?? {}} board={boardIndex} change={change} />}
         {data?.story && data.story.board_order.length > 0 && <div className="asset-target">
           <label>Target board <select value={validTargetId ?? ""} onChange={(event) => {
@@ -203,15 +232,32 @@ export function AssetLibraryPage({ api, route, selections, before }: {
           {index === -1 && <p className="muted" role="status">Target board unavailable.</p>}
           {targetBoard.result.status === "failure" && <AssetProblem error={targetBoard.result.error} retry={targetBoard.retry} />}
         </div>}
+        {!generate && data?.story && !formatId &&
+          <p className="muted">This story needs a pinned format to request cutouts.</p>}
+        {!generate && format && !matteSlots.length &&
+          <p className="muted">The pinned format has no sized cast slots for cutouts.</p>}
+        {cuttingOut && format && <MatteForm key={cutout.source.id} api={api} source={cutout.source}
+          format={format} slots={matteSlots} presses={mattePresses.current} onJob={(job) => {
+            setFocusCutout(job);
+            change({ job, jobKind: "matte" });
+            setCutout(undefined);
+          }} onClose={() => {
+            setCutout(undefined);
+            document.getElementById("page-heading")?.focus();
+          }} />}
         {(generate || filters.job) && <AssetGeneration key={generate ? "generate" : "result"} api={api}
           generate={generate} production={scope === "library" ? undefined : data?.production}
-          scopeReady={scopeReady} job={filters.job} jobStatus={jobStatus} target={target} onJob={(job) => change({ job })}
-          onPromoted={refresh} />}
+          scopeReady={scopeReady} job={filters.job} jobStatus={jobStatus} matte={matteJob}
+          focusJob={focusCutout !== undefined && focusCutout === filters.job} target={target} onJob={(job) => {
+            setFocusCutout(undefined);
+            change({ job, jobKind: undefined });
+          }}
+          onPromoted={refresh} onCutout={onCutout} cuttingOut={cuttingOut} />}
         {!generate && <>
           {(scope === "library" || scope === "production" || ready) &&
             <AssetResults key={scope} api={api} route={route} scope={scope}
               story={scope === "story" || scope === "board" ? data?.story : undefined}
-              change={change} target={target} revision={catalogRevision} />}
+              change={change} target={target} revision={catalogRevision} onCutout={onCutout} />}
           {scope === "board" && board && data?.story?.board_order.includes(board) &&
             <details className="asset-board-history" onToggle={(event) => setShowHistory(event.currentTarget.open)}>
               <summary ref={history}>Board photo history</summary>

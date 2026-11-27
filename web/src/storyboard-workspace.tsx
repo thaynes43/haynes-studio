@@ -6,7 +6,7 @@ import { BoardInspector, type InspectorVoiceState } from "./board-inspector";
 import { PhotoComposer, type StagePhotoState } from "./photo-composer";
 import { treePath } from "./routes";
 import { Empty, Problem } from "./shell-ui";
-import type { StoryboardPanel, StoryboardScope } from "./storyboard-data";
+import { stalePhotoLabel, type StoryboardPanel, type StoryboardScope } from "./storyboard-data";
 import { boardPosition, timelineLabels } from "./storyboard-timeline";
 import type { StoryboardModel } from "./use-storyboard";
 import "./storyboard-workspace.css";
@@ -16,6 +16,13 @@ const panelElementId = (id: string) => `storyboard-panel-${id}`;
 function BoardPicture({ url, alt, placeholder }: { url?: string; alt: string; placeholder?: ReactNode }) {
   const [failed, setFailed] = useState(false);
   return url && !failed ? <img src={url} alt={alt} onError={() => setFailed(true)} /> : placeholder;
+}
+
+function PhotoStatus({ label }: { label?: string }) {
+  // Let the stale text size the slot even while it is hidden.
+  return <span className="storyboard-photo-status" aria-hidden={label ? undefined : true}>
+    {label ?? stalePhotoLabel("stale")}
+  </span>;
 }
 
 function VoiceStrip({ panel }: { panel: StoryboardPanel }) {
@@ -41,12 +48,12 @@ function Stage({ panel, index, range, aspect, voiceCurrent, photoUnsaved }: {
   const number = boardPosition(index);
   const layer = record.method.layer === "layered" ? "Layered" : "Whole-frame";
   const motion = record.method.motion === "s2v" ? "Speech-to-video" : "Image-to-video";
+  const photoStatus = photoUnsaved ? "Photo inputs unsaved" : stalePhotoLabel(record.derived?.photo_state);
   return <section className="storyboard-stage" aria-label="Selected board stage">
     <div className="storyboard-stage-meta">
       <code aria-label="Board ID">{record.id}</code>
       <span aria-label="Time range">{range}</span>
-      {photoUnsaved ? <span>Photo inputs unsaved</span>
-        : record.derived?.photo_state === "stale" && <span>Reference photo stale</span>}
+      <PhotoStatus label={photoStatus} />
     </div>
     <div className="storyboard-preview">
       <div className={`storyboard-picture storyboard-picture-${aspect}`}>
@@ -84,7 +91,7 @@ export function StoryboardWorkspace({ api, model, scope, photoRoute }: {
 
   if (!draft) return null;
   const labels = timelineLabels(draft.timing);
-  const locked = pending || Boolean(problem?.reload);
+  const locked = pending || model.draftNeedsReload;
   const selectedTiming = selected ? labels.boards.get(selected) : undefined;
   const panel = draft.boards[selectedIndex];
   return <div className="storyboard-workspace">
@@ -103,10 +110,11 @@ export function StoryboardWorkspace({ api, model, scope, photoRoute }: {
           return <li key={record.id}>
             <Link id={panelElementId(record.id)} to={treePath("board", { ...scope, board: record.id })}
               aria-current={record.id === selected ? "page" : undefined} onClick={model.clearNotice}>
-              <div className="storyboard-thumb" aria-hidden="true">
-                <BoardPicture key={photo} url={photo} alt="" placeholder={<span />} />
+              <div className="storyboard-thumb">
+                <BoardPicture key={photo} url={photo} alt="" placeholder={<span className="storyboard-thumb-placeholder" />} />
               </div>
               <strong>{number}</strong>
+              <PhotoStatus label={stalePhotoLabel(record.derived?.photo_state)} />
               <span>{labels.boards.get(record.id)?.length}</span>
             </Link>
           </li>;
