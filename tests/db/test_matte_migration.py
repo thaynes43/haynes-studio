@@ -83,7 +83,7 @@ def test_predecessor_readiness_overlaps_upgrade(
         sa.event.listen(owner_engine, "before_cursor_execute", before_ddl)
         sa.event.listen(owner_engine, "after_cursor_execute", after_ddl)
         try:
-            upgraded = background.submit(migrate, owner_engine, runtime_role=runtime_role[0])
+            upgraded = background.submit(migrate, owner_engine, target=TARGET, runtime_role=runtime_role[0])
             if first == "readiness":
                 assert second_entered.wait(timeout=3)
             else:
@@ -140,14 +140,14 @@ def test_upgrade_refuses_late_readiness_lock_then_retries(predecessor, owner_eng
         # relation from predecessor readiness still has an AccessShareLock.
         readiness.exec_driver_sql(AFTER_GRANTS[0])
         with pytest.raises(OperationalError, match="could not obtain lock") as caught:
-            migrate(owner_engine, runtime_role=runtime_role[0])
+            migrate(owner_engine, target=TARGET, runtime_role=runtime_role[0])
         assert caught.value.orig.sqlstate == "55P03"
         assert caught.value.statement.startswith("LOCK TABLE media_job_lanes,")
         assert caught.value.statement.endswith("NOWAIT")
         with owner_engine.connect() as owner:
             assert owner.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == PREDECESSOR
 
-    migrate(owner_engine, runtime_role=runtime_role[0])
+    migrate(owner_engine, target=TARGET, runtime_role=runtime_role[0])
     with owner_engine.connect() as owner:
         assert owner.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == TARGET
 
@@ -188,7 +188,7 @@ def test_reader_queues_behind_waiting_upgrade(
         holder_pid = holder.connection.driver_connection.info.backend_pid
         sa.event.listen(owner_engine, "before_cursor_execute", before_lock)
         try:
-            upgraded = background.submit(migrate, owner_engine, runtime_role=runtime_role[0])
+            upgraded = background.submit(migrate, owner_engine, target=TARGET, runtime_role=runtime_role[0])
             try:
                 assert migrating.wait(timeout=2)
                 wait_for_blocker(holder, migration_pid, holder_pid)
@@ -223,7 +223,7 @@ def test_upgrade_refuses_contended_tables_and_preserves_predecessor(
     with engine.connect() as serving:
         serving.exec_driver_sql(f"SELECT 1 FROM {table} LIMIT 0")
         with pytest.raises(OperationalError) as caught:
-            migrate(owner_engine, runtime_role=runtime_role[0])
+            migrate(owner_engine, target=TARGET, runtime_role=runtime_role[0])
         assert caught.value.orig.sqlstate == "55P03"
         reason = "lock timeout" if table == "worker_lane_grants" else "could not obtain lock"
         assert reason in str(caught.value.orig)
@@ -232,7 +232,8 @@ def test_upgrade_refuses_contended_tables_and_preserves_predecessor(
 
 
 @pytest.mark.parametrize("table", ["worker_lane_grants", "queue_lane_events"])
-def test_downgrade_prelocks_contended_tables(table, owner_engine, engine):
+def test_downgrade_prelocks_contended_tables(table, predecessor, owner_engine, engine, runtime_role):
+    migrate(owner_engine, target=TARGET, runtime_role=runtime_role[0])
     def bound_test_statement(conn):
         conn.exec_driver_sql("SET LOCAL statement_timeout = '3s'")
 

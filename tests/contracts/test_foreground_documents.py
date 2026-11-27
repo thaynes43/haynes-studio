@@ -69,7 +69,7 @@ def test_roles_reject_fields_outside_the_mask_declaration(field, value):
         AssetVersion.from_document(doc)
 
 
-def test_declarations_reject_focal_props():
+def test_declarations_reject_a_stored_empty_focal_props_list():
     doc = declared_set()
     doc["occlusion"]["focal_props"] = []
     with pytest.raises(ContractError):
@@ -157,3 +157,41 @@ def test_changed_declaration_makes_a_new_immutable_set_version_with_the_same_pla
     assert new.library.pin(base.version.id) != new.library.pin(new.version.id)
     repeated = import_version(new.library, revised, by=BY, now=NOW)
     assert not repeated.created and repeated.version == new.version
+
+
+@pytest.mark.parametrize("hint", [
+    {"kind": "point", "xy": [63, 32]},
+    {"kind": "box", "xyxy": [1, 1, 65, 32]},
+    {"kind": "box", "xyxy": [1, 1, 1, 5]},
+])
+def test_focal_hint_bounds_on_plate(hint):
+    plate = declared_set()
+    plate["occlusion"]["focal_props"] = [{
+        "key": "cup", "label": "cup", "depth": "unspecified", "hint": hint,
+    }]
+    with pytest.raises(ContractError, match="occlusion.hint_bounds"):
+        AssetVersion.from_document(plate)
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("in_bounds", [False, True])
+def test_separate_focal_hint_checks_library_import_in_either_order(reverse, in_bounds):
+    plate = declared_set()
+    prop = still_version(74, "e" * 64)
+    prop.update(kind="prop", labels=[], attributes={})
+    prop["content"].update(width=40, height=32)
+    plate["occlusion"]["focal_props"] = [{
+        "key": "cup", "label": "cup", "depth": "separate", "source_asset_version_id": prop["id"],
+        "layer_order": 20, "hint": {"kind": "box", "xyxy": [0, 0, 40 if in_bounds else 41, 32]},
+    }]
+    documents = [prop, plate] if reverse else [plate, prop]
+    first = import_version(Library(), request(documents[0]), by=BY, now=NOW)
+    if in_bounds:
+        result = import_version(first.library, request(documents[1]), by=BY, now=NOW)
+        assert result.created and len(result.library.versions) == 2
+        assert len(Library.from_version_documents(documents).versions) == 2
+    else:
+        with pytest.raises(ContractError, match="occlusion.hint_bounds"):
+            import_version(first.library, request(documents[1]), by=BY, now=NOW)
+        with pytest.raises(ContractError, match="occlusion.hint_bounds"):
+            Library.from_version_documents(documents)

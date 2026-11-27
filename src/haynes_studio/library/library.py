@@ -47,7 +47,9 @@ from haynes_studio.library.model import (
     pin,
     version_document,
 )
-from haynes_studio.library.validate import validate_asset, validate_asset_version
+from haynes_studio.library.validate import (
+    focal_prop_source_bounds, focal_prop_source_ids, validate_asset, validate_asset_version,
+)
 from haynes_studio.jsonio import freeze
 
 # Rule codes beyond the contract's rule index are proposals of story 382.
@@ -109,6 +111,10 @@ class Library:
             if key is not None and keys.setdefault(key, asset.id) != asset.id:
                 problems.append(Violation(REF_DUPLICATE, at + "/provenance/source_key",
                                           f"source key {key!r} already names asset {keys[key]}"))
+        by_version = {v.id: v for v in versions}
+        for version in versions:
+            for source_id in focal_prop_source_ids(version.occlusion) & by_version.keys():
+                problems += focal_prop_source_bounds(version.occlusion, source_id, by_version[source_id].content)
         for asset_id, seen in numbers.items():
             if len(set(seen)) != len(seen):
                 problems.append(Violation(
@@ -116,8 +122,7 @@ class Library:
                     f"asset {asset_id} has repeated version numbers {sorted(seen)}"))
         if problems:
             raise ContractError("<library>", problems)
-        return cls(assets=MappingProxyType(by_asset),
-                   versions=MappingProxyType({v.id: v for v in versions}))
+        return cls(assets=MappingProxyType(by_asset), versions=MappingProxyType(by_version))
 
     @classmethod
     def from_version_documents(cls, documents: Iterable[Mapping[str, Any]]) -> Library:
@@ -345,6 +350,7 @@ class VersionRequest:
     asset_id: str | None = None
     recorded_without_media: bool = False
     occlusion: Mapping[str, Any] | None = None
+    segmentation: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -396,7 +402,8 @@ def import_version(library: Library, request: VersionRequest, *, by: Principal, 
         legacy=None if request.legacy is None else freeze(normalize(request.legacy)),
         voice=request.voice,
         motion=None if request.motion is None else freeze(normalize(dict(request.motion))),
-        recorded_without_media=request.recorded_without_media, occlusion=request.occlusion)
+        recorded_without_media=request.recorded_without_media, occlusion=request.occlusion,
+        segmentation=request.segmentation)
     wanted = pin(candidate, asset)
     for existing in library.versions_of(asset.id):
         if pin(existing, asset) != wanted:
@@ -413,6 +420,14 @@ def import_version(library: Library, request: VersionRequest, *, by: Principal, 
     version_id = _fresh(library, request.version_id, "asv", minter, "/version_id")
     version = replace(candidate, id=version_id)
     _check(version, asset)
+    problems = []
+    for source_id in focal_prop_source_ids(version.occlusion) & library.versions.keys():
+        problems += focal_prop_source_bounds(version.occlusion, source_id, library.versions[source_id].content)
+    if version.content is not None:
+        for other in library.versions.values():
+            problems += focal_prop_source_bounds(other.occlusion, version.id, version.content)
+    if problems:
+        raise ContractError(version.id, problems)
     return Outcome(library=library._with(asset=asset, version=version), version=version,
                    created=True)
 

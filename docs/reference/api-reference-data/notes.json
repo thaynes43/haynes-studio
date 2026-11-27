@@ -33,6 +33,7 @@
     "record_publication": "Go-live and publication are reserved for people. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41) and [release packages](release-package.md#api).",
     "report_escalation": "HTTP callback for the exact package responder. [Escalation operations](escalation.md#operator-and-responder-operations).",
     "request_matte": "Signed-in person required. Production-scoped status is available via studio_get_job. [Matte requests](studio-api.md#matte-requests-and-reads).",
+    "request_occlusion": "Signed-in person required. Production-scoped job reads are available via studio_get_job. [Occlusion jobs](segmentation-adapter.md#occlusion-jobs).",
     "set_queue_lane": "Signed-in person required. Pause holds queued work while workers can settle previously dispatched jobs. [Queue controls](studio-api.md#queue-controls).",
     "start_feedback_iteration": "Signed-in person required. See the HTTP access column.",
     "withdraw_go_live": "Go-live and publication are reserved for people. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41) and [release packages](release-package.md#api)."
@@ -57,6 +58,16 @@
         "adapter.request_invalid",
         "idempotency.mismatch"
       ]
+    },
+    {
+      "status": "422",
+      "operations": ["request_occlusion"],
+      "codes": ["idempotency.mismatch", "occlusion.declared_target", "occlusion.invalid_input"]
+    },
+    {
+      "status": "503",
+      "operations": ["request_occlusion"],
+      "codes": ["occlusion.store_unavailable", "occlusion.unavailable"]
     },
     {
       "status": "409",

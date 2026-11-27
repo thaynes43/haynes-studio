@@ -102,7 +102,7 @@ check the board revision before resending. [Photo upload](../studio-api.md#d42-p
 
 Generation returns `202` with a job ID and `Location`, or `200` on replay. Poll
 `GET /v1/jobs/{id}` or `studio_get_job` for board jobs and production-scoped
-matte jobs. Check the terminal
+matte and occlusion jobs. Check the terminal
 status and `result_is_current` before using a version. A job can succeed and
 retain its result without changing the board. A person can inspect a private
 candidate result and promote it separately. Queueing a run freezes the story

@@ -29,6 +29,7 @@ from haynes_studio.escalation.lifecycle import EscalationError
 from haynes_studio.escalation.settings import Settings as EscalationSettings
 from haynes_studio.escalation.storage import packages
 from haynes_studio.photo_limits import UploadBodyLimits
+from haynes_studio.segmentation.profile import Profile as SegmentationProfile, SegmentationError
 from haynes_studio.store.local import LocalStore
 
 from . import (
@@ -166,7 +167,8 @@ def _errors(app: FastAPI):
 def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STORE_FRESHNESS_SECONDS,
                  build_stage_root: str | Path | None = None,
                  upload_body_limits: UploadBodyLimits = UploadBodyLimits(),
-                 escalation: EscalationSettings = EscalationSettings()) -> FastAPI:
+                 escalation: EscalationSettings = EscalationSettings(),
+                 segmentation: SegmentationProfile | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app):
         yield
@@ -187,6 +189,7 @@ def _application(engine, store, oidc, store_freshness_seconds: int = DEFAULT_STO
     app.state.build_stage_root = build_stage_root
     app.state.upload_body_limits = upload_body_limits
     app.state.escalation = escalation
+    app.state.segmentation = segmentation
     _errors(app)
     app.add_middleware(RequestContextMiddleware)
 
@@ -262,10 +265,11 @@ def create_app(engine, store: LocalStore, oidc: OIDC, *,
                store_freshness_seconds: int = DEFAULT_STORE_FRESHNESS_SECONDS,
                build_stage_root: str | Path | None = None,
                upload_body_limits: UploadBodyLimits = UploadBodyLimits(),
-               escalation: EscalationSettings = EscalationSettings()) -> FastAPI:
+               escalation: EscalationSettings = EscalationSettings(),
+               segmentation: SegmentationProfile | None = None) -> FastAPI:
     """Compose the service with explicit dependencies, including in isolated tests."""
     return _application(engine, store, oidc, store_freshness_seconds, build_stage_root,
-                        upload_body_limits, escalation)
+                        upload_body_limits, escalation, segmentation)
 
 
 def from_env() -> FastAPI:
@@ -276,10 +280,15 @@ def from_env() -> FastAPI:
     store_freshness_seconds = store_freshness_from_environment()
     store = LocalStore(root)
     engine = connect_engine(dsn, os.getenv("STUDIO_DATABASE_SCHEMA", "studio"))
+    try:
+        segmentation = SegmentationProfile.configured()
+    except SegmentationError:
+        logger.error("Occlusion admission disabled. The segmentation manifest or pin is invalid.")
+        segmentation = None
     return create_app(engine, store, oidc, store_freshness_seconds=store_freshness_seconds,
                       build_stage_root=os.getenv("STUDIO_BUILD_STAGE_ROOT"),
                       upload_body_limits=UploadBodyLimits.from_environment(),
-                      escalation=EscalationSettings.from_environment())
+                      escalation=EscalationSettings.from_environment(), segmentation=segmentation)
 
 
 def schema_app() -> FastAPI:

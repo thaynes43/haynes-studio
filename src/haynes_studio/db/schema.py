@@ -154,7 +154,7 @@ worker_tokens = sa.Table("worker_tokens", metadata, digest(),
 worker_lane_grants = sa.Table("worker_lane_grants", metadata,
                              sa.Column("worker_id", sa.Text, primary_key=True),
                              sa.Column("lane", sa.Text, nullable=False),
-                             sa.CheckConstraint("lane IN ('run', 'voice', 'image', 'matte')"))
+                             sa.CheckConstraint("lane IN ('run', 'voice', 'image', 'matte', 'occlusion')"))
 
 
 run_lane = sa.Table("run_lane", metadata,

@@ -1,6 +1,6 @@
 # Studio media workers
 
-Voice, photo and candidate requests create durable `studio.job/v1` records.
+Voice, photo, candidate, matte and occlusion requests create durable `studio.job/v1` records.
 Workers run beside the build lane using the same authenticated internal
 protocol. The API owns PostgreSQL transactions and catalog writes.
 
@@ -9,6 +9,7 @@ protocol. The API owns PostgreSQL transactions and catalog writes.
 | `studio-worker --lane voice` | One board voice at a time | `STUDIO_TTS_HOST` and optional `STUDIO_TTS_PORT` (10210) for Kokoro Wyoming TTS. |
 | `studio-worker --lane image` | One photo or asset candidate at a time | `STUDIO_COMFYUI_URL` as an HTTP(S) origin for the shared image engine. Layered photos use the deterministic D51 compositor. |
 | `studio-worker --lane matte` | One matte candidate at a time | Pinned CPU sidecar over `/matting/matte.sock`. See the deployment pin below. |
+| `studio-worker --lane occlusion` | One segmentation target at a time | [Pinned CPU sidecar and manifest](segmentation-adapter.md#activation-dependencies). |
 | `studio-worker` | Build queue | See the [build worker configuration](run-queue.md#worker-configuration). |
 
 Each media worker takes `STUDIO_API_URL`, `STUDIO_WORKER_TOKEN` and
@@ -28,7 +29,7 @@ POST paths share the prefix `/internal/v1/work` and require a worker token.
 
 | Path | Media worker payload and effect |
 |---|---|
-| `/claim` | `{"lane":"image"}`, `{"lane":"voice"}` or `{"lane":"matte"}`. Returns the lane's FIFO head, frozen inputs, fence and claim deadline, or 204. An empty body selects `run`. A paused media lane returns 204. A poll can settle an expired dispatch in the paused matte lane, and the same applies to voice and image when `STUDIO_PAUSED_RECONCILE=1`. `{"lane":"matte","settle_only":true}` always returns 204 without taking a claim. |
+| `/claim` | `{"lane":"image"}`, `{"lane":"voice"}`, `{"lane":"matte"}` or `{"lane":"occlusion"}`. Returns the lane's FIFO head, frozen inputs, fence and claim deadline, or 204. An empty body selects `run`. A paused media lane returns 204. A poll can settle an expired dispatch in the paused matte lane, and the same applies to voice and image when `STUDIO_PAUSED_RECONCILE=1`. `{"lane":"matte","settle_only":true}` always returns 204 without taking a claim. |
 | `/heartbeat` | `job_id` and `fence`. Extends the claim by 90 seconds on the database clock. |
 | `/publish` | `job_id` and `fence`. Records entry to engine dispatch and renews the claim before submission. |
 | `/complete` | `job_id`, `fence` and result evidence. The API verifies stored content and commits the version, terminal status and eligible draft selection together. |
@@ -59,7 +60,10 @@ Expiry after dispatch fails it with `work.dispatch_unconfirmed`. A replacement
 can claim subsequent image jobs and waits until ComfyUI reports an empty
 running and pending queue. Each submission checks the queue immediately
 before sending. The worker lets existing work finish and never interrupts it.
-An uncertain submission is never replayed under another worker fence.
+Image, voice and matte do not replay an uncertain submission under a new fence.
+An expired occlusion claim can replay observation under a fresh fence after
+resume. The shared socket lock serializes attempts. Completion verifies the
+frozen inputs and create-only outputs before it commits a version.
 There is no automatic purge.
 
 Poll the

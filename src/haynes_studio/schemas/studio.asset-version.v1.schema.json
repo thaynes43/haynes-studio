@@ -24,6 +24,10 @@
       "description": "Foreground role masks for an opaque set still. Each mask pins a promoted library version, its content hash, and the original set still hash and dimensions.",
       "$ref": "#/$defs/occlusion"
     },
+    "segmentation": {
+      "description": "Verified segmentation binding on an occlusion job mask.",
+      "$ref": "#/$defs/segmentation"
+    },
     "schema": {
       "const": "studio.asset-version/v1",
       "x-studio": {
@@ -456,7 +460,6 @@
   "$defs": {
     "occlusion": {
       "type": "object",
-      "required": ["foreground"],
       "properties": {
         "foreground": {
           "type": "array",
@@ -512,9 +515,154 @@
             },
             "additionalProperties": false
           }
+        },
+        "focal_props": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "required": [
+              "key",
+              "label",
+              "depth"
+            ],
+            "properties": {
+              "key": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "depth": {
+                "enum": [
+                  "background",
+                  "foreground",
+                  "separate",
+                  "unspecified"
+                ]
+              },
+              "layer_order": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1024
+              },
+              "foreground_role": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+              },
+              "source_asset_version_id": {
+                "$ref": "studio.defs.v1.schema.json#/$defs/asv_id"
+              },
+              "hint": {
+                "$ref": "#/$defs/occlusion_hint"
+              }
+            },
+            "additionalProperties": false
+          },
+          "minItems": 1
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "occlusion_hint": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "xy"
+          ],
+          "properties": {
+            "kind": {
+              "const": "point"
+            },
+            "xy": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1920
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "xyxy"
+          ],
+          "properties": {
+            "kind": {
+              "const": "box"
+            },
+            "xyxy": {
+              "type": "array",
+              "minItems": 4,
+              "maxItems": 4,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1920
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "text"
+          ],
+          "properties": {
+            "kind": {
+              "const": "text"
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            }
+          }
+        }
+      ]
+    },
+    "segmentation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_version_id",
+        "still_sha256",
+        "request_sha256",
+        "profile_sha256",
+        "receipt_sha256"
+      ],
+      "properties": {
+        "source_version_id": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/asv_id"
+        },
+        "still_sha256": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/sha256"
+        },
+        "request_sha256": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/sha256"
+        },
+        "profile_sha256": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/sha256"
+        },
+        "receipt_sha256": {
+          "$ref": "studio.defs.v1.schema.json#/$defs/sha256"
+        }
+      }
     },
     "signature": {
       "type": "string",

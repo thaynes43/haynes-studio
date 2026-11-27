@@ -22,8 +22,10 @@ def test_legacy_schema_rules_match_pinned_main(name, legacy_sha256):
     if name == "board":
         props.pop("visibility")
     elif name == "asset-version":
-        props.pop("occlusion")
-        schema["$defs"].pop("occlusion")
+        for field in ("occlusion", "segmentation"):
+            props.pop(field)
+        for field in ("occlusion", "occlusion_hint", "segmentation"):
+            schema["$defs"].pop(field)
     elif name == "run-snapshot":
         props.pop("visibility_admission")
     assert sha256(canonical_json(schema)).hexdigest() == legacy_sha256

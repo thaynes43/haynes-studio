@@ -11,6 +11,7 @@ from haynes_studio.adapters.errors import COMMAND_FAILED, TIMEOUT, AdapterError
 from haynes_studio.adapters.matting import MattingUnavailable
 from haynes_studio.assets.candidate import generate_candidate
 from haynes_studio.assets.matte import matte_outputs, run_matte_job
+from haynes_studio.assets.occlusion import run_segmentation_job
 from haynes_studio.canonical.model import to_document
 from haynes_studio.errors import ContractError, blocking
 from haynes_studio.layered.errors import LayeredError
@@ -18,10 +19,12 @@ from haynes_studio.library import Library
 from haynes_studio.library.model import version_document
 from haynes_studio.photo.build import compose_layered_photo, generate_photo
 from haynes_studio.photo.validation import PNG
+from haynes_studio.segmentation.profile import SegmentationError, digest
 from haynes_studio.store import BLOB_MISSING, LIBRARY, LocalStore, StoreError
 from haynes_studio.voice import Job, make_voice, validate_job
 
 from .media_inputs import checked_candidate, checked_matte, checked_photo
+from .occlusion_inputs import checked_occlusion
 from .progress import ProgressFile
 from .protocol import MEDIA_LANES
 from .worker_api import WorkerAPIError
@@ -94,7 +97,7 @@ class MediaWorker:
     def __init__(self, api, *, lane, store, client, licences=None, clock=monotonic, pause=sleep,
                  progress=None):
         if lane not in MEDIA_LANES:
-            raise ValueError("Expected an image, voice or matte lane")
+            raise ValueError("Expected a media lane")
         self.api, self.lane, self.store, self.client = api, lane, store, client
         self.licences, self.clock, self.pause = licences, clock, pause
         self.progress = progress or ProgressFile()
@@ -168,6 +171,33 @@ class MediaWorker:
             raise AdapterError(COMMAND_FAILED, "matting", "The matte staging store is unavailable") from error
         return {"matte_version": version_document(result.version, result.library.asset_of(result.version.id))}
 
+    def _occlusion(self, job, claim, dispatch, frozen, production):
+        library, request, profile = checked_occlusion(job, frozen, production)
+        if digest(profile.manifest()) != self.client.profile_sha256:
+            claim.fail(code="occlusion.profile_unavailable", message="The approved segmentation profile is unavailable")
+            return None
+
+        def record_failure(*, code, diagnostic=None):
+            if diagnostic is None:
+                claim.fail(code=f"occlusion.{code}", message="The segmentation observation could not finish")
+
+        dispatch()
+        outcome = run_segmentation_job(
+            library, source_version_id=frozen["source"]["id"], production_id=production,
+            **request["target"], hint=request["hint"], expected_request=request,
+            store=self.store, client=self.client, check_fence=dispatch.check,
+            # The API commits the library version and terminal job together. A
+            # reclaimed attempt has no partial ready row, only create-only blobs.
+            lookup_ready=lambda identity: None, commit_completion=lambda completion: None,
+            record_failure=record_failure,
+        )
+        if outcome is None:
+            return None
+        completion = outcome.completion
+        receipt, mask = completion.result, completion.mask
+        return {"receipt": {"sha256": receipt.sha256, "bytes": receipt.bytes},
+                "mask": None if mask is None else {"sha256": mask.sha256, "bytes": mask.bytes}}
+
     def _result(self, job, claim, dispatch):
         self.progress()
         frozen = claim.body["inputs"]
@@ -176,6 +206,8 @@ class MediaWorker:
             return self._voice(job, claim, dispatch, production)
         if job.kind == "matte":
             return self._matte(job, claim, dispatch, frozen, production)
+        if job.kind == "occlusion":
+            return self._occlusion(job, claim, dispatch, frozen, production)
         image = ImageLane(self.client, dispatch, clock=self.clock, pause=self.pause)
         if job.kind == "photo":
             plan = checked_photo(job, frozen)
@@ -212,6 +244,13 @@ class MediaWorker:
                 self.api.settle_expired_matte()
                 return False
             self.progress.write_status("Matting sidecar ready")
+        if self.lane == "occlusion":
+            try:
+                self.client.ready_for_claim()
+            except SegmentationError as error:
+                self.progress.write_status(f"Waiting for the segmentation sidecar ({error.reason})")
+                return False
+            self.progress.write_status("Segmentation sidecar ready")
         claim = self.api.claim(self.lane)
         if claim is None:
             return False
@@ -242,7 +281,7 @@ class MediaWorker:
             except Exception:
                 claim.fail(code="work.media_failed", message="The worker could not prepare the media result")
             else:
-                if job.kind == "matte" and evidence is None:  # The adapter already recorded the failure.
+                if job.kind in ("matte", "occlusion") and evidence is None:  # The adapter already recorded the failure.
                     return True
                 try:
                     claim.complete({"result": evidence})

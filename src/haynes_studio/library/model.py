@@ -300,8 +300,21 @@ class AssetVersion:
     motion: Mapping[str, Any] | None = None
     recorded_without_media: bool = False
     occlusion: Mapping[str, Any] | None = None
+    segmentation: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
+        if self.segmentation is not None:
+            from haynes_studio.library.validate import validate_segmentation_binding
+
+            if too_deep(self.segmentation, limit=62):
+                raise ContractError(self.id, [Violation(
+                    "schema.invalid", "/segmentation", "the binding nests too deeply",
+                )])
+            binding = normalize(self.segmentation)
+            problems = validate_segmentation_binding(self.capabilities, self.content, self.provenance.get("origin"), binding)
+            if problems:
+                raise ContractError(self.id, problems)
+            object.__setattr__(self, "segmentation", freeze(binding))
         if self.occlusion is None:
             return
         if too_deep(self.occlusion, limit=62):
@@ -325,8 +338,14 @@ class AssetVersion:
             return out
         block = normalize(out["occlusion"])
         if isinstance(block, dict):
-            if block.get("foreground") is None or block.get("foreground") == []:
-                block.pop("foreground", None)
+            for group in ("foreground", "focal_props"):
+                if block.get(group) is None or block.get(group) == []:
+                    block.pop(group, None)
+            targets = block.get("focal_props")
+            if isinstance(targets, list):
+                for target in targets:
+                    if isinstance(target, dict) and target.get("hint") is None:
+                        target.pop("hint", None)
         if block is None or block in ({}, []):
             out.pop("occlusion")
         else:
@@ -351,7 +370,7 @@ class AssetVersion:
                    voice=BoardVoice.from_document(doc.get("voice")),
                    motion=None if doc.get("motion") is None else freeze(doc["motion"]),
                    recorded_without_media=doc.get("recorded_without_media", False),
-                   occlusion=doc.get("occlusion"))
+                   occlusion=doc.get("occlusion"), segmentation=doc.get("segmentation"))
 
     @property
     def source_key(self) -> str | None:
@@ -388,6 +407,8 @@ def version_document(version: AssetVersion, asset: Asset) -> dict[str, Any]:
         out["recorded_without_media"] = True
     if version.occlusion is not None:
         out["occlusion"] = thaw(version.occlusion)
+    if version.segmentation is not None:
+        out["segmentation"] = thaw(version.segmentation)
     return out
 
 
@@ -469,6 +490,8 @@ def content_fields(version: AssetVersion) -> dict[str, Any]:
             "motion": thaw(version.motion), "recorded_without_media": version.recorded_without_media}
     if version.occlusion is not None:
         out["occlusion"] = thaw(version.occlusion)
+    if version.segmentation is not None:
+        out["segmentation"] = thaw(version.segmentation)
     return out
 
 

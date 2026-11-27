@@ -13,6 +13,7 @@ from importlib.metadata import version
 from importlib.resources import files
 from pathlib import Path
 
+from haynes_studio.jsonio import parse_strict
 from haynes_studio.store import canonical_json
 
 # The v1 wire schemas pin this selector. The immutable manifest identifies the
@@ -144,6 +145,42 @@ class Profile:
         except (OSError, ValueError) as error:
             raise SegmentationError("profile_unavailable") from error
         return cls(image.split("@", 1)[1], revision, digest(requirements), libraries)
+
+    @classmethod
+    def from_manifest(cls, document: dict) -> Profile:
+        """Reconstruct the exact serving pin without importing models or reading weights."""
+        try:
+            runtime = document["runtime"]
+            libraries = runtime["libraries"]
+            profile = cls(document["image_digest"], document["app_build"], runtime["lock_sha256"],
+                          tuple(sorted(libraries.items())))
+            if (not re.fullmatch(r"sha256:[a-f0-9]{64}", profile.image_digest)
+                    or not re.fullmatch(r"[a-f0-9]{40}", profile.revision)
+                    or not re.fullmatch(r"[a-f0-9]{64}", profile.lock_sha256)
+                    or any(not isinstance(value, str) or not value for value in libraries.values())
+                    or profile.manifest() != canonical_json(document)):
+                raise ValueError
+        except (AttributeError, KeyError, TypeError, ValueError) as error:
+            raise SegmentationError("profile_unavailable") from error
+        return profile
+
+    @classmethod
+    def configured(cls) -> Profile | None:
+        path = os.getenv("STUDIO_SEGMENTATION_MANIFEST")
+        pin = os.getenv("STUDIO_SEGMENTATION_PROFILE_SHA256")
+        if path is None and pin is None:
+            return None
+        try:
+            with Path(path).open("rb") as manifest:
+                data = manifest.read(64 * 1024 + 1)
+            if len(data) > 64 * 1024 or digest(data) != pin:
+                raise ValueError
+            profile = cls.from_manifest(parse_strict(data.decode("utf-8")))
+            if profile.manifest() != data:
+                raise ValueError
+        except (OSError, TypeError, ValueError, RecursionError) as error:
+            raise SegmentationError("profile_unavailable") from error
+        return profile
 
     def model_files(self) -> tuple[dict, ...]:
         return _model_files()

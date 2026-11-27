@@ -11,6 +11,8 @@ from haynes_studio.library.model import signature, version_document
 from haynes_studio.photo.build import MODEL
 from haynes_studio.photo.plan import WHOLE_FRAME, plan_photo
 
+from .occlusion_inputs import occlusion_provenance
+
 
 def documents(library):
     return [version_document(version, library.asset_of(version.id))
@@ -78,6 +80,8 @@ def provenance(document, frozen):
     if document["kind"] == "voice":
         return {}
     job = Job.from_document(document)
+    if job.kind == "occlusion":
+        return occlusion_provenance(frozen)
     if job.kind == "matte":
         target = checked_matte(job, frozen)
         source = frozen["source"]

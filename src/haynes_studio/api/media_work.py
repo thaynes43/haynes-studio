@@ -5,7 +5,7 @@ from haynes_studio.db import catalog, jobs
 from haynes_studio.db.runs import timestamp
 from haynes_studio.library import Library
 from haynes_studio.queue.media_inputs import checked_candidate, documents
-from haynes_studio.queue.protocol import MEDIA_LANES, ImageEvidence, MatteEvidence, VoiceEvidence
+from haynes_studio.queue.protocol import MEDIA_LANES, ImageEvidence, MatteEvidence, OcclusionEvidence, VoiceEvidence
 from haynes_studio.store import StoreError
 from haynes_studio.voice.jobs import fail, succeed
 from haynes_studio.voice.model import Job
@@ -14,6 +14,7 @@ from .auth import require_worker_lane
 from .errors import APIError
 from .matte_completion import complete_matte
 from .media_completion import complete_candidate, complete_photo, complete_voice, invalid_result
+from .occlusion_jobs import complete_occlusion
 from .routes import _id
 
 
@@ -62,6 +63,9 @@ def complete(conn, request, body):
         elif job.kind == "matte" and isinstance(body.result, MatteEvidence) and row["dispatched"]:
             version_id = complete_matte(conn, store, row, job, body.result.matte_version)
             selected = False
+        elif job.kind == "occlusion" and isinstance(body.result, OcclusionEvidence) and row["dispatched"]:
+            completed = complete_occlusion(conn, store, row, job, body.result, now)
+            return jobs.finish(conn, row, completed)
         else:
             raise invalid_result()
     except (StoreError, OSError) as error:

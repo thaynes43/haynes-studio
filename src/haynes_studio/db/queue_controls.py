@@ -2,9 +2,10 @@
 
 import sqlalchemy as sa
 
+from .problems import NotFound
 from .schema import media_job_lanes, media_jobs, queue_lane_events, run_lane, runs
 
-LANES = ("run", "voice", "image", "matte")
+LANES = ("run", "voice", "image", "matte", "occlusion")
 
 
 def _latest(conn, lane):
@@ -29,7 +30,9 @@ def status(conn):
     live = set(conn.scalars(sa.select(media_jobs.c.lane).where(media_jobs.c.claim_until > now).distinct()))
     if conn.scalar(sa.select(sa.exists().where(runs.c.claim_until > now))):
         live.add("run")
-    return [{**_status(lane, _latest(conn, lane)), "live_claim": lane in live} for lane in LANES]
+    available = {"run", *conn.scalars(sa.select(media_job_lanes.c.lane))}
+    return [{**_status(lane, _latest(conn, lane)), "live_claim": lane in live}
+            for lane in LANES if lane in available]
 
 
 def set_paused(conn, lane, paused, by, clock):
@@ -37,7 +40,8 @@ def set_paused(conn, lane, paused, by, clock):
     # the locks for FIFO allocation and does not consult the pause state.
     lock = (sa.select(run_lane.c.id) if lane == "run" else
             sa.select(media_job_lanes.c.lane).where(media_job_lanes.c.lane == lane))
-    conn.execute(lock.with_for_update()).scalar_one()
+    if conn.execute(lock.with_for_update()).scalar_one_or_none() is None:
+        raise NotFound
     latest = _latest(conn, lane)
     current = _status(lane, latest)
     if current["paused"] == paused:

@@ -47,3 +47,25 @@ An idempotent replay keeps its original run or job ID and frozen inputs.
 A reclaimed job can save a photo that is no longer current with the draft.
 Historical archives import their runs and media as recorded. A fresh request
 from an imported draft is checked at admission. [Tom's ruling on story 968](https://work.haynesnetwork.com/work_packages/968/activity#comment-10598)
+
+## Optional target hints
+
+Under CR-67, an opaque set version may carry up to 16 targets in
+`occlusion.focal_props`. Each has a unique `key`, a `label`, a `depth` and an
+optional `hint`. A `background` target uses `layer_order: 0`. A `foreground`
+target names a `foreground_role` and the same `layer_order` as that role. A
+`separate` target names `source_asset_version_id` and a distinct positive
+`layer_order`. An `unspecified` target carries only its key, label, depth and
+optional hint. Keys are distinct across the two lists. The hints are inputs
+for the [occlusion job](segmentation-adapter.md#occlusion-jobs).
+
+A `point` hint uses `xy`, a half-open `box` uses `xyxy`, and a `text` hint
+uses trimmed NFC text. Geometry is checked against each known still dimension.
+The catalog checks a separate source and the referring declaration in either
+insertion order. Job admission decodes the actual still and checks both bounds.
+A hints-only set still has no foreground rendering decision. Omit empty lists
+and omit `occlusion` when both lists would be empty.
+
+A mask produced by an occlusion job has a typed `segmentation` binding. New
+role admissions require its recorded source still hash to agree with the role
+pin. Existing manually supplied masks use the original pin checks.

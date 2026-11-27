@@ -35,6 +35,7 @@ from haynes_studio.voice.plan import plan_board_voice
 from .errors import APIError, ERROR_RESPONSES, ErrorEnvelope, missing
 from .media_completion import record_board_photo
 from .models import AssetVersion, Body, Document, ExternalPhotoDeclaration, Nonempty, Page, Title, TransportModel
+from .occlusion_jobs import OcclusionRequest, enqueue_occlusion
 from .routes import ETAG, Cursor, IfMatch, Limit, _board_access, _cursor, _id, _page, _revision
 
 IdempotencyKey = Annotated[str, Header(alias="Idempotency-Key", pattern=r"^[!-~]{1,255}$")]
@@ -71,7 +72,7 @@ class MatteRequest(Body):
 class JobStatus(TransportModel):
     schema_: Literal["studio.job/v1"] = Field(alias="schema")
     id: str
-    kind: Literal["voice", "photo", "asset_candidate", "matte"]
+    kind: Literal["voice", "photo", "asset_candidate", "matte", "occlusion"]
     target_id: str
     status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
     result_version_id: str | None
@@ -96,7 +97,7 @@ class PhotoUploadView(TransportModel):
 
 
 def transport_models():
-    return (VoiceRequest, PhotoRequest, CandidateRequest, MatteRequest, JobStatus, JobView, PhotoUploadView,
+    return (VoiceRequest, PhotoRequest, CandidateRequest, MatteRequest, OcclusionRequest, JobStatus, JobView, PhotoUploadView,
             Page[JobStatus])
 
 
@@ -298,6 +299,13 @@ def build_router(CurrentActor, authenticated_route):
             row = jobs.enqueue(conn, job, position=position, production=asset.scope.production_id,
                                inputs=frozen, key=idempotency_key, signature=fingerprint)
         return _queued(response, row, created=True)
+
+    @router.post("/asset-jobs/occlusion", operation_id="request_occlusion", status_code=202,
+                 response_model=JobStatus, responses=JOB_RESPONSES)
+    def request_occlusion(body: OcclusionRequest, request: Request, response: Response,
+                          actor: CurrentActor, idempotency_key: IdempotencyKey):
+        row, created = enqueue_occlusion(request.app.state, actor, body, idempotency_key)
+        return _queued(response, row, created=created)
 
     @router.get("/jobs/{id}", response_model=JobView, operation_id="get_job")
     def get_job(id: str, request: Request, actor: CurrentActor):

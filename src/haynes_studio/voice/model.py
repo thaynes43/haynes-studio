@@ -25,6 +25,7 @@ from typing import Any
 
 from haynes_studio.canonical.jsonvalues import normalize
 from haynes_studio.canonical.model import Principal, to_document
+from haynes_studio.jsonio import freeze
 from haynes_studio.library.model import KOKORO, input_signature, take_signature
 from haynes_studio.timebase import HOLD_MAX_MS
 
@@ -32,7 +33,8 @@ JOB_SCHEMA = "studio.job/v1"
 JOB_FILE = "studio.job.v1.schema.json"
 
 VOICE, PHOTO, ASSET_CANDIDATE, MATTE = "voice", "photo", "asset_candidate", "matte"
-JOB_KINDS = (VOICE, PHOTO, ASSET_CANDIDATE, MATTE)
+OCCLUSION = "occlusion"
+JOB_KINDS = (VOICE, PHOTO, ASSET_CANDIDATE, MATTE, OCCLUSION)
 QUEUED, RUNNING, SUCCEEDED, FAILED, CANCELLED = (
     "queued", "running", "succeeded", "failed", "cancelled")
 STATUSES = (QUEUED, RUNNING, SUCCEEDED, FAILED, CANCELLED)
@@ -137,6 +139,12 @@ class JobError:
 
     code: str
     message: str
+    diagnostic: Mapping[str, Any] | None = None
+
+    _omit_none = ("diagnostic",)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "diagnostic", freeze(self.diagnostic))
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,7 +193,7 @@ class Job:
 
 __all__ = [
     "ASSEMBLER", "ASSET_CANDIDATE", "CANCELLED", "FAILED", "GAP_MAX_MS", "IN_FLIGHT", "JOB_FILE",
-    "JOB_KINDS", "JOB_SCHEMA", "KOKORO_SERVICE", "LEAD_MAX_MS", "LINES_MAX", "MATTE", "PHOTO", "QUEUED", "RUNNING",
-    "SPEED", "STATUSES", "SUCCEEDED", "TAKE_MAX_MS", "TERMINAL", "TRACK_MAX_MS", "VOICE", "Engine",
+    "JOB_KINDS", "JOB_SCHEMA", "KOKORO_SERVICE", "LEAD_MAX_MS", "LINES_MAX", "MATTE", "OCCLUSION", "PHOTO",
+    "QUEUED", "RUNNING", "SPEED", "STATUSES", "SUCCEEDED", "TAKE_MAX_MS", "TERMINAL", "TRACK_MAX_MS", "VOICE", "Engine",
     "Job", "JobError", "VoiceInput", "VoiceLine", "line_signature",
 ]

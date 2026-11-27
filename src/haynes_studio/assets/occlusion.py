@@ -89,12 +89,14 @@ def decode_still(content: Content, data: bytes, *, plate: bool) -> Image.Image:
     return rgba
 
 
-def _source(library, source_version_id, production_id, kind, store):
+def read_source(library, source_version_id, production_id, kind, store):
     version = library.get(source_version_id)
     if version is None or version.recorded_without_media or version.content is None:
         raise SegmentationError("input_unavailable")
     owner = library.asset_of(source_version_id).scope
     content = version.content
+    if content.locator is None:
+        raise SegmentationError("input_unavailable")
     locator = parse_locator(content.locator)
     if (owner.production_id not in (None, production_id)
             or owner.story_id is not None or owner.board_id is not None
@@ -148,6 +150,17 @@ def _read_blob(store, blob, scope, media_type, limit):
     if len(data) != blob.bytes or digest(data) != blob.sha256:
         raise SegmentationError("invalid_output")
     return data
+
+
+def _checked_receipt(store, blob, scope):
+    receipt = _read_blob(store, blob, scope, JSON, MAX_REPLY)
+    try:
+        result = parse_strict(receipt.decode("utf-8"))
+        if canonical_json(result) != receipt:
+            raise ValueError("noncanonical receipt")
+    except (ValueError, RecursionError):
+        raise SegmentationError("invalid_output") from None
+    return result, receipt
 
 
 def _verify_support(pixels, alpha, request):
@@ -207,14 +220,8 @@ def _observation_boundary():
                 or identity.request_sha256 != digest(canonical_json(request))
                 or identity.profile_sha256 != digest(profile.manifest())):
             raise SegmentationError("invalid_output")
-        receipt = _read_blob(store, completion.result, identity.scope, JSON, MAX_REPLY)
+        result, receipt = _checked_receipt(store, completion.result, identity.scope)
         png = _read_blob(store, completion.mask, identity.scope, PNG, MAX_SOURCE_BYTES)
-        try:
-            result = parse_strict(receipt.decode("utf-8"))
-            if canonical_json(result) != receipt:
-                raise ValueError("noncanonical receipt")
-        except (ValueError, RecursionError):
-            raise SegmentationError("invalid_output") from None
         # Check the PNG descriptor in the receipt against the exact bytes that
         # matched the completion's locator, hash, length and media type above.
         pixels = verify_result(request, result, png, profile)
@@ -227,6 +234,23 @@ def _observation_boundary():
 
 
 VerifiedObservation, _verified_ready = _observation_boundary()
+
+
+def verify_stored_observation(store, *, library, source_version_id, production_id, request, profile,
+                              receipt, mask):
+    """Independently verify a worker's stored receipt and mask against the admitted still."""
+    source, _, alpha = read_source(library, source_version_id, production_id, request["target"]["kind"], store)
+    if source != request["input"]:
+        raise SegmentationError("invalid_input")
+    identity = SegmentationIdentity(production_id, source_version_id, digest(canonical_json(request)),
+                                    digest(profile.manifest()))
+    if mask is not None:
+        completion = SegmentationCompletion(identity, receipt, "ready", None, mask)
+        return _verified_ready(store, completion, identity, request, profile, alpha)
+    result, receipt_bytes = _checked_receipt(store, receipt, identity.scope)
+    verify_result(request, result, None, profile)
+    completion = SegmentationCompletion(identity, receipt, result["status"], result["reason"], None)
+    return SegmentationOutcome(completion, None, receipt_bytes)
 
 
 def _publish(store, identity, data, media_type, check_fence):
@@ -245,6 +269,7 @@ def run_segmentation_job(
     lookup_ready: Callable[[SegmentationIdentity], SegmentationCompletion | None],
     commit_completion: Callable[[SegmentationCompletion], None],
     record_failure: Callable[..., None],
+    expected_request: Mapping | None = None,
 ) -> VerifiedObservation | SegmentationOutcome | None:
     """Run beside the sidecar from an admitted, frozen asset operation.
 
@@ -258,8 +283,10 @@ def run_segmentation_job(
     try:
         scope_prefix(LIBRARY if production_id is None else production_id)
         with client.serial(check_fence) as scratch:
-            source, data, alpha = _source(library, source_version_id, production_id, kind, store)
+            source, data, alpha = read_source(library, source_version_id, production_id, kind, store)
             request = make_request(source, kind=kind, key=key, label=label, hint=hint)
+            if expected_request is not None and request != expected_request:
+                raise SegmentationError("invalid_input")
             identity = SegmentationIdentity(
                 production_id, source_version_id, digest(canonical_json(request)), client.profile_sha256,
             )

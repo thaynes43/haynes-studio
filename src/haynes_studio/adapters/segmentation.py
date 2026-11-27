@@ -212,6 +212,9 @@ class SegmentationClient:
         }:
             raise SegmentationError("profile_unavailable")
 
+    def ready_for_claim(self) -> None:
+        self._ready()
+
     def run_locked(self, request: dict, data: bytes, check_fence: Callable[[], None], scratch: int):
         """Fetch one verified receipt under the caller's serial context."""
         self._sweep(scratch)
