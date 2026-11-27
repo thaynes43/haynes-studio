@@ -98,8 +98,20 @@
 .storyboard-filmstrip a[aria-current] { border-color: var(--accent-text); box-shadow: inset 0 0 0 1px var(--accent-text); }
 .storyboard-filmstrip a:hover { border-color: var(--accent-text); }
 .storyboard-filmstrip a > span { color: var(--muted); font-variant-numeric: tabular-nums; }
-.storyboard-thumb { height: 56px; background: #191c19; border-radius: 4px; }
-.storyboard-thumb > span { display: block; margin: 6px auto; height: calc(100% - 12px); aspect-ratio: 3 / 4; border: 1px solid #525852; border-radius: 2px; }
+.storyboard-thumb { grid-row: 1; position: relative; height: 56px; background: #191c19; border-radius: 4px; }
+.storyboard-thumb-placeholder { display: block; margin: 6px auto; height: calc(100% - 12px); aspect-ratio: 3 / 4; border: 1px solid #525852; border-radius: 2px; }
+.storyboard-thumb .storyboard-photo-stale {
+  position: absolute;
+  inset: auto 3px 3px;
+  padding: 2px 3px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: .6875rem;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
 .storyboard-controls { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .storyboard-controls .pill[aria-disabled="true"] { opacity: .55; cursor: default; }
 .storyboard-inspector { grid-area: inspector; min-width: 0; }

@@ -6,7 +6,7 @@ import { BoardInspector, type InspectorVoiceState } from "./board-inspector";
 import { PhotoComposer, type StagePhotoState } from "./photo-composer";
 import { treePath } from "./routes";
 import { Empty, Problem } from "./shell-ui";
-import type { StoryboardPanel, StoryboardScope } from "./storyboard-data";
+import { stalePhotoLabel, type StoryboardPanel, type StoryboardScope } from "./storyboard-data";
 import { boardPosition, timelineLabels } from "./storyboard-timeline";
 import type { StoryboardModel } from "./use-storyboard";
 import "./storyboard-workspace.css";
@@ -16,6 +16,11 @@ const panelElementId = (id: string) => `storyboard-panel-${id}`;
 function BoardPicture({ url, alt, placeholder }: { url?: string; alt: string; placeholder?: ReactNode }) {
   const [failed, setFailed] = useState(false);
   return url && !failed ? <img src={url} alt={alt} onError={() => setFailed(true)} /> : placeholder;
+}
+
+function StalePhotoMark({ board }: { board: StoryboardPanel["record"] }) {
+  const label = stalePhotoLabel(board.derived?.photo_state);
+  return label ? <span className="storyboard-photo-stale">{label}</span> : null;
 }
 
 function VoiceStrip({ panel }: { panel: StoryboardPanel }) {
@@ -46,7 +51,7 @@ function Stage({ panel, index, range, aspect, voiceCurrent, photoUnsaved }: {
       <code aria-label="Board ID">{record.id}</code>
       <span aria-label="Time range">{range}</span>
       {photoUnsaved ? <span>Photo inputs unsaved</span>
-        : record.derived?.photo_state === "stale" && <span>Reference photo stale</span>}
+        : <StalePhotoMark board={record} />}
     </div>
     <div className="storyboard-preview">
       <div className={`storyboard-picture storyboard-picture-${aspect}`}>
@@ -103,10 +108,11 @@ export function StoryboardWorkspace({ api, model, scope, photoRoute }: {
           return <li key={record.id}>
             <Link id={panelElementId(record.id)} to={treePath("board", { ...scope, board: record.id })}
               aria-current={record.id === selected ? "page" : undefined} onClick={model.clearNotice}>
-              <div className="storyboard-thumb" aria-hidden="true">
-                <BoardPicture key={photo} url={photo} alt="" placeholder={<span />} />
-              </div>
               <strong>{number}</strong>
+              <div className="storyboard-thumb">
+                <BoardPicture key={photo} url={photo} alt="" placeholder={<span className="storyboard-thumb-placeholder" />} />
+                <StalePhotoMark board={record} />
+              </div>
               <span>{labels.boards.get(record.id)?.length}</span>
             </Link>
           </li>;

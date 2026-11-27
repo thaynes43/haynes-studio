@@ -8,6 +8,10 @@ import type { MediaKind } from "./routes";
 export type StoryboardScope = { production: string; media: MediaKind; story: string };
 type AssetVersion = components["schemas"]["AssetVersion"];
 
+export function stalePhotoLabel(state?: NonNullable<Board["derived"]>["photo_state"]) {
+  return state === "stale" ? "Reference photo stale" : undefined;
+}
+
 async function loadMedia(api: StudioClient, production: string, board: Board, signal: AbortSignal) {
   if (!board.photo.current_version_id && !board.voice.current_version_id) return {};
   const versions = await collectPages<AssetVersion>((cursor) => api.GET("/v1/assets", {

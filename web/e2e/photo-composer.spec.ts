@@ -108,6 +108,64 @@ for (const viewport of [{ width: 400, height: 860 }, { width: 1280, height: 900 
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
     });
 
+    test("marks the retained filmstrip photo stale after a set change and clears the mark on recomposite", async ({ page, mock }) => {
+      const { api } = mock;
+      const jobs = api.photos!;
+      const layered = story.board_order[0];
+      const strip = page.getByRole("list", { name: "Boards" });
+      const tile = strip.getByRole("link", { name: /Board 01/ });
+      const label = "Reference photo stale";
+      const mark = tile.getByText(label, { exact: true });
+      const size = () => tile.evaluate((element) => {
+        const { width, height } = element.getBoundingClientRect();
+        return { width, height };
+      });
+
+      async function recomposite() {
+        await button(page, "Recomposite").click();
+        await expect(composer(page).getByText("Waiting in the shared household image queue")).toBeVisible();
+        const { id } = jobs.latest()!;
+        jobs.start(id);
+        const result = api.completePhoto(id, layered);
+        expect(result.current).toBe(true);
+        await resumePolling(page);
+        const src = `/v1/media/${result.file.hash}`;
+        await expect(stage(page).getByRole("img")).toHaveAttribute("src", src);
+        await expect(tile.locator("img")).toHaveAttribute("src", src);
+        return src;
+      }
+
+      await page.clock.install();
+      await page.goto(treePath("board", { ...storyContext, board: layered }, "photo"));
+      const original = await recomposite();
+      await expect(strip.getByText(label, { exact: true })).toHaveCount(0);
+      const freshSize = await size();
+
+      api.editStory(story.id, { set: {
+        asset_version_id: photoVersionId(216), motion_asset_version_id: null, foreground_edge_px: null,
+        foreground_feather_px: null, legacy_fire: null,
+      } });
+      await page.reload();
+      await expect(stage(page).getByText(label, { exact: true })).toBeVisible();
+      await expect(tile.locator("img")).toHaveAttribute("src", original);
+      await expect(mark).toBeVisible();
+      await expect(tile).toHaveAccessibleName(/^Board 01 Reference photo stale/);
+      await expect(strip.getByText(label, { exact: true })).toHaveCount(1);
+      expect(await size()).toEqual(freshSize);
+      await expect.poll(() => mark.evaluate((element) => {
+        const badge = element.getBoundingClientRect();
+        const thumb = element.closest(".storyboard-thumb")!.getBoundingClientRect();
+        return badge.left >= thumb.left && badge.right <= thumb.right &&
+          badge.top >= thumb.top && badge.bottom <= thumb.bottom && element.scrollWidth <= element.clientWidth;
+      })).toBe(true);
+      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
+
+      expect(await recomposite()).not.toBe(original);
+      await expect(strip.getByText(label, { exact: true })).toHaveCount(0);
+      await expect(stage(page).getByText(label, { exact: true })).toHaveCount(0);
+      expect(await size()).toEqual(freshSize);
+    });
+
     test("retries a paused request with the same key and reports an API job failure", async ({ page, mock }) => {
       const jobs = mock.api.photos!;
       jobs.pause(true);
