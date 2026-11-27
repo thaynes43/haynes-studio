@@ -13,7 +13,7 @@ from haynes_studio.layered.foreground import declarations, recorded_source_ids
 from haynes_studio.library.library import Library, promote
 from haynes_studio.library.model import BOARD, CANDIDATE, PROMOTED, Asset, AssetVersion, Content, version_document
 from haynes_studio.library.validate import (
-    focal_prop_source_bounds, focal_prop_source_ids, validate_asset, validate_asset_version,
+    focal_prop_source_ids, focal_prop_source_problems, validate_asset, validate_asset_version,
 )
 from haynes_studio.store.layout import blob_locator, is_sha256, parse_locator
 
@@ -158,24 +158,26 @@ def _check_asset_scope(conn: sa.Connection, asset: Asset) -> None:
 
 def _check_focal_prop_sources(conn, version):
     sources = focal_prop_source_ids(version.occlusion)
-    content = version.content
-    has_dimensions = content is not None and (content.width is not None or content.height is not None)
     # Either side can be registered first. Both writers serialize on the source
     # version ID before reading the other side under Read Committed.
-    for source in sorted(sources | ({version.id} if has_dimensions else set())):
+    for source in sorted(sources | {version.id}):
         conn.execute(sa.select(sa.func.pg_advisory_xact_lock(sa.func.hashtextextended(source, 412))))
     if sources:
-        rows = conn.execute(sa.select(asset_versions.c.id, asset_versions.c.document["content"]).where(
+        documents = conn.scalars(sa.select(asset_versions.c.document).where(
             asset_versions.c.id.in_(sources),
         ))
-        for source_id, source_content in rows:
-            require_valid(focal_prop_source_bounds(version.occlusion, source_id, Content.from_document(source_content)))
-    if has_dimensions:
-        declarations = conn.scalars(sa.select(asset_versions.c.document["occlusion"]).where(
-            asset_versions.c.document.contains({"occlusion": {"focal_props": [{"source_asset_version_id": version.id}]}}),
+        for document in documents:
+            require_valid(focal_prop_source_problems(
+                version.occlusion, document["id"], document["kind"], document["capabilities"],
+                Content.from_document(document["content"]),
+            ))
+    declarations = conn.scalars(sa.select(asset_versions.c.document["occlusion"]).where(
+        asset_versions.c.document.contains({"occlusion": {"focal_props": [{"source_asset_version_id": version.id}]}}),
+    ))
+    for declaration in declarations:
+        require_valid(focal_prop_source_problems(
+            declaration, version.id, version.kind, version.capabilities, version.content,
         ))
-        for declaration in declarations:
-            require_valid(focal_prop_source_bounds(declaration, version.id, content))
 
 
 def record_asset_version(conn: sa.Connection, document: dict, *, asset: Asset | None = None,

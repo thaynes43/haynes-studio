@@ -178,7 +178,7 @@ def _version_rules(doc: Mapping[str, Any]) -> list[Violation]:
     return found
 
 
-def validate_occlusion(kind: str, capabilities: Sequence[str], content: Content | None,
+def validate_occlusion(version_id: str, kind: str, capabilities: Sequence[str], content: Content | None,
                        declaration: Any) -> list[Violation]:
     """Validate the canonical declaration when constructing an immutable version.
 
@@ -187,7 +187,7 @@ def validate_occlusion(kind: str, capabilities: Sequence[str], content: Content 
     """
     found = _feature_shape("occlusion", declaration)
     if not found:
-        found += _occlusion({"kind": kind, "capabilities": capabilities,
+        found += _occlusion({"id": version_id, "kind": kind, "capabilities": capabilities,
                              "content": None if content is None else {
                                  "sha256": content.sha256, "media_type": content.media_type,
                                  "width": content.width, "height": content.height,
@@ -268,7 +268,12 @@ def _occlusion(doc: Mapping[str, Any]) -> list[Violation]:
             valid = role is None and source is None and order == (0 if depth == "background" else None)
         if not valid:
             found.append(_v(SCHEMA_INVALID, at, "the depth needs its matching layer order and source or role"))
-        dimensions = (None, None) if depth == "separate" else (plate.get("width"), plate.get("height"))
+        self_reference = depth == "separate" and source == doc["id"]
+        if self_reference:
+            found.append(_v(CAPABILITY_MISMATCH, at + "/source_asset_version_id",
+                            "a separate focal prop cannot use its own set as the source"))
+        uses_plate = depth != "separate" or self_reference
+        dimensions = (plate.get("width"), plate.get("height")) if uses_plate else (None, None)
         found += _hint_bounds(hint, *dimensions, at + "/hint")
     return found + _duplicates(keys, "occlusion target key") + _duplicates(orders, "occlusion layer order")
 
@@ -294,13 +299,25 @@ def focal_prop_source_ids(declaration: Mapping | None) -> set[str]:
             if target["depth"] == "separate"}
 
 
-def focal_prop_source_bounds(declaration: Mapping | None, source_id: str, content: Content | None) -> list[Violation]:
-    if content is None:
-        return []
-    return [problem for index, target in enumerate((declaration or {}).get("focal_props", ()))
-            if target.get("source_asset_version_id") == source_id
-            for problem in _hint_bounds(target.get("hint"), content.width, content.height,
-                                        pointer("occlusion", "focal_props", index, "hint"))]
+def is_prop_cutout(kind: str, capabilities: Sequence[str], content: Content | None) -> bool:
+    return (kind == "prop" and "rgba_cutout" in capabilities and content is not None
+            and content.media_type in CAPABILITY_MEDIA["rgba_cutout"])
+
+
+def focal_prop_source_problems(declaration: Mapping | None, source_id: str, kind: str,
+                               capabilities: Sequence[str], content: Content | None) -> list[Violation]:
+    """Check a separate focal declaration against the metadata of a known source."""
+    found = []
+    for index, target in enumerate((declaration or {}).get("focal_props", ())):
+        if target.get("source_asset_version_id") != source_id:
+            continue
+        at = pointer("occlusion", "focal_props", index)
+        if not is_prop_cutout(kind, capabilities, content):
+            found.append(_v(CAPABILITY_MISMATCH, at + "/source_asset_version_id",
+                            "a separate focal prop must name a prop cutout"))
+        if content is not None:
+            found += _hint_bounds(target.get("hint"), content.width, content.height, at + "/hint")
+    return found
 
 
 def _stock_voice(doc: Mapping[str, Any]) -> list[Violation]:

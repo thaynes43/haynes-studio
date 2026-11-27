@@ -48,7 +48,7 @@ from haynes_studio.library.model import (
     version_document,
 )
 from haynes_studio.library.validate import (
-    focal_prop_source_bounds, focal_prop_source_ids, validate_asset, validate_asset_version,
+    focal_prop_source_ids, focal_prop_source_problems, validate_asset, validate_asset_version,
 )
 from haynes_studio.jsonio import freeze
 
@@ -114,7 +114,10 @@ class Library:
         by_version = {v.id: v for v in versions}
         for version in versions:
             for source_id in focal_prop_source_ids(version.occlusion) & by_version.keys():
-                problems += focal_prop_source_bounds(version.occlusion, source_id, by_version[source_id].content)
+                source = by_version[source_id]
+                problems += focal_prop_source_problems(
+                    version.occlusion, source.id, source.kind, source.capabilities, source.content,
+                )
         for asset_id, seen in numbers.items():
             if len(set(seen)) != len(seen):
                 problems.append(Violation(
@@ -394,8 +397,9 @@ def import_version(library: Library, request: VersionRequest, *, by: Principal, 
                          f"the library holds versions {numbers} of {asset.id}, a slice; import "
                          "into the whole library so no number is reused")
         number = len(numbers) + 1
+    # Before allocating a new ID, use a placeholder that cannot be a focal source ID.
     candidate = AssetVersion(
-        id=request.version_id or "asv_00000000000000000000000000", asset_id=asset.id,
+        id=request.version_id or "", asset_id=asset.id,
         number=number, kind=request.kind, state=request.state,
         capabilities=tuple(request.capabilities), content=request.content,
         provenance=freeze(provenance), licence=request.licence,
@@ -422,10 +426,14 @@ def import_version(library: Library, request: VersionRequest, *, by: Principal, 
     _check(version, asset)
     problems = []
     for source_id in focal_prop_source_ids(version.occlusion) & library.versions.keys():
-        problems += focal_prop_source_bounds(version.occlusion, source_id, library.versions[source_id].content)
-    if version.content is not None:
-        for other in library.versions.values():
-            problems += focal_prop_source_bounds(other.occlusion, version.id, version.content)
+        source = library.versions[source_id]
+        problems += focal_prop_source_problems(
+            version.occlusion, source.id, source.kind, source.capabilities, source.content,
+        )
+    for other in library.versions.values():
+        problems += focal_prop_source_problems(
+            other.occlusion, version.id, version.kind, version.capabilities, version.content,
+        )
     if problems:
         raise ContractError(version.id, problems)
     return Outcome(library=library._with(asset=asset, version=version), version=version,

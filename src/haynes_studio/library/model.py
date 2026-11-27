@@ -326,7 +326,7 @@ class AssetVersion:
             # Import locally: validators also read this module's legacy constants.
             from haynes_studio.library.validate import validate_occlusion
 
-            problems = validate_occlusion(self.kind, self.capabilities, self.content, declaration)
+            problems = validate_occlusion(self.id, self.kind, self.capabilities, self.content, declaration)
             if problems:
                 raise ContractError(self.id, problems)
         object.__setattr__(self, "occlusion", freeze(declaration))

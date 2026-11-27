@@ -88,8 +88,10 @@ def enqueue_occlusion(state, actor, body, key):
         if state.segmentation is None or position is None:
             raise APIError(503, "occlusion.unavailable", "Occlusion admission is disabled")
         library, source_id, production, label, hint, set_id = _target(conn, anchor_id, body)
+        separate_prop = set_id is not None and source_id != set_id
         try:
-            source, _, _ = read_source(library, source_id, production, body.kind, state.store)
+            source, _, _ = read_source(library, source_id, production, body.kind, state.store,
+                                       separate_prop=separate_prop)
             request = make_request(source, kind=body.kind, key=body.key, label=label, hint=hint)
         except SegmentationError as error:
             if error.reason == "input_unavailable":

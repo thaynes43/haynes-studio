@@ -12,9 +12,9 @@ from PIL import Image
 
 from haynes_studio.adapters.segmentation import SegmentationClient
 from haynes_studio.canonical.ids import Minter
-from haynes_studio.db.catalog import record_asset_version
+from haynes_studio.db.catalog import record_asset_version, version_library
 from haynes_studio.db.migrate import migrate
-from haynes_studio.db.schema import asset_sources, media_jobs, queue_lane_events, worker_lane_grants
+from haynes_studio.db.schema import asset_sources, asset_versions, media_jobs, queue_lane_events, worker_lane_grants
 from haynes_studio.errors import ContractError
 from haynes_studio.mcp.server import create_app
 from haynes_studio.queue.media_worker import MediaWorker
@@ -313,6 +313,68 @@ def test_catalog_checks_focal_prop_bounds_in_either_insert_order(studio, prop_fi
     else:
         with pytest.raises(ContractError, match="occlusion.hint_bounds"):
             record(s, second)
+
+
+@pytest.mark.parametrize("source_kind, capability", [("set", "opaque_plate"), ("prop", "mask")])
+@pytest.mark.parametrize("source_first", [False, True])
+def test_catalog_requires_separate_source_to_be_a_prop_cutout(studio, source_kind, capability, source_first):
+    s = studio
+    source = stored(s, kind=source_kind, production=s.production_id, record_version=False)
+    source["capabilities"] = [capability]
+    del source["content"]["width"], source["content"]["height"]
+    plate = stored(s, production=s.production_id, occlusion=focal(source, DIRECT), record_version=False)
+    first, second = (source, plate) if source_first else (plate, source)
+    record(s, first)
+    with pytest.raises(ContractError, match="asset.capability_mismatch") as error:
+        record(s, second)
+    assert error.value.violations[0].path == "/occlusion/focal_props/0/source_asset_version_id"
+    with s.owner.connect() as conn:
+        assert version_library(conn, version_id=first["id"]).get(first["id"]) is not None
+        assert version_library(conn, version_id=second["id"]).get(second["id"]) is None
+
+
+def test_catalog_refuses_self_referenced_focal_prop_before_inserting(studio):
+    s = studio
+    plate = stored(s, production=s.production_id, record_version=False)
+    plate["occlusion"] = focal(plate, {"kind": "point", "xy": [SIZE[0], 20]})
+    with pytest.raises(ContractError) as error:
+        record(s, plate)
+    assert {(issue.rule, issue.path) for issue in error.value.violations} == {
+        ("asset.capability_mismatch", "/occlusion/focal_props/0/source_asset_version_id"),
+        ("occlusion.hint_bounds", "/occlusion/focal_props/0/hint/xy"),
+    }
+    with s.owner.connect() as conn:
+        assert version_library(conn, version_id=plate["id"]).get(plate["id"]) is None
+
+
+def test_admission_refuses_an_opaque_set_as_a_stored_separate_source(enabled, serving):
+    s = enabled
+    source = stored(s, production=s.production_id)
+    plate = stored(s, production=s.production_id)
+    # Model a pair persisted before the catalog enforced the separate source type.
+    plate["occlusion"] = focal(source, DIRECT)
+    with s.owner.begin() as conn:
+        conn.execute(asset_versions.update().where(asset_versions.c.id == plate["id"]).values(document=plate))
+
+    baseline = recorded_masks(s)
+    refused = enqueue(s, plate, "wrong-separate-source", kind="prop", target="cup", hint=None)
+    assert refused.status_code == 422 and refused.json()["error"]["code"] == "occlusion.invalid_input"
+    assert not worker(s, serving).tick()
+    assert recorded_masks(s) == baseline
+
+
+@pytest.mark.parametrize("declared", [False, True])
+def test_plate_prop_uses_the_set_still(enabled, serving, declared):
+    s = enabled
+    occlusion = {"focal_props": [{"key": "cup", "label": "cup", "depth": "unspecified", "hint": DIRECT}]}
+    plate = stored(s, production=s.production_id, occlusion=occlusion if declared else None)
+    response = enqueue(s, plate, "plate-prop", kind="prop", target="cup",
+                       label=None if declared else "cup", hint=None if declared else DIRECT)
+    identifier = success(response, 202)["id"]
+    assert worker(s, serving).tick()
+    result = success(s.browser.get(f"/v1/jobs/{identifier}/result"))
+    assert result["kind"] == "set" and result["segmentation"]["source_version_id"] == plate["id"]
+    assert result["segmentation"]["still_sha256"] == plate["content"]["sha256"]
 
 
 def test_stored_focal_hint_and_output_follow_the_sets_scope(enabled, serving):

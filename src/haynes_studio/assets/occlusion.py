@@ -15,6 +15,7 @@ from PIL import Image
 from haynes_studio.adapters.segmentation import SegmentationClient, verify_result
 from haynes_studio.jsonio import parse_strict, thaw
 from haynes_studio.library import Content, Library
+from haynes_studio.library.validate import is_prop_cutout
 from haynes_studio.segmentation.inference import validate_request
 from haynes_studio.segmentation.profile import (
     MAX_PIXELS, MAX_SHORT_SIDE, MAX_SIDE, MAX_SOURCE_BYTES, PROFILE_ID, SegmentationError, digest,
@@ -89,7 +90,7 @@ def decode_still(content: Content, data: bytes, *, plate: bool) -> Image.Image:
     return rgba
 
 
-def read_source(library, source_version_id, production_id, kind, store):
+def read_source(library, source_version_id, production_id, kind, store, *, separate_prop: bool = False):
     version = library.get(source_version_id)
     if version is None or version.recorded_without_media or version.content is None:
         raise SegmentationError("input_unavailable")
@@ -105,7 +106,7 @@ def read_source(library, source_version_id, production_id, kind, store):
         raise SegmentationError("input_unavailable")
     plate = version.kind == "set" and version.has("opaque_plate") and kind in ("foreground", "prop")
     cutout = version.has("rgba_cutout") and (version.kind, kind) in (("cast", "face"), ("prop", "prop"))
-    if not (plate or cutout):
+    if not (plate or cutout) or (separate_prop and not is_prop_cutout(version.kind, version.capabilities, content)):
         raise SegmentationError("invalid_input")
     if content.bytes is not None and not 0 < content.bytes <= MAX_SOURCE_BYTES:
         raise SegmentationError("invalid_input")

@@ -54,15 +54,17 @@ Under CR-67, an opaque set version may carry up to 16 targets in
 `occlusion.focal_props`. Each has a unique `key`, a `label`, a `depth` and an
 optional `hint`. A `background` target uses `layer_order: 0`. A `foreground`
 target names a `foreground_role` and the same `layer_order` as that role. A
-`separate` target names `source_asset_version_id` and a distinct positive
-`layer_order`. An `unspecified` target carries only its key, label, depth and
+`separate` target names a `prop` version with `rgba_cutout` in
+`source_asset_version_id` and uses a distinct positive `layer_order`.
+An `unspecified` target carries only its key, label, depth and
 optional hint. Keys are distinct across the two lists. The hints are inputs
 for the [occlusion job](segmentation-adapter.md#occlusion-jobs).
 
 A `point` hint uses `xy`, a half-open `box` uses `xyxy`, and a `text` hint
 uses trimmed NFC text. Geometry is checked against each known still dimension.
-The catalog checks a separate source and the referring declaration in either
-insertion order. Job admission decodes the actual still and checks both bounds.
+The catalog checks the kind, cutout capability and known dimensions when it
+has both the separate source and the declaration, in either insertion order.
+Job admission decodes the actual still and checks both bounds.
 A hints-only set still has no foreground rendering decision. Omit empty lists
 and omit `occlusion` when both lists would be empty.
 

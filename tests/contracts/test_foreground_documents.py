@@ -8,6 +8,7 @@ import pytest
 from haynes_studio.errors import ContractError
 from haynes_studio.library import Library, VersionRequest, import_version
 from haynes_studio.library.model import Asset, AssetVersion, version_document
+from haynes_studio.library.validate import validate_asset_version
 from haynes_studio.store import canonical_json
 from haynes_studio.canonical import load_story, to_document
 from tests.build_story.fixtures import NOW, example, ident
@@ -178,20 +179,61 @@ def test_focal_hint_bounds_on_plate(hint):
 def test_separate_focal_hint_checks_library_import_in_either_order(reverse, in_bounds):
     plate = declared_set()
     prop = still_version(74, "e" * 64)
-    prop.update(kind="prop", labels=[], attributes={})
+    prop.update(id="asv_" + "0" * 26, kind="prop", labels=[], attributes={})
     prop["content"].update(width=40, height=32)
     plate["occlusion"]["focal_props"] = [{
         "key": "cup", "label": "cup", "depth": "separate", "source_asset_version_id": prop["id"],
         "layer_order": 20, "hint": {"kind": "box", "xyxy": [0, 0, 40 if in_bounds else 41, 32]},
     }]
     documents = [prop, plate] if reverse else [plate, prop]
-    first = import_version(Library(), request(documents[0]), by=BY, now=NOW)
+    # A generated set ID still allows a reference to the all-zero prop ID.
+    plate_request, prop_request = replace(request(plate), version_id=None), request(prop)
+    first_request, second_request = (prop_request, plate_request) if reverse else (plate_request, prop_request)
+    first = import_version(Library(), first_request, by=BY, now=NOW)
     if in_bounds:
-        result = import_version(first.library, request(documents[1]), by=BY, now=NOW)
+        result = import_version(first.library, second_request, by=BY, now=NOW)
         assert result.created and len(result.library.versions) == 2
         assert len(Library.from_version_documents(documents).versions) == 2
     else:
         with pytest.raises(ContractError, match="occlusion.hint_bounds"):
-            import_version(first.library, request(documents[1]), by=BY, now=NOW)
+            import_version(first.library, second_request, by=BY, now=NOW)
         with pytest.raises(ContractError, match="occlusion.hint_bounds"):
             Library.from_version_documents(documents)
+
+
+@pytest.mark.parametrize("source_kind, capability", [("set", "opaque_plate"), ("prop", "mask")])
+@pytest.mark.parametrize("source_first", [False, True])
+def test_separate_focal_source_requires_a_prop_cutout_in_library(source_kind, capability, source_first):
+    plate = declared_set()
+    source = still_version(74, "e" * 64)
+    source.update(kind=source_kind, capabilities=[capability], labels=[], attributes={})
+    for axis in ("width", "height"):
+        source["content"].pop(axis, None)
+    plate["occlusion"]["focal_props"] = [{
+        "key": "cup", "label": "cup", "depth": "separate", "source_asset_version_id": source["id"],
+        "layer_order": 20,
+    }]
+    first, second = (source, plate) if source_first else (plate, source)
+    initial = import_version(Library(), request(first), by=BY, now=NOW).library
+    with pytest.raises(ContractError, match="asset.capability_mismatch") as error:
+        import_version(initial, request(second), by=BY, now=NOW)
+    assert error.value.violations[0].path == "/occlusion/focal_props/0/source_asset_version_id"
+    with pytest.raises(ContractError, match="asset.capability_mismatch"):
+        Library.from_version_documents([first, second])
+
+
+@pytest.mark.parametrize("point, out_of_bounds", [([1, 1], False), ([64, 1], True)])
+def test_separate_focal_source_cannot_be_the_own_set_version(point, out_of_bounds):
+    plate = declared_set()
+    original = request(plate)
+    plate["occlusion"]["focal_props"] = [{
+        "key": "cup", "label": "cup", "depth": "separate", "source_asset_version_id": plate["id"],
+        "layer_order": 20, "hint": {"kind": "point", "xy": point},
+    }]
+    expected = {("asset.capability_mismatch", "/occlusion/focal_props/0/source_asset_version_id")}
+    if out_of_bounds:
+        expected.add(("occlusion.hint_bounds", "/occlusion/focal_props/0/hint/xy"))
+    assert {(issue.rule, issue.path) for issue in validate_asset_version(plate)} == expected
+    with pytest.raises(ContractError) as error:
+        import_version(Library(), replace(original, occlusion=plate["occlusion"]), by=BY, now=NOW)
+    assert {(issue.rule, issue.path) for issue in error.value.violations} == expected
