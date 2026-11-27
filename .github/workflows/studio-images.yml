@@ -256,7 +256,20 @@ jobs:
             image="$repository:sha-$GITHUB_SHA"
             docker load --input "$IMAGE_DIR/$name.tar"
             docker push "$image"
-            digest=$(docker buildx imagetools inspect "$image" --format '{{.Manifest.Digest}}')
-            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            # The registry can answer "not found" for a tag it accepted a moment
+            # ago. Read the digest back a bounded number of times before failing.
+            digest=""
+            for attempt in 1 2 3 4 5 6; do
+              if candidate=$(docker buildx imagetools inspect "$image" --format '{{.Manifest.Digest}}') &&
+                 [[ "$candidate" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+                digest=$candidate
+                break
+              fi
+              if [[ "$attempt" -lt 6 ]]; then sleep 10; fi
+            done
+            if [[ -z "$digest" ]]; then
+              echo "::error::could not read back the digest of $image after 6 attempts"
+              exit 1
+            fi
             printf 'Revision `%s` → `%s@%s`\n' "$GITHUB_SHA" "$repository" "$digest" >> "$GITHUB_STEP_SUMMARY"
           done
