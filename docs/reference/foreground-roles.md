@@ -42,9 +42,24 @@ feather. Photo and film admission return `occlusion.foreground_required` when
 the flag is false. On legacy sets, the flag controls the edge and feather.
 
 On a whole-frame board, photo generation, external photo upload and Build
-refuse a role-declared set with `occlusion.unsupported`. A standalone photo
-reference to a role-declared set or a layered render with a set loop returns
-the same code.
+refuse a role-declared set with `occlusion.unsupported`. The same code applies
+to a standalone reference to a role-declared set in photo generation or upload.
+
+A layered film that plays a set loop resolves the loop's own source set version
+even when the draft's set still is cleared. If the selected still or the loop's
+source declares roles, Build refuses it with `occlusion.unsupported`. The
+loop's `motion.still_sha256` must match its source set version. When generator
+provenance names source version IDs, one of those IDs must name the matching
+set. An older loop with just a still hash needs exactly one matching set version
+in scope. Build refuses a missing, conflicting or ambiguous source with
+`occlusion.set_loop_source_unknown`. The snapshot pins the resolved source.
+
+Photo jobs render the asset versions frozen at admission. If an undispatched
+claim expires and the draft switches to a masked set before the worker reclaims
+it, a job admitted with the earlier unmasked version still renders that version.
+It saves a non-current result and leaves the draft's selected photo in place.
+Fresh admission checks the draft's current set version.
+
 Pre-build checks the mask scope, readiness, hash, dimensions and PNG pixels.
 The run snapshot records the exact mask version IDs and content hashes.
 Archive import checks the pins and the metadata limits.
@@ -58,3 +73,4 @@ Archive import checks the pins and the metadata limits.
 | `occlusion.mask_size` | The mask dimensions match the source still and PNG. |
 | `occlusion.mask_invalid` | The PNG fits both limits, has one grayscale frame and uses only 0 and 255, with some 255 pixels. |
 | `occlusion.noncanonical` | Omit an empty declaration and use integers for the role depth and dimensions. |
+| `occlusion.set_loop_source_unknown` | Select a loop whose recorded still hash and source pins identify one available set version. |

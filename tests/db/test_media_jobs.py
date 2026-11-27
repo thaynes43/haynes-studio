@@ -35,7 +35,7 @@ from haynes_studio.store import blob_locator
 from haynes_studio.voice.model import Job
 
 from tests.db.test_run_queue import (
-    queue, queue_run, request_for, worker_api, worker_credentials,
+    queue, queue_run, request_for, select_role_set, worker_api, worker_credentials,
 )
 from tests.db.test_studio_api import (
     client, engine, new_production, new_story, owner_engine, register_agent,
@@ -723,6 +723,51 @@ def test_media_claim_expiry_fences_old_worker_and_never_replays_dispatch(studio)
         old.heartbeat()
     assert caught.value.code == "work.fence_lost"
     assert job(s, id_)["error"]["code"] == "work.dispatch_unconfirmed"
+
+
+def test_reclaimed_photo_renders_its_frozen_unmasked_set_and_is_noncurrent(queue, tmp_path):
+    from haynes_studio.layered.foreground import UNSUPPORTED
+    from tests.build_story.test_foreground_roles import UNMASKED_SET
+
+    q = queue
+    ids, masked, _ = select_role_set(q, tmp_path, with_unmasked=True)
+    unmasked = ids[UNMASKED_SET]
+    path = f"/v1/stories/{q.story_id}"
+    draft = q.browser.get(path)
+    setting = {**draft.json()["set"], "asset_version_id": unmasked}
+    success(q.browser.patch(path, json={"set": setting}, headers={**q.csrf, "If-Match": draft.headers["etag"]}))
+    patch(q, q.board_id, {
+        "method": {"layer": "whole_frame", "motion": "i2v"}, "cast": [],
+        "photo": {"current_version_id": q.version_id, "prompt": "first angle",
+                  "input_asset_version_ids": [unmasked]},
+    })
+    requester = SimpleNamespace(agent=q.browser, auth=q.csrf)
+    queued = success(operation(requester, q.board_id, "photo", "frozen-unmasked"), 202)
+    job_id = queued["id"]
+    old = worker_api(q, lane="image").claim("image")
+    assert old.identity["job_id"] == job_id
+    with q.owner.begin() as conn:
+        expired = sa.func.clock_timestamp() - timedelta(seconds=1)
+        conn.execute(media_jobs.update().where(media_jobs.c.id == job_id).values(claim_until=expired))
+
+    setting["asset_version_id"] = masked
+    draft = q.browser.get(path)
+    success(q.browser.patch(path, json={"set": setting}, headers={**q.csrf, "If-Match": draft.headers["etag"]}))
+    refused = operation(requester, q.board_id, "photo", "fresh-masked")
+    assert refused.status_code == 422, refused.text
+    assert refused.json()["error"]["code"] == UNSUPPORTED
+
+    fake = FakeComfyUI()
+    worker, _ = image_worker(q, fake)
+    assert worker.tick() and len(fake.payloads) == 1
+    result = job(q, job_id)
+    assert result["status"] == "succeeded", result["error"]
+    assert result["result_is_current"] is False
+    [source] = result["photo"]["source_assets"]
+    assert source["version_id"] == unmasked
+    version = success(q.browser.get(f"/v1/jobs/{job_id}/result"))
+    assert version["provenance"]["generator"]["source_asset_version_ids"] == [unmasked]
+    assert current_board(q, q.board_id)["photo"]["current_version_id"] == q.version_id
 
 
 def test_upload_wins_over_running_photo_with_same_inputs(studio, tmp_path):

@@ -38,11 +38,12 @@ from haynes_studio.jsonio import thaw
 from haynes_studio.layered import check_board as layered_check
 from haynes_studio.layered.errors import LayeredError
 from haynes_studio.layered.foreground import (
-    MASK_MISSING, MASK_STALE, RoleMask, check_role_images, resolve_picture_roles,
+    MASK_MISSING, MASK_STALE, SET_LOOP_SOURCE_UNKNOWN, PictureForeground, RoleMask,
+    check_role_images, resolve_picture_roles,
 )
 from haynes_studio.layered.pin import pin_story
 from haynes_studio.library import Library
-from haynes_studio.library.model import locator_for
+from haynes_studio.library.model import AssetVersion, locator_for
 from haynes_studio.library.resolve import Resolution, resolve
 from haynes_studio.stages.preflight import (
     DEFINITION_ONLY,
@@ -76,6 +77,7 @@ class Prepared:
     report: PreflightReport
     format_version: Mapping[str, Any] | None = None
     foreground_roles: tuple[RoleMask, ...] = ()
+    set_loop_source: AssetVersion | None = None
 
     @property
     def ok(self) -> bool:
@@ -157,80 +159,93 @@ def _metadata_present(_locator, _sha):
 
 
 def _foreground_checks(story: Story, library: Library, motion: LayeredMotion,
-                       store: Store | None) -> tuple[tuple[RoleMask, ...], list[Problem]]:
-    version = None if story.set is None else library.get(story.set.asset_version_id)
-    if version is None or version.occlusion is None:
-        return (), []
+                       store: Store | None) -> tuple[PictureForeground, list[Problem]]:
+    if story.set is None:
+        return PictureForeground(), []
+    version = library.get(story.set.asset_version_id)
 
-    roles = ()
+    foreground = PictureForeground()
     problems = []
     for index, board in enumerate(story.boards or (None,)):
         board_motion = motion.boards.get(board.id) if board is not None else None
-        set_loop = (story.set.motion_asset_version_id is not None
-                    or (board_motion is not None and board_motion.set is not None))
+        loop_id = None
+        if board_motion is not None:
+            loop_id = (story.set.motion_asset_version_id if board_motion.set is None
+                       else board_motion.set.version_id)
         try:
-            roles = resolve_picture_roles(version, board, library,
-                                          production_id=story.production_id, set_loop=set_loop)
+            picture = resolve_picture_roles(version, board, library, production_id=story.production_id,
+                                            loop_version_id=loop_id)
+            if picture.roles or picture.loop_source is not None:
+                foreground = picture
         except LayeredError as error:
             field = error.where
             if board is None or field.startswith("/set/occlusion/foreground/"):
-                return (), [Problem(error.code, error.status, field, error.message, field=field)]
+                return PictureForeground(), [Problem(error.code, error.status, field, error.message, field=field)]
             path = field if field.startswith("/set/") else f"/boards/{index}{field}"
             problems.append(Problem(error.code, error.status, path, error.message, field=field,
                                     board_id=board.id, board_number=board.number,
                                     legacy_shot=board.origin.legacy_shot if board.origin else None))
-    if roles and store is not None and not problems:
+    if foreground.roles and store is not None and not problems:
         try:
-            check_role_images(version.content, roles, store)
+            check_role_images(version.content, foreground.roles, store)
         except (LayeredError, StoreError) as error:
             field = getattr(error, "where", "") or ""
             if not field.startswith("/set/"):
                 field = "/set/occlusion"
             problems.append(Problem(error.code, getattr(error, "status", "invalid"),
                                     field, error.message, field=field))
-    return roles, problems
+    return foreground, problems
+
+
+def _set_source_pin(version: AssetVersion) -> dict[str, str]:
+    return {"id": version.id, "kind": version.kind, "sha256": version.content.sha256}
 
 
 def require_frozen_roles(snapshot: Mapping[str, Any], library: Library, *,
-                         store: Store | None = None) -> tuple[RoleMask, ...]:
-    """Check the selected set, its render path and each mask against the frozen pins."""
+                         store: Store | None = None) -> PictureForeground:
+    """Check the set, loop source and each mask against the frozen pins."""
     document = snapshot["story"]
-    selected = (document.get("set") or {}).get("asset_version_id")
-    if selected is None:
-        return ()
+    setting = document.get("set") or {}
+    selected = setting.get("asset_version_id")
     version = library.get(selected)
-    if version is None:
+    if selected is not None and version is None:
         raise ContractError("<run snapshot>", [Violation(
             "ref.unknown", "/set/asset_version_id", "The selected set version is absent from the frozen library",
         )])
-    if version.occlusion is None:
-        return ()
+    declared = version.occlusion if version is not None else None
+    if (declared is None and setting.get("motion_asset_version_id") is None
+            and (selected is None or not any(v.has("set_loop") for v in library.versions.values()))):
+        return PictureForeground()
     problems = blocking(validate_run_snapshot(snapshot, context=WRITE))
     if problems:
         raise ContractError("<run snapshot>", problems)
     pins = {pin["id"]: pin for pin in snapshot["resolved_asset_versions"]}
-    if pins[version.id].get("sha256") != version.content.sha256:
-        problems.append(Violation(MASK_STALE, "/resolved_asset_versions",
-                                  "The snapshot set hash differs from the declared set still"))
-    for role in version.occlusion["foreground"]:
-        pin = role["mask"]
-        if pin["version_id"] not in pins:
-            problems.append(Violation(MASK_MISSING, "/resolved_asset_versions",
-                                      "The snapshot must pin each declared role mask"))
+    if declared is not None:
+        if pins[version.id].get("sha256") != version.content.sha256:
+            problems.append(Violation(MASK_STALE, "/resolved_asset_versions",
+                                      "The snapshot set hash differs from the declared set still"))
+        for role in declared["foreground"]:
+            if role["mask"]["version_id"] not in pins:
+                problems.append(Violation(MASK_MISSING, "/resolved_asset_versions",
+                                          "The snapshot must pin each declared role mask"))
     if problems:
         raise ContractError("<run snapshot>", problems)
 
     story = Story.from_document(document)
     motion = pin_story(document, library, _metadata_present)
-    roles, issues = _foreground_checks(story, library, motion, store)
-    for role in roles:
+    foreground, issues = _foreground_checks(story, library, motion, store)
+    for role in foreground.roles:
         if pins[role.version_id] != role.snapshot_entry():
             problems.append(Violation(MASK_STALE, "/resolved_asset_versions",
                                       "The snapshot must pin the resolved role mask version"))
+    source = foreground.loop_source
+    if source is not None and pins.get(source.id) != _set_source_pin(source):
+        problems.append(Violation(SET_LOOP_SOURCE_UNKNOWN, "/resolved_asset_versions",
+                                  "The snapshot must pin the set loop's source version and still hash"))
     problems.extend(Violation(p.rule, p.path, p.message, p.status) for p in issues)
     if problems:
         raise ContractError("<run snapshot>", problems)
-    return roles
+    return foreground
 
 
 def prepare(document: Mapping[str, Any], *, library: Library, store: Store | None,
@@ -277,7 +292,7 @@ def prepare(document: Mapping[str, Any], *, library: Library, store: Store | Non
     if story.boards is not None:
         problems += _adapter_problems(story, facts=facts, motion=motion, toolchain=toolchain,
                                       frame_size=frame_size)
-    roles, foreground_problems = _foreground_checks(story, library, motion, mask_store or store)
+    foreground, foreground_problems = _foreground_checks(story, library, motion, mask_store or store)
     problems += foreground_problems
     seen, unique = set(), []
     for problem in problems:  # a refusal both checks report (method.unavailable) once
@@ -291,7 +306,7 @@ def prepare(document: Mapping[str, Any], *, library: Library, store: Store | Non
                                -1 if p.board_id is None else order.get(p.board_id, len(order)),
                                p.field, p.rule, p.message))
     return Prepared(document, library, story, facts, resolution, resolved, motion,
-                    PreflightReport(tuple(unique)), format_version, roles)
+                    PreflightReport(tuple(unique)), format_version, foreground.roles, foreground.loop_source)
 
 
 def blocking_problems(problems: Iterable[Problem]) -> list[Problem]:
@@ -324,6 +339,8 @@ def make_snapshot(prepared: Prepared, library: Library, *, studio: str) -> dict[
         entries.setdefault(entry["id"], entry)
     for role in prepared.foreground_roles:
         entries.setdefault(role.version_id, role.snapshot_entry())
+    if source := prepared.set_loop_source:
+        entries.setdefault(source.id, _set_source_pin(source))
     snapshot = {"schema": SNAPSHOT_SCHEMA, "story": draft_document(prepared.document),
                 "resolved_asset_versions": list(entries.values()),
                 "toolchain_request": {"studio": studio}}

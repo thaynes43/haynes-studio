@@ -610,11 +610,14 @@ class _Planner:
         roles_by_board = {}
         for board in picture_boards:
             motion = None if self.motion is None else self.motion.boards.get(board.id)
+            loop_id = None
+            if board.method.layer == "layered" and story.set is not None:
+                loop_id = (motion.set.version_id if motion is not None and motion.set is not None
+                           else story.set.motion_asset_version_id)
             roles_by_board[board.id] = resolve_picture_roles(
                 version, board, self.library, production_id=story.production_id,
-                set_loop=(story.set is not None and story.set.motion_asset_version_id is not None
-                          or motion is not None and motion.set is not None),
-            )
+                loop_version_id=loop_id,
+            ).roles
         boards, tracks, sounds, start = [], [], [], 0
         for board in picture_boards:
             plan, track, board_sounds = self.board(board, start, roles_by_board[board.id])

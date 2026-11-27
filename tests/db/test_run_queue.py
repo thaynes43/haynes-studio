@@ -1514,19 +1514,33 @@ def test_terminal_admission_prefers_machine_code(queue, admission_code, legacy_m
     assert len(fake.puts()) == 1 and not fake.submissions
 
 
-def select_role_set(q, tmp_path):
+def select_role_set(q, tmp_path, *, with_unmasked=False, loop_source=None):
     from copy import deepcopy
 
     from haynes_studio.store import blob_locator
-    from tests.build_story.test_foreground_roles import MASK, SOURCE, role_world
+    from tests.build_story import fixtures as f
+    from tests.build_story.test_foreground_roles import MASK, SOURCE, UNMASKED_SET, role_world
+    from tests.layered import media
 
-    world, example_story, _ = role_world(tmp_path / "role-store", right=SOURCE[0])
+    world, example_story, plate = role_world(tmp_path / "role-store", right=SOURCE[0])
+    if with_unmasked or loop_source == "unmasked":
+        original = deepcopy(plate)
+        original["id"] = UNMASKED_SET
+        del original["occlusion"]
+        plate["number"] = 2
+        world.docs.insert(world.docs.index(plate), original)
+    if loop_source is not None:
+        world.loop(f.SET_LOOP, 41, still_sha=plate["content"]["sha256"], clip=media.set_clip(f.SET_N),
+                   start=media.set_plate(), subject="set", frames=f.SET_N)
+        source = UNMASKED_SET if loop_source == "unmasked" else f.PLATE
+        world.docs[-1]["provenance"]["generator"]["source_asset_version_ids"] = [source]
     add_sound_bed(q, tmp_path)
     minter = Minter()
     ids = {doc["id"]: minter.mint("asv") for doc in world.docs}
+    assets = {asset_id: minter.mint("ast") for asset_id in {doc["asset_id"] for doc in world.docs}}
     with q.engine.begin() as conn:
         for doc in deepcopy(world.docs):
-            doc.update(id=ids[doc["id"]], asset_id=minter.mint("ast"))
+            doc.update(id=ids[doc["id"]], asset_id=assets[doc["asset_id"]])
             doc["provenance"]["source_key"] = "fixture:role:" + doc["id"]
             if doc["legacy"] is not None:
                 doc["legacy"]["source_key"] = doc["provenance"]["source_key"]
@@ -1539,6 +1553,9 @@ def select_role_set(q, tmp_path):
             if doc.get("occlusion"):
                 doc["occlusion"]["foreground"][0]["mask"]["version_id"] = ids[MASK]
             if doc.get("motion"):
+                generator = doc["provenance"]["generator"]
+                if "source_asset_version_ids" in generator:
+                    generator["source_asset_version_ids"] = [ids[source] for source in generator["source_asset_version_ids"]]
                 digest = doc["motion"]["source"]["image_sha256"]
                 origin = blob_locator(example_story["production_id"], digest, "image/png")
                 with world.store.open(origin) as start:
@@ -1574,7 +1591,7 @@ def test_queue_and_run_writer_require_foreground_and_pin_the_mask(queue, tmp_pat
     from tests.build_story.test_foreground_roles import MASK
 
     q = queue
-    ids, _, etag = select_role_set(q, tmp_path)
+    ids, set_id, etag = select_role_set(q, tmp_path)
     board_path = f"/v1/boards/{q.board_id}"
     disabled = q.browser.patch(board_path, headers={**q.csrf, "If-Match": etag},
                                json={"layout": {"preset": "pair", "foreground": False}})
@@ -1606,6 +1623,14 @@ def test_queue_and_run_writer_require_foreground_and_pin_the_mask(queue, tmp_pat
                              library=row["frozen_library"], actor=row["document"]["queued_by"], key=code,
                              store=q.store, estimate={"estimate": None, "methods": []})
             assert [issue.rule for issue in rejected.value.violations] == [code]
+        library = deepcopy(row["frozen_library"])
+        version = next(version for version in library if version["id"] == set_id)
+        version["occlusion"]["foreground"][0]["layer_order"] += 1
+        with pytest.raises(runs.QueueConflict) as rejected:
+            runs.enqueue(conn, snapshot=row["snapshot"], snapshot_sha256=row["document"]["snapshot"]["sha256"],
+                         library=library, actor=row["document"]["queued_by"], key="changed-declaration",
+                         store=q.store, estimate={"estimate": None, "methods": []})
+        assert rejected.value.code == "run.snapshot_changed"
         assert [held["id"] for held in runs.list_story(conn, q.story_id, None, 10)] == [run_id]
 
     wan_client = FakeWan().client()
@@ -1623,6 +1648,7 @@ def test_queue_and_run_writer_require_foreground_and_pin_the_mask(queue, tmp_pat
     "layered-photo", "layered-photo-rerender", "layered-film", "layered-film-rerun",
     "whole-frame-photo", "whole-frame-photo-selected-reference", "whole-frame-photo-reference", "whole-frame-film",
     "external-upload", "external-upload-reference",
+    "layered-set-loop", "layered-set-loop-and-still", "layered-set-loop-unmasked",
 ])
 def test_picture_paths_draw_the_selected_role_mask_or_refuse(queue, tmp_path, path):
     from io import BytesIO
@@ -1635,12 +1661,38 @@ def test_picture_paths_draw_the_selected_role_mask_or_refuse(queue, tmp_path, pa
     from haynes_studio.queue.staging import BuildStageStore
     from haynes_studio.render.encode import decode_frames
     from haynes_studio.store import blob_locator
+    from tests.build_story.fixtures import SET_LOOP
+    from tests.build_story.test_foreground_roles import UNMASKED_SET
     from tests.db.test_media_jobs import PROVENANCE, image_worker
 
     q = queue
-    _, set_id, etag = select_role_set(q, tmp_path)
+    loop = path.startswith("layered-set-loop")
+    unmasked_loop = path == "layered-set-loop-unmasked"
+    loop_source = ("unmasked" if unmasked_loop else "masked") if loop else None
+    ids, set_id, etag = select_role_set(q, tmp_path, loop_source=loop_source)
     board_path = f"/v1/boards/{q.board_id}"
     story_path = f"/v1/stories/{q.story_id}"
+    if loop:
+        story = q.browser.get(story_path)
+        setting = {**story.json()["set"], "motion_asset_version_id": ids[SET_LOOP]}
+        changed = q.browser.patch(story_path, json={"set": setting},
+                                  headers={**q.csrf, "If-Match": story.headers["etag"]})
+        assert changed.status_code == 200, changed.text
+        if path != "layered-set-loop-and-still":
+            setting["asset_version_id"] = None
+            changed = q.browser.patch(story_path, json={"set": setting},
+                                      headers={**q.csrf, "If-Match": changed.headers["etag"]})
+            assert changed.status_code == 200, changed.text
+        if not unmasked_loop:
+            refused = queue_run(q, path, rev=changed.json()["revision"])
+            assert refused.status_code == 422, refused.text
+            assert refused.json()["error"]["code"] == UNSUPPORTED
+            with q.owner.connect() as conn:
+                assert runs.list_story(conn, q.story_id, None, 10) == []
+            if path == "layered-set-loop":
+                assert_loop_source_cannot_be_stripped_from_sql_run(q, set_id)
+            return
+
     if not path.startswith("layered-"):
         # Exercise both an explicitly selected set and an unselected set used as an image reference.
         reference_only = path in ("whole-frame-photo-reference", "external-upload-reference")
@@ -1708,6 +1760,11 @@ def test_picture_paths_draw_the_selected_role_mask_or_refuse(queue, tmp_path, pa
             revision = q.browser.get(story_path).json()["revision"]
             queued = queue_run(q, f"{path}-{attempt}", rev=revision)
             assert queued.status_code == 201, queued.text
+            if unmasked_loop:
+                with q.owner.connect() as conn:
+                    frozen = runs.get(conn, queued.json()["id"])["snapshot"]
+                assert {pin["id"] for pin in frozen["resolved_asset_versions"]} >= {ids[SET_LOOP], ids[UNMASKED_SET]}
+                assert frozen["story"]["set"]["asset_version_id"] is None
             assert worker.tick()
             built, _ = read_run(q, queued.json()["id"])
             assert built["status"] == "succeeded", built["error"]
@@ -1719,7 +1776,33 @@ def test_picture_paths_draw_the_selected_role_mask_or_refuse(queue, tmp_path, pa
                                   (q.store, built["outputs"]["proxy_sha256"])):
                 locator = blob_locator(q.production_id, digest, "video/mp4")
                 with store.open(locator) as media:
-                    assert np.count_nonzero(next(decode_frames(media))) == 0
+                    assert bool(np.count_nonzero(next(decode_frames(media)))) is unmasked_loop
+
+
+def assert_loop_source_cannot_be_stripped_from_sql_run(q, source_id):
+    from haynes_studio.build.prebuild import snapshot_bytes
+    from haynes_studio.db.catalog import build_library
+    from haynes_studio.errors import ContractError
+    from haynes_studio.layered.foreground import UNSUPPORTED
+    from haynes_studio.library.resolve import story_references
+    from haynes_studio.queue.inputs import freeze, prepare_queue
+    from tests.build_story.fixtures import OPERATOR
+
+    with q.engine.begin() as conn:
+        story = drafts.get_draft(conn, q.story_id).exchange()
+        catalog = build_library(conn, story, {ref.version_id for ref in story_references(story)})
+        documents = [catalog.document(id_) for id_ in catalog.versions]
+        source = next(version for version in documents if version["id"] == source_id)
+        del source["occlusion"]
+        prepared = prepare_queue(story, Library.from_version_documents(documents))
+        assert prepared.ok, prepared.report.problems
+        frozen, library = freeze(prepared, studio="git:fixture")
+        with pytest.raises(ContractError) as rejected:
+            runs.enqueue(conn, snapshot=frozen, snapshot_sha256=snapshot_bytes(frozen)[1],
+                         library=library, actor=OPERATOR, key="stripped-loop-source", store=q.store,
+                         estimate={"estimate": None, "methods": []})
+        assert [issue.rule for issue in rejected.value.violations] == [UNSUPPORTED]
+        assert runs.list_story(conn, q.story_id, None, 10) == []
 
 
 def test_catalog_reader_refuses_all_five_noncanonical_role_fields(queue):

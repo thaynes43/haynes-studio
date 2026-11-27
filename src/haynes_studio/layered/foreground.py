@@ -27,6 +27,7 @@ MASK_SIZE = "occlusion.mask_size"
 MASK_INVALID = "occlusion.mask_invalid"
 FOREGROUND_REQUIRED = "occlusion.foreground_required"
 UNSUPPORTED = "occlusion.unsupported"
+SET_LOOP_SOURCE_UNKNOWN = "occlusion.set_loop_source_unknown"
 MAX_MASK_BYTES = 20 * 1024 * 1024
 MAX_MASK_PIXELS = 16 * 1024 * 1024
 STILL_TYPES = {"image/png", "image/jpeg", "image/webp"}
@@ -53,20 +54,57 @@ def role_version_ids(document: Mapping) -> set[str]:
     return {role["mask"]["version_id"] for role in (document.get("occlusion") or {}).get("foreground", ())}
 
 
+@dataclass(frozen=True)
+class PictureForeground:
+    roles: tuple[RoleMask, ...] = ()
+    loop_source: AssetVersion | None = None
+
+
+def _set_loop_source(loop_id: str, library: Library, production_id: str) -> AssetVersion:
+    loop = library.get(loop_id)
+    motion = loop.motion if loop is not None and loop.has("set_loop") else None
+    still = motion.get("still_sha256") if motion else None
+    if still is not None:
+        generator = loop.provenance.get("generator") or {}
+        source_ids = generator.get("source_asset_version_ids") or ()
+        # Older loops have only the still hash. A declaration can distinguish
+        # two versions of identical bytes, so that fallback must be unique.
+        candidates = (library.get(id_) for id_ in source_ids) if source_ids else library.versions.values()
+        sources = {version.id: version for version in candidates
+                   if version is not None and version.kind == "set"
+                   and version.content is not None and version.content.media_type in STILL_TYPES
+                   and version.content.sha256 == still
+                   and library.asset_of(version.id).scope.production_id in (None, production_id)}
+        if len(sources) == 1:
+            return next(iter(sources.values()))
+    raise LayeredError(SET_LOOP_SOURCE_UNKNOWN,
+                       "The set loop must identify one source set version by its still hash and any provenance pins",
+                       where="/set/motion_asset_version_id")
+
+
 def resolve_picture_roles(version: AssetVersion | None, board: Board | None, library: Library, *,
-                          production_id: str, set_loop: bool = False) -> tuple[RoleMask, ...]:
+                          production_id: str, set_loop: bool = False,
+                          loop_version_id: str | None = None) -> PictureForeground:
     """Admit a set to a picture and resolve everything it must draw.
 
     A set used as a reference by a path without a layered compositor has no board
     here. It can supply pixels only when it declares no roles.
+    A film that plays a loop supplies its version ID. A static photo can reject
+    a declared still with a selected loop without using the loop as an input.
     """
     block = None if version is None else version.occlusion
-    if not block:
-        return ()
-    if (board is None or board.method.layer != "layered" or set_loop
+    if block and (board is None or board.method.layer != "layered" or set_loop or loop_version_id is not None
             or version.content is None or version.content.media_type not in STILL_TYPES):
         raise LayeredError(UNSUPPORTED, "Foreground role masks need a layered board with a static set still",
                            where="/set/occlusion")
+    if loop_version_id is not None:
+        source = _set_loop_source(loop_version_id, library, production_id)
+        if source.occlusion is not None:
+            raise LayeredError(UNSUPPORTED, "Select a set loop whose source set version has no foreground role masks",
+                               where="/set/motion_asset_version_id")
+        return PictureForeground(loop_source=source)
+    if not block:
+        return PictureForeground()
     if not board.layout.foreground:
         raise LayeredError(FOREGROUND_REQUIRED,
                            "Enable layout.foreground or select a set version without role masks",
@@ -75,8 +113,6 @@ def resolve_picture_roles(version: AssetVersion | None, board: Board | None, lib
     for index, role in enumerate(block.get("foreground", ())):
         path = f"/set/occlusion/foreground/{index}/mask"
         pin = role["mask"]
-        if pin["still_sha256"] != version.content.sha256:
-            raise LayeredError(MASK_STALE, "the role mask was pinned for a different set still", where=path)
         asset_version = library.get(pin["version_id"])
         if asset_version is None:
             raise LayeredError(MASK_MISSING, "no such mask version is available", where=path)
@@ -96,7 +132,7 @@ def resolve_picture_roles(version: AssetVersion | None, board: Board | None, lib
         check_mask_limits(size, content.bytes, where=path)
         roles.append(RoleMask(role["key"], role["layer_order"], asset_version.id,
                               asset_version.kind, content, size))
-    return tuple(roles)
+    return PictureForeground(roles=tuple(roles))
 
 
 def check_size(declared: tuple[int, int], size: tuple[int | None, int | None], *, where: str) -> None:

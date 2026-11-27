@@ -20,6 +20,7 @@ from haynes_studio.library import Library
 from haynes_studio.library.model import AssetVersion
 from haynes_studio.store import blob_locator, canonical_json
 
+from . import catalog
 from .problems import NotFound, StaleRevision
 from .queue_controls import is_paused
 from .schema import asset_versions, run_check_overrides, run_lane, run_wan_attempts, runs
@@ -68,24 +69,37 @@ def lookup_idempotency(conn, story_id, actor, key, story_revision):
 
 def enqueue(conn, *, snapshot, snapshot_sha256, library, actor, key, estimate, answers=None, store=None):
     story = snapshot["story"]
-    selected = (story.get("set") or {}).get("asset_version_id")
+    setting = story.get("set") or {}
+    selected = setting.get("asset_version_id")
     stored_set = (conn.scalar(sa.select(asset_versions.c.document).where(
         asset_versions.c.id == selected,
     )) if selected is not None else None)
     declared = (AssetVersion.from_document(stored_set).occlusion
                 if stored_set is not None and "occlusion" in stored_set else None)
-    if declared is not None or any("occlusion" in version for version in library):
+    has_set_loop = setting.get("motion_asset_version_id") is not None or (
+        selected is not None and any("set_loop" in (doc.get("capabilities") or ()) for doc in library)
+    )
+    if declared is not None or has_set_loop or any("occlusion" in version for version in library):
         frozen = Library.from_version_documents(library, context="write")
         library = [frozen.document(version["id"]) for version in library]
         set_version = frozen.get(selected)
         if declared is not None and (set_version is None or set_version.occlusion != declared):
             raise QueueConflict("run.snapshot_changed", "Freeze the selected set version's foreground declaration")
-        if set_version is not None and set_version.occlusion is not None:
-            if store is None:
-                raise QueueConflict(MASK_MISSING, "A store is required to verify the pinned role mask bytes")
-            require_frozen_roles(snapshot, frozen, store=store)
+        has_roles = set_version is not None and set_version.occlusion is not None
+        if has_roles and store is None:
+            raise QueueConflict(MASK_MISSING, "A store is required to verify the pinned role mask bytes")
+        if has_roles or has_set_loop:
+            foreground = require_frozen_roles(snapshot, frozen, store=store)
             if snapshot_bytes(snapshot)[1] != snapshot_sha256:
                 raise QueueConflict("run.snapshot_changed", "The supplied hash must name the canonical snapshot")
+            if foreground.loop_source is not None:
+                # Use the catalog too so a partial frozen library cannot hide a
+                # competing version of the same still or strip its declaration.
+                ids = {pin["id"] for pin in snapshot["resolved_asset_versions"]}
+                stored = catalog.build_library(conn, story, ids)
+                source = require_frozen_roles(snapshot, stored).loop_source
+                if source is None or source.id != foreground.loop_source.id:
+                    raise QueueConflict("run.snapshot_changed", "Freeze the set loop's source version from the catalog")
     production_id = story["production_id"]
     position = conn.scalar(sa.select(run_lane.c.next_position).with_for_update())
     conn.execute(run_lane.update().values(next_position=position + 1))
