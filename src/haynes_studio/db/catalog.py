@@ -63,7 +63,18 @@ def load_library(conn: sa.Connection, version_ids: Collection[str], production_i
         _catalog_scope({production_id}), asset_versions.c.id.in_(version_ids),
         _version_state() != CANDIDATE,
     ))
-    return Library.from_version_documents(_version(row) for row in rows)
+    documents = {doc["id"]: doc for doc in map(_version, rows)}
+    from haynes_studio.layered.foreground import role_version_ids
+
+    masks = set().union(*(role_version_ids(document) for document in documents.values()))
+    if missing := masks.difference(documents):
+        # Include candidates in this slice solely to report a non-ready mask pin.
+        mask_rows = conn.execute(_joined_versions().where(
+            _catalog_scope({production_id}), asset_versions.c.id.in_(missing),
+            assets.c.story_id.is_(None), assets.c.board_id.is_(None),
+        ))
+        documents.update({doc["id"]: doc for doc in map(_version, mask_rows)})
+    return Library.from_version_documents(documents.values())
 
 
 def find_assets(conn: sa.Connection, allowed: ProductionScope, *, kind: str | None,
@@ -140,8 +151,10 @@ def record_asset_version(conn: sa.Connection, document: dict, *, asset: Asset | 
         )])
     asset = asset or Asset.from_version_document(document)
     require_valid(validate_asset(asset.to_document()))
-    if version_document(version, asset) != document:
+    canonical = version_document(version, asset)
+    if canonical != AssetVersion.canonical_document(document):
         raise _scope_error("/asset_id", "The joined asset and version fields disagree")
+    document = canonical
     _check_asset_scope(conn, asset)
     scope = asset.scope
     conn.execute(insert(assets).values(
@@ -274,25 +287,36 @@ def media_for_hash(conn: sa.Connection, sha256: str, allowed: ProductionScope):
 
 
 def build_library(conn: sa.Connection, story: dict, version_ids: Collection[str]) -> Library:
-    """The explicit pins and relevant promoted motion alternatives for a snapshot."""
+    """The explicit pins, promoted motion alternatives and role declarations for admission."""
+    from haynes_studio.layered.foreground import recorded_source_ids
+
     production_id = story["production_id"]
     library = load_library(conn, version_ids, production_id)
     if not any(board["method"]["layer"] == "layered" for board in story["boards"]):
         return library
     stills = {v.content.sha256 for v in library.versions.values()
               if v.content is not None and v.content.media_type.startswith("image/")}
-    if not stills:
-        return library
-    rows = conn.execute(_joined_versions().where(
-        _catalog_scope({production_id}), assets.c.kind == "motion",
-        sa.or_(assets.c.story_id.is_(None), assets.c.story_id == story["id"]),
-        sa.or_(assets.c.board_id.is_(None), assets.c.board_id.in_(story["board_order"])),
-        _version_state() == PROMOTED,
-        asset_versions.c.document["motion"]["still_sha256"].astext.in_(stills),
-        asset_versions.c.id.not_in(version_ids),
-    ))
     documents = [version_document(v, library.asset_of(v.id)) for v in library.versions.values()]
-    return Library.from_version_documents([*documents, *(_version(row) for row in rows)])
+    if stills:
+        rows = conn.execute(_joined_versions().where(
+            _catalog_scope({production_id}), assets.c.kind == "motion",
+            sa.or_(assets.c.story_id.is_(None), assets.c.story_id == story["id"]),
+            sa.or_(assets.c.board_id.is_(None), assets.c.board_id.in_(story["board_order"])),
+            _version_state() == PROMOTED,
+            asset_versions.c.document["motion"]["still_sha256"].astext.in_(stills),
+            asset_versions.c.id.not_in(version_ids),
+        ))
+        documents.extend(map(_version, rows))
+    source_ids = {id_ for doc in documents if "set_loop" in doc["capabilities"]
+                  for id_ in recorded_source_ids(doc["provenance"])}
+    if missing := source_ids.difference(doc["id"] for doc in documents):
+        # These declarations are read for admission. Provenance alone does not pin the still.
+        rows = conn.execute(_joined_versions().where(
+            assets.c.kind == "set", asset_versions.c.id.in_(missing),
+            asset_versions.c.document.has_key("occlusion"),
+        ))
+        documents.extend(map(_version, rows))
+    return Library.from_version_documents(documents)
 
 
 def board_library(conn, library: Library, board_id: str, *kinds: str) -> Library:

@@ -77,7 +77,7 @@ To add an artifact, add a function and an `ArtifactSpec` row to `INVENTORY`.
 
 ### The key plan
 
-`plan_story(story, voices=, blobs=, voice_ids=, toolchain=, media=, content=)` walks the
+`plan_story(story, voices=, blobs=, voice_ids=, toolchain=, media=, content=, library=)` walks the
 boards in `board_order` and computes each artifact's key in dependency order. A key
 takes the content hash of what it is made from, so the plan asks `content(key)` for
 each artifact it needs downstream:
@@ -92,6 +92,7 @@ The plan's inputs are resolved beforehand:
 - each spoken board's current voice (`BoardVoice`: take hashes and lengths, and the
   track hash);
 - `blobs` (asset version to content hash);
+- `library` (the selected set version and its foreground role masks);
 - `voice_ids` (voice version to stock voice name);
 - the `Toolchain`, which holds every adapter, profile, prompt and tool digest; its
   model/tool defaults are placeholders, its negative prompts default to the Wan

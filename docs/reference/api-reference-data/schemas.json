@@ -1439,6 +1439,10 @@
           "number": {
             "$ref": "#/components/schemas/StudioDefs_positive"
           },
+          "occlusion": {
+            "$ref": "#/components/schemas/AssetVersion_occlusion",
+            "description": "Foreground role masks for an opaque set still. Each mask pins a promoted library version, its content hash, and the original set still hash and dimensions."
+          },
           "provenance": {
             "$ref": "#/components/schemas/AssetVersion_provenance"
           },
@@ -2253,6 +2257,70 @@
           "playback",
           "source",
           "keys"
+        ],
+        "type": "object"
+      },
+      "AssetVersion_occlusion": {
+        "additionalProperties": false,
+        "properties": {
+          "foreground": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "key": {
+                  "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                  "type": "string"
+                },
+                "layer_order": {
+                  "maximum": 1024,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "mask": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "height": {
+                      "$ref": "#/components/schemas/StudioDefs_positive",
+                      "description": "Original set still height in pixels, before cover fit or cropping."
+                    },
+                    "sha256": {
+                      "$ref": "#/components/schemas/StudioDefs_sha256"
+                    },
+                    "still_sha256": {
+                      "$ref": "#/components/schemas/StudioDefs_sha256"
+                    },
+                    "version_id": {
+                      "$ref": "#/components/schemas/StudioDefs_asv_id"
+                    },
+                    "width": {
+                      "$ref": "#/components/schemas/StudioDefs_positive",
+                      "description": "Original set still width in pixels, before cover fit or cropping."
+                    }
+                  },
+                  "required": [
+                    "version_id",
+                    "sha256",
+                    "still_sha256",
+                    "width",
+                    "height"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "key",
+                "layer_order",
+                "mask"
+              ],
+              "type": "object"
+            },
+            "maxItems": 16,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "foreground"
         ],
         "type": "object"
       },

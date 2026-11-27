@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+import json
 from pathlib import Path
 from secrets import token_hex
 from concurrent.futures import ThreadPoolExecutor
@@ -1511,3 +1512,326 @@ def test_terminal_admission_prefers_machine_code(queue, admission_code, legacy_m
     attempt_state = "busy" if state == "queued" else "sent"
     assert run["wan_attempts"][0]["state"] == attempt_state
     assert len(fake.puts()) == 1 and not fake.submissions
+
+
+def select_role_set(q, tmp_path, *, with_unmasked=False, loop_source=None, discover_loop=False):
+    from copy import deepcopy
+
+    from haynes_studio.motion.winter_menu import complete_block
+    from haynes_studio.store import blob_locator
+    from tests.build_story import fixtures as f
+    from tests.build_story.test_foreground_roles import MASK, SOURCE, UNMASKED_SET, role_world
+    from tests.layered import media
+
+    world, example_story, plate = role_world(tmp_path / "role-store", right=SOURCE[0])
+    if with_unmasked or loop_source == "unmasked":
+        original = deepcopy(plate)
+        original["id"] = UNMASKED_SET
+        del original["occlusion"]
+        plate["number"] = 2
+        world.docs.insert(world.docs.index(plate), original)
+    if loop_source is not None:
+        world.loop(f.SET_LOOP, 41, still_sha=plate["content"]["sha256"], clip=media.set_clip(f.SET_N),
+                   start=media.set_plate(), subject="set", frames=f.SET_N)
+        loop = world.docs[-1]
+        if not discover_loop:
+            loop["motion"].pop("still_sha256")
+            loop["motion"] = complete_block(loop["motion"], loop["content"]["sha256"])
+        if loop_source != "none":
+            source = UNMASKED_SET if loop_source == "unmasked" else f.PLATE
+            loop["provenance"]["generator"]["source_asset_version_ids"] = [source]
+    add_sound_bed(q, tmp_path)
+    minter = Minter()
+    ids = {doc["id"]: minter.mint("asv") for doc in world.docs}
+    assets = {asset_id: minter.mint("ast") for asset_id in {doc["asset_id"] for doc in world.docs}}
+    with q.engine.begin() as conn:
+        for doc in deepcopy(world.docs):
+            doc.update(id=ids[doc["id"]], asset_id=assets[doc["asset_id"]])
+            doc["provenance"]["source_key"] = "fixture:role:" + doc["id"]
+            if doc["legacy"] is not None:
+                doc["legacy"]["source_key"] = doc["provenance"]["source_key"]
+            if doc["content"] is not None:
+                content = doc["content"]
+                doc["scope"] = {"production_id": q.production_id}
+                with world.store.open(content["locator"]) as data:
+                    published = q.store.publish(data, scope=q.production_id, media_type=content["media_type"])
+                content["locator"] = published.locator
+            if doc.get("occlusion"):
+                doc["occlusion"]["foreground"][0]["mask"]["version_id"] = ids[MASK]
+            if doc.get("motion"):
+                generator = doc["provenance"]["generator"]
+                if "source_asset_version_ids" in generator:
+                    generator["source_asset_version_ids"] = [ids[source] for source in generator["source_asset_version_ids"]]
+                digest = doc["motion"]["source"]["image_sha256"]
+                origin = blob_locator(example_story["production_id"], digest, "image/png")
+                with world.store.open(origin) as start:
+                    q.store.publish(start, scope=q.production_id, media_type="image/png", expected_sha256=digest)
+            record_asset_version(conn, doc)
+
+    story_path = f"/v1/stories/{q.story_id}"
+    example_story["layouts"]["default"] = {}
+    example_story["cast"][0]["voice_version_id"] = ids[example_story["cast"][0]["voice_version_id"]]
+    example_story["set"]["asset_version_id"] = ids[example_story["set"]["asset_version_id"]]
+    changed = q.browser.patch(story_path, headers={**q.csrf, "If-Match": "4"}, json={
+        key: example_story[key] for key in ("cast", "set", "layouts", "motion_style")
+    })
+    assert changed.status_code == 200, changed.text
+    board_path = f"/v1/boards/{q.board_id}"
+    sample = example_story["boards"][0]
+    sample["timing"]["hold_ms"] = 500
+    for key in ("asset_version_id", "motion_asset_version_id"):
+        sample["cast"][0][key] = ids[sample["cast"][0][key]]
+    board = q.browser.patch(board_path, headers={**q.csrf, "If-Match": "2"}, json={
+        key: sample[key] for key in ("cast", "layout", "method", "timing", "photo")
+    })
+    assert board.status_code == 200, board.text
+    return ids, example_story["set"]["asset_version_id"], board.headers["etag"]
+
+
+def test_queue_and_run_writer_require_foreground_and_pin_the_mask(queue, tmp_path, request):
+    from copy import deepcopy
+
+    from haynes_studio.build.prebuild import snapshot_bytes
+    from haynes_studio.errors import ContractError
+    from haynes_studio.layered.foreground import FOREGROUND_REQUIRED, MASK_STALE
+    from tests.build_story.test_foreground_roles import MASK
+
+    q = queue
+    ids, set_id, etag = select_role_set(q, tmp_path)
+    board_path = f"/v1/boards/{q.board_id}"
+    disabled = q.browser.patch(board_path, headers={**q.csrf, "If-Match": etag},
+                               json={"layout": {"preset": "pair", "foreground": False}})
+    assert disabled.status_code == 200, disabled.text
+    refused = queue_run(q, "disabled-role", rev=7)
+    assert refused.status_code == 422, refused.text
+    assert refused.json()["error"]["code"] == FOREGROUND_REQUIRED
+
+    enabled = q.browser.patch(board_path, headers={**q.csrf, "If-Match": disabled.headers["etag"]},
+                              json={"layout": {"preset": "pair", "foreground": True}})
+    assert enabled.status_code == 200, enabled.text
+    queued = queue_run(q, "enabled-role", rev=8)
+    assert queued.status_code == 201, queued.text
+    run_id = queued.json()["id"]
+    with q.engine.begin() as conn:
+        row = runs.get(conn, run_id)
+        [mask_pin] = [pin for pin in row["snapshot"]["resolved_asset_versions"] if pin["id"] == ids[MASK]]
+        [mask] = [doc for doc in row["frozen_library"] if doc["id"] == ids[MASK]]
+        assert mask_pin == {"id": ids[MASK], "kind": "prop", "sha256": mask["content"]["sha256"]}
+        for code in (FOREGROUND_REQUIRED, MASK_STALE):
+            snapshot = deepcopy(row["snapshot"])
+            if code == FOREGROUND_REQUIRED:
+                snapshot["story"]["boards"][0]["layout"]["foreground"] = False
+            else:
+                mask_pin = next(pin for pin in snapshot["resolved_asset_versions"] if pin["id"] == ids[MASK])
+                mask_pin["sha256"] = "0" * 64
+            with pytest.raises(ContractError) as rejected:
+                runs.enqueue(conn, snapshot=snapshot, snapshot_sha256=snapshot_bytes(snapshot)[1],
+                             library=row["frozen_library"], actor=row["document"]["queued_by"], key=code,
+                             store=q.store, estimate={"estimate": None, "methods": []})
+            assert [issue.rule for issue in rejected.value.violations] == [code]
+        library = deepcopy(row["frozen_library"])
+        version = next(version for version in library if version["id"] == set_id)
+        version["occlusion"]["foreground"][0]["layer_order"] += 1
+        with pytest.raises(runs.QueueConflict) as rejected:
+            runs.enqueue(conn, snapshot=row["snapshot"], snapshot_sha256=row["document"]["snapshot"]["sha256"],
+                         library=library, actor=row["document"]["queued_by"], key="changed-declaration",
+                         store=q.store, estimate={"estimate": None, "methods": []})
+        assert rejected.value.code == "run.snapshot_changed"
+        assert [held["id"] for held in runs.list_story(conn, q.story_id, None, 10)] == [run_id]
+
+    wan_client = FakeWan().client()
+    request.addfinalizer(wan_client.close)
+    worker = BuildWorker(worker_api(q), ProductWan(wan_client), store=q.store, stage_root=q.stage_root,
+                         register=register(), tracker_story=STORY,
+                         transcriber=SimpleNamespace(name="Fixture ASR", transcribe=lambda _: ""),
+                         clock=q.clock.monotonic, pause=q.clock.advance)
+    assert worker.tick()
+    built, _ = read_run(q, run_id)
+    assert built["status"] == "succeeded", built["error"]
+
+
+@pytest.mark.parametrize("path", [
+    "layered-photo", "layered-photo-rerender", "layered-film", "layered-film-rerun",
+    "whole-frame-photo", "whole-frame-photo-selected-reference", "whole-frame-photo-reference", "whole-frame-film",
+    "external-upload", "external-upload-reference",
+    "layered-set-loop", "layered-set-loop-and-still", "layered-set-loop-and-sibling", "layered-set-loop-unmasked",
+    "layered-set-loop-discovered",
+])
+def test_picture_paths_draw_the_selected_role_mask_or_refuse(queue, tmp_path, path):
+    from io import BytesIO
+
+    import numpy as np
+    from PIL import Image
+
+    from haynes_studio.db.schema import media_jobs
+    from haynes_studio.layered.foreground import UNSUPPORTED
+    from haynes_studio.queue.staging import BuildStageStore
+    from haynes_studio.render.encode import decode_frames
+    from haynes_studio.store import blob_locator
+    from tests.build_story.fixtures import SET_LOOP
+    from tests.build_story.test_foreground_roles import UNMASKED_SET
+    from tests.db.test_media_jobs import PROVENANCE, image_worker
+
+    q = queue
+    loop = path.startswith("layered-set-loop")
+    unmasked_loop = path == "layered-set-loop-unmasked"
+    loop_source = {"layered-set-loop-and-still": "none", "layered-set-loop-unmasked": "unmasked"}.get(path, "masked")
+    discovered = path == "layered-set-loop-discovered"
+    sibling = discovered or path == "layered-set-loop-and-sibling"
+    ids, set_id, etag = select_role_set(q, tmp_path, with_unmasked=sibling,
+                                       loop_source=loop_source if loop else None, discover_loop=discovered)
+    board_path = f"/v1/boards/{q.board_id}"
+    story_path = f"/v1/stories/{q.story_id}"
+    if loop:
+        story = q.browser.get(story_path)
+        selected = set_id if path == "layered-set-loop-and-still" else None
+        if sibling:
+            selected = ids[UNMASKED_SET]
+        setting = {**story.json()["set"], "motion_asset_version_id": None if discovered else ids[SET_LOOP],
+                   "asset_version_id": selected}
+        changed = q.browser.patch(story_path, json={"set": setting},
+                                  headers={**q.csrf, "If-Match": story.headers["etag"]})
+        assert changed.status_code == 200, changed.text
+        if not unmasked_loop:
+            refused = queue_run(q, path, rev=changed.json()["revision"])
+            assert refused.status_code == 422, refused.text
+            assert refused.json()["error"]["code"] == UNSUPPORTED
+            with q.owner.connect() as conn:
+                assert runs.list_story(conn, q.story_id, None, 10) == []
+            if discovered or path == "layered-set-loop":
+                assert_loop_provenance_cannot_be_stripped_from_sql_run(q, ids[SET_LOOP], discovered=discovered)
+            return
+
+    if not path.startswith("layered-"):
+        # Exercise both an explicitly selected set and an unselected set used as an image reference.
+        reference_only = path in ("whole-frame-photo-reference", "external-upload-reference")
+        if reference_only:
+            story = q.browser.get(story_path)
+            changed = q.browser.patch(story_path, json={"set": None},
+                                      headers={**q.csrf, "If-Match": story.headers["etag"]})
+            assert changed.status_code == 200, changed.text
+        sources = [set_id] if path.startswith("whole-frame-photo") and path.endswith("-reference") else []
+        changed = q.browser.patch(board_path, headers={**q.csrf, "If-Match": etag}, json={
+            "method": {"layer": "whole_frame", "motion": "i2v"}, "cast": [],
+            "photo": {"current_version_id": q.version_id, "prompt": "first angle",
+                      "input_asset_version_ids": sources},
+        })
+        assert changed.status_code == 200, changed.text
+        if path.startswith("external-"):
+            _, headers = register_agent(q.owner, {q.production_id: ["read", "assets:upload"]})
+            declared = {**PROVENANCE, "source_asset_version_ids": [set_id] if reference_only else []}
+            refused = q.browser.post(board_path + "/photo-versions", content=q.png, headers={
+                **headers, "If-Match": changed.headers["etag"], "Content-Type": "image/png",
+                "X-Studio-Photo-Provenance": json.dumps(declared),
+            })
+        elif path == "whole-frame-film":
+            revision = q.browser.get(story_path).json()["revision"]
+            refused = queue_run(q, path, rev=revision)
+        else:
+            refused = q.browser.post(board_path + "/photo-jobs", json={},
+                                     headers={**q.csrf, "Idempotency-Key": path})
+        assert refused.status_code == 422, refused.text
+        assert refused.json()["error"]["code"] == UNSUPPORTED
+        with q.owner.connect() as conn:
+            assert conn.scalar(sa.select(sa.func.count()).select_from(media_jobs)) == 0
+            assert runs.list_story(conn, q.story_id, None, 10) == []
+        return
+
+    if path.startswith("layered-photo"):
+        worker, runner = image_worker(q)
+        attempts = 2 if path.endswith("rerender") else 1
+        for attempt in range(attempts):
+            queued = q.browser.post(board_path + "/photo-jobs", json={},
+                                    headers={**q.csrf, "Idempotency-Key": f"{path}-{attempt}"})
+            assert queued.status_code == 202, queued.text
+            job_id = queued.json()["id"]
+            assert worker.tick()
+            result = q.browser.get(f"/v1/jobs/{job_id}/result")
+            assert result.status_code == 200, result.text
+            version = result.json()
+            # The same stored bytes feed the job preview and board thumbnails.
+            digest = version["content"]["sha256"]
+            preview = q.browser.get(f"/v1/jobs/{job_id}/media/{digest}")
+            assert preview.status_code == 200, preview.text
+            with Image.open(BytesIO(preview.content)) as image:
+                assert image.size == (1080, 1920)
+                assert np.count_nonzero(np.asarray(image)) == 0
+        assert not runner.calls
+        return
+
+    with FakeWan().client() as wan_client:
+        worker = BuildWorker(worker_api(q), ProductWan(wan_client), store=q.store, stage_root=q.stage_root,
+                             register=register(), tracker_story=STORY,
+                             transcriber=SimpleNamespace(name="Fixture ASR", transcribe=lambda _: ""),
+                             clock=q.clock.monotonic, pause=q.clock.advance)
+        attempts = 2 if path.endswith("rerun") else 1
+        for attempt in range(attempts):
+            revision = q.browser.get(story_path).json()["revision"]
+            queued = queue_run(q, f"{path}-{attempt}", rev=revision)
+            assert queued.status_code == 201, queued.text
+            if unmasked_loop:
+                with q.owner.connect() as conn:
+                    frozen = runs.get(conn, queued.json()["id"])["snapshot"]
+                pinned = {pin["id"] for pin in frozen["resolved_asset_versions"]}
+                assert ids[SET_LOOP] in pinned and ids[UNMASKED_SET] not in pinned
+                assert frozen["story"]["set"]["asset_version_id"] is None
+            assert worker.tick()
+            built, _ = read_run(q, queued.json()["id"])
+            assert built["status"] == "succeeded", built["error"]
+            stage = built["stages"][0]
+            segment = next(artifact for artifact in stage["artifacts"] if artifact["name"] == "segment")
+            staging = BuildStageStore(q.stage_root, built["id"], q.store)
+            for store, digest in ((staging, segment["sha256"]),
+                                  (q.store, built["outputs"]["master_sha256"]),
+                                  (q.store, built["outputs"]["proxy_sha256"])):
+                locator = blob_locator(q.production_id, digest, "video/mp4")
+                with store.open(locator) as media:
+                    assert bool(np.count_nonzero(next(decode_frames(media)))) is unmasked_loop
+
+
+def assert_loop_provenance_cannot_be_stripped_from_sql_run(q, loop_id, *, discovered):
+    from haynes_studio.build.prebuild import snapshot_bytes
+    from haynes_studio.db.catalog import build_library
+    from haynes_studio.errors import ContractError
+    from haynes_studio.layered.foreground import UNSUPPORTED
+    from haynes_studio.library.resolve import story_references
+    from haynes_studio.queue.inputs import freeze, prepare_queue
+    from tests.build_story.fixtures import OPERATOR
+
+    with q.engine.begin() as conn:
+        story = drafts.get_draft(conn, q.story_id).exchange()
+        catalog = build_library(conn, story, {ref.version_id for ref in story_references(story)})
+        documents = [catalog.document(id_) for id_ in catalog.versions]
+        loop = next(version for version in documents if version["id"] == loop_id)
+        del loop["provenance"]["generator"]["source_asset_version_ids"]
+        prepared = prepare_queue(story, Library.from_version_documents(documents))
+        assert prepared.ok, prepared.report.problems
+        frozen, library = freeze(prepared, studio="git:fixture")
+        if discovered:
+            minter = Minter()
+            competitor = {**loop, "id": minter.mint("asv"), "asset_id": minter.mint("ast"), "legacy": None,
+                          "provenance": {**loop["provenance"], "source_key": "fixture:competing-loop"}}
+            record_asset_version(conn, competitor)
+        with pytest.raises(ContractError) as rejected:
+            runs.enqueue(conn, snapshot=frozen, snapshot_sha256=snapshot_bytes(frozen)[1],
+                         library=library, actor=OPERATOR, key="stripped-loop-source", store=q.store,
+                         estimate={"estimate": None, "methods": []})
+        assert [issue.rule for issue in rejected.value.violations] == [UNSUPPORTED]
+        assert runs.list_story(conn, q.story_id, None, 10) == []
+
+
+def test_catalog_reader_refuses_all_five_noncanonical_role_fields(queue):
+    from haynes_studio.db.catalog import version_library
+    from haynes_studio.db.schema import asset_versions
+    from haynes_studio.errors import ContractError
+
+    with queue.owner.connect() as conn:
+        document = conn.scalar(sa.select(asset_versions.c.document).where(asset_versions.c.id == queue.version_id))
+        for value in (None, [], {}, {"foreground": []}, {"foreground": None}):
+            conn.execute(asset_versions.update().where(asset_versions.c.id == queue.version_id).values(
+                document={**document, "occlusion": value},
+            ))
+            with pytest.raises(ContractError) as refused:
+                version_library(conn, version_id=queue.version_id)
+            assert [issue.rule for issue in refused.value.violations] == ["occlusion.noncanonical"]
+        conn.rollback()

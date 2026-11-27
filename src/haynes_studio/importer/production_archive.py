@@ -14,6 +14,7 @@ import av
 
 from haynes_studio.adapters.errors import AdapterError
 from haynes_studio.adapters.wan_ledger import record_from_document
+from haynes_studio.build.prebuild import require_frozen_roles
 from haynes_studio.build.validate import validate_run, validate_run_snapshot
 from haynes_studio.delivery.model import (
     AAC, DELIVERY_SCHEMA, FPS, H264, MASTER_SIZES, MP4, PROXY_SIZES, proxy_byte_limit,
@@ -155,8 +156,14 @@ def _pins(snapshot: dict, value: object) -> list[dict]:
         raise ImportProblem("asset_versions", "asset-versions.json")
     try:
         library = Library.from_version_documents(value)
-    except ContractError:
+    except ContractError as error:
+        if error.violations[0].rule == "occlusion.noncanonical":
+            raise ImportProblem("occlusion.noncanonical", "asset-versions.json") from None
         raise ImportProblem("asset_versions", "asset-versions.json") from None
+    try:
+        require_frozen_roles(snapshot, library)
+    except ContractError as error:
+        raise ImportProblem(error.violations[0].rule, "asset-versions.json") from None
     by_id = {item["id"]: item for item in value}
     pinned = []
     for entry in snapshot["resolved_asset_versions"]:

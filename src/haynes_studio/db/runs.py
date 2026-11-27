@@ -12,13 +12,18 @@ from uuid import uuid4
 
 import sqlalchemy as sa
 
+from haynes_studio.build.prebuild import require_frozen_roles, snapshot_bytes
 from haynes_studio.build.run import advance, new_run, update
 from haynes_studio.canonical.ids import Minter
+from haynes_studio.layered.foreground import MASK_MISSING
+from haynes_studio.library import Library
+from haynes_studio.library.model import AssetVersion
 from haynes_studio.store import blob_locator, canonical_json
 
+from . import catalog
 from .problems import NotFound, StaleRevision
 from .queue_controls import is_paused
-from .schema import run_check_overrides, run_lane, run_wan_attempts, runs
+from .schema import asset_versions, run_check_overrides, run_lane, run_wan_attempts, runs
 
 ACTIVE = ("queued", "running", "held")
 PENDING = ("reserved", "sent")
@@ -62,8 +67,35 @@ def lookup_idempotency(conn, story_id, actor, key, story_revision):
     return row
 
 
-def enqueue(conn, *, snapshot, snapshot_sha256, library, actor, key, estimate, answers=None):
+def enqueue(conn, *, snapshot, snapshot_sha256, library, actor, key, estimate, answers=None, store=None):
     story = snapshot["story"]
+    setting = story.get("set") or {}
+    selected = setting.get("asset_version_id")
+    stored_set = (conn.scalar(sa.select(asset_versions.c.document).where(
+        asset_versions.c.id == selected,
+    )) if selected is not None else None)
+    declared = (AssetVersion.from_document(stored_set).occlusion
+                if stored_set is not None and "occlusion" in stored_set else None)
+    has_set_loop = setting.get("motion_asset_version_id") is not None or (
+        selected is not None and any("set_loop" in (doc.get("capabilities") or ()) for doc in library)
+    )
+    if declared is not None or has_set_loop or any("occlusion" in version for version in library):
+        frozen = Library.from_version_documents(library, context="write")
+        library = [frozen.document(version["id"]) for version in library]
+        set_version = frozen.get(selected)
+        if declared is not None and (set_version is None or set_version.occlusion != declared):
+            raise QueueConflict("run.snapshot_changed", "Freeze the selected set version's foreground declaration")
+        has_roles = set_version is not None and set_version.occlusion is not None
+        if has_roles and store is None:
+            raise QueueConflict(MASK_MISSING, "A store is required to verify the pinned role mask bytes")
+        if has_roles or has_set_loop:
+            motion = require_frozen_roles(snapshot, frozen, store=store)
+            if snapshot_bytes(snapshot)[1] != snapshot_sha256:
+                raise QueueConflict("run.snapshot_changed", "The supplied hash must name the canonical snapshot")
+            if has_set_loop:
+                # Check the frozen loop's recorded provenance even if the catalog has other loop candidates.
+                ids = {pin["id"] for pin in snapshot["resolved_asset_versions"]}
+                require_frozen_roles(snapshot, catalog.build_library(conn, story, ids), motion=motion)
     production_id = story["production_id"]
     position = conn.scalar(sa.select(run_lane.c.next_position).with_for_update())
     conn.execute(run_lane.update().values(next_position=position + 1))

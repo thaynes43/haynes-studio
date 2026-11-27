@@ -1512,6 +1512,8 @@ export interface components {
             motion?: components["schemas"]["AssetVersion_motion"];
             name: components["schemas"]["Asset_name"];
             number: components["schemas"]["StudioDefs_positive"];
+            /** @description Foreground role masks for an opaque set still. Each mask pins a promoted library version, its content hash, and the original set still hash and dimensions. */
+            occlusion?: components["schemas"]["AssetVersion_occlusion"];
             provenance: components["schemas"]["AssetVersion_provenance"];
             /**
              * @description A production archive supplied this asset version's record only.
@@ -1604,6 +1606,21 @@ export interface components {
             use: "loop" | "timed";
             width: components["schemas"]["StudioDefs_positive"];
         } & (unknown & unknown & unknown);
+        AssetVersion_occlusion: {
+            foreground: {
+                key: string;
+                layer_order: number;
+                mask: {
+                    /** @description Original set still height in pixels, before cover fit or cropping. */
+                    height: components["schemas"]["StudioDefs_positive"];
+                    sha256: components["schemas"]["StudioDefs_sha256"];
+                    still_sha256: components["schemas"]["StudioDefs_sha256"];
+                    version_id: components["schemas"]["StudioDefs_asv_id"];
+                    /** @description Original set still width in pixels, before cover fit or cropping. */
+                    width: components["schemas"]["StudioDefs_positive"];
+                };
+            }[];
+        };
         AssetVersion_provenance: {
             created_at: components["schemas"]["StudioDefs_timestamp"];
             created_by: components["schemas"]["StudioDefs_principal"];

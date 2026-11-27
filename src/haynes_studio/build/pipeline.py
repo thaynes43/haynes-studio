@@ -414,7 +414,7 @@ class _Build:
         prepared = self.prepared
         return plan_story(self.story, voices=_voices(self.story, prepared.document, prepared),
                           blobs=_blobs(prepared), voice_ids=_voice_ids(prepared),
-                          toolchain=self.toolchain, media=self.media, content=chain,
+                          toolchain=self.toolchain, media=self.media, content=chain, library=prepared.library,
                           motion=self._located(prepared.motion))
 
     def _located(self, motion: LayeredMotion | None) -> LayeredMotion | None:
@@ -839,6 +839,10 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
     production = story.production_id
     records = RunRecords(store, production)
     if queued is None:
+        if story.set is not None:
+            selected_set = library.get(story.set.asset_version_id)
+            if selected_set is not None and selected_set.occlusion is not None:
+                prepared.ensure_buildable()
         try:
             snapshot = make_snapshot(prepared, library, studio=inputs.studio)
         except AssertionError as error:  # a reference the library does not hold
@@ -851,7 +855,7 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
             "sha256": sha, "story_revision": story.revision, "board_count": len(story.boards or ()),
             "locator": blob_locator(production, sha, JSON)}, queued_by=actor, queued_at=now(),
             idempotency_key=idempotency_key)
-        records.create(run, data)
+        records.create(run, data, library=library)
         run = records.write(advance(run, RUNNING, at=now(), by=actor, reason=f"build started ({phase} phase)"))
         write_record = records.write
     else:
@@ -1174,6 +1178,7 @@ def _master_file(store: Store, production_id: str, sha256: str, scratch: str
 
 def _input_versions(prepared: Prepared, recorder: _Recorder) -> list[str]:
     ids = [item.version_id for item in prepared.resolution.resolved]
+    ids.extend(role.version_id for role in prepared.foreground_roles)
     return list(dict.fromkeys([*ids, *sorted(recorder.library_inputs)]))
 
 

@@ -21,11 +21,11 @@ BASIS = ("E0 The Winter Menu: TI2V clips, lightning S2V chunks and CPU compositi
          "Cold-cache estimate. Shared GPU load, cooldown, reuse and retries vary.")
 
 
-def prepare_queue(story, library, *, jobs=(), format_version=None):
+def prepare_queue(story, library, *, jobs=(), format_version=None, mask_store=None):
     media = media_format(story["media_kind"])
     return prepare(story, library=library, store=None, toolchain=Toolchain(),
                    frame_size=(media.width, media.height), current_engine=Engine().signing_name,
-                   jobs=jobs, check_photo_currency=True, format_version=format_version)
+                   jobs=jobs, check_photo_currency=True, format_version=format_version, mask_store=mask_store)
 
 
 def freeze(prepared, *, studio):

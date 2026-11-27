@@ -166,7 +166,7 @@ def test_a_builder_refuses_a_key_for_another_mixer_or_mux(store):
     for toolchain in (Toolchain(), dataclasses.replace(TOOLCHAIN, mux={"audio": "aac"})):
         with pytest.raises(CacheError) as error:
             plan_story(build.story, voices=build.voices, blobs=build.blobs, voice_ids=fx.VOICE_IDS,
-                       toolchain=toolchain, media=fx.MEDIA, content=build.sound)
+                       toolchain=toolchain, media=fx.MEDIA, content=build.sound, library=fx.library())
         assert error.value.code == "cache.entry_invalid"
 
 

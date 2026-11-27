@@ -27,9 +27,12 @@ from collections.abc import Mapping
 from typing import Any
 
 from haynes_studio.build.errors import RUN_TRANSITION, RUN_UNKNOWN, BuildError
-from haynes_studio.build.validate import validate_run
+from haynes_studio.build.prebuild import require_frozen_roles
+from haynes_studio.build.validate import validate_run, validate_run_snapshot
 from haynes_studio.canonical.validate import WRITE
-from haynes_studio.errors import blocking
+from haynes_studio.errors import ContractError, blocking
+from haynes_studio.jsonio import parse_strict
+from haynes_studio.library import Library
 from haynes_studio.stages import StageOutput, commit_stage, completed_stage
 from haynes_studio.store import LocalStore, Store, canonical_json
 from haynes_studio.store.layout import check_production_id, check_run_id
@@ -133,12 +136,17 @@ class RunRecords:
             raise AssertionError("; ".join(str(problem) for problem in problems))
         return canonical_json(dict(run))
 
-    def create(self, run: Mapping[str, Any], snapshot: bytes) -> dict[str, Any]:
+    def create(self, run: Mapping[str, Any], snapshot: bytes, *, library: Library) -> dict[str, Any]:
         """Record a new run (version 1) with its snapshot blob. The snapshot must be
         the bytes the run names (its sha256)."""
         run_id = check_run_id(run["id"])
         if self.latest(run_id) is not None:
             raise BuildError(RUN_TRANSITION, f"run {run_id} exists; a run ID is never reused")
+        document = parse_strict(snapshot)
+        problems = blocking(validate_run_snapshot(document, context=WRITE))
+        if problems:
+            raise ContractError("<run snapshot>", problems)
+        require_frozen_roles(document, library, store=self.store)
         commit_stage(self.store, production_id=self.production_id, run_id=run_id,
                      stage=version_stage(1), outputs={
                          RUN_OUTPUT: StageOutput(self._check(run), JSON),

@@ -244,9 +244,9 @@ segment rendered in the run can fail on its track
 
 ## The layered board's photo (D51)
 
-`photo_inputs(story, board, blobs=, width=, height=)` names what a layered board's
-reference photo is made from: the story's set still, the board's cast stills in draw
-order, the layout preset's values, the foreground edge (when the board shows it) and the
+`photo_inputs(story, board, blobs=, width=, height=, set_sha256=, roles=)` names what a layered board's
+reference photo is made from: the admitted set still, the board's cast stills in draw
+order, the layout preset's values, the foreground roles or edge and the
 framing (the last camera cue's `zoom_to` and `center_px`). `compose_photo(inputs, read)`
 composes it as `poc/keyframes.py` did: the set fitted to the frame, each cutout placed by
 the preset with its shadow and no motion, the foreground, the camera at its end; a PNG
@@ -258,7 +258,7 @@ build never reads the photo. A cast still with no transparent pixel is refused.
 
 ## The cache plan's layered path
 
-`plan_story(..., motion=pin_story(story_document, library, store.verify))` plans every
+`plan_story(..., library=library, motion=pin_story(story_document, library, store.verify))` plans every
 layered board from pinned records (story 457's resolver, run as if the board were
 layered I2V so every cast entry has its loop):
 
@@ -348,7 +348,7 @@ builder = PictureBuilder(cache, LayeredRenderer(), open_input=read,
                          upstream=lambda key: stages(key) if stages.handles(key) else other(key))
 tools = replace(Toolchain(), compositor=COMPOSITOR, s2v_profile=..., drive_rate=24_000)
 motion = pin_story(story_document, library, store.verify, production_id=prd)
-plan = plan_story(story, ..., toolchain=tools, content=builder, motion=motion)
+plan = plan_story(story, ..., toolchain=tools, content=builder, motion=motion, library=library)
 ```
 
 - Takes, the board voice track, library clips and stills must be in the store under

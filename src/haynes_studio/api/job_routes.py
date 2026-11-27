@@ -22,7 +22,7 @@ from haynes_studio.jsonio import parse_strict
 from haynes_studio.layered.errors import LayeredError
 from haynes_studio.library.model import signature, version_document
 from haynes_studio.photo.build import METHOD_INVALID, ExternalProvenance, import_photo
-from haynes_studio.photo.plan import WHOLE_FRAME
+from haynes_studio.photo.plan import WHOLE_FRAME, sources_for
 from haynes_studio.photo_limits import TIMEOUT_CODE, TIMEOUT_MESSAGE, UploadBodyTimeout
 from haynes_studio.photo.validation import MAX_UPLOAD_BYTES
 from haynes_studio.queue.media_inputs import documents, matte_signature, photo_plan, photo_request, provenance
@@ -170,7 +170,10 @@ def _upload_inputs(state, actor, board_id, revision, declared):
                            path="/method/layer")
         # The current ID fences selection. Bytes are required only for media
         # that is actually used as a source for the replacement.
-        return story_id, photo_plan(story, board_id, library), library
+        plan = photo_plan(story, board_id, library)
+        sources_for(library, plan.scope, tuple(declared.source_asset_version_ids),
+                    "/provenance/generator/source_asset_version_ids", images_only=False)
+        return story_id, plan, library
 
 
 def _write_upload(state, actor, story_id, prepared):
@@ -197,7 +200,9 @@ def build_router(CurrentActor, authenticated_route):
                        actor: CurrentActor, idempotency_key: IdempotencyKey):
         try:
             return _board_job(request, response, actor, id, idempotency_key, "photo", body)
-        except (AdapterError, LayeredError) as error:
+        except LayeredError as error:
+            raise APIError(422, error.code, error.message, path=error.where or "/photo") from error
+        except AdapterError as error:
             raise APIError(422, error.code, str(error), path="/photo") from error
 
     @router.post("/asset-jobs", operation_id="generate_asset_candidate", status_code=202,
@@ -341,9 +346,12 @@ def build_router(CurrentActor, authenticated_route):
             raise APIError(403, "auth.forbidden", "D42 uploads require an agent key")
         declared = _provenance(request, declaration)
         state = request.app.state
-        story_id, plan, library = await run_in_threadpool(
-            _upload_inputs, state, actor, id, _revision(if_match), declared,
-        )
+        try:
+            story_id, plan, library = await run_in_threadpool(
+                _upload_inputs, state, actor, id, _revision(if_match), declared,
+            )
+        except LayeredError as error:
+            raise APIError(422, error.code, error.message, path=error.where or "/photo") from error
         media_type = request.headers.get("content-type", "")
         if media_type not in UPLOAD_MIMES or request.headers.get("content-encoding", "identity") != "identity":
             raise APIError(422, "photo.image_invalid", "Supply an uncompressed PNG, JPEG or WebP body",

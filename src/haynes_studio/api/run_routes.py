@@ -123,12 +123,12 @@ def transport_models():
     )
 
 
-def _prepare(conn, draft):
+def _prepare(conn, draft, *, mask_store=None):
     story = draft.exchange()
     refs = {item.version_id for item in story_references(story)}
     return inputs.prepare_queue(story, catalog.build_library(conn, story, refs),
                                 jobs=jobs.active_for_story(conn, story["id"]),
-                                format_version=draft.format_version(conn))
+                                format_version=draft.format_version(conn), mask_store=mask_store)
 
 
 def _read_view(conn, row, *, detail=True, worker_present=None):
@@ -236,7 +236,7 @@ def build_router(CurrentActor, authenticated_route):
                 current = draft.story["revision"]
                 if current != revision:
                     raise StaleRevision(current)
-                prepared = _prepare(conn, draft)
+                prepared = _prepare(conn, draft, mask_store=store)
                 prepared.ensure_buildable()
                 frozen, library = inputs.freeze(prepared, studio=request.app.state.build_revision)
                 data, sha = snapshot_bytes(frozen)
@@ -251,7 +251,7 @@ def build_router(CurrentActor, authenticated_route):
                     raise APIError(503, "run.snapshot_store_unavailable",
                                    "The snapshot could not be stored") from error
                 row = runs.enqueue(conn, snapshot=frozen, snapshot_sha256=sha, library=library,
-                                   actor=principal, key=idempotency_key,
+                                   actor=principal, key=idempotency_key, store=store,
                                    estimate=inputs.estimate(prepared), answers=feedback.answers(conn, id))
             response.headers["Location"] = f'/v1/runs/{row["id"]}'
             return _etag(response, _read_view(conn, row))

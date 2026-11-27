@@ -3,10 +3,13 @@
 from functools import cache
 from typing import Annotated, Any, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, StringConstraints, model_validator
 from pydantic.root_model import RootModel
 
 from haynes_studio.drafting.declaration import PersonEditAcknowledgment
+from haynes_studio.errors import ContractError, blocking
+from haynes_studio.library.model import Asset, AssetVersion as CanonicalAssetVersion, version_document
+from haynes_studio.library.validate import validate_asset_version
 
 MediaKind = Literal["short", "video"]
 Identifier = Annotated[str, StringConstraints(min_length=30, max_length=30)]
@@ -112,7 +115,15 @@ class Timing(Document):
 
 
 class AssetVersion(Document):
-    pass
+    @model_validator(mode="after")
+    def canonicalize(self):
+        document = CanonicalAssetVersion.canonical_document(self.root)
+        problems = blocking(validate_asset_version(document, context="write"))
+        if problems:
+            raise ContractError("<asset version response>", problems)
+        self.root = version_document(CanonicalAssetVersion.from_document(document),
+                                     Asset.from_version_document(document))
+        return self
 
 
 class Delivery(Document):

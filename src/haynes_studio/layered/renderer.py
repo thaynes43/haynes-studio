@@ -50,6 +50,7 @@ from haynes_studio.layered.errors import (
     UNSUPPORTED,
     LayeredError,
 )
+from haynes_studio.layered.foreground import draw_layers
 from haynes_studio.layered.keyed import decode_png, frame_pngs, read_record, read_verified
 from haynes_studio.render.base import SegmentRenderer, SegmentRequest
 from haynes_studio.render.clock import loop_frame, source_frame
@@ -60,6 +61,7 @@ from haynes_studio.render.delivery_profile import (
     resolve_delivery_upscaler,
 )
 from haynes_studio.render.encode import decode_frames
+from haynes_studio.store.layout import is_sha256
 from haynes_studio.timebase import DELIVERY_FPS
 
 # Proposal: the segment key's compositor digest; it names the builds that draw pixels.
@@ -120,6 +122,23 @@ def check_segment(inputs: Mapping[str, Any]) -> None:
         raise LayeredError(UNSUPPORTED, "a layered board draws on a set plate or set loop", where="/set_layer")
     if set_layer.get("loop") and not (_int(set_layer.get("phase")) and _int(set_layer.get("trim_frames"))):
         raise LayeredError(UNSUPPORTED, "the set loop names no phase or N", where="/set_layer")
+    fg = inputs.get("foreground") or {}
+    if not isinstance(fg, Mapping) or fg and "roles" not in fg and "edge_px" not in fg:
+        raise LayeredError(UNSUPPORTED, "the foreground needs an edge or role masks", where="/foreground")
+    if "roles" in fg:
+        pins = fg["roles"]
+        if (set(fg) != {"roles"} or set_layer.get("loop") or not isinstance(pins, (list, tuple))
+                or not 1 <= len(pins) <= 16 or any(
+                    not isinstance(pin, Mapping) or set(pin) != {"key", "layer_order", "sha256", "width", "height"}
+                    or not isinstance(pin["key"], str) or not is_sha256(pin["sha256"])
+                    or not _int(pin["layer_order"]) or not 1 <= pin["layer_order"] <= 1024
+                    or not _int(pin["width"]) or not _int(pin["height"])
+                    or pin["width"] < 1 or pin["height"] < 1
+                    for pin in pins
+                ) or len({pin["layer_order"] for pin in pins}) != len(pins)
+                or len({pin["key"] for pin in pins}) != len(pins)):
+            raise LayeredError("occlusion.unsupported", "role masks need valid pins and a static set still",
+                               where="/foreground")
     check_style(inputs.get("motion_style"))
     slots = {item["slot"] for item in layers}
     cameras = 0
@@ -266,38 +285,40 @@ class LayeredRenderer(SegmentRenderer):
                            inputs["talk"])
         moves = [cue for cue in inputs.get("cues") or [] if cue["type"] == "move"]
         camera = next((cue for cue in inputs.get("cues") or [] if cue["type"] == "camera"), None)
-        fg = inputs.get("foreground")
-        fg_alpha = None if not fg else compose.foreground_alpha(fg["edge_px"], fg.get("feather_px"),
-                                                                width, height)
+        fg = inputs.get("foreground") or {}
+        roles = draw_layers(fg["roles"], request.open, background.source_size, (width, height)) if "roles" in fg else ()
+        fg_alpha = compose.foreground_alpha(fg["edge_px"], fg.get("feather_px"), width, height) if "edge_px" in fg else None
         return self._frames(request, layers, background, talks, moves, camera, fg_alpha,
-                            inputs.get("motion_style"), checks)
+                            inputs.get("motion_style"), checks, roles)
 
     def _frames(self, request: SegmentRequest, layers: list[_Layer], background: _Set,
                 talks: tuple[compose.Talk, ...], moves: list[Mapping[str, Any]],
                 camera: Mapping[str, Any] | None, fg_alpha: PIL.Image.Image | None,
-                style: Mapping[str, Any] | None, checks: list[dict[str, Any]]) -> Iterator[np.ndarray]:
+                style: Mapping[str, Any] | None, checks: list[dict[str, Any]],
+                roles: tuple) -> Iterator[np.ndarray]:
         width, height = request.width, request.height
         used: list[set[int]] = [set() for _ in layers]
         for n in range(request.frames):
             bg = background.frame(n)
-            frame = bg.convert("RGBA")
-            for i, layer in enumerate(layers):
-                index = layer.index(n)
-                used[i].add(index)
-                image = PIL.Image.fromarray(decode_png(layer.pngs[index]), "RGBA")
-                art = compose.sprite(image, layer.slot)
-                if art.size != layer.size:
-                    raise LayeredError(CLIP_INVALID, f"slot {layer.item['slot']}: keyed frames differ "
-                                       "in size")
-                assert layer.placement is not None
-                plate = compose.plate(art, layer.placement, width, height)
-                if layer.shadow is None:  # one soft shadow per doll per board (the PoC's)
-                    layer.shadow = compose.shadow(plate)
-                dx, dy, angle = compose.motion(layer.puppet, n, style, talks, moves)
-                compose.draw(frame, plate, layer.shadow, layer.placement.pivot, dx, dy, angle)
-            if fg_alpha is not None:
-                frame.alpha_composite(compose.foreground(bg, fg_alpha))
-            yield np.asarray(compose.camera(frame.convert("RGB"), camera, n / DELIVERY_FPS))
+
+            def dolls():
+                for i, layer in enumerate(layers):
+                    index = layer.index(n)
+                    used[i].add(index)
+                    image = PIL.Image.fromarray(decode_png(layer.pngs[index]), "RGBA")
+                    art = compose.sprite(image, layer.slot)
+                    if art.size != layer.size:
+                        raise LayeredError(CLIP_INVALID, f"slot {layer.item['slot']}: keyed frames differ "
+                                           "in size")
+                    assert layer.placement is not None
+                    plate = compose.plate(art, layer.placement, width, height)
+                    if layer.shadow is None:  # one soft shadow per doll per board (the PoC's)
+                        layer.shadow = compose.shadow(plate)
+                    dx, dy, angle = compose.motion(layer.puppet, n, style, talks, moves)
+                    yield plate, layer.shadow, layer.placement.pivot, dx, dy, angle
+
+            frame = compose.composite(bg, dolls(), roles=roles, legacy_alpha=fg_alpha)
+            yield np.asarray(compose.camera(frame, camera, n / DELIVERY_FPS))
         self.reports[request.key] = LayeredReport(
             key=request.key, checks=tuple(checks), set=background.report(),
             layers=tuple({"slot": layer.item["slot"], "role": layer.item["role"],
@@ -373,6 +394,7 @@ class _Set:
             data = _read(request, layer["plate"], "the set plate")
             try:
                 with PIL.Image.open(io.BytesIO(data)) as image:
+                    self.source_size = image.size
                     self.plate = fit_set_plate(image.convert("RGB"), self.size)
             except Exception as error:
                 raise LayeredError(CLIP_INVALID, f"the set plate does not decode: "

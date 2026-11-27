@@ -272,9 +272,10 @@ def plan(document: dict[str, Any], *, toolchain: Toolchain = Toolchain(),
     boards from pinned motion records unless ``pinned`` is false (story 380's
     toolchain placeholders)."""
     story = load(document)
+    lib = library() if lib is None else lib
     return plan_story(story, voices=voices(story, voice_ids=voice_ids, toolchain=toolchain),
                       blobs=BLOBS if blobs is None else blobs, voice_ids=voice_ids,
-                      toolchain=toolchain, media=media, content=content,
+                      toolchain=toolchain, media=media, content=content, library=lib,
                       motion=motion(document, lib) if pinned else None)
 
 

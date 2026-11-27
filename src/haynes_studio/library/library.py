@@ -120,13 +120,14 @@ class Library:
                    versions=MappingProxyType({v.id: v for v in versions}))
 
     @classmethod
-    def from_version_documents(cls, documents: Iterable[Mapping[str, Any]]) -> Library:
+    def from_version_documents(cls, documents: Iterable[Mapping[str, Any]], *,
+                               context: str = "read") -> Library:
         """A library from ``studio.asset-version/v1`` documents alone (each asset from its
         versions' joined fields; they must agree). Every document must validate."""
         assets: dict[str, Asset] = {}
         versions = []
         for i, document in enumerate(documents):
-            problems = blocking(validate_asset_version(document))
+            problems = blocking(validate_asset_version(document, context=context))
             if problems:
                 raise ContractError(f"<version {i}>", problems)
             asset = Asset.from_version_document(document)
@@ -344,6 +345,7 @@ class VersionRequest:
     version_id: str | None = None
     asset_id: str | None = None
     recorded_without_media: bool = False
+    occlusion: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -395,7 +397,7 @@ def import_version(library: Library, request: VersionRequest, *, by: Principal, 
         legacy=None if request.legacy is None else freeze(normalize(request.legacy)),
         voice=request.voice,
         motion=None if request.motion is None else freeze(normalize(dict(request.motion))),
-        recorded_without_media=request.recorded_without_media)
+        recorded_without_media=request.recorded_without_media, occlusion=request.occlusion)
     wanted = pin(candidate, asset)
     for existing in library.versions_of(asset.id):
         if pin(existing, asset) != wanted:
