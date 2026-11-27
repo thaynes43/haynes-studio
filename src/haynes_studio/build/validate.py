@@ -88,6 +88,7 @@ def validate_run_snapshot(document: Any, *, context: str = READ) -> list[Violati
     if not _blocking(found):
         found += _resolved(document)
         found += _format_pin(document, context)
+        found += _visibility_pins(document)
     return _sorted(found)
 
 
@@ -105,6 +106,22 @@ def _format_pin(document: Mapping[str, Any], context: str) -> list[Violation]:
     if version["sha256"] != recipe_hash(version["recipe"]):
         found.append(Violation("store.hash_mismatch", "/format_version/sha256",
                                "The recipe SHA-256 does not match its canonical JSON"))
+    return found
+
+
+def _visibility_pins(document: Mapping[str, Any]) -> list[Violation]:
+    pins = document["toolchain_request"].get("cast_visibility", {})
+    if not pins and "visibility_overrides" not in document:
+        return []
+    boards = {board["id"]: board.get("visibility") for board in document["story"]["boards"]}
+    found = [
+        Violation("visibility.pin_mismatch", pointer("toolchain_request", "cast_visibility", board_id),
+                  "An admitted declaration must match its frozen board")
+        for board_id, value in pins.items() if boards.get(board_id) != value
+    ]
+    if not pins:
+        found.append(Violation("visibility.pin_mismatch", "/visibility_overrides",
+                               "Visibility overrides require admitted declarations"))
     return found
 
 

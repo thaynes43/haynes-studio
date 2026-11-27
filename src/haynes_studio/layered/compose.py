@@ -39,6 +39,7 @@ import PIL.Image
 import PIL.ImageFilter
 
 from haynes_studio.layered.errors import LAYOUT_INVALID, UNSUPPORTED, LayeredError
+from haynes_studio.render.visibility import ALPHA_FLOOR
 
 PAD = 240  # edit.PAD: the off-frame margin on each side of a doll plate
 POSE_HZ = 12  # edit.POSE_HZ: every movement is held for two 24 fps frames
@@ -180,33 +181,72 @@ def shadow(plate_image: PIL.Image.Image) -> PIL.Image.Image:
 
 
 def draw(frame: PIL.Image.Image, plate_image: PIL.Image.Image, shadow_image: PIL.Image.Image,
-         pivot: tuple[float, float], dx: float, dy: float, angle: float) -> None:
+         pivot: tuple[float, float], dx: float, dy: float, angle: float, *,
+         measure: bool = False) -> PIL.Image.Image | None:
     """Composite one doll, shadow then body, moved by (dx, dy, angle) (``edit.draw``)."""
     width, height = frame.size
     for layer, off in ((shadow_image, (dx + SHADOW_OFFSET[0], dy + SHADOW_OFFSET[1])),
                        (plate_image, (dx, dy))):
         moved = layer.rotate(angle, resample=PIL.Image.Resampling.BICUBIC, center=pivot, translate=off)
-        frame.alpha_composite(moved.crop((PAD, 0, PAD + width, height)))
+        body = moved.crop((PAD, 0, PAD + width, height))
+        frame.alpha_composite(body)
+    return body.getchannel("A") if measure else None
+
+
+@dataclass
+class VisibilityTrace:
+    """Track the target's alpha through the exact layers drawn over its body.
+
+    Shadows are lighting. The unoccluded plane keeps the same crop, motion and camera
+    as the contribution plane, so both counts are in the same rendered viewport.
+    """
+
+    cast_index: int
+    support: PIL.Image.Image | None = None
+    contribution: PIL.Image.Image | None = None
+
+    def occlude(self, alpha: PIL.Image.Image) -> None:
+        if self.contribution is not None:
+            black = PIL.Image.new("L", alpha.size)
+            self.contribution = PIL.Image.composite(black, self.contribution, alpha)
+
+    def counts(self, cue: Mapping[str, Any] | None, t: float) -> tuple[int, int]:
+        assert self.support is not None and self.contribution is not None
+        support = np.asarray(camera(self.support, cue, t)) >= ALPHA_FLOOR
+        contribution = np.asarray(camera(self.contribution, cue, t)) >= ALPHA_FLOOR
+        return int(np.count_nonzero(support)), int(np.count_nonzero(support & contribution))
 
 
 def composite(background: PIL.Image.Image, cast: Iterable[tuple], *,
               roles: Sequence[tuple[int, PIL.Image.Image]] = (),
-              legacy_alpha: PIL.Image.Image | None = None) -> PIL.Image.Image:
+              legacy_alpha: PIL.Image.Image | None = None,
+              visibility: VisibilityTrace | None = None) -> PIL.Image.Image:
     """Draw the ordered set and cast. At an equal depth the role is in front."""
     frame = background.convert("RGBA")
+
+    def draw_foreground(alpha: PIL.Image.Image) -> None:
+        frame.alpha_composite(foreground(background, alpha))
+        if visibility is not None:
+            visibility.occlude(alpha)
+
     pending = iter(roles)
     role = next(pending, None)
     for index, doll in enumerate(cast, start=1):
         while role is not None and role[0] < index * CAST_ORDER_STEP:
-            frame.alpha_composite(foreground(background, role[1]))
+            draw_foreground(role[1])
             role = next(pending, None)
-        draw(frame, *doll)
+        alpha = draw(frame, *doll, measure=visibility is not None and index >= visibility.cast_index)
+        if alpha is not None and visibility is not None:
+            if index == visibility.cast_index:
+                visibility.support = visibility.contribution = alpha
+            else:
+                visibility.occlude(alpha)
     if role is not None:
-        frame.alpha_composite(foreground(background, role[1]))
+        draw_foreground(role[1])
         for _, alpha in pending:
-            frame.alpha_composite(foreground(background, alpha))
+            draw_foreground(alpha)
     if legacy_alpha is not None:
-        frame.alpha_composite(foreground(background, legacy_alpha))
+        draw_foreground(legacy_alpha)
     return frame.convert("RGB")
 
 

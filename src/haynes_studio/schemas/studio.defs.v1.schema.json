@@ -464,6 +464,22 @@
         }
       }
     },
+    "cast_visibility": {
+      "description": "Require visibility for one cast slot at zero-based board frames on the 24 fps delivery clock.",
+      "type": "object",
+      "required": ["slot", "frames"],
+      "properties": {
+        "slot": {"$ref": "#/$defs/slot"},
+        "frames": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {"type": "integer", "minimum": 0}
+        }
+      },
+      "additionalProperties": false
+    },
     "slot": {
       "type": "string",
       "pattern": "^[a-z]$",

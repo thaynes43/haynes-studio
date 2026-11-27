@@ -296,7 +296,8 @@ def segment_key(*, method: Mapping[str, str], frames: int, width: int, height: i
                 motion_style: Mapping[str, Any] | None, voice_envelope: str | None,
                 talk: Sequence[Mapping[str, Any]], cues: Sequence[Mapping[str, Any]],
                 foreground: Mapping[str, Any] | None, procedural_stream: int, compositor: str,
-                encoder: Mapping[str, Any], delivery_profile_sha256: str | None = None) -> CacheKey:
+                encoder: Mapping[str, Any], delivery_profile_sha256: str | None = None,
+                visibility: Mapping[str, Any] | None = None) -> CacheKey:
     """Board picture segment (board clock): method, layout preset values, the cast
     stills with their clip and keyed hashes and loop phases (``layers``, draw order),
     motion style, the voice envelope when any line is spoken, move and camera cues
@@ -333,6 +334,7 @@ def segment_key(*, method: Mapping[str, str], frames: int, width: int, height: i
                      "loop": _opt_sha(set_layer.get("loop"), "set_layer/loop")}
     conversion = {} if delivery_profile_sha256 is None else {
         "delivery_profile_sha256": _sha(delivery_profile_sha256, "delivery_profile_sha256")}
+    measurement = {} if visibility is None else {"visibility": _mapping(visibility, "visibility")}
     return make_key(SEGMENT, {
         "method": {"layer": _text(method.get("layer"), "method/layer"),
                    "motion": _text(method.get("motion"), "method/motion")},
@@ -347,7 +349,7 @@ def segment_key(*, method: Mapping[str, str], frames: int, width: int, height: i
         "foreground": None if foreground is None else _mapping(foreground, "foreground"),
         "procedural_stream": _int(procedural_stream, "procedural_stream"),
         "compositor": _text(compositor, "compositor"), "encoder": _mapping(encoder, "encoder"),
-        **conversion})
+        **conversion, **measurement})
 
 
 def film_picture_key(*, segments: Sequence[tuple[str, int]], splicer: str) -> CacheKey:

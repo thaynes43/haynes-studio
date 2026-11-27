@@ -53,7 +53,7 @@ from haynes_studio.cache.keys import (
 from haynes_studio.canonical.derive import BoardClock, board_clock, resolve_anchor
 from haynes_studio.canonical.facts import Facts, VoiceVersionFacts
 from haynes_studio.canonical.methods import status as method_status
-from haynes_studio.canonical.model import NARRATOR, Board, CameraCue, MoveCue, SoundCue, Story
+from haynes_studio.canonical.model import NARRATOR, Board, CameraCue, CastVisibility, MoveCue, SoundCue, Story
 from haynes_studio.jsonio import thaw
 from haynes_studio.render.clock import (
     SET_SLOT,
@@ -66,6 +66,7 @@ from haynes_studio.render.clock import (
 )
 from haynes_studio.render.delivery_profile import delivery_profile_sha256
 from haynes_studio.render.encode import EncoderSettings, encoder_build
+from haynes_studio.render.visibility import VISIBILITY_VERSION
 from haynes_studio.timebase import DELIVERY_FPS, MIX_RATE, mix_sample
 
 if TYPE_CHECKING:
@@ -334,11 +335,13 @@ class _Planner:
     def __init__(self, story: Story, *, voices: Mapping[str, BoardVoice], blobs: Mapping[str, str],
                  voice_ids: Mapping[str, str], toolchain: Toolchain, media: MediaFormat,
                  content: Content, motion: LayeredMotion | None = None,
-                 foreground_roles: tuple[RoleMask, ...] = ()):
+                 foreground_roles: tuple[RoleMask, ...] = (),
+                 visibility: Mapping[str, CastVisibility] | None = None):
         self.story, self.voices, self.blobs = story, voices, blobs
         self.voice_ids, self.tools, self.media, self.content = voice_ids, toolchain, media, content
         self.motion = motion
         self.foreground_roles = foreground_roles
+        self.visibility = visibility or {}
         self.artifacts: dict[str, Planned] = {}
 
     def add(self, name: str, key: CacheKey, board_id: str | None = None,
@@ -568,6 +571,7 @@ class _Planner:
             whole_clip = self.add(f"{board.id}/whole_frame_clip", whole_frame_clip_key(
                 photo=photo, prompt=tools.i2v_prompt, negative_prompt=tools.i2v_negative_prompt, seed=seed,
                 profile=self.profile(tools.i2v_profile), clip_lengths=lengths), board.id)
+        visibility = self.visibility.get(board.id)
         segment = segment_key(
             method=method, frames=clock.frames, width=media.width, height=media.height,
             fps=media.fps, layout=layout, layers=layers, set_layer=set_layer,
@@ -577,7 +581,10 @@ class _Planner:
             cues=_picture_cues(board, clock), foreground=foreground,
             procedural_stream=board_stream(tools.procedural_seed, board.id),
             compositor=self.compositor(board), encoder=tools.encoder,
-            delivery_profile_sha256=delivery_profile_sha256())
+            delivery_profile_sha256=delivery_profile_sha256(),
+            visibility=None if visibility is None else {
+                "slot": visibility.slot, "frames": list(visibility.frames), "version": VISIBILITY_VERSION,
+            })
         self.add(f"{board.id}/segment", segment, board.id)
         voice_track = None if track is None else {
             "track": track, "start_frame": film_start,
@@ -633,7 +640,8 @@ class _Planner:
 def plan_story(story: Story, *, voices: Mapping[str, BoardVoice], blobs: Mapping[str, str],
                voice_ids: Mapping[str, str], toolchain: Toolchain, media: MediaFormat,
                content: Content, motion: LayeredMotion | None = None,
-               foreground_roles: tuple[RoleMask, ...] = ()) -> StoryPlan:
+               foreground_roles: tuple[RoleMask, ...] = (),
+               visibility: Mapping[str, CastVisibility] | None = None) -> StoryPlan:
     """The key plan of a story with embedded boards (see the module docstring).
     ``voices`` maps each spoken board's ID to its current voice; ``blobs`` maps asset
     version IDs to content hashes; ``voice_ids`` maps voice versions to stock voice
@@ -645,4 +653,5 @@ def plan_story(story: Story, *, voices: Mapping[str, BoardVoice], blobs: Mapping
     if story.boards is None:
         raise _bad("the story's boards must be embedded", story.id)
     return _Planner(story, voices=voices, blobs=blobs, voice_ids=voice_ids, toolchain=toolchain,
-                    media=media, content=content, motion=motion, foreground_roles=foreground_roles).film()
+                    media=media, content=content, motion=motion, foreground_roles=foreground_roles,
+                    visibility=visibility).film()

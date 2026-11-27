@@ -96,6 +96,10 @@ def _write_schemas(schemas):
         branch["then"] = _child_input(schemas, f"{kind}_cue", f"{kind.title()}CueInput")
     schemas["BoardCueInput"] = cue
     fields["cues"]["items"] = {"$ref": "#/components/schemas/BoardCueInput"}
+    fields["visibility"] = {
+        "description": "Person only. Omit to preserve. Use null or an empty object to clear.",
+        "anyOf": [fields["visibility"], {"type": "null"}, {"type": "object", "maxProperties": 0}],
+    }
     fields["draft_application"] = {"description": "Agent only.", **DraftDeclaration.model_json_schema()}
     schemas["BoardCreate"] = board
     schemas["PersonEditAcknowledgment"] = PersonEditAcknowledgment.model_json_schema()

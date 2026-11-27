@@ -21,7 +21,8 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from haynes_studio.cache.errors import ENTRY_INVALID, CacheError
-from haynes_studio.cache.keys import CacheKey
+from haynes_studio.cache.keys import SEGMENT, CacheKey
+from haynes_studio.render.visibility import VISIBILITY_OUTPUT
 from haynes_studio.stages import StageOutput, commit_stage, completed_stage
 from haynes_studio.store import Blob, StageLedger, StageRecord, Store
 from haynes_studio.store.layout import check_production_id, check_run_id
@@ -118,24 +119,35 @@ class ArtifactCache:
             return None
         blobs = dict(record.blobs)
         inputs, artifact = blobs.get(INPUTS), blobs.get(key.kind)
-        if set(blobs) != {INPUTS, key.kind} or artifact is None or inputs is None:
+        expected = {INPUTS, key.kind}
+        if key.kind == SEGMENT and "visibility" in key.document:
+            expected.add(VISIBILITY_OUTPUT)
+        if set(blobs) != expected or artifact is None or inputs is None:
             raise CacheError(ENTRY_INVALID, f"outputs {sorted(blobs)} are not "
-                             f"{sorted({INPUTS, key.kind})}", where=stage)
+                             f"{sorted(expected)}", where=stage)
         if inputs.sha256 != key.hex or inputs.media_type != JSON:
             raise CacheError(ENTRY_INVALID, "its inputs are not the key's document", where=stage)
         if artifact.media_type != media_type:
             raise CacheError(ENTRY_INVALID, f"its {key.kind} is {artifact.media_type}, not "
                              f"{media_type}", where=stage)
+        if VISIBILITY_OUTPUT in expected and blobs[VISIBILITY_OUTPUT].media_type != JSON:
+            raise CacheError(ENTRY_INVALID, "The segment visibility evidence must be JSON", where=stage)
         self.stats.hits.append(key.value)
         return CachedArtifact(key=key, record=record, blob=artifact, hit=True)
 
-    def commit(self, key: CacheKey, data: bytes, media_type: str) -> CachedArtifact:
+    def commit(self, key: CacheKey, data: bytes, media_type: str, *,
+               visibility: bytes | None = None) -> CachedArtifact:
         """Publish ``data`` and the key document, then record the stage (create-only;
         the same outputs again succeed, other bytes are ``store.collision``)."""
+        if (visibility is not None) != (key.kind == SEGMENT and "visibility" in key.document):
+            raise CacheError(ENTRY_INVALID, "Segment visibility evidence does not match its inputs",
+                             where=key.value)
+        outputs = {key.kind: StageOutput(data, media_type),
+                   INPUTS: StageOutput(key.canonical, JSON, expected_sha256=key.hex)}
+        if visibility is not None:
+            outputs[VISIBILITY_OUTPUT] = StageOutput(visibility, JSON)
         record = commit_stage(self.store, ledger=self.ledger, production_id=self.production_id,
-                              run_id=self.run_id, stage=stage_name(key), outputs={
-                                  key.kind: StageOutput(data, media_type),
-                                  INPUTS: StageOutput(key.canonical, JSON, expected_sha256=key.hex)})
+                              run_id=self.run_id, stage=stage_name(key), outputs=outputs)
         self.stats.made.append(key.value)
         return CachedArtifact(key=key, record=record, blob=record.blobs[key.kind], hit=False)
 

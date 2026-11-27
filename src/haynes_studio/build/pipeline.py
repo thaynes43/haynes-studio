@@ -129,6 +129,7 @@ from haynes_studio.cache.keys import (
 )
 from haynes_studio.cache.plan import LayeredMotion, Toolchain
 from haynes_studio.canonical.ids import Minter, is_id
+from haynes_studio.canonical.model import CastVisibility
 from haynes_studio.delivery import Delivery, deliver, read_delivery
 from haynes_studio.delivery.model import MASTER_SIZES
 from haynes_studio.delivery.publish import RECORD as DELIVERY_DOCUMENT, STAGE as DELIVERY_STAGE
@@ -142,6 +143,7 @@ from haynes_studio.layered.s2v import read_provenance, record_stage
 from haynes_studio.library import Library
 from haynes_studio.mix import SoundBuilder, film_sound, sound_toolchain
 from haynes_studio.render.delivery_profile import delivery_profile_record
+from haynes_studio.render.visibility import VISIBILITY_CHECK
 from haynes_studio.stages import completed_stage
 from haynes_studio.stages.preflight import PreflightError
 from haynes_studio.store import LocalStore, Store, StoreError, blob_locator, is_sha256
@@ -149,6 +151,8 @@ from haynes_studio.voice import Engine
 from haynes_studio.wholeframe import COMPOSITOR as WHOLE_FRAME_COMPOSITOR
 from haynes_studio.wholeframe import WholeFrameClips, WholeFrameRenderer
 from haynes_studio.wholeframe.clips import IMAGE_TYPES, read_clip_set
+
+from .visibility import visibility_check
 
 ALL, SERVICE, OFFLINE = "all", "service", "offline"
 PHASES = (ALL, SERVICE, OFFLINE)
@@ -179,6 +183,8 @@ class BuildInputs:
     image_digest: str | None = None
     format_version: Mapping[str, Any] | None = None
     foreground_roles: tuple[RoleMask, ...] = ()
+    visibility: Mapping[str, CastVisibility] = field(default_factory=dict)
+    visibility_overrides: Mapping[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -417,7 +423,8 @@ class _Build:
         return plan_story(self.story, voices=_voices(self.story, prepared.document, prepared),
                           blobs=_blobs(prepared), voice_ids=_voice_ids(prepared),
                           toolchain=self.toolchain, media=self.media, content=chain,
-                          motion=self._located(prepared.motion), foreground_roles=prepared.foreground_roles)
+                          motion=self._located(prepared.motion), foreground_roles=prepared.foreground_roles,
+                          visibility=prepared.visibility)
 
     def _located(self, motion: LayeredMotion | None) -> LayeredMotion | None:
         """``motion`` whose library timed-clip lookup marks where the build is: a timed
@@ -822,7 +829,8 @@ def build_story(inputs: BuildInputs, *, store: Store, phase: str, sources: ClipS
         declaring = {version.id for version in library.versions.values() if declarations(version)}
         prepared = admit_build(prepared, store, declaring_sources=declaring)
     else:
-        prepared = replace(prepared, foreground_roles=inputs.foreground_roles)
+        prepared = replace(prepared, foreground_roles=inputs.foreground_roles,
+                           visibility=inputs.visibility, visibility_overrides=inputs.visibility_overrides)
     if phase == OFFLINE:  # the recognizer is a service: the offline phase reads the cache only
         transcriber = None
     return _build(inputs, prepared, store=store, phase=phase, sources=sources,
@@ -944,11 +952,21 @@ def _build(inputs: BuildInputs, prepared: Prepared, *, store: Store, phase: str,
                 checks.append(_transcript_entry(result, transcript_key.key.value, transcript_key.content))
             recorder = _Recorder(build, plan, chain.records, register)
             stages = recorder.stages()
+            for board in plan.boards:
+                if board.board_id in prepared.visibility:
+                    checks.append(visibility_check(build.cache, board, prepared.visibility_overrides))
             failed = [c["check"] for c in checks if c["result"] == "fail"]
             for stage in stages:  # a reused segment's results are reported, never re-gated
                 failed += [f"{c['check']} ({stage['board_id']})" for c in stage["checks"]
                            if c["result"] == "fail" and stage["report"] is not None]
             if failed:
+                if all(c == VISIBILITY_CHECK for c in failed) and not any(
+                    c["check"] == VISIBILITY_CHECK and c["result"] == "fail"
+                    and c["measured"]["verdict"] == "hidden" for c in checks
+                ):
+                    raise BuildError("visibility.review_required",
+                                     "A person must review the uncertain visibility measurements",
+                                     stage="checks")
                 raise BuildError(CHECK_FAILED, "checks did not pass, so nothing was delivered: "
                                  + ", ".join(failed), stage="checks")
             if transcript_key is not None and "asr" in register.engines:

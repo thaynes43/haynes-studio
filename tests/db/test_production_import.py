@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import stat
+from types import SimpleNamespace
 import warnings
 
 import psycopg
@@ -26,13 +27,16 @@ from haynes_studio.drafting.declaration import READ_TOKEN_HEADER
 from haynes_studio.importer import production as production_import
 from haynes_studio.store import LocalStore, StagingLeftoverWarning, blob_locator, canonical_json
 from tests.build_story.fixtures import OPERATOR, example
+from tests.build_story import fixtures as build_fixtures
+from tests.db.test_foreground_admission import build, install_sets, run_worker, select_set
+from tests.db.test_media_jobs import patch, success
 from tests.db.test_studio_api import (
     client, engine, new_production, register_agent, runtime_role, service, sign_in,
 )
 from tests.db.test_media_jobs import PROVENANCE, image_file
 from tests.importer.production_fixture import FRAMES, make_archive
 from tests.motion.fixtures import still_version
-from tests.queue.fake_wan import Clock
+from tests.queue.fake_wan import Clock, FakeWan
 from tests.support.database import new_schema_name
 
 pytestmark = pytest.mark.db
@@ -428,6 +432,47 @@ def test_archive_import_preserves_recorded_run_while_new_build_checks_masks(
     assert queued.json()["error"]["code"] == expected
     with owner_engine.connect() as conn:
         assert [row["id"] for row in runs.list_story(conn, fixture.run["story_id"], None, 10)] == [run_id]
+
+
+def test_legacy_archive_is_as_recorded_and_a_new_build_from_its_draft_checks_visibility(
+    operator, service, owner_engine, tmp_path, capsys,
+):
+    app, store, issuer = service
+    fixture = make_archive(tmp_path / "job")
+    assert admin(fixture.args()) == 0
+    capsys.readouterr()
+    run_id = fixture.run["id"]
+    stage_root = tmp_path / "build-staging"
+    stage_root.mkdir()
+    app.state.build_stage_root = stage_root
+    with client(app) as browser:
+        csrf = sign_in(browser, issuer)
+        story = fixture.snapshot["story"]
+        q = SimpleNamespace(app=app, engine=app.state.engine, owner=owner_engine, store=store,
+                            browser=browser, csrf=csrf, production_id=fixture.production_id, story_id=story["id"],
+                            board_id=story["board_order"][0], stage_root=stage_root, clock=Clock())
+        path = f"/v1/runs/{run_id}"
+        before = success(browser.get(path))
+        archived_snapshot = success(browser.get(f"{path}/snapshot"))
+        assert archived_snapshot == fixture.snapshot
+        assert before["outputs"] == fixture.run["outputs"] and before["checks"] == fixture.run["checks"]
+        ids, _ = install_sets(q, tmp_path, draft_revision=story["revision"])
+        select_set(q, ids[build_fixtures.PLATE])
+        patch(q, q.board_id, {"visibility": {"slot": "a", "frames": [0]},
+                              "timing": {"lead_ms": None, "tail_ms": None, "hold_ms": 500}})
+        queued = success(build(q, "new-from-legacy-draft"), 201)
+        with FakeWan().client() as wan:
+            assert run_worker(q, wan).tick()
+        check_run = success(browser.get(f"/v1/runs/{queued['id']}"))
+        assert check_run["status"] == "failed" and check_run["delivery_id"] is None
+        [check] = [c for c in check_run["checks"] if c["check"] == "layered.visibility"]
+        assert check["measured"]["verdict"] == "hidden"
+        assert before == success(browser.get(path))
+        assert browser.get(f"{path}/snapshot").content == (fixture.root / "snapshot.json").read_bytes()
+        for role, name in (("master", "final.mp4"), ("proxy", "proxy.mp4")):
+            locator = blob_locator(fixture.production_id, before["outputs"][f"{role}_sha256"], "video/mp4")
+            with store.open(locator) as handle:
+                assert handle.read() == (fixture.root / name).read_bytes()
 
 
 def test_delivery_identity_collision_rolls_back_new_rows_and_store(operator, service, owner_engine,

@@ -1820,6 +1820,7 @@ export interface components {
             };
             title: string;
             updated_at?: components["schemas"]["StudioDefs_timestamp"];
+            visibility?: components["schemas"]["StudioDefs_cast_visibility"];
             voice: {
                 current_version_id: unknown;
                 style: unknown;
@@ -1883,6 +1884,8 @@ export interface components {
                 tail_ms: unknown;
             };
             title?: string;
+            /** @description Person only. Omit to preserve. Use null or an empty object to clear. */
+            visibility?: components["schemas"]["StudioDefs_cast_visibility"] | null | Record<string, never>;
             voice?: {
                 current_version_id: unknown;
                 style: unknown;
@@ -1964,6 +1967,8 @@ export interface components {
                 tail_ms: unknown;
             };
             title?: string;
+            /** @description Person only. Omit to preserve. Use null or an empty object to clear. */
+            visibility?: components["schemas"]["StudioDefs_cast_visibility"] | null | Record<string, never>;
             voice?: {
                 current_version_id: unknown;
                 style: unknown;
@@ -2101,9 +2106,9 @@ export interface components {
             };
             /**
              * Check
-             * @constant
+             * @enum {string}
              */
-            check: "layered.decal_gate";
+            check: "layered.decal_gate" | "layered.visibility";
             /** Reason */
             reason: string;
         };
@@ -3178,7 +3183,18 @@ export interface components {
                 updated_at?: components["schemas"]["StudioDefs_timestamp"];
             };
             toolchain_request: {
+                /** @description Visibility declarations admitted for this Build, indexed by board ID. */
+                cast_visibility?: {
+                    [key: string]: components["schemas"]["StudioDefs_cast_visibility"];
+                };
                 studio: string;
+            };
+            /** @description Person overrides from an earlier Build of the same frozen inputs, indexed by visibility evidence SHA-256. */
+            visibility_overrides?: {
+                [key: string]: {
+                    by: components["schemas"]["StudioDefs_human"];
+                    reason: string;
+                };
             };
         };
         /**
@@ -3623,6 +3639,11 @@ export interface components {
             type: "camera";
             zoom_from: number;
             zoom_to: number;
+        };
+        /** @description Require visibility for one cast slot at zero-based board frames on the 24 fps delivery clock. */
+        StudioDefs_cast_visibility: {
+            frames: number[];
+            slot: components["schemas"]["StudioDefs_slot"];
         };
         StudioDefs_cli_operator: components["schemas"]["StudioDefs_human"] | components["schemas"]["StudioDefs_agent_session"];
         StudioDefs_count: number;

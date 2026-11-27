@@ -30,6 +30,7 @@ from haynes_studio.queue.protocol import (
     WorkCompletion, WorkFailure, WorkLane, WorkReserve,
 )
 from haynes_studio.queue.staging import BuildStageStore, publish_staged_delivery
+from haynes_studio.render.visibility import VISIBILITY_CHECK
 from haynes_studio.store import BLOB_MISSING, StoreError
 from haynes_studio.store.layout import blob_locator
 
@@ -89,7 +90,7 @@ class CheckOverride(Payload):
 
 
 class CheckOverrideView(CheckOverride):
-    check: Literal["layered.decal_gate"]
+    check: Literal["layered.decal_gate", "layered.visibility"]
     by: dict
     at: str
 
@@ -190,6 +191,29 @@ def _stored_snapshot(store, row, if_none_match):
     raise APIError(503, "run.snapshot_changed", "The stored run snapshot does not match its pin")
 
 
+def _require_visibility_checks(frozen, checks):
+    pins = (frozen or {}).get("toolchain_request", {}).get("cast_visibility")
+    if not pins:
+        return
+    measured = [check for check in checks if check["check"] == VISIBILITY_CHECK]
+    overrides = frozen.get("visibility_overrides", {})
+    expected = {(board_id, pin["slot"]) for board_id, pin in pins.items()}
+    if len(measured) != len(expected) or {
+        (check.get("board_id"), check.get("slot")) for check in measured
+    } != expected:
+        raise APIError(422, "visibility.check_missing", "Delivery requires a visibility check for each declared board")
+    for check in measured:
+        outcome = check.get("measured")
+        outcome = outcome.get("verdict") if isinstance(outcome, dict) else None
+        if check["result"] == "pass" and outcome == "visible":
+            continue
+        if (check["result"] == "overridden" and outcome in ("hidden", "uncertain")
+                and check.get("override") is not None
+                and check["override"] == overrides.get(check.get("artifact"))):
+            continue
+        raise APIError(422, "visibility.check_failed", "Delivery requires visible or person-overridden measurements")
+
+
 def build_router(CurrentActor, authenticated_route):
     router = APIRouter(prefix="/v1", responses=ERROR_RESPONSES, route_class=authenticated_route,
                        tags=["runs"])
@@ -238,18 +262,24 @@ def build_router(CurrentActor, authenticated_route):
                 if current != revision:
                     raise StaleRevision(current)
                 prepared = _prepare(conn, draft)
+                sources = ()
                 if prepared.story is not None and (setting := prepared.story.set) is not None:
                     production = draft.story["production_id"]
                     library = catalog.with_foreground_masks(conn, prepared.library, setting.asset_version_id,
                                                             production)
                     sources = catalog.declaring_loop_sources(conn, library, set_loop_ids(prepared))
-                    try:
-                        prepared = admit_build(replace(prepared, library=library), store, declaring_sources=sources)
-                    except (OSError, StoreError) as error:
-                        raise APIError(503, "occlusion.store_unavailable",
-                                       "The foreground inputs could not be read") from error
+                    prepared = replace(prepared, library=library)
+                try:
+                    prepared = admit_build(prepared, store, declaring_sources=sources)
+                except (OSError, StoreError) as error:
+                    raise APIError(503, "occlusion.store_unavailable",
+                                   "The foreground inputs could not be read") from error
                 prepared.ensure_buildable()
                 frozen, library = inputs.freeze(prepared, studio=request.app.state.build_revision)
+                if prepared.visibility:
+                    overrides = runs.visibility_overrides(conn, frozen)
+                    if overrides:
+                        frozen["visibility_overrides"] = overrides
                 data, sha = snapshot_bytes(frozen)
                 if len(data) > MAX_SNAPSHOT_BYTES:
                     raise APIError(422, "run.snapshot_too_large",
@@ -309,12 +339,12 @@ def build_router(CurrentActor, authenticated_route):
     def record_check_override(id: str, check: str, body: CheckOverride, request: Request,
                               actor: CurrentActor, if_match: IfMatch):
         actor.human()
-        if check != runs.CHECK_OVERRIDABLE:
-            raise forbidden("check.not_overridable", "Only the visual decal check supports an override")
+        if check not in runs.OVERRIDABLE_CHECKS:
+            raise forbidden("check.not_overridable", "Only the decal and visibility checks support overrides")
         with request.app.state.engine.begin() as conn:
             row = _run_access(conn, actor, "runs:queue", id, lock=True)
             escalation_storage.lock(conn)
-            return runs.record_override(conn, row, _revision(if_match), artifact=body.artifact,
+            return runs.record_override(conn, row, _revision(if_match), check=check, artifact=body.artifact,
                                         reason=body.reason, actor=to_document(actor.principal))
 
     return router
@@ -457,6 +487,7 @@ def worker_router():
                 "progress": {"percent": 100, "stage": "delivered"},
             })
             require_valid(validate_run(row["document"]))
+            _require_visibility_checks(row["snapshot"], body.checks)
             _delivery(conn, request, row, body)
             return runs.view(conn, row, detail=False)
 

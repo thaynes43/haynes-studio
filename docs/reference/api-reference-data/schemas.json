@@ -3866,6 +3866,9 @@
           "updated_at": {
             "$ref": "#/components/schemas/StudioDefs_timestamp"
           },
+          "visibility": {
+            "$ref": "#/components/schemas/StudioDefs_cast_visibility"
+          },
           "voice": {
             "additionalProperties": false,
             "properties": {
@@ -4279,6 +4282,21 @@
             "maxLength": 100,
             "minLength": 1,
             "type": "string"
+          },
+          "visibility": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StudioDefs_cast_visibility"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "maxProperties": 0,
+                "type": "object"
+              }
+            ],
+            "description": "Person only. Omit to preserve. Use null or an empty object to clear."
           },
           "voice": {
             "additionalProperties": false,
@@ -4710,6 +4728,21 @@
             "minLength": 1,
             "type": "string"
           },
+          "visibility": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StudioDefs_cast_visibility"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "maxProperties": 0,
+                "type": "object"
+              }
+            ],
+            "description": "Person only. Omit to preserve. Use null or an empty object to clear."
+          },
           "voice": {
             "additionalProperties": false,
             "properties": {
@@ -5135,7 +5168,10 @@
             "type": "object"
           },
           "check": {
-            "const": "layered.decal_gate",
+            "enum": [
+              "layered.decal_gate",
+              "layered.visibility"
+            ],
             "title": "Check",
             "type": "string"
           },
@@ -9674,6 +9710,17 @@
           },
           "toolchain_request": {
             "properties": {
+              "cast_visibility": {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/StudioDefs_cast_visibility"
+                },
+                "description": "Visibility declarations admitted for this Build, indexed by board ID.",
+                "minProperties": 1,
+                "propertyNames": {
+                  "$ref": "#/components/schemas/StudioDefs_brd_id"
+                },
+                "type": "object"
+              },
               "studio": {
                 "minLength": 1,
                 "not": {
@@ -9690,6 +9737,31 @@
             "required": [
               "studio"
             ],
+            "type": "object"
+          },
+          "visibility_overrides": {
+            "additionalProperties": {
+              "additionalProperties": false,
+              "properties": {
+                "by": {
+                  "$ref": "#/components/schemas/StudioDefs_human"
+                },
+                "reason": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "by",
+                "reason"
+              ],
+              "type": "object"
+            },
+            "description": "Person overrides from an earlier Build of the same frozen inputs, indexed by visibility evidence SHA-256.",
+            "minProperties": 1,
+            "propertyNames": {
+              "$ref": "#/components/schemas/StudioDefs_sha256"
+            },
             "type": "object"
           }
         },
@@ -12228,6 +12300,30 @@
         ],
         "type": "object"
       },
+      "StudioDefs_cast_visibility": {
+        "additionalProperties": false,
+        "description": "Require visibility for one cast slot at zero-based board frames on the 24 fps delivery clock.",
+        "properties": {
+          "frames": {
+            "items": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 16,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "slot": {
+            "$ref": "#/components/schemas/StudioDefs_slot"
+          }
+        },
+        "required": [
+          "slot",
+          "frames"
+        ],
+        "type": "object"
+      },
       "StudioDefs_cli_operator": {
         "$comment": "Story 864 proposal: a self-reported human or agent session; grants nothing.",
         "anyOf": [
@@ -13617,6 +13713,20 @@
                 "default": null,
                 "title": "Title"
               },
+              "visibility": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Person only. Cast slot and zero-based board frames. Omit to preserve, or use null or an empty object to clear.",
+                "title": "Visibility"
+              },
               "voice": {
                 "anyOf": [
                   {
@@ -14285,11 +14395,12 @@
                     "method",
                     "seeds",
                     "cues",
-                    "notes"
+                    "notes",
+                    "visibility"
                   ],
                   "type": "string"
                 },
-                "maxItems": 11,
+                "maxItems": 12,
                 "type": "array"
               },
               {
@@ -15095,6 +15206,20 @@
                 ],
                 "default": null,
                 "title": "Title"
+              },
+              "visibility": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Person only. Cast slot and zero-based board frames. Omit to preserve, or use null or an empty object to clear.",
+                "title": "Visibility"
               },
               "voice": {
                 "anyOf": [

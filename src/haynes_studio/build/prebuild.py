@@ -24,13 +24,14 @@ from __future__ import annotations
 import copy
 import hashlib
 from collections.abc import Collection, Iterable, Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from haynes_studio.build.validate import SNAPSHOT_SCHEMA, validate_run_snapshot
 from haynes_studio.cache.plan import LayeredMotion, Toolchain
 from haynes_studio.canonical import Facts, Story, load_story
 from haynes_studio.canonical.derive import board_clock
+from haynes_studio.canonical.model import CastVisibility, to_document
 from haynes_studio.canonical.validate import WRITE
 from haynes_studio.errors import WARNING, blocking
 from haynes_studio.formats.recipe import PIN_PATH, method_violation
@@ -74,6 +75,8 @@ class Prepared:
     report: PreflightReport
     format_version: Mapping[str, Any] | None = None
     foreground_roles: tuple[RoleMask, ...] = ()
+    visibility: Mapping[str, CastVisibility] = field(default_factory=dict)
+    visibility_overrides: Mapping[str, Any] = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
@@ -227,9 +230,14 @@ def set_loop_ids(prepared: Prepared) -> set[str]:
 
 
 def admit_build(prepared: Prepared, store: Store, *, declaring_sources: Collection[str]) -> Prepared:
-    """Resolve role masks for a new Build, before writing its snapshot or run."""
+    """Admit renderer declarations before writing a new Build's snapshot or run."""
     story = prepared.story
-    if story is None or story.set is None:
+    if story is None:
+        return prepared
+    visibility = _admit_visibility(story, prepared.facts)
+    if visibility:
+        prepared = replace(prepared, visibility=visibility)
+    if story.set is None:
         return prepared
     library = prepared.library
     version = library.get(story.set.asset_version_id)
@@ -251,6 +259,37 @@ def admit_build(prepared: Prepared, store: Store, *, declaring_sources: Collecti
             Problem(error.code, error.status, at, error.message, field=field),
         ))) from error
     return replace(prepared, foreground_roles=roles)
+
+
+def _admit_visibility(story: Story, facts: Facts) -> dict[str, CastVisibility]:
+    declarations = {}
+    problems = []
+    for index, board in enumerate(story.boards or ()):
+        visibility = board.visibility
+        if visibility is None:
+            continue
+        clock = board_clock(board, facts)
+        if board.method.layer != "layered":
+            code, field, message = (
+                "visibility.method_unsupported", "visibility", "Visibility requires a layered board")
+        elif visibility.slot not in board.placed_slots:
+            code, field, message = (
+                "visibility.slot_absent", "visibility/slot", "The declared slot is not on the board")
+        elif clock is None:
+            code, field, message = (
+                "visibility.timing_unavailable", "visibility/frames", "Visibility needs resolved board timing")
+        elif max(visibility.frames) >= clock.frames:
+            code, field, message = (
+                "visibility.frame_out_of_range", "visibility/frames",
+                f"Visibility frames must be between 0 and {clock.frames - 1}")
+        else:
+            declarations[board.id] = visibility
+            continue
+        problems.append(Problem(code, "invalid", f"/boards/{index}/{field}", message,
+                                board_id=board.id, board_number=board.number, field=f"/{field}"))
+    if problems:
+        raise PreflightError("<story>", PreflightReport(tuple(problems)))
+    return declarations
 
 
 def motion_versions(motion: LayeredMotion | None, library: Library) -> list[dict[str, Any]]:
@@ -284,6 +323,12 @@ def make_snapshot(prepared: Prepared, library: Library, *, studio: str) -> dict[
                 "toolchain_request": {"studio": studio}}
     if prepared.foreground_roles:
         snapshot["toolchain_request"]["foreground_roles"] = [role.pin() for role in prepared.foreground_roles]
+    if prepared.visibility:
+        snapshot["toolchain_request"]["cast_visibility"] = {
+            board_id: to_document(value) for board_id, value in prepared.visibility.items()
+        }
+    if prepared.visibility_overrides:
+        snapshot["visibility_overrides"] = dict(prepared.visibility_overrides)
     if prepared.format_version is not None:
         snapshot["format_version"] = {key: copy.deepcopy(prepared.format_version[key])
                                       for key in ("id", "sha256", "recipe")}

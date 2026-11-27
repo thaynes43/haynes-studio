@@ -59,6 +59,10 @@ class SegmentRenderer(ABC):
 
     compositor: str
 
+    def visibility_evidence(self, key: str) -> bytes | None:
+        """Canonical measurements produced when rendering a visibility-enabled segment."""
+        return None
+
     @abstractmethod
     def render(self, request: SegmentRequest) -> Iterable[np.ndarray]:
         """Exactly ``request.frames`` frames, each ``uint8`` RGB of shape

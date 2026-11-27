@@ -166,12 +166,34 @@
         ]
       }
     },
+    "visibility_overrides": {
+      "description": "Person overrides from an earlier Build of the same frozen inputs, indexed by visibility evidence SHA-256.",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"$ref": "studio.defs.v1.schema.json#/$defs/sha256"},
+      "additionalProperties": {
+        "type": "object",
+        "required": ["by", "reason"],
+        "properties": {
+          "by": {"$ref": "studio.defs.v1.schema.json#/$defs/human"},
+          "reason": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }
+    },
     "toolchain_request": {
       "type": "object",
       "required": [
         "studio"
       ],
       "properties": {
+        "cast_visibility": {
+          "description": "Visibility declarations admitted for this Build, indexed by board ID.",
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"$ref": "studio.defs.v1.schema.json#/$defs/brd_id"},
+          "additionalProperties": {"$ref": "studio.defs.v1.schema.json#/$defs/cast_visibility"}
+        },
         "studio": {
           "type": "string",
           "minLength": 1,

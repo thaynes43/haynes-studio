@@ -57,7 +57,7 @@ def setting(still, loop=None):
             "foreground_edge_px": None, "foreground_feather_px": None, "legacy_fire": None}
 
 
-def install_sets(q, tmp_path, *, defect=None, loop_source=None):
+def install_sets(q, tmp_path, *, defect=None, loop_source=None, mask_left=0, draft_revision=3):
     root = tmp_path / "role-store"
     root.mkdir()
     world = f.World(root, f.LocalStore(root))
@@ -75,7 +75,8 @@ def install_sets(q, tmp_path, *, defect=None, loop_source=None):
     plate["number"] = 2
     world.docs.insert(world.docs.index(plate), original)
     mask_size = (109, 192) if defect == "wrong_size" else still_size
-    mask_image = Image.new("L", mask_size, 255)
+    mask_image = Image.new("L", mask_size)
+    mask_image.paste(255, (mask_left, 0, *mask_size))
     if defect == "non_binary":
         mask_image.putpixel((0, 0), 127)
     mask_sha = world.still(MASK, 70, png(mask_image))
@@ -105,7 +106,7 @@ def install_sets(q, tmp_path, *, defect=None, loop_source=None):
         if loop_source != "absent":
             source = PLAIN if loop_source == "plain" else f.PLATE
             loop["provenance"]["generator"]["source_asset_version_ids"] = [source]
-    add_sound_bed(q, tmp_path)
+    add_sound_bed(q, tmp_path, revision=draft_revision)
     ids = {doc["id"]: Minter().mint("asv") for doc in world.docs}
     assets = {id_: Minter().mint("ast") for id_ in {doc["asset_id"] for doc in world.docs}}
     other = new_production(q.browser, q.csrf) if defect == "wrong_scope" else q.production_id

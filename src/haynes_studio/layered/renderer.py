@@ -34,6 +34,7 @@ import io
 import wave
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
+from hashlib import sha256
 from typing import Any
 
 import numpy as np
@@ -61,6 +62,8 @@ from haynes_studio.render.delivery_profile import (
     resolve_delivery_upscaler,
 )
 from haynes_studio.render.encode import decode_frames
+from haynes_studio.render.visibility import VISIBILITY_VERSION
+from haynes_studio.store import canonical_json
 from haynes_studio.timebase import DELIVERY_FPS
 
 # Proposal: the segment key's compositor digest; it names the builds that draw pixels.
@@ -74,7 +77,7 @@ SEGMENT_INPUTS = {
     "height": "draw", "fps": "draw", "layout": "draw", "layers": "draw", "set_layer": "draw",
     "motion_style": "draw", "voice_envelope": "draw", "talk": "draw", "cues": "draw",
     "foreground": "draw", "compositor": "draw", "encoder": "draw", "procedural_stream": "none",
-    "whole_frame_clip": "absent", "delivery_profile_sha256": "draw",
+    "whole_frame_clip": "absent", "delivery_profile_sha256": "draw", "visibility": "measure",
 }
 LAYER_FIELDS = ("slot", "still", "clip", "keyed", "role", "phase", "play", "trim_start",
                 "trim_frames", "source_fps", "clip_frames", "decal_min_ecc")
@@ -123,6 +126,15 @@ def check_segment(inputs: Mapping[str, Any]) -> None:
         raise LayeredError(UNSUPPORTED, "the set loop names no phase or N", where="/set_layer")
     check_style(inputs.get("motion_style"))
     slots = {item["slot"] for item in layers}
+    if "visibility" in inputs:
+        request = inputs["visibility"]
+        if (not isinstance(request, Mapping) or set(request) != {"version", "slot", "frames"}
+                or request["version"] != VISIBILITY_VERSION
+                or not isinstance(request["slot"], str) or request["slot"] not in slots
+                or not isinstance(request["frames"], (list, tuple)) or not 1 <= len(request["frames"]) <= 16
+                or any(not _int(n) or not 0 <= n < inputs["frames"] for n in request["frames"])
+                or len(set(request["frames"])) != len(request["frames"])):
+            raise LayeredError(UNSUPPORTED, "Invalid frozen visibility input", where="/visibility")
     cameras = 0
     for index, cue in enumerate(inputs.get("cues") or []):
         if cue.get("type") == "move":
@@ -217,6 +229,11 @@ class LayeredRenderer(SegmentRenderer):
     compositor: str = COMPOSITOR
     reports: dict[str, LayeredReport] = field(default_factory=dict)
     checks: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    measurements: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+
+    def visibility_evidence(self, key: str) -> bytes | None:
+        rows = self.measurements.get(key)
+        return None if rows is None else canonical_json(rows)
 
     def render(self, request: SegmentRequest) -> Iterator[np.ndarray]:
         inputs = request.inputs
@@ -279,6 +296,14 @@ class LayeredRenderer(SegmentRenderer):
                 style: Mapping[str, Any] | None, checks: list[dict[str, Any]],
                 roles: tuple[tuple[int, PIL.Image.Image], ...]) -> Iterator[np.ndarray]:
         width, height = request.width, request.height
+        visibility = request.inputs.get("visibility")
+        cast_index = None
+        poses: set[int] = set()
+        measurements = []
+        if visibility is not None:
+            poses = set(visibility["frames"])
+            cast_index = next(i for i, layer in enumerate(layers, start=1)
+                              if layer.item["slot"] == visibility["slot"])
         used: list[set[int]] = [set() for _ in layers]
         for n in range(request.frames):
             bg = background.frame(n)
@@ -299,8 +324,17 @@ class LayeredRenderer(SegmentRenderer):
                     dx, dy, angle = compose.motion(layer.puppet, n, style, talks, moves)
                     yield plate, layer.shadow, layer.placement.pivot, dx, dy, angle
 
-            frame = compose.composite(bg, dolls(), roles=roles, legacy_alpha=fg_alpha)
-            yield np.asarray(compose.camera(frame, camera, n / DELIVERY_FPS))
+            trace = compose.VisibilityTrace(cast_index) if cast_index is not None and n in poses else None
+            frame = compose.composite(bg, dolls(), roles=roles, legacy_alpha=fg_alpha, visibility=trace)
+            t = n / DELIVERY_FPS
+            picture = np.asarray(compose.camera(frame, camera, t))
+            if trace is not None:
+                support, visible = trace.counts(camera, t)
+                measurements.append({"frame": n, "frame_sha256": sha256(picture.tobytes()).hexdigest(),
+                                     "unoccluded_pixels": support, "visible_pixels": visible})
+            yield picture
+        if visibility is not None:
+            self.measurements[request.key] = measurements
         self.reports[request.key] = LayeredReport(
             key=request.key, checks=tuple(checks), set=background.report(),
             layers=tuple({"slot": layer.item["slot"], "role": layer.item["role"],
