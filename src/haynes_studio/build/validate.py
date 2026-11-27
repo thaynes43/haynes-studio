@@ -41,6 +41,7 @@ RUN_SCHEMA = "studio.run/v1"
 RUN_FILE = "studio.run.v1.schema.json"
 SNAPSHOT_SCHEMA = "studio.run-snapshot/v1"
 SNAPSHOT_FILE = "studio.run-snapshot.v1.schema.json"
+VISIBILITY_ADMISSION_SCHEMA = "studio.visibility-admission/v1"
 CREDIT_OUTSIDE = "credit.outside_video_sound"
 CREDIT_ROLES = ("video", "voice", "sound")
 
@@ -88,6 +89,7 @@ def validate_run_snapshot(document: Any, *, context: str = READ) -> list[Violati
     if not _blocking(found):
         found += _resolved(document)
         found += _format_pin(document, context)
+        found += _visibility_pins(document)
     return _sorted(found)
 
 
@@ -106,6 +108,20 @@ def _format_pin(document: Mapping[str, Any], context: str) -> list[Violation]:
         found.append(Violation("store.hash_mismatch", "/format_version/sha256",
                                "The recipe SHA-256 does not match its canonical JSON"))
     return found
+
+
+def _visibility_pins(document: Mapping[str, Any]) -> list[Violation]:
+    admission = document.get("visibility_admission")
+    if admission is None:
+        return []
+    pins = admission["boards"]
+    boards = {board["id"]: board["visibility"] for board in document["story"].get("boards") or ()
+              if "visibility" in board}
+    return [
+        Violation("visibility.pin_mismatch", pointer("visibility_admission", "boards", board_id),
+                  "An admitted declaration must match its frozen board")
+        for board_id in pins.keys() | boards.keys() if pins.get(board_id) != boards.get(board_id)
+    ]
 
 
 def _resolved(document: Mapping[str, Any]) -> list[Violation]:

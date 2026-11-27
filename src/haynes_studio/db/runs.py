@@ -14,7 +14,8 @@ import sqlalchemy as sa
 
 from haynes_studio.build.run import advance, new_run, update
 from haynes_studio.canonical.ids import Minter
-from haynes_studio.store import blob_locator, canonical_json
+from haynes_studio.render.visibility import VISIBILITY_CHECK
+from haynes_studio.store import blob_locator, canonical_json, is_sha256
 
 from .problems import NotFound, StaleRevision
 from .queue_controls import is_paused
@@ -25,6 +26,7 @@ PENDING = ("reserved", "sent")
 LEASE = timedelta(seconds=90)
 BACKOFF = timedelta(seconds=15)
 CHECK_OVERRIDABLE = "layered.decal_gate"
+OVERRIDABLE_CHECKS = frozenset({CHECK_OVERRIDABLE, VISIBILITY_CHECK})
 STATUS = runs.c.document["status"].astext
 ATTEMPTS = run_wan_attempts.c
 
@@ -382,23 +384,55 @@ def finish(conn, row, now, actor, target, reason, fields, *, wait_reason=None,
     return _save(conn, row, document=doc, **defer, **_clear_claim())
 
 
-def record_override(conn, row, revision, *, artifact, reason, actor):
+def visibility_overrides(conn, snapshot):
+    """Earlier person reviews of uncertain evidence for these frozen Build inputs."""
+    overrides = run_check_overrides.c
+    base = runs.c.snapshot.delete_path(["visibility_admission", "overrides"])
+    reviewed_check = sa.func.jsonb_build_object(
+        "check", VISIBILITY_CHECK, "artifact", overrides.artifact, "result", "fail",
+        "measured", sa.func.jsonb_build_object("verdict", "uncertain"),
+    )
+    rows = conn.execute(sa.select(overrides.artifact, overrides.document)
+        .join_from(run_check_overrides, runs, overrides.run_id == runs.c.id)
+        .where(runs.c.story_id == snapshot["story"]["id"], base == snapshot, STATUS == "failed",
+               overrides.document["check"].astext == VISIBILITY_CHECK,
+               overrides.document["by"]["kind"].astext == "human",
+               runs.c.document["checks"].contains(sa.func.jsonb_build_array(reviewed_check)))
+        .distinct(overrides.artifact)
+        .order_by(overrides.artifact, runs.c.position.desc()))
+    return {artifact: {"by": doc["by"], "reason": doc["reason"]} for artifact, doc in rows}
+
+
+def record_override(conn, row, revision, *, check, artifact, reason, actor):
     if row["revision"] != revision:
         raise StaleRevision(row["revision"])
     doc = row["document"]
-    checks = [*(doc["checks"] or []), *(check for stage in doc["stages"]
-                                        for check in (stage.get("checks") or []))]
-    if doc["status"] not in ("failed", "succeeded") or not any(
-        check["check"] == CHECK_OVERRIDABLE and check.get("artifact") == artifact and
-        check["result"] == "fail" for check in checks
-    ):
-        raise QueueConflict("check.not_overridable", "This artifact has no failed, overridable decal check")
+    if check == VISIBILITY_CHECK:
+        pins = (row["snapshot"] or {}).get("visibility_admission", {}).get("boards", {})
+        # Imported runs have an archive marker in place of the live actor hash.
+        if (actor["kind"] != "human" or not is_sha256(row["idempotency_actor"])
+                or doc["status"] != "failed" or not any(
+                    item["check"] == check and item.get("board_id") in pins
+                    and item["result"] == "fail" and item.get("artifact") == artifact
+                    and isinstance(item.get("measured"), dict)
+                    and item["measured"].get("verdict") == "uncertain"
+                    for item in doc["checks"] or ()
+                )):
+            raise QueueConflict("check.not_overridable", "This artifact has no matching uncertain visibility check")
+    else:
+        checks = [*(doc["checks"] or []), *(item for stage in doc["stages"]
+                                            for item in (stage.get("checks") or []))]
+        if check != CHECK_OVERRIDABLE or doc["status"] not in ("failed", "succeeded") or not any(
+            item["check"] == check and item.get("artifact") == artifact and item["result"] == "fail"
+            for item in checks
+        ):
+            raise QueueConflict("check.not_overridable", "This artifact has no failed, overridable decal check")
     exists = conn.scalar(sa.select(sa.exists().where(
         run_check_overrides.c.run_id == row["id"], run_check_overrides.c.artifact == artifact,
     )))
     if exists:
         raise QueueConflict("check.override_exists", "This artifact already has an override")
-    override = {"check": CHECK_OVERRIDABLE, "artifact": artifact, "reason": reason,
+    override = {"check": check, "artifact": artifact, "reason": reason,
                 "by": actor, "at": timestamp(database_time(conn))}
     conn.execute(run_check_overrides.insert().values(run_id=row["id"], artifact=artifact, document=override))
     _save(conn, row)

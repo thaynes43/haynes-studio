@@ -17,7 +17,7 @@ later runs. The build re-hashes referenced bytes before it asks Wan for a clip.
 | `GET /v1/runs/{id}` | With `read`, see progress, completed stages, checks, Wan attempt IDs and check overrides. The ETag is the run's own revision. |
 | `GET /v1/runs/{id}/snapshot` | With `read`, fetch the frozen `studio.run-snapshot/v1` bytes with the recorded SHA-256 as a strong ETag. A matching `If-None-Match` returns 304 after verifying the stored bytes. Run snapshots use this scoped route. |
 | `POST /v1/runs/{id}/cancel` | With `runs:queue`, send the run ETag as `If-Match`. The response shows the new state or a pending `cancel_requested` flag. |
-| `POST /v1/runs/{id}/checks/{check}/overrides` | A signed-in person sends the run ETag and `{"artifact": "<sha256>", "reason": "..."}`. The only supported check is a failed `layered.decal_gate`. |
+| `POST /v1/runs/{id}/checks/{check}/overrides` | A signed-in person sends the run ETag and `{"artifact": "<sha256>", "reason": "..."}` for a failed `layered.decal_gate` artifact or an `uncertain` [film visibility result](film-visibility.md). |
 | `GET /v1/runs/{id}/delivery` | With `read`, fetch a finished delivery. Stream its proxy through the authenticated [media route](studio-api.md#private-playback). |
 
 A run read outside the caller's productions answers `404`, the same as an unknown run, on every run route (`GET /v1/runs/{id}`, its snapshot, its delivery, the story's run list and the go-live review read). Earlier builds answered `403` for some of these: a client must treat both as "not available to this caller".

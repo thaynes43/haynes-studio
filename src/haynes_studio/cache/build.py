@@ -65,7 +65,13 @@ class PictureBuilder:
         if dict(document["encoder"]) != self.encoder.key_inputs():
             raise CacheError(ENTRY_INVALID, "the key names other encoder settings than this "
                              "builder's", where=key.value)
-        return self.cache.get_or_make(key, lambda: self._render(key), MP4)
+        if "visibility" not in document:
+            return self.cache.get_or_make(key, lambda: self._render(key), MP4)
+        found = self.cache.lookup(key, MP4)
+        if found is not None:
+            return found
+        data = self._render(key)
+        return self.cache.commit(key, data, MP4, visibility=self.renderer.visibility_evidence(key.value))
 
     def _render(self, key: CacheKey) -> bytes:
         request = SegmentRequest(key=key.value, inputs=key.document, open_input=self.open_input)

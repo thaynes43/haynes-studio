@@ -264,6 +264,18 @@ class BoardDerived:
 
 
 @dataclass(frozen=True, slots=True)
+class CastVisibility:
+    """One cast slot and the zero-based board frames at which to measure it."""
+
+    slot: str
+    frames: tuple[int, ...]
+
+    @classmethod
+    def from_document(cls, document: Mapping[str, Any]) -> CastVisibility:
+        return cls(slot=document["slot"], frames=tuple(document["frames"]))
+
+
+@dataclass(frozen=True, slots=True)
 class Board:
     schema: str
     id: str
@@ -291,9 +303,11 @@ class Board:
     person_edit_revision: int | None = None
     person_edit_acknowledgments: tuple[Mapping[str, Any], ...] | None = None
     created_by: Principal | None = None
+    visibility: CastVisibility | None = None
 
     _omit_none = ("derived", "created_at", "updated_at", "draft_application",
-                  "person_edit", "person_edit_revision", "person_edit_acknowledgments", "created_by")
+                  "person_edit", "person_edit_revision", "person_edit_acknowledgments", "created_by",
+                  "visibility")
 
     @property
     def spoken(self) -> bool:
@@ -309,6 +323,7 @@ class Board:
         doc = normalize(doc)
         origin, derived = doc.get("origin"), doc.get("derived")
         photo = doc["photo"]
+        visibility = doc.get("visibility")
         return cls(
             schema=doc["schema"], id=doc["id"], story_id=doc["story_id"], number=doc["number"],
             revision=doc["revision"], title=doc["title"],
@@ -331,6 +346,7 @@ class Board:
             person_edit_revision=doc.get("person_edit_revision"),
             person_edit_acknowledgments=_verbatim(doc.get("person_edit_acknowledgments")),
             created_by=Principal.from_document(doc["created_by"]) if "created_by" in doc else None,
+            visibility=None if visibility is None else CastVisibility.from_document(visibility),
         )
 
 

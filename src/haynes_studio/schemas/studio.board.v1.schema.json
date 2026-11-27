@@ -242,6 +242,9 @@
         "additionalProperties": false
       }
     },
+    "visibility": {
+      "$ref": "studio.defs.v1.schema.json#/$defs/cast_visibility"
+    },
     "layout": {
       "type": "object",
       "required": [

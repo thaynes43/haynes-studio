@@ -29,7 +29,7 @@
     "promote_asset_version": "Signed-in person required. [Asset candidates](asset-candidates.md#api-and-ui-integration).",
     "put_selections": "Signed-in person required. See the HTTP access column.",
     "readyz": "Service probes. [API boundaries](../contracts/studio-contracts-v1.md#12-api-ui-and-mcp-boundaries).",
-    "record_check_override": "Visual check overrides require a person. [Operation parity](studio-operation-parity.md).",
+    "record_check_override": "A person can override a failed decal check or review an uncertain visibility result. Hidden visibility always blocks delivery. [Film visibility](film-visibility.md) and [operation parity](studio-operation-parity.md).",
     "record_publication": "Go-live and publication are reserved for people. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41) and [release packages](release-package.md#api).",
     "report_escalation": "HTTP callback for the exact package responder. [Escalation operations](escalation.md#operator-and-responder-operations).",
     "request_matte": "Signed-in person required. Production-scoped status is available via studio_get_job. [Matte requests](studio-api.md#matte-requests-and-reads).",

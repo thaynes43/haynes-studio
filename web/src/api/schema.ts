@@ -1820,6 +1820,7 @@ export interface components {
             };
             title: string;
             updated_at?: components["schemas"]["StudioDefs_timestamp"];
+            visibility?: components["schemas"]["StudioDefs_cast_visibility"];
             voice: {
                 current_version_id: unknown;
                 style: unknown;
@@ -1883,6 +1884,8 @@ export interface components {
                 tail_ms: unknown;
             };
             title?: string;
+            /** @description Person only. Omit to preserve. Use null or an empty object to clear. */
+            visibility?: components["schemas"]["StudioDefs_cast_visibility"] | null | Record<string, never>;
             voice?: {
                 current_version_id: unknown;
                 style: unknown;
@@ -1964,6 +1967,8 @@ export interface components {
                 tail_ms: unknown;
             };
             title?: string;
+            /** @description Person only. Omit to preserve. Use null or an empty object to clear. */
+            visibility?: components["schemas"]["StudioDefs_cast_visibility"] | null | Record<string, never>;
             voice?: {
                 current_version_id: unknown;
                 style: unknown;
@@ -2101,9 +2106,9 @@ export interface components {
             };
             /**
              * Check
-             * @constant
+             * @enum {string}
              */
-            check: "layered.decal_gate";
+            check: "layered.decal_gate" | "layered.visibility";
             /** Reason */
             reason: string;
         };
@@ -3180,6 +3185,22 @@ export interface components {
             toolchain_request: {
                 studio: string;
             };
+            /** @description The frozen visibility decision for a newly admitted Build. */
+            visibility_admission?: {
+                /** @description Admitted declarations indexed by board ID. */
+                boards: {
+                    [key: string]: components["schemas"]["StudioDefs_cast_visibility"];
+                };
+                /** @description Person reviews of uncertain visibility from the same frozen inputs, indexed by evidence SHA-256. */
+                overrides?: {
+                    [key: string]: {
+                        by: components["schemas"]["StudioDefs_human"];
+                        reason: string;
+                    };
+                };
+                /** @constant */
+                schema: "studio.visibility-admission/v1";
+            };
         };
         /**
          * studio.run/v1: one build of one story snapshot (contract sections 7 and 8, D30)
@@ -3623,6 +3644,11 @@ export interface components {
             type: "camera";
             zoom_from: number;
             zoom_to: number;
+        };
+        /** @description Require visibility for one cast slot at zero-based board frames on the 24 fps delivery clock. */
+        StudioDefs_cast_visibility: {
+            frames: number[];
+            slot: components["schemas"]["StudioDefs_slot"];
         };
         StudioDefs_cli_operator: components["schemas"]["StudioDefs_human"] | components["schemas"]["StudioDefs_agent_session"];
         StudioDefs_count: number;

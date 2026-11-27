@@ -1,6 +1,6 @@
 """Tool input schemas. The API validates the canonical fields and their references."""
 
-from typing import Annotated, Literal
+from typing import Annotated, Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
@@ -40,7 +40,7 @@ STORY_EDIT_FIELDS = Literal[
 ]
 BOARD_EDIT_FIELDS = Literal[
     "title", "lines", "timing", "voice", "photo", "cast", "layout", "method", "seeds",
-    "cues", "notes",
+    "cues", "notes", "visibility",
 ]
 
 
@@ -77,6 +77,10 @@ class _BaseBoardFields(Arguments):
     seeds: dict | None = None
     cues: list[dict] | None = None
     notes: list[dict] | None = None
+    visibility: dict | None = Field(default=None, description=(
+        "Person only. Cast slot and zero-based board frames. Omit to preserve, or use null or "
+        "an empty object to clear."
+    ))
 
 
 class NewBoardFields(_BaseBoardFields):
@@ -148,7 +152,7 @@ class Board(Arguments):
 
 
 class GetBoard(Board):
-    fields: Annotated[list[BOARD_EDIT_FIELDS], Field(max_length=11)] | None = None
+    fields: Annotated[list[BOARD_EDIT_FIELDS], Field(max_length=len(get_args(BOARD_EDIT_FIELDS)))] | None = None
 
 
 class BoardWrite(Board):

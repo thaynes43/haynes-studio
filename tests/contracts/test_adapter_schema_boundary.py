@@ -1,4 +1,4 @@
-"""OP968 extends the stored schemas while preserving every legacy field rule."""
+"""Check that additive renderer declarations preserve every legacy field rule."""
 
 import json
 from hashlib import sha256
@@ -19,7 +19,11 @@ def test_legacy_schema_rules_match_pinned_main(name, legacy_sha256):
     source = files("haynes_studio.schemas").joinpath(f"studio.{name}.v1.schema.json")
     schema = json.loads(source.read_bytes())
     props = schema["properties"]
-    if name == "asset-version":
+    if name == "board":
+        props.pop("visibility")
+    elif name == "asset-version":
         props.pop("occlusion")
         schema["$defs"].pop("occlusion")
+    elif name == "run-snapshot":
+        props.pop("visibility_admission")
     assert sha256(canonical_json(schema)).hexdigest() == legacy_sha256

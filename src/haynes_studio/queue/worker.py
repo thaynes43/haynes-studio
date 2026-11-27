@@ -17,6 +17,7 @@ from haynes_studio.build.live import WanChainSource, WanS2VSource, check_request
 from haynes_studio.build.pipeline import ALL, BuildInputs, QueuedBuild, build_story
 from haynes_studio.build.prebuild import snapshot_bytes
 from haynes_studio.build.sources import ClipSources
+from haynes_studio.canonical.model import CastVisibility
 from haynes_studio.layered.foreground import roles_from_pins
 from haynes_studio.library import Library
 from haynes_studio.model_register import load_model_register
@@ -123,13 +124,21 @@ class BuildWorker:
         except (KeyError, TypeError, ValueError) as error:
             raise BuildError("run.snapshot_changed", "The frozen foreground pins no longer match the snapshot",
                              stage="prebuild") from error
-        prepared = replace(prepared, foreground_roles=roles)
+        admission = frozen.get("visibility_admission", {})
+        visibility = {
+            board_id: CastVisibility.from_document(pin)
+            for board_id, pin in admission.get("boards", {}).items()
+        }
+        overrides = admission.get("overrides", {})
+        prepared = replace(prepared, foreground_roles=roles, visibility=visibility,
+                           visibility_overrides=overrides)
         verified, _ = freeze(prepared, studio=self.studio)
         if snapshot_bytes(verified)[1] != digest:
             raise BuildError("run.snapshot_changed", "The frozen assets no longer match the snapshot",
                              stage="prebuild")
         return BuildInputs(story, library, self.register, studio=self.studio,
-                           image_digest=self.image_digest, format_version=format_version, foreground_roles=roles)
+                           image_digest=self.image_digest, format_version=format_version,
+                           foreground_roles=roles, visibility=visibility, visibility_overrides=overrides)
 
     def _render(self, claim, active, clips, inputs):
         s2v, i2v = WanS2VSource(clips), WanChainSource(clips)

@@ -148,6 +148,11 @@ def _board_job(request, response, actor, board_id, key, kind, body):
             except (OSError, StoreError) as error:
                 raise APIError(503, "occlusion.store_unavailable", "The foreground inputs could not be read") from error
             job = new_job(kind, board_id, photo_request(plan, body.seed), by=by, now=now)
+            if "visibility" in story["boards"][0]:
+                # Board photos freeze only their own inputs. Keep the film declaration on the draft.
+                story = {**story, "boards": [
+                    {key: value for key, value in story["boards"][0].items() if key != "visibility"},
+                ]}
             frozen = {"story": story, "seed": body.seed, "library": documents(library)}
             if plan.roles:
                 frozen["foreground_roles"] = [role.pin() for role in plan.roles]

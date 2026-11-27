@@ -9,8 +9,10 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Header, Request, Response
 
+from haynes_studio.build.errors import BuildError
 from haynes_studio.build.prebuild import admit_build, set_loop_ids, snapshot_bytes
 from haynes_studio.build.validate import validate_run
+from haynes_studio.build.visibility import staged_visibility_checks
 from haynes_studio.canonical.model import to_document
 from haynes_studio.db import catalog, drafts, jobs, queue_controls, runs
 from haynes_studio.feedback import records as feedback
@@ -30,7 +32,8 @@ from haynes_studio.queue.protocol import (
     WorkCompletion, WorkFailure, WorkLane, WorkReserve,
 )
 from haynes_studio.queue.staging import BuildStageStore, publish_staged_delivery
-from haynes_studio.store import BLOB_MISSING, StoreError
+from haynes_studio.render.visibility import VISIBILITY_CHECK
+from haynes_studio.store import BLOB_MISSING, StoreError, canonical_json
 from haynes_studio.store.layout import blob_locator
 
 from . import media_work
@@ -89,7 +92,7 @@ class CheckOverride(Payload):
 
 
 class CheckOverrideView(CheckOverride):
-    check: Literal["layered.decal_gate"]
+    check: Literal["layered.decal_gate", "layered.visibility"]
     by: dict
     at: str
 
@@ -190,6 +193,27 @@ def _stored_snapshot(store, row, if_none_match):
     raise APIError(503, "run.snapshot_changed", "The stored run snapshot does not match its pin")
 
 
+def _require_visibility_checks(staging, row, body, master_sha256):
+    frozen = row["snapshot"] or {}
+    admission = frozen.get("visibility_admission")
+    if admission is None:
+        return
+    reported = [check for check in body.checks if check["check"] == VISIBILITY_CHECK]
+    if (len(reported) != len(admission["boards"])
+            or {check.get("board_id") for check in reported} != admission["boards"].keys()):
+        raise APIError(422, "visibility.check_missing", "Delivery requires a visibility check for each declared board")
+    try:
+        verified = staged_visibility_checks(staging, row["production_id"], row["id"], frozen,
+                                            body.stages, body.outputs, master_sha256)
+    except BuildError as error:
+        raise APIError(422, "visibility.check_failed", "Visibility evidence must match the staged delivery") from error
+    for check in reported:
+        expected = verified[check["board_id"]]
+        if expected["result"] == "fail" or canonical_json(check) != canonical_json(expected):
+            raise APIError(422, "visibility.check_failed",
+                           "Delivery requires exact visible or person-overridden evidence for the admitted poses")
+
+
 def build_router(CurrentActor, authenticated_route):
     router = APIRouter(prefix="/v1", responses=ERROR_RESPONSES, route_class=authenticated_route,
                        tags=["runs"])
@@ -238,18 +262,24 @@ def build_router(CurrentActor, authenticated_route):
                 if current != revision:
                     raise StaleRevision(current)
                 prepared = _prepare(conn, draft)
+                sources = ()
                 if prepared.story is not None and (setting := prepared.story.set) is not None:
                     production = draft.story["production_id"]
                     library = catalog.with_foreground_masks(conn, prepared.library, setting.asset_version_id,
                                                             production)
                     sources = catalog.declaring_loop_sources(conn, library, set_loop_ids(prepared))
-                    try:
-                        prepared = admit_build(replace(prepared, library=library), store, declaring_sources=sources)
-                    except (OSError, StoreError) as error:
-                        raise APIError(503, "occlusion.store_unavailable",
-                                       "The foreground inputs could not be read") from error
+                    prepared = replace(prepared, library=library)
+                try:
+                    prepared = admit_build(prepared, store, declaring_sources=sources)
+                except (OSError, StoreError) as error:
+                    raise APIError(503, "occlusion.store_unavailable",
+                                   "The foreground inputs could not be read") from error
                 prepared.ensure_buildable()
                 frozen, library = inputs.freeze(prepared, studio=request.app.state.build_revision)
+                if prepared.visibility:
+                    overrides = runs.visibility_overrides(conn, frozen)
+                    if overrides:
+                        frozen["visibility_admission"]["overrides"] = overrides
                 data, sha = snapshot_bytes(frozen)
                 if len(data) > MAX_SNAPSHOT_BYTES:
                     raise APIError(422, "run.snapshot_too_large",
@@ -309,12 +339,12 @@ def build_router(CurrentActor, authenticated_route):
     def record_check_override(id: str, check: str, body: CheckOverride, request: Request,
                               actor: CurrentActor, if_match: IfMatch):
         actor.human()
-        if check != runs.CHECK_OVERRIDABLE:
-            raise forbidden("check.not_overridable", "Only the visual decal check supports an override")
+        if check not in runs.OVERRIDABLE_CHECKS:
+            raise forbidden("check.not_overridable", "Only the decal and visibility checks support overrides")
         with request.app.state.engine.begin() as conn:
             row = _run_access(conn, actor, "runs:queue", id, lock=True)
             escalation_storage.lock(conn)
-            return runs.record_override(conn, row, _revision(if_match), artifact=body.artifact,
+            return runs.record_override(conn, row, _revision(if_match), check=check, artifact=body.artifact,
                                         reason=body.reason, actor=to_document(actor.principal))
 
     return router
@@ -341,6 +371,7 @@ def _delivery(conn, request, row, body):
                 delivery.proxy.sha256 != body.outputs.get("proxy_sha256") or
                 delivery.verification.decoded_frames != body.outputs.get("frames")):
             raise failure
+        _require_visibility_checks(staging, row, body, delivery.master.sha256)
         publish_staged_delivery(staging, state.store, row["production_id"], row["id"])
     except (OSError, StoreError, DeliveryError) as error:
         raise failure from error

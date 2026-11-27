@@ -41,7 +41,7 @@ STORY_FIELDS = frozenset({
     "motion_style", "mix", "checks", "beds",
 })
 BOARD_FIELDS = frozenset({"title", "lines", "timing", "voice", "photo", "cast", "layout",
-                          "method", "seeds", "cues", "notes", "draft_application"})
+                          "method", "seeds", "cues", "notes", "draft_application", "visibility"})
 BOARD_CHILDREN = {"lines": "lin", "cues": "cue", "notes": "nte"}
 _PERSON_EDIT_FIELDS = ("person_edit", "person_edit_revision", "person_edit_acknowledgments")
 
@@ -276,6 +276,19 @@ def _exact_fields(fields: dict, allowed: frozenset[str]) -> None:
         raise invalid("schema.unknown_field", pointer(min(extras)), "The field is not writable")
 
 
+def _require_visibility_editor(by: dict) -> None:
+    if by["kind"] != "human":
+        raise ContractError("<draft>", [Violation(
+            "visibility.person_required", "/visibility",
+            "Only a person may set or remove a visibility declaration", "forbidden",
+        )])
+
+
+def _drop_empty_visibility(doc: dict) -> None:
+    if doc.get("visibility") is None or doc["visibility"] == {}:
+        doc.pop("visibility", None)
+
+
 def _with_child_ids(fields: dict, previous: dict, children: dict[str, str], minter: Minter,
                     *, allow_new_line_ids: bool = False) -> dict:
     out = normalize(fields)
@@ -485,6 +498,8 @@ def add_board(conn: sa.Connection, id_: str, revision: int, fields: dict, by: di
     draft = get_draft(conn, id_, lock=True)
     require_revision(draft.story["revision"], revision)
     _exact_fields(fields, BOARD_FIELDS)
+    if "visibility" in fields:
+        _require_visibility_editor(by)
     fields, declaration = _draft_declaration(fields, by, DraftDeclaration)
     minter = Minter()
     id_board, now = minter.mint("brd"), timestamp()
@@ -501,6 +516,7 @@ def add_board(conn: sa.Connection, id_: str, revision: int, fields: dict, by: di
         "revision": 1, "created_by": by, "drafted_by": by, "origin": None,
         "created_at": now, "updated_at": now,
     }
+    _drop_empty_visibility(doc)
     if declaration is not None:
         doc["draft_application"] = _draft_stamp(declaration, 1, now, archive_stamp)
     elif by["kind"] == "human":
@@ -549,6 +565,8 @@ def edit_board(conn: sa.Connection, story_id: str, id_: str, revision: int,
         raise NotFound
     require_revision(held["revision"], revision)
     _exact_fields(fields, BOARD_FIELDS)
+    if "visibility" in fields:
+        _require_visibility_editor(by)
     fields, declaration = _draft_declaration(fields, by, RedraftDeclaration)
     if archive_stamp is None:
         _check_board_write(held, by, acknowledgment)
@@ -568,6 +586,7 @@ def edit_board(conn: sa.Connection, story_id: str, id_: str, revision: int,
                              allow_new_line_ids=declaration is not None or archive_stamp is not None)
     now = timestamp()
     doc = {**_board_changed(held, by, "content", now, acknowledgment), **fields}
+    _drop_empty_visibility(doc)
     stamp = None
     if declaration is not None:
         doc["drafted_by"] = by
@@ -653,6 +672,8 @@ def remove_board(conn: sa.Connection, story_id: str, id_: str, revision: int, by
     if held is None:
         raise NotFound
     require_revision(held["revision"], revision)
+    if "visibility" in held:
+        _require_visibility_editor(by)
     _check_board_write(held, by, acknowledgment)
     now = timestamp()
     order = [board_id for board_id in draft.story["board_order"] if board_id != id_]
