@@ -27,21 +27,24 @@ The matte isolation policy is installed and selects zero pods.
 [Story 970, comments 10332](https://work.haynesnetwork.com/work_packages/970/activity#comment-10332) and [10333](https://work.haynesnetwork.com/work_packages/970/activity#comment-10333).
 A cutout request is accepted and waits.
 [Story 970, comment 10338](https://work.haynesnetwork.com/work_packages/970/activity#comment-10338).
-Matte activation is held on Tom's decision, and haynes-ops PR 5096 is open
-and unmerged because all three designs for the isolation proof inside the
-pod can give a false pass.
-[Story 970, comments 10335](https://work.haynesnetwork.com/work_packages/970/activity#comment-10335) and [10382](https://work.haynesnetwork.com/work_packages/970/activity#comment-10382).
-Haynes-studio PR 151 for foreground role masks (story 968) is parked, open
-and unmerged.
-[Story 968, comments 10383](https://work.haynesnetwork.com/work_packages/968/activity#comment-10383) and [10384](https://work.haynesnetwork.com/work_packages/968/activity#comment-10384).
+Matte activation (story 970) is marked **Needs approval** pending Tom's decision, and
+haynes-ops PR 5096 is open and unmerged because all three designs for the
+isolation proof inside the pod can give a false pass.
+[Story 970, comments 10382](https://work.haynesnetwork.com/work_packages/970/activity#comment-10382) and [10574](https://work.haynesnetwork.com/work_packages/970/activity#comment-10574).
+Haynes-studio PR 151 for foreground role masks (story 968) is parked for good,
+open and unmerged.
+[Story 968, comment 10582](https://work.haynesnetwork.com/work_packages/968/activity#comment-10582).
 Segmentation is provisioned and smoked with serving inactive.
 [Story 460, comment 10228](https://work.haynesnetwork.com/work_packages/460/activity#comment-10228).
 The client adapter is in the fifth build with no caller.
 [Story 452, comment 10313](https://work.haynesnetwork.com/work_packages/452/activity#comment-10313) · [Story 978, comment 10408](https://work.haynesnetwork.com/work_packages/978/activity#comment-10408).
 Upscaling is comparison-only and delivery uses Lanczos.
 [Story 461, comment 10229](https://work.haynesnetwork.com/work_packages/461/activity#comment-10229).
-Wan local-model activation is held and haynes-ops PR 5064 stays open and
-unmerged. [Story 442, comments 10134](https://work.haynesnetwork.com/work_packages/442/activity#comment-10134) and [10152](https://work.haynesnetwork.com/work_packages/442/activity#comment-10152).
+The isolated restore drill (story 436) is marked **Needs answer** pending Tom's choice of
+archive credential. [Story 436, comment 10572](https://work.haynesnetwork.com/work_packages/436/activity#comment-10572).
+Wan local-model activation (story 442) is marked **Needs approval** after the
+restart-only ask lapsed unanswered, and haynes-ops PR 5064 stays open and
+unmerged. [Story 442, comments 10413](https://work.haynesnetwork.com/work_packages/442/activity#comment-10413) and [10573](https://work.haynesnetwork.com/work_packages/442/activity#comment-10573).
 See the [installed evidence](docs/contracts/studio-contracts-v1.md#installed-and-published-state).
 
 Start with:

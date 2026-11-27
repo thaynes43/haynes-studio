@@ -116,6 +116,16 @@ saga coordinator's provisional rulings for Tom's review.
 [Section 13](#installed-and-published-state) records the fourth pin, the matte
 policy and activation hold, and the separate backend evidence.
 
+**Ninth amendment, 2026-11-27**, story
+[985](https://work.haynesnetwork.com/work_packages/985), at base `0239c602`.
+It folds in the merged pause, lane read and Editor Format amendments from
+[Studio PR 152](https://github.com/thaynes43/haynes-studio/pull/152) and
+[PR 153](https://github.com/thaynes43/haynes-studio/pull/153).
+[Section 19](#19-coordinator-rulings-provisional) records CR-67 to CR-71 as
+the saga coordinator's provisional rulings for Tom's review.
+[Section 13](#installed-and-published-state) records the fifth pin, current
+holds and the permanent park of Studio PR 151.
+
 Every rule carries its source:
 
 | Label | Meaning |
@@ -1015,15 +1025,22 @@ target that exceeds the frame fails. The timed motion loop requirement and
 clip chroma keying, APNG, decal checks and clocks still apply.
 Temporal refinement needs a new keyed cache input and paired clip evidence.
 
-**Segmentation and visibility (stories 460, 452 and 968).** Grounding DINO
+**Segmentation and visibility (stories 460, 452, 968 and 975).** Grounding DINO
 Tiny and SAM 2.1 Hiera Tiny produce source-sized masks for an explicit target.
 The client adapter is merged. Stored set, board and run-snapshot schemas
-keep their existing shapes under [CR-64](#ruling-64). The proposed mask and
-layout fields, renderer role masks and visibility check move together to
-story 968. That story retains CR-54's person review and hard refusal,
-CR-57's bounds and CR-58's test oracle. CR-64 supersedes the splits
-in CR-60 and CR-61. Legacy foreground edge and feather still apply.
-[Story 968](https://work.haynesnetwork.com/work_packages/968).
+keep their existing shapes under [CR-64](#ruling-64), which superseded
+the splits in CR-60 and CR-61. Legacy foreground edge and feather still
+apply.
+
+[CR-67](#ruling-67) limits the parked story 968 proposal to the mask
+declaration and renderer. It moves the visibility check to
+[story 975](https://work.haynesnetwork.com/work_packages/975) as a
+post-render check on the film's own keyed frames in the existing run-check
+framework. CR-54's person review and hard refusal, CR-57's bounds and
+CR-58's renderer oracle carry over to that proposed check. Target hints
+move to [story 971](https://work.haynesnetwork.com/work_packages/971), the
+job that would use them. Both follow-up stories depend on story 968 and
+remain unstarted. [Story 968, comments 10368](https://work.haynesnetwork.com/work_packages/968/activity#comment-10368) and [10582](https://work.haynesnetwork.com/work_packages/968/activity#comment-10582).
 
 **Upscaling comparison (story 461).** Pillow Lanczos remains the delivery
 profile. FSRCNN ×2 followed by Lanczos runs as a one-shot comparison under
@@ -1361,7 +1378,7 @@ can override a named artifact check through `record_check_override`. Story 450
 supplies the check library. The product API can record decal overrides. The automatic re-roll loop belongs
 to story 454.
 
-**Durable queue (stories 410, 956 and 430).** Enqueue reserves the
+**Durable queue (stories 410, 956, 430 and 976).** Enqueue reserves the
 `Idempotency-Key` by story and authenticated actor. The same accepted revision
 replays the same run ID (200), even after edits. Another revision with the same
 key gives `422 idempotency.mismatch`. The API freezes the draft, resolved
@@ -1385,6 +1402,38 @@ The installed queue predates machine-code handling and waits on the foreign
 ComfyUI queue and Rack GPU busy or warm texts. The separate command-line
 clip client classifies only the lease text as busy. Other refusals end as
 `adapter.job_failed`.
+
+Under [CR-68](#ruling-68), pause stops claiming queued work, preserves FIFO
+order and leaves live claim fences in force. A live claim may finish,
+including a media job's first publish or a run's transcript request after a
+clip. An engine request authorized before pause may start after the pause
+response. Leases last 90 seconds from grant or the last renewal on the
+database clock.
+
+Under [CR-69](#ruling-69), the signed-in `GET /v1/queue/lanes` reports an
+additive, read-only `live_claim` for each of `run`, `voice`, `image` and
+`matte` in both switch states. A lane is quiet at the time of the read
+when `paused` is true and `live_claim` is false. The session and
+CSRF-protected `PUT /v1/queue/lanes/{lane}` keeps its existing response
+shape with `lane`, `paused`, `changed_at` and `changed_by`.
+
+`STUDIO_PAUSED_RECONCILE` defaults off. With it set to `1`, a paused run
+poll can return a reconciliation-only claim to a worker that sends
+`X-Studio-Paused-Reconcile: 1`. The FIFO head must be running or held,
+have an unresolved `sent` Wan attempt, and have an expired or released
+lease with no retry delay remaining. The replacement receives a fresh
+fence and `reconcile_only: true`. It reads the recorded Wan ID and settles
+known outcomes without a Wan submission or replay. An absent ID stays held
+for another read. A verified result or restart failure is recorded and the
+head is released for normal claiming after resume. Definite job failure or
+cancellation can finish the run while paused. Other paused run polls return
+204.
+
+With the switch on, new Wan reservations check pause. The sent marker and
+the final fenced pre-PUT `wan_submitting` heartbeat take the lane row lock
+before the run lock. When pause wins dispatch authorization, the API returns
+`409 work.lane_paused`. A PUT that passes its final check may start after
+the pause response. Resume restores regular FIFO claims.
 
 A definite client rejection or verified Wan result mismatch fails the attempt
 and run, with evidence. A different frozen build revision fails with
@@ -2535,9 +2584,16 @@ and excludes candidates. The image worker checks the household queue before
 marking dispatch. An expired dispatched job fails with `work.dispatch_unconfirmed`.
 Media claims use `lane: voice` or `lane: image`. An empty body keeps the run
 lane. Heartbeat, publish, complete and fail use the job ID and claim fence.
-A paused lane accepts submissions, lets active claims finish and returns
-204 to new claims. The session and CSRF-protected pause change appends a
-person and database timestamp.
+A paused lane accepts submissions and stops claiming queued work. A live
+media claim can complete, including its first `/publish` and engine
+request. A paused media poll returns 204. Matte can settle an expired
+dispatched FIFO head as `work.dispatch_unconfirmed` while paused. Voice and
+image do the same when `STUDIO_PAUSED_RECONCILE=1`. An expired dispatch
+is retired because the worker cannot confirm whether the non-idempotent
+engine received it. The matte-only `settle_only` path can still settle
+expiry without taking a claim. Read `paused` and `live_claim` using the
+lane read in [section 8](#8-runs-deliveries-and-the-store). The session and
+CSRF-protected pause change appends a person and database timestamp.
 
 Selection uses the immutable `media_jobs.requester` principal, outside its
 runtime UPDATE grant. A missing or malformed requester fails closed. A person's
@@ -2617,6 +2673,29 @@ Status uses board jobs and lane reads. A current result agrees with the job,
 selected version, server-derived board facts and local voice inputs. Native
 track and line players use the person-only version preview with ranges.
 
+**Story format (story 977).** The storyboard has an expandable **Format**
+section for the current draft. A signed-in person reads the format catalog,
+immutable version details and scoped stock voice versions. The picker matches
+the recipe's frame dimensions to the enabled media type and flags targets
+that lack a platform maximum before Save. Save sends only the changed
+`format_version_id`, `cast` and `narrator_voice_version_id` fields to
+`PATCH /v1/stories/{id}` with the current story revision in `If-Match`.
+A `409 conflict.revision` or a verified successful PATCH establishes a
+minimum revision for the story and timing read-back. On conflict the editor
+uses the reported current revision, falling back to the sent revision plus
+one. A successful PATCH must name the same story and report the sent
+revision plus one in its body. If the response has an ETag, it must match
+that revision, with either a strong or weak tag.
+
+An uncertain write or stale read-back holds Build and Save and offers
+**Reload draft** even while Format is collapsed. An unresolved conflict
+stays visible when Format is closed and holds Build until the person keeps
+their edited fields or chooses the latest saved version. Kept edits need
+another Save before Build uses them. When a finished run's loaded snapshot
+has no targets, its message links to the originating draft's Format section
+and preserves that destination through sign-in. A subsequent enqueue
+freezes the saved recipe and targets.
+
 **Runs page (stories 419 and 958).** Build sends the displayed draft revision
 and a key for that press. Ambiguous retries keep the key and original revision.
 A revision conflict offers a reload. Length warnings remain advisory. List
@@ -2662,9 +2741,13 @@ can lose the key before a job URL is known.
 
 Use the [Studio user journey](../process/studio-user-journey.md) for the
 newcomer flow and the [operator runbook](../process/studio-operator-runbook.md)
-for health, lane holds and private recovery. In the installed UI a new
-story needs an API format pin to reach feedback and a private package.
-[Saga 362, comment 10231](https://work.haynesnetwork.com/work_packages/362/activity#comment-10231).
+for health, lane holds and private recovery. The fifth pin's served web
+bundle contains the Format control, so a person can pin a new story in the
+Editor to reach feedback and private package preparation. The browser
+contract mock covers that journey. A signed-in walkthrough on the installed
+app and Tom's verdict on wording and placement remain open.
+[Story 977, comment 10404](https://work.haynesnetwork.com/work_packages/977/activity#comment-10404) ·
+[Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409).
 
 ### Scopes (P-17)
 
@@ -3124,6 +3207,24 @@ before the launcher requests its grant and repeat the check while running.
 The separate activation also owns the credential, registration,
 listener and ingress change, and any render split.
 
+**Paused reconciliation cutover (stories 976 and 978).** The fifth pin
+ships the code with `STUDIO_PAUSED_RECONCILE` unset on both API replicas.
+[Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409).
+Before enabling it, verify the new build on every API replica reachable
+through either listener and on the run worker. Stop the workers or drain
+their traffic, including in-flight requests. In a separate GitOps change,
+set the switch to `1` on every API replica. Verify that workers can reach
+only enabled endpoints, including during replica termination, before
+starting workers or restoring their traffic. Read back the build and
+switch on each replica, worker readiness and progress, and the signed-in
+lane state. A disabled endpoint can return 200 to the final
+`wan_submitting` heartbeat and allow replay of a missing Wan ID while
+the lane is paused. Before rolling back to a build without the dispatch
+check, disable the switch on every serving API replica and drain the
+enabled endpoints. The rollout and rollback use the
+[operator runbook](../process/studio-operator-runbook.md#activate-paused-reconciliation).
+[Story 976, comments 10397](https://work.haynesnetwork.com/work_packages/976/activity#comment-10397) and [10400](https://work.haynesnetwork.com/work_packages/976/activity#comment-10400).
+
 **Local runtime (story 442).** Provisioning and activation are separate.
 The temporary Job-scoped download policy precedes a one-shot CPU weights
 Job. It uses a verified platform image, pinned revision, exact sizes and
@@ -3167,7 +3268,7 @@ A runtime or parameter change needs a new profile identity.
 
 ### Installed and published state
 
-Tracker read-backs through 2026-11-26. Installed, published,
+Tracker evidence through 2026-11-27. Installed, published,
 usable and accepted have separate evidence.
 
 | Component | Recorded evidence | Open proof |
@@ -3180,7 +3281,7 @@ usable and accepted have separate evidence.
 | Automated private playback | Each production's proof key read its own run and delivery and verified the exact master and proxy. Proxy HEAD returned 200, and whole, first, past-midpoint and suffix ranges returned 206 with exact ranges. One More Meeting proxy: 1,789,344 bytes, SHA-256 `63dbb1e26287360ed6c4a0422dbdbfa250ad981c74e9719133d4dfe72d809d1b`. Other production's key 404, anonymous 401, scoped key writes 403. Both proof keys were revoked within two minutes. [Story 957, comment 9914](https://work.haynesnetwork.com/work_packages/957/activity#comment-9914); [story 944, comment 9915](https://work.haynesnetwork.com/work_packages/944/activity#comment-9915). | Human playback and creative verdict. |
 | Database backup and health | Daily physical base backup and continuous WAL cover metadata with a 30-day window. First completed base containing Studio and both imports: `postgres-20261125000000`, Kubernetes creation time 2026-11-25 05:00Z, Barman ID `20261125T000000`. CNPG had three Ready instances and continuous archiving. Gatus passed with expected anonymous 401. [Story 435, comments 9887](https://work.haynesnetwork.com/work_packages/435/activity#comment-9887) and [9948](https://work.haynesnetwork.com/work_packages/435/activity#comment-9948). | Isolated restore. NAS media has no backup (D47). |
 | Dormant local-model runtime | Flux applied haynes-ops `79fa01b5`. Wan pod recreated once, four changed files matched, Wan/Foley readiness stayed 200; local discovery gave `503 local_model_not_installed`. Published `ghcr.io/thaynes43/studio-local-model@sha256:e2e9b5e9b71aee89d0b8077ae47be113587b61054957b10f694cb4ab92b93f03`. [Story 442, comment 9924](https://work.haynesnetwork.com/work_packages/442/activity#comment-9924). | Sidecar/profile activation, calibration and leased inference/handover proof. |
-| Wan local weights and activation | Download policy installed at haynes-ops `942f1785`. The first Job (`e7d237a6`) was OOMKilled, exit 137, under 256 MiB and published nothing. Retry `wan-local-model-provision-r2` (`e1c703b7`) published both verified files (7,499,546,400 bytes). The first activation was reverted after Wan was off its Service for about 32 minutes. The fixed dormant build rolled out and the diagnostic identified the device-variable rewrite. [Story 442, comments 9959](https://work.haynesnetwork.com/work_packages/442/activity#comment-9959), [9973](https://work.haynesnetwork.com/work_packages/442/activity#comment-9973), [10006](https://work.haynesnetwork.com/work_packages/442/activity#comment-10006) and [10007](https://work.haynesnetwork.com/work_packages/442/activity#comment-10007). | The second activation is held. [Haynes-ops PR 5064](https://github.com/thaynes43/haynes-ops/pull/5064) remains open and unmerged. [Story 442, comments 10134](https://work.haynesnetwork.com/work_packages/442/activity#comment-10134) and [10152](https://work.haynesnetwork.com/work_packages/442/activity#comment-10152). |
+| Wan local weights and activation | Download policy installed at haynes-ops `942f1785`. The first Job (`e7d237a6`) was OOMKilled, exit 137, under 256 MiB and published nothing. Retry `wan-local-model-provision-r2` (`e1c703b7`) published both verified files (7,499,546,400 bytes). The first activation was reverted after Wan was off its Service for about 32 minutes. The fixed dormant build rolled out and the diagnostic identified the device-variable rewrite. [Story 442, comments 9959](https://work.haynesnetwork.com/work_packages/442/activity#comment-9959), [9973](https://work.haynesnetwork.com/work_packages/442/activity#comment-9973), [10006](https://work.haynesnetwork.com/work_packages/442/activity#comment-10006) and [10007](https://work.haynesnetwork.com/work_packages/442/activity#comment-10007). | Story 442 is marked **Needs approval** after the restart-only ask lapsed unanswered. [Story 442, comments 10413](https://work.haynesnetwork.com/work_packages/442/activity#comment-10413) and [10573](https://work.haynesnetwork.com/work_packages/442/activity#comment-10573). [Haynes-ops PR 5064](https://github.com/thaynes43/haynes-ops/pull/5064) remains open and unmerged. [Story 442, comment 10413](https://work.haynesnetwork.com/work_packages/442/activity#comment-10413). |
 | Second app pin | Haynes-ops `04bb6c82` installed Studio `393fe1d` and schema `0007_escalation_packages`. It brought default protection for unstamped drafts, media and job operations, recipes, Runs comparison, person-mode escalation, go-live and snapshot reads, and board inspector. [Story 959, comment 9977](https://work.haynesnetwork.com/work_packages/959/activity#comment-9977). | First signed-in use and real jobs. [Story 959, comment 9977](https://work.haynesnetwork.com/work_packages/959/activity#comment-9977). |
 | Voice and image lanes | The two consumers were installed off talosw01 at 1 vCPU each. The image policy initially selected a label Cilium ignored. The corrected policy was installed and engine reachability passed. [Story 961, comments 9993](https://work.haynesnetwork.com/work_packages/961/activity#comment-9993), [9997](https://work.haynesnetwork.com/work_packages/961/activity#comment-9997) and [10002](https://work.haynesnetwork.com/work_packages/961/activity#comment-10002). | A real take and photo need a signed-in person. [Saga 362, comment 10012](https://work.haynesnetwork.com/work_packages/362/activity#comment-10012). |
 | Third app pin | Haynes-ops `ccf83a52` installed Studio `80975a9` with `0012_release_constraints`. It added feedback and iteration, the photo composer, private release packages, Assets, staging archive, lane grants and shutdown drain. The installed worker identities passed cross-lane denials. Both archived films read back intact. [Story 964, comment 10061](https://work.haynesnetwork.com/work_packages/964/activity#comment-10061) · [Saga 362, comment 10064](https://work.haynesnetwork.com/work_packages/362/activity#comment-10064). | Real feedback and release package. [Saga 362, comment 10064](https://work.haynesnetwork.com/work_packages/362/activity#comment-10064). |
@@ -3189,7 +3290,7 @@ usable and accepted have separate evidence.
 | Editor Format control | The editor can pin a format version, narrator voice and cast on a draft (story 977). [Story 977, comment 10404](https://work.haynesnetwork.com/work_packages/977/activity#comment-10404). The served web bundle contains the control. [Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409). | Signed-in Editor walkthrough and Tom's verdict on wording and placement. [Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409) · [Story 977, comment 10404](https://work.haynesnetwork.com/work_packages/977/activity#comment-10404). |
 | Paused-lane reconcile | The story 976 code is in the fifth build with `STUDIO_PAUSED_RECONCILE` unset on both API replicas. [Story 976](https://work.haynesnetwork.com/work_packages/976) · [Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409). | Activation remains pending and requires its own worker cutover. [Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409). |
 | Matting backend and matte lane | The pinned matting allocation passed the real-weight one-shot smoke with all 13 verdicts. The app accepts a cutout with 202 and the job waits for a consumer. [Story 459, comment 10004](https://work.haynesnetwork.com/work_packages/459/activity#comment-10004) · [Story 967, comment 10322](https://work.haynesnetwork.com/work_packages/967/activity#comment-10322). | The sidecar and matte worker await activation. The private cast trial needs a content-addressed photo from an authorized upload or reviewed import, then Tom's visual verdict. [Story 451, comment 10049](https://work.haynesnetwork.com/work_packages/451/activity#comment-10049) · [Story 970, comment 10338](https://work.haynesnetwork.com/work_packages/970/activity#comment-10338). |
-| Matte worker isolation | The protected policy-only stage is installed at haynes-ops `ed212ad0`. Read-back verified both protections and zero matching pods, including terminating pods. All stages recovered Ready after reconciliation and no pod rolled. [Story 970, comments 10332](https://work.haynesnetwork.com/work_packages/970/activity#comment-10332) and [10333](https://work.haynesnetwork.com/work_packages/970/activity#comment-10333). | Inside-pod enforcement and activation are held on Tom's decision on credential, lane grant and API ingress peer. [Story 970, comments 10335](https://work.haynesnetwork.com/work_packages/970/activity#comment-10335) and [10338](https://work.haynesnetwork.com/work_packages/970/activity#comment-10338). [Haynes-ops PR 5096](https://github.com/thaynes43/haynes-ops/pull/5096) remains held, open and unmerged because all three designs for the isolation proof inside the pod can give a false pass. [Story 970, comment 10382](https://work.haynesnetwork.com/work_packages/970/activity#comment-10382). |
+| Matte worker isolation | The protected policy-only stage is installed at haynes-ops `ed212ad0`. Read-back verified both protections and zero matching pods, including terminating pods. All stages recovered Ready after reconciliation and no pod rolled. [Story 970, comments 10332](https://work.haynesnetwork.com/work_packages/970/activity#comment-10332) and [10333](https://work.haynesnetwork.com/work_packages/970/activity#comment-10333). | Story 970 is marked **Needs approval** pending Tom's decision on the credential, lane grant and API ingress peer, with the isolation proof still uncleared. [Story 970, comment 10574](https://work.haynesnetwork.com/work_packages/970/activity#comment-10574). [Haynes-ops PR 5096](https://github.com/thaynes43/haynes-ops/pull/5096) remains held, open and unmerged because all three designs for the isolation proof inside the pod can give a false pass. [Story 970, comment 10382](https://work.haynesnetwork.com/work_packages/970/activity#comment-10382). |
 | Segmentation | The pinned image and real weights are installed as verified allocation `-06`. The one-shot serving smoke passed at 2.74 GiB peak under 5 GiB. Serving remains inactive. [Story 460, comment 10228](https://work.haynesnetwork.com/work_packages/460/activity#comment-10228). | Continuous serving and the private quality trial. [Story 460, comment 10228](https://work.haynesnetwork.com/work_packages/460/activity#comment-10228). |
 | Upscaling comparison | The provisioned FSRCNN graph passed its measuring smoke and produced one private proxy-frame comparison. Lanczos was closer to the master on all three reference metrics for that frame. Delivery uses Lanczos. The learned scaler has no serving stage. [Story 461, comment 10229](https://work.haynesnetwork.com/work_packages/461/activity#comment-10229) · [Saga 362, comment 10231](https://work.haynesnetwork.com/work_packages/362/activity#comment-10231). | Tom's visual verdict on the pair. [Story 461, comment 10229](https://work.haynesnetwork.com/work_packages/461/activity#comment-10229). |
 
@@ -3199,22 +3300,22 @@ is in the build with no calling job, route or worker.
 The fifth pin's source also includes PR 149's escalation fixture clock fix.
 [Story 978](https://work.haynesnetwork.com/work_packages/978).
 
-**Foreground role masks.** Haynes-studio PR 151 (story 968) is parked, open
-and unmerged.
-[Story 968, comments 10383](https://work.haynesnetwork.com/work_packages/968/activity#comment-10383) and [10384](https://work.haynesnetwork.com/work_packages/968/activity#comment-10384).
-PRs 140 and 147 stay open as references for the renderer, stored fields
-and visibility check in story 968. [Story 452, comment 10288](https://work.haynesnetwork.com/work_packages/452/activity#comment-10288).
+**Foreground role masks.** Haynes-studio PR 151 (story 968) is parked for
+good, open and unmerged at `5b87773`. [Story 968, comment 10582](https://work.haynesnetwork.com/work_packages/968/activity#comment-10582).
+PRs 140 and 147 stay open as earlier references. [Story 968, comment 10582](https://work.haynesnetwork.com/work_packages/968/activity#comment-10582).
 
 **Recovery evidence.** During the third-pin one-API-pod replacement,
 300 of 300 internal ingress samples returned the expected 401. Both
 imported proxies read back unchanged. The baseline had no saved selection
 or queued snapshot.
 [Story 437, comments 10077](https://work.haynesnetwork.com/work_packages/437/activity#comment-10077) and [10078](https://work.haynesnetwork.com/work_packages/437/activity#comment-10078).
-The isolated restore is held because the available archive credential
-would expose a production role password to the recovery pod. The
-separate single-instance cluster, Studio-only query, no archive writes
-and verified same-drill cleanup remain the CR-48 boundary.
-[Story 436, comment 10072](https://work.haynesnetwork.com/work_packages/436/activity#comment-10072) · [Saga 362, comment 10064](https://work.haynesnetwork.com/work_packages/362/activity#comment-10064).
+The isolated restore drill (story 436) is **Needs answer** on Tom's choice
+of archive credential. [Story 436, comment 10572](https://work.haynesnetwork.com/work_packages/436/activity#comment-10572).
+The available archive credential would expose a production role password
+to the recovery pod. [Story 436, comment 10072](https://work.haynesnetwork.com/work_packages/436/activity#comment-10072).
+The separate single-instance cluster, Studio-only query, no archive
+writes and verified same-drill cleanup remain the CR-48 boundary.
+[Saga 362, comment 10064](https://work.haynesnetwork.com/work_packages/362/activity#comment-10064).
 
 **Held.** Story [446](https://work.haynesnetwork.com/work_packages/446) awaits the
 dev-env coordinator's sanctioned responder interface and the stored-evidence
@@ -3299,7 +3400,14 @@ What story 424 implements. Proposal P-19 for the names and commands.
   404 and both proxies), candidate feedback and iteration, Assets filter
   and target restore, candidate refusal, retry, preview and promotion, and
   matte states. The photo composer cases exercise durable job transitions
-  and revision conflicts with synthetic images. The
+  and revision conflicts with synthetic images. Story 977's mock flow
+  creates a draft with a buildable board, follows the Format link from an
+  unpinned run, saves format, cast and narrator settings, and sees frozen
+  targets with **Present run** and **Prepare package** on the next finished
+  run. Cases cover keyboard operation, pending controls, visible focus,
+  API refusals and no overflow at both viewports. They also cover stale
+  read-back, a collapsed conflict holding Build, recovery from a successful
+  reply with a mismatched revision, and return through sign-in. The
   [behaviour matrix](../reference/web-behaviour-matrix.md)
   records story 438's mock cases. The opt-in installed playback spec needs
   a person-supplied HTTPS origin and Playwright storage state, skips in CI,
@@ -3332,6 +3440,17 @@ What story 424 implements. Proposal P-19 for the names and commands.
   Wrong-lane operations leave queue bytes and counts intact. The
   escalation fixture samples PostgreSQL time for responder-key expiry
   boundaries and advances its fake lifecycle clock for expiry and budget tests.
+- **Paused reconciliation (story 976):** disposable PostgreSQL and fake
+  engines cover pause before reclaim, pause racing reclaim, dispatch
+  authorization ordered with pause, live media dispatch and live ASR, and
+  an authorized Wan PUT starting after pause returns. The tests load the
+  pinned serving worker and API handlers from Git and pair each with the
+  new counterpart in both switch states. Coverage includes missing and
+  verified Wan IDs, ineligible FIFO heads, live fencing, media expiry
+  settlement, FIFO on resume and matte `settle_only`. Guard regressions
+  cover the default-off claim and reservation paths, rejection of
+  `X-Studio-Paused-Reconcile: 0` for paused claims, and cancellation
+  priority at the final submitting heartbeat.
 - **Archive and release DB tests (stories 443, 449 and 963):** check
   API/MCP parity, read-only pinned archive reads, exact UTF-8 bytes,
   provenance, stale append and replay, per-board protection, apply
@@ -3495,6 +3614,7 @@ What story 424 implements. Proposal P-19 for the names and commands.
 | `photo.stale`, `asset.recorded_without_media` | invalid (422) | 4, 8, 9, 12 | |
 | `photo.upload_busy`, `photo.upload_timeout` | unavailable (503), body timeout (408) respectively | 12 | |
 | `work.dispatch_unconfirmed` | failed job | 12 | |
+| `work.lane_paused` | conflict (409, internal Wan dispatch authorization) | 8, 12 | |
 | `work.revision_mismatch` | failed run | 8 | |
 | `wan.cancel_waiting_for_absence`, `wan.pre_admission_failed`, `wan.admission_unknown` | held run | 8 | |
 | `run.snapshot_lost`, `run.snapshot_changed`, `run.snapshot_too_large` (snapshot read) | service unavailable (503) | 8 | |
@@ -3848,16 +3968,21 @@ comment 9653). Tom has not seen or confirmed any of them.
 | <a name="ruling-51"></a>CR-51 | 2026-11-25 | What is the measured segmentation serving limit? | Use memory-mapped weights, request 4 GiB and limit to 5 GiB. Keep the offline render memory limit at 32 GiB. | Mapped and buffered loads yielded identical bytes in measurement. | [Saga 362, comment 10089](https://work.haynesnetwork.com/work_packages/362/activity#comment-10089) · [Story 460, comment 10090](https://work.haynesnetwork.com/work_packages/460/activity#comment-10090) | Sections 13–14 and Studio PR 138. | Provisional, in force. Serving activation remains open. |
 | <a name="ruling-52"></a>CR-52 | 2026-11-25 | What follows withdrawal of PyAV 18.1.0? | Install PyAV 18.1.1 at the fourth pin, in the locked images and offline render requirements. Exact rebuilds of 18.1.0 outputs require the original lock or image digest. | On the measured fixture the mix bytes and decoded picture were identical. Embedded encoder strings changed the picture and master hashes. | [Story 966, comment 10095](https://work.haynesnetwork.com/work_packages/966/activity#comment-10095) · [Saga 362, comment 10089](https://work.haynesnetwork.com/work_packages/362/activity#comment-10089) | Sections 4 and 13 and Studio PR 137. | Provisional, in force |
 | <a name="ruling-53"></a>CR-53 | 2026-11-25 | How is the segmentation serving version identified? | Keep the v1 model-pair selector in requests and readiness while models and thresholds stay unchanged. Version the serving contract in the manifest, report its exact hash in readiness, and pin that hash in result provenance. | The client verifies the full readiness tuple and still uses the v1 selector. | [Story 460, comment 10112](https://work.haynesnetwork.com/work_packages/460/activity#comment-10112) | Sections 12–13 and Studio PR 138. | Provisional, in force |
-| <a name="ruling-54"></a>CR-54 | 2026-11-25 | What does the proposed visibility gate refuse or send to review? | Send `uncertain` with the measurement to person review for a possible override. Block `hidden` without override. Refuse sets declaring foreground roles until the renderer draws those masks. Keep legacy boards intact. | Measurement must reflect the scene that will be drawn. | [Story 452, comment 10116](https://work.haynesnetwork.com/work_packages/452/activity#comment-10116) | Section 5 records the deferred visibility gate. | Provisional, in force for story 968's person-review and blocked-build verdicts. [CR-64](#ruling-64) parked story 452's evaluator. |
+| <a name="ruling-54"></a>CR-54 | 2026-11-25 | What does the proposed visibility gate refuse or send to review? | Send `uncertain` with the measurement to person review for a possible override. Block `hidden` without override. Refuse sets declaring foreground roles until the renderer draws those masks. Keep legacy boards intact. | Measurement must reflect the scene that will be drawn. | [Story 452, comment 10116](https://work.haynesnetwork.com/work_packages/452/activity#comment-10116) | Section 5 records the deferred visibility gate. | Provisional. [CR-64](#ruling-64) parked story 452's evaluator. [CR-67](#ruling-67) carries the verdicts to the proposed post-render check in story 975. |
 | <a name="ruling-55"></a>CR-55 | 2026-11-25 | Should an upscaling service be staged? | Keep FSRCNN comparison-only and stage no serving overlay until Tom chooses it from the comparison. Delivery stays Lanczos. | The trial needs only its bounded Jobs and no change to the render allocation. | [Story 461, comment 10159](https://work.haynesnetwork.com/work_packages/461/activity#comment-10159) | Sections 5 and 13 and haynes-ops PR 5083. | Provisional, in force |
 | <a name="ruling-56"></a>CR-56 | 2026-11-25 | How do the synthetic overshoot and motion checks pass? | Judge against the Lanczos baseline using the existing relative margins. Keep both absolute measurements as diagnostics and drop the two absolute caps as pass conditions. This gates the private comparison only. | The delivery baseline itself failed both absolute caps. | [Story 461, comment 10180](https://work.haynesnetwork.com/work_packages/461/activity#comment-10180) | Section 14 and Studio PR 144. | Provisional, in force |
-| <a name="ruling-57"></a>CR-57 | 2026-11-25 | How should unknown occluders affect a verdict? | Compute bounds. Use `hidden` when the upper bound is at or below the floor, `visible` when the lower bound is at or above it, and `uncertain` otherwise. Exclude layers at or below the subject. Bind every supplied input in the evidence digest before validation. | Occluders can only hide, and a review must name the inputs actually measured. | [Story 452, comment 10182](https://work.haynesnetwork.com/work_packages/452/activity#comment-10182) | Section 5 records the deferred evaluator. | Provisional, in force for story 968's bounds-based verdict. [CR-64](#ruling-64) parked story 452's evaluator. |
-| <a name="ruling-58"></a>CR-58 | 2026-11-25 | What scene and test oracle should the visibility check use? | Measure the scene `compose_photo` draws. An omitted component makes its affected target `unsupported`, with no override. Generated cases compare the evaluator's count against the rendered frame and require its bounds to contain the rendered count for every completion of unknowns. | A check for a richer scene can certify a frame the renderer never produces. | [Story 452, comment 10227](https://work.haynesnetwork.com/work_packages/452/activity#comment-10227) | Section 5 records the renderer and visibility work moving together. | Provisional, in force for story 968's renderer-oracle requirement. [CR-64](#ruling-64) parked story 452's standalone evaluator. |
+| <a name="ruling-57"></a>CR-57 | 2026-11-25 | How should unknown occluders affect a verdict? | Compute bounds. Use `hidden` when the upper bound is at or below the floor, `visible` when the lower bound is at or above it, and `uncertain` otherwise. Exclude layers at or below the subject. Bind every supplied input in the evidence digest before validation. | Occluders can only hide, and a review must name the inputs actually measured. | [Story 452, comment 10182](https://work.haynesnetwork.com/work_packages/452/activity#comment-10182) | Section 5 records the deferred evaluator. | Provisional. [CR-64](#ruling-64) parked story 452's evaluator. [CR-67](#ruling-67) carries the bounds to story 975. |
+| <a name="ruling-58"></a>CR-58 | 2026-11-25 | What scene and test oracle should the visibility check use? | Measure the scene `compose_photo` draws. An omitted component makes its affected target `unsupported`, with no override. Generated cases compare the evaluator's count against the rendered frame and require its bounds to contain the rendered count for every completion of unknowns. | A check for a richer scene can certify a frame the renderer never produces. | [Story 452, comment 10227](https://work.haynesnetwork.com/work_packages/452/activity#comment-10227) | Section 5 records the proposed post-render check. | Provisional. [CR-64](#ruling-64) parked story 452's evaluator. [CR-67](#ruling-67) carries the renderer-oracle requirement to story 975, using the rendered film frames. |
 | <a name="ruling-59"></a>CR-59 | 2026-11-25 | What isolation is required for the shared matte pod? | The worker and sidecar share a network namespace. Restrict pod egress to DNS and the worker API listener, mount the worker token only in the worker, give the sidecar no service-account token, and require worker authentication on every listener route. | Network policy applies to the pod. | [Story 967, comment 10254](https://work.haynesnetwork.com/work_packages/967/activity#comment-10254) | Section 13. CR-65 moved activation to story 970 and CR-66 stages the isolation first. | Provisional, in force for activation under story 970 |
 | <a name="ruling-60"></a>CR-60 | 2026-11-25 | What was the first proposed split for story 452? | Ship the adapter with verified observations and the optional mask and layout fields. Refuse builds using the new fields without override. Move the evaluator and its approval machinery to the renderer story and preserve legacy bytes. | Review showed the separate evaluator drifting from the actual renderer. | [Story 452, comment 10259](https://work.haynesnetwork.com/work_packages/452/activity#comment-10259) | Section 5 records why PRs 140 and 147 remain reference material. | Provisional, narrowed the same day by [CR-61](#ruling-61) and superseded by [CR-64](#ruling-64). |
 | <a name="ruling-61"></a>CR-61 | 2026-11-25 | Could a writer store the proposed opt-in before the evaluator exists? | Keep the optional schema fields but refuse every write setting board `layout.check_poses` or set `occlusion` with `occlusion.check_unavailable`. Keep the pre-build refusal and remove preservation and ownership machinery for the opt-in. | A stored declaration would have no functioning consumer. | [Story 452, comment 10271](https://work.haynesnetwork.com/work_packages/452/activity#comment-10271) | Section 5 records the parked write-refusal design. | Provisional, superseded the same day by [CR-64](#ruling-64). |
 | <a name="ruling-62"></a>CR-62 | 2026-11-25 | When was a rollout admission receipt meant to expire? | Gate the merge by time. After merge require the receipt for that revision and the expected live sequence. Keep read-only audit available. | An elapsed clock window could strand a rollout that Flux was still applying. | [Story 967, comment 10281](https://work.haynesnetwork.com/work_packages/967/activity#comment-10281) | Section 13 records the final rollout rule. | Provisional, superseded the same day by [CR-63](#ruling-63). |
 | <a name="ruling-63"></a>CR-63 | 2026-11-25 | What may mutate the cluster during this rollout? | Merge the reviewed GitOps PR. After merge the runbook waits and audits while Flux reconciles. Rollback and migration retry each require a new reviewed PR. Read the installed network policies before merge and after reconciliation. Those reads are the authoritative isolation check. | Flux reconciles the stages without manual mutations after merge. | [Story 967, comment 10285](https://work.haynesnetwork.com/work_packages/967/activity#comment-10285) · [Saga 362, comment 10325](https://work.haynesnetwork.com/work_packages/362/activity#comment-10325) | Section 13 and haynes-ops PR 5093. | Provisional, in force |
-| <a name="ruling-64"></a>CR-64 | 2026-11-25 | What does story 452 actually deliver? | Merge the explicit-target client and verified create-only mask publication. Keep the proposed fields out of stored schemas until story 968 lands them with the renderer change and visibility check. Park PRs 140 and 147 as references. | Schema exclusion preserves the existing declaration boundary across every writer. | [Story 452, comments 10288](https://work.haynesnetwork.com/work_packages/452/activity#comment-10288) and [10313](https://work.haynesnetwork.com/work_packages/452/activity#comment-10313) | Sections 5, 8 and 12–14 and Studio PR 148. Story 971 owns the separately tracked job. | Provisional, in force |
+| <a name="ruling-64"></a>CR-64 | 2026-11-25 | What does story 452 actually deliver? | Merge the explicit-target client and verified create-only mask publication. Keep the proposed fields out of stored schemas until story 968 lands them with the renderer change and visibility check. Park PRs 140 and 147 as references. | Schema exclusion preserves the existing declaration boundary across every writer. | [Story 452, comments 10288](https://work.haynesnetwork.com/work_packages/452/activity#comment-10288) and [10313](https://work.haynesnetwork.com/work_packages/452/activity#comment-10313) | Sections 5, 8 and 12–14 and Studio PR 148. Story 971 owns the separately tracked job. | Provisional, in force for story 452's delivered scope. [CR-67](#ruling-67) moves the proposed visibility check out of story 968. |
 | <a name="ruling-65"></a>CR-65 | 2026-11-25 | What belongs in the fourth pin? | Pin Studio `470a90af`, including the app, existing workers, schema `0013_matte_jobs` and PyAV 18.1.1 in both runtime paths. Move the matte worker, sidecar, credential, grant, registration, isolation and 17-CPU render split to story 970. | A plain pin separates the migration and encoder change from worker activation. | [Story 967, comment 10309](https://work.haynesnetwork.com/work_packages/967/activity#comment-10309) · [Saga 362, comment 10325](https://work.haynesnetwork.com/work_packages/362/activity#comment-10325) | Section 13 and haynes-ops PR 5093. | Provisional, in force |
-| <a name="ruling-66"></a>CR-66 | 2026-11-25 | In what order may matte isolation and activation land? | Before any matte worker pod exists, install and read back the policy-only Flux stage. Protect the policy from Flux pruning and from garbage collection if the stage is deleted, and verify that the policy selects no existing pod. During activation, prove a blocked connection from inside the new pod before requesting the grant and recheck while running. | A single stage could start the pod before its isolating policy exists. | [Story 970, comment 10324](https://work.haynesnetwork.com/work_packages/970/activity#comment-10324) · [Saga 362, comment 10325](https://work.haynesnetwork.com/work_packages/362/activity#comment-10325) | Section 13 and story 970 part A. Part B is held under haynes-ops PR 5096, which is open and unmerged. No independent review is recorded yet. | Provisional, in force. Activation awaits Tom. |
+| <a name="ruling-66"></a>CR-66 | 2026-11-25 | In what order may matte isolation and activation land? | Before any matte worker pod exists, install and read back the policy-only Flux stage. Protect the policy from Flux pruning and from garbage collection if the stage is deleted, and verify that the policy selects no existing pod. During activation, prove a blocked connection from inside the new pod before requesting the grant and recheck while running. | A single stage could start the pod before its isolating policy exists. | [Story 970, comment 10324](https://work.haynesnetwork.com/work_packages/970/activity#comment-10324) · [Saga 362, comment 10325](https://work.haynesnetwork.com/work_packages/362/activity#comment-10325) | Section 13 and story 970 part A. Part B is held under haynes-ops PR 5096, which is open and unmerged. Independent review left the inside-pod proof uncleared. [Story 970, comments 10382](https://work.haynesnetwork.com/work_packages/970/activity#comment-10382) and [10574](https://work.haynesnetwork.com/work_packages/970/activity#comment-10574). | Provisional, in force. Activation awaits Tom. |
+| <a name="ruling-67"></a>CR-67 | 2026-11-26 | What remains in story 968 after the visibility review? | Limit story 968 to the proposed declaration and renderer. A set version may declare foreground role masks as pinned library asset versions. Both renderers must draw them in front of the cast or refuse the build, including when `layout.foreground` is false. Share validation with the run writers and archive import and enforce the declaration at the model. Move visibility to story 975 as a post-render check on the film's own frames in the existing run-check framework, carrying forward CR-54, CR-57 and CR-58. Move segmentation target hints to story 971, the job that uses them. | Keyed frames only exist after keying, so a pre-build check on reference stills cannot gate visibility in the film. | [Story 968, comment 10368](https://work.haynesnetwork.com/work_packages/968/activity#comment-10368) | Section 5 records the scope split. The proposed renderer and declaration stayed on [Studio PR 151](https://github.com/thaynes43/haynes-studio/pull/151). | Provisional. PR 151 is parked for good, open and unmerged. The mask proposal never landed on `main`. [Story 968, comment 10582](https://work.haynesnetwork.com/work_packages/968/activity#comment-10582). |
+| <a name="ruling-68"></a>CR-68 | 2026-11-26 | What does pausing a lane stop? | Pause blocks claims on queued work. A live claim retains its fence and may finish, including a media job's first publish or a run's transcript request. An already authorized engine request may start after the pause response. A lane is quiet at the time of the read when paused with no live claim. Give a paused reconciliation claim only to a worker that declares support, behind a default-off switch. | Pause preserves work already held by a worker. The capability and switch protect mixed-version deployments. | [Story 976, comment 10393](https://work.haynesnetwork.com/work_packages/976/activity#comment-10393) | Sections 8 and 12–15, and merged [Studio PR 152](https://github.com/thaynes43/haynes-studio/pull/152). | Provisional, in force. PR 152 is installed in the fifth pin with `STUDIO_PAUSED_RECONCILE` off. [Story 976, comment 10400](https://work.haynesnetwork.com/work_packages/976/activity#comment-10400) · [Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409). |
+| <a name="ruling-69"></a>CR-69 | 2026-11-26 | Does the lane read expose a live claim with the switch off? | Report additive, read-only `live_claim` for every lane on the signed-in lane read in both switch states. This is the only intended change to the prior response behavior with the switch off. Pause and resume write responses keep their shape. Activate separately after verifying the new build everywhere and draining workers. Enable every API replica, start workers on enabled endpoints and read back. | Operators can observe a quiet lane before activation. A disabled endpoint can permit a missing Wan ID to be replayed. | [Story 976, comment 10397](https://work.haynesnetwork.com/work_packages/976/activity#comment-10397) | Sections 8 and 12–14, and merged [Studio PR 152](https://github.com/thaynes43/haynes-studio/pull/152). | Provisional, in force. The read field ships in the fifth pin with `STUDIO_PAUSED_RECONCILE` off. [Story 976, comment 10400](https://work.haynesnetwork.com/work_packages/976/activity#comment-10400) · [Story 978, comment 10409](https://work.haynesnetwork.com/work_packages/978/activity#comment-10409). |
+| <a name="ruling-70"></a>CR-70 | 2026-11-27 | What should story 968 do with set loops and replayed jobs? | (1) The proposed admission rule resolved a loop's source set from its pinned still. If that set declared masks, the build was to be refused with a specific code even if the board did not select the still. The work order also required refusal when the source could not be resolved. (2) A job renders the versions it froze at admission. An expired photo claim replayed after the draft moves from an unmasked to a masked set would still render the frozen unmasked version and save a non-current result. | Part 1 sought to prevent masks being lost when using a loop. Part 2 preserves frozen-input behavior when a draft moves on. | [Saga 362, comment 10575](https://work.haynesnetwork.com/work_packages/362/activity#comment-10575) and story 968 work order `wo-968-fix3`. | Recorded here as the proposed loop rule and the frozen-input clarification for [Studio PR 151](https://github.com/thaynes43/haynes-studio/pull/151). | Provisional. Part 1 is superseded by [CR-71](#ruling-71). Part 2 stands. PR 151 is parked for good, open and unmerged. No story 968 change landed on `main`. [Story 968, comment 10582](https://work.haynesnetwork.com/work_packages/968/activity#comment-10582). |
+| <a name="ruling-71"></a>CR-71 | 2026-11-27 | What binds a proposed role-mask declaration to a set or motion loop? | Bind the declaration to the set version that carries it. A board or job selecting a declaring set version must draw its masks or be refused. A motion loop is its own asset version and carries no declaration. Refuse a board using a loop only if it also selects a declaring set version or the loop's own recorded provenance names one. Infer nothing from bytes. Every other loop keeps its `main` behavior and snapshot bytes. A copy registered with different provenance is a different asset with the author's recorded provenance. The build would not detect that its bytes once came from a declaring set. Copy and conflicting catalog lineage rules are out of scope. | Identical still bytes can belong to several sets. Inferring ownership refused legacy loops and still allowed relabelled copies. | [Story 968, comment 10578](https://work.haynesnetwork.com/work_packages/968/activity#comment-10578) | Replaces the loop half of [CR-70](#ruling-70) in the design recorded on [Studio PR 151](https://github.com/thaynes43/haynes-studio/pull/151). | Provisional. PR 151 is parked for good, open and unmerged. The mask proposal never landed on `main`. [Story 968, comment 10582](https://work.haynesnetwork.com/work_packages/968/activity#comment-10582). |
