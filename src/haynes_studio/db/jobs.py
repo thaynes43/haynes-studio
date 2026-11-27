@@ -111,20 +111,21 @@ def finish(conn, row, job, **values):
     return document
 
 
-def claim(conn, worker_id, lane, *, settle_only=False):
+def claim(conn, worker_id, lane, *, settle_only=False, settle_while_paused=False):
     if lock_lane(conn, lane, skip_locked=True) is None:
         return None
     paused = not settle_only and is_paused(conn, lane)
-    if paused and lane != "matte":
+    if paused and lane != "matte" and not settle_while_paused:
         return None
+    settle_dispatch = settle_only or paused
     head = sa.select(sa.func.min(media_jobs.c.position)).where(
         media_jobs.c.lane == lane, STATUS.in_(ACTIVE),
     ).scalar_subquery()
     row = conn.execute(sa.select(media_jobs).where(
         media_jobs.c.lane == lane, media_jobs.c.position == head, STATUS.in_(ACTIVE),
     ).with_for_update(skip_locked=True)).mappings().one_or_none()
-    # A paused matte lane can retire an expired dispatch without starting work.
-    if row is None or ((settle_only or paused) and not row["dispatched"]):
+    # A paused lane can retire an expired dispatch without starting work.
+    if row is None or (settle_dispatch and not row["dispatched"]):
         return None
     now = database_time(conn)
     if row["claim_until"] is not None and row["claim_until"] > now:

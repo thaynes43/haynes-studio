@@ -6,7 +6,7 @@ import type { components } from "./api/schema";
 import { ReviewTime } from "./production-approval";
 import type { Run } from "./production-review-data";
 import { boardLabel } from "./route-data";
-import { treePath, type Context } from "./routes";
+import { storyFormatId, treePath, type Context } from "./routes";
 import { Problem } from "./shell-ui";
 import { useRequest } from "./use-request";
 import "./production-feedback.css";
@@ -255,7 +255,10 @@ export function CandidateReview({ api, run, context, reloadDraft }: {
       </label>
       <button className="pill" type="submit" disabled={busy}>Present run</button>
     </form>}
-    {snapshot && targets.length === 0 && <p className="muted">This run has no pinned targets.</p>}
+    {snapshot && targets.length === 0 && <p className="muted">This run has no pinned targets.{" "}
+      <Link to={`${treePath("board", context)}#${storyFormatId}`}>Pin a format in the story editor</Link>
+      {" "}before building again.
+    </p>}
     {failure?.owner === id && <Refusal error={failure.error} />}
     {refreshFailure != null && <Refusal error={refreshFailure} retry={() => void submit(id, undefined, true)} />}
     {iteration && <p role="status">Draft revision {iteration.started_revision} opened.{" "}

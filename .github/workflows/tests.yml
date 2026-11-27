@@ -83,6 +83,8 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
+          # The mixed-version queue tests load the serving revision from Git.
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Python

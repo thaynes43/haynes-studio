@@ -1,7 +1,7 @@
 # Studio API and MCP reference
 
 API **1.0.0**, OpenAPI **3.1.0**, studio-mcp **1.0.0**.
-Source contract build SHA-256 `c6707ef4156f8e197f6d3e84d50e7d3e6116c21cf4e0bd062130d81d8b387faa`.
+Source contract build SHA-256 `145896e1ab8cd2ad05b2ebd7094621448b7214cef71bef785b7fcb509363e1bd`.
 The build digest identifies the offline OpenAPI export, MCP tool descriptors and excluded worker route index.
 
 Regenerate this page and its schema data when a PR changes an operation, tool or schema.
@@ -486,8 +486,8 @@ They describe individual request or response parts. Use the HTTP or MCP table fo
 | `POST /v1/productions/{production_id}/escalations/{package_id}/callback` | `report_escalation` | HTTP callback for the exact package responder. [Escalation operations](escalation.md#operator-and-responder-operations). |
 | `POST /v1/productions/{production_id}/escalations/{package_id}/cancel` | `cancel_escalation` | Signed-in operator decision. [Escalation operations](escalation.md#operator-and-responder-operations). |
 | `POST /v1/productions/{production_id}/escalations/{package_id}/decline` | `decline_escalation` | Signed-in operator decision. [Escalation operations](escalation.md#operator-and-responder-operations). |
-| `GET /v1/queue/lanes` | `get_queue_lanes` | Signed-in person required. See the HTTP access column. |
-| `PUT /v1/queue/lanes/{lane}` | `set_queue_lane` | Signed-in person required. See the HTTP access column. |
+| `GET /v1/queue/lanes` | `get_queue_lanes` | Signed-in person required. Each lane reports whether it has a live claim. [Queue controls](studio-api.md#queue-controls). |
+| `PUT /v1/queue/lanes/{lane}` | `set_queue_lane` | Signed-in person required. Pause holds queued work while workers can settle previously dispatched jobs. [Queue controls](studio-api.md#queue-controls). |
 | `POST /v1/runs/{id}/candidates` | `present_candidate` | unrecorded |
 | `POST /v1/runs/{id}/checks/{check}/overrides` | `record_check_override` | Visual check overrides require a person. [Operation parity](studio-operation-parity.md). |
 | `GET /v1/runs/{id}/go-live-approvals` | `get_go_live_approvals` | Go-live and publication are reserved for people. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41) and [release packages](release-package.md#api). |

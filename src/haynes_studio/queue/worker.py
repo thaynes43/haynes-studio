@@ -147,6 +147,8 @@ class BuildWorker:
                                  progress=active.progress, clock=self.clock, pause=self.pause)
             try:
                 clips.reconcile()
+                if claim.body.get("reconcile_only"):
+                    raise LanePaused("work.lane_paused", "Recorded Wan work settled. Resume the lane to continue")
                 active.progress("preflight")
                 inputs = self._inputs(claim)
                 self.wan.ready()
@@ -164,7 +166,12 @@ class BuildWorker:
                 claim.fail(status="failed", reason=failure.message[:500], error=failure.to_document(),
                            wan_job_id=error.job_id)
                 return True
-            except (WorkerAPIError, OSError):
+            except WorkerAPIError as error:
+                if error.code != "work.lane_paused":
+                    raise
+                self._pause(claim, LanePaused("work.lane_paused", "Resume the run lane to continue"))
+                return True
+            except OSError:
                 # Ownership or the reply is ambiguous. Relinquish by expiry;
                 # the next claimant reads any durable external ID first.
                 raise

@@ -333,6 +333,9 @@ class ProductClips:
                 self.downloaded[attempt["job_id"]] = clip
 
     def _send(self, attempt, *, first_send=False):
+        if self.claim.body.get("reconcile_only"):
+            raise LanePaused("work.lane_paused", "Wan has no record for the sent ID while the run lane is paused",
+                             job_id=attempt["job_id"])
         # Inputs were staged before the fenced sent marker. A takeover can use
         # the same request even if the previous worker's PUT is still in flight.
         try:

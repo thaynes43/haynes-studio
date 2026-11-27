@@ -32,6 +32,8 @@ export const mediaKinds = {
   video: { label: "Video", plural: "Videos", aspect: "16:9" },
 } satisfies Record<MediaKind, { label: string; plural: string; aspect: string }>;
 
+export const storyFormatId = "story-format";
+
 function isId(value: string | undefined | null, prefix: "prd" | "sty" | "brd" | "run" | "job") {
   return typeof value === "string" && value.length === 30 && value.startsWith(prefix + "_") &&
     /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/.test(value.slice(4));
@@ -203,4 +205,15 @@ export function safePath(value: unknown) {
     default:
       return routePath(route);
   }
+}
+
+/** Keep the Format destination in tab storage on an editor storyboard route. */
+export function safeReturnPath(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  const [path, fragment, extra] = value.split("#");
+  const safe = safePath(path);
+  if (fragment === undefined) return safe;
+  if (!safe || fragment !== storyFormatId || extra !== undefined) return undefined;
+  const route = parseRoute(safe);
+  return route.area === "board" && route.context.story && !route.page ? `${safe}#${storyFormatId}` : undefined;
 }

@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from haynes_studio.canonical.ids import is_id
 
 API_VERSION = "1.0.0"
+PAUSED_RECONCILE_HEADER = "X-Studio-Paused-Reconcile"
 PROFILES = {"i2v": "wan2.2-ti2v-5b", "s2v": "wan2.2-s2v-14b-lightning"}
 STORY_PATTERN = r"^https://work\.haynesnetwork\.com/work_packages/[1-9][0-9]*$"
 SHA256 = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]

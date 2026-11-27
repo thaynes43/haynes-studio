@@ -17,7 +17,7 @@
     "get_job_result": "Signed-in person required. [Asset candidates](asset-candidates.md#api-and-ui-integration).",
     "get_me": "MCP uses this as its bearer identity check. [MCP transport](studio-mcp.md).",
     "get_media": "MCP returns compact metadata and excludes byte reads. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41).",
-    "get_queue_lanes": "Signed-in person required. See the HTTP access column.",
+    "get_queue_lanes": "Signed-in person required. Each lane reports whether it has a live claim. [Queue controls](studio-api.md#queue-controls).",
     "get_selections": "Signed-in person required. See the HTTP access column.",
     "get_version_media": "MCP returns compact metadata and excludes byte reads. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41).",
     "head_job_media": "MCP returns compact metadata and excludes byte reads. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41).",
@@ -33,7 +33,7 @@
     "record_publication": "Go-live and publication are reserved for people. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41) and [release packages](release-package.md#api).",
     "report_escalation": "HTTP callback for the exact package responder. [Escalation operations](escalation.md#operator-and-responder-operations).",
     "request_matte": "Signed-in person required. Production-scoped status is available via studio_get_job. [Matte requests](studio-api.md#matte-requests-and-reads).",
-    "set_queue_lane": "Signed-in person required. See the HTTP access column.",
+    "set_queue_lane": "Signed-in person required. Pause holds queued work while workers can settle previously dispatched jobs. [Queue controls](studio-api.md#queue-controls).",
     "start_feedback_iteration": "Signed-in person required. See the HTTP access column.",
     "withdraw_go_live": "Go-live and publication are reserved for people. [MCP boundaries](../contracts/studio-contracts-v1.md#boundaries-d41) and [release packages](release-package.md#api)."
   },

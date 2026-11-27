@@ -6,9 +6,11 @@ import json
 from pathlib import Path
 from secrets import token_hex
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 from types import SimpleNamespace
 
 import httpx
+import psycopg
 import pytest
 import sqlalchemy as sa
 from sqlalchemy.sql import visitors
@@ -19,8 +21,9 @@ from haynes_studio.api.app import create_app
 from haynes_studio.api.auth import SESSION_COOKIE
 from haynes_studio.canonical.ids import Minter
 from haynes_studio.canonical.model import Board, Story
-from haynes_studio.db import drafts, identity, runs
+from haynes_studio.db import drafts, identity, queue_controls, runs
 from haynes_studio.db.catalog import record_asset_version
+from haynes_studio.db.runs import database_time
 from haynes_studio.db.schema import run_wan_attempts, worker_lane_grants, worker_tokens
 from haynes_studio.library import Library
 from haynes_studio.photo.plan import plan_photo
@@ -31,7 +34,7 @@ from haynes_studio.queue.worker_tokens import worker_bearer
 
 from tests.build_story.fixtures import example, photo_png, register
 from tests.db.test_studio_api import (
-    bearer, client, engine, new_production, new_story, owner_engine,
+    ISSUER, bearer, client, engine, new_production, new_story, owner_engine,
     register_agent, runtime_db, runtime_role, service, sign_in,
 )
 from tests.queue.fake_wan import Clock, FakeWan, STORY
@@ -55,8 +58,8 @@ class LocalWorkerHTTP:
         self.client = client(app)
         self.headers = headers
 
-    def post(self, url, **kwargs):
-        return self.client.post(url, headers=self.headers, **kwargs)
+    def post(self, url, *, headers=None, **kwargs):
+        return self.client.post(url, headers={**self.headers, **(headers or {})}, **kwargs)
 
 
 @pytest.fixture
@@ -436,6 +439,340 @@ def test_late_put_from_fenced_worker_is_deduplicated(queue, monkeypatch):
     assert fake.submissions == [fake.put_bodies[0][0]]
     assert [verb for verb, path in fake.events if path == fake.puts()[0]] == ["PUT", "GET", "PUT", "GET"]
     assert worker_api(q).claim().identity["run_id"] == second
+
+
+def _pause_run_lane(q, paused):
+    response = q.browser.put("/v1/queue/lanes/run", headers=q.csrf, json={"paused": paused})
+    assert response.status_code == 200
+    assert response.json()["paused"] is paused
+
+
+def _expire_run_claim(q, run_id):
+    with q.owner.begin() as conn:
+        expires = database_time(conn) - timedelta(seconds=1)
+        conn.execute(runs.runs.update().where(runs.runs.c.id == run_id).values(claim_until=expires))
+
+
+def _elapse_run_retry(q, run_id):
+    with q.owner.begin() as conn:
+        conn.execute(runs.runs.update().where(runs.runs.c.id == run_id)
+                     .values(retry_at=database_time(conn) - timedelta(seconds=1)))
+
+
+def _dispatch_to_fake_wan(q, claim, transport):
+    request = request_for(q)
+    body = product_request(request)
+    attempt = claim.reserve("i2v", body)
+    transport.stage(request.image_png, body["image_sha256"], "png")
+    sent = claim.attempt(attempt["job_id"], "sent")
+    transport.submit(sent)
+    return attempt["job_id"]
+
+
+@pytest.fixture
+def paused_reconcile(queue, monkeypatch):
+    monkeypatch.setattr(queue.app.state, "paused_reconcile", True)
+    monkeypatch.setattr(runs, "database_time", database_time)
+    return queue
+
+
+@pytest.mark.parametrize(("enabled", "capability"), [(False, "1"), (True, "0")],
+                         ids=["switch-unset", "capability-zero"])
+def test_paused_sent_claim_requires_switch_and_explicit_capability(queue, monkeypatch, enabled, capability):
+    q = queue
+    if enabled:
+        monkeypatch.setenv("STUDIO_PAUSED_RECONCILE", "1")
+    else:
+        monkeypatch.delenv("STUDIO_PAUSED_RECONCILE", raising=False)
+    monkeypatch.setattr(runs, "database_time", database_time)
+    app = create_app(q.engine, q.store, q.app.state.oidc)
+    assert app.state.paused_reconcile is enabled
+    run_id = queue_run(q, "expired-sent-claim").json()["id"]
+    old = worker_api(q, app=app).claim()
+    attempt = old.reserve("i2v", product_request(request_for(q)))
+    old.attempt(attempt["job_id"], "sent")
+    _pause_run_lane(q, True)
+    _expire_run_claim(q, run_id)
+
+    replacement = LocalWorkerHTTP(app, worker_credentials(q.owner))
+    response = replacement.post("/internal/v1/work/claim", headers={"X-Studio-Paused-Reconcile": capability})
+    assert response.status_code == 204, response.text
+    assert response.content == b""
+    with q.engine.connect() as conn:
+        assert runs.get(conn, run_id)["fence"] == old.identity["fence"]
+
+
+@pytest.mark.parametrize("outcome", ["succeeded", "failed"])
+def test_pause_before_reclaim_drains_the_sent_job_and_preserves_fifo(paused_reconcile, monkeypatch, outcome):
+    q = paused_reconcile
+    monkeypatch.setattr(wan, "measure_clip", lambda data: wan.Measured(5, 64, 64, "24"))
+    first, second, third = [queue_run(q, key).json()["id"] for key in ("sent-head", "next", "last")]
+    old = worker_api(q).claim()
+    replacement = worker_api(q)
+    fake = FakeWan()
+    with fake.client() as wan_http:
+        job_id = _dispatch_to_fake_wan(q, old, ProductWan(wan_http))
+        states = iter(("running", outcome))
+        fake.before_get = lambda key: fake.jobs[key].update(state=next(states))
+        _pause_run_lane(q, True)
+        assert replacement.claim() is None  # Even dispatched work keeps its live fence.
+        _expire_run_claim(q, first)
+
+        worker = clip_worker(q, wan_http, api=replacement)
+        assert worker.tick()
+        with pytest.raises(WorkerAPIError, match="work.fence_lost"):
+            old.heartbeat()
+        assert not worker.tick()
+    assert fake.submissions == [job_id]
+    put, = fake.puts()
+    assert fake.events.count(("GET", put)) == 2
+    head, _ = read_run(q, first)
+    assert head["status"] == ("held" if outcome == "succeeded" else "failed")
+    assert head["wan_attempts"] == [{"job_id": job_id, "kind": "i2v", "attempt": 1, "state": outcome}]
+    assert [read_run(q, ident)[0]["status"] for ident in (second, third)] == ["queued", "queued"]
+
+    _pause_run_lane(q, False)
+    if outcome == "succeeded":
+        _elapse_run_retry(q, first)
+    expected = (first, second, third) if outcome == "succeeded" else (second, third)
+    for ident in expected:
+        claim = replacement.claim()
+        assert claim is not None and claim.identity["run_id"] == ident
+        claim.fail(status="failed", reason="Fixture settles the FIFO head")
+
+
+def test_pause_transaction_races_reclaim_of_a_released_sent_job(paused_reconcile):
+    q = paused_reconcile
+    first, second = [queue_run(q, key).json()["id"] for key in ("unconfirmed-head", "next")]
+    old = worker_api(q).claim()
+    attempt = old.reserve("i2v", product_request(request_for(q)))
+    job_id = attempt["job_id"]
+    old.attempt(job_id, "sent")
+    old.fail(status="held", reason="Fixture loses the PUT before Wan receives it")
+    _elapse_run_retry(q, first)
+
+    fake = FakeWan()
+    with fake.client() as wan_http:
+        replacement = clip_worker(q, wan_http)
+        with q.engine.begin() as conn:
+            queue_controls.set_paused(conn, "run", True,
+                                      {"kind": "human", "iss": ISSUER, "sub": "one"}, database_time)
+            # The pause transaction still holds the lane row when this poll arrives.
+            assert not replacement.tick()
+            assert fake.events == []
+        assert replacement.tick()
+        assert fake.events == [("GET", f"/v1/jobs/i2v/{job_id}")]
+
+        head, _ = read_run(q, first)
+        assert head["status"] == "held" and head["error"]["code"] == "work.lane_paused"
+        assert head["wan_attempts"][0]["state"] == "sent"
+        assert read_run(q, second)[0]["status"] == "queued"
+
+
+@pytest.mark.parametrize("replay", [False, True], ids=["first-send", "same-id-replay"])
+@pytest.mark.parametrize("enabled", [False, True], ids=["disabled", "enabled"])
+def test_pause_after_claim_orders_wan_dispatch(queue, monkeypatch, replay, enabled):
+    q = queue
+    monkeypatch.setattr(q.app.state, "paused_reconcile", enabled)
+    monkeypatch.setattr(runs, "database_time", database_time)
+    monkeypatch.setattr(wan, "measure_clip", lambda data: wan.Measured(5, 64, 64, "24"))
+    run_id = queue_run(q, "pause-race").json()["id"]
+    fake = FakeWan()
+    with fake.client() as wan_http:
+        worker = clip_worker(q, wan_http)
+        if replay:
+            old = worker_api(q).claim()
+            request = request_for(q)
+            body = product_request(request)
+            job_id = old.reserve("i2v", body)["job_id"]
+            worker.wan.stage(request.image_png, body["image_sha256"], "png")
+            old.attempt(job_id, "sent")
+            _expire_run_claim(q, run_id)
+            # Reclaim wins the lock while the lane is open. Pause as it reads
+            # the saved ID, before authorization to replay the missing PUT.
+            fake.before_get = lambda key: _pause_run_lane(q, True)
+        else:
+            ready = worker.wan.ready
+
+            def ready_then_pause(kind=None):
+                ready(kind)
+                if read_run(q, run_id)[0]["wan_attempts"] and kind is None:
+                    _pause_run_lane(q, True)
+
+            monkeypatch.setattr(worker.wan, "ready", ready_then_pause)
+        assert worker.tick()
+    head, _ = read_run(q, run_id)
+    if enabled:
+        assert fake.puts() == []
+        assert head["status"] == "held" and head["error"]["code"] == "work.lane_paused"
+        assert head["wan_attempts"][0]["state"] == "sent"
+    else:
+        # A switched-off API preserves the serving build's dispatch behavior.
+        assert len(fake.puts()) == 1
+        assert head["wan_attempts"][0]["state"] == "succeeded"
+
+
+def test_paused_lane_does_not_reclaim_a_reserved_wan_job(paused_reconcile):
+    q = paused_reconcile
+    run_id = queue_run(q, "reserved-only").json()["id"]
+    old = worker_api(q).claim()
+    job_id = old.reserve("i2v", product_request(request_for(q)))["job_id"]
+    _expire_run_claim(q, run_id)
+    _pause_run_lane(q, True)
+    replacement = worker_api(q)
+    assert replacement.claim() is None
+    _pause_run_lane(q, False)
+    claim = replacement.claim()
+    assert claim.identity == {"run_id": run_id, "fence": old.identity["fence"] + 1}
+    assert claim.body["pending"]["job_id"] == job_id
+
+
+@pytest.mark.parametrize("queued_with_sent", [False, True], ids=["no-pending-attempt", "queued-with-sent"])
+def test_paused_lane_excludes_ineligible_run_heads(paused_reconcile, queued_with_sent):
+    q = paused_reconcile
+    run_id = queue_run(q, "ineligible-head").json()["id"]
+    old = worker_api(q).claim()
+    if queued_with_sent:
+        attempt = old.reserve("i2v", product_request(request_for(q)))
+        old.attempt(attempt["job_id"], "sent")
+        # Simulate an inconsistent head without relying on a worker to create it.
+        with q.owner.begin() as conn:
+            row = runs.get(conn, run_id)
+            conn.execute(runs.runs.update().where(runs.runs.c.id == run_id)
+                         .values(document={**row["document"], "status": "queued"}))
+    _expire_run_claim(q, run_id)
+    _pause_run_lane(q, True)
+
+    assert worker_api(q).claim() is None
+    with q.engine.connect() as conn:
+        assert runs.get(conn, run_id)["fence"] == old.identity["fence"]
+
+
+def test_pause_refuses_sent_marker_before_wan_authorization(paused_reconcile):
+    q = paused_reconcile
+    run_id = queue_run(q, "mark-after-pause").json()["id"]
+    claim = worker_api(q).claim()
+    attempt = claim.reserve("i2v", product_request(request_for(q)))
+    _pause_run_lane(q, True)
+
+    with pytest.raises(WorkerAPIError, match="work.lane_paused") as refusal:
+        claim.attempt(attempt["job_id"], "sent")
+    assert refusal.value.status == 409
+    assert read_run(q, run_id)[0]["wan_attempts"][0]["state"] == "reserved"
+
+
+@pytest.mark.parametrize("existing", [False, True], ids=["new-id", "existing-id"])
+def test_pause_refuses_wan_reservation(paused_reconcile, existing):
+    q = paused_reconcile
+    run_id = queue_run(q, "reserve-after-pause").json()["id"]
+    claim = worker_api(q).claim()
+    request = product_request(request_for(q))
+    if existing:
+        claim.reserve("i2v", request)
+    before = read_run(q, run_id)[0]["wan_attempts"]
+    _pause_run_lane(q, True)
+
+    with pytest.raises(WorkerAPIError, match="work.lane_paused") as refusal:
+        claim.reserve("i2v", request)
+    assert refusal.value.status == 409
+    assert read_run(q, run_id)[0]["wan_attempts"] == before
+
+
+def test_paused_live_run_can_reserve_wan_attempt_with_switch_unset(queue, monkeypatch):
+    q = queue
+    monkeypatch.delenv("STUDIO_PAUSED_RECONCILE", raising=False)
+    app = create_app(q.engine, q.store, q.app.state.oidc)
+    assert app.state.paused_reconcile is False
+    run_id = queue_run(q, "reserve-with-switch-unset").json()["id"]
+    worker = LocalWorkerHTTP(app, worker_credentials(q.owner))
+    claim = WorkerAPI(worker).claim()
+    _pause_run_lane(q, True)
+
+    proposal = {**product_request(request_for(q)), "kind": "i2v"}
+    response = worker.post("/internal/v1/work/attempts", json={**claim.identity, "proposal": proposal})
+    assert response.status_code == 200, response.text
+    attempt, = read_run(q, run_id)[0]["wan_attempts"]
+    assert attempt["job_id"] == response.json()["job_id"]
+    assert attempt["state"] == "reserved"
+
+
+def test_paused_final_wan_heartbeat_reports_cancellation_to_live_holder(paused_reconcile):
+    q = paused_reconcile
+    run_id = queue_run(q, "cancel-before-final-heartbeat").json()["id"]
+    worker = LocalWorkerHTTP(q.app, worker_credentials(q.owner))
+    claim = WorkerAPI(worker).claim()
+    attempt = claim.reserve("i2v", product_request(request_for(q)))
+    claim.attempt(attempt["job_id"], "sent")
+    _pause_run_lane(q, True)
+    _, etag = read_run(q, run_id)
+    cancelled = cancel(q, run_id, etag)
+    assert cancelled.status_code == 200 and cancelled.json()["cancel_requested"] is True
+
+    response = worker.post("/internal/v1/work/heartbeat", json={
+        **claim.identity, "progress": {"percent": 25, "stage": "wan_submitting"},
+    })
+    assert response.status_code == 200, response.text
+    assert response.json()["cancel_requested"] is True
+
+
+def test_wan_dispatch_check_waits_for_uncommitted_pause(paused_reconcile):
+    q = paused_reconcile
+    run_id = queue_run(q, "dispatch-lane-lock").json()["id"]
+    claim = worker_api(q).claim()
+    worker_id = claim.body["actor"]["worker_id"]
+    with q.engine.begin() as pause:
+        queue_controls.set_paused(pause, "run", True, {"kind": "human", "iss": ISSUER, "sub": "one"},
+                                  database_time)
+        with pytest.raises(sa.exc.OperationalError) as locked, q.engine.begin() as dispatch:
+            dispatch.exec_driver_sql("SET LOCAL lock_timeout = '250ms'")
+            runs.lock_claim(dispatch, run_id, worker_id, claim.identity["fence"], wan_dispatch=True)
+        assert isinstance(locked.value.orig, psycopg.errors.LockNotAvailable)
+
+    with pytest.raises(WorkerAPIError, match="work.lane_paused"):
+        claim.heartbeat({"percent": 25, "stage": "wan_submitting"})
+
+
+def test_live_run_can_send_an_authorized_wan_put_and_transcribe_after_pause(
+    paused_reconcile, monkeypatch, tmp_path,
+):
+    from tests.delivery.media import write_master
+
+    q = paused_reconcile
+    add_sound_bed(q, tmp_path)
+    queued = queue_run(q, "authorized-before-pause", rev=4)
+    assert queued.status_code == 201
+    clip = write_master(tmp_path / "wan-fixture.mp4", frames=121, width=576, height=1024,
+                        audio_codec=None).read_bytes()
+    fake = FakeWan(clip)
+    transcripts = []
+
+    def transcribe(_wav):
+        assert fake.puts()
+        run_lane, *_ = q.browser.get("/v1/queue/lanes").json()["items"]
+        assert run_lane["paused"] is True and run_lane["live_claim"] is True
+        transcripts.append("read")
+        return ""
+
+    with fake.client() as wan_http:
+        worker = BuildWorker(worker_api(q), ProductWan(wan_http), store=q.store, stage_root=q.stage_root,
+                             register=register(), tracker_story=STORY,
+                             transcriber=SimpleNamespace(name="Fixture ASR", transcribe=transcribe),
+                             clock=q.clock.monotonic, pause=q.clock.advance)
+        submit = worker.wan.submit
+
+        def pause_then_submit(attempt):
+            _pause_run_lane(q, True)
+            lanes = q.browser.get("/v1/queue/lanes").json()["items"]
+            assert next(lane for lane in lanes if lane["lane"] == "run")["live_claim"] is True
+            assert not fake.puts()
+            return submit(attempt)
+
+        monkeypatch.setattr(worker.wan, "submit", pause_then_submit)
+        assert worker.tick()
+    assert len(fake.puts()) == len(transcripts) == 1
+    assert read_run(q, queued.json()["id"])[0]["status"] == "succeeded"
+    run_lane, *_ = q.browser.get("/v1/queue/lanes").json()["items"]
+    assert run_lane["paused"] is True and run_lane["live_claim"] is False
 
 
 @pytest.mark.parametrize("state", ["sent", "busy"])

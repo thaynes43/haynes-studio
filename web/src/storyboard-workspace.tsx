@@ -84,7 +84,7 @@ export function StoryboardWorkspace({ api, model, scope, photoRoute }: {
 
   if (!draft) return null;
   const labels = timelineLabels(draft.timing);
-  const locked = pending || Boolean(problem?.reload);
+  const locked = pending || model.draftNeedsReload;
   const selectedTiming = selected ? labels.boards.get(selected) : undefined;
   const panel = draft.boards[selectedIndex];
   return <div className="storyboard-workspace">

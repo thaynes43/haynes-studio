@@ -17,8 +17,8 @@ from .media_completion import complete_candidate, complete_photo, complete_voice
 from .routes import _id
 
 
-def claim(conn, worker_id, lane):
-    row = jobs.claim(conn, worker_id, lane)
+def claim(conn, worker_id, lane, *, settle_while_paused=False):
+    row = jobs.claim(conn, worker_id, lane, settle_while_paused=settle_while_paused)
     if row is None:
         return None
     body = {"job": jobs.job_document(row), "inputs": row["inputs"], "fence": row["fence"],
